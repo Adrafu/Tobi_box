@@ -60,8 +60,12 @@ Beim Start (und bei jedem Lesen) in dieser Reihenfolge:
     `unknown.json` ohne Einträge, `update.json` mit Zustand `ok`.
     `Protokoll(ERROR, "datei_verloren")`; der Prüfpunkt „Speicher“ meldet
     einen Fehler.
-4.  Eine fehlende Datei ist kein Fehler (erster Start): Standardwerte, ohne
-    Meldung.
+4.  Fehlt `<name>`, aber es gibt eine gültige `<name>.bak` (Abbruch zwischen
+    den Schritten, Datei von Hand gelöscht), gilt `<name>.bak`: sie wird als
+    `<name>` zurückgeschrieben, `Protokoll(WARNING, "datei_aus_bak")`. Nur wenn
+    **beide** Dateien fehlen, ist es der erste Start (kein Fehler): Standardwerte,
+    ohne Meldung. Beim Umbenennen nach `.defekt` wird das Verzeichnis
+    `fsync`t, und `<name>.bak` wird vor dem Umbenennen gelesen.
 
 ### 1.4 Unbekannte Felder
 
@@ -347,6 +351,12 @@ Regeln (aus dem Design, hier zusammengefasst):
     der Dateinamen (unten). Der Ordnername muss als ID gültig sein (1 bis 64
     Zeichen, keine Steuerzeichen); sonst spielt die Box den Ordner nicht und
     protokolliert `ordner_name_ungueltig`.
+*   **Dateifilter (Ordner ohne `serie.json`):** Als Folgen zählen nur Dateien,
+    deren Name **nicht mit `.` beginnt** (versteckte Dateien, `._*` von macOS)
+    und deren Endung (ohne Unterscheidung von Groß-/Kleinschreibung) eine von
+    `mp3`, `m4a`, `m4b`, `aac`, `flac`, `ogg`, `opus`, `wav` ist. Die
+    HA-Integration benutzt dieselbe Liste, wenn sie `folgen` für einen solchen
+    Ordner anlegt.
 *   **HA legt `serie.json` für einen solchen Ordner an:** Die Integration
     übernimmt den **Ordnernamen als `id`** (keine neue Zufalls-ID), damit Zeiger
     (`resume.json`) und Zuordnungen (`config.json`) erhalten bleiben. Die

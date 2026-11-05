@@ -1,8 +1,15 @@
-"""Stromausfall: ein Kindprozess schreibt in einer Schleife, der Test beendet ihn hart.
+"""Prozessabbruch (Atomarität) beim Schreiben der Zustandsdateien.
 
-Nach jedem ``SIGKILL`` muss die Zustandsdatei lesbar sein (alte oder neue
-Fassung, nie eine halbe), und nach Laden/Aufräumen auch ohne Rückfall. Der
-Rückfall auf ``.bak`` wird zusätzlich einzeln geprüft.
+Ein Kindprozess schreibt in einer Schleife, der Test beendet ihn mit
+``SIGKILL``. Danach muss die Zustandsdatei lesbar sein (alte oder neue Fassung,
+nie eine halbe), und nach Laden/Aufräumen auch ohne Rückfall.
+
+Grenze: ``SIGKILL`` beendet nur den Prozess, der Kernel schreibt seinen
+Seiten-Cache weiter. Das beweist die **Atomarität** (``replace``-Reihenfolge),
+nicht die **Dauerhaftigkeit** bei echtem Stromausfall. Dafür prüft
+``test_reihenfolge_der_betriebssystemaufrufe`` die Aufrufreihenfolge
+(``fsync`` vor ``replace``, Verzeichnis-``fsync`` zuletzt); den echten
+Stromausfall (Stecker ziehen) testet Tobias auf dem Pi.
 """
 
 from __future__ import annotations
@@ -21,7 +28,8 @@ from tobibox import store
 
 pytestmark = pytest.mark.skipif(not hasattr(os, "fork"), reason="braucht fork")
 
-DURCHLAEUFE = 60
+DURCHLAEUFE = 60  # Mindestzahl der Abbrüche
+MAX_DURCHLAEUFE = 600  # Obergrenze, bis ein Abbruch mitten im Schreiben getroffen wurde
 POLSTER = "x" * 20_000  # größere Datei: das Schreibfenster wird breiter
 
 
@@ -46,13 +54,15 @@ def lese_zaehler(pfad: Path) -> int:
     return json.loads(pfad.read_text(encoding="utf-8"))["serien"]["s1"]["zaehler"]
 
 
-def test_hartes_beenden_waehrend_des_schreibens_laesst_nie_eine_unlesbare_datei(tmp_path):
+def test_prozessabbruch_waehrend_des_schreibens_laesst_nie_eine_unlesbare_datei(tmp_path):
     ctx = multiprocessing.get_context("fork")
     rng = random.Random(1234)
     pfad = tmp_path / "resume.json"
     letzter = 0
     kills_mit_resten = 0
-    for i in range(DURCHLAEUFE):
+    for i in range(MAX_DURCHLAEUFE):
+        if i >= DURCHLAEUFE and kills_mit_resten >= 1:
+            break
         bereit = ctx.Event()
         kind = ctx.Process(target=schreiber, args=(str(tmp_path), letzter, bereit), daemon=True)
         kind.start()
@@ -80,7 +90,9 @@ def test_hartes_beenden_waehrend_des_schreibens_laesst_nie_eine_unlesbare_datei(
         assert not list(tmp_path.glob("*.tmp"))
         assert not (tmp_path / "resume.json.defekt").exists()
         letzter = zaehler
-    assert kills_mit_resten >= 1, "kein Abbruch mitten im Schreiben getroffen: Test ist wirkungslos"
+    # Die Wirkung des Verfahrens an jeder Stelle prüft der Test mit ``Abbruch`` unten;
+    # hier nur: bis zur Obergrenze wurde mindestens einmal mitten im Schreiben getroffen.
+    assert kills_mit_resten >= 1, "kein Abbruch mitten im Schreiben getroffen (trotz Wiederholungen)"
 
 
 class Abbruch(BaseException):
@@ -118,3 +130,50 @@ def test_abbruch_an_jeder_stelle_des_verfahrens_laesst_die_datei_lesbar(tmp_path
     s.laden()
     assert s.quelle == "datei"
     assert not list(tmp_path.glob("*.tmp"))
+
+
+def test_reihenfolge_der_betriebssystemaufrufe(tmp_path, monkeypatch):
+    """data-model 1.2: fsync(tmp) vor jedem replace; link vor replace(bak); Verzeichnis-fsync zuletzt."""
+    import stat
+
+    pfad = tmp_path / "resume.json"
+    store.schreibe_atomar(pfad, inhalt(1))  # damit beim zweiten Mal eine .bak entsteht
+
+    aufrufe: list[tuple] = []
+    echt = {"fsync": os.fsync, "link": os.link, "replace": os.replace}
+    verz_ino = os.stat(tmp_path).st_ino
+
+    def fsync(fd):
+        st = os.fstat(fd)
+        art = "verz" if stat.S_ISDIR(st.st_mode) else "datei"
+        aufrufe.append(("fsync", art, st.st_ino))
+        return echt["fsync"](fd)
+
+    def link(src, dst, *a, **k):
+        aufrufe.append(("link", Path(src).name, Path(dst).name, os.stat(src).st_ino))
+        return echt["link"](src, dst, *a, **k)
+
+    def replace(src, dst):
+        aufrufe.append(("replace", Path(src).name, Path(dst).name, os.stat(src).st_ino))
+        return echt["replace"](src, dst)
+
+    monkeypatch.setattr(os, "fsync", fsync)
+    monkeypatch.setattr(os, "link", link)
+    monkeypatch.setattr(os, "replace", replace)
+    store.schreibe_atomar(pfad, inhalt(2))
+    monkeypatch.undo()
+
+    namen = [a[:3] if a[0] != "fsync" else a[:2] for a in aufrufe]
+    assert namen == [
+        ("fsync", "datei"),
+        ("link", "resume.json", "resume.json.bak.tmp"),
+        ("replace", "resume.json.bak.tmp", "resume.json.bak"),
+        ("replace", "resume.json.tmp", "resume.json"),
+        ("fsync", "verz"),
+    ]
+    # fsync der Datei geschah auf demselben Inode, der danach umbenannt wird
+    tmp_ino = aufrufe[0][2]
+    assert aufrufe[3][3] == tmp_ino
+    # das Verzeichnis-fsync gilt dem Elternverzeichnis
+    assert aufrufe[4][2] == verz_ino
+    lese_zaehler(pfad)

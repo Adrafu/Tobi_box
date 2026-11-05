@@ -130,3 +130,61 @@ def test_unbekanntes_ziel_und_datei_ohne_namen():
         eventlog.einrichten(ziel="mail")
     with pytest.raises(ValueError):
         eventlog.einrichten(ziel="datei")
+
+
+def test_daten_schluessel_ebene_und_meldung_kollidieren_nicht_mit_parametern(strom):
+    eventlog.logge("x", "WARNING", "e", "ok", daten={"ebene": "hoch", "meldung": "Text", "baustein": "b"})
+    (z,) = zeilen(strom)
+    assert (z["ebene"], z["baustein"], "meldung" in z) == ("WARNING", "x", False)
+    assert z["daten"] == {"ebene": "hoch", "meldung": "Text", "baustein": "b"}
+
+
+def test_logge_befehl_reicht_daten_als_objekt_weiter(strom):
+    eventlog.logge_befehl(ev.Protokoll("s", "INFO", "e", "ok", None, {"ebene": "x", "meldung": "y"}))
+    (z,) = zeilen(strom)
+    assert z["ebene"] == "INFO" and z["daten"] == {"ebene": "x", "meldung": "y"}
+
+
+def test_protokollieren_wirft_nie(strom):
+    class Boese:
+        def __str__(self):
+            raise RuntimeError("nein")
+
+        __repr__ = __str__
+
+    eventlog.logge("x", "INFO", "e", daten={"a": Boese()})  # darf nicht werfen
+    eventlog.logge("x", "INFO", "e", daten=5)  # type: ignore[arg-type]
+    eventlog.logge("x", "KEINE_EBENE", "e")
+    zs = [z for z in strom.getvalue().splitlines() if z]
+    assert zs and all(json.loads(z)["ereignis"] for z in zs)
+
+
+def test_geheimfilter_ist_rekursiv(strom):
+    eventlog.logge("ha", "INFO", "e", daten={
+        "mqtt": {"host": "h", "passwort": "p1", "tiefer": [{"api_key": "k1", "ok": 1}]},
+        "liste": [{"token": "t1"}, "x"],
+    })
+    (z,) = zeilen(strom)
+    assert z["daten"] == {
+        "mqtt": {"host": "h", "passwort": "***", "tiefer": [{"api_key": "***", "ok": 1}]},
+        "liste": [{"token": "***"}, "x"],
+    }
+    text = strom.getvalue()
+    assert not any(g in text for g in ("p1", "k1", "t1"))
+
+
+@pytest.mark.parametrize("name", ["passwort", "Password", "TOKEN", "secret", "key", "mqtt_passwort",
+                                  "api_key", "access_token", "client_secret"])
+def test_geheimfilter_trifft_ganze_namen_und_endungen(name):
+    assert eventlog._geheim(name)
+
+
+@pytest.mark.parametrize("name", ["monkey", "keyboard", "tokenizer", "hotkey", "secretary", "datei", "serie"])
+def test_geheimfilter_trifft_keine_teilstrings(name):
+    assert not eventlog._geheim(name)
+
+
+def test_geheimfilter_prueft_keine_freitext_werte(strom):
+    """Dokumentierte Grenze: nur Schlüsselnamen, keine Werte."""
+    eventlog.logge("x", "INFO", "e", daten={"detail": "passwort=abc"})
+    assert json.loads(strom.getvalue())["daten"] == {"detail": "passwort=abc"}

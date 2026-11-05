@@ -98,7 +98,7 @@ def test_kein_gueltiges_toml(tmp_path):
         (MINIMAL + '[protokoll]\nziel = "datei"\n', "datei"),
         (MINIMAL + '[protokoll]\nebene = "LAUT"\n', "ebene"),
         (MINIMAL + "[lautstaerke]\nmax = 25\nkopfhoerer = 26\n", "kopfhoerer"),
-        (MINIMAL + "mpd = 3\n", "mpd"),
+        ("mpd = 3\n" + MINIMAL, "mpd"),
     ],
 )
 def test_ungueltige_werte(tmp_path, text, teil):

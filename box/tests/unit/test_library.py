@@ -210,3 +210,69 @@ def test_ueberraschung_ohne_dateien_im_ordner_ist_leer(tmp_path):
     ordner = erzeuge_serie(tmp_path, "u", ["a.wav"], serie_id="u", typ="ueberraschung")
     (ordner / "a.wav").unlink()
     assert lade_bibliothek(tmp_path).ueberraschung_status == "leer"
+
+
+def test_ungueltiges_utf8_im_dateinamen_sortiert_und_laedt(tmp_path, protokoll):
+    import os
+
+    ordner = tmp_path / "roh"
+    ordner.mkdir()
+    schlecht = os.fsdecode(b"folge-\xff2.wav")
+    for n in ("folge-1.wav", schlecht, "folge-3.wav"):
+        schreibe_wav(ordner / n)
+    erzeuge_serie(tmp_path, "gut", ["a.wav"], serie_id="gut")
+    assert sortiere_natuerlich([schlecht, "a"])  # wirft nicht
+    bib = lade_bibliothek(tmp_path)
+    assert bib.serie("gut") is not None  # andere Ordner bleiben
+    assert len(bib.serie("roh").folgen) == 3
+    assert not [r for r in protokoll if r.ereignis == "ordner_fehler"]
+
+
+def test_ein_kaputter_ordner_stoppt_die_anderen_nicht(tmp_path, protokoll, monkeypatch):
+    erzeuge_serie(tmp_path, "a", ["a.wav"], serie_id="a")
+    erzeuge_serie(tmp_path, "b", ["b.wav"], serie_id="b")
+    erzeuge_serie(tmp_path, "c", ["c.wav"], serie_id="c")
+    echt = library._serie_aus_ordner
+
+    def boese(ordner, medien):
+        if ordner.name == "b":
+            raise RuntimeError("kaputt")
+        return echt(ordner, medien)
+
+    monkeypatch.setattr(library, "_serie_aus_ordner", boese)
+    bib = lade_bibliothek(tmp_path)
+    assert [s.id for s in bib.serien] == ["a", "c"]
+    fehler = [r for r in protokoll if r.ereignis == "ordner_fehler"]
+    assert len(fehler) == 1 and fehler[0].levelno == logging.ERROR
+
+
+def test_ohne_serie_json_punktdateien_ignoriert_und_endungen(tmp_path):
+    ordner = tmp_path / "mix"
+    ordner.mkdir()
+    for n in ("a.mp3", "b.m4a", "c.m4b", "d.aac", "e.flac", "f.ogg", "g.opus", "h.wav", "I.MP3",
+              "._a.mp3", ".versteckt.wav", "x.txt", "y.jpg", "z.wma"):
+        (ordner / n).write_bytes(b"x")
+    assert lade_bibliothek(tmp_path).serie("mix").folgen == (
+        "a.mp3", "b.m4a", "c.m4b", "d.aac", "e.flac", "f.ogg", "g.opus", "h.wav", "I.MP3")
+
+
+def test_doppelte_id_ordner_ohne_serie_json_gilt_als_juengster(tmp_path, protokoll):
+    """Ein Ordner ohne ``serie.json`` (ID = Ordnername) verliert gegen eine echte ``serie.json`` mit gleicher ID."""
+    erzeuge_serie(tmp_path, "aaa", ["x.wav"], mit_serie_json=False)  # Ordner zuerst im Alphabet
+    erzeuge_serie(tmp_path, "zzz", ["y.wav"], serie_id="aaa", angelegt_am="2026-11-05T09:00:00Z")
+    bib = lade_bibliothek(tmp_path)
+    assert [(s.id, s.ordner) for s in bib.serien] == [("aaa", "zzz")]
+    assert "serie_id_doppelt" in ereignisse(protokoll)
+
+
+def test_doppelte_id_vergleicht_zeitpunkte_nicht_text(tmp_path):
+    # Textlich "…+02:00" > "…Z", zeitlich ist es früher
+    erzeuge_serie(tmp_path, "a", ["x.wav"], serie_id="d", angelegt_am="2026-11-05T10:30:00Z")
+    erzeuge_serie(tmp_path, "b", ["y.wav"], serie_id="d", angelegt_am="2026-11-05T12:00:00+02:00")
+    assert [s.ordner for s in lade_bibliothek(tmp_path).serien] == ["b"]
+
+
+def test_doppelte_id_unlesbarer_zeitstempel_zaehlt_als_juengster(tmp_path):
+    erzeuge_serie(tmp_path, "a", ["x.wav"], serie_id="d", angelegt_am="gestern")
+    erzeuge_serie(tmp_path, "b", ["y.wav"], serie_id="d", angelegt_am="2026-11-05T09:00:00Z")
+    assert [s.ordner for s in lade_bibliothek(tmp_path).serien] == ["b"]

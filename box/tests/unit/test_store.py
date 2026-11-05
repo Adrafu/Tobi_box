@@ -400,3 +400,144 @@ def test_konfig_bak_rueckfall_behaelt_ton_pegel(tmp_path):
     assert s2.laden().konfig.revision == 1
     assert s2.quelle == "bak"
     assert json.loads((tmp_path / "config.json").read_text())["ton_pegel"] == 40
+
+
+# --- Rückfall bei fehlender Datei, Reihenfolge, Verzeichnis-fsync ---------------
+
+
+def test_fehlende_datei_mit_gueltiger_bak_nimmt_die_bak(tmp_path, protokoll):
+    s = ResumeStore(tmp_path)
+    s.speichern(zeiger_befehl(pos=10.0), 0)
+    s.speichern(zeiger_befehl(pos=20.0), 1)
+    (tmp_path / "resume.json").unlink()  # .bak hat 10.0
+    wert, quelle = lade_resume(tmp_path / "resume.json")
+    assert quelle == "bak" and wert["s1"].position_s == 10.0
+    assert "datei_aus_bak" in ereignisse(protokoll)
+    assert "datei_verloren" not in ereignisse(protokoll)
+    assert json.loads((tmp_path / "resume.json").read_text())["serien"]["s1"]["position_s"] == 10.0  # zurückgeschrieben
+
+
+def test_nur_ohne_beide_dateien_ist_es_ein_erster_start(tmp_path, protokoll):
+    (tmp_path / "resume.json.bak").write_text("müll")
+    wert, quelle = lade_resume(tmp_path / "resume.json")
+    assert (wert, quelle) == ({}, "standard")  # .bak da, aber unbrauchbar: Verlust, kein erster Start
+    assert "datei_verloren" in ereignisse(protokoll)
+    assert lade_resume(tmp_path / "gibtsnicht.json")[1] == "neu"
+
+
+def test_defekte_datei_bak_wird_vor_dem_umbenennen_gelesen_und_verzeichnis_fsynct(tmp_path, monkeypatch):
+    s = ResumeStore(tmp_path)
+    s.speichern(zeiger_befehl(pos=10.0), 0)
+    s.speichern(zeiger_befehl(pos=20.0), 1)
+    p = tmp_path / "resume.json"
+    p.write_text("{kaputt")
+    ablauf = []
+    echt_replace, echt_fsync = os.replace, os.fsync
+    echt_lese = store.lese_pruefe
+
+    def lese(pfad, pruefe):
+        ablauf.append(("lese", pfad.name))
+        return echt_lese(pfad, pruefe)
+
+    def replace(a, b):
+        ablauf.append(("replace", os.path.basename(b)))
+        return echt_replace(a, b)
+
+    def fsync(fd):
+        import stat
+
+        ablauf.append(("fsync", "dir" if stat.S_ISDIR(os.fstat(fd).st_mode) else "datei"))
+        return echt_fsync(fd)
+
+    monkeypatch.setattr(store, "lese_pruefe", lese)
+    monkeypatch.setattr(os, "replace", replace)
+    monkeypatch.setattr(os, "fsync", fsync)
+    wert, quelle = lade_resume(p)
+    assert quelle == "bak"
+    assert ablauf.index(("lese", "resume.json.bak")) < ablauf.index(("replace", "resume.json.defekt"))
+    assert ablauf[ablauf.index(("replace", "resume.json.defekt")) + 1] == ("fsync", "dir")
+    assert (tmp_path / "resume.json.defekt").read_text() == "{kaputt"
+
+
+# --- Gültigkeit: schema_version, NaN/inf ------------------------------------------
+
+
+@pytest.mark.parametrize("version", [[1], {"a": 1}, "1", 1.0, True, None])
+def test_annehmen_mit_unhashbarer_oder_falscher_schema_version_wirft_nicht(tmp_path, version):
+    k = KonfigStore(tmp_path)
+    k.laden()
+    roh = dict(k.roh)
+    roh["schema_version"] = version
+    assert k.annehmen(roh) == store.Annahme(False, "schema_ungueltig")
+
+
+@pytest.mark.parametrize("pos", ["NaN", "Infinity", "-Infinity", "1e999"])
+def test_resume_mit_nan_oder_inf_ist_ungueltig(tmp_path, pos):
+    p = tmp_path / "resume.json"
+    p.write_text('{"schema_version":1,"serien":{"s1":{"folge":"a.mp3","index":0,"position_s":%s,"zaehler":1}}}' % pos)
+    with pytest.raises(store.Ungueltig):
+        store.lese_pruefe(p, store.parse_resume)
+
+
+def test_parse_resume_lehnt_riesige_ganzzahl_ohne_ueberlauf_ab():
+    roh = {"serien": {"s": {"folge": "a", "index": 0, "position_s": 10**400, "zaehler": 1}}}
+    with pytest.raises(store.Ungueltig):
+        store.parse_resume(roh)
+
+
+def test_serialisiere_lehnt_nan_ab():
+    with pytest.raises(ValueError):
+        store.serialisiere({"x": float("nan")})
+    with pytest.raises(ValueError):
+        store.serialisiere({"x": float("inf")})
+
+
+def test_abrunden_nicht_endlich():
+    from tobibox import pointer
+
+    assert pointer.abrunden(float("nan")) == 0.0
+    assert pointer.abrunden(float("inf")) == 0.0
+    assert pointer.abrunden(-float("inf")) == 0.0
+
+
+# --- Schreiben: Kopie statt Hardlink, Reste ------------------------------------
+
+
+def test_ohne_hardlinks_wird_die_bak_kopiert(tmp_path, monkeypatch):
+    p = tmp_path / "x.json"
+    schreibe_atomar(p, {"v": 1})
+
+    def kein_link(*a, **k):
+        raise OSError("Operation not permitted")
+
+    monkeypatch.setattr(os, "link", kein_link)
+    schreibe_atomar(p, {"v": 2})
+    assert json.loads((tmp_path / "x.json.bak").read_text())["v"] == 1
+    assert json.loads(p.read_text())["v"] == 2
+    assert sorted(f.name for f in tmp_path.iterdir()) == ["x.json", "x.json.bak"]
+
+
+@pytest.mark.parametrize("fehler_bei", ["link", "replace_bak", "replace_neu"])
+def test_fehler_im_verfahren_laesst_keine_tmp_reste(tmp_path, monkeypatch, fehler_bei):
+    p = tmp_path / "x.json"
+    schreibe_atomar(p, {"v": 1})
+    schreibe_atomar(p, {"v": 2})
+    echt_replace = os.replace
+
+    def replace(a, b):
+        if (fehler_bei == "replace_bak" and str(b).endswith(".bak")) or (
+            fehler_bei == "replace_neu" and str(b).endswith("x.json")
+        ):
+            raise OSError("boom")
+        return echt_replace(a, b)
+
+    if fehler_bei == "link":
+        monkeypatch.setattr(os, "link", lambda *a: (_ for _ in ()).throw(OSError("x")))
+        monkeypatch.setattr("shutil.copyfile", lambda *a: (_ for _ in ()).throw(OSError("voll")))
+    else:
+        monkeypatch.setattr(os, "replace", replace)
+    with pytest.raises(OSError):
+        schreibe_atomar(p, {"v": 3})
+    monkeypatch.undo()
+    assert not list(tmp_path.glob("*.tmp"))
+    assert json.loads(p.read_text())["v"] == 2
