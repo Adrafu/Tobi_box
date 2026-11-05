@@ -212,3 +212,220 @@ Begriffe: **Figur** = Tonie oder NFC-Karte. **Serie** = Ordner mit Folgen
 *   **Then**: Der Box-Dienst merkt es (fehlender Herzschlag), protokolliert
     es, verbindet sich selbst neu. Eine liegende Figur wird danach wieder
     erkannt, ohne dass die Serie neu startet.
+
+## Technical Plan (Architecture)
+
+### Überblick der Bausteine
+
+```
+ Figur/Karte
+     │  13,56 MHz
+┌────▼─────────────────────┐   USB-Serielle (CDC)     ┌───────────────────────────────┐
+│ ESP32-S3 + PN5180        │  Protokoll v1, Zeilen    │ Box-Rechner (Mac / Pi 3A+)    │
+│ Firmware „tobibox-reader“├─────────────────────────►│ Box-Dienst „tobiboxd“ (Python)│
+│ • Abfrage 14443A / 15693 │◄─────────────────────────┤  reader → core → player (MPD) │
+│ • Tonie entsperren       │   (Rückkanal reserviert) │  store · eventlog · net/power │
+│ • Entprellen, liegt/weg  │                          │  ha (MQTT) · sync · update    │
+└──────────────────────────┘                          └──────┬───────────────┬────────┘
+                                                             │ MQTT          │ rsync
+                                                     Tailscale (Heimnetz oder Hotspot)
+                                                             │               │
+                                             ┌───────────────▼──┐   ┌────────▼─────────┐
+                                             │ Home Assistant   │   │ QNAP-NAS          │
+                                             │ MQTT-Broker,     │   │ Medien (mp3),     │
+                                             │ Zuordnungen,     │   │ Update-Pakete     │
+                                             │ Dashboard        │   │ (nur lesen)       │
+                                             └──────────────────┘   └───────────────────┘
+                                                   ▲ Nabu Casa (nur Tobias' Handy)
+```
+
+Die Box spricht mit HA und NAS **immer über Tailscale**, egal ob Heimnetz
+oder Handy-Hotspot. So gibt es einen einzigen Weg statt zwei, und nichts ist
+aus dem Internet erreichbar. Nabu Casa nutzt nur Tobias' Handy für die
+HA-Oberfläche.
+
+### Baustein 1 — Firmware `tobibox-reader` (ESP32-S3)
+
+- Neu aufgebaut, `firmware/tonie_test/` dient als Referenz für die
+  Lese- und Entsperr-Abläufe.
+- Build mit **PlatformIO**, feste Versionen (Plattform, Arduino-Core,
+  PN5180-Bibliothek per Commit). USB-Modus: nur **CDC** (keine Tastatur).
+- Passwort aus `config.h` (gitignored), wie bisher.
+- Aufbau in drei Teile:
+  1. **Leser** (Hardware): ein Abfragezyklus liefert genau ein Ergebnis:
+     `nichts`, `uid(typ, bytes)`, `gesperrt`, `fehler(code)`. Fehler werden
+     **nicht** als „nichts“ gemeldet.
+  2. **Entpreller** (reine Logik, ohne Hardware, auf dem Rechner testbar):
+     bekommt Ergebnisse mit Zeitstempel, entscheidet `PLACED` / `REMOVED`.
+  3. **Protokoll-Ausgabe**: schreibt Zeilen, zählt für den Herzschlag.
+- **Zeitkonstanten** (alle an einer Stelle, in `config.h`):
+  - Abfragezyklus ≤ 200 ms (Ziel 150 ms; Messung in Test 7 entscheidet).
+  - Neue Kennung gilt nach **2 gleichen Lesungen in Folge** (3 falls Test
+    zeigt, dass 2 nicht reichen).
+  - `REMOVED` nach **1,1 s** ohne gültige Lesung der liegenden Figur.
+    Damit: Lücken bis 1,0 s überbrückt, Pause ≤ 1,5 s nach Abheben.
+  - Eine andere Kennung, während eine Figur liegt, wird erst nach
+    2 gleichen Lesungen als Wechsel gemeldet (`REMOVED` + `PLACED`).
+- **Gesperrter Tonie**: eigener stabiler Zustand „gesperrt liegt“; gleiche
+  Entprell- und Abhebe-Regeln wie bei einer Kennung.
+
+### Baustein 2 — Protokoll v1 (Vertrag Firmware ↔ Box-Dienst)
+
+Eigenes Dokument `docs/protocol/reader-v1.md` (in der Umsetzung). Grundzüge:
+
+- ASCII-Zeilen, `\n`-terminiert, 115200 Baud (bei CDC ohne Bedeutung),
+  Felder `schlüssel=wert`, durch Leerzeichen getrennt. Unbekannte Felder und
+  unbekannte Zeilen werden ignoriert und protokolliert.
+- Vom Leser:
+
+| Zeile | Bedeutung |
+|---|---|
+| `HELLO proto=1 fw=<version> build=<git-hash> pn5180=<fw-version>` | nach Start und auf `PING` |
+| `PLACED uid=<hex> type=<ntag\|iso15693> tonie=<0\|1> seq=<n>` | Figur mit Kennung liegt (entprellt) |
+| `LOCKED seq=<n>` | gesperrter Tonie liegt |
+| `REMOVED seq=<n>` | liegende Figur ist weg |
+| `HB up=<s> present=<0\|1> polls=<n> hits=<n> rejected=<n> errors=<n> cycle_ms=<n>` | Herzschlag alle 2 s |
+| `ERR code=<wort> detail=<text>` | Fehler, z. B. `pn5180_no_response`, `unlock_failed` |
+
+- Zum Leser: `PING` (Antwort `HELLO`); weitere Befehle reserviert (Q1).
+- **Kennung (kanonisch):** Hex, Kleinbuchstaben, MSB zuerst, ohne Trenner,
+  bei ISO 15693 also 16 Zeichen beginnend mit `e00403` für Tonies. Diese
+  Schreibweise entsteht **nur** in der Firmware; der Box-Dienst prüft sie
+  (Regex) und speichert sie unverändert.
+- `seq` zählt jede Meldung hoch; eine Lücke zeigt verlorene Zeilen.
+- Eine Testdatei `docs/protocol/reader-v1-examples.txt` mit gültigen und
+  ungültigen Zeilen prüft Firmware-Ausgabe und Parser gleichermaßen.
+
+### Baustein 3 — Box-Dienst `tobiboxd` (Python ≥ 3.11)
+
+Ein Prozess, `asyncio`, ein Paket `tobibox` mit klar getrennten Modulen:
+
+| Modul | Aufgabe | Darf auf Ein-/Ausgabe zugreifen? |
+|---|---|---|
+| `core` | Zustandsautomat: Ereignisse rein, Befehle raus | **nein** (reine Logik, voll testbar) |
+| `library` | Serien und Folgen aus dem Medienordner lesen | Dateisystem (lesen) |
+| `store` | Zustandsdateien atomar lesen/schreiben | Dateisystem |
+| `reader` | Serielle öffnen, Zeilen parsen, Neuverbinden, Herzschlag überwachen | Serielle |
+| `player` | dünne Schicht über MPD (python-mpd2): `play(datei, position)`, `pause()`, `position()`, `volume()` | MPD |
+| `sounds` | kurze Rückmeldetöne über eigenes Kommando (Mac `afplay`, Pi `aplay`) | Prozess |
+| `ha` | MQTT-Anbindung, HA-Discovery, Zuordnungen empfangen, Status senden | Netz |
+| `sync` | rsync vom NAS nach den Regeln, danach MPD-Bibliothek aktualisieren | Prozess, Netz |
+| `net`, `power` | Netz-Klasse (Heim / Hotspot / offline), Lader + Akkustand | System bzw. Simulation |
+| `eventlog` | einheitliches Ereignisprotokoll, dauerhafter Ringpuffer | Dateisystem |
+| `cli` | `tobibox status`, `tobibox sim …`, `tobibox scenario …` | — |
+
+**Der Kern** kennt nur Ereignisse und Befehle:
+
+- Ereignisse: `Placed(uid)`, `Locked`, `Removed`, `ReaderLost`,
+  `ReaderBack`, `EpisodeEnded`, `PositionTick(pos)`, `MappingsChanged`,
+  `LearnStart(series, bis)`, `LearnCancel`, `AdminCard(aktion)`, `Tick(zeit)`.
+- Befehle: `Play(serie, folge, position)`, `Pause`, `Stop`,
+  `PlaySound(name)`, `SaveResume(...)`, `ReportUnknown(uid)`,
+  `ReportLearned(uid, serie)`, `Log(...)`.
+- Die Abläufe (CUJs) werden als **Szenario-Dateien** geschrieben:
+  Protokollzeilen und Zeitpunkte rein, erwartete Befehle raus. Sie laufen
+  ohne MPD und ohne Leser in Millisekunden, am Mac, im Container und später
+  als Teil des Selbsttests am Pi.
+
+### Datenmodell und Dateien
+
+Alle Dateien JSON, mit `schema_version`, atomar geschrieben (temporäre Datei →
+fsync → umbenennen), beim Start geprüft; bei Fehler Rückfall auf `.bak`.
+
+| Datei | Inhalt | Wer schreibt | Sync |
+|---|---|---|---|
+| `mappings.json` | `uid → serie_id`, Revisionsnummer von HA | nur aus HA übernommen | holt von HA |
+| `resume.json` | je Serie: aktuelle Folge (Dateiname) + Position + Zähler | Box | nie |
+| `unknown.json` | unbekannte Kennungen mit Zeitpunkt, noch nicht an HA gemeldet | Box | an HA, dann leeren |
+| `admin_cards.json` | `uid → Aktion` (Status, …) | Konfiguration | Teil des Pakets |
+| `eventlog/` | Ringpuffer (z. B. 4 × 256 KB JSON-Zeilen) | Box | Auszug an HA |
+
+- **Serie** = Ordner im Medienordner; Folgen = mp3 darin, sortiert nach
+  Dateiname (natürliche Sortierung). Neue Folgen am Ende verlängern die Serie.
+- **Serien-ID** — siehe Entscheidung D2.
+- **Resume = „nächste ungehörte Folge“** in einem: je Serie ein Zeiger
+  (Folge + Position). Folge zu Ende → Zeiger auf nächste Folge, Position 0.
+  Letzte Folge zu Ende → Zeiger auf Folge 1. Beim Weiterspielen 3 s
+  Rücksprung.
+- Resume wird gespeichert bei Pause, Folgenwechsel, Figurwechsel und
+  spätestens alle 30 s während der Wiedergabe.
+- **Überraschungs-Ordner** ist eine normale Serie mit fester ID
+  `ueberraschung`; fehlt sie oder ist leer → Fehlerton, Protokolleintrag.
+
+### Home Assistant
+
+- Verbindung per **MQTT** über Tailscale zum Broker bei HA.
+- Box meldet sich per **MQTT-Discovery** an: Sensoren (Zustand, läuft
+  gerade, Akku, Lader, Netz, Sync-Stand, Version, letzter Fehler), Knöpfe
+  (Sync jetzt, Update, Lernmodus abbrechen), Auswahl (Serie für Lernmodus).
+- Box meldet unbekannte und gelernte Kennungen als Ereignis.
+- HA ist **einziger Schreiber** der Zuordnungen — siehe Entscheidung D1,
+  wo sie in HA liegen.
+- Die HA-Konfiguration (Dashboard, Skripte, Automationen) liegt als Dateien
+  im Repo unter `homeassistant/`.
+
+### Netz, Sync, Strom
+
+- **Netz-Klasse** (Pi: NetworkManager-SSID; Mac: Simulation):
+  `home` (Heim-SSID **und** NAS über Tailscale erreichbar), `hotspot`
+  (Hotspot-SSID), `offline`.
+- **Medien-Sync** mit rsync über Tailscale (NAS-Konto nur lesend):
+  - `home`: immer erlaubt.
+  - `hotspot`: erlaubt, wenn Lader dran oder Akku > 50 %.
+  - Dateien landen erst nach vollständiger Übertragung sichtbar im
+    Medienordner (`--partial-dir`, `--delay-updates`).
+  - Danach MPD-Bibliothek aktualisieren, nicht beim Start.
+  - Nie parallel zum Update.
+- **Strom** im Prototyp: Simulation (`tobibox sim power --charger on
+  --battery 40`). Später PiSugar-Anbindung hinter derselben Schnittstelle.
+
+### Update
+
+- **Paket**: Tarball `tobibox-<version>.tar.gz` mit Code, festgelegten
+  Python-Abhängigkeiten (Wheels für Pi/armv7) und `manifest.json`
+  (Version, Protokoll-Version, Schema-Versionen, Firmware-Mindestversion).
+  Liegt auf dem NAS in `tobibox/releases/`.
+- **Ablauf**: HA-Knopf → Box prüft Bedingungen (daheim, Lader, spielt
+  nicht, kein Sync) → lädt Paket → entpackt nach `releases/<version>/`
+  mit eigener Python-Umgebung → sichert Zustandsdateien → stellt Verweis
+  `current` um → startet neu → Zustand `testing`.
+- **Selbsttest** (feste Liste): Dienst läuft, Leser meldet `HELLO` mit
+  passender Protokoll-Version, Zustandsdateien lesbar, Szenario-Tests grün,
+  MPD antwortet, Testton spielt. Dann Zustand `ok`.
+- **Wächter**: Steht der Zustand nach 5 min noch auf `testing` oder ist er
+  `failed`, stellt ein eigener systemd-Dienst beim nächsten Start `current`
+  auf die vorige Version zurück und meldet den Grund an HA.
+- Firmware-Updates des ESP32 sind **nicht** Teil des Pakets (Flashen per
+  USB am Mac); das Paket nennt nur die Mindestversion.
+
+### Fehlersuche
+
+- **Ereignisprotokoll**: eine JSON-Zeile je Ereignis mit Zeit, Zeitquelle,
+  Baustein, Ereignis, Vorgangs-ID (je `PLACED`), Ergebnis. Simulierte
+  Ereignisse tragen `sim=true`. Keine Geheimnisse.
+- **Status-Admin-Karte**: spielt eine Tonfolge je Prüfpunkt (Leser, Medien,
+  Netz, Speicher, HA): kurz-hoch = in Ordnung, tief = Fehler. Optional
+  später Sprachansage.
+- **`tobibox status`** (SSH): dieselben Prüfpunkte ausführlich, letzte
+  Fehler, Versionen, Sync-Stand.
+
+### Mac und Pi
+
+| | Mac (Prototyp) | Pi 3A+ (Box) |
+|---|---|---|
+| Leser | `/dev/cu.usbmodem…` | `/dev/serial/by-id/…tobibox…` |
+| MPD | Homebrew, Ausgabe CoreAudio | Paket aus Pi OS, Ausgabe ALSA (I²S) |
+| Töne | `afplay` | `aplay` |
+| Netz, Strom | Simulation | NetworkManager, später PiSugar |
+| Start | `tobiboxd` im Terminal | systemd-Dienst |
+| Pfade | `~/tobibox/…` | `/var/lib/tobibox`, `/opt/tobibox` |
+
+Alles in **einer** Konfigurationsdatei `tobibox.toml` je Gerät; im Code gibt
+es keine Abfrage „bin ich am Mac?“.
+
+### Offene Architektur-Entscheidungen (für Tobias)
+
+*   **D1 — Wo liegen die Zuordnungen in Home Assistant?**
+*   **D2 — Woran erkennt man eine Serie dauerhaft?** (Ordnername oder eigene ID)
+*   **D3 — Broker:** Läuft bei dir schon ein MQTT-Broker (z. B. Mosquitto-Add-on)
+    und das Tailscale-Add-on in HA?
