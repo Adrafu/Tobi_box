@@ -4,6 +4,7 @@
 *   **Status:** Approved (05.11.2026, nach EGM-Review Stufen 5–9)
 
 *   **Datum:** 2026-11-05
+*   **Änderung 05.11.:** Entscheidung F eingearbeitet (Tobies: Folge oder Serie, Folgen mit mehreren Tracks). Alle Änderungen sind mit „(Entscheidung F, 05.11.)“ markiert.
 *   **Grundlage:** `concepts_brief.md` (gleicher Ordner) inkl. Entscheidungen
     Runde 1 und 2
 
@@ -12,8 +13,9 @@
 ## Überblick
 
 Die Tobi Box ist eine mobile NFC-Audiobox für zwei Kleinkinder. Ein Kind legt
-eine Figur (echter Tonie) oder eine NFC-Karte auf, und die Box spielt das
-zugehörige Hörspiel vom eigenen Bestand. Dieses Dokument beschreibt die
+einen Tobie auf (ein echter Tonie oder eine NFC-Karte), und die Box spielt
+das zugehörige Hörspiel vom eigenen Bestand. Die meisten Tobies spielen eine
+einzelne Folge, manche eine ganze Serie (Entscheidung F, 05.11.). Dieses Dokument beschreibt die
 gesamte Software der Box:
 
 - **Firmware** auf einem ESP32-S3 mit PN5180-Leser: liest Karten und Tonies,
@@ -30,22 +32,41 @@ gleich; es unterscheidet sich nur die Konfiguration.
 
 ## Begriffe
 
-*   **Figur:** Tonie oder NFC-Karte, die auf die Box gelegt wird.
-*   **Kennung (UID):** Seriennummer des Chips in der Figur. Sie ist auf der
-    Figur fest und das Einzige, woran die Box sie erkennt.
-*   **Serie:** Ordner mit Folgen (Audiodateien), die zusammen eine Geschichte
-    oder Reihe bilden.
-*   **Folge:** Eine Audiodatei in einer Serie.
-*   **Überraschungs-Serie:** Serie für unbekannte und gesperrte Figuren. Sie
+*   **Tobie** (Mehrzahl **Tobies**) (Entscheidung F, 05.11.): Tonie oder NFC-Karte, die auf die Box
+    gelegt wird. Beide zusammen heißen Tobie, in allen Dokumenten und Texten
+    für Eltern.
+*   **Glossar-Zeile (Entscheidung F, 05.11.):** Im Code heißt ein Tobie aus historischen Gründen `figur`.
+*   **Kennung (UID):** Seriennummer des Chips im Tobie. Sie ist auf dem Tobie fest und das
+    Einzige, woran die Box ihn erkennt.
+*   **Serie:** Ordner mit Folgen, die zusammen eine Geschichte oder Reihe
+    bilden. Ein einzelnes Hörspiel ohne Reihe liegt ebenfalls in einem
+    Serien-Ordner (z. B. einer Serie „Einzelfolgen“); dafür gibt es keine
+    Sonderregel (Entscheidung F, 05.11.).
+*   **Folge** (Entscheidung F, 05.11.): Ein Hörspiel in einer Serie. Auf der Platte ist sie
+    entweder **eine Audiodatei** im Serien-Ordner oder ein **Unterordner mit
+    mehreren Tracks** (z. B. ein CD-Rip). Der Name der Folge ist der Dateiname
+    bzw. der Name des Unterordners.
+*   **Track** (Entscheidung F, 05.11.): Eine Audiodatei einer Folge. Eine Folge aus einer Datei hat
+    einen Track. Die Tracks eines Folgen-Ordners sind nach der natürlichen
+    Sortierung geordnet (Regeln: „Datenmodell und Dateien“).
+*   **Ziel** (Entscheidung F, 05.11.): Worauf ein Tobie zeigt: `serie` (die ganze Serie, jedes
+    Auflegen macht mit der nächsten ungehörten Folge weiter), `folge` (genau
+    eine Folge einer Serie) oder `aktion`. Kurz: **Serien-Tobie**,
+    **Folgen-Tobie**.
+*   **Überraschungs-Serie:** Serie für unbekannte und gesperrte Tobies. Sie
     ist nur an `typ=ueberraschung` in ihrer `serie.json` erkennbar; eine feste
-    ID gibt es nicht.
-*   **Zuordnung:** Eintrag „Kennung → Serie“ (oder → Aktion, z. B. Status).
-    Tobias legt sie in Home Assistant an.
-*   **Resume:** Die Box merkt sich je Serie, wo sie aufgehört hat, und spielt
-    beim erneuten Auflegen dort weiter.
-*   **Zeiger:** Der gespeicherte Resume-Zustand einer Serie: Folge und
-    Position. Nach dem Ende einer Folge zeigt er auf die nächste Folge
-    (Position 0). Regeln: siehe „Datenmodell und Dateien“.
+    ID gibt es nicht. Sie verhält sich wie ein Ziel `serie` (Entscheidung F, 05.11.).
+*   **Zuordnung:** Eintrag „Kennung → Ziel“ (Serie, einzelne Folge oder Aktion,
+    z. B. Status). Tobias legt sie in Home Assistant an und wählt dabei den
+    Typ (Entscheidung F, 05.11.).
+*   **Resume:** Die Box merkt sich je Serie (bei Folgen-Tobies je Folge), wo
+    sie aufgehört hat, und spielt beim erneuten Auflegen dort weiter (Entscheidung F, 05.11.).
+*   **Zeiger:** Der gespeicherte Resume-Zustand: Folge, Track und Position
+    (Sekunden im Track) (Entscheidung F, 05.11.). Je Serie ein Zeiger (Serien-Tobies) und je Serie
+    und Folge ein Zeiger (Folgen-Tobies). Nach dem Ende einer Folge zeigt der
+    Zeiger einer Serie auf die nächste Folge, der Zeiger einer Folge auf ihren
+    Anfang (jeweils Track 0, Position 0). Regeln: siehe „Datenmodell und
+    Dateien“.
 *   **Entsperren / gesperrter Tonie:** Manche Tonies sind im Privacy-Modus.
     Sie antworten erst, nachdem die Box sie mit dem Passwort entsperrt hat.
     Mehr im Abschnitt „Baustein 1“.
@@ -56,9 +77,9 @@ gleich; es unterscheidet sich nur die Konfiguration.
 *   **Vorgangs-ID:** Kurze Zufallskennung. Der Box-Dienst erzeugt sie, wenn
     er `PLACED` oder `LOCKED` empfängt. Sie steht in jeder Protokollzeile
     dieses Auflegens und macht den Ablauf nachvollziehbar.
-*   **Lernmodus:** Modus, den Tobias in HA startet: Die nächste Figur, die
-    innerhalb von 2 min aufgelegt wird, wird der gewählten Serie zugeordnet
-    (CUJ 7b).
+*   **Lernmodus:** Modus, den Tobias in HA startet: Der nächste Tobie, der
+    innerhalb von 2 min aufgelegt wird, wird dem gewählten Ziel (Serie oder
+    Folge) zugeordnet (CUJ 7b) (Entscheidung F, 05.11.).
 *   **Lautstärke-Obergrenze:** Höchste Lautstärke, die die Box ausgibt. Es
     gibt mehrere Grenzen; die **wirksame Grenze** ist das Minimum aller
     aktiven. Regel: siehe „Lautstärke“ in Baustein 3.
@@ -123,7 +144,7 @@ gleich; es unterscheidet sich nur die Konfiguration.
 
 Tobias will zwei Boxen bauen, an denen danach nicht mehr programmiert und
 gesucht werden muss. Die Box muss alle Abläufe aus „Abläufe (CUJs)“ erfüllen —
-auch mit geborgten Figuren, unterwegs ohne Netz und nach einem leeren Akku.
+auch mit geborgten Tobies, unterwegs ohne Netz und nach einem leeren Akku.
 
 Die bisherige Planung (Plan-Revision 3.7, Stand in `docs/plan/`) setzte auf
 Phoniebox V3 (fertige Open-Source-Software für NFC-Audioboxen) mit Plugins und
@@ -163,7 +184,7 @@ als Referenz.
     Tests ohne Leser.
 2.  **Zeitgrenzen eingehalten** (Maßstab für alle Abläufe; Herleitung und
     Rückfallregel: „Zeitbudget“ in Baustein 1):
-    - Ton spätestens **1,0 s** nach dem Auflegen einer bekannten Figur
+    - Ton spätestens **1,0 s** nach dem Auflegen eines bekannten Tobies
       (Medium lokal vorhanden).
     - Pause spätestens **1,5 s** nach dem Abheben.
     - Lese-Lücken bis **1,0 s** führen zu keiner Pause und keinem Neustart.
@@ -198,10 +219,10 @@ Nicht im Umfang sind:
     Internet; Zugriff von außen läuft nur über HA (Nabu Casa) und Tailscale.
 *   Betriebssystem- und Kernel-Updates über die Update-Funktion (dafür gibt
     es ein neues SD-Image).
-*   Automatisches Erkennen, welche Figur ein Tonie ist (Zuordnung einmal pro
+*   Automatisches Erkennen, welcher Tobie ein Tonie ist (Zuordnung einmal pro
     Exemplar). Geprüft in `research_tonie_erkennung.md`: Auf dem Chip steht
     nur eine Seriennummer; die echte Toniebox fragt die Tonie-Cloud, und eine
-    öffentliche Liste „Kennung → Figur“ gibt es nicht.
+    öffentliche Liste „Kennung → Tobie“ gibt es nicht.
 *   Streaming-Dienste, Mikrofon, Aufnahme.
 *   Funktionen, die weder im Plan noch in den CUJs stehen.
 
@@ -226,7 +247,8 @@ Alternativen“.
     Dateiverwaltung in HA (Umfang: D4). Dafür bindet HA die Medienfreigabe des
     NAS mit vollem Schreibrecht ein (Entscheidung D); die Boxen lesen nur.
     Regeln für Reihenfolge, Ordner ohne `serie.json` und doppelte IDs:
-    „Datenmodell und Dateien“.
+    „Datenmodell und Dateien“. Eine Folge kann auch ein Unterordner mit
+    mehreren Tracks sein (Entscheidung F, 05.11.).
 *   **D3 — Broker und Netz:** MQTT läuft in HA, mit einem eigenen Konto je Box
     und Themenrechten (Baustein 4). Tailscale ist noch nicht eingerichtet
     (HA-Add-on, QNAP-App, Boxen) → Einrichtungsschritte für Tobias in Stufe 3a.
@@ -264,12 +286,13 @@ Alternativen“.
 *   **Hardware (Ziel 9):** Alle Hardware-Funktionen werden jetzt mit
     Simulation gebaut (Stufe 4).
 *   **Entscheidung A — Pause nach jeder Folge:** Nach dem Ende einer Folge
-    springt der Zeiger auf die nächste (nach der letzten auf Folge 1) und die
-    Box pausiert, auch wenn die Figur noch liegt; weiter geht es erst nach
+    springt der Zeiger auf die nächste (nach der letzten auf Folge 1; bei einem
+    Folgen-Tobie auf den Anfang derselben Folge, F5) und die
+    Box pausiert, auch wenn der Tobie noch liegt; weiter geht es erst nach
     erneutem Auflegen oder mit einem kurzen Druck auf den Hauptknopf
     (Entscheidung E).
-*   **Entscheidung B — Ende eines „stumm“-Fensters:** Liegt dann eine Figur
-    auf, startet nichts von selbst; das Kind legt die Figur erneut auf.
+*   **Entscheidung B — Ende eines „stumm“-Fensters:** Liegt dann ein Tobie
+    auf, startet nichts von selbst; das Kind legt den Tobie erneut auf.
 *   **Entscheidung C — Hotspot:** Es gibt keine Datenbegrenzung je Sync; im
     Hotspot gilt nur die Akku-Regel.
 *   **Entscheidung D — NAS-Rechte:** HA hat vollen Schreibzugriff auf die
@@ -277,11 +300,48 @@ Alternativen“.
     Benutzer. Die Paket-Signatur (`minisign`) bleibt und schützt davor, dass
     ein manipuliertes HA oder NAS Code auf die Boxen bringt.
 *   **Entscheidung E — Hauptknopf nach Folgenende (05.11.):** Ist eine Folge zu
-    Ende und die Figur liegt noch auf der Box, spielt ein **kurzer Druck auf den
-    Hauptknopf die nächste Folge** (der Zeiger zeigt schon darauf). Ohne Figur
+    Ende und der Tobie liegt noch auf der Box, spielt ein **kurzer Druck auf den
+    Hauptknopf die nächste Folge** (der Zeiger zeigt schon darauf; bei einem
+    Folgen-Tobie dieselbe Folge noch einmal von vorn, F6). Ohne Tobie
     auf der Box behält der Hauptknopf seine normale Funktion (Play / Pause).
+*   **Entscheidung F — Tobies: Folge oder Serie (05.11.):** Die meisten Tobies
+    spielen eine einzelne Folge, manche eine ganze Serie. Tobias hat entschieden (Entscheidung F, 05.11.):
+    *   **F1 — Begriff:** Tonies und NFC-Karten zusammen heißen **Tobie**
+        (Mehrzahl Tobies), in allen Dokumenten und Texten für Eltern (HA-Seite,
+        Protokoll für Eltern). Im Code heißt ein Tobie aus historischen Gründen
+        `figur`; Namen wie `Aufgelegt` und `figur_liegt` bleiben.
+    *   **F2 — Ziel:** Eine Zuordnung zeigt auf `serie` (jedes Auflegen setzt die
+        nächste ungehörte Folge fort), `folge` (genau eine Folge einer Serie) oder
+        `aktion`. In HA wählt Tobias den Typ beim Zuordnen, auch im Lernmodus.
+        `config.json` bekommt dafür `ziel` (`schema_version` 2 mit Migration).
+    *   **F3 — Folge auf der Platte:** Eine Folge ist eine Audiodatei im
+        Serien-Ordner oder ein Unterordner mit mehreren Tracks (z. B. CD-Rip).
+        Die Tracks eines Folgen-Ordners ordnet die vorhandene natürliche
+        Sortierung; Dotfiles werden ignoriert, es gilt dieselbe Endungsliste.
+        `serie.json.folgen` nennt Folgen mit Namen (Dateiname oder Ordnername).
+        Ein Hörspiel ohne Serie liegt in einem beliebigen Serien-Ordner (z. B.
+        „Einzelfolgen“), ohne Sonderregel.
+    *   **F4 — Abspielen:** Eine Folge spielt alle ihre Tracks ohne Pause. Die
+        Regel „Pause nach jeder Folge“ (Entscheidung A) gilt am Ende der ganzen
+        Folge, nicht nach jedem Track. Die MPD-Warteschlange enthält nur die
+        Tracks der aktuellen Folge; Folgenende heißt: MPD stoppt nach dem letzten
+        Track. Der Player unterscheidet `TrackWechsel` und `FolgeZuEnde`.
+    *   **F5 — Zeiger:** Position = (Folge, Track, Sekunden im Track). Für `serie`
+        gibt es einen Zeiger je Serie (wie bisher, jetzt mit Track), für `folge`
+        einen Zeiger je (Serie, Folge). Ist die Folge zu Ende, springt dieser
+        Zeiger auf Track 0 / 0 s zurück: Das nächste Auflegen spielt sie **von
+        vorn**. `resume.json` bekommt `schema_version` 2 mit Migration (alte
+        Einträge = Track 0).
+    *   **F6 — Tasten:** Vor / Zurück springen nach **Track** innerhalb der
+        Folge. Zurück in den ersten 3 s eines Tracks → voriger Track, sonst
+        aktuellen Track neu starten. Beim letzten Track geht Vor bei `serie` zur
+        nächsten Folge, bei `folge` passiert nichts (Hinweiston). Hauptknopf
+        kurz in `beendet`: `serie` → nächste Folge, `folge` → dieselbe Folge von
+        vorn. Zurück in `beendet`: spielt die eben beendete Folge von vorn
+        (beide Typen). Die Regeln unter „stumm“ bleiben (nichts startet).
+    *   **F7 — Überraschungs-Serie:** verhält sich wie ein Ziel `serie`.
 
-- **Nachtrag 05.11. (Stufe-0-Verträge):** Ein Leser-Neustart startet nie von selbst eine Wiedergabe; nach einem bestätigten Leserverlust (> 3 s) bleibt die Box pausiert, auch wenn die Figur danach wieder gemeldet wird – das Kind legt neu auf. Lesefehler gelten bis 5 s als „Figur liegt“; fehlende Serie → Überraschungs-Serie; „stumm“ sperrt auch Knöpfe; MPD-Verlust bis 5 s wird überbrückt. Maßgeblich sind die Verträge in `docs/protocol/` und `docs/data-model.md`.
+- **Nachtrag 05.11. (Stufe-0-Verträge):** Ein Leser-Neustart startet nie von selbst eine Wiedergabe; nach einem bestätigten Leserverlust (> 3 s) bleibt die Box pausiert, auch wenn der Tobie danach wieder gemeldet wird – das Kind legt neu auf. Lesefehler gelten bis 5 s als „Tobie liegt“; fehlende Serie → Überraschungs-Serie; „stumm“ sperrt auch Knöpfe; MPD-Verlust bis 5 s wird überbrückt. Maßgeblich sind die Verträge in `docs/protocol/` und `docs/data-model.md`.
 
 ## Offene Fragen
 
@@ -289,9 +349,9 @@ Alternativen“.
     zurückschicken (z. B. Poll-Intervall ändern, Neustart)? Im Prototyp
     reserviert, nicht gebaut.
 *   **Audio-Rückmeldungen:** Offen ist die genaue Liste der Töne und wie sie
-    klingen. Gebraucht werden Töne für: Start, unbekannte Figur / Überraschung,
+    klingen. Gebraucht werden Töne für: Start, unbekannter Tobie / Überraschung,
     Fehler, Lernmodus Beginn und Ende, Status-Karte in Ordnung / Fehler,
-    Akku fast leer, Figur erkannt bei „stumm“. Bis zur Entscheidung gibt es
+    Akku fast leer, Tobie erkannt bei „stumm“. Bis zur Entscheidung gibt es
     Platzhalter-Töne; eigene Aufnahmen von Tobias sind möglich.
 *   **Pi-Probelauf:** Der Termin hängt an der Bestellung des Pi 3A+. Die
     Soll-Werte (Tabelle im Pi-Probelauf) sind ein Vorschlag; Tobias bestätigt
@@ -304,14 +364,14 @@ Alternativen“.
 Erledigt: Medienformate und Lautheitsangleich (siehe D5 und D6), Ende der
 letzten Folge und Ende eines „stumm“-Fensters (Entscheidungen A und B),
 Datenvolumen im Hotspot (Entscheidung C), Hauptknopf nach Folgenende
-(Entscheidung E), Schnittstellen und Datenformate (Stufe 0), die Befunde R1 bis
+(Entscheidung E), Tobies als Folge oder Serie (Entscheidung F), Schnittstellen und Datenformate (Stufe 0), die Befunde R1 bis
 R18 des Reviews Stufe 9.
 
 ## Risiken
 
 | Risiko | Auswirkung | Gegenmaßnahme | Wann geprüft |
 |---|---|---|---|
-| Tonie-Entsperrung klappt nicht bei jedem Exemplar | Die Figur spielt die Überraschungs-Serie statt ihrer eigenen | Rückfall auf Überraschungs-Serie (CUJ 6); Test mit Tobias' Figuren | Stufe 1, mit Tobias' Figuren |
+| Tonie-Entsperrung klappt nicht bei jedem Exemplar | Der Tobie spielt die Überraschungs-Serie statt seiner eigenen | Rückfall auf Überraschungs-Serie (CUJ 6); Test mit Tobias' Tobies | Stufe 1, mit Tobias' Tobies |
 | USB-CDC am Pi nicht stabil | Leser fällt aus | Wächter und selbständiges Neuverbinden (CUJ 13); fester Gerätename | Pi-Probelauf |
 | Tonqualität / I²S-Ausgabe | Klang schlecht oder verzerrt | Hörtest und Messung am Verstärker; bei Mängeln entscheidet Tobias über die Ausgabe | Pi mit Verstärker |
 | Pi 3A+ noch nicht bestellt | Pi-Probelauf und Go/No-Go verzögern sich | Mac-Prototyp läuft ohne Pi (Ziel 3); Bestellung durch Tobias | jetzt |
@@ -332,7 +392,7 @@ R18 des Reviews Stufe 9.
 | Fehler im Wächter-Skript `guard.py` | Rückfall greift nicht | Skript klein, nur Standardbibliothek, liegt außerhalb von `releases/` und kommt mit dem SD-Image; eigener Test | Stufe 3b |
 | Tailscale-ACL falsch gesetzt | Box erreicht mehr als HA und die NAS-Freigabe | ACL mit Tags; Abnahmetest, dass andere Ziele gesperrt sind | Stufe 3a |
 | HA hat vollen Schreibzugriff auf die NAS-Freigabe (`medien/`, `export/`, `releases/`) | Ein manipuliertes HA oder NAS könnte Code in Update-Pakete schieben, der auf den Boxen läuft | Pakete sind mit `minisign` signiert; der Signierschlüssel liegt nur bei Tobias auf seinem Mac, der Prüfschlüssel auf der Box; die Box installiert nur Pakete mit gültiger Signatur | Stufe 3b |
-| Entsperren geborgter Tonies | Der Privacy-Modus fremder Figuren wird aufgehoben | Die Box liest nur die Kennung, mit Tobias' eigenem Passwort, und schreibt keine Nutzdaten; der Privacy-Modus bleibt aber aufgehoben, bis eine Toniebox ihn wieder setzt | Stufe 1 |
+| Entsperren geborgter Tonies | Der Privacy-Modus fremder Tobies wird aufgehoben | Die Box liest nur die Kennung, mit Tobias' eigenem Passwort, und schreibt keine Nutzdaten; der Privacy-Modus bleibt aber aufgehoben, bis eine Toniebox ihn wieder setzt | Stufe 1 |
 | Firmware-Datei veröffentlicht | Das Passwort könnte aus dem Flash ausgelesen werden | Firmware-Binary nicht veröffentlichen; CI baut nur mit Platzhalter-Passwort | laufend |
 | Tailscale-Schlüssel der Box läuft ab | Box fällt unbemerkt aus dem Netz | Schlüsselablauf für die Box-Knoten abschalten (AP 3.5); HA zeigt den Netzstand | Stufe 3a, Einrichtung |
 
@@ -341,46 +401,56 @@ R18 des Reviews Stufe 9.
 Begriffe: siehe Abschnitt „Begriffe“ oben. Zeitgrenzen: siehe Ziel 2.
 Zustände, Übergänge und Konflikte: siehe „Kern-Zustände“.
 
-### CUJ 1: Bekannte Figur auflegen
+### CUJ 1: Bekannten Tobie auflegen
 
-*   **Given**: Figur ist einer Serie zugeordnet, Folgen liegen lokal, kein
-    gespeicherter Zeiger für diese Serie auf dieser Box.
-*   **When**: Kind legt die Figur mittig auf.
-*   **Then**: Innerhalb der Zeitgrenze (Ziel 2) startet Folge 1 der Serie. Das
-    Protokoll zeigt die Kette gelesen → entprellt → zugeordnet → spielt mit
-    einer Vorgangs-ID.
+*   **Given**: Der Tobie ist einem Ziel zugeordnet (Serie oder einzelne Folge),
+    die Dateien liegen lokal, es gibt keinen gespeicherten Zeiger für dieses
+    Ziel auf dieser Box (Entscheidung F, 05.11.).
+*   **When**: Kind legt den Tobie mittig auf.
+*   **Then**: Innerhalb der Zeitgrenze (Ziel 2) startet bei einem
+    Serien-Tobie Folge 1 der Serie, bei einem Folgen-Tobie die zugeordnete Folge,
+    jeweils mit dem ersten Track. Hat die Folge mehrere Tracks, spielen sie ohne
+    Pause nacheinander (Entscheidung F, 05.11.). Das Protokoll zeigt die Kette gelesen → entprellt →
+    zugeordnet → spielt mit einer Vorgangs-ID.
 
 ### CUJ 2: Abheben
 
-*   **Given**: Eine Figur liegt, ihre Serie spielt.
-*   **When**: Kind nimmt die Figur weg.
-*   **Then**: Innerhalb der Zeitgrenze (Ziel 2) Pause. Der Zeiger (Folge und
-    Position) ist für diese Serie gespeichert.
+*   **Given**: Ein Tobie liegt, sein Ziel spielt.
+*   **When**: Kind nimmt den Tobie weg.
+*   **Then**: Innerhalb der Zeitgrenze (Ziel 2) Pause. Der Zeiger (Folge, Track und
+    Position) ist für das Ziel des Tobies gespeichert (Entscheidung F, 05.11.).
 
-### CUJ 3: Figur einer Serie wieder auflegen (Resume)
+### CUJ 3: Tobie wieder auflegen (Resume)
 
-*   **Given**: Für die Serie gibt es einen gespeicherten Zeiger.
-*   **When**: Kind legt eine Figur dieser Serie auf — auch nach Neustart oder
+*   **Given**: Für das Ziel des Tobies gibt es einen gespeicherten Zeiger (je
+    Serie bei einem Serien-Tobie, je Serie und Folge bei einem
+    Folgen-Tobie) (Entscheidung F, 05.11.).
+*   **When**: Kind legt einen Tobie dieses Ziels auf — auch nach Neustart oder
     leerem Akku.
-*   **Then**: Wiedergabe läuft an der gespeicherten Stelle weiter (mit
-    Rücksprung, siehe „Datenmodell und Dateien“). Nach dem Ende einer Folge
-    pausiert die Box, auch wenn die Figur noch liegt; der Zeiger steht dann auf
-    der nächsten Folge (nach der letzten Folge auf Folge 1). Die nächste Folge
-    spielt erst, wenn die Figur (oder eine andere Figur derselben Serie) neu
-    aufgelegt wird oder der Hauptknopf kurz gedrückt wird (Entscheidung E).
+*   **Then**: Wiedergabe läuft an der gespeicherten Stelle (Track und Position)
+    weiter (mit Rücksprung, siehe „Datenmodell und Dateien“). Nach dem Ende der **ganzen
+    Folge** (nicht nach jedem Track) pausiert die Box, auch wenn der Tobie noch
+    liegt (Entscheidung F, 05.11.). Bei einem Serien-Tobie steht der Zeiger dann auf der nächsten
+    Folge (nach der letzten Folge auf Folge 1), erster Track; sie spielt erst,
+    wenn der Tobie (oder ein anderer Tobie derselben Serie) neu aufgelegt wird
+    oder der Hauptknopf kurz gedrückt wird (Entscheidung E). Bei einem
+    Folgen-Tobie steht der Zeiger auf dem Anfang derselben Folge: Das nächste
+    Auflegen (oder der Hauptknopf kurz) spielt sie **von vorn**.
 
-### CUJ 4: Andere Figur auflegen
+### CUJ 4: Anderen Tobie auflegen
 
-*   **Given**: Serie A ist pausiert oder spielt, Figur von Serie B wird aufgelegt.
-*   **When**: Kind wechselt die Figur.
-*   **Then**: Der Zeiger von Serie A bleibt gespeichert. Serie B läuft an ihrem
-    Zeiger weiter (nach einer beendeten Folge ist das die nächste Folge), ohne
-    Zeiger beginnt sie bei Folge 1 (Zeigerregeln: siehe
-    „Datenmodell und Dateien“).
+*   **Given**: Ein Ziel A (Serie oder Folge) ist pausiert oder spielt, ein Tobie
+    mit Ziel B wird aufgelegt.
+*   **When**: Kind wechselt den Tobie.
+*   **Then**: Der Zeiger von A bleibt gespeichert. B läuft an seinem Zeiger
+    weiter (Serie nach einer beendeten Folge: die nächste Folge; Folge nach
+    ihrem Ende: von vorn). Ohne Zeiger beginnt eine Serie bei Folge 1, eine
+    Folge am Anfang, jeweils beim ersten Track (Zeigerregeln: siehe „Datenmodell
+    und Dateien“) (Entscheidung F, 05.11.).
 
 ### CUJ 5: NFC-Karte
 
-*   **Given**: Eine NTAG215-Karte ist einer Serie zugeordnet.
+*   **Given**: Eine NTAG215-Karte ist einem Ziel (Serie oder Folge) zugeordnet.
 *   **When**: Kind legt die Karte auf.
 *   **Then**: Verhalten wie CUJ 1–4.
 
@@ -392,35 +462,37 @@ Zustände, Übergänge und Konflikte: siehe „Kern-Zustände“.
 *   **Then**: Die Überraschungs-Serie spielt. Kurze Aussetzer starten sie nicht
     neu. Nicht zuordenbar (keine Kennung).
 
-### CUJ 7a: Unbekannte Figur, Zuordnung danach (Weg A)
+### CUJ 7a: Unbekannter Tobie, Zuordnung danach (Weg A)
 
-*   **Given**: Lesbare Figur ohne Zuordnung. Box offline oder online.
-*   **When**: Kind legt sie auf.
+*   **Given**: Lesbarer Tobie ohne Zuordnung. Box offline oder online.
+*   **When**: Kind legt ihn auf.
 *   **Then**: Die Überraschungs-Serie spielt sofort. Die Box merkt sich die
     Kennung und meldet sie an HA, sobald HA erreichbar ist; sie löscht den
     Eintrag erst, wenn HA den Empfang bestätigt hat (Antwort auf `…/ack`, siehe
-    „MQTT-Schnittstelle“). HA zeigt „neue Figur“
-    (gleiche Kennung von beiden Boxen = ein Eintrag). Tippt Tobias eine Serie
-    an, schreibt HA die Zuordnung; die Box holt sie und wechselt, wenn die
-    Figur noch liegt, sofort auf die Serie.
+    „MQTT-Schnittstelle“). HA zeigt „neuer Tobie“
+    (gleiche Kennung von beiden Boxen = ein Eintrag). Tobias wählt in HA den Typ (**Serie** oder
+    **einzelne Folge**, bei Folge zusätzlich die Folge) (Entscheidung F, 05.11.) und tippt das Ziel an; HA
+    schreibt die Zuordnung. Die Box holt sie und wechselt, wenn der Tobie noch
+    liegt, sofort auf das Ziel (bei einer Folge von deren Anfang).
 
 ### CUJ 7b: Lernmodus (Weg B)
 
 *   **Given**: Box ist online. Tobias wählt in HA „Jetzt kommt ein neuer
-    Tonie“, eine Box und eine Serie.
-*   **When**: Innerhalb von 2 min wird eine Figur auf diese Box aufgelegt.
-*   **Then**: Box meldet die Kennung an HA, HA schreibt die Zuordnung, die
-    Serie spielt. Ist die Figur schon zugeordnet, fragt HA vor dem Überschreiben
-    nach; wird die Figur währenddessen abgehoben, ändert das nichts, denn die
-    Zuordnung hängt an der gemeldeten Kennung. Ohne Figur endet der Lernmodus
+    Tobie“, eine Box, den Typ (**Serie** oder **Folge**) und die Serie, bei
+    Folge zusätzlich die Folge (Entscheidung F, 05.11.).
+*   **When**: Innerhalb von 2 min wird ein Tobie auf diese Box aufgelegt.
+*   **Then**: Box meldet die Kennung an HA, HA schreibt die Zuordnung, das
+    gewählte Ziel spielt (Serie oder Folge). Ist der Tobie schon zugeordnet, fragt HA vor dem Überschreiben
+    nach; wird der Tobie währenddessen abgehoben, ändert das nichts, denn die
+    Zuordnung hängt an der gemeldeten Kennung. Ohne Tobie endet der Lernmodus
     nach 2 min (die Frist misst die Box); Abbruch jederzeit in HA. Beginn und
     Ende sind hörbar. Ist die Box gerade stumm geschaltet (CUJ 15), lernt sie
     trotzdem und bestätigt mit dem leisen Ton, spielt aber nicht.
 
-### CUJ 8: Figur am Rand oder kurz verrutscht
+### CUJ 8: Tobie am Rand oder kurz verrutscht
 
-*   **Given**: Eine Figur spielt.
-*   **When**: Sie verrutscht, die Lesungen setzen bis 1,0 s aus, oder am Rand
+*   **Given**: Ein Tobie spielt.
+*   **When**: Er verrutscht, die Lesungen setzen bis 1,0 s aus, oder am Rand
     kommt einmal eine verfälschte Kennung.
 *   **Then**: Keine Pause, kein Neustart, kein falsches Hörspiel. Erst wenn
     eine neue Kennung mehrfach in Folge gleich gelesen wurde (Anzahl: siehe
@@ -434,7 +506,7 @@ Zustände, Übergänge und Konflikte: siehe „Kern-Zustände“.
 *   **Then**: Neue und geänderte Dateien kommen über Tailscale auf die Box.
     Dateien mit unvollständiger Übertragung sind nie abspielbar. Eine gerade
     spielende Datei wird nie ersetzt (ihre Änderung wartet auf den nächsten
-    Abgleich), die laufende Wiedergabe stockt nicht, und eine Figur, die
+    Abgleich), die laufende Wiedergabe stockt nicht, und ein Tobie, der
     während des Abgleichs aufgelegt wird, startet innerhalb der Zeitgrenze.
     HA zeigt Stand und Zeitpunkt.
 
@@ -460,7 +532,7 @@ Zustände, Übergänge und Konflikte: siehe „Kern-Zustände“.
 
 *   **Given**: Box war Tage unterwegs, ohne bekanntes Netz.
 *   **When**: Sie kommt ins Heimnetz oder in den Handy-Hotspot.
-*   **Then**: Sie meldet gesammelte unbekannte Figuren und Status an HA, holt
+*   **Then**: Sie meldet gesammelte unbekannte Tobies und Status an HA, holt
     neue Zuordnungen und (nach den Regeln aus CUJ 9) neue Folgen.
 
 ### CUJ 13: Leser fällt aus und kommt wieder
@@ -469,8 +541,8 @@ Zustände, Übergänge und Konflikte: siehe „Kern-Zustände“.
 *   **When**: Der ESP32 startet neu oder die USB-Verbindung ist kurz weg.
 *   **Then**: Der Box-Dienst merkt es (fehlender Herzschlag), protokolliert
     es, verbindet sich selbst neu. `HELLO` setzt den Zähler `seq` zurück und
-    versetzt den Kern in „Leser-Zustand unbekannt“. Kommt dieselbe Figur
-    wieder, läuft die Serie weiter, ohne neu zu starten. Wurde die Figur
+    versetzt den Kern in „Leser-Zustand unbekannt“. Kommt derselbe Tobie
+    wieder, läuft die Serie weiter, ohne neu zu starten. Wurde der Tobie
     während der Unterbrechung abgehoben, pausiert die Box spätestens 1,5 s
     nach dem Wächter-Alarm (Tabelle „Wiedergabe-Sitzung“).
 
@@ -479,8 +551,8 @@ Zustände, Übergänge und Konflikte: siehe „Kern-Zustände“.
 *   **Given**: Eine Serie spielt. Die Gute-Nacht-Karte ist als Aktion
     zugeordnet. Dauer von Timer und Ausblenden sind in HA eingestellt
     (Vorschlag 30 min und 60 s).
-*   **When**: Tobias nimmt die Serien-Figur weg (Pause) und legt die
-    Gute-Nacht-Karte auf; danach legt er die Serien-Figur wieder auf.
+*   **When**: Tobias nimmt die Serien-Tobie weg (Pause) und legt die
+    Gute-Nacht-Karte auf; danach legt er die Serien-Tobie wieder auf.
 *   **Then**: Mit der Karte startet der Timer; die Serie spielt weiter. Nach
     Ablauf blendet die Lautstärke aus (Regel: „Lautstärke“ in Baustein 3),
     dann endet die Wiedergabe (Pause mit gespeichertem Zeiger). Das funktioniert auch am Mac. Konflikte mit anderen
@@ -494,20 +566,19 @@ Zustände, Übergänge und Konflikte: siehe „Kern-Zustände“.
     HA hat die Einstellung mit der übrigen Konfiguration (`tobibox/config`) an
     beide Boxen verteilt; jede Box hält eine Kopie.
 *   **When**: Die Uhrzeit erreicht ein Fenster, oder ein Kind legt in einem
-    Fenster eine Figur auf.
+    Fenster einen Tobie auf.
 *   **Then**: Bei „leiser“ gilt die Fenster-Grenze nach der Regel in
     „Lautstärke“ (Baustein 3); eine lautere laufende Wiedergabe wird sanft
     abgesenkt. Bei „stumm“ pausiert die Box und spielt nicht; ein kurzer
-    leiser Hinweiston zeigt, dass die Figur erkannt wurde. Nach dem Fenster
-    gilt wieder die normale Grenze. Endet ein „stumm“-Fenster, während eine
-    Figur liegt, startet nichts von selbst; das Kind muss die Figur erneut
+    leiser Hinweiston zeigt, dass der Tobie erkannt wurde. Nach dem Fenster
+    gilt wieder die normale Grenze. Endet ein „stumm“-Fenster, während ein Tobie liegt, startet nichts von selbst; das Kind muss den Tobie erneut
     auflegen. Ohne Netz gilt die letzte Kopie. Ist die Uhrzeit nicht
     vertrauenswürdig, gilt die kleinste „leiser“-Grenze aller Fenster, nie
     stumm (siehe „Uhr und Zeitquelle“).
 
 ### CUJ 16: Leerlauf-Abschaltung
 
-*   **Given**: Es läuft keine Wiedergabe und keine Figur liegt.
+*   **Given**: Es läuft keine Wiedergabe und kein Tobie liegt.
 *   **When**: 20 min vergehen.
 *   **Then**: Die Box fährt herunter — außer es läuft ein Sync, ein Update
     oder der Lernmodus: dann wartet sie. Am Lader schaltet sie erst ab, wenn
@@ -535,24 +606,30 @@ Zustände, Übergänge und Konflikte: siehe „Kern-Zustände“.
 
 ### CUJ 19: Tasten und Drehregler
 
-*   **Given**: Eine Serie spielt oder ist pausiert.
+*   **Given**: Eine Folge (oder Serie) spielt oder ist pausiert.
 *   **When**: Tobias drückt Vor / Zurück, dreht den Drehregler oder drückt den
     Hauptknopf.
-*   **Then**: Vor / Zurück springt zur nächsten / vorigen Folge. Der
+*   **Then**: Vor / Zurück springen nach **Track** innerhalb der aktuellen
+    Folge (Entscheidung F, 05.11.). Zurück in den ersten 3 s eines Tracks springt zum vorigen Track,
+    sonst startet der aktuelle Track neu (im ersten Track: Neustart des
+    Tracks). Beim letzten Track springt Vor bei einem Serien-Tobie zur nächsten
+    Folge, bei einem Folgen-Tobie passiert nichts (Hinweiston). Der
     Drehregler ändert die Lautstärke innerhalb der wirksamen Grenze (Regel:
     „Lautstärke“ in Baustein 3). Der Hauptknopf kurz: Play / Pause. Ist eine
-    Folge zu Ende und liegt die Figur noch auf der Box, spielt ein kurzer Druck
-    die nächste Folge (Entscheidung E); ohne Figur auf der Box gilt Play / Pause.
-    Lang: Zeiger speichern und herunterfahren.
+    Folge zu Ende und liegt der Tobie noch auf der Box, spielt ein kurzer Druck
+    die nächste Folge (Entscheidung E); ohne Tobie auf der Box gilt Play / Pause.
+    In `beendet` spielt der Hauptknopf kurz bei einem Serien-Tobie die nächste
+    Folge, bei einem Folgen-Tobie dieselbe Folge von vorn; Zurück spielt in
+    beiden Fällen die eben beendete Folge von vorn (Entscheidung F, 05.11.). Im „stumm“-Fenster startet
+    nichts. Lang: Zeiger speichern und herunterfahren.
 
-### CUJ 20: Figur liegt schon beim Start
+### CUJ 20: Tobie liegt schon beim Start
 
-*   **Given**: Die Box ist aus (Akku leer, Strom weg oder ausgeschaltet), eine
-    Figur liegt auf dem Leser.
+*   **Given**: Die Box ist aus (Akku leer, Strom weg oder ausgeschaltet), ein Tobie liegt auf dem Leser.
 *   **When**: Die Box startet.
-*   **Then**: Sobald Leser, Kern und MPD bereit sind, wird die Figur wie ein
-    frisches Auflegen behandelt (CUJ 1 bis 3): bekannte Serie spielt am
-    Zeiger weiter, unbekannte Figur startet die Überraschungs-Serie. Die Zeit
+*   **Then**: Sobald Leser, Kern und MPD bereit sind, wird der Tobie wie ein
+    frisches Auflegen behandelt (CUJ 1 bis 3): bekanntes Ziel spielt am
+    Zeiger weiter, unbekannter Tobie startet die Überraschungs-Serie. Die Zeit
     bis „bereit“ hat einen Soll-Wert (Pi-Probelauf).
 
 ## Technischer Plan
@@ -560,7 +637,7 @@ Zustände, Übergänge und Konflikte: siehe „Kern-Zustände“.
 ### Überblick der Bausteine
 
 ```
- Figur/Karte
+ Tobie
      │  13,56 MHz
 ┌────▼─────────────────────┐   USB-Serielle (CDC)     ┌───────────────────────────────┐
 │ ESP32-S3 + PN5180        │  Protokoll v1, Zeilen    │ Box-Rechner (Mac / Pi 3A+)    │
@@ -634,12 +711,12 @@ nur Tobias' Handy) und Tailscale.
   - Abfragezyklus 200 ms. Die Arbeit pro Zyklus ist laut `docs/plan/uebergabe.md`
     gemessen: NTAG-Karte 176 ms (einschließlich des erfolglosen
     ISO-15693-Versuchs), gesperrter Tonie 137 ms, offener Tonie 58 ms. Die
-    Messung in Stufe 1 bestätigt das an Tobias' Figuren.
+    Messung in Stufe 1 bestätigt das an Tobias' Tobies.
   - Neue Kennung gilt nach **2 gleichen Lesungen in Folge** (3 falls die
     Messung zeigt, dass 2 nicht reichen).
-  - `REMOVED` nach **1,1 s** ohne gültige Lesung der liegenden Figur.
+  - `REMOVED` nach **1,1 s** ohne gültige Lesung des liegenden Tobies.
     Damit: Lücken bis 1,0 s überbrückt, Pause ≤ 1,5 s nach Abheben.
-  - Eine andere Kennung, während eine Figur liegt, wird erst nach
+  - Eine andere Kennung, während ein Tobie liegt, wird erst nach
     2 gleichen Lesungen als Wechsel gemeldet (`REMOVED` + `PLACED`).
 - **Gesperrter Tonie**: eigener stabiler Zustand „gesperrt liegt“; gleiche
   Entprell- und Abhebe-Regeln wie bei einer Kennung.
@@ -650,10 +727,10 @@ Sie beantworten nur die Anfrage nach einer Zufallszahl, bis sie mit einem
 danach seine Kennung. Scheitert das Entsperren, meldet die Firmware `LOCKED`.
 Das Passwort liegt nur in der lokalen `config.h` der Firmware, nie im Repo. Die
 Box entsperrt nur mit Tobias' eigenem Passwort, liest nur die Kennung und
-schreibt keine Nutzdaten auf die Figur; das gilt auch für geborgte Figuren. Das
+schreibt keine Nutzdaten auf den Tobie; das gilt auch für geborgte Tobies. Das
 Entsperren hebt den Privacy-Modus auf, **bis eine Toniebox ihn wieder setzt**.
-Danach antwortet die Figur wie ein offener Chip; nur das erste Auflegen läuft
-über den Entsperrweg. Testfall dafür: „gesperrt → offen“ (gleiche Figur, danach
+Danach antwortet der Tobie wie ein offener Chip; nur das erste Auflegen läuft
+über den Entsperrweg. Testfall dafür: „gesperrt → offen“ (gleicher Tobie, danach
 als Kennung gelesen). Das Entsperren hat das Testprogramm `firmware/tonie_test/`
 schon einmal gezeigt.
 
@@ -672,7 +749,7 @@ aus `docs/plan/uebergabe.md`):
 
 - Auflegen (Tonie): gleiche Rechnung mit 137 ms (gesperrt) bzw. 58 ms (offen)
   statt 176 ms; die Entsperrzeit steckt in den 137 ms. Stufe 1 misst sie an
-  Tobias' Figuren nach. Ziel 2 gilt erst als erreicht, wenn die gemessene Summe
+  Tobias' Tobies nach. Ziel 2 gilt erst als erreicht, wenn die gemessene Summe
   unter 1,0 s liegt.
 - Abheben: `REMOVED` wird erst am Ende eines Zyklus nach den 1,1 s
   ausgewertet, also bis 1,1 s + 1 Zyklus (0,2 s) = 1,3 s; dazu Übertragung
@@ -710,14 +787,13 @@ Eigenes Dokument `docs/protocol/reader-v1.md` (Stufe 0). Grundzüge:
 | Zeile | Bedeutung |
 |---|---|
 | `HELLO proto=1 fw=<version> build=<git-hash> pn5180=<fw-version>` | nach Start und auf `PING` |
-| `PLACED uid=<hex> type=<ntag\|iso15693> tonie=<0\|1> seq=<n>` | Figur mit Kennung liegt (entprellt) |
+| `PLACED uid=<hex> type=<ntag\|iso15693> tonie=<0\|1> seq=<n>` | Tobie mit Kennung liegt (entprellt) |
 | `LOCKED seq=<n>` | gesperrter Tonie liegt |
-| `REMOVED seq=<n>` | liegende Figur ist weg |
+| `REMOVED seq=<n>` | liegender Tobie ist weg |
 | `HB up=<s> present=<0\|1> polls=<n> hits=<n> rejected=<n> errors=<n> cycle_ms=<n>` | Herzschlag alle 2 s; der Wächter im Box-Dienst schlägt nach 5 s an (2 verpasste Herzschläge plus Reserve) |
 | `ERR code=<wort> detail=<text>` | Fehler; die vollständige Liste der Codes steht in `reader-v1.md` (z. B. `pn5180_no_response`, `unlock_failed`) |
 
-- Felder des Herzschlags: `up` Sekunden seit Start, `present` liegt gerade eine
-  Figur, `polls` Abfragezyklen seit Start, `hits` gültige Lesungen, `rejected`
+- Felder des Herzschlags: `up` Sekunden seit Start, `present` liegt gerade ein Tobie, `polls` Abfragezyklen seit Start, `hits` gültige Lesungen, `rejected`
   verworfene Lesungen (verfälscht oder abweichend), `errors` Fehlerzyklen,
   `cycle_ms` Dauer des letzten Zyklus. Genaue Definition: `reader-v1.md`.
 - Zum Leser: `PING` (Antwort `HELLO`); weitere Befehle reserviert (siehe „Leser-Rückkanal“ in den Offenen Fragen).
@@ -742,13 +818,13 @@ Ein Prozess, `asyncio`, ein Paket `tobibox` mit klar getrennten Modulen:
 | `events` | Typen aller Ereignisse und Befehle; einziger Eigentümer | **nein** |
 | `core` | Zustandsautomat: Ereignisse rein, Befehle raus; hält die vier Teilautomaten (`session`, `learn`, `quiet` + `bedtime`, `idle`) in einer Liste und löst Konflikte nach der Konflikt-Tabelle (siehe „Kern-Zustände“); Schnittstelle: `docs/protocol/core-interface.md` | **nein** (reine Logik, voll testbar) |
 | `volume` | Reine Funktion: wirksame Lautstärke-Grenze (siehe „Lautstärke“) | **nein** |
-| `pointer` | Reine Funktionen für die Zeigerregeln: nächste Folge, fehlende Folge, Rücksprung 3 s (siehe „Datenmodell und Dateien“) | **nein** |
+| `pointer` | Reine Funktionen für die Zeigerregeln: nächste Folge, Folgenende je Ziel (`serie` / `folge`), Track-Sprünge (Vor / Zurück), fehlende Folge, Rücksprung 3 s (siehe „Datenmodell und Dateien“) (Entscheidung F, 05.11.) | **nein** |
 | `protocol` | Zeilen-Parser nach `reader-v1.md`, prüft das Kennungsformat | **nein** |
 | `clock` | Uhr als Eingang des Kerns: Wanduhr und monotone Uhr, Zeitquelle | Systemuhr (im Test: simulierte Uhr) |
-| `library` | Serien und Folgen aus dem Medienordner lesen | Dateisystem (lesen) |
+| `library` | Serien, Folgen und die Tracks jeder Folge (Datei oder Unterordner) aus dem Medienordner lesen (Entscheidung F, 05.11.) | Dateisystem (lesen) |
 | `store` | Zustandsdateien atomar lesen/schreiben | Dateisystem |
 | `reader` | Serielle öffnen (pyserial in eigenem Thread, Zeilen über eine Warteschlange an die Ereignisschleife), Zeilen parsen, Neuverbinden, Herzschlag überwachen (Wächter: 5 s ohne `HB`) | Serielle |
-| `player` | dünne Schicht über MPD (`mpd.asyncio.MPDClient` aus python-mpd2): Abspielen, Pause, Position, Lautstärke (setzt die wirksame Grenze nur durch); die Player-Ereignisse stehen in `core-interface.md` | MPD |
+| `player` | dünne Schicht über MPD (`mpd.asyncio.MPDClient` aus python-mpd2): Abspielen der Tracks einer Folge, Pause, Track und Position, Lautstärke (setzt die wirksame Grenze nur durch); die Player-Ereignisse stehen in `core-interface.md` | MPD |
 | `sounds` | kurze Rückmeldetöne über eigenes Kommando (Mac `afplay`, Pi `aplay`) | Prozess |
 | `outbox` | Ereignis-Ausgang mit Bestätigung: hält `unknown.json`, gibt Einträge frei, wenn die Bestätigung eintrifft | Dateisystem |
 | `ha` | MQTT-Anbindung (paho-mqtt ≥ 2, eigener Thread mit `loop_start`, Übergabe per `call_soon_threadsafe`), HA-Discovery, Zuordnungen empfangen, Status senden, Bestätigungen empfangen | Netz |
@@ -779,7 +855,7 @@ Abhängigkeiten sind reines Python (Update-Paket, siehe „Update“).
 | Quelle | Ereignisse (Beispiele) |
 |---|---|
 | Leser (`reader`) | `PLACED`, `LOCKED`, `REMOVED`, `HELLO`, Wächter-Alarm, Leser-Fehler |
-| Player (`player`) | Folge zu Ende, Wiedergabe-Fehler, MPD nicht erreichbar (Felder: `core-interface.md`) |
+| Player (`player`) | Track-Wechsel, Folge zu Ende, Wiedergabe-Fehler, MPD nicht erreichbar (Felder: `core-interface.md`) (Entscheidung F, 05.11.) |
 | HA (`ha`) | neue Konfiguration (Zuordnungen, Leise-Zeiten, Gute-Nacht), Lernmodus starten/abbrechen, Leise-Zeiten, Sync/Update anstoßen |
 | Zeitgeber | Takt (mit Zeitstempel), Fristen laufen ab |
 | Bedienung (`controls`) | Vor, Zurück, Lautstärke, Hauptknopf kurz/lang |
@@ -802,20 +878,24 @@ sind Ereignisse (`Takt` mit Zeitstempel). `core` reicht jedes Ereignis an alle
 Teilautomaten, sammelt die Befehle und löst Konflikte nach der Konflikt-Tabelle.
 Neue Teilautomaten trägt das Integrations-AP der Stufe in die Liste in `core` ein.
 `app.py` führt die Befehle aus und speist Ereignisse ein. Die Ereignisse des
-Players (Folge zu Ende, Fehler, MPD weg) sind in `core-interface.md` festgelegt,
+Players (Track-Wechsel, Folge zu Ende, Fehler, MPD weg) sind in `core-interface.md` festgelegt,
 damit Kern und `player` unabhängig gebaut werden können.
 
 **Ereignis-Ausgang mit Bestätigung.** Meldungen an HA (unbekannte Kennung,
-gelernte Figur) gehen über den Befehl `melden`. Das Modul `outbox` hält sie in
+gelernter Tobie) gehen über den Befehl `melden`. Das Modul `outbox` hält sie in
 `unknown.json`, bis das Ereignis `bestätigt(id, grund)` eintrifft. In Stufe 2 löst
 `tobibox sim ack` die Bestätigung aus, ab Stufe 3a kommt sie von HA über MQTT
 (Baustein 4). Der Broker allein bestätigt nichts.
 
-**Abspielen mit MPD.** Die MPD-Warteschlange enthält **nur die aktuelle
-Folge**. Folgenende heißt: MPD stoppt, der Dienst setzt den Zeiger auf die
-nächste Folge (Position 0) und meldet das dem Kern; MPD startet nie von selbst
-die nächste Folge. Resume geschieht per `seek` direkt auf die Position (Zeiger
-minus 3 s): Es gibt kein kurzes Spielen ab 0:00. Die Latenz dieses Aufrufs misst
+**Abspielen mit MPD.** Die MPD-Warteschlange enthält **nur die Tracks der
+aktuellen Folge**, in der Reihenfolge der Folge (eine Datei: ein Track) (Entscheidung F, 05.11.).
+Die Tracks spielen ohne Pause nacheinander; wechselt MPD zum nächsten Track,
+meldet `player` `TrackWechsel` (der Zeiger bekommt den neuen Track).
+**Folgenende** heißt: MPD stoppt nach dem **letzten** Track, `player` meldet
+`FolgeZuEnde`, der Kern setzt den Zeiger (Serie: nächste Folge; Folge: Anfang
+derselben Folge) und pausiert; MPD startet nie von selbst die nächste Folge.
+Resume geschieht per `seek` direkt auf Track und Position (Zeiger minus 3 s im
+Track): Es gibt kein kurzes Spielen ab 0:00. Die Latenz dieses Aufrufs misst
 Stufe 1.
 
 Die Abläufe (CUJs) werden als **pytest-Tabellen** geschrieben: je CUJ ein
@@ -883,39 +963,44 @@ befehle)` (Vertrag: `docs/protocol/core-interface.md`).
 **1. Wiedergabe-Sitzung** (`session`)
 
 Zustände: `leer` (nichts liegt, nichts läuft), `spielt`, `pausiert`,
-`beendet` (Folge zu Ende, Figur liegt noch), `gehalten` (Figur liegt, wird
+`beendet` (Folge zu Ende, Tobie liegt noch), `gehalten` (Tobie liegt, wird
 wegen „stumm“ nicht gespielt), `unbekannt` (Leser-Zustand unbekannt).
 
 | Zustand | Ereignis | Befehl | neuer Zustand |
 |---|---|---|---|
-| `leer`, `pausiert` | `PLACED`, Serie bekannt, nicht stumm | Lautstärke setzen, Zeiger laden, Abspielen | `spielt` |
+| `leer`, `pausiert` | `PLACED`, Ziel `serie` oder `folge` bekannt, nicht stumm (Entscheidung F, 05.11.) | Lautstärke setzen, Zeiger des Ziels laden (Serie: Zeiger der Serie; Folge: Zeiger der Folge), Abspielen ab Track und Position | `spielt` |
 | `leer`, `pausiert` | `PLACED`, Kennung unbekannt | Kennung in `unknown.json`, Überraschungs-Serie abspielen, Ton | `spielt` |
 | `leer`, `pausiert` | `LOCKED` | Überraschungs-Serie abspielen | `spielt` |
-| `leer`, `pausiert` | `PLACED`, Typ `aktion` | Aktion auslösen (Status: Tonfolge; Gute Nacht: an Ruhe-Regeln) | unverändert |
+| `leer`, `pausiert` | `PLACED`, Ziel `aktion` | Aktion auslösen (Status: Tonfolge; Gute Nacht: an Ruhe-Regeln) | unverändert |
 | `leer`, `pausiert` | `PLACED`, stumm aktiv | leiser Hinweiston, nichts abspielen | `gehalten` |
 | `spielt` | `REMOVED` | Pause, Zeiger speichern | `pausiert` |
 | `spielt` | `PLACED` andere Kennung | Zeiger der alten Serie speichern, neue Serie wie in den Zeilen oben | `spielt` |
-| `spielt` | Folge zu Ende (auch die letzte) | Zeiger auf die nächste Folge, Position 0 (nach der letzten auf Folge 1), speichern, Pause, auch wenn die Figur liegt | `beendet` |
+| `spielt` | `TrackWechsel` (MPD spielt den nächsten Track derselben Folge) (Entscheidung F, 05.11.) | Zeiger auf den neuen Track, Position 0, speichern; keine Pause | `spielt` |
+| `spielt` | Folge zu Ende (nach dem letzten Track, auch die letzte Folge) (Entscheidung F, 05.11.) | `serie`: Zeiger auf die nächste Folge, Track 0, Position 0 (nach der letzten auf Folge 1); `folge`: Zeiger dieser Folge auf Track 0, Position 0; speichern, Pause, auch wenn der Tobie liegt | `beendet` |
+| `spielt`, `pausiert` | `Vor` (Entscheidung F, 05.11.) | nächster Track derselben Folge; beim letzten Track: `serie` → erster Track der nächsten Folge, `folge` → Hinweiston, nichts ändert sich; sonst Zeiger speichern, am neuen Track abspielen | `spielt` (bei Hinweiston unverändert) |
+| `spielt`, `pausiert` | `Zurück` (Entscheidung F, 05.11.) | Position im Track < 3 s und es gibt einen vorigen Track → voriger Track; sonst aktuellen Track von vorn; Zeiger speichern, abspielen | `spielt` |
 | `beendet` | `REMOVED` | — (die nächste Folge spielt nach erneutem Auflegen) | `pausiert` |
-| `beendet` (Figur liegt) | Hauptknopf kurz | Lautstärke setzen, nächste Folge ab Zeiger abspielen (Entscheidung E) | `spielt` |
+| `beendet` (Tobie liegt) | Hauptknopf kurz oder `Vor` | Lautstärke setzen, ab Zeiger abspielen (Entscheidung E): `serie` → nächste Folge, `folge` → dieselbe Folge von vorn (Entscheidung F, 05.11.) | `spielt` |
+| `beendet` (Tobie liegt) | `Zurück` (Entscheidung F, 05.11.) | Lautstärke setzen, die eben beendete Folge von vorn abspielen (beide Typen); Zeiger auf diese Folge, Track 0, Position 0 | `spielt` |
 | `spielt` | Hauptknopf kurz | Pause, Zeiger speichern | `pausiert` |
-| `pausiert` (Figur liegt) | Hauptknopf kurz | Abspielen | `spielt` |
+| `pausiert` (Tobie liegt) | Hauptknopf kurz | Abspielen | `spielt` |
 | `spielt` | Wächter-Alarm (kein `HB`) | Frist 1,5 s starten | `unbekannt` |
 | `unbekannt` | `HELLO` und `PLACED` mit derselben Kennung innerhalb der Frist | nichts, Wiedergabe läuft weiter | `spielt` |
 | `unbekannt` | Frist abgelaufen | Pause, Zeiger speichern | `pausiert` |
 | `spielt` | stumm beginnt | sanft ausblenden, Pause, Zeiger speichern | `gehalten` |
 | `gehalten` | `REMOVED` | — | `pausiert` |
 | `gehalten` | stumm endet | nichts; Wiedergabe startet nicht von selbst, erst Abheben und erneutes Auflegen startet sie | `pausiert` |
-| `leer` | Start mit liegender Figur (CUJ 20) | wie `PLACED`, sobald alles bereit ist | `spielt` |
+| `leer` | Start mit liegendem Tobie (CUJ 20) | wie `PLACED`, sobald alles bereit ist | `spielt` |
 | beliebig | Kopfhörer rein/raus | erst Grenze setzen, dann Ausgang umschalten | unverändert |
 
 Kommt nach der Frist dieselbe Kennung wieder, ist das ein normales Auflegen
 mit Resume am gespeicherten Zeiger (erste Zeile).
 
-Ohne Figur auf der Box (Zustände `leer`, `pausiert` nach Abheben) behält der
+Ohne Tobie auf der Box (Zustände `leer`, `pausiert` nach Abheben) behält der
 Hauptknopf kurz seine normale Funktion (Play / Pause, CUJ 19). Im Zustand
-`beendet` liegt die Figur immer noch auf der Box; deshalb spielt dort der
-Hauptknopf die nächste Folge.
+`beendet` liegt der Tobie immer noch auf der Box; deshalb spielt dort der
+Hauptknopf die nächste Folge (bei einem Folgen-Tobie dieselbe Folge von
+vorn) (Entscheidung F, 05.11.).
 
 **2. Lernmodus** (`learn`, gehört der Box)
 
@@ -926,11 +1011,10 @@ Zustände: `aus`, `lernt`.
 | `aus` | HA-Befehl „Lernmodus“ an diese Box, nicht abgelaufen | Beginnton, Frist 2 min auf der Box starten | `lernt` |
 | `aus` | HA-Befehl abgelaufen | ignorieren, protokollieren | `aus` |
 | `lernt` | `PLACED` (bekannt oder unbekannt) | Kennung an HA melden, Endeton | `aus` |
-| `lernt` | Frist 2 min ohne Figur | Endeton | `aus` |
+| `lernt` | Frist 2 min ohne Tobie | Endeton | `aus` |
 | `lernt` | HA „abbrechen“ | Endeton | `aus` |
 
-Der Lernmodus ändert die Reaktion der Wiedergabe-Sitzung nicht: Eine
-unbekannte Figur startet weiter die Überraschungs-Serie, bis HA die
+Der Lernmodus ändert die Reaktion der Wiedergabe-Sitzung nicht: Ein unbekannter Tobie startet weiter die Überraschungs-Serie, bis HA die
 Zuordnung schickt. Der Befehl geht an genau eine Box, ist nicht dauerhaft
 (nicht „retained“) und hat eine Ablaufzeit (Baustein 4).
 
@@ -951,7 +1035,7 @@ Gute Nacht — Zustände: `aus`, `läuft`, `ausblenden`.
 | Zustand | Ereignis | Befehl | neuer Zustand |
 |---|---|---|---|
 | `aus` | Gute-Nacht-Karte aufgelegt | Timer starten (Dauer aus der Konfiguration, Vorschlag 30 min) | `läuft` |
-| `läuft` | andere Figur aufgelegt | nichts; der Timer läuft für die neue Figur weiter | `läuft` |
+| `läuft` | anderer Tobie aufgelegt | nichts; der Timer läuft für den neuen Tobie weiter | `läuft` |
 | `läuft` | Timer abgelaufen | Ausblenden starten (Grenze sinkt über die Ausblendzeit, Vorschlag 60 s) | `ausblenden` |
 | `ausblenden` | Lautstärke bei null | Pause, Zeiger speichern, Lautstärke zurücksetzen | `aus` |
 | `ausblenden` | `REMOVED` | normale Pause (Zeiger gespeichert), Lautstärke zurücksetzen | `aus` |
@@ -962,8 +1046,8 @@ Zustände: `aktiv`, `leerlauf` (Zähler für 20 min läuft), `herunterfahren`.
 
 | Zustand | Ereignis | Befehl | neuer Zustand |
 |---|---|---|---|
-| `aktiv` | keine Wiedergabe und keine Figur | Leerlauf-Zähler starten (monotone Uhr) | `leerlauf` |
-| `leerlauf` | Wiedergabe oder Figur | Zähler verwerfen | `aktiv` |
+| `aktiv` | keine Wiedergabe und kein Tobie | Leerlauf-Zähler starten (monotone Uhr) | `leerlauf` |
+| `leerlauf` | Wiedergabe oder Tobie | Zähler verwerfen | `aktiv` |
 | `leerlauf` | 20 min um, Sync, Update oder Lernmodus läuft (am Lader auch: Sync oder Update noch offen) | warten, Zähler neu; nach Ende des Syncs oder Updates erneut prüfen | `leerlauf` |
 | `leerlauf` | 20 min um, nichts läuft | Zeiger speichern, Herunterfahren | `herunterfahren` |
 | `aktiv` | Hauptknopf lang | Zeiger speichern, Herunterfahren | `herunterfahren` |
@@ -978,14 +1062,16 @@ wecken (PiSugar-Wecker) ist eine Option für Stufe 4.
 
 | Situation | Erwartetes Ergebnis |
 |---|---|
-| Folge zu Ende, Figur liegt noch | Zeiger auf die nächste Folge (nach der letzten auf Folge 1), Position 0; die Box pausiert und wartet im Zustand `beendet`. Es passiert nichts, bis die Figur abgehoben und wieder aufgelegt wird (Entscheidung A) oder der Hauptknopf kurz gedrückt wird (Entscheidung E). |
-| Hauptknopf kurz, Folge ist zu Ende, Figur liegt noch | Die nächste Folge spielt ab dem Zeiger (Position 0). Ohne Figur auf der Box behält der Hauptknopf seine normale Funktion (Play / Pause). |
+| Folge zu Ende (nach dem letzten Track, nicht nach jedem Track), Tobie liegt noch (Entscheidung F, 05.11.) | `serie`: Zeiger auf die nächste Folge (nach der letzten auf Folge 1), Track 0, Position 0; `folge`: Zeiger dieser Folge auf Track 0, Position 0; die Box pausiert und wartet im Zustand `beendet`. Es passiert nichts, bis der Tobie abgehoben und wieder aufgelegt wird (Entscheidung A) oder der Hauptknopf kurz gedrückt wird (Entscheidung E). |
+| Hauptknopf kurz, Folge ist zu Ende, Tobie liegt noch | Es spielt ab dem Zeiger (Track 0, Position 0): bei `serie` die nächste Folge, bei `folge` dieselbe Folge von vorn (Entscheidung F, 05.11.). Ohne Tobie auf der Box behält der Hauptknopf seine normale Funktion (Play / Pause). |
+| `Zurück`, Folge ist zu Ende, Tobie liegt noch (Entscheidung F, 05.11.) | Die eben beendete Folge spielt von vorn (Track 0, Position 0), bei `serie` und `folge`. |
+| `Vor` beim letzten Track (Entscheidung F, 05.11.) | `serie`: erster Track der nächsten Folge (nach der letzten auf Folge 1); `folge`: Hinweiston, nichts ändert sich. |
 | Stumm gegen Lernmodus | Die Box lernt trotzdem, bestätigt mit dem leisen Ton und spielt nicht. |
-| Stumm-Fenster beginnt, während eine Figur spielt | Die Wiedergabe blendet sanft aus, pausiert, Zeiger gespeichert (`gehalten`). |
-| Stumm-Fenster endet, während eine Figur liegt | Nichts startet von selbst. Erst Abheben und erneutes Auflegen startet die Wiedergabe (Entscheidung B). |
-| Gute Nacht läuft, eine andere Figur wird aufgelegt | Der Timer läuft für die neue Figur weiter. |
-| Figur wird beim Ausblenden abgehoben | Normale Pause, Zeiger gespeichert, Lautstärke zurückgesetzt, Resume setzt dort wieder an. |
-| Figurwechsel während einer Leser-Unterbrechung (`unbekannt`, dann `HELLO` und `PLACED` mit **anderer** Kennung) | Die Frist endet; Zeiger der alten Serie gespeichert, die neue Serie startet wie bei einem normalen Auflegen. |
+| Stumm-Fenster beginnt, während ein Tobie spielt | Die Wiedergabe blendet sanft aus, pausiert, Zeiger gespeichert (`gehalten`). |
+| Stumm-Fenster endet, während ein Tobie liegt | Nichts startet von selbst. Erst Abheben und erneutes Auflegen startet die Wiedergabe (Entscheidung B). |
+| Gute Nacht läuft, ein anderer Tobie wird aufgelegt | Der Timer läuft für den neuen Tobie weiter. |
+| Tobie wird beim Ausblenden abgehoben | Normale Pause, Zeiger gespeichert, Lautstärke zurückgesetzt, Resume setzt dort wieder an. |
+| Tobie-Wechsel während einer Leser-Unterbrechung (`unbekannt`, dann `HELLO` und `PLACED` mit **anderer** Kennung) | Die Frist endet; Zeiger der alten Serie gespeichert, die neue Serie startet wie bei einem normalen Auflegen. |
 | Leerlauf-Abschaltung trifft Lernmodus, Sync oder Update | Die Box schaltet nie ab, solange eines davon läuft. |
 | Tiefstand während Sync | Der Sync bricht ab, Zeiger gespeichert, die Box fährt herunter. |
 | Mehrere Lautstärke-Grenzen gleichzeitig (z. B. Kopfhörer, „leiser“, Ausblenden) | Es gilt das Minimum aller aktiven Grenzen. |
@@ -1006,48 +1092,84 @@ möglichst abwärtskompatibel sein.
 
 | Datei | Inhalt | Wer schreibt | Sync |
 |---|---|---|---|
-| `config.json` | Konfiguration von HA mit **einer** Revision und **einer** Listen-ID: Zuordnungen `uid → Eintrag` (Typ `serie` mit Serien-ID oder Typ `aktion`, z. B. Status oder Gute Nacht), Leise-Zeiten, Gute-Nacht-Einstellungen (Timer-Dauer, Ausblendzeit) | nur aus HA übernommen | holt von HA |
-| `resume.json` | je Serie: der Zeiger (aktuelle Folge als Dateiname + Position) + Zähler | Box | nie |
+| `config.json` | Konfiguration von HA mit **einer** Revision und **einer** Listen-ID: Zuordnungen `uid → Eintrag` mit einem Feld `ziel`: `{"typ":"serie","serie":id}`, `{"typ":"folge","serie":id,"folge":name}` oder `{"typ":"aktion",…}` (z. B. Status oder Gute Nacht) (Entscheidung F, 05.11.), Leise-Zeiten, Gute-Nacht-Einstellungen (Timer-Dauer, Ausblendzeit) | nur aus HA übernommen | holt von HA |
+| `resume.json` | je Serie der Zeiger (aktuelle Folge als Name, Track, Position in s) + Zähler, und je (Serie, Folge) ein Zeiger für Folgen-Tobies (Track, Position, Zähler) (Entscheidung F, 05.11.); `schema_version` 2 | Box | nie |
 | `unknown.json` | unbekannte Kennungen mit Zeitpunkt, noch nicht von HA bestätigt | Box | an HA; Eintrag erst löschen, wenn HA bestätigt hat (`…/ack`) |
 
-- **Serie** = Ordner im Medienordner; Folgen = Audiodateien darin (D5).
-  **Reihenfolge, eine Regel überall:** Sie steht in `serie.json` (Liste
-  `folgen`). Nur wenn `serie.json` fehlt, gilt die natürliche Sortierung nach
-  Dateiname. Dateien, die im Ordner liegen, aber nicht in der Liste stehen,
-  spielt die Box erst, wenn die Integration sie in die Liste eingetragen hat.
+- **Serie** = Ordner im Medienordner; Folgen darin sind **Audiodateien (D5)
+  oder Unterordner mit mehreren Tracks** (Entscheidung F, 05.11.). Eine Folge ist eine Datei, wenn sie
+  eine Datei mit erlaubter Endung ist, und ein Folgen-Ordner, wenn sie ein
+  Unterordner (Name ohne Punkt am Anfang) mit mindestens einem Track ist.
+  **Tracks eines Folgen-Ordners:** die Dateien im Unterordner (nicht
+  verschachtelt), ohne Dotfiles, mit derselben Endungsliste wie überall,
+  geordnet nach der natürlichen Sortierung. Ein Folgen-Ordner ohne Track zählt
+  nicht als Folge (Protokolleintrag). Der Name der Folge (Dateiname oder
+  Ordnername) ist ihr Schlüssel in `serie.json` und im Zeiger.
+  **Reihenfolge der Folgen, eine Regel überall:** Sie steht in `serie.json`
+  (Liste `folgen`, Folgen mit Namen). Nur wenn `serie.json` fehlt, gilt die
+  natürliche Sortierung nach Name. Dateien und Ordner, die im Serien-Ordner
+  liegen, aber nicht in der Liste stehen, spielt die Box erst, wenn die
+  Integration sie in die Liste eingetragen hat. Ein Hörspiel ohne Reihe liegt
+  in einem beliebigen Serien-Ordner (z. B. „Einzelfolgen“), ohne Sonderregel.
 - **Serien-ID** — siehe Entscheidung D2. Die Box spielt auch Ordner ohne
   `serie.json`: Ordnername als ID, Reihenfolge nach Dateiname. Tragen zwei
   Ordner dieselbe ID (Ordner samt `serie.json` kopiert), gibt die
   Integration der **jüngeren** Kopie eine neue ID und meldet das. „Jünger“
   heißt: das spätere `angelegt_am` in `serie.json`.
-- **Admin-Karten** (Status usw.) sind Einträge in `config.json` mit Typ
-  `aktion` statt `serie`. Sie werden in HA wie jede Figur zugeordnet; bis
+- **Admin-Karten** (Status usw.) sind Einträge in `config.json` mit
+  `ziel.typ` `aktion` statt `serie` oder `folge`. Sie werden in HA wie jeder Tobie zugeordnet; bis
   Stufe 3a per `tobibox sim`.
 - Alle Schemas (vollständig, mit Beispiel-JSON) stehen als Vertrag in
   `docs/data-model.md` (Stufe 0): `config.json`, `resume.json`, `unknown.json`,
   `serie.json`, `manifest.json` und die Zeile des Ereignisprotokolls. Ein AP,
   das ein Schema ändert, ergänzt `docs/data-model.md`.
-- **Zeigerregeln (Resume = „nächste ungehörte Folge“):** je Serie ein Zeiger
-  (Folge + Position). Ohne gespeicherten Zeiger beginnt die Serie bei Folge 1.
-  **Nach jeder Folge pausiert die Box** (Entscheidung A): Folge zu Ende →
-  Zeiger auf nächste Folge, Position 0, Pause, auch wenn die Figur noch liegt.
-  Letzte Folge zu Ende → Zeiger auf Folge 1, ebenfalls Pause. Die nächste
-  Folge spielt erst, wenn die Figur (oder eine andere Figur derselben Serie)
-  neu aufgelegt wird oder der Hauptknopf kurz gedrückt wird (Entscheidung E).
-  Beim Weiterspielen mitten in einer Folge 3 s Rücksprung (per `seek`, siehe
-  „Abspielen mit MPD“). Die Zeigerlogik gehört zu Stufe 1.
-- **Zeiger auf eine fehlende Folge** (gelöscht, umbenannt, aus der Liste): Der
-  Zeiger geht auf die nächste vorhandene Folge in der Reihenfolge, Position 0,
-  und die Box protokolliert das. Ist die Serie leer: Fehlerton.
+- **Zeigerregeln (Resume = „nächste ungehörte Folge“):** (Entscheidung F, 05.11.) Eine Position ist
+  (Folge, Track, Sekunden im Track). Es gibt zwei Arten von Zeigern:
+  - **Serien-Zeiger** (für `serie`, auch für die Überraschungs-Serie): ein
+    Zeiger je Serie. Ohne gespeicherten Zeiger beginnt die Serie bei Folge 1,
+    Track 0. Folge zu Ende (nach dem letzten Track) → Zeiger auf die nächste
+    Folge, Track 0, Position 0; nach der letzten Folge auf Folge 1.
+  - **Folgen-Zeiger** (für `folge`): ein Zeiger je (Serie, Folge), unabhängig
+    vom Serien-Zeiger derselben Serie. Ohne Zeiger beginnt die Folge bei Track
+    0. Folge zu Ende → der Zeiger **springt auf Track 0, Position 0 zurück**:
+    Das nächste Auflegen spielt die Folge von vorn.
+
+  **Nach jeder Folge pausiert die Box** (Entscheidung A, hier am Ende der
+  **ganzen Folge**, nicht nach jedem Track; die Tracks einer Folge spielen
+  ohne Pause): Pause, auch wenn der Tobie noch liegt. Die nächste Folge (Serie)
+  oder dieselbe Folge von vorn (Folge) spielt erst, wenn der Tobie (oder ein
+  anderer Tobie desselben Ziels) neu aufgelegt wird oder der Hauptknopf kurz
+  gedrückt wird (Entscheidung E). Beim Weiterspielen mitten in einem Track 3 s
+  Rücksprung im Track (per `seek`, siehe „Abspielen mit MPD“). Die Zeigerlogik
+  gehört zu Stufe 1 (AP 1.7).
+- **Vor / Zurück** (CUJ 19): Vor springt zum nächsten Track der Folge; beim
+  letzten Track zur nächsten Folge (`serie`) bzw. nichts mit Hinweiston
+  (`folge`). Zurück springt zum vorigen Track, wenn die Position im Track unter
+  3 s liegt und es einen vorigen Track gibt, sonst startet der aktuelle Track
+  neu. Jeder Sprung setzt Position 0 und speichert den Zeiger.
+- **Zeiger auf eine fehlende Folge** (gelöscht, umbenannt, aus der Liste): Bei
+  einem Serien-Zeiger geht der Zeiger auf die nächste vorhandene Folge in der
+  Reihenfolge, Track 0, Position 0, und die Box protokolliert das. Ist die Serie
+  leer: Fehlerton. Zeigt ein Folgen-Tobie auf eine Folge, die es auf der Box
+  nicht gibt, gilt wie bei einer fehlenden Serie: Die Box spielt die
+  Überraschungs-Serie und protokolliert den Grund; kommt die Folge später, gilt
+  die Zuordnung beim nächsten Auflegen. **Fehlender Track** (die Folge hat jetzt
+  weniger Tracks als der Zeiger meint): Track 0, Position 0, Protokolleintrag.
+- **Migration:** `resume.json` (`schema_version` 1 → 2): Jeder Eintrag in
+  `serien` bekommt `track` 0; `folgen` (Folgen-Zeiger) ist leer. Alte Einträge
+  gelten also als „Track 0 mit der gespeicherten Position“. `config.json`
+  (`schema_version` 1 → 2): Jeder Eintrag `{typ, …}` wird zu `{ziel: {typ, …}}`.
+  Beide Migrationen laufen im Speicher beim Lesen (`data-model.md`, 1.5).
 - Der Zeiger wird nur gespeichert, wenn er sich geändert hat — bei Pause,
-  Folgenwechsel, Figurwechsel und höchstens alle 30 s während der Wiedergabe.
+  Folgen- und Track-Wechsel, Tobie-Wechsel und höchstens alle 30 s während der Wiedergabe.
 - **Schreibbudget:** Bei 2 h Wiedergabe am Tag sind das etwa 240 Schreibvorgänge
   pro Tag und Box für den Zeiger. Das Ereignisprotokoll hat eine feste
   Obergrenze (Pi: journald mit begrenztem Platz; Mac: rotierende Datei,
   Vorschlag 5 Dateien zu je 1 MB). Beide Werte werden im Pi-Probelauf
   geprüft.
 - **Überraschungs-Serie** ist eine normale Serie, erkennbar nur an `typ`
-  `ueberraschung` in ihrer `serie.json`; eine feste ID gibt es nicht. Gibt es
+  `ueberraschung` in ihrer `serie.json`; eine feste ID gibt es nicht. Sie
+  verhält sich wie ein Ziel `serie` (Entscheidung F, 05.11.). Gibt es
   keine oder mehr als eine → Fehlerton, Protokolleintrag. Ist sie leer →
   Fehlerton, Protokolleintrag.
 
@@ -1073,13 +1195,14 @@ Skripte, Automationen) liegt als Dateien im Repo unter `homeassistant/`.
   (Entscheidung D). Pakete legt Tobias ab.
 - **`serie.json`:** `schema_version`, `id` (zufällig, unveränderlich),
   `name` (Anzeige), `angelegt_am`, `folgen` (Reihenfolge als Liste von
-  Dateinamen; maßgeblich, Regeln im Datenmodell), `typ` (`normal` oder
+  Namen von Dateien und Folgen-Ordnern; maßgeblich, Regeln im Datenmodell), `typ` (`normal` oder
   `ueberraschung`; die Überraschungs-Serie wird nur daran erkannt). Geschrieben
   atomar.
 - **Erkennen von außen:** Beim Öffnen der Seite und alle 10 min prüft die
   Integration die Freigabe. Neuer Ordner → `serie.json` mit neuer ID und
-  Ordnername als Anzeigename. Neue Datei → hinten an die Reihenfolge (erst
-  dann spielt die Box sie). Fehlende Datei → aus der Reihenfolge, Hinweis.
+  Ordnername als Anzeigename. Neue Datei oder neuer Folgen-Ordner → hinten an die Reihenfolge (erst
+  dann spielt die Box sie). Fehlende Datei oder fehlender Ordner → aus der
+  Reihenfolge, Hinweis (Entscheidung F, 05.11.).
   Neue Dateien werden auf Format und Kopierschutz geprüft (D5). Schreiben HA,
   ein PC und der Lautheits-Container (D6) gleichzeitig auf die Freigabe, gibt
   es keine Sperre; das ist als Risiko geführt.
@@ -1089,19 +1212,20 @@ Skripte, Automationen) liegt als Dateien im Repo unter `homeassistant/`.
 
 #### Aktionen und Seite
 
-- **Aktionen** (auch für Automationen): zuordnen (auch Aktionskarten wie
-  Status und Gute Nacht), lösen, Lernmodus starten / abbrechen, Serie anlegen /
+- **Aktionen** (auch für Automationen): zuordnen (Typ `serie`, `folge` oder
+  Aktion; Aktionskarten wie Status und Gute Nacht) (Entscheidung F, 05.11.), lösen, Lernmodus starten / abbrechen, Serie anlegen /
   umbenennen, Folgen sortieren / löschen, Papierkorb leeren, Sync anstoßen,
   Update anstoßen, Liste neu ausrollen (erzeugt eine neue Listen-ID),
   Leise-Zeiten und Gute-Nacht-Einstellungen einstellen (Stufe 4).
 - **Eigene Seite** in der HA-Seitenleiste („Tobi Box“), läuft auch über
   Nabu Casa am Handy:
-  - Serienliste mit Anzahl Folgen und zugeordneten Figuren
-  - Serie öffnen: Folgen per Ziehen sortieren, löschen, umbenennen,
+  - Serienliste mit Anzahl Folgen und zugeordneten Tobies
+  - Serie öffnen: Folgen (Dateien oder Folgen-Ordner) per Ziehen sortieren, löschen, umbenennen,
     Audiodateien vom Handy hochladen
-  - „Neue Figuren“: unbekannte Kennungen beider Boxen (gleiche Kennung = ein
-    Eintrag), mit einem Tipp einer Serie zuordnen (Weg A); „Jetzt kommt ein
-    neuer Tonie“ (Weg B)
+  - „Neue Tobies“: unbekannte Kennungen beider Boxen (gleiche Kennung = ein
+    Eintrag), mit einem Tipp einer Serie oder einer einzelnen Folge zuordnen
+    (Weg A; Tobias wählt dabei den Typ `serie` oder `folge`) (Entscheidung F, 05.11.); „Jetzt kommt ein
+    neuer Tobie“ (Weg B, ebenfalls mit Typ)
   - Aktionskarten (Status, Gute Nacht) einer Kennung zuordnen
   - Box-Status: Version, Netz, Akku, Sync-Stand, letzter Fehler, abgelehnte
     Listen
@@ -1147,7 +1271,7 @@ Skripte, Automationen) liegt als Dateien im Repo unter `homeassistant/`.
   `docs/protocol/mqtt-v1.md` (Stufe 0).
 - Themen:
   - `tobibox/config` (dauerhaft/„retained“, ganze Konfiguration:
-    Zuordnungen, Leise-Zeiten, Gute-Nacht-Einstellungen, mit einer Revision
+    Zuordnungen mit `ziel` (`serie`, `folge` oder `aktion`) (Entscheidung F, 05.11.), Leise-Zeiten, Gute-Nacht-Einstellungen, mit einer Revision
     und einer Listen-ID)
     - `tobibox/<box>/event` (gelernt, abgelehnte Liste, Fehler)
   - Unbekannte Kennungen: Die Box veröffentlicht jede Kennung **dauerhaft
@@ -1155,14 +1279,15 @@ Skripte, Automationen) liegt als Dateien im Repo unter `homeassistant/`.
     (`tobibox/<box>/unknown/<uid>`). HA bestätigt auf dem Thema `…/ack` (mit
     Grund); **erst dann** löscht die Box den Eintrag in `unknown.json` und die
     dauerhafte Nachricht. Die Bestätigung des Brokers (PUBACK) reicht nicht:
-    Sie sagt nicht, dass HA die Figur hat, etwa wenn HA gerade neu startet
+    Sie sagt nicht, dass HA der Tobie hat, etwa wenn HA gerade neu startet
   - `tobibox/<box>/cmd` (Lernmodus, Sync, Update): geht an genau eine Box,
     ist **nicht** dauerhaft und trägt eine Ablaufzeit; ein abgelaufener Befehl
     wird ignoriert (Tabelle „Lernmodus“ in den Kern-Zuständen).
 - Box meldet sich per **MQTT-Discovery** an: Sensoren (Zustand, läuft
   gerade, Akku, Lader, Netz, Sync-Stand, freier Speicherplatz, Version,
   letzter Fehler, Zeitquelle), Knöpfe (Sync jetzt, Update, Lernmodus
-  abbrechen), Auswahl (Serie für Lernmodus).
+  abbrechen), Auswahl (Serie für Lernmodus; Typ und Folge wählt Tobias in der
+  Aktion „Lernmodus starten“ (Entscheidung F, 05.11.)).
 - **Revisionsregel** (Revision = Versionsnummer der Konfiguration; die
   Listen-ID kennzeichnet den HA-Speicher, siehe Begriffe). Die Box übernimmt
   eine Konfigurations-Nachricht,
@@ -1429,7 +1554,7 @@ die Box mit seinem Handy-Hotspot wie mit einem bekannten Netz.
 Gewählt: Paket in eigenem Verzeichnis, Verweis `current`, Rückfall über
 systemd.
 
-### Automatische Erkennung der Figur
+### Automatische Erkennung des Tobies
 
 **Mit dem Chip allein nicht möglich** (siehe `research_tonie_erkennung.md`): Der
 Chip trägt nur eine Seriennummer; die Zuordnung erfolgt einmal pro Exemplar.
@@ -1505,12 +1630,14 @@ Abnahme Stufe 0:
 | ESP32-S3 SuperMini mit PN5180, verdrahtet nach den Pins in `config.h` | AP 1.1 gegen Hardware, Abnahme | vor Abnahme Stufe 1 |
 | Echte `config.h` mit dem Tonie-Passwort, nur lokal auf dem Mac, nie im Repo | Firmware bauen und flashen | vor Abnahme Stufe 1 |
 | Mac mit Homebrew-MPD | AP 1.3, 1.4, Abnahme | vor AP 1.3 |
-| Figuren zum Testen (Tonies, darunter ein gesperrter, und NFC-Karten) | Abnahme, Messung | vor Abnahme Stufe 1 |
+| Tobies zum Testen (Tonies, darunter ein gesperrter, und NFC-Karten) | Abnahme, Messung | vor Abnahme Stufe 1 |
 | Mikrofon (das im Mac reicht) | Messung am Ausgang (AP 1.6) | vor AP 1.6 |
 | Einige Test-Audiodateien (optional) | Hörprobe; die Tests erzeugen eigene | optional |
 
 **Reihenfolge:** AP 1.1 läuft parallel zu allem. Danach AP 1.2a, dann AP 1.2b;
-AP 1.3, 1.4 und 1.5 laufen parallel; AP 1.6 am Schluss.
+AP 1.3, 1.4 und 1.5 laufen parallel; danach AP 1.7 (Folgen mit Tracks und
+Folgen-Tobies, Entscheidung F, 05.11.; erweitert die Dateien aus AP 1.2a, 1.2b
+und 1.3); AP 1.6 am Schluss.
 
 #### AP 1.1 Firmware `tobibox-reader` (Sonnet)
 
@@ -1529,7 +1656,7 @@ Build für `esp32s3` gelingt.
 | `firmware/tobibox-reader/src/debounce.cpp` | neu | Zustandsautomat nach der Tabelle in `reader-v1.md`, ohne Hardware-Aufrufe (Zeit wird übergeben). |
 | `firmware/tobibox-reader/src/protocol.h` | neu | Schnittstelle der Protokoll-Ausgabe, ohne Arduino-Typen. |
 | `firmware/tobibox-reader/src/protocol.cpp` | neu | Formatiert Zeilen nach `reader-v1.md`, zählt `seq` und die Herzschlag-Zähler. |
-| `firmware/tobibox-reader/test/test_debounce/test_debounce.cpp` | neu | Native Tests: 2-gleich-Regel, 1,0-s-Lücke, 1,1-s-Abheben, Figurwechsel, verfälschte Kennung am Rand, gesperrter Tonie, „gesperrt → offen“, `fehler(code)` mitten in der Entprellung. |
+| `firmware/tobibox-reader/test/test_debounce/test_debounce.cpp` | neu | Native Tests: 2-gleich-Regel, 1,0-s-Lücke, 1,1-s-Abheben, Tobie-Wechsel, verfälschte Kennung am Rand, gesperrter Tonie, „gesperrt → offen“, `fehler(code)` mitten in der Entprellung. |
 | `firmware/tobibox-reader/test/test_protocol/test_protocol.cpp` | neu | Native Tests gegen `../../docs/protocol/reader-v1-examples.txt`. |
 | `firmware/tobibox-reader/README.md` | neu | Bauen, Flashen am Mac, Passwort eintragen, serielle Ausgabe ansehen. |
 | `firmware/tonie_test/` | bleibt | Referenz, unverändert. |
@@ -1584,7 +1711,7 @@ Konfiguration, Ereignisprotokoll und die erste Fassung der CLI. Läuft nach AP 1
 | `box/src/tobibox/config.py` | neu | `tobibox.toml` laden und prüfen (`tomllib`), inkl. globaler Lautstärke-Obergrenze und Startlautstärke. |
 | `box/src/tobibox/eventlog.py` | neu | Python `logging` mit JSON-Formatter; Pi: JSON-Zeilen nach stdout; Mac: `RotatingFileHandler` mit fester Obergrenze; Vorgangs-ID als Log-Feld. |
 | `box/src/tobibox/cli.py` | neu | Erste Fassung von `tobibox status` (Leser, letzte Fehler, Versionen). |
-| `box/src/tobibox/session.py` | änd. | Zeigerlogik anschließen: Zeiger laden beim Auflegen, speichern bei Abheben, Folgenende, Figurwechsel. |
+| `box/src/tobibox/session.py` | änd. | Zeigerlogik anschließen: Zeiger laden beim Auflegen, speichern bei Abheben, Folgenende, Tobie-Wechsel. |
 | `box/src/tobibox/core.py` | änd. | Befehl „Speichern“ und Zeiger-Eingang verdrahten. |
 | `box/tools/fake_reader.py` | neu | Gibt Protokollzeilen auf ein Pseudo-Terminal aus; Vorführen und Testen ohne Hardware. |
 | `box/tests/fixtures/__init__.py` | neu | Paket für die Test-Erzeuger. |
@@ -1592,7 +1719,7 @@ Konfiguration, Ereignisprotokoll und die erste Fassung der CLI. Läuft nach AP 1
 | `box/tests/unit/test_store.py` | neu | Atomares Schreiben, `.bak`-Rückfall, beschädigte Datei beim Start. |
 | `box/tests/unit/test_store_powerloss.py` | neu | Stromausfall-Test: Prozess hart beenden während des Schreibens; danach ist die Datei lesbar. |
 | `box/tests/unit/test_library.py` | neu | Reihenfolge, Ordner ohne `serie.json`, doppelte IDs, Überraschungs-Serie (keine oder mehr als eine, leer). |
-| `box/tests/unit/test_pointer.py` | neu | Alle Zeigerregeln, darunter „Zeiger auf gelöschte oder umbenannte Folge“ und „Folge zu Ende bei liegender Figur: Pause, Zeiger auf die nächste Folge, nach der letzten auf Folge 1“. |
+| `box/tests/unit/test_pointer.py` | neu | Alle Zeigerregeln, darunter „Zeiger auf gelöschte oder umbenannte Folge“ und „Folge zu Ende bei liegendem Tobie: Pause, Zeiger auf die nächste Folge, nach der letzten auf Folge 1“. |
 | `box/tests/unit/test_config.py` | neu | Konfiguration laden und prüfen. |
 | `box/tests/unit/test_eventlog.py` | neu | JSON-Zeile mit allen Pflichtfeldern, Vorgangs-ID. |
 
@@ -1609,16 +1736,16 @@ Ergebnis: Der Dienst spielt über MPD und lässt sich mit Leser (oder
 
 | Datei | Neu/Änd. | Inhalt und Grund |
 |---|---|---|
-| `box/src/tobibox/player.py` | neu | Dünne MPD-Schicht über `mpd.asyncio.MPDClient`: Warteschlange nur mit der aktuellen Folge, Abspielen, Pause, Resume per `seek` auf Position, Lautstärke, Ereignis „Folge zu Ende“ (MPD stoppt) nach `core-interface.md`. Setzt die wirksame Grenze aus `volume.py` nur durch und setzt beim Start **zuerst** die Lautstärke. |
+| `box/src/tobibox/player.py` | neu | Dünne MPD-Schicht über `mpd.asyncio.MPDClient`: Warteschlange nur mit der aktuellen Folge (ab AP 1.7 mit allen Tracks der Folge), Abspielen, Pause, Resume per `seek` auf Position, Lautstärke, Ereignis „Folge zu Ende“ (MPD stoppt) nach `core-interface.md`. Setzt die wirksame Grenze aus `volume.py` nur durch und setzt beim Start **zuerst** die Lautstärke. |
 | `box/src/tobibox/sounds.py` | neu | Kurze Töne über konfigurierbares Kommando (Mac `afplay`, Pi `aplay`). |
 | `box/src/tobibox/notify.py` | neu | `READY=1` über `NOTIFY_SOCKET` senden (reines Python, ohne `python-systemd`); am Mac ohne Wirkung. |
 | `box/src/tobibox/app.py` | neu | **Einziger Zusammenbau-Punkt:** baut Uhr und Module, verdrahtet reader → core → player, Zeitgeber (`Takt`), meldet `READY=1`, beendet sauber. |
 | `box/src/tobibox/__main__.py` | neu | Einstieg `python -m tobibox` bzw. `tobiboxd`. |
 | `box/tools/make_sounds.py` | neu | Erzeugt die Platzhalter-Töne reproduzierbar. |
 | `box/sounds/start.wav` | neu | Platzhalter-Ton: Start. |
-| `box/sounds/unbekannt.wav` | neu | Platzhalter-Ton: unbekannte Figur. |
+| `box/sounds/unbekannt.wav` | neu | Platzhalter-Ton: unbekannter Tobie. |
 | `box/sounds/fehler.wav` | neu | Platzhalter-Ton: Fehler. |
-| `box/sounds/hinweis.wav` | neu | Leiser Hinweiston (Figur erkannt bei „stumm“). |
+| `box/sounds/hinweis.wav` | neu | Leiser Hinweiston (Tobie erkannt bei „stumm“). |
 | `box/sounds/lernen_beginn.wav` | neu | Platzhalter-Ton: Lernmodus beginnt. |
 | `box/sounds/lernen_ende.wav` | neu | Platzhalter-Ton: Lernmodus endet. |
 | `box/sounds/akku_leer.wav` | neu | Platzhalter-Ton: Akku fast leer. |
@@ -1668,11 +1795,50 @@ Abnahme AP 1.5:
 - Der Lauf auf einem Test-Branch ist in beiden Jobs grün.
 - Die CI lädt keine Firmware-Datei hoch.
 
+#### AP 1.7 Folgen mit Tracks und Folgen-Tobies (Sonnet)
+
+Ergebnis (Entscheidung F, 05.11.): Eine Folge ist eine Datei oder ein Ordner mit
+mehreren Tracks und spielt alle Tracks ohne Pause; ein Tobie zeigt auf eine
+Serie oder auf eine einzelne Folge. Die Pause nach jeder Folge gilt am Ende der
+ganzen Folge. Zeiger mit Track, Folgen-Zeiger, Vor / Zurück nach Track,
+`resume.json` und `config.json` in Version 2 mit Migration. Läuft nach AP 1.2a,
+1.2b und 1.3 und ändert deren Dateien; **AP 1.6 hängt von diesem AP ab.**
+Ausnahme von der Grundregel zu `session.py` und `app.py`: Diese Änderung gehört
+inhaltlich zu den Teilen und wird vor AP 1.6 gemacht; AP 1.6 führt zusammen.
+Die Verträge (`docs/protocol/core-interface.md`, `docs/data-model.md`,
+`docs/protocol/mqtt-v1.md`) sind schon nachgezogen; das AP ändert sie nicht.
+
+| Datei | Neu/Änd. | Inhalt und Grund |
+|---|---|---|
+| `box/src/tobibox/events.py` | änd. | Typen nach `core-interface.md` (Entscheidung F): `TrackWechsel`, `FolgeZuEnde` (Folge nach dem letzten Track zu Ende), `PlayerPosition.track`, `Abspielen` mit `tracks` und `track`, `Zeiger` und `ZeigerSpeichern` mit `art` und `track`, `Zuordnung` mit Typ `folge`, `Serie.tracks`. |
+| `box/src/tobibox/library.py` | änd. | Folge = Datei oder Unterordner; Tracks eines Folgen-Ordners nach natürlicher Sortierung, ohne Dotfiles, gleiche Endungsliste; leerer Folgen-Ordner zählt nicht (Protokoll); `serie.json.folgen` nennt Namen. |
+| `box/src/tobibox/pointer.py` | änd. | Serien-Zeiger und Folgen-Zeiger; Folgenende je Ziel (Serie: nächste Folge, Track 0; Folge: zurück auf Track 0, 0 s); Track-Sprünge für Vor / Zurück (3-s-Regel); fehlende Folge und fehlender Track. |
+| `box/src/tobibox/session.py` | änd. | Ziel `serie` / `folge` merken; `TrackWechsel` (Zeiger, keine Pause); `FolgeZuEnde` (Pause erst jetzt, Zeiger je Ziel); Vor / Zurück nach Track; Hauptknopf kurz und Zurück in `beendet`; Folgen-Tobie mit fehlender Folge → Überraschungs-Serie. |
+| `box/src/tobibox/store.py` | änd. | `resume.json` Version 2 (Track, Folgen-Zeiger) und `config.json` Version 2 (`ziel`) lesen und schreiben; Migration im Speicher (alte Einträge = Track 0 bzw. `ziel` aus `typ`). |
+| `box/src/tobibox/player.py` | änd. | Warteschlange mit den Tracks der aktuellen Folge; `seek` auf Track und Position; `TrackWechsel` bei Wechsel zum nächsten Track; `FolgeZuEnde` erst, wenn MPD nach dem letzten Track stoppt; `PlayerPosition` mit Track. |
+| `box/src/tobibox/app.py` | änd. | Verdrahtung: `Abspielen` mit Tracks an den Player, neue Player-Ereignisse in den Kern, Zeiger-Speichern mit Art und Track. |
+| `box/tests/fixtures/audio.py` | änd. | Erzeugt zusätzlich Folgen-Ordner mit mehreren kurzen Tracks (und Dotfiles zum Ignorieren). |
+| `box/tests/unit/test_library.py` | änd. | Folge als Datei und als Ordner, Track-Reihenfolge, Dotfiles, leerer Folgen-Ordner, Serie „Einzelfolgen“. |
+| `box/tests/unit/test_pointer.py` | änd. | Folgenende für `serie` und `folge`, Vor / Zurück nach Track (3-s-Grenze, erster und letzter Track), fehlender Track. |
+| `box/tests/unit/test_session.py` | änd. | Neue Zeilen der Tabelle „Wiedergabe-Sitzung“: `TrackWechsel`, Folgenende je Ziel, Vor, Zurück, `beendet` mit Hauptknopf und Zurück. |
+| `box/tests/unit/test_store_migration.py` | neu | Migrationstest: `resume.json` Version 1 wird im Speicher zu Version 2 (alle Einträge Track 0, keine Folgen-Zeiger), `config.json` Version 1 wird zu `ziel`; neuere Version wird abgelehnt. |
+| `box/tests/integration/test_player_mpd.py` | änd. | Gegen echtes MPD: Folge mit mehreren Tracks spielt durch, `TrackWechsel` je Wechsel, `FolgeZuEnde` nur nach dem letzten Track, Resume per `seek` in Track 2. |
+| `box/tests/cuj/test_cuj01_folgen_tobie.py` | neu | CUJ 1 und 3 für einen Tobie auf eine einzelne Folge: spielt diese Folge; am Ende Pause, Zeiger zurück auf den Anfang; erneutes Auflegen spielt von vorn; Serien-Zeiger derselben Serie bleibt unberührt. |
+| `box/tests/cuj/test_cuj01_folge_mit_tracks.py` | neu | Folge mit mehreren Tracks: Tracks nacheinander ohne Pause, Pause erst am Ende der Folge, Resume mitten im zweiten Track, Vor / Zurück nach Track (Serien-Tobie: letzter Track → nächste Folge; Folgen-Tobie: Hinweiston). |
+
+Abnahme AP 1.7:
+
+- Alle genannten Tests sind grün, auch die unveränderten aus AP 1.2a, 1.2b und 1.3.
+- Eine Folge mit drei Tracks spielt ohne Pause durch; die Pause und der Zeiger-Sprung kommen erst am Ende der ganzen Folge.
+- Ein Folgen-Tobie spielt nach dem Ende beim nächsten Auflegen von vorn; ein Serien-Tobie derselben Serie macht an seinem eigenen Zeiger weiter.
+- Der Migrationstest für `resume.json` (und `config.json`) ist grün.
+- `session.py` und `core.py` importieren weiter kein Ein-/Ausgabe-Modul.
+
 #### AP 1.6 Integration Stufe 1 und Messung (Sonnet)
 
 Ergebnis: Die CUJ-Tests der Stufe laufen, die Messung liegt vor. Das AP führt
 Änderungen zusammen, falls parallele APs `core.py`, `session.py` oder `app.py`
-berührt haben (Grundregel).
+berührt haben (Grundregel). **Abhängig von AP 1.7** (läuft danach, Entscheidung F, 05.11.).
 
 | Datei | Neu/Änd. | Inhalt und Grund |
 |---|---|---|
@@ -1688,15 +1854,16 @@ berührt haben (Grundregel).
 
 Abnahme AP 1.6:
 
-- Alle sechs CUJ-Tests sind grün.
+- Alle sechs CUJ-Tests sind grün; die zwei CUJ-Tests aus AP 1.7 bleiben grün.
 - `docs/timing.md` ist ausgefüllt.
 
 **Abnahme Stufe 1**
 
 - Alle CUJ-Tests und übrigen Tests sind grün (pytest und PlatformIO `native`); die CI ist grün.
 - Tobias führt am Mac mit echtem Leser CUJ 1, 2, 5, 6, 8 und 13 vor.
-- Dazu ein Leser-Neustart: USB-Kabel bei spielender Figur ziehen und stecken; ein zweites Mal mit Abheben während der Unterbrechung.
-- Nach Abheben, Neustart des Dienstes und erneutem Auflegen spielt die Figur an der gespeicherten Stelle weiter (Zeigerlogik).
+- Dazu ein Leser-Neustart: USB-Kabel bei spielendem Tobie ziehen und stecken; ein zweites Mal mit Abheben während der Unterbrechung.
+- Nach Abheben, Neustart des Dienstes und erneutem Auflegen spielt der Tobie an der gespeicherten Stelle weiter (Zeigerlogik).
+- Tobias führt einen Tobie auf eine einzelne Folge und einen Tobie mit mehreren Tracks vor (AP 1.7, Entscheidung F, 05.11.): Tracks spielen ohne Pause, Pause erst am Ende der Folge, Folgen-Tobie spielt danach von vorn.
 - Die Klemmung im Dienst wirkt auch beim Start; der Test „Grenze wird nie überschritten“ ist grün. Die harte ALSA-Kappung gehört in den Pi-Probelauf.
 - `docs/timing.md` enthält je einen Messwert für: Warten auf den Zyklus, erste Lesung, Entprellen, Entsperren (Tonie), Übertragung, Dienst, MPD-Start bis zum Ton am Ausgang.
 - Die Summen liegen bei Auflegen unter 1,0 s und bei Abheben unter 1,5 s; Lücken bis 1,0 s führen zu keiner Pause.
@@ -1716,9 +1883,9 @@ wird in AP 2.4 behoben.
 
 | Datei | Neu/Änd. | Inhalt und Grund |
 |---|---|---|
-| `box/tests/cuj/test_cuj03_resume.py` | neu | CUJ 3: Resume mit 3-s-Rücksprung, auch nach Neustart; Folge zu Ende bei liegender Figur (Pause, Zeiger auf die nächste Folge, nichts passiert bis Abheben und Auflegen; nach der letzten Folge Zeiger auf Folge 1). |
+| `box/tests/cuj/test_cuj03_resume.py` | neu | CUJ 3: Resume mit 3-s-Rücksprung, auch nach Neustart; Folge zu Ende bei liegendem Tobie (Pause, Zeiger auf die nächste Folge, nichts passiert bis Abheben und Auflegen; nach der letzten Folge Zeiger auf Folge 1); Resume mitten im zweiten Track einer Folge; Folgen-Tobie spielt nach dem Ende von vorn (Entscheidung F, 05.11.). |
 | `box/tests/cuj/test_cuj04_andere_figur.py` | neu | CUJ 4: Zeiger der alten Serie bleibt, neue Serie läuft an ihrem Zeiger oder bei Folge 1. |
-| `box/tests/cuj/test_cuj20_figur_beim_start.py` | neu | CUJ 20: Figur liegt beim Start (bekannt: Zeiger; unbekannt: Überraschungs-Serie). |
+| `box/tests/cuj/test_cuj20_figur_beim_start.py` | neu | CUJ 20: Tobie liegt beim Start (bekannt: Zeiger; unbekannt: Überraschungs-Serie). |
 | `box/tests/integration/test_resume_neustart.py` | neu | Dienst hart beenden und neu starten; Zeiger ist da, höchstens 30 s Wiedergabe verloren. |
 
 Abnahme AP 2.1:
@@ -1726,7 +1893,7 @@ Abnahme AP 2.1:
 - Alle Tests sind grün.
 - Die Stromausfall-Grenze von 30 s ist im Test belegt.
 
-#### AP 2.2 Unbekannte Figuren, Lernmodus, Simulations-Treiber (Sonnet)
+#### AP 2.2 Unbekannte Tobies, Lernmodus, Simulations-Treiber (Sonnet)
 
 Ergebnis: Teilautomat Lernmodus, Ereignis-Ausgang mit Bestätigung und der
 Simulations-Treiber `sim` mit Unix-Socket. Die Bestätigung kommt in dieser Stufe
@@ -1770,7 +1937,7 @@ die CUJ-Tests der Stufe laufen.
 | Datei | Neu/Änd. | Inhalt und Grund |
 |---|---|---|
 | `box/src/tobibox/core.py` | änd. | `learn` in die Liste der Teilautomaten eintragen. |
-| `box/src/tobibox/session.py` | änd. | Karte mit Typ `aktion` löst die Aktion aus statt einer Serie (Status: Tonfolge); Fehler beheben, die die Tests aus AP 2.1 zeigen. |
+| `box/src/tobibox/session.py` | änd. | Karte mit Ziel `aktion` löst die Aktion aus statt einer Serie (Status: Tonfolge); Fehler beheben, die die Tests aus AP 2.1 zeigen. |
 | `box/src/tobibox/app.py` | änd. | `outbox` und `sim` verdrahten. |
 | `box/src/tobibox/cli.py` | änd. | `tobibox status` ausführlich; `tobibox sim learn`, `tobibox sim ack` und `tobibox sim card` (Karte als Aktion in `config.json` zuordnen, bis HA das in Stufe 3a übernimmt). |
 | `box/tests/cuj/test_cuj07a_unbekannte_figur.py` | neu | CUJ 7a: Überraschungs-Serie, Eintrag in `unknown.json`, Löschen erst nach `ack`, Wechsel auf die Serie nach der Zuordnung. |
@@ -1788,7 +1955,7 @@ Abnahme AP 2.4:
 - Alle Punkte der Abnahme Stufe 1 gelten weiter.
 - Tobias führt Resume über einen Neustart vor.
 - Tobias führt den Lernmodus per `tobibox sim learn` und die Bestätigung per `tobibox sim ack` vor.
-- CUJ 20 (Figur liegt beim Start) ist vorgeführt.
+- CUJ 20 (Tobie liegt beim Start) ist vorgeführt.
 - Die Pause nach jeder Folge ist vorgeführt (Regel: AP 2.1, Test `test_cuj03_resume.py`).
 
 ### Pi-Probelauf (sobald der Pi 3A+ da ist)
@@ -1842,9 +2009,9 @@ bestätigt oder ändert sie):
 | Belegter Arbeitsspeicher, alle Dienste laufen | ≤ 300 MB |
 | Start (Strom an) bis „bereit“ | ≤ 40 s |
 | Auflegen eines Tonies (mit Entsperrzeit), ohne Last | ≤ 1,0 s |
-| Auflegen einer bekannten Figur, während ein Sync läuft | ≤ 1,0 s; wird erst nach AP 3.4 am Pi gemessen (Abnahme Stufe 3a) |
+| Auflegen eines bekannten Tobies, während ein Sync läuft | ≤ 1,0 s; wird erst nach AP 3.4 am Pi gemessen (Abnahme Stufe 3a) |
 | Abheben bis Pause | ≤ 1,5 s |
-| Figur liegt beim Start (CUJ 20) | spielt, sobald „bereit“ |
+| Tobie liegt beim Start (CUJ 20) | spielt, sobald „bereit“ |
 | Lautstärke-Kappung (`softvol`) | Ausgang bleibt bei Dienst-Absturz und Neustart unter der Grenze |
 | Schreibvorgänge pro Tag (Zeiger, Protokoll) | im Schreibbudget des Datenmodells |
 | Temperatur | nur protokollieren (kein Soll-Wert) |
@@ -1909,7 +2076,7 @@ WebSocket nach Vertrag W.
 | `homeassistant/custom_components/tobibox/config_flow.py` | neu | Einrichtung: Medienpfad, Boxen. |
 | `homeassistant/custom_components/tobibox/const.py` | neu | Konstanten. |
 | `homeassistant/custom_components/tobibox/store.py` | neu | Konfiguration (Zuordnungen, Leise-Zeiten, Gute-Nacht-Einstellungen) mit einer Revision und einer Listen-ID im HA-Speicher; automatischer Export auf das NAS nach jeder Änderung. |
-| `homeassistant/custom_components/tobibox/media.py` | neu | `serie.json` lesen/schreiben (mit `angelegt_am`, `typ`), neue Ordner/Dateien erkennen (neue Dateien hinten an die Reihenfolge), Format- und Kopierschutz-Prüfung (D5), Speicheranzeige aus den Box-Meldungen, Papierkorb ohne Automatik, Hochladen als Strom in Blöcken; Datei-Zugriffe über `async_add_executor_job`. |
+| `homeassistant/custom_components/tobibox/media.py` | neu | `serie.json` lesen/schreiben (mit `angelegt_am`, `typ`), neue Ordner/Dateien erkennen (neue Dateien und neue Folgen-Ordner hinten an die Reihenfolge (Entscheidung F, 05.11.)), Format- und Kopierschutz-Prüfung (D5), Speicheranzeige aus den Box-Meldungen, Papierkorb ohne Automatik, Hochladen als Strom in Blöcken; Datei-Zugriffe über `async_add_executor_job`. |
 | `homeassistant/custom_components/tobibox/mqtt.py` | neu | `tobibox/config` veröffentlichen („Liste neu ausrollen“ = neue Listen-ID), Box-Ereignisse empfangen und idempotent verarbeiten, Kennungen auf `…/ack` bestätigen, Befehle mit Ablaufzeit senden, abgelehnte Listen anzeigen. |
 | `homeassistant/custom_components/tobibox/websocket_api.py` | neu | Die WebSocket-Befehle nach Vertrag W. |
 | `homeassistant/custom_components/tobibox/http.py` | neu | Upload-Endpunkt mit Anmeldung (nur Audioformate nach D5). |
@@ -1940,7 +2107,7 @@ Ergebnis: Die Seite „Tobi Box“, bedienbar am Handy.
 
 | Datei | Neu/Änd. | Inhalt und Grund |
 |---|---|---|
-| `homeassistant/custom_components/tobibox/frontend/tobibox-panel.js` | neu | Serienliste, Folgen ziehen, Hochladen, Umbenennen, Neue Figuren, Lernmodus, Zuordnen von Aktionskarten (Status, Gute Nacht), Box-Status mit freiem Speicher, Aktionen „Liste neu ausrollen“ und „Papierkorb leeren“. |
+| `homeassistant/custom_components/tobibox/frontend/tobibox-panel.js` | neu | Serienliste, Folgen ziehen, Hochladen, Umbenennen, Neue Tobies, Lernmodus (mit Wahl Serie oder Folge), Zuordnen mit Typ `serie` / `folge` (Entscheidung F, 05.11.), Zuordnen von Aktionskarten (Status, Gute Nacht), Box-Status mit freiem Speicher, Aktionen „Liste neu ausrollen“ und „Papierkorb leeren“. |
 | `homeassistant/custom_components/tobibox/frontend/lit-all.min.js` | neu | Lit in fester Version, eingecheckt (kein Laden aus dem Netz). |
 | `homeassistant/tests/frontend/mock-hass.mjs` | neu | Mock für die HA-WebSocket-Schnittstelle. |
 | `homeassistant/tests/frontend/panel.test.mjs` | neu | Mit `node --test`: Das Modul lädt; jeder Aufruf geht mit den Namen und Feldern aus Vertrag W gegen den Mock; Fehlerantworten werden angezeigt. |
@@ -2046,7 +2213,7 @@ Abnahme AP 3.7:
 - CUJ 7a/7b mit HA, 9 und 12 sind als pytest-Tabellen grün.
 - Tobias führt die Seite am Handy über Nabu Casa vor, mit einem Upload größer als 16 MiB, und eine Box am Mac.
 - Auflegen während Sync: Am Pi innerhalb der Zeitgrenze; ohne Pi holt das der Pi-Lauf nach, sobald der Pi da ist.
-- Leser-Neustart bei spielender Figur (CUJ 13) ist weiter bestanden.
+- Leser-Neustart bei spielendem Tobie (CUJ 13) ist weiter bestanden.
 - Die HA-Wiederherstellung mit neuer Listen-ID wird von beiden Boxen übernommen, auch bei niedrigerer Revision.
 - „Liste neu ausrollen“ wird von beiden Boxen übernommen.
 - Die Hotspot-/Akku-Regel ist mit Simulation geprüft.
@@ -2196,13 +2363,13 @@ Ergebnis: Bedien-Ereignisse und der Hauptknopf nach Entscheidung E.
 |---|---|---|
 | `box/src/tobibox/controls.py` | neu | Vor, Zurück, Lautstärke, Hauptknopf kurz/lang als Ereignisse für den Kern. |
 | `box/tests/unit/test_controls.py` | neu | Tasten-Zuordnung, kurz/lang, Lautstärke bleibt unter der wirksamen Grenze. |
-| `box/tests/unit/test_session_hauptknopf.py` | neu | Hauptknopf kurz je Zustand: `spielt` → Pause; `pausiert` mit Figur → Abspielen; `beendet` mit Figur → nächste Folge ab Zeiger; ohne Figur → normale Funktion (Play / Pause). |
+| `box/tests/unit/test_session_hauptknopf.py` | neu | Hauptknopf kurz je Zustand: `spielt` → Pause; `pausiert` mit Tobie → Abspielen; `beendet` mit Tobie → `serie`: nächste Folge ab Zeiger, `folge`: dieselbe Folge von vorn (Entscheidung F, 05.11.); ohne Tobie → normale Funktion (Play / Pause). |
 
 Abnahme AP 4.2:
 
-- Vor / Zurück springt zur nächsten / vorigen Folge.
+- Vor / Zurück springt nach Track innerhalb der Folge (Zurück in den ersten 3 s: voriger Track); beim letzten Track geht Vor bei `serie` zur nächsten Folge, bei `folge` gibt es den Hinweiston (Entscheidung F, 05.11.).
 - Der Drehregler ändert die Lautstärke nie über die wirksame Grenze.
-- Hauptknopf kurz: Play / Pause; ist eine Folge zu Ende und liegt die Figur noch auf der Box, spielt er die nächste Folge (Entscheidung E); ohne Figur gilt Play / Pause.
+- Hauptknopf kurz: Play / Pause; ist eine Folge zu Ende und liegt der Tobie noch auf der Box, spielt er die nächste Folge (Entscheidung E); ohne Tobie gilt Play / Pause.
 - Hauptknopf lang: Zeiger speichern und herunterfahren.
 
 #### AP 4.3 Leerlauf und PiSugar-Beschreibung (Sonnet), umsetzt CUJ 16
@@ -2242,7 +2409,7 @@ Ergebnis: Teilautomat Leise-Zeiten auf der Box.
 | Datei | Neu/Änd. | Inhalt und Grund |
 |---|---|---|
 | `box/src/tobibox/quiet.py` | neu | Teilautomat Leise-Zeiten (Projektplan, Abschnitt 5.7): Fenster mit Wirkung „leiser“ oder „stumm“; die Einstellung kommt über das Thema `tobibox/config` (Teil derselben Konfiguration), lokale Kopie für offline; bei nicht vertrauenswürdiger Zeit gilt die kleinste „leiser“-Grenze aller Fenster, nie stumm. |
-| `box/tests/unit/test_quiet.py` | neu | Fenstergrenzen mit simulierter Uhr; Zeit nicht vertrauenswürdig; stumm beginnt während der Wiedergabe; stumm endet bei liegender Figur (nichts startet). |
+| `box/tests/unit/test_quiet.py` | neu | Fenstergrenzen mit simulierter Uhr; Zeit nicht vertrauenswürdig; stumm beginnt während der Wiedergabe; stumm endet bei liegendem Tobie (nichts startet). |
 
 Abnahme AP 4.5:
 
@@ -2256,7 +2423,7 @@ Ergebnis: Teilautomat Gute Nacht.
 | Datei | Neu/Änd. | Inhalt und Grund |
 |---|---|---|
 | `box/src/tobibox/bedtime.py` | neu | Teilautomat Gute Nacht: Timer mit Ausblenden über die Lautstärke-Regel; Dauer von Timer und Ausblenden aus `config.json` (Vorschlag 30 min und 60 s); die Karte ist ein Eintrag Typ `aktion` in `config.json`; funktioniert am Mac. |
-| `box/tests/unit/test_bedtime.py` | neu | Timer läuft ab, Lautstärke blendet aus, Wiedergabe endet; andere Figur während des Timers; Abheben während des Ausblendens. |
+| `box/tests/unit/test_bedtime.py` | neu | Timer läuft ab, Lautstärke blendet aus, Wiedergabe endet; anderer Tobie während des Timers; Abheben während des Ausblendens. |
 
 Abnahme AP 4.6:
 
@@ -2294,7 +2461,7 @@ Simulation vorführbar.
 | `box/src/tobibox/app.py` | änd. | `led`, `controls`, `headphones`, `idle` verdrahten. |
 | `box/src/tobibox/sim.py` | änd. | Ausgang „Ring-Zustand“ (Terminal, Protokoll); Eingänge Tasten und Drehregler per Tastatur, Eingang „Stecker“. |
 | `box/src/tobibox/cli.py` | änd. | `tobibox sim key`, `tobibox sim headphones`, `tobibox sim time`. |
-| `box/tests/cuj/test_cuj14_gute_nacht.py` | neu | Karte auflegen nach Abheben der Serien-Figur, Timer, Ausblenden, Ende. |
+| `box/tests/cuj/test_cuj14_gute_nacht.py` | neu | Karte auflegen nach Abheben der Serien-Tobie, Timer, Ausblenden, Ende. |
 | `box/tests/cuj/test_cuj15_leise_zeiten.py` | neu | Leise-Zeiten über die Konfiguration. |
 | `box/tests/cuj/test_cuj16_leerlauf.py` | neu | Leerlauf-Abschaltung. |
 | `box/tests/cuj/test_cuj17_kopfhoerer.py` | neu | Kopfhörer rein und raus. |
@@ -2311,13 +2478,13 @@ Abnahme AP 4.8:
 
 - Jede Funktion ist am Mac per Simulation vorführbar.
 - Die Konflikt-Tabelle aus „Kern-Zustände“ ist als Tests grün, mit diesen Fällen:
-  - Folge zu Ende bei liegender Figur
-  - Hauptknopf kurz bei beendeter Folge mit liegender Figur (nächste Folge spielt) und ohne Figur (normale Funktion)
+  - Folge zu Ende bei liegendem Tobie
+  - Hauptknopf kurz bei beendeter Folge mit liegendem Tobie (nächste Folge spielt) und ohne Tobie (normale Funktion)
   - stumm gegen Lernmodus
   - Stumm-Beginn und Stumm-Ende
-  - Gute Nacht mit neuer Figur
+  - Gute Nacht mit neuem Tobie
   - Abheben beim Ausblenden
-  - Figurwechsel bei Leser-Unterbrechung
+  - Tobie-Wechsel bei Leser-Unterbrechung
   - Leerlauf gegen Sync, Update und Lernmodus
   - Tiefstand während Sync
   - mehrere Grenzen

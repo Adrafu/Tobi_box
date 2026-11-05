@@ -7,6 +7,11 @@
     `guard.py`) und die HA-Integration (`media.py`, `store.py`, `mqtt.py`).
 *   Ein AP, das ein Schema einführt oder ändert, ergänzt dieses Dokument
     (siehe Umsetzungsplan).
+*   **Änderung 05.11. (Entscheidung F, 05.11.):** Tobies zeigen auf eine Serie, eine
+    einzelne Folge oder eine Aktion (`ziel`); eine Folge ist eine Datei oder ein
+    Ordner mit mehreren Tracks; der Zeiger hat einen Track. `config.json` und
+    `resume.json` haben deshalb `schema_version` 2. Im Code heißt ein Tobie aus
+    historischen Gründen `figur`.
 
 ## 1. Allgemeine Regeln
 
@@ -15,7 +20,8 @@
 *   JSON, UTF-8, ohne BOM, Zeilenende `\n`, Einrückung 2 Leerzeichen, ein
     abschließender Zeilenumbruch. Schlüsselnamen sind ASCII.
 *   Jede Datei hat auf oberster Ebene ein Objekt mit dem Feld
-    `schema_version` (ganze Zahl, hier überall `1`) **als erstes Feld**.
+    `schema_version` (ganze Zahl; `config.json` und `resume.json`: `2`, alle anderen
+    Dateien: `1` (Entscheidung F, 05.11.)) **als erstes Feld**.
 *   Zeitstempel: ISO 8601 in UTC mit `Z`, auf die Sekunde
     (`2026-11-05T09:30:00Z`). Im Ereignisprotokoll mit Millisekunden
     (`2026-11-05T09:30:00.123Z`).
@@ -27,8 +33,10 @@
     Steuerzeichen; erzeugte IDs bestehen aus 12 Zeichen `[0-9a-f]`. Ausnahme:
     Für einen Ordner, der keine `serie.json` hatte, ist die ID der Ordnername
     (Abschnitt 5).
-*   Dateinamen von Folgen sind reine Dateinamen (ohne `/`, ohne `\`, nicht `.`
-    oder `..`), höchstens 255 Bytes.
+*   Namen von Folgen sind reine Namen (ohne `/`, ohne `\`, nicht `.` oder
+    `..`), höchstens 255 Bytes: der Dateiname einer Folge aus einer Datei, der
+    Ordnername einer Folge aus mehreren Tracks (Entscheidung F, 05.11.). Dasselbe gilt für die Namen der
+    Tracks in einem Folgen-Ordner.
 
 ### 1.2 Atomares Schreiben (`store`, `guard.py`)
 
@@ -81,7 +89,8 @@ Beim Start (und bei jedem Lesen) in dieser Reihenfolge:
 *   Die Version zählt nur **inkompatible** Änderungen (Feld entfernt oder
     umbenannt, Bedeutung oder Einheit geändert, Pflichtfeld neu). Ein neues
     **optionales** Feld erhöht sie nicht.
-*   Eine Komponente kennt eine Menge von Versionen je Datei (hier `{1}`).
+*   Eine Komponente kennt eine Menge von Versionen je Datei (hier `{1}`, für
+    `config.json` und `resume.json` `{1, 2}` (Entscheidung F, 05.11.)).
     Liest sie eine **ältere** bekannte Version, **migriert sie im Speicher**
     (Funktion `migriere_vN_nach_vN+1`, rein, mit eigenem Test) und schreibt beim
     nächsten Speichern die neue Version.
@@ -115,8 +124,8 @@ Beim Start (und bei jedem Lesen) in dieser Reihenfolge:
 
 ### 1.7 Schreibbudget
 
-*   `resume.json`: höchstens eine Schreibung je Pause, Folgenwechsel,
-    Figurwechsel, Herunterfahren und alle 30 s während der Wiedergabe, und nur
+*   `resume.json`: höchstens eine Schreibung je Pause, Folgen- und
+    Track-Wechsel, Tobie-Wechsel, Herunterfahren und alle 30 s während der Wiedergabe, und nur
     bei Änderung (`reader-v1`/`core-interface`). Rund 240 Schreibungen am Tag
     bei 2 h Wiedergabe.
 *   `unknown.json`: eine Schreibung je neuer Meldung und je Bestätigung.
@@ -130,14 +139,16 @@ Struktur ist die Nachricht auf dem Thema `tobibox/config` (`mqtt-v1.md`).
 
 | Feld | Typ | Pflicht | Bedeutung |
 |---|---|---|---|
-| `schema_version` | int | ja | `1` |
+| `schema_version` | int | ja | `2` (Entscheidung F, 05.11.) (Version 1: ohne `ziel`, Migration unten) |
 | `revision` | int ≥ 1 | ja | Versionsnummer der Konfiguration. HA erhöht sie bei jeder Änderung um 1. Eine **neue Liste** (neue `liste_id`) beginnt mit Revision 1. (Eine Box ohne Datei rechnet mit Revision 0.) |
 | `liste_id` | string, 16 Zeichen `[0-9a-f]` | ja | Kennung des HA-Speichers. In Stufe 2 ohne HA hat die lokale Liste `0000000000000000`. |
 | `erzeugt_am` | string (Zeitstempel) | nein | wann HA diese Fassung erzeugt hat (nur zur Anzeige) |
 | `zuordnungen` | object | ja (darf leer sein) | Schlüssel = Kennung (kanonisch), Wert = Zuordnung |
-| `zuordnungen.<uid>.typ` | `"serie"` oder `"aktion"` | ja | |
-| `zuordnungen.<uid>.serie` | string | wenn `typ="serie"` | Serien-ID. Verweist die ID auf keine Serie auf der Box (noch nicht synchronisiert), spielt die Box die **Überraschungs-Serie** und protokolliert den Grund (`serie_fehlt`); kommt die Serie später, gilt die Zuordnung beim nächsten Auflegen (`core-interface.md`, Abschnitt 6.3). |
-| `zuordnungen.<uid>.aktion` | `"status"` oder `"gute_nacht"` | wenn `typ="aktion"` | |
+| `zuordnungen.<uid>.ziel` | object | ja | Worauf der Tobie zeigt (Entscheidung F, 05.11.) |
+| `ziel.typ` | `"serie"`, `"folge"` oder `"aktion"` | ja | `serie`: jedes Auflegen setzt die Serie an ihrem Zeiger fort. `folge`: genau eine Folge einer Serie. `aktion`: Aktionskarte. |
+| `ziel.serie` | string | wenn `typ="serie"` oder `typ="folge"` | Serien-ID. Verweist die ID auf keine Serie auf der Box (noch nicht synchronisiert), spielt die Box die **Überraschungs-Serie** und protokolliert den Grund (`serie_fehlt`); kommt die Serie später, gilt die Zuordnung beim nächsten Auflegen (`core-interface.md`, Abschnitt 6.3). |
+| `ziel.folge` | string | wenn `typ="folge"` | Name der Folge in der Serie (Dateiname oder Ordnername, reiner Name nach 1.1). Gibt es die Folge in der Serie auf der Box nicht, gilt dasselbe wie bei fehlender Serie (`folge_fehlt`). |
+| `ziel.aktion` | `"status"` oder `"gute_nacht"` | wenn `typ="aktion"` | |
 | `leise_zeiten` | object | ja | |
 | `leise_zeiten.zeitzone` | string | nein | IANA-Zeitzone für `von` und `bis`. Vorgabe, wenn das Feld fehlt: `Europe/Berlin`. Ein Name, den die Zeitzonendatenbank der Box nicht kennt, macht die ganze Liste ungültig (`schema_ungueltig`). HA stellt sie ein (auf Reisen umstellbar). |
 | `leise_zeiten.fenster` | array | ja (darf leer sein) | beliebig viele, höchstens 32 |
@@ -156,7 +167,7 @@ Struktur ist die Nachricht auf dem Thema `tobibox/config` (`mqtt-v1.md`).
 Regeln:
 
 *   **Gültigkeit:** Ist irgendein Teil ungültig (Wertebereich, doppelte `id`,
-    Kennung nicht kanonisch, unbekannter `typ`), wird die **ganze Liste**
+    Kennung nicht kanonisch, unbekannter `ziel.typ`, `folge` ohne `serie`), wird die **ganze Liste**
     abgelehnt (Grund `schema_ungueltig`). Die Box behält ihre bisherige
     Konfiguration.
 *   **Annahme (Revisionsregel):** Die Box nimmt eine Liste an, wenn ihre
@@ -185,21 +196,27 @@ Regeln:
     „leiser“-Fenster, gilt die normale Grenze. Außerdem lehnt die Box Lernmodus,
     Sync und Update ab und meldet es an HA (`event` `befehl_abgelehnt`,
     `grund="zeit_unsicher"`); HA zeigt den Grund an (`mqtt-v1.md`).
-*   Überraschungs-Serie und gesperrte Figuren stehen nicht in `zuordnungen`.
+*   Überraschungs-Serie und gesperrte Tobies stehen nicht in `zuordnungen`. Die
+    Überraschungs-Serie verhält sich wie ein Ziel `serie` (Entscheidung F, 05.11.).
+*   **Migration Version 1 → 2 (Entscheidung F, 05.11.):** Jeder Eintrag `{ "typ": …, … }` in
+    `zuordnungen` wird im Speicher zu `{ "ziel": { "typ": …, … } }` (die Felder
+    `typ`, `serie`, `aktion` ziehen unverändert in `ziel`). Ein Eintrag mit
+    `typ="serie"` bleibt ein Serien-Tobie; Folgen-Tobies entstehen nur in
+    Version 2.
 
 Beispiel:
 
 ```json
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "revision": 17,
   "liste_id": "a3f9c1e07b2d4856",
   "erzeugt_am": "2026-11-05T09:30:00Z",
   "zuordnungen": {
-    "e0040312345678ab": { "typ": "serie", "serie": "3f9a1c07b2d4" },
-    "04a1b2c3": { "typ": "serie", "serie": "8c21d5e9a0b7" },
-    "04ffeedd": { "typ": "aktion", "aktion": "status" },
-    "04112233445566": { "typ": "aktion", "aktion": "gute_nacht" }
+    "e0040312345678ab": { "ziel": { "typ": "serie", "serie": "3f9a1c07b2d4" } },
+    "04a1b2c3": { "ziel": { "typ": "folge", "serie": "8c21d5e9a0b7", "folge": "folge-03.mp3" } },
+    "04ffeedd": { "ziel": { "typ": "aktion", "aktion": "status" } },
+    "04112233445566": { "ziel": { "typ": "aktion", "aktion": "gute_nacht" } }
   },
   "leise_zeiten": {
     "zeitzone": "Europe/Berlin",
@@ -229,41 +246,68 @@ Beispiel:
 
 ## 3. `resume.json`
 
-Der Zeiger je Serie. Nur die Box schreibt und liest sie; sie wird nie
-synchronisiert.
+Die Zeiger. Nur die Box schreibt und liest sie; sie wird nie synchronisiert.
+Ein Zeiger ist (Folge, Track, Position) (Entscheidung F, 05.11.). Es gibt zwei Arten: den **Serien-Zeiger**
+(ein Zeiger je Serie, für Serien-Tobies und die Überraschungs-Serie) und den
+**Folgen-Zeiger** (ein Zeiger je Serie und Folge, für Folgen-Tobies).
 
 | Feld | Typ | Pflicht | Bedeutung |
 |---|---|---|---|
-| `schema_version` | int | ja | `1` |
-| `serien` | object | ja (darf leer sein) | Schlüssel = Serien-ID |
-| `serien.<id>.folge` | string | ja | Dateiname der aktuellen Folge (nur der Name) |
-| `serien.<id>.index` | int ≥ 0 | ja | Nummer der Folge in der Reihenfolge der Serie, ab 0; Hinweis für den Fall, dass die Datei fehlt |
-| `serien.<id>.position_s` | number ≥ 0 | ja | Position in Sekunden, **ohne** den Rücksprung von 3 s (den rechnet die Box beim Abspielen), auf 1 Nachkommastelle **abgerundet**. 0 heißt: Folge beginnt vorn (z. B. nach einem Folgenende). |
+| `schema_version` | int | ja | `2` (Version 1: ohne `track` und `folgen`) |
+| `serien` | object | ja (darf leer sein) | Serien-Zeiger. Schlüssel = Serien-ID |
+| `serien.<id>.folge` | string | ja | Name der aktuellen Folge (Dateiname oder Ordnername, nur der Name) |
+| `serien.<id>.index` | int ≥ 0 | ja | Nummer der Folge in der Reihenfolge der Serie, ab 0; Hinweis für den Fall, dass die Folge fehlt |
+| `serien.<id>.track` | int ≥ 0 | ja (Version 1: fehlt, gilt als 0) | Nummer des Tracks in der Folge, ab 0 (bei einer Folge aus einer Datei immer 0) |
+| `serien.<id>.position_s` | number ≥ 0 | ja | Position in Sekunden **im Track**, **ohne** den Rücksprung von 3 s (den rechnet die Box beim Abspielen), auf 1 Nachkommastelle **abgerundet**. 0 heißt: der Track beginnt vorn (z. B. nach einem Folgenende). |
 | `serien.<id>.zaehler` | int ≥ 1 | ja | Anzahl der Schreibungen dieses Zeigers; wird bei jedem Speichern um 1 erhöht. Dient der Fehlersuche und der Kontrolle des Schreibbudgets. |
+| `folgen` | object | ja (darf leer sein; Version 1: fehlt, gilt als leer) | Folgen-Zeiger. Schlüssel = Serien-ID, Wert = Objekt mit Schlüssel = Name der Folge |
+| `folgen.<id>.<folge>.track` | int ≥ 0 | ja | wie `serien.<id>.track` |
+| `folgen.<id>.<folge>.position_s` | number ≥ 0 | ja | wie `serien.<id>.position_s` |
+| `folgen.<id>.<folge>.zaehler` | int ≥ 1 | ja | wie `serien.<id>.zaehler` |
 
-Regeln der Zeiger (Folgenende, fehlende Folge, Rücksprung): siehe
-`core-interface.md`, Abschnitt 6.3. Die Namen der JSON-Felder und die Typen im
-Kern bilden die Tabelle in `core-interface.md`, Abschnitt 3.8, aufeinander ab
-(`folge` ↔ `Zeiger.datei`, `serien` ↔ `tuple[Zeiger]`). Ein Eintrag für eine Serie, die es nicht
-mehr gibt, bleibt stehen und schadet nicht.
+Regeln der Zeiger (Folgenende, fehlende Folge, fehlender Track, Rücksprung,
+Vor / Zurück): siehe `core-interface.md`, Abschnitt 6.3. Die Namen der
+JSON-Felder und die Typen im Kern bilden die Tabelle in `core-interface.md`,
+Abschnitt 3.8, aufeinander ab (`folge` ↔ `Zeiger.datei`, `serien` und `folgen`
+↔ `tuple[Zeiger]`). Ein Eintrag für eine Serie oder Folge, die es nicht mehr
+gibt, bleibt stehen und schadet nicht.
+
+*   **Folgenende bei einem Serien-Zeiger:** Der Eintrag zeigt auf die nächste
+    Folge (nach der letzten auf die erste), `track` 0, `position_s` 0.
+*   **Folgenende bei einem Folgen-Zeiger:** Der Eintrag springt auf `track` 0,
+    `position_s` 0 zurück; das nächste Auflegen spielt die Folge von vorn.
+*   **Migration Version 1 → 2 (Entscheidung F, 05.11.):** Jeder Eintrag in `serien` bekommt `track` 0
+    (die gespeicherte Position gilt für den ersten Track); `folgen` ist leer.
+    Die Migration ist rein und hat einen eigenen Test.
 
 Beispiel:
 
 ```json
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "serien": {
     "3f9a1c07b2d4": {
       "folge": "folge-02.mp3",
       "index": 1,
+      "track": 0,
       "position_s": 412.5,
       "zaehler": 37
     },
     "8c21d5e9a0b7": {
-      "folge": "folge-01.mp3",
+      "folge": "CD Die Schatzinsel",
       "index": 0,
-      "position_s": 0.0,
+      "track": 2,
+      "position_s": 95.0,
       "zaehler": 3
+    }
+  },
+  "folgen": {
+    "3f9a1c07b2d4": {
+      "folge-03.mp3": {
+        "track": 0,
+        "position_s": 0.0,
+        "zaehler": 5
+      }
     }
   }
 }
@@ -336,27 +380,39 @@ HA-Integration legt sie an und pflegt sie; die Boxen lesen sie nur.
 | `id` | string | ja | Serien-ID, **unveränderlich**: zufällig erzeugt (12 Zeichen `[0-9a-f]`), oder der Ordnername, wenn HA die Datei für einen Ordner anlegt, der vorher keine hatte (siehe Regeln) |
 | `name` | string, 1–100 Zeichen | ja | Anzeigename |
 | `typ` | `"normal"` oder `"ueberraschung"` | ja | Die Überraschungs-Serie ist **nur** daran erkennbar; es gibt keine feste ID. |
-| `folgen` | array von string | ja (darf leer sein) | Dateinamen in der maßgeblichen Reihenfolge |
+| `folgen` | array von string | ja (darf leer sein) | Namen der Folgen in der maßgeblichen Reihenfolge: Dateiname (Folge aus einer Datei) oder Ordnername (Folge aus mehreren Tracks) (Entscheidung F, 05.11.). Die Tracks eines Folgen-Ordners stehen nicht in `serie.json`; die Box liest sie aus dem Ordner. |
 | `angelegt_am` | string (Zeitstempel) | ja | Anlegezeit. Bei doppelter `id` entscheidet das spätere `angelegt_am` (jüngere Kopie bekommt eine neue ID). |
 
 Regeln (aus dem Design, hier zusammengefasst):
 
-*   **Reihenfolge:** Die Liste `folgen` ist maßgeblich. Dateien im Ordner, die
-    nicht in der Liste stehen, spielt die Box erst, wenn die Integration sie
-    eingetragen hat. Namen in der Liste, die im Ordner fehlen, werden von der
-    Box übersprungen. Doppelte Namen in der Liste zählen einmal (erster
+*   **Folge auf der Platte (Entscheidung F, 05.11.):** Eine Folge ist entweder **eine Audiodatei**
+    im Serien-Ordner oder ein **Unterordner mit mehreren Tracks** (z. B. ein
+    CD-Rip). Die **Tracks** eines Folgen-Ordners sind die Dateien direkt im
+    Unterordner (keine weitere Verschachtelung), ohne Dotfiles und mit derselben
+    Endungsliste wie unten (Dateifilter); ihre Reihenfolge ist die natürliche
+    Sortierung (unten). Ein Unterordner ohne Track zählt nicht als Folge
+    (`folge_leer`, Protokoll). Ein Name, der zugleich als Datei und als Ordner
+    vorkommen könnte, kommt auf dem Dateisystem nicht doppelt vor; es gilt, was
+    dort liegt. Ein Hörspiel ohne Serie liegt in einem beliebigen Serien-Ordner
+    (z. B. „Einzelfolgen“), ohne Sonderregel.
+*   **Reihenfolge:** Die Liste `folgen` ist maßgeblich. Dateien und
+    Folgen-Ordner im Ordner, die nicht in der Liste stehen, spielt die Box erst,
+    wenn die Integration sie eingetragen hat. Namen in der Liste, die im Ordner
+    fehlen, werden von der Box übersprungen. Doppelte Namen in der Liste zählen einmal (erster
     Treffer).
 *   **Ordner ohne `serie.json`:** Die Box spielt ihn trotzdem. ID = Ordnername,
     `name` = Ordnername, `typ` = `normal`, Reihenfolge = natürliche Sortierung
     der Dateinamen (unten). Der Ordnername muss als ID gültig sein (1 bis 64
     Zeichen, keine Steuerzeichen); sonst spielt die Box den Ordner nicht und
     protokolliert `ordner_name_ungueltig`.
-*   **Dateifilter (Ordner ohne `serie.json`):** Als Folgen zählen nur Dateien,
-    deren Name **nicht mit `.` beginnt** (versteckte Dateien, `._*` von macOS)
+*   **Dateifilter (Ordner ohne `serie.json`, und für die Tracks eines
+    Folgen-Ordners):** Als Folgen bzw. Tracks zählen nur Dateien, deren Name
+    **nicht mit `.` beginnt** (versteckte Dateien, `._*` von macOS)
     und deren Endung (ohne Unterscheidung von Groß-/Kleinschreibung) eine von
     `mp3`, `m4a`, `m4b`, `aac`, `flac`, `ogg`, `opus`, `wav` ist. Die
     HA-Integration benutzt dieselbe Liste, wenn sie `folgen` für einen solchen
-    Ordner anlegt.
+    Ordner anlegt. Unterordner, deren Name nicht mit `.` beginnt und die
+    mindestens einen Track nach diesem Filter enthalten, zählen als Folgen.
 *   **HA legt `serie.json` für einen solchen Ordner an:** Die Integration
     übernimmt den **Ordnernamen als `id`** (keine neue Zufalls-ID), damit Zeiger
     (`resume.json`) und Zuordnungen (`config.json`) erhalten bleiben. Die
@@ -364,7 +420,9 @@ Regeln (aus dem Design, hier zusammengefasst):
     die HA neu anlegt (neuer Ordner), bekommt eine zufällige ID.
 *   **Natürliche Sortierung** (Box und HA-Integration benutzen **dieselbe**
     Regel; gibt es ein gemeinsames Hilfsmodul, dann dieses). Sortiert werden die
-    Dateinamen (UTF-8, unverändert, ohne Unicode-Normalisierung):
+    Namen (UTF-8, unverändert, ohne Unicode-Normalisierung): bei den Folgen einer
+    Serie ohne `serie.json` die Datei- und Ordnernamen, bei den Tracks eines
+    Folgen-Ordners die Dateinamen (Entscheidung F, 05.11.):
     1.  Jeder Name wird in abwechselnde Abschnitte zerlegt: **Ziffernblöcke**
         (maximale Folgen der ASCII-Ziffern `0`–`9`) und **Textblöcke** (alles
         dazwischen).
@@ -403,6 +461,21 @@ Beispiel (normale Serie):
 }
 ```
 
+Beispiel (Serie mit einer Folge aus mehreren Tracks (Entscheidung F, 05.11.)): Die Folge
+`CD Die Schatzinsel` ist ein Unterordner mit z. B. `01.mp3`, `02.mp3`, `03.mp3`;
+die Tracks stehen nicht in der Datei.
+
+```json
+{
+  "schema_version": 1,
+  "id": "8c21d5e9a0b7",
+  "name": "Die Schatzinsel",
+  "typ": "normal",
+  "folgen": ["CD Die Schatzinsel", "folge-02.mp3"],
+  "angelegt_am": "2026-11-05T09:02:00Z"
+}
+```
+
 Beispiel (Überraschungs-Serie):
 
 ```json
@@ -426,7 +499,7 @@ Paket liegt die Signatur `tobibox-<version>.tar.gz.minisig` (`minisign`).
 | `schema_version` | int | ja | `1` |
 | `version` | string `MAJOR.MINOR.PATCH` | ja | Version dieses Pakets (der Dienst `tobibox`) |
 | `protokoll_version` | int ≥ 1 | ja | Hauptversion des Leser-Protokolls, die dieser Dienst erwartet (`reader-v1.md`, Abschnitt 13) |
-| `schema_versionen` | object | ja | Version je Zustandsdatei, die dieses Paket schreibt: Schlüssel `config`, `resume`, `unknown`, `serie`, `update`; Wert int |
+| `schema_versionen` | object | ja | Version je Zustandsdatei, die dieses Paket schreibt: Schlüssel `config`, `resume`, `unknown`, `serie`, `update`; Wert int (ab Entscheidung F, 05.11.: `config` und `resume` = 2) |
 | `firmware_min` | string `MAJOR.MINOR.PATCH` | ja | kleinste Firmware-Version des Lesers (`fw` im `HELLO`), mit der der Selbsttest besteht |
 | `python` | string `MAJOR.MINOR` | ja | Python-Version, mit der die Abhängigkeiten gebaut wurden (`3.11`) |
 | `erstellt_am` | string (Zeitstempel) | ja | Bauzeit |
@@ -443,8 +516,8 @@ Beispiel:
   "version": "1.2.0",
   "protokoll_version": 1,
   "schema_versionen": {
-    "config": 1,
-    "resume": 1,
+    "config": 2,
+    "resume": 2,
     "unknown": 1,
     "serie": 1,
     "update": 1
@@ -596,8 +669,29 @@ Projektleitung (P) entschieden oder aus dem Goldfisch-Review übernommen
     tatsächliche Position.
 20. **Bestätigt (05.11., P): Tonpegel in `config.json`:** optionale Felder
     `ton_pegel` (Vorgabe 40) und `hinweis_pegel` (Vorgabe 15), 0 bis 100. Sie
-    ergänzen nur optionale Felder, `schema_version` bleibt 1. Regel für die
+    ergänzen nur optionale Felder (damals blieb `schema_version` 1; seit Entscheidung F,
+    05.11., ist sie 2, Punkt 22). Regel für die
     Wirkung: `core-interface.md`, Abschnitt 8.1.
 21. **Bestätigt (05.11., P): `zuletzt` in `unknown.json`** hat Millisekunden-
     Auflösung (ISO 8601 mit Millisekunden); der `ack` gibt den Wert unverändert
     zurück (`mqtt-v1.md`).
+22. **Bestätigt (05.11., Entscheidung F, T/P): Ziel einer Zuordnung.** Eine
+    Zuordnung hat ein Feld `ziel` mit `typ` `serie`, `folge` oder `aktion`
+    (`config.json`, Abschnitt 2). Das ist eine inkompatible Änderung (Feld
+    verschoben, Pflichtfeld neu), deshalb `schema_version` 2 mit Migration
+    (1.5). Die Überraschungs-Serie verhält sich wie ein Ziel `serie`.
+23. **Bestätigt (05.11., Entscheidung F, T): Zeiger mit Track.** `resume.json`
+    Version 2 trägt je Serie den Track und je (Serie, Folge) einen eigenen
+    Folgen-Zeiger. Ist eine Folge zu Ende, springt ihr Folgen-Zeiger auf Track
+    0 / 0 s zurück, damit das nächste Auflegen sie **von vorn** spielt. Alte
+    Einträge (Version 1) gelten als Track 0.
+24. **Bestätigt (05.11., Entscheidung F, T): Folge auf der Platte.** Eine Folge
+    ist eine Datei oder ein Unterordner mit mehreren Tracks; die Tracks ordnet
+    die natürliche Sortierung, Dotfiles werden ignoriert, es gilt dieselbe
+    Endungsliste. `serie.json.folgen` nennt Folgen mit Namen (Abschnitt 5).
+25. **Offen (05.11., Entscheidung F, P): Fehlende Folge oder fehlender Track.**
+    Ein Folgen-Tobie auf eine Folge, die es auf der Box nicht gibt, spielt wie
+    bei fehlender Serie die Überraschungs-Serie (`folge_fehlt`); hat eine Folge
+    jetzt weniger Tracks als der Zeiger meint, gilt Track 0 / Position 0
+    (`zeiger_track_fehlt`). Beides folgt Punkt 14 und ist von Tobias noch nicht
+    bestätigt.

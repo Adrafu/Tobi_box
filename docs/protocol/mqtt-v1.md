@@ -62,7 +62,11 @@ Es gibt keine weiteren Themen. Die Box schreibt nie auf `tobibox/config`,
 
 Inhalt: genau das Schema von `config.json` (`data-model.md`, Abschnitt 2),
 einschließlich `schema_version`, `revision` und `liste_id`. Es gibt kein
-zusätzliches `v`; `schema_version` übernimmt diese Rolle.
+zusätzliches `v`; `schema_version` übernimmt diese Rolle. Seit Entscheidung F
+(05.11.) ist `schema_version` **2**: Jede Zuordnung trägt ein Feld `ziel`
+(`serie`, `folge` oder `aktion`). Eine Box, die nur Version 1 kennt, lehnt die
+Liste mit `schema_zu_neu` ab (5.2); HA und Boxen werden deshalb gemeinsam
+aktualisiert (Update zuerst auf allen Boxen).
 
 *   HA veröffentlicht nach **jeder** Änderung der Konfiguration (Revision + 1)
     und bei „Liste neu ausrollen“ (neue `liste_id`).
@@ -74,13 +78,14 @@ Beispiel (gekürzt):
 
 ```json
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "revision": 17,
   "liste_id": "a3f9c1e07b2d4856",
   "erzeugt_am": "2026-11-05T09:30:00Z",
   "zuordnungen": {
-    "e0040312345678ab": { "typ": "serie", "serie": "3f9a1c07b2d4" },
-    "04ffeedd": { "typ": "aktion", "aktion": "status" }
+    "e0040312345678ab": { "ziel": { "typ": "serie", "serie": "3f9a1c07b2d4" } },
+    "04a1b2c3": { "ziel": { "typ": "folge", "serie": "8c21d5e9a0b7", "folge": "folge-03.mp3" } },
+    "04ffeedd": { "ziel": { "typ": "aktion", "aktion": "status" } }
   },
   "leise_zeiten": { "zeitzone": "Europe/Berlin", "fenster": [] },
   "gute_nacht": { "timer_min": 30, "ausblenden_s": 60 }
@@ -244,8 +249,7 @@ Beispiel:
 }
 ```
 
-Der Inhalt entspricht dem Eintrag in `unknown.json` (`data-model.md`). Eine
-Figur, die **beide** Boxen melden, erscheint in HA als **ein** Eintrag
+Der Inhalt entspricht dem Eintrag in `unknown.json` (`data-model.md`). Ein Tobie, den **beide** Boxen melden, erscheint in HA als **ein** Eintrag
 (Schlüssel = Kennung).
 
 **Leere Nachricht:** Löscht die Box die dauerhafte Nachricht (leere Nutzlast,
@@ -265,7 +269,7 @@ des Brokers bestätigt nichts (HA kann gerade neu starten).
 | `ts` | string | Zeitpunkt |
 | `zuletzt` | string | `zuletzt` der Meldung, die HA bestätigt (aus der Nachricht auf `…/unknown/<uid>`, **unverändert** zurückgegeben, mit Millisekunden) |
 | `art` | string | `art` dieser Meldung (`unbekannt` oder `gelernt`) |
-| `grund` | string | `neu` (HA hat die Figur als „neue Figur“ aufgenommen), `bekannt` (die Kennung war schon aufgenommen, z. B. von der anderen Box), `zugeordnet` (Lernmodus: HA hat die Zuordnung geschrieben), `abgelehnt` (HA nimmt sie nicht an, z. B. Lernbefehl abgelaufen) |
+| `grund` | string | `neu` (HA hat den Tobie als „neuer Tobie“ aufgenommen), `bekannt` (die Kennung war schon aufgenommen, z. B. von der anderen Box), `zugeordnet` (Lernmodus: HA hat die Zuordnung geschrieben), `abgelehnt` (HA nimmt sie nicht an, z. B. Lernbefehl abgelaufen) |
 
 Die Box löscht den Eintrag **nur, wenn `zuletzt` und `art` mit dem aktuellen
 Eintrag übereinstimmen**, dann bei **jedem** `grund`; unbekannte Gründe werden
@@ -336,9 +340,12 @@ Beispiel:
 }
 ```
 
-Die Zuordnung der Serie zum Lernen hält HA selbst (Box, Serie, Beginn). Die Box
-bekommt die Serie nicht; sie meldet nur die Kennung. Welche Serie gilt, bestimmt
-die **HA-Aktion „Lernmodus starten“** (3.8), nicht die Auswahl der Box.
+Das Ziel für das Lernen hält HA selbst (Box, Ziel, Beginn). Das Ziel ist eine
+**Serie** oder eine **einzelne Folge** (Entscheidung F, 05.11.): `typ` (`serie` oder `folge`), `serie_id`,
+bei `folge` zusätzlich `folge` (Name der Folge). Die Box bekommt das Ziel nicht;
+sie meldet nur die Kennung, und der Inhalt des Befehls `lernen` (`daten`) bleibt
+`{}`. Welches Ziel gilt, bestimmt die **HA-Aktion „Lernmodus starten“** (3.8),
+nicht die Auswahl der Box.
 
 ### 3.8 `tobibox/<box>/ui/<objekt>` (nicht retained)
 
@@ -356,23 +363,24 @@ sondern an die HA-Integration. Sie setzt die Eingabe in einen Befehl auf
 | `tobibox/<box>/ui/lern_serie` | Anzeigename der gewählten Serie | merkt sich die Wahl als **Vorbelegung** des Felds „Serie“ der Aktion „Lernmodus starten“ (Auswahl ohne Rückmeldung, `optimistic`); setzt selbst keinen Befehl ab und legt nichts fest |
 
 Den Lernmodus selbst startet Tobias über die HA-Aktion „Lernmodus starten“
-(Box und Serie), nicht über einen Knopf der Box. Die Aktion trägt die **Serien-ID
-ausdrücklich** (`box`, `serie_id`); die Auswahl `lern_serie` füllt das Feld nur
-vor. Die Auswahl enthält nur Serien, die die Box schon synchronisiert hat; die
+(Box und Ziel), nicht über einen Knopf der Box. Die Aktion trägt das Ziel
+**ausdrücklich** (Entscheidung F, 05.11.): `box`, `typ` (`serie` oder `folge`), `serie_id` und bei `folge`
+zusätzlich `folge`; die Auswahl `lern_serie` füllt das Feld `serie_id` nur vor.
+Typ und Folge wählt Tobias immer in der Aktion. Die Auswahl enthält nur Serien, die die Box schon synchronisiert hat; die
 Aktion darf jede Serie der HA-Medienverwaltung nehmen, auch eine noch nicht
 synchronisierte (dann spielt die Box die Überraschungs-Serie, bis sie da ist,
 `data-model.md`, Abschnitt 2).
 
 ## 4. Abläufe
 
-### 4.1 Unbekannte Figur (CUJ 7a, 12)
+### 4.1 Unbekannter Tobie (CUJ 7a, 12)
 
 1.  Die Box legt die Kennung in `unknown.json` (`art="unbekannt"`) und spielt die
     Überraschungs-Serie.
 2.  Sobald die Verbindung steht (sofort oder später, auch nach Tagen
     offline), veröffentlicht die Box **jeden** noch offenen Eintrag auf
     `tobibox/<box>/unknown/<uid>` (retained, QoS 1).
-3.  HA nimmt die Kennung als „neue Figur“ auf (gleiche Kennung von beiden
+3.  HA nimmt die Kennung als „neuer Tobie“ auf (gleiche Kennung von beiden
     Boxen = ein Eintrag) und antwortet auf `…/ack` mit `grund` `neu` oder
     `bekannt` sowie `zuletzt` und `art` der bestätigten Meldung.
 4.  Passen `zuletzt` und `art` zum aktuellen Eintrag, löscht die Box auf den `ack`
@@ -385,26 +393,28 @@ synchronisierte (dann spielt die Box die Überraschungs-Serie, bis sie da ist,
     nächsten Verbinden erneut veröffentlicht, HA bestätigt erneut (idempotent).
 5.  Kommt der `ack` nie (HA aus), bleibt der Eintrag stehen; die dauerhafte
     Nachricht wartet im Broker, bis HA sie liest.
-6.  Tippt Tobias in HA eine Serie an, ändert HA die Konfiguration (Revision + 1)
-    und veröffentlicht `tobibox/config`. Die Box übernimmt die Liste, und läuft
-    die Figur noch, wechselt sie auf die Serie (Kern: neues `Aufgelegt` nicht
+6.  Wählt Tobias in HA den Typ (Serie oder einzelne Folge) und das Ziel, ändert
+    HA die Konfiguration (Revision + 1) (Entscheidung F, 05.11.) und veröffentlicht `tobibox/config`. Die Box übernimmt die Liste, und läuft
+    der Tobie noch, wechselt er auf die Serie (Kern: neues `Aufgelegt` nicht
     nötig; der Wechsel geschieht durch `KonfigGeladen`, wie im Design).
 
 ### 4.2 Lernmodus (CUJ 7b)
 
-1.  Tobias startet in HA die Aktion „Lernmodus starten“ mit Box und Serie
-    (`serie_id` ausdrücklich in der Aktion; die Auswahl `lern_serie` füllt sie nur
-    vor). Die Integration merkt sich Box, Serie und Beginn und sendet auf
+1.  Tobias startet in HA die Aktion „Lernmodus starten“ mit Box, Typ und Ziel
+    (`typ` `serie` oder `folge`, `serie_id` und bei `folge` die `folge`
+    ausdrücklich in der Aktion; die Auswahl `lern_serie` füllt die Serie nur
+    vor) (Entscheidung F, 05.11.). Die Integration merkt sich Box, Ziel und Beginn und sendet auf
     `tobibox/<box>/cmd` `befehl="lernen"` (`ttl_s` 60).
 2.  Die Box prüft Gültigkeit und Uhr (3.7), beginnt den Lernmodus und misst
     2 min selbst.
-3.  Wird in dieser Zeit eine Figur mit Kennung aufgelegt, meldet die Box sie als
+3.  Wird in dieser Zeit ein Tobie mit Kennung aufgelegt, meldet die Box ihn als
     `art="gelernt"` mit `befehl_id` auf `tobibox/<box>/unknown/<uid>`.
-4.  HA ordnet die Kennung der Serie aus der Aktion zu. Ist die Kennung schon
+4.  HA ordnet die Kennung dem Ziel aus der Aktion zu (`ziel` `serie` oder `folge`). Ist die Kennung schon
     zugeordnet, fragt HA vor dem Überschreiben nach. HA antwortet auf `…/ack`
     mit `grund="zugeordnet"` (oder `abgelehnt`) und `zuletzt`/`art` der Meldung.
-5.  HA veröffentlicht die neue Konfiguration; die Serie spielt.
-6.  `lernen_abbrechen` beendet den Lernmodus jederzeit. Nach 2 min ohne Figur
+5.  HA veröffentlicht die neue Konfiguration; das Ziel spielt (die Serie an ihrem
+    Zeiger, die Folge von vorn oder an ihrem Zeiger).
+6.  `lernen_abbrechen` beendet den Lernmodus jederzeit. Nach 2 min ohne Tobie
     endet er von selbst.
 
 ### 4.3 Konfiguration verteilen
@@ -514,7 +524,7 @@ mit `value_template` aus.
 | `button` | `sync_jetzt` | Sync jetzt | – | `command_topic` `tobibox/<box>/ui/sync`, `payload_press` `PRESS` |
 | `button` | `update` | Update | – | `command_topic` `tobibox/<box>/ui/update`, `payload_press` `PRESS` |
 | `button` | `lernen_abbrechen` | Lernmodus abbrechen | – | `command_topic` `tobibox/<box>/ui/lernen_abbrechen`, `payload_press` `PRESS` |
-| `select` | `lern_serie` | Serie für Lernmodus | – | **Vorbelegung** für die Aktion „Lernmodus starten“ (3.8), kein Befehl. `options` = Anzeigenamen der Serien auf der Box (bei doppelten Namen hängt die Box ` (<id>)` an), `command_topic` `tobibox/<box>/ui/lern_serie`, `optimistic` `true` |
+| `select` | `lern_serie` | Serie für Lernmodus | – | **Vorbelegung** für die Aktion „Lernmodus starten“ (3.8), kein Befehl; Typ (Serie oder Folge) und Folge wählt Tobias in der Aktion. `options` = Anzeigenamen der Serien auf der Box (bei doppelten Namen hängt die Box ` (<id>)` an), `command_topic` `tobibox/<box>/ui/lern_serie`, `optimistic` `true` |
 
 Beispiel der Nachricht für den Sensor „Akku“ (Thema
 `homeassistant/sensor/tobibox_box1/akku/config`):
@@ -671,13 +681,22 @@ Projektleitung (P) entschieden oder aus dem Goldfisch-Review übernommen
 12. **Wiederholte Veröffentlichung** der Discovery bei jedem Verbinden und bei
     `homeassistant/status` = `online`.
 13. **Bestätigt (05.11., P, Review-Befund 6): Der Wechsel auf die zugeordnete
-    Serie** bei liegender Figur (CUJ 7a) wird im Kern durch `KonfigGeladen`
+    Serie** bei liegendem Tobie (CUJ 7a) wird im Kern durch `KonfigGeladen`
     ausgelöst (`core-interface.md`, Abschnitt 9, Punkt 14), auch in `pausiert`
     und `beendet`; unter „stumm“ nur mit Hinweiston.
 14. **Bestätigt (05.11., P, Review-Befund 8): Lernmodus-Serie ausdrücklich.** Die
     HA-Aktion „Lernmodus starten“ trägt die Serien-ID; die Auswahl `lern_serie`
-    füllt sie nur vor.
+    füllt sie nur vor. **Erweitert (05.11., Entscheidung F, T):** Die Aktion
+    wählt auch den Typ (`serie` oder `folge`) und bei `folge` die Folge; der
+    Befehl `lernen` an die Box bleibt unverändert (`daten` = `{}`).
 15. **Bestätigt (05.11., P, Review-Befund 7 und 15): Zuständigkeiten** (`ha`
     prüft `v`, Befehlsname, `id`-Dublette und die Revisionsregel; der Kern prüft
     Ablaufzeit und Uhr), vollständige Ausnahmeliste für `v`, Lader `null` wird zu
     „unbekannt“.
+16. **Bestätigt (05.11., Entscheidung F, T/P): `tobibox/config` hat
+    `schema_version` 2** (Zuordnung mit `ziel`: `serie`, `folge` oder `aktion`,
+    `data-model.md`, Abschnitt 2). Das ist eine inkompatible Änderung; eine Box mit
+    Software von vor Entscheidung F lehnt die Liste mit `schema_zu_neu` ab (5.2).
+    **Offen:** Reihenfolge der Einführung (Boxen zuerst aktualisieren, dann HA die
+    Version 2 verteilen lassen) legt der Umsetzer in AP 3.1 und AP 3.7 fest; die
+    Box migriert eine gespeicherte Version-1-Datei beim Lesen.
