@@ -27,6 +27,13 @@ PN5180 an ESP32-S3). Projektplan und Stand: `docs/plan/`.
 
 EGM artifact directory: docs/egm
 
+## Aktueller Stand
+
+- Angenommenes Design der Box-Software: `docs/designs/box-software.md`
+  (Entstehung und Reviews: `docs/egm/software-prototyp/`).
+- Verträge (Stufe 0): `docs/protocol/`, `docs/data-model.md`. Agents ändern
+  sie nicht eigenmächtig.
+
 ## Regeln
 
 - Das Tonie-Passwort wird **nie** committet. Firmware liest es aus

@@ -1,7 +1,8 @@
 # Tobi Box — Box-Software (Prototyp und Zielsystem)
 
 *   **Autor:** Tobias (Projektleitung: Claude)
-*   **Status:** Draft
+*   **Status:** Draft – nach Review Stufe 9
+
 *   **Datum:** 2026-11-05
 *   **Grundlage:** `concepts_brief.md` (gleicher Ordner) inkl. Entscheidungen
     Runde 1 und 2
@@ -92,13 +93,22 @@ gleich; es unterscheidet sich nur die Konfiguration.
 *   **NTP:** Zeitabgleich über das Netz.
 *   **MPD:** Music Player Daemon, der Audio-Abspieler auf der Box.
 *   **ReplayGain:** Lautheitswerte in den Audiodateien. MPD gleicht damit die
-    Lautstärke verschiedener Titel an, hier nur dämpfend (D6).
+    Lautstärke verschiedener Titel an, hier mit Peak-Schutz und Obergrenze (D6).
 *   **rsync:** Programm, das einen Ordner von einem Rechner auf einen anderen
     abgleicht. Hier: NAS → Box, nur in diese Richtung.
 *   **Lit:** Kleine Bibliothek für Web-Bausteine, mit der die HA-Seite
     gebaut wird.
 *   **Kern:** Teil des Box-Dienstes ohne Ein-/Ausgabe: Ereignisse rein,
     Befehle raus. Besteht aus vier Teilautomaten (siehe „Kern-Zustände“).
+*   **CUJ:** Critical User Journey, ein Ablauf aus Sicht von Kind oder Tobias
+    (Abschnitt „Abläufe (CUJs)“).
+*   **Baustein:** Teil der Technik im Abschnitt „Technischer Plan“ (Baustein 1
+    bis 4).
+*   **Teilautomat:** Einer der vier Zustandsautomaten des Kerns (Sitzung,
+    Lernmodus, Ruhe-Regeln, Strom / Leerlauf). Jeder ist eine reine Funktion
+    `step(zustand, ereignis, jetzt) → (zustand, befehle)`.
+*   **Bestätigung (ack):** Antwort von HA, dass eine gemeldete Kennung
+    angekommen ist. Erst dann löscht die Box den Eintrag in `unknown.json`.
 *   **Stufe:** Lieferabschnitt der Umsetzung (Stufe 0 bis 4; Stufe 3 ist in
     3a und 3b geteilt, mit getrennter Abnahme).
 *   **Arbeitspaket (AP):** Aufgabe, die ein Agent umsetzt.
@@ -177,7 +187,7 @@ als Referenz.
     die echte Hardware später nutzt. Die echte Hardware ersetzt dann nur den
     Simulations-Treiber (Stufe 4).
 10. **Kinderohren geschützt:** Die Lautstärke-Regel („Lautstärke“ in
-    Baustein 3) gilt ab Stufe 1, auch für die Startlautstärke.
+    Baustein 3) gilt ab Stufe 1, auch für die Startlautstärke. Am Mac klemmt der Dienst; am Pi kappt zusätzlich ALSA hart.
 
 ## Nicht-Ziele
 
@@ -231,16 +241,24 @@ Alternativen“.
     Opus und WAV (MPD kann sie). Kopiergeschützte Dateien (z. B. alte
     iTunes-Käufe mit DRM) lassen sich nicht abspielen: Die HA-Integration
     prüft neue Dateien: Lässt sich eine Datei mit `ffprobe` nicht öffnen,
-    warnt sie. Die Box meldet ihren freien Platz mit dem Status; die HA-Seite
+    meldet `ffprobe` den Codec `drms` oder scheitert eine Probedekodierung
+    von 1 s, warnt sie. Die Box meldet ihren freien Platz mit dem Status; die HA-Seite
     zeigt ihn je Box (FLAC ist etwa 5× größer als mp3).
-*   **D6 — Lautheitsangleich (Plan 7.2):** Die Lautstärke aller Titel wird
+*   **D6 — Lautheitsangleich (Projektplan `docs/plan/`, Abschnitt 7.2):** Die Lautstärke aller Titel wird
     angeglichen. Gemessen wird **auf dem NAS** von einem kleinen Container
     (Werkzeug `rsgain`), der ReplayGain-Werte in neue Dateien schreibt.
-    Auslöser ist nur ein Zeitplan im Container (alle 15 min), kein Auslöser
-    aus HA. ReplayGain wirkt nur dämpfend (Vorverstärkung 0). MPD wendet es an
-    (Modus Album oder Track; Track für gemischte Quellen). Die Lautstärke-Regel
-    bleibt darüber bestehen („Lautstärke“ in Baustein 3). Umsetzung: AP 3.8
-    (Stufe 3b).
+    Auslöser
+    ist nur ein Zeitplan im Container (alle 15 min), kein Auslöser aus HA.
+    `rsgain` läuft im Easy-Modus mit `-S` (vorhandene Tags nicht neu
+    schreiben, sonst überträgt rsync alles erneut), Ziel −18 LUFS (Bezug
+    ReplayGain 2.0), feste Version. Es gibt kein offizielles Container-Bild;
+    es wird gebaut, die CPU-Architektur des QNAP ist eine Vorleistung von
+    Tobias. MPD wendet ReplayGain an (Modus Track, für gemischte Quellen) mit
+    `replaygain_preamp` 0 und `replaygain_missing_preamp` −6 dB. Es ist **nicht**
+    garantiert, dass ReplayGain nur dämpft: Ein positiver Gain wird durch den
+    Peak-Schutz (`replaygain_limit`) und am Pi durch die ALSA-Kappung
+    begrenzt. Die Lautstärke-Regel bleibt darüber bestehen („Lautstärke“ in
+    Baustein 3). Umsetzung: AP 3.9 (Stufe 3b).
 *   **Lautstärke und Gute-Nacht-Karte:** Lautstärke-Regel in Stufe 1,
     Gute-Nacht-Karte in Stufe 4.
 *   **Hardware (Ziel 9):** Alle Hardware-Funktionen werden jetzt mit
@@ -248,7 +266,8 @@ Alternativen“.
 *   **Entscheidung A — Pause nach jeder Folge:** Nach dem Ende einer Folge
     springt der Zeiger auf die nächste (nach der letzten auf Folge 1) und die
     Box pausiert, auch wenn die Figur noch liegt; weiter geht es erst nach
-    erneutem Auflegen.
+    erneutem Auflegen oder mit einem kurzen Druck auf den Hauptknopf
+    (Entscheidung E).
 *   **Entscheidung B — Ende eines „stumm“-Fensters:** Liegt dann eine Figur
     auf, startet nichts von selbst; das Kind legt die Figur erneut auf.
 *   **Entscheidung C — Hotspot:** Es gibt keine Datenbegrenzung je Sync; im
@@ -257,6 +276,10 @@ Alternativen“.
     NAS-Freigabe (`medien/`, `export/`, `releases/`); Tobias ist der einzige
     Benutzer. Die Paket-Signatur (`minisign`) bleibt und schützt davor, dass
     ein manipuliertes HA oder NAS Code auf die Boxen bringt.
+*   **Entscheidung E — Hauptknopf nach Folgenende (05.11.):** Ist eine Folge zu
+    Ende und die Figur liegt noch auf der Box, spielt ein **kurzer Druck auf den
+    Hauptknopf die nächste Folge** (der Zeiger zeigt schon darauf). Ohne Figur
+    auf der Box behält der Hauptknopf seine normale Funktion (Play / Pause).
 
 ## Offene Fragen
 
@@ -268,14 +291,19 @@ Alternativen“.
     Fehler, Lernmodus Beginn und Ende, Status-Karte in Ordnung / Fehler,
     Akku fast leer, Figur erkannt bei „stumm“. Bis zur Entscheidung gibt es
     Platzhalter-Töne; eigene Aufnahmen von Tobias sind möglich.
-*   **Pi-Probelauf:** Termin hängt an der Bestellung des Pi 3A+.
-*   **Lautstärke am Ausgang:** Ob die Grenze am Verstärker wirklich hält, zeigt
-    nur eine Messung (Stufe 4, sobald Hardware da ist). Bis dahin prüfen die
-    Tests nur die Konfiguration.
+*   **Pi-Probelauf:** Der Termin hängt an der Bestellung des Pi 3A+. Die
+    Soll-Werte (Tabelle im Pi-Probelauf) sind ein Vorschlag; Tobias bestätigt
+    sie vor dem Start.
+*   **Lautstärke am Ausgang:** Ob die ALSA-Kappung (`softvol`) am Verstärker
+    wirklich hält, zeigt nur eine Messung am Pi (Stufe 4, sobald Hardware da
+    ist). Bis dahin prüfen die Tests nur die Konfiguration und die Klemmung im
+    Dienst.
 
 Erledigt: Medienformate und Lautheitsangleich (siehe D5 und D6), Ende der
 letzten Folge und Ende eines „stumm“-Fensters (Entscheidungen A und B),
-Datenvolumen im Hotspot (Entscheidung C).
+Datenvolumen im Hotspot (Entscheidung C), Hauptknopf nach Folgenende
+(Entscheidung E), Schnittstellen und Datenformate (Stufe 0), die Befunde R1 bis
+R18 des Reviews Stufe 9.
 
 ## Risiken
 
@@ -285,7 +313,7 @@ Datenvolumen im Hotspot (Entscheidung C).
 | USB-CDC am Pi nicht stabil | Leser fällt aus | Wächter und selbständiges Neuverbinden (CUJ 13); fester Gerätename | Pi-Probelauf |
 | Tonqualität / I²S-Ausgabe | Klang schlecht oder verzerrt | Hörtest und Messung am Verstärker; bei Mängeln entscheidet Tobias über die Ausgabe | Pi mit Verstärker |
 | Pi 3A+ noch nicht bestellt | Pi-Probelauf und Go/No-Go verzögern sich | Mac-Prototyp läuft ohne Pi (Ziel 3); Bestellung durch Tobias | jetzt |
-| Tailscale noch nicht eingerichtet | Kein Sync, kein Update, keine Fernwartung | Anleitung AP 3.6; Voraussetzung im Go/No-Go | Stufe 3a |
+| Tailscale noch nicht eingerichtet | Kein Sync, kein Update, keine Fernwartung | Anleitung AP 3.5; Voraussetzung im Go/No-Go | Stufe 3a |
 | Hotspot-/Akku-Regel nur mit Simulation prüfbar | Sync läuft im Hotspot bei falschem Akkustand | Tests mit Simulation; echte Prüfung, sobald PiSugar und Tailscale da sind | bis PiSugar und Tailscale vorhanden sind |
 | HA-Updates brechen die Integration | Zuordnungen in HA nicht mehr bearbeitbar; Boxen behalten ihre letzte Kopie | Wenig HA-API, Tests gegen die HA-Version, automatischer Export auf das NAS | Stufe 3a, Tests gegen die HA-Version |
 | SD-Karten-Verschleiß, Stromausfall beim Schreiben | Dateisystem beschädigt, Box startet nicht | Atomares Schreiben, Schreibbudget (Datenmodell), Log-Obergrenze, Read-only-Overlay ab dem ersten SD-Fehler, SD-Image im Betriebshandbuch | Pi-Probelauf, Stromausfall-Test |
@@ -297,11 +325,14 @@ Datenvolumen im Hotspot (Entscheidung C).
 | Drei Schreiber auf der Medienfreigabe (HA, PC und der Lautheits-Container) | `serie.json` doppelt oder halb geschrieben; vom Container getaggte Dateien überträgt rsync erneut | Atomares Schreiben, Prüfung alle 10 min, `angelegt_am`; Container nur nach Zeitplan, eine vor dem Messen geholte Datei wird einmal nachübertragen (hingenommen); Rest bleibt bekannte Einschränkung | Stufe 3a (Container: 3b) |
 | MQTT-Konten fehlen oder sind zu weit gefasst | Wer MQTT erreicht, könnte Zuordnungen oder Befehle senden | Konto je Box mit Themenrechten (Beispiel unter `homeassistant/`); ein Update braucht zusätzlich ein signiertes Paket | Stufe 3a |
 | HA-Upload-Endpunkt | Angriffsfläche in HA | Nur mit HA-Anmeldung; nur Audioformate nach D5 annehmen | Stufe 3a |
+| Große Uploads über Nabu Casa | Upload vom Handy bricht ab oder wird abgelehnt | Upload als Strom in Blöcken; Test am Handy über Nabu Casa; Ausweg: Dateien per PC auf das NAS legen (D4) | Stufe 3a, Abnahme am Handy |
+| Zeitbudget knapp (Abheben nur etwa 90 ms Reserve; RF-Befehle bis 500 ms im Fehlerfall) | Ziel 2 verfehlt | Rückfallregel im Zeitbudget (Arbeit pro Zyklus senken); Messung am Ausgang | Stufe 1 |
+| Fehler im Wächter-Skript `guard.py` | Rückfall greift nicht | Skript klein, nur Standardbibliothek, liegt außerhalb von `releases/` und kommt mit dem SD-Image; eigener Test | Stufe 3b |
 | Tailscale-ACL falsch gesetzt | Box erreicht mehr als HA und die NAS-Freigabe | ACL mit Tags; Abnahmetest, dass andere Ziele gesperrt sind | Stufe 3a |
 | HA hat vollen Schreibzugriff auf die NAS-Freigabe (`medien/`, `export/`, `releases/`) | Ein manipuliertes HA oder NAS könnte Code in Update-Pakete schieben, der auf den Boxen läuft | Pakete sind mit `minisign` signiert; der Signierschlüssel liegt nur bei Tobias auf seinem Mac, der Prüfschlüssel auf der Box; die Box installiert nur Pakete mit gültiger Signatur | Stufe 3b |
-| Entsperren geborgter Tonies | Der Privacy-Modus fremder Figuren wird aufgehoben | Die Box liest nur die Kennung, mit Tobias' eigenem Passwort, und schreibt nichts auf die Figur | Stufe 1 |
+| Entsperren geborgter Tonies | Der Privacy-Modus fremder Figuren wird aufgehoben | Die Box liest nur die Kennung, mit Tobias' eigenem Passwort, und schreibt keine Nutzdaten; der Privacy-Modus bleibt aber aufgehoben, bis eine Toniebox ihn wieder setzt | Stufe 1 |
 | Firmware-Datei veröffentlicht | Das Passwort könnte aus dem Flash ausgelesen werden | Firmware-Binary nicht veröffentlichen; CI baut nur mit Platzhalter-Passwort | laufend |
-| Tailscale-Schlüssel der Box läuft ab | Box fällt unbemerkt aus dem Netz | Schlüsselablauf für die Box-Knoten abschalten (AP 3.6); HA zeigt den Netzstand | Stufe 3a, Einrichtung |
+| Tailscale-Schlüssel der Box läuft ab | Box fällt unbemerkt aus dem Netz | Schlüsselablauf für die Box-Knoten abschalten (AP 3.5); HA zeigt den Netzstand | Stufe 3a, Einrichtung |
 
 ## Abläufe (CUJs)
 
@@ -334,7 +365,7 @@ Zustände, Übergänge und Konflikte: siehe „Kern-Zustände“.
     pausiert die Box, auch wenn die Figur noch liegt; der Zeiger steht dann auf
     der nächsten Folge (nach der letzten Folge auf Folge 1). Die nächste Folge
     spielt erst, wenn die Figur (oder eine andere Figur derselben Serie) neu
-    aufgelegt wird.
+    aufgelegt wird oder der Hauptknopf kurz gedrückt wird (Entscheidung E).
 
 ### CUJ 4: Andere Figur auflegen
 
@@ -365,7 +396,8 @@ Zustände, Übergänge und Konflikte: siehe „Kern-Zustände“.
 *   **When**: Kind legt sie auf.
 *   **Then**: Die Überraschungs-Serie spielt sofort. Die Box merkt sich die
     Kennung und meldet sie an HA, sobald HA erreichbar ist; sie löscht den
-    Eintrag erst, wenn der Broker die Meldung bestätigt hat (MQTT QoS 1). HA zeigt „neue Figur“
+    Eintrag erst, wenn HA den Empfang bestätigt hat (Antwort auf `…/ack`, siehe
+    „MQTT-Schnittstelle“). HA zeigt „neue Figur“
     (gleiche Kennung von beiden Boxen = ein Eintrag). Tippt Tobias eine Serie
     an, schreibt HA die Zuordnung; die Box holt sie und wechselt, wenn die
     Figur noch liegt, sofort auf die Serie.
@@ -494,7 +526,7 @@ Zustände, Übergänge und Konflikte: siehe „Kern-Zustände“.
 ### CUJ 18: LED-Ring-Zustände
 
 *   **Given**: Die Box läuft. Der Ring kennt die Zustände läuft, Pause, Akku,
-    unbekannte Karte, Aufwachen (Plan 5.5.2).
+    unbekannte Karte, Aufwachen (Projektplan `docs/plan/`, Abschnitt 5.5.2).
 *   **When**: Der Zustand der Box wechselt.
 *   **Then**: Der Ring zeigt den passenden Zustand. Die Helligkeit liegt nie
     über 25 %. Am Mac zeigen Terminal und Protokoll denselben Zustand.
@@ -506,8 +538,10 @@ Zustände, Übergänge und Konflikte: siehe „Kern-Zustände“.
     Hauptknopf.
 *   **Then**: Vor / Zurück springt zur nächsten / vorigen Folge. Der
     Drehregler ändert die Lautstärke innerhalb der wirksamen Grenze (Regel:
-    „Lautstärke“ in Baustein 3). Der Hauptknopf kurz: Play / Pause. Lang:
-    Zeiger speichern und herunterfahren.
+    „Lautstärke“ in Baustein 3). Der Hauptknopf kurz: Play / Pause. Ist eine
+    Folge zu Ende und liegt die Figur noch auf der Box, spielt ein kurzer Druck
+    die nächste Folge (Entscheidung E); ohne Figur auf der Box gilt Play / Pause.
+    Lang: Zeiger speichern und herunterfahren.
 
 ### CUJ 20: Figur liegt schon beim Start
 
@@ -554,20 +588,51 @@ nur Tobias' Handy) und Tailscale.
 
 - Neu aufgebaut, `firmware/tonie_test/` dient als Referenz für die
   Lese- und Entsperr-Abläufe.
-- Build mit **PlatformIO**, feste Versionen (Plattform, Arduino-Core,
-  PN5180-Bibliothek per Commit). USB-Modus: nur **CDC** (keine Tastatur).
-- Das Tonie-Passwort steht nur in `config.h` (gitignored, nie im Repo). Die
-  gebaute Firmware-Datei wird nicht veröffentlicht, weil das Passwort aus dem
-  Flash des ESP32 ausgelesen werden könnte.
+- Build mit **PlatformIO** und der Plattform **pioarduino** (feste
+  Release-Version). Grund: Die offizielle PlatformIO-Plattform endet bei
+  Arduino-Core 2.0.17, Core 3.x gibt es nur über pioarduino. Feste Versionen
+  auch für den Arduino-Core und die PN5180-Bibliothek (per Commit).
+- **Board:** ESP32-S3 SuperMini mit 4 MB Flash. In `platformio.ini` stehen
+  `board_upload.flash_size = 4MB` und die passende Partitionstabelle; sonst
+  droht ein Bootloop.
+- **Testumgebung `native`:** Sie baut nur `debounce.cpp` und `protocol.cpp`
+  (`build_src_filter`). Beide Dateien nutzen keine Arduino-Typen (kein
+  `String`, kein `Arduino.h`). Die Beispielzeilen liegen unter
+  `docs/protocol/reader-v1-examples.txt`; der Pfad vom Projektordner
+  `firmware/tobibox-reader/` aus ist fest `../../docs/protocol/reader-v1-examples.txt`.
+- **USB:** HWCDC (USB-Serial/JTAG) bleibt, weil dort das Flashen mit
+  Auto-Reset bequem geht. VID, PID und Produktname sind dabei fest. Der stabile
+  Gerätename kommt deshalb von der **Seriennummer des Chips**: am Pi
+  `/dev/serial/by-id/…Espressif…<Seriennummer>…` bzw. eine udev-Regel nach
+  Seriennummer, am Mac das Suchmuster `/dev/cu.usbmodem*`. Eine eigene
+  USB-Kennung (TinyUSB) wird bewusst nicht genutzt: Dort gäbe es kein
+  Auto-Reset beim Flashen.
+- **Schreiben ohne Blockieren:** HWCDC blockiert beim Schreiben bis 100 ms,
+  wenn niemand liest. Die Firmware setzt `setTxTimeoutMs(0)`: Zeilen werden
+  verworfen statt zu blockieren (eine Lücke in `seq` zeigt das). Der Box-Dienst
+  öffnet die Serielle mit pyserial ohne DTR/RTS (`dsrdtr` und `rtscts` aus,
+  DTR/RTS vor dem Öffnen auf „aus“), damit das Öffnen keinen Reset auslöst.
+- **Zwei Konfigurationsdateien:** Pins und Tonie-Passwort stehen nur in
+  `include/config.h` (gitignored, nie im Repo; im Repo liegt
+  `config.example.h`). Die **Zeitkonstanten** stehen in der eingecheckten
+  `include/timing.h`, damit Tests und CI ohne `config.h` laufen. Die gebaute
+  Firmware-Datei wird nicht veröffentlicht, weil das Passwort aus dem Flash des
+  ESP32 ausgelesen werden könnte.
 - Aufbau in drei Teile:
   1. **Leser** (Hardware): ein Abfragezyklus liefert genau ein Ergebnis:
      `nichts`, `uid(typ, bytes)`, `gesperrt`, `fehler(code)`. Fehler werden
      **nicht** als „nichts“ gemeldet.
   2. **Entpreller** (reine Logik, ohne Hardware, auf dem Rechner testbar):
      bekommt Ergebnisse mit Zeitstempel, entscheidet `PLACED` / `REMOVED`.
+     Seine Zustandstabelle (Zustände, Übergänge, Verhalten bei `fehler(code)`
+     mitten in der Entprellung, Verhältnis „gesperrt liegt“ zu „Kennung
+     liegt“) steht in `docs/protocol/reader-v1.md`.
   3. **Protokoll-Ausgabe**: schreibt Zeilen, zählt für den Herzschlag.
-- **Zeitkonstanten** (alle an einer Stelle, in `config.h`):
-  - Abfragezyklus ≤ 200 ms (Ziel 150 ms; die Messung in Stufe 1 entscheidet).
+- **Zeitkonstanten** (alle an einer Stelle, in `timing.h`):
+  - Abfragezyklus 200 ms. Die Arbeit pro Zyklus ist laut `docs/plan/uebergabe.md`
+    gemessen: NTAG-Karte 176 ms (einschließlich des erfolglosen
+    ISO-15693-Versuchs), gesperrter Tonie 137 ms, offener Tonie 58 ms. Die
+    Messung in Stufe 1 bestätigt das an Tobias' Figuren.
   - Neue Kennung gilt nach **2 gleichen Lesungen in Folge** (3 falls die
     Messung zeigt, dass 2 nicht reichen).
   - `REMOVED` nach **1,1 s** ohne gültige Lesung der liegenden Figur.
@@ -583,35 +648,57 @@ Sie beantworten nur die Anfrage nach einer Zufallszahl, bis sie mit einem
 danach seine Kennung. Scheitert das Entsperren, meldet die Firmware `LOCKED`.
 Das Passwort liegt nur in der lokalen `config.h` der Firmware, nie im Repo. Die
 Box entsperrt nur mit Tobias' eigenem Passwort, liest nur die Kennung und
-schreibt nichts auf die Figur; das gilt auch für geborgte Figuren. Das
-Entsperren hat das Testprogramm `firmware/tonie_test/` schon einmal gezeigt.
+schreibt keine Nutzdaten auf die Figur; das gilt auch für geborgte Figuren. Das
+Entsperren hebt den Privacy-Modus auf, **bis eine Toniebox ihn wieder setzt**.
+Danach antwortet die Figur wie ein offener Chip; nur das erste Auflegen läuft
+über den Entsperrweg. Testfall dafür: „gesperrt → offen“ (gleiche Figur, danach
+als Kennung gelesen). Das Entsperren hat das Testprogramm `firmware/tonie_test/`
+schon einmal gezeigt.
 
-**Zeitbudget.** Die Grenzen aus Ziel 2 ergeben sich so:
+**Zeitbudget.** Die Grenzen aus Ziel 2 ergeben sich so (Zyklus 200 ms, Messwerte
+aus `docs/plan/uebergabe.md`):
 
-- Auflegen (NTAG-Karte): bis 1 Abfragezyklus Wartezeit (≤ 200 ms) + 2 Lesungen
-  (≤ 2 × 200 ms) + Übertragung (< 10 ms) + Dienst und MPD-Start (Ziel
-  ≤ 300 ms) = ca. 0,9 bis 1,0 s. Grenze: 1,0 s. Der Puffer ist mit etwa 90 ms
-  klein.
-- Auflegen (Tonie): wie oben, dazu die **Entsperrzeit** (mehrere Befehle an
-  den PN5180). Sie ist hier nicht abgeschätzt, sondern wird in Stufe 1 an
-  Tobias' Figuren gemessen und kommt zur Rechnung dazu. Ziel 2 gilt erst als
-  erreicht, wenn die Summe mit Entsperrzeit unter 1,0 s liegt.
-- Abheben: 1,1 s Timeout + Übertragung (< 10 ms) + Pausenbefehl (< 100 ms) ≈
-  1,3 s. Grenze: 1,5 s.
+| Schritt (Auflegen, NTAG-Karte, schlechtester Fall) | Zeit |
+|---|---|
+| Warten bis zum Beginn des nächsten Zyklus | ≤ 200 ms |
+| Erste Lesung (Arbeit im Zyklus) | ≤ 176 ms |
+| Entprellen: zweite Lesung, ein weiterer Zyklus | ≤ 200 ms |
+| Übertragung der Zeile | < 10 ms |
+| Dienst: Zuordnung, Zeiger laden, Befehl | ≤ 50 ms |
+| MPD: Start, `seek` und Ausgabepuffer | ≤ 300 ms |
+| **Summe** | **≈ 0,94 s, Grenze 1,0 s** |
+
+- Auflegen (Tonie): gleiche Rechnung mit 137 ms (gesperrt) bzw. 58 ms (offen)
+  statt 176 ms; die Entsperrzeit steckt in den 137 ms. Stufe 1 misst sie an
+  Tobias' Figuren nach. Ziel 2 gilt erst als erreicht, wenn die gemessene Summe
+  unter 1,0 s liegt.
+- Abheben: `REMOVED` wird erst am Ende eines Zyklus nach den 1,1 s
+  ausgewertet, also bis 1,1 s + 1 Zyklus (0,2 s) = 1,3 s; dazu Übertragung
+  (< 10 ms) und Pausenbefehl (< 100 ms) = **ca. 1,41 s**. Grenze: 1,5 s. Die
+  Reserve beträgt nur etwa 90 ms.
 - Lücken: Lücken bis 1,0 s liegen unter der Schwelle von 1,1 s und führen zu
-  keinem `REMOVED`.
+  keinem `REMOVED`. Im Fehlerfall können einzelne PN5180-Befehle bis 500 ms
+  blockieren (`setRF_on`/`setRF_off`); ein solcher Zyklus verlängert die Lücke.
+  Die Messung in Stufe 1 prüft, wie oft das vorkommt.
+- **Messmethode:** Gemessen wird am **Ausgang** (Mikrofon oder Loopback: vom
+  Auflegen bis zum ersten hörbaren Ton), nicht nur über das Ereignisprotokoll;
+  das Protokoll misst nur den `play`-Befehl.
+- **MPD-Puffer** (feste Startwerte, in beiden MPD-Konfigurationen):
+  `audio_buffer_size` 1024 (KiB), `buffer_before_play` 10 %, ALSA-`buffer_time`
+  100000 µs. Die Messung justiert sie.
 
-**Rückfallregel.** Reißt die Messung (in Stufe 1, am Pi auch unter Sync-Last)
-die Grenze von 1,0 s, gilt diese Reihenfolge: erst der Abfragezyklus auf
-150 ms, dann Rückfrage an Tobias, ob 1,2 s akzeptabel sind. Ziel 2 wird nicht
-stillschweigend geändert.
+**Rückfallregel.** Überschreitet die Messung (in Stufe 1, am Pi auch unter
+Sync-Last) die Grenze von 1,0 s, gilt diese Reihenfolge: erst die **Arbeit pro
+Zyklus senken** (das zuletzt gelesene Protokoll, 14443A oder 15693, zuerst
+abfragen; kürzere Befehlszeitgrenze für RF-Befehle), dann Rückfrage an Tobias,
+ob 1,2 s akzeptabel sind. Ziel 2 wird nicht stillschweigend geändert.
 
 Stufe 1 misst das nach; das Ergebnis steht in `docs/timing.md`. Soll-Werte
 für den Pi: siehe Pi-Probelauf.
 
 ### Baustein 2 — Protokoll v1 (Vertrag Firmware ↔ Box-Dienst)
 
-Eigenes Dokument `docs/protocol/reader-v1.md` (in der Umsetzung). Grundzüge:
+Eigenes Dokument `docs/protocol/reader-v1.md` (Stufe 0). Grundzüge:
 
 - ASCII-Zeilen, `\n`-terminiert, 115200 Baud (bei CDC ohne Bedeutung),
   Felder `schlüssel=wert`, durch Leerzeichen getrennt. Unbekannte Felder und
@@ -625,13 +712,18 @@ Eigenes Dokument `docs/protocol/reader-v1.md` (in der Umsetzung). Grundzüge:
 | `LOCKED seq=<n>` | gesperrter Tonie liegt |
 | `REMOVED seq=<n>` | liegende Figur ist weg |
 | `HB up=<s> present=<0\|1> polls=<n> hits=<n> rejected=<n> errors=<n> cycle_ms=<n>` | Herzschlag alle 2 s; der Wächter im Box-Dienst schlägt nach 5 s an (2 verpasste Herzschläge plus Reserve) |
-| `ERR code=<wort> detail=<text>` | Fehler, z. B. `pn5180_no_response`, `unlock_failed` |
+| `ERR code=<wort> detail=<text>` | Fehler; die vollständige Liste der Codes steht in `reader-v1.md` (z. B. `pn5180_no_response`, `unlock_failed`) |
 
+- Felder des Herzschlags: `up` Sekunden seit Start, `present` liegt gerade eine
+  Figur, `polls` Abfragezyklen seit Start, `hits` gültige Lesungen, `rejected`
+  verworfene Lesungen (verfälscht oder abweichend), `errors` Fehlerzyklen,
+  `cycle_ms` Dauer des letzten Zyklus. Genaue Definition: `reader-v1.md`.
 - Zum Leser: `PING` (Antwort `HELLO`); weitere Befehle reserviert (siehe „Leser-Rückkanal“ in den Offenen Fragen).
-- **Kennung (kanonisch):** Hex, Kleinbuchstaben, MSB zuerst, ohne Trenner,
-  bei ISO 15693 also 16 Zeichen beginnend mit `e00403` für Tonies. Diese
-  Schreibweise entsteht **nur** in der Firmware; der Box-Dienst prüft sie
-  (Regex) und speichert sie unverändert.
+- **Kennung (kanonisch):** Hex, Kleinbuchstaben, MSB zuerst, ohne Trenner.
+  ISO 14443 (NTAG): 8, 14 oder 20 Hexzeichen (4, 7 oder 10 Byte). ISO 15693:
+  16 Hexzeichen, bei Tonies beginnend mit `e00403`. Diese Schreibweise
+  entsteht **nur** in der Firmware; der Box-Dienst prüft sie mit einem
+  regulären Ausdruck (steht in `reader-v1.md`) und speichert sie unverändert.
 - `seq` zählt jede Meldung hoch und beginnt nach jedem Start des ESP32 bei 0.
   Eine Lücke zeigt verlorene Zeilen. `HELLO` setzt die Zählung beim
   Box-Dienst zurück; danach gleicht der Kern den Zustand über `PLACED` und
@@ -646,34 +738,46 @@ Ein Prozess, `asyncio`, ein Paket `tobibox` mit klar getrennten Modulen:
 | Modul | Aufgabe | Darf auf Ein-/Ausgabe zugreifen? |
 |---|---|---|
 | `events` | Typen aller Ereignisse und Befehle; einziger Eigentümer | **nein** |
-| `core` | Zustandsautomat: Ereignisse rein, Befehle raus; verbindet die vier Teilautomaten (`session`, `learn`, `quiet` + `bedtime`, `idle`) und löst Konflikte nach der Konflikt-Tabelle (siehe „Kern-Zustände“) | **nein** (reine Logik, voll testbar) |
+| `core` | Zustandsautomat: Ereignisse rein, Befehle raus; hält die vier Teilautomaten (`session`, `learn`, `quiet` + `bedtime`, `idle`) in einer Liste und löst Konflikte nach der Konflikt-Tabelle (siehe „Kern-Zustände“); Schnittstelle: `docs/protocol/core-interface.md` | **nein** (reine Logik, voll testbar) |
 | `volume` | Reine Funktion: wirksame Lautstärke-Grenze (siehe „Lautstärke“) | **nein** |
+| `pointer` | Reine Funktionen für die Zeigerregeln: nächste Folge, fehlende Folge, Rücksprung 3 s (siehe „Datenmodell und Dateien“) | **nein** |
+| `protocol` | Zeilen-Parser nach `reader-v1.md`, prüft das Kennungsformat | **nein** |
 | `clock` | Uhr als Eingang des Kerns: Wanduhr und monotone Uhr, Zeitquelle | Systemuhr (im Test: simulierte Uhr) |
 | `library` | Serien und Folgen aus dem Medienordner lesen | Dateisystem (lesen) |
 | `store` | Zustandsdateien atomar lesen/schreiben | Dateisystem |
-| `reader` | Serielle öffnen, Zeilen parsen, Neuverbinden, Herzschlag überwachen (Wächter: 5 s ohne `HB`) | Serielle |
-| `player` | dünne Schicht über MPD (python-mpd2): Abspielen, Pause, Position, Lautstärke (setzt die wirksame Grenze nur durch); die Typen für Player-Ereignisse legt AP 1.3 fest | MPD |
+| `reader` | Serielle öffnen (pyserial in eigenem Thread, Zeilen über eine Warteschlange an die Ereignisschleife), Zeilen parsen, Neuverbinden, Herzschlag überwachen (Wächter: 5 s ohne `HB`) | Serielle |
+| `player` | dünne Schicht über MPD (`mpd.asyncio.MPDClient` aus python-mpd2): Abspielen, Pause, Position, Lautstärke (setzt die wirksame Grenze nur durch); die Player-Ereignisse stehen in `core-interface.md` | MPD |
 | `sounds` | kurze Rückmeldetöne über eigenes Kommando (Mac `afplay`, Pi `aplay`) | Prozess |
-| `ha` | MQTT-Anbindung, HA-Discovery, Zuordnungen empfangen, Status senden | Netz |
+| `outbox` | Ereignis-Ausgang mit Bestätigung: hält `unknown.json`, gibt Einträge frei, wenn die Bestätigung eintrifft | Dateisystem |
+| `ha` | MQTT-Anbindung (paho-mqtt ≥ 2, eigener Thread mit `loop_start`, Übergabe per `call_soon_threadsafe`), HA-Discovery, Zuordnungen empfangen, Status senden, Bestätigungen empfangen | Netz |
 | `sync` | rsync vom NAS nach den Regeln, danach MPD-Bibliothek aktualisieren | Prozess, Netz |
 | `update`, `selftest` | Update mit Rückfall und eingebaute Prüfroutine (siehe „Update“) | Prozess, Dateisystem |
 | `net`, `power` | Netz-Klasse (Heim / Hotspot / offline), Lader, Akkustand, Zeitquelle | System bzw. Simulation |
-| `eventlog` | dünne Einrichtung von Python `logging`: JSON-Format; Pi: journald dauerhaft, Mac: rotierende Datei (Konfiguration) | Dateisystem, journald |
-| `cli` | `tobibox status`, `tobibox sim …` | — |
-| Hardware-Module: `power` (ab Stufe 3a), `controls` (Tasten, Drehregler), `headphones`, `led` (Stufe 4) | je eine Schnittstelle; **ein** gemeinsamer Simulations-Treiber `sim` (Tastatur/Terminal) liefert alle Eingänge, der Ring zeigt seinen Zustand im Terminal und im Protokoll; die echte Hardware ersetzt später nur den Treiber | Treiber (Simulation oder Hardware) |
+| `eventlog` | dünne Einrichtung von Python `logging`: JSON-Format; Pi: JSON-Zeilen nach stdout, vom Dienst-Manager in journald übernommen (dauerhaft), Mac: rotierende Datei (Konfiguration) | Dateisystem, journald |
+| `cli` | `tobibox status`, `tobibox sim …` (ein eigener Prozess, der Befehle an `sim` schickt) | Unix-Socket (nur `sim`) |
+| Hardware-Module: `power` (ab Stufe 3a), `controls` (Tasten, Drehregler), `headphones`, `led` (Stufe 4) | je eine Schnittstelle; **ein** gemeinsamer Simulations-Treiber `sim` liefert alle Eingänge. Er entsteht in Stufe 2 und lauscht auf einem Unix-Socket (`sim.sock` im Zustandsverzeichnis) auf JSON-Zeilen; `tobibox sim …` schreibt dorthin, die Tastatur und das Terminal sind Clients desselben Sockets. Später kommen nur Eingänge dazu. der Ring zeigt seinen Zustand im Terminal und im Protokoll; die echte Hardware ersetzt später nur den Treiber | Treiber (Simulation oder Hardware) |
 | `app` | **Einziger Zusammenbau-Punkt:** baut Uhr, Module und Kern, verdrahtet sie, startet und beendet den Dienst | alles (nur hier) |
 
-**Abhängigkeitsrichtung.** Abhängigkeiten zeigen nur nach innen zu `events` und
-`core` (und den reinen Hilfsmodulen `volume`, `clock`). Der Kern importiert
-keines der Ein-/Ausgabe-Module. Nur `app.py` kennt alle Module und steckt sie
-zusammen. Die Uhr wird dem Kern eingespeist, er fragt sie nie selbst.
+**Abhängigkeitsrichtung.** Module importieren nur `events` und `core` (und die
+reinen Hilfsmodule `volume`, `clock`, `pointer`, `protocol`). Der Kern
+importiert keines der Ein-/Ausgabe-Module. Nur `app.py` importiert alle Module
+und steckt sie zusammen. Die Uhr wird dem Kern eingespeist, er fragt sie nie
+selbst.
+
+**Bibliotheken.** Python ≥ 3.11 (Pi OS Bookworm: 3.11). `tomllib` aus der
+Standardbibliothek liest die Konfiguration (kein `tomli`). `python-mpd2` mit
+dem asyncio-Client `mpd.asyncio.MPDClient`. `pyserial` läuft in einem eigenen
+Thread und reicht Zeilen über eine Warteschlange an die Ereignisschleife.
+`paho-mqtt` ab Version 2 (mit `callback_api_version`) läuft mit `loop_start` in
+einem eigenen Thread und übergibt per `call_soon_threadsafe`. Alle
+Abhängigkeiten sind reines Python (Update-Paket, siehe „Update“).
 
 **Ereignisquellen** (alle als Typen in `events.py`):
 
 | Quelle | Ereignisse (Beispiele) |
 |---|---|
 | Leser (`reader`) | `PLACED`, `LOCKED`, `REMOVED`, `HELLO`, Wächter-Alarm, Leser-Fehler |
-| Player (`player`) | Folge zu Ende, Wiedergabe-Fehler, MPD nicht erreichbar |
+| Player (`player`) | Folge zu Ende, Wiedergabe-Fehler, MPD nicht erreichbar (Felder: `core-interface.md`) |
 | HA (`ha`) | neue Konfiguration (Zuordnungen, Leise-Zeiten, Gute-Nacht), Lernmodus starten/abbrechen, Leise-Zeiten, Sync/Update anstoßen |
 | Zeitgeber | Takt (mit Zeitstempel), Fristen laufen ab |
 | Bedienung (`controls`) | Vor, Zurück, Lautstärke, Hauptknopf kurz/lang |
@@ -684,8 +788,33 @@ zusammen. Die Uhr wird dem Kern eingespeist, er fragt sie nie selbst.
 | Update (`update`) | gestartet, Selbsttest bestanden / durchgefallen |
 
 **Der Kern** kennt nur diese Ereignisse und Befehle (Abspielen, Pause, Lautstärke
-setzen, Töne, Speichern, Melden, Herunterfahren). Die Typen liegen in
-`events.py` (einziger Eigentümer); `core.py` benutzt sie nur.
+setzen, Töne, Speichern, Melden, Herunterfahren). Alle Ereignisse und Befehle
+mit ihren Feldern stehen als Vertrag in `docs/protocol/core-interface.md`
+(Stufe 0); `events.py` setzt sie um und ist ihr einziger Eigentümer, `core.py`
+benutzt sie nur.
+
+**Aufrufmuster.** Jeder Teilautomat ist eine reine Funktion
+`step(zustand, ereignis, jetzt) → (zustand, befehle)`. Die Zeit `jetzt` kommt als
+Parameter (monotone Uhr und Wanduhr); der Kern fragt nie selbst eine Uhr. Zeitgeber
+sind Ereignisse (`Takt` mit Zeitstempel). `core` reicht jedes Ereignis an alle
+Teilautomaten, sammelt die Befehle und löst Konflikte nach der Konflikt-Tabelle.
+Neue Teilautomaten trägt das Integrations-AP der Stufe in die Liste in `core` ein.
+`app.py` führt die Befehle aus und speist Ereignisse ein. Die Ereignisse des
+Players (Folge zu Ende, Fehler, MPD weg) sind in `core-interface.md` festgelegt,
+damit Kern und `player` unabhängig gebaut werden können.
+
+**Ereignis-Ausgang mit Bestätigung.** Meldungen an HA (unbekannte Kennung,
+gelernte Figur) gehen über den Befehl `melden`. Das Modul `outbox` hält sie in
+`unknown.json`, bis das Ereignis `bestätigt(id, grund)` eintrifft. In Stufe 2 löst
+`tobibox sim ack` die Bestätigung aus, ab Stufe 3a kommt sie von HA über MQTT
+(Baustein 4). Der Broker allein bestätigt nichts.
+
+**Abspielen mit MPD.** Die MPD-Warteschlange enthält **nur die aktuelle
+Folge**. Folgenende heißt: MPD stoppt, der Dienst setzt den Zeiger auf die
+nächste Folge (Position 0) und meldet das dem Kern; MPD startet nie von selbst
+die nächste Folge. Resume geschieht per `seek` direkt auf die Position (Zeiger
+minus 3 s): Es gibt kein kurzes Spielen ab 0:00. Die Latenz dieses Aufrufs misst
+Stufe 1.
 
 Die Abläufe (CUJs) werden als **pytest-Tabellen** geschrieben: je CUJ ein
 parametrisierter Test mit Zeit, Eingabezeile oder Ereignis und erwarteten
@@ -706,23 +835,27 @@ Baustein 4, D6) verweisen hierher.
   Gute-Nacht-Ausblendens. Keine Lautstärke liegt darüber, weder durch den
   Drehregler noch durch die Startlautstärke noch durch ReplayGain.
 - **Geklemmt wird an zwei Stellen:** Die Funktion `volume` im Kern berechnet
-  die wirksame Grenze; `player` setzt sie nur durch. Als **harte
-  Außen-Sicherung** dienen MPD und ALSA: MPD startet mit einer festen
-  Startlautstärke, und die Ausgabe hat eine harte Obergrenze in der MPD- bzw.
-  ALSA-Konfiguration (`deploy/pi/mpd.conf`). So bleibt die Box auch bei einem
-  Absturz oder Neustart des Dienstes unter der Grenze.
+  die wirksame Grenze; `player` setzt sie nur durch. Das ist die Klemmung im
+  Dienst, die **am Mac allein gilt** (MPD kennt keine Maximal- und keine
+  Startlautstärke; das ist hier offen so benannt).
+- **Harte Kappung am Pi:** ALSA-`softvol` mit `max_dB` in
+  `deploy/pi/asound.conf` kappt die Ausgabe hart. Die Startlautstärke setzt ein
+  `ExecStartPost` im MPD-Dienst (`deploy/pi/mpd.service.d/startvolume.conf`),
+  bevor etwas spielt. So bleibt die Box auch bei einem Absturz oder Neustart
+  des Dienstes unter der Grenze.
 - **Start:** Der Dienst setzt als Erstes die Lautstärke, bevor etwas spielt.
-- **ReplayGain wirkt nur dämpfend:** MPD wendet ReplayGain auf das Signal an,
-  nicht über den Mixer-Wert; die Dienst-Grenze sieht es nicht. Darum ist es so
-  eingestellt, dass es nie anhebt: Vorverstärkung 0 (auch für Dateien ohne
-  Tags), keine positive Anhebung, und der Ziel-Pegel in `rsgain` ist so
-  konservativ gewählt, dass die Werte in den Tags höchstens dämpfen.
+- **ReplayGain ist begrenzt, nicht garantiert dämpfend:** MPD wendet ReplayGain
+  auf das Signal an, nicht über den Mixer-Wert; die Dienst-Grenze sieht es nicht.
+  Eingestellt sind `replaygain_preamp` 0, `replaygain_missing_preamp` −6 dB und
+  `replaygain_limit` (Peak-Schutz). Ein positiver Gain bleibt möglich, wird
+  aber durch den Peak-Schutz und am Pi durch die ALSA-Kappung begrenzt.
 - **Kopfhörerwechsel:** zuerst die neue Grenze setzen, dann den Ausgang
   schalten (nie umgekehrt).
-- **Test:** pytest für die Funktion `volume` (Minimum gewinnt, nie darüber).
-  Für ReplayGain prüft ein Test die **Konfiguration** (MPD ohne
-  Vorverstärkung, Max-Gain ≤ 0 dB). Ob die Grenze am Ausgang hält, zeigt nur
-  die **Messung am Verstärker** in Stufe 4; sie ist offen (siehe „Offene
+- **Test:** pytest für die Funktion `volume` (Minimum gewinnt, nie darüber) und
+  für die Klemmung im Dienst (gegen echtes MPD). Für ReplayGain und die
+  ALSA-Kappung prüft ein Test die **Konfiguration** (`softvol`-`max_dB`,
+  MPD-Zeilen). Ob die Kappung am Ausgang hält, zeigt nur die **Messung am
+  Pi** (Pi-Probelauf, Stufe 4 mit Verstärker); sie ist offen (siehe „Offene
   Fragen“).
 
 #### Uhr und Zeitquelle
@@ -741,7 +874,9 @@ Baustein 4, D6) verweisen hierher.
 
 Der Kern besteht aus vier Teilautomaten, die einzeln testbar sind. Jede
 Tabelle ist die Vorlage für die pytest-Tabelle des Teilautomaten. `core`
-verbindet sie; Konflikte zwischen ihnen löst die Konflikt-Tabelle am Ende.
+verbindet sie; Konflikte zwischen ihnen löst die Konflikt-Tabelle am Ende. Jeder
+Teilautomat ist eine Funktion `step(zustand, ereignis, jetzt) → (zustand,
+befehle)` (Vertrag: `docs/protocol/core-interface.md`).
 
 **1. Wiedergabe-Sitzung** (`session`)
 
@@ -759,8 +894,8 @@ wegen „stumm“ nicht gespielt), `unbekannt` (Leser-Zustand unbekannt).
 | `spielt` | `REMOVED` | Pause, Zeiger speichern | `pausiert` |
 | `spielt` | `PLACED` andere Kennung | Zeiger der alten Serie speichern, neue Serie wie in den Zeilen oben | `spielt` |
 | `spielt` | Folge zu Ende (auch die letzte) | Zeiger auf die nächste Folge, Position 0 (nach der letzten auf Folge 1), speichern, Pause, auch wenn die Figur liegt | `beendet` |
-| `beendet` | `REMOVED` | — (die nächste Folge spielt erst nach erneutem Auflegen) | `pausiert` |
-| `beendet` | Hauptknopf kurz | nichts; die nächste Folge startet erst nach erneutem Auflegen | `beendet` |
+| `beendet` | `REMOVED` | — (die nächste Folge spielt nach erneutem Auflegen) | `pausiert` |
+| `beendet` (Figur liegt) | Hauptknopf kurz | Lautstärke setzen, nächste Folge ab Zeiger abspielen (Entscheidung E) | `spielt` |
 | `spielt` | Hauptknopf kurz | Pause, Zeiger speichern | `pausiert` |
 | `pausiert` (Figur liegt) | Hauptknopf kurz | Abspielen | `spielt` |
 | `spielt` | Wächter-Alarm (kein `HB`) | Frist 1,5 s starten | `unbekannt` |
@@ -774,6 +909,11 @@ wegen „stumm“ nicht gespielt), `unbekannt` (Leser-Zustand unbekannt).
 
 Kommt nach der Frist dieselbe Kennung wieder, ist das ein normales Auflegen
 mit Resume am gespeicherten Zeiger (erste Zeile).
+
+Ohne Figur auf der Box (Zustände `leer`, `pausiert` nach Abheben) behält der
+Hauptknopf kurz seine normale Funktion (Play / Pause, CUJ 19). Im Zustand
+`beendet` liegt die Figur immer noch auf der Box; deshalb spielt dort der
+Hauptknopf die nächste Folge.
 
 **2. Lernmodus** (`learn`, gehört der Box)
 
@@ -836,7 +976,8 @@ wecken (PiSugar-Wecker) ist eine Option für Stufe 4.
 
 | Situation | Erwartetes Ergebnis |
 |---|---|
-| Folge zu Ende, Figur liegt noch | Zeiger auf die nächste Folge (nach der letzten auf Folge 1), Position 0; die Box pausiert und wartet im Zustand `beendet`. Es passiert nichts, bis die Figur abgehoben und wieder aufgelegt wird (Entscheidung A). |
+| Folge zu Ende, Figur liegt noch | Zeiger auf die nächste Folge (nach der letzten auf Folge 1), Position 0; die Box pausiert und wartet im Zustand `beendet`. Es passiert nichts, bis die Figur abgehoben und wieder aufgelegt wird (Entscheidung A) oder der Hauptknopf kurz gedrückt wird (Entscheidung E). |
+| Hauptknopf kurz, Folge ist zu Ende, Figur liegt noch | Die nächste Folge spielt ab dem Zeiger (Position 0). Ohne Figur auf der Box behält der Hauptknopf seine normale Funktion (Play / Pause). |
 | Stumm gegen Lernmodus | Die Box lernt trotzdem, bestätigt mit dem leisen Ton und spielt nicht. |
 | Stumm-Fenster beginnt, während eine Figur spielt | Die Wiedergabe blendet sanft aus, pausiert, Zeiger gespeichert (`gehalten`). |
 | Stumm-Fenster endet, während eine Figur liegt | Nichts startet von selbst. Erst Abheben und erneutes Auflegen startet die Wiedergabe (Entscheidung B). |
@@ -865,7 +1006,7 @@ möglichst abwärtskompatibel sein.
 |---|---|---|---|
 | `config.json` | Konfiguration von HA mit **einer** Revision und **einer** Listen-ID: Zuordnungen `uid → Eintrag` (Typ `serie` mit Serien-ID oder Typ `aktion`, z. B. Status oder Gute Nacht), Leise-Zeiten, Gute-Nacht-Einstellungen (Timer-Dauer, Ausblendzeit) | nur aus HA übernommen | holt von HA |
 | `resume.json` | je Serie: der Zeiger (aktuelle Folge als Dateiname + Position) + Zähler | Box | nie |
-| `unknown.json` | unbekannte Kennungen mit Zeitpunkt, noch nicht vom Broker bestätigt | Box | an HA; Eintrag erst nach Bestätigung des Brokers löschen |
+| `unknown.json` | unbekannte Kennungen mit Zeitpunkt, noch nicht von HA bestätigt | Box | an HA; Eintrag erst löschen, wenn HA bestätigt hat (`…/ack`) |
 
 - **Serie** = Ordner im Medienordner; Folgen = Audiodateien darin (D5).
   **Reihenfolge, eine Regel überall:** Sie steht in `serie.json` (Liste
@@ -880,16 +1021,19 @@ möglichst abwärtskompatibel sein.
 - **Admin-Karten** (Status usw.) sind Einträge in `config.json` mit Typ
   `aktion` statt `serie`. Sie werden in HA wie jede Figur zugeordnet; bis
   Stufe 3a per `tobibox sim`.
-- `docs/data-model.md` wächst mit jeder Stufe: Jedes AP ergänzt die Schemas,
-  die es einführt.
+- Alle Schemas (vollständig, mit Beispiel-JSON) stehen als Vertrag in
+  `docs/data-model.md` (Stufe 0): `config.json`, `resume.json`, `unknown.json`,
+  `serie.json`, `manifest.json` und die Zeile des Ereignisprotokolls. Ein AP,
+  das ein Schema ändert, ergänzt `docs/data-model.md`.
 - **Zeigerregeln (Resume = „nächste ungehörte Folge“):** je Serie ein Zeiger
   (Folge + Position). Ohne gespeicherten Zeiger beginnt die Serie bei Folge 1.
   **Nach jeder Folge pausiert die Box** (Entscheidung A): Folge zu Ende →
   Zeiger auf nächste Folge, Position 0, Pause, auch wenn die Figur noch liegt.
   Letzte Folge zu Ende → Zeiger auf Folge 1, ebenfalls Pause. Die nächste
   Folge spielt erst, wenn die Figur (oder eine andere Figur derselben Serie)
-  neu aufgelegt wird. Beim Weiterspielen mitten in einer Folge 3 s
-  Rücksprung.
+  neu aufgelegt wird oder der Hauptknopf kurz gedrückt wird (Entscheidung E).
+  Beim Weiterspielen mitten in einer Folge 3 s Rücksprung (per `seek`, siehe
+  „Abspielen mit MPD“). Die Zeigerlogik gehört zu Stufe 1.
 - **Zeiger auf eine fehlende Folge** (gelöscht, umbenannt, aus der Liste): Der
   Zeiger geht auf die nächste vorhandene Folge in der Reihenfolge, Position 0,
   und die Box protokolliert das. Ist die Serie leer: Fehlerton.
@@ -964,7 +1108,25 @@ Skripte, Automationen) liegt als Dateien im Repo unter `homeassistant/`.
 - **Technik der Seite:** ein Web-Baustein (JavaScript-Modul, Lit, ohne
   eigenen Build-Server), Daten über die HA-WebSocket-Schnittstelle mit
   HA-Anmeldung; Hochladen über einen eigenen HA-HTTP-Endpunkt mit Anmeldung,
-  der nur Audioformate nach D5 annimmt.
+  der nur Audioformate nach D5 annimmt. Die Seite wird mit `panel_custom`
+  registriert, ihre Dateien liefert `async_register_static_paths`; Lit liegt in
+  fester Version eingecheckt im Ordner der Seite. Die WebSocket-Befehle (Name,
+  Eingabe, Ausgabe) sind ein Vertrag, den die Projektleitung zu Beginn von
+  Stufe 3a schreibt (`docs/protocol/ha-websocket-v1.md`), bevor Backend und
+  Seite parallel entstehen.
+- **Technik der Integration:**
+  - `manifest.json` mit `version` und `dependencies` (`mqtt`, `http`,
+    `panel_custom`, `websocket_api`).
+  - **HA-Version fest** (die laufende stabile Version, Tobias nennt sie). Die
+    Tests mit `pytest-homeassistant-custom-component` sind an HA- und
+    Python-Version gebunden und laufen deshalb in einer eigenen venv und einem
+    eigenen CI-Job.
+  - Upload als Strom in Blöcken (`request.multipart()`): HA begrenzt normale
+    Anfragen auf 16 MiB, Hörspielfolgen sind größer. Ob Nabu Casa große
+    Uploads durchlässt, wird am Handy geprüft (Risiko).
+  - Datei-Zugriffe auf die Netzwerkfreigabe über `hass.async_add_executor_job`.
+  - `ffprobe` im HA ist eine Annahme (HA OS hat es). Fehlt es, meldet die
+    Integration „Prüfung nicht möglich“.
 
 #### MQTT-Schnittstelle Box ↔ HA
 
@@ -972,15 +1134,26 @@ Skripte, Automationen) liegt als Dateien im Repo unter `homeassistant/`.
   und dauerhafter Sitzung; Nachrichten werden idempotent verarbeitet (doppelte
   Zustellung schadet nicht). Jede Box hat ein **eigenes MQTT-Konto** mit
   Themenrechten: Sie liest `tobibox/config` und ihr eigenes `cmd`-Thema und
-  schreibt nur ihre eigenen Themen (`event`, Status, Discovery). Ein Beispiel
-  für die Broker-Rechte liegt unter `homeassistant/mosquitto/`.
+  schreibt nur ihre eigenen Themen (`event`, Status, Discovery).
+- Die Broker-Rechte laufen über das Mosquitto-Add-on: `customize.active: true`,
+  eine ACL-Datei `/share/mosquitto/acl.conf` mit `topic readwrite …` je
+  Benutzer; `homeassistant` und `addons` bleiben unbeschränkt, die Box-Konten
+  sind keine HA-Administratoren (Option `logins`). Beispiele liegen unter
+  `homeassistant/mosquitto/`.
+- Alle Themen mit Nachrichten (Felder, Beispiele), QoS, „retained“, Ablaufzeit
+  der Befehle, Bestätigungen und Discovery-Namen stehen als Vertrag in
+  `docs/protocol/mqtt-v1.md` (Stufe 0).
 - Themen:
   - `tobibox/config` (dauerhaft/„retained“, ganze Konfiguration:
     Zuordnungen, Leise-Zeiten, Gute-Nacht-Einstellungen, mit einer Revision
     und einer Listen-ID)
-  - `tobibox/<box>/event` (unbekannt, gelernt, abgelehnte Liste, Fehler); die
-    Box löscht einen Eintrag aus `unknown.json` erst, wenn der Broker die
-    Meldung bestätigt hat (QoS 1)
+    - `tobibox/<box>/event` (gelernt, abgelehnte Liste, Fehler)
+  - Unbekannte Kennungen: Die Box veröffentlicht jede Kennung **dauerhaft
+    („retained“) auf einem eigenen Thema je Kennung**
+    (`tobibox/<box>/unknown/<uid>`). HA bestätigt auf dem Thema `…/ack` (mit
+    Grund); **erst dann** löscht die Box den Eintrag in `unknown.json` und die
+    dauerhafte Nachricht. Die Bestätigung des Brokers (PUBACK) reicht nicht:
+    Sie sagt nicht, dass HA die Figur hat, etwa wenn HA gerade neu startet
   - `tobibox/<box>/cmd` (Lernmodus, Sync, Update): geht an genau eine Box,
     ist **nicht** dauerhaft und trägt eine Ablaufzeit; ein abgelaufener Befehl
     wird ignoriert (Tabelle „Lernmodus“ in den Kern-Zuständen).
@@ -1006,27 +1179,40 @@ Skripte, Automationen) liegt als Dateien im Repo unter `homeassistant/`.
 - **Netz-Klasse** (Pi: NetworkManager-SSID; Mac: Simulation):
   `home` (Heim-SSID **und** NAS über Tailscale erreichbar), `hotspot`
   (Hotspot-SSID), `offline`.
-- **Medien-Sync** mit rsync über Tailscale (NAS-Konto nur lesend):
+- **Medien-Sync** mit rsync über Tailscale zu einem **rsync-Daemon auf dem
+  QNAP** (Modul `medien`, `read only = yes`; QNAP-SSH-Konten sind nur für
+  Admins, deshalb kein SSH). Der Sync startet auf einen Takt im Dienst
+  (Intervall in `tobibox.toml`, Vorschlag 1 h) und auf den HA-Knopf, jeweils
+  nur wenn die Netz-Regel es erlaubt:
   - `home`: immer erlaubt.
   - `hotspot`: erlaubt, wenn Lader dran oder Akku > 50 %.
   - Dateien landen erst nach vollständiger Übertragung sichtbar im
-    Medienordner (`--partial-dir`, `--delay-updates`).
+    Medienordner: `--partial-dir` mit **absolutem Pfad außerhalb des
+    Medienordners, aber auf demselben Dateisystem**
+    (`/var/lib/tobibox/.rsync-partial`) und `--delay-updates`. So indexiert MPD
+    keine halben Dateien.
   - **Spiegelnd mit `--delete`, mit Schutz:** Der Sync bricht ab, wenn die
     Quelle fehlt, leer ist oder mehr als 20 % der vorhandenen Dateien löschen
-    würde. Vorab prüft er den freien Platz; reicht er nicht, startet er nicht
+    würde. Die 20-%-Grenze wird vorab mit `--dry-run --itemize-changes` gezählt
+    (Zeilen `*deleting` gegen die Zahl der vorhandenen Dateien). Vorab prüft er
+    den freien Platz; reicht er nicht, startet er nicht
     und meldet das an HA.
   - Danach MPD-Bibliothek aktualisieren, nicht beim Start.
   - Nie parallel zum Update. Während eines Syncs schaltet die Box nicht ab
     (Tabelle „Strom / Leerlauf“).
-  - Eine Datei, die gerade spielt, wird nie ersetzt; ihre Änderung wird auf
-    den nächsten Abgleich verschoben.
+  - Eine Datei, die gerade spielt, wird nie ersetzt: Der Dienst fragt MPD
+    (`currentsong`) und übergibt die Datei per `--exclude` (das schützt auch
+    vor `--delete`); ihre Änderung wartet auf den nächsten Abgleich.
   - rsync läuft mit niedriger CPU- und IO-Priorität (`nice`/`ionice`).
+    - Die Latenz beim Auflegen während eines Syncs lässt sich nur am Pi unter
+    echter Last messen. Im Container prüft ein Test nur, dass Kern-Ereignisse
+    während des Syncs weiterlaufen.
   - Die Hotspot-/Akku-Regel lässt sich bis PiSugar und Tailscale vorhanden
     sind nur mit Simulation prüfen (siehe Risiken).
   - Im Hotspot gibt es **keine Datenbegrenzung** je Sync (Entscheidung C);
     es gilt nur die Akku-Regel.
 - **Strom:** Schnittstelle und Simulation komplett ab Stufe 3a (AP 3.3). Im
-  Prototyp Simulation über den gemeinsamen Treiber (`tobibox sim power
+  Prototyp Simulation über den gemeinsamen Treiber (`sim`, ab Stufe 2) (`tobibox sim power
   --charger on --battery 40`); die echte PiSugar-Anbindung ersetzt nur den
   Treiber. Abschalt- und Lader-Regeln: CUJ 16 und Tabelle „Strom / Leerlauf“.
 - **Uhr:** siehe „Uhr und Zeitquelle“ in Baustein 3.
@@ -1036,49 +1222,66 @@ Skripte, Automationen) liegt als Dateien im Repo unter `homeassistant/`.
 - **Auslöser:** HA-Knopf.
 - **Bedingungen:** Box daheim (`home`), am Lader, spielt nicht, kein Sync.
 - **Paket:** Tarball `tobibox-<version>.tar.gz` mit Code, den **fertig
-  gebauten** Python-Abhängigkeiten (auf dem Pi wird nichts gebaut oder per pip
-  geholt) und `manifest.json` (Version, Protokoll-Version, Schema-Versionen,
-  Firmware-Mindestversion), dazu eine **Signatur**. Liegt auf dem NAS in
-  `tobibox/releases/`; HA darf dort schreiben (Entscheidung D). Die bisher
-  genannten Abhängigkeiten sind reines Python; AP 3.5 prüft das.
+  gebauten** Python-Abhängigkeiten und `manifest.json`, dazu eine
+  **Signatur**. Die Abhängigkeiten werden beim Bauen mit `pip install --target`
+  in einen Ordner im Paket gelegt; der Dienst startet mit `PYTHONPATH` auf
+  diesen Ordner (kein venv, es ist nicht verschiebbar). Auf dem Pi wird nichts
+  gebaut oder per pip geholt. Die Abhängigkeiten sind reines Python; AP 3.8
+  prüft das (keine `.so`/`.dylib`, nur Pakete ohne Plattform-Kennzeichen). Die
+  Python-Minor-Version beim Bauen ist die des Pi OS Bookworm (3.11). Das Paket
+  liegt auf dem NAS in `tobibox/releases/`; HA darf dort schreiben
+  (Entscheidung D).
+- **Manifest** (Schema in `docs/data-model.md`): `schema_version`, `version`,
+  `protokoll_version`, `schema_versionen` (je Zustandsdatei), `firmware_min`,
+  `python` und `erstellt_am`.
 - **Signatur** mit dem Standardwerkzeug `minisign` (kein eigener Code): Den
   Signierschlüssel hat nur Tobias, auf seinem Mac (nicht im Repo, nicht auf NAS
   oder HA); er signiert beim Bauen des Pakets. Der Prüfschlüssel liegt auf der
   Box (mit dem SD-Image). **Zweck:** Weil HA auf `releases/` schreiben darf,
   verhindert nur die Signatur, dass ein manipuliertes HA oder NAS (oder Netz)
   Code auf die Boxen bringt. Ohne gültige Signatur bricht die Box das Update
-  ab und meldet das an HA.
+  ab und meldet das an HA. Die Tests erzeugen ihr eigenes Test-Schlüsselpaar
+  zur Laufzeit; im Repo liegt kein Schlüssel. Die CI installiert `minisign`.
 - **Ablauf:** HA-Knopf → Box prüft Bedingungen → lädt Paket → prüft Signatur →
   entpackt nach `releases/<version>/` → sichert die Zustandsdateien → schreibt
   Zustand `testing` und Zähler 0 → stellt den Verweis `current` **atomar** um
   (neuen Verweis anlegen, dann auf `current` umbenennen) → startet neu. Der
-  Zustand (`testing`, `ok`, `failed`) steht in einer Zustandsdatei.
+  Zustand (`testing`, `ok`, `failed`) steht in einer Zustandsdatei
+  (`update.json` im Zustandsverzeichnis).
 - **Selbsttest** als **eingebaute Prüfroutine** der Box (kein pytest auf der
   Box): Dienst läuft, Leser meldet `HELLO` mit passender Protokoll-Version,
   Zustandsdateien lesbar, MPD antwortet, Testton spielt. Auf Aufbauten ohne
   Leser steht der Prüfpunkt „Leser“ in der Konfiguration auf Simulation. Dann
   Zustand `ok`.
-- **Rückfall mit systemd-Mitteln** (kein eigener Wächter-Dienst), Schritt für
-  Schritt:
-  1. Der Zähler zählt Starts **nur im Zustand `testing`**. Normale Neustarts im
-     Zustand `ok` (Leerlauf-Abschaltung, leerer Akku) zählen nicht.
-  2. Besteht der Selbsttest, wird der Zustand `ok`.
-  3. Besteht er nicht innerhalb von 5 min, beendet sich der Dienst; der
-     Startzähler greift (Schritt 4).
-  4. Schlägt der Dienst fehl (`OnFailure=`) oder steht der Zähler im Zustand
-     `testing` bei 3 oder mehr, dann stellt die Box den Verweis `current` auf
-     die vorige Version zurück, **spielt die gesicherten Zustandsdateien
-     zurück** (das ist die Regel für Schema-Änderungen), setzt `failed`,
-     startet neu und meldet den Grund an HA.
-  5. Die Entscheidung „bleiben oder zurück“ trifft eine kleine Python-Funktion
-     (Eingaben: Zustand, Zähler). Sie hat einen eigenen Test.
+- **Rückfall** mit einem kleinen Wächter-Skript und systemd-Mitteln. Das
+  Skript muss **außerhalb** der Version liegen, die ausfallen kann; sonst
+  zählt bei einem Importfehler der neuen Version nichts.
+  1. **`/opt/tobibox/bin/guard.py`** (Quelle im Repo: `deploy/pi/guard.py`)
+     kommt mit dem SD-Image, wird nie per Update ersetzt und nutzt nur die
+     Standardbibliothek. Es läuft als `ExecStartPre=` vor jedem Start.
+  2. Es zählt Starts **nur im Zustand `testing`**; Neustarts im Zustand `ok`
+     (Leerlauf-Abschaltung, leerer Akku) zählen nicht. Bei Zähler ≥ 3 stellt es
+     den Verweis `current` auf die vorige Version zurück, **spielt die
+     gesicherten Zustandsdateien zurück** (das ist die Regel für
+     Schema-Änderungen), setzt `failed` und meldet den Grund an HA.
+  3. **Selbsttest-Frist 5 min:** `Type=notify` und `TimeoutStartSec=300`. Im
+     Zustand `testing` meldet der Dienst `READY=1` erst nach bestandenem
+     Selbsttest; sonst beendet systemd ihn nach 5 min, und der Neustart zählt.
+  4. **Werte in `tobiboxd.service`:** `Restart=on-failure`, `RestartSec=3`,
+     `StartLimitIntervalSec=120`, `StartLimitBurst=5`,
+     `OnFailure=tobiboxd-failed.service`. Diese Unit ruft `guard.py --failed`
+     auf: Im Zustand `testing` erzwingt es den Rückfall und startet neu.
+  5. Die Entscheidung „bleiben oder zurück“ ist eine kleine Funktion in
+     `guard.py` (Eingaben: Zustand, Zähler). Sie hat einen eigenen Test.
 - Firmware-Updates des ESP32 sind **nicht** Teil des Pakets (Flashen per
   USB am Mac); das Paket nennt nur die Mindestversion.
 
 ### Fehlersuche
 
 - **Ereignisprotokoll**: Python `logging` mit JSON-Formatter, **ein
-  Protokollweg je Gerät**: am Pi journald dauerhaft (mit begrenztem Platz),
+  Protokollweg je Gerät**: am Pi JSON-Zeilen nach stdout, die der Dienst-Manager in journald übernimmt
+  (dauerhaft, begrenzter Platz, `SyncIntervalSec=30s`; bei Stromausfall gehen
+  höchstens etwa 30 s Protokoll verloren),
   am Mac eine rotierende Datei mit fester Obergrenze (Konfiguration). Es gibt
   keine Protokolldatei auf dem Pi.
   Eine JSON-Zeile je Ereignis mit Zeit, Zeitquelle, Baustein, Ereignis,
@@ -1100,14 +1303,16 @@ Skripte, Automationen) liegt als Dateien im Repo unter `homeassistant/`.
 
 | | Mac (Prototyp) | Pi 3A+ (Box) |
 |---|---|---|
-| Leser | `/dev/cu.usbmodem…` | `/dev/serial/by-id/…tobibox…` |
+| Leser | Suchmuster `/dev/cu.usbmodem*` | `/dev/serial/by-id/…Espressif…<Seriennummer>…` bzw. udev-Regel nach Seriennummer |
 | MPD | Homebrew, Ausgabe CoreAudio | Paket aus Pi OS, Ausgabe ALSA (I²S) |
+| Lautstärke-Grenze | nur Klemmung im Dienst | Klemmung im Dienst plus ALSA-`softvol` mit `max_dB` |
+| Python | ≥ 3.11 | 3.11 (Pi OS Bookworm), Abhängigkeiten per `pip install --target` im Paket |
 | Töne | `afplay` | `aplay` |
 | Netz, Strom | Simulation | NetworkManager, PiSugar |
 | Uhr | Systemuhr | PiSugar-RTC beim Start, NTP bei Netz |
 | LED-Ring, Tasten, Kopfhörer | Simulation (ein gemeinsamer Treiber: Tastatur; Ring-Zustand im Terminal und im Protokoll) | echte Treiber (später) |
 | Start | `tobiboxd` im Terminal | systemd-Dienst |
-| Pfade | `~/tobibox/…` | `/var/lib/tobibox`, `/opt/tobibox` |
+| Pfade | `~/tobibox/…` | `/var/lib/tobibox`, `/opt/tobibox`, Wächter `/opt/tobibox/bin/guard.py` |
 
 Alles in **einer** Konfigurationsdatei `tobibox.toml` je Gerät; im Code gibt
 es keine Abfrage „bin ich am Mac?“.
@@ -1232,180 +1437,426 @@ Chip trägt nur eine Seriennummer; die Zuordnung erfolgt einmal pro Exemplar.
 Grundregeln für die Umsetzung:
 
 - Jedes Arbeitspaket (AP) setzt ein Agent um, mit dem billigsten passenden
-  Modell (in Klammern; Haiku = günstiger, Sonnet = stärker). Danach prüft ein
-  **frischer Agent** (Goldfisch, Sonnet) den Code gegen dieses Dokument, bevor
-  das AP als fertig gilt.
+  Modell (in Klammern, siehe „Begriffe“). Danach prüft ein **frischer Agent**
+  (Goldfisch, Sonnet) den Code gegen dieses Dokument, bevor das AP als fertig
+  gilt.
+- **Form der APs:** Jedes AP ist eine Überschrift `#### AP x.y <Name> (<Modell>)`,
+  darunter eine Zeile „Ergebnis:“, eine Dateitabelle und die Abnahme als Liste.
+  Die Tabellen nennen konkrete Dateinamen (keine Ordner oder Platzhalter). Ein
+  AP legt keine Datei außerhalb seiner Tabelle an.
 - Jedes AP liefert Tests, die im Container ohne Hardware laufen
   (Firmware-Logik: PlatformIO `native`; Box-Dienst: pytest; MPD-Tests mit
   echtem MPD im Container). Auf der Box selbst läuft kein pytest; dort
-  prüft die eingebaute Prüfroutine (siehe „Update“).
+  prüft die eingebaute Prüfroutine (siehe Abschnitt „Update“). Testdateien
+  (Audio, Serienordner) erzeugen die Tests selbst; die Erzeuger liegen unter
+  `box/tests/fixtures/`.
 - Kein AP ändert die Verträge aus Stufe 0 eigenmächtig; Änderungswünsche
   gehen an die Projektleitung.
-- Jedes AP ergänzt `docs/data-model.md` um die Schemas, die es einführt.
+- Jedes AP, das ein Schema einführt oder ändert, ergänzt `docs/data-model.md`
+  um dieses Schema und beachtet die Regeln aus Stufe 0 (atomar schreiben,
+  `.bak`, `schema_version`, Migration).
 - Keine Funktion wartet auf Hardware: Fehlende Hardware wird mit einer
   Simulation am Mac gebaut (Stufe 4).
-- Abhängigkeitsregel: Module zeigen nur nach innen zu `events` und `core`;
-  nur `app.py` kennt alle Module (Baustein 3).
+- Abhängigkeitsregel: Module importieren nur `events` und `core`. Nur `app.py`
+  importiert alle Module (Baustein 3).
+- **Parallele APs und gemeinsame Dateien:** `core.py`, `session.py`, `app.py`,
+  `cli.py` und `sim.py` ändert in jeder Stufe nur das **Integrations-AP** der
+  Stufe. Parallele APs liefern ihren Teilautomaten oder ihr Modul als eigene
+  Datei mit Unit-Tests, ohne diese Dateien anzufassen. Das Integrations-AP
+  hängt alles in `core`, `app`, `cli` und `sim` ein und schreibt die
+  CUJ-Tests der Stufe.
 - Kein Geheimnis im Repo: `config.h`, `tobibox.toml` mit Zugangsdaten,
   Tailscale-Schlüssel, MQTT-Passwörter und der Signierschlüssel sind
   gitignored bzw. liegen nicht im Repo; im Repo liegen nur `*.example.*`.
+- Jede Stufe hat eine Tabelle „Von Tobias bereitzustellen“. Die Projektleitung
+  prüft vor dem Start der Stufe, dass alles da ist.
 
-### Stufe 0 — Verträge (Projektleitung schreibt, Goldfisch prüft)
+### Stufe 0 — Verträge (Projektleitung schreibt, Goldfisch prüft, Tobias gibt frei)
+
+Die Projektleitung schreibt diese Dokumente; ein Goldfisch prüft sie vor
+Stufe 1, Tobias gibt sie frei.
 
 | Datei | Neu/Änd. | Inhalt und Grund |
 |---|---|---|
-| `docs/protocol/reader-v1.md` | neu | Protokoll v1 vollständig: Zeilen, Felder, Kennungsformat, Zeitkonstanten, Fehlercodes, Verhalten bei unbekannten Zeilen. Einziger Vertrag zwischen Firmware und Box-Dienst. |
+| `docs/protocol/reader-v1.md` | neu | Protokoll v1 vollständig: Zeilen und Felder, **Felder des Herzschlags** (Bedeutung jedes Zählers), **Kennungsformat mit regulärem Ausdruck** (ISO 14443: 8, 14 oder 20 Hexzeichen; ISO 15693: 16 Hexzeichen), Zeitkonstanten, **vollständige Fehlercodes**, **Zustandstabelle des Entprellers** (auch `fehler(code)` mitten in der Entprellung, „gesperrt liegt“ gegen „Kennung liegt“), Verhalten bei unbekannten Zeilen. Einziger Vertrag zwischen Firmware und Box-Dienst. |
 | `docs/protocol/reader-v1-examples.txt` | neu | Gültige und ungültige Beispielzeilen mit erwarteter Auslegung; Testgrundlage für beide Seiten. |
+| `docs/protocol/core-interface.md` | neu | Alle Ereignisse und Befehle des Kerns mit Feldern; die Signatur `step(zustand, ereignis, jetzt) → (zustand, befehle)` je Teilautomat; Uhr als Parameter; Player-Ereignisse (Folge zu Ende, Fehler, MPD weg); Ereignis-Ausgang mit Bestätigung; wie ein Teilautomat in `core` eingehängt wird. |
+| `docs/data-model.md` | neu | Vollständige Schemas mit Beispiel-JSON für `config.json` (mit Aktionskarten, Leise-Zeiten, Gute Nacht), `resume.json`, `unknown.json`, `serie.json`, `manifest.json` und die Zeile des Ereignisprotokolls; dazu die Regeln: atomar schreiben, `.bak`, `schema_version`, Migration. |
+| `docs/protocol/mqtt-v1.md` | neu | Themen, Nachrichten (Felder, Beispiele), QoS, „retained“, Ablaufzeit von Befehlen, Bestätigung `…/ack` mit Grund, Discovery-Namen. |
 
-Das Kennungsformat steht in `reader-v1.md`. `docs/data-model.md` wächst mit
-jeder Stufe (jedes AP ergänzt seine Schemas und die Regeln: atomar schreiben,
-`.bak`, `schema_version`, Migration).
+Der WebSocket-Vertrag zwischen HA-Backend und Seite (`docs/protocol/ha-websocket-v1.md`)
+wird zu Beginn von Stufe 3a geschrieben, nicht hier.
 
-Abnahme: Goldfisch-Review der zwei Dateien ohne Blocker, Freigabe durch Tobias.
+**Von Tobias bereitzustellen:** nur die Freigabe.
+
+Abnahme Stufe 0:
+
+- Ein Goldfisch-Review der fünf Dateien hat keinen offenen Blocker.
+- Tobias gibt die Dateien frei.
 
 ### Stufe 1 — Leser und Abspielen (CUJ 1, 2, 5, 6, 8, 13)
 
-**AP 1.1 Firmware `tobibox-reader`** (Sonnet)
+**Von Tobias bereitzustellen**
+
+| Was | Wofür | Frist |
+|---|---|---|
+| ESP32-S3 SuperMini mit PN5180, verdrahtet nach den Pins in `config.h` | AP 1.1 gegen Hardware, Abnahme | vor Abnahme Stufe 1 |
+| Echte `config.h` mit dem Tonie-Passwort, nur lokal auf dem Mac, nie im Repo | Firmware bauen und flashen | vor Abnahme Stufe 1 |
+| Mac mit Homebrew-MPD | AP 1.3, 1.4, Abnahme | vor AP 1.3 |
+| Figuren zum Testen (Tonies, darunter ein gesperrter, und NFC-Karten) | Abnahme, Messung | vor Abnahme Stufe 1 |
+| Mikrofon (das im Mac reicht) | Messung am Ausgang (AP 1.6) | vor AP 1.6 |
+| Einige Test-Audiodateien (optional) | Hörprobe; die Tests erzeugen eigene | optional |
+
+**Reihenfolge:** AP 1.1 läuft parallel zu allem. Danach AP 1.2a, dann AP 1.2b;
+AP 1.3, 1.4 und 1.5 laufen parallel; AP 1.6 am Schluss.
+
+#### AP 1.1 Firmware `tobibox-reader` (Sonnet)
+
+Ergebnis: Eine Firmware, die Protokoll v1 ausgibt; die nativen Tests laufen; der
+Build für `esp32s3` gelingt.
 
 | Datei | Neu/Änd. | Inhalt und Grund |
 |---|---|---|
-| `firmware/tobibox-reader/platformio.ini` | neu | Umgebungen `esp32s3` (SuperMini, USB-CDC) und `native` (Tests am Rechner); Plattform, Core und PN5180-Bibliothek per fester Version/Commit. |
-| `firmware/tobibox-reader/include/config.example.h` | neu | Pins (aus `tonie_test/config.h`), Zeitkonstanten, Passwort-Platzhalter. |
-| `firmware/tobibox-reader/src/main.cpp` | neu | Zusammenbau: Leser → Entpreller → Protokoll; Herzschlag. |
-| `firmware/tobibox-reader/src/reader.h/.cpp` | neu | Ein Abfragezyklus 14443A/15693/Entsperren nach Vorbild `tonie_test`; liefert `nichts`/`uid`/`gesperrt`/`fehler`. |
-| `firmware/tobibox-reader/src/debounce.h/.cpp` | neu | Reiner Zustandsautomat ohne Hardware-Aufrufe (Zeit wird übergeben). |
-| `firmware/tobibox-reader/src/protocol.h/.cpp` | neu | Formatiert Zeilen nach `reader-v1.md`, zählt `seq` und Zähler. |
-| `firmware/tobibox-reader/test/test_debounce/` | neu | Native Tests: 2-gleich-Regel, 1,0-s-Lücke, 1,1-s-Abheben, Figurwechsel, verfälschte Kennung am Rand, gesperrter Tonie. |
-| `firmware/tobibox-reader/test/test_protocol/` | neu | Native Tests gegen `reader-v1-examples.txt`. |
+| `firmware/tobibox-reader/platformio.ini` | neu | Umgebungen `esp32s3` (SuperMini, HWCDC) und `native`. pioarduino-Plattform mit fester Release-Version, Arduino-Core und PN5180-Bibliothek per fester Version/Commit; `board_upload.flash_size = 4MB` und Partitionstabelle; `native` mit `build_src_filter` nur auf `debounce.cpp` und `protocol.cpp`. |
+| `firmware/tobibox-reader/include/config.example.h` | neu | Pins (aus `tonie_test/config.h`) und Passwort-Platzhalter. Keine Zeitkonstanten. |
+| `firmware/tobibox-reader/include/timing.h` | neu | Alle Zeitkonstanten (Zyklus, Anzahl gleicher Lesungen, Abhebe-Zeit 1,1 s); eingecheckt. |
+| `firmware/tobibox-reader/src/main.cpp` | neu | Zusammenbau: Leser → Entpreller → Protokoll; Herzschlag; `setTxTimeoutMs(0)`. |
+| `firmware/tobibox-reader/src/reader.h` | neu | Schnittstelle des Lesers: Ergebnis `nichts`/`uid`/`gesperrt`/`fehler`. |
+| `firmware/tobibox-reader/src/reader.cpp` | neu | Ein Abfragezyklus 14443A/15693/Entsperren nach Vorbild `tonie_test`. |
+| `firmware/tobibox-reader/src/debounce.h` | neu | Schnittstelle des Entprellers, ohne Arduino-Typen. |
+| `firmware/tobibox-reader/src/debounce.cpp` | neu | Zustandsautomat nach der Tabelle in `reader-v1.md`, ohne Hardware-Aufrufe (Zeit wird übergeben). |
+| `firmware/tobibox-reader/src/protocol.h` | neu | Schnittstelle der Protokoll-Ausgabe, ohne Arduino-Typen. |
+| `firmware/tobibox-reader/src/protocol.cpp` | neu | Formatiert Zeilen nach `reader-v1.md`, zählt `seq` und die Herzschlag-Zähler. |
+| `firmware/tobibox-reader/test/test_debounce/test_debounce.cpp` | neu | Native Tests: 2-gleich-Regel, 1,0-s-Lücke, 1,1-s-Abheben, Figurwechsel, verfälschte Kennung am Rand, gesperrter Tonie, „gesperrt → offen“, `fehler(code)` mitten in der Entprellung. |
+| `firmware/tobibox-reader/test/test_protocol/test_protocol.cpp` | neu | Native Tests gegen `../../docs/protocol/reader-v1-examples.txt`. |
 | `firmware/tobibox-reader/README.md` | neu | Bauen, Flashen am Mac, Passwort eintragen, serielle Ausgabe ansehen. |
 | `firmware/tonie_test/` | bleibt | Referenz, unverändert. |
 
+Abnahme AP 1.1:
 
-**AP 1.2 Box-Dienst: Kern, Protokoll, Speicher** (Sonnet)
+- Alle nativen Tests sind grün.
+- `pio run -e esp32s3` baut mit dem Platzhalter-Passwort.
+- `debounce.cpp` und `protocol.cpp` enthalten keinen Arduino-Typ.
+
+#### AP 1.2a Box-Dienst: Kern, Protokoll, Leser (Sonnet)
+
+Ergebnis: Kern und Teilautomat Sitzung nach `core-interface.md`, Zeilen-Parser
+und Leser mit Wächter; alles ohne MPD und ohne Hardware testbar.
 
 | Datei | Neu/Änd. | Inhalt und Grund |
 |---|---|---|
-| `box/pyproject.toml` | neu | Paket `tobibox`, Python ≥ 3.11, feste Abhängigkeiten (pyserial, python-mpd2, paho-mqtt, tomli bei Bedarf), Einstiegspunkte `tobiboxd`, `tobibox`. |
-| `box/src/tobibox/events.py` | neu | Ereignis- und Befehls-Typen des Kerns; einziger Eigentümer dieser Typen. Katalog aller Quellen: Leser, Player, HA, Zeitgeber, Bedienung, Kopfhörer, Strom, Netz, Sync, Update. |
-| `box/src/tobibox/core.py` | neu | Verbindet die Teilautomaten und löst Konflikte nach der Konflikt-Tabelle („Kern-Zustände“). Reine Logik; benutzt die Typen aus `events.py`. |
-| `box/src/tobibox/session.py` | neu | Teilautomat Wiedergabe-Sitzung: Auflegen, Abheben, Wechsel, gesperrt, unbekannt, Überraschung, Folge zu Ende (Pause, Zustand `beendet`), Leser-Zustand unbekannt (Tabelle in „Kern-Zustände“). |
-| `box/src/tobibox/volume.py` | neu | Reine Funktion: wirksame Grenze = Minimum aller aktiven Grenzen (zunächst globale Obergrenze und Startlautstärke; weitere Eingänge in Stufe 4). |
+| `box/pyproject.toml` | neu | Paket `tobibox`, Python ≥ 3.11, feste Abhängigkeiten (pyserial, python-mpd2, paho-mqtt ≥ 2), Test-Abhängigkeiten (pytest, pytest-asyncio), Einstiegspunkte `tobiboxd`, `tobibox`. |
+| `box/src/tobibox/__init__.py` | neu | Paket-Kennung, Version. |
+| `box/src/tobibox/events.py` | neu | Ereignis- und Befehls-Typen genau nach `core-interface.md`; einziger Eigentümer dieser Typen. |
+| `box/src/tobibox/core.py` | neu | Hält die Liste der Teilautomaten (zunächst nur `session`), reicht Ereignisse weiter, sammelt Befehle, löst Konflikte nach der Konflikt-Tabelle. Reine Logik. |
+| `box/src/tobibox/session.py` | neu | Teilautomat Wiedergabe-Sitzung: alle Zeilen der Tabelle „Wiedergabe-Sitzung“, auch Folge zu Ende (`beendet`), Hauptknopf kurz (Entscheidung E) und Leser-Zustand unbekannt. |
+| `box/src/tobibox/volume.py` | neu | Reine Funktion: wirksame Grenze = Minimum einer **Liste benannter Grenzen**. Stufe 1 liefert globale Obergrenze und Startlautstärke; weitere Grenzen kommen in Stufe 4 ohne Änderung dieser Datei. |
 | `box/src/tobibox/clock.py` | neu | Uhr als Eingang: Wanduhr, monotone Uhr, Zeitquelle; im Test simulierte Uhr. |
-| `box/src/tobibox/protocol.py` | neu | Zeilen-Parser nach `reader-v1.md`, prüft Kennungsformat. |
-| `box/src/tobibox/reader.py` | neu | Serielle öffnen, Zeilen lesen, `HELLO`-Prüfung (setzt `seq` zurück), Herzschlag-Wächter (5 s ohne `HB`, bei 2-s-Takt), selbst neu verbinden. |
-| `box/src/tobibox/store.py` | neu | Atomares Lesen/Schreiben, `.bak`, `schema_version`, Zeiger nur bei Änderung. |
-| `box/src/tobibox/library.py` | neu | Serien aus `serie.json` lesen; Folgen-Reihenfolge nach der Regel im Datenmodell; Überraschungs-Serie (nur über `typ`); Dateien außerhalb der Liste nicht spielen; Zeiger auf fehlende Folge → nächste vorhandene. |
-| `box/src/tobibox/config.py` | neu | `tobibox.toml` laden und prüfen, inkl. globaler Lautstärke-Obergrenze und Startlautstärke. |
-| `box/src/tobibox/eventlog.py` | neu | Dünne Einrichtung von Python `logging`: JSON-Formatter; Pi: journald (dauerhaft), Mac: `RotatingFileHandler` mit fester Obergrenze (Konfiguration); Vorgangs-ID als Log-Feld. |
+| `box/src/tobibox/protocol.py` | neu | Zeilen-Parser nach `reader-v1.md`, prüft das Kennungsformat. |
+| `box/src/tobibox/reader.py` | neu | Serielle öffnen (pyserial in eigenem Thread mit Warteschlange, ohne DTR/RTS; Mac-Suchmuster `/dev/cu.usbmodem*`), Zeilen lesen, `HELLO`-Prüfung (setzt `seq` zurück), Herzschlag-Wächter (5 s ohne `HB`), selbst neu verbinden. |
+| `box/tests/conftest.py` | neu | Simulierte Uhr, Hilfen zum Bauen von Ereignisfolgen. |
+| `box/tests/unit/test_protocol.py` | neu | Parser gegen `docs/protocol/reader-v1-examples.txt`. |
+| `box/tests/unit/test_volume.py` | neu | Minimum gewinnt, nie darüber. |
+| `box/tests/unit/test_session.py` | neu | Jede Zeile der Tabelle „Wiedergabe-Sitzung“ als parametrisierter Test. |
+| `box/tests/unit/test_core.py` | neu | Ereignisse laufen durch alle Teilautomaten; Konflikt-Tabelle. |
+| `box/tests/unit/test_clock.py` | neu | Monotone und Wanduhr, Zeitquelle. |
+| `box/tests/integration/test_reader_pty.py` | neu | Leser über Pseudo-Terminal: Trennung, Müllzeilen, Neustart des ESP32 (`HELLO`, `seq` bei 0), Wächter-Alarm. |
+
+Abnahme AP 1.2a:
+
+- Alle Unit-Tests und `test_reader_pty.py` sind grün, ohne MPD.
+- `core.py` und `session.py` importieren kein Ein-/Ausgabe-Modul.
+- Jede Zeile der Tabelle „Wiedergabe-Sitzung“ hat einen Testfall.
+
+#### AP 1.2b Box-Dienst: Speicher, Bibliothek, Zeiger, Konfiguration, Protokoll, CLI (Sonnet)
+
+Ergebnis: Zustandsdateien, Serien aus dem Medienordner, die vollständige
+Zeigerlogik (Laden, Speichern, 3 s Rücksprung, Pause nach jeder Folge),
+Konfiguration, Ereignisprotokoll und die erste Fassung der CLI. Läuft nach AP 1.2a.
+
+| Datei | Neu/Änd. | Inhalt und Grund |
+|---|---|---|
+| `box/src/tobibox/store.py` | neu | Atomares Lesen/Schreiben, `.bak`, `schema_version`; `resume.json` laden und speichern, nur bei Änderung und höchstens alle 30 s während der Wiedergabe. |
+| `box/src/tobibox/library.py` | neu | Serien aus `serie.json` lesen; Folgen-Reihenfolge nach der Regel im Datenmodell; Überraschungs-Serie (nur über `typ`); Dateien außerhalb der Liste nicht spielen. |
+| `box/src/tobibox/pointer.py` | neu | Reine Zeigerregeln: nächste Folge, nach der letzten Folge 1, fehlende Folge → nächste vorhandene, 3 s Rücksprung. |
+| `box/src/tobibox/config.py` | neu | `tobibox.toml` laden und prüfen (`tomllib`), inkl. globaler Lautstärke-Obergrenze und Startlautstärke. |
+| `box/src/tobibox/eventlog.py` | neu | Python `logging` mit JSON-Formatter; Pi: JSON-Zeilen nach stdout; Mac: `RotatingFileHandler` mit fester Obergrenze; Vorgangs-ID als Log-Feld. |
 | `box/src/tobibox/cli.py` | neu | Erste Fassung von `tobibox status` (Leser, letzte Fehler, Versionen). |
+| `box/src/tobibox/session.py` | änd. | Zeigerlogik anschließen: Zeiger laden beim Auflegen, speichern bei Abheben, Folgenende, Figurwechsel. |
+| `box/src/tobibox/core.py` | änd. | Befehl „Speichern“ und Zeiger-Eingang verdrahten. |
 | `box/tools/fake_reader.py` | neu | Gibt Protokollzeilen auf ein Pseudo-Terminal aus; Vorführen und Testen ohne Hardware. |
-| `box/tests/unit/` | neu | Tests je Modul; `test_volume.py` (Minimum gewinnt, nie darüber); `test_session.py` (Tabelle „Wiedergabe-Sitzung“). |
-| `box/tests/cuj/test_cujXX_*.py` | neu | Je CUJ dieser Stufe (1, 2, 5, 6, 8, 13) ein parametrisierter pytest-Test: Zeit, Eingabezeile oder Ereignis, erwartete Befehle. CUJ 13 deckt `seq`-Rücksetzen, Abheben während der Unterbrechung und Wächter-Alarm mit 1,5-s-Frist ab. |
-| `docs/data-model.md` | neu | Erste Schemas: `serie.json`, `config.json`, Ereignisprotokoll-Zeile. |
-| `box/tests/integration/test_reader_pty.py` | neu | Leser über Pseudo-Terminal: Trennung, Müllzeilen, Neustart des ESP32 (`HELLO`, `seq` bei 0). |
+| `box/tests/fixtures/__init__.py` | neu | Paket für die Test-Erzeuger. |
+| `box/tests/fixtures/audio.py` | neu | Erzeugt kurze WAV-Töne und Serienordner mit `serie.json` im Test-Verzeichnis (kein eingechecktes Audio). |
+| `box/tests/unit/test_store.py` | neu | Atomares Schreiben, `.bak`-Rückfall, beschädigte Datei beim Start. |
+| `box/tests/unit/test_store_powerloss.py` | neu | Stromausfall-Test: Prozess hart beenden während des Schreibens; danach ist die Datei lesbar. |
+| `box/tests/unit/test_library.py` | neu | Reihenfolge, Ordner ohne `serie.json`, doppelte IDs, Überraschungs-Serie (keine oder mehr als eine, leer). |
+| `box/tests/unit/test_pointer.py` | neu | Alle Zeigerregeln, darunter „Zeiger auf gelöschte oder umbenannte Folge“ und „Folge zu Ende bei liegender Figur: Pause, Zeiger auf die nächste Folge, nach der letzten auf Folge 1“. |
+| `box/tests/unit/test_config.py` | neu | Konfiguration laden und prüfen. |
+| `box/tests/unit/test_eventlog.py` | neu | JSON-Zeile mit allen Pflichtfeldern, Vorgangs-ID. |
 
-**AP 1.3 Player und Töne** (Sonnet)
+Abnahme AP 1.2b:
+
+- Alle genannten Tests sind grün.
+- Der Stromausfall-Test lässt nie eine unlesbare Zustandsdatei zurück.
+- Der Zeiger wird nur bei Änderung und höchstens alle 30 s geschrieben.
+
+#### AP 1.3 Player und Töne (Sonnet)
+
+Ergebnis: Der Dienst spielt über MPD und lässt sich mit Leser (oder
+`fake_reader`) vollständig starten.
 
 | Datei | Neu/Änd. | Inhalt und Grund |
 |---|---|---|
-| `box/src/tobibox/player.py` | neu | Dünne MPD-Schicht: Abspielen, Pause, Position, Lautstärke, Ereignis „Folge zu Ende“. Setzt die wirksame Grenze aus `volume.py` nur durch (die harte Außen-Sicherung liegt in MPD/ALSA). Setzt beim Start zuerst die Lautstärke. Typen legt dieses AP fest. |
-| `box/src/tobibox/sounds.py` | neu | Kurze Töne über konfigurierbares Kommando. |
-| `box/src/tobibox/app.py` | neu | **Einziger Zusammenbau-Punkt:** baut Uhr und Module, verdrahtet reader → core → player, Zeitgeber, sauberes Beenden. |
-| `box/sounds/` | neu | Platzhalter-Töne inkl. einem Fehlerton und einem leisen Hinweiston (später eigene von Tobias). |
-| `box/tests/integration/test_player_mpd.py` | neu | Gegen echtes MPD im Container: Start, Pause, Position, Folgenende, Lautstärke nie über der Grenze (auch nach Dienst-Neustart, mit der harten Obergrenze aus der MPD-Konfiguration). |
+| `box/src/tobibox/player.py` | neu | Dünne MPD-Schicht über `mpd.asyncio.MPDClient`: Warteschlange nur mit der aktuellen Folge, Abspielen, Pause, Resume per `seek` auf Position, Lautstärke, Ereignis „Folge zu Ende“ (MPD stoppt) nach `core-interface.md`. Setzt die wirksame Grenze aus `volume.py` nur durch und setzt beim Start **zuerst** die Lautstärke. |
+| `box/src/tobibox/sounds.py` | neu | Kurze Töne über konfigurierbares Kommando (Mac `afplay`, Pi `aplay`). |
+| `box/src/tobibox/notify.py` | neu | `READY=1` über `NOTIFY_SOCKET` senden (reines Python, ohne `python-systemd`); am Mac ohne Wirkung. |
+| `box/src/tobibox/app.py` | neu | **Einziger Zusammenbau-Punkt:** baut Uhr und Module, verdrahtet reader → core → player, Zeitgeber (`Takt`), meldet `READY=1`, beendet sauber. |
+| `box/src/tobibox/__main__.py` | neu | Einstieg `python -m tobibox` bzw. `tobiboxd`. |
+| `box/tools/make_sounds.py` | neu | Erzeugt die Platzhalter-Töne reproduzierbar. |
+| `box/sounds/start.wav` | neu | Platzhalter-Ton: Start. |
+| `box/sounds/unbekannt.wav` | neu | Platzhalter-Ton: unbekannte Figur. |
+| `box/sounds/fehler.wav` | neu | Platzhalter-Ton: Fehler. |
+| `box/sounds/hinweis.wav` | neu | Leiser Hinweiston (Figur erkannt bei „stumm“). |
+| `box/sounds/lernen_beginn.wav` | neu | Platzhalter-Ton: Lernmodus beginnt. |
+| `box/sounds/lernen_ende.wav` | neu | Platzhalter-Ton: Lernmodus endet. |
+| `box/sounds/akku_leer.wav` | neu | Platzhalter-Ton: Akku fast leer. |
+| `box/tests/fixtures/mpd.test.conf` | neu | MPD-Konfiguration nur für Tests: eigener Port und eigenes Verzeichnis, Null-Ausgabe. |
+| `box/tests/integration/conftest.py` | neu | Startet und beendet ein MPD mit `mpd.test.conf`; nutzt `fixtures/audio.py`. |
+| `box/tests/integration/test_player_mpd.py` | neu | Gegen echtes MPD: Start, Pause, Position, Resume per `seek`, Folgenende (MPD stoppt, nichts spielt weiter), Lautstärke nie über der Grenze (auch nach Neustart des Dienstes; das ist die Klemmung im Dienst, die harte Kappung folgt im Pi-Probelauf). |
+| `box/tests/unit/test_sounds.py` | neu | Kommando wird korrekt zusammengesetzt; kein Aufruf ohne Datei. |
 
-**AP 1.4 Mac-Einrichtung und Doku** (Haiku)
+Abnahme AP 1.3:
+
+- `test_player_mpd.py` ist grün im Container mit echtem MPD.
+- Der Dienst setzt vor dem ersten Abspielen die Lautstärke.
+- Nach dem Ende einer Folge spielt MPD nicht von selbst weiter.
+
+#### AP 1.4 Mac-Einrichtung und Doku (Haiku)
+
+Ergebnis: Tobias kann den Prototyp am Mac aufsetzen und die CUJs vorführen.
 
 | Datei | Neu/Änd. | Inhalt und Grund |
 |---|---|---|
-| `box/config/tobibox.mac.example.toml` | neu | Mac-Konfiguration (Gerätepfad, MPD, Pfade, Lautstärke-Obergrenze, Simulation). |
-| `box/config/mpd.mac.example.conf` | neu | MPD am Mac mit fester Startlautstärke und harter Obergrenze. |
+| `box/config/tobibox.mac.example.toml` | neu | Mac-Konfiguration (Gerätesuchmuster `/dev/cu.usbmodem*`, MPD, Pfade, Lautstärke-Obergrenze, Simulation). |
+| `box/config/mpd.mac.example.conf` | neu | MPD am Mac: Puffer-Werte, Software-Mixer, ReplayGain-Zeilen. Keine „harte Obergrenze“: Am Mac gilt nur die Klemmung im Dienst. |
 | `docs/betrieb/mac-prototyp.md` | neu | Schritt für Schritt: Homebrew, MPD, Python-Umgebung, Firmware flashen, Testserie anlegen, `tobiboxd` starten, Vorführung der CUJs. |
-| `box/medien-beispiel/` | neu | Kleine Beispielserie mit `serie.json` und kurzen Test-Audiodateien (selbst erzeugte Töne, keine fremden Inhalte). |
+| `box/medien-beispiel/serie-a/serie.json` | neu | Beispielserie, Reihenfolge der Folgen. |
+| `box/medien-beispiel/serie-a/folge-01.wav` | neu | Kurzer, selbst erzeugter Ton (keine fremden Inhalte). |
+| `box/medien-beispiel/serie-a/folge-02.wav` | neu | Wie oben. |
+| `box/medien-beispiel/serie-a/folge-03.wav` | neu | Wie oben. |
+| `box/medien-beispiel/ueberraschung/serie.json` | neu | Überraschungs-Serie (`typ` `ueberraschung`). |
+| `box/medien-beispiel/ueberraschung/ton-01.wav` | neu | Selbst erzeugter Ton. |
 
-**AP 1.5 Automatische Prüfung** (Haiku)
+Abnahme AP 1.4:
+
+- Die Anleitung lässt sich auf einem frischen Mac Schritt für Schritt ausführen.
+- Die Beispielserien werden von `library.py` ohne Fehler gelesen.
+
+#### AP 1.5 Automatische Prüfung (Haiku)
+
+Ergebnis: Jeder Push führt die Tests aus.
 
 | Datei | Neu/Änd. | Inhalt und Grund |
 |---|---|---|
-| `.github/workflows/ci.yml` | neu | Bei jedem Push: pytest (mit MPD), PlatformIO `native`-Tests, Firmware-Build für `esp32s3` (mit Platzhalter-Passwort aus `config.example.h`; die gebaute Datei wird nicht veröffentlicht). |
-| `.gitignore` | änd. | `config.h`, `tobibox.toml`, `.venv/`, `.pio/`, Laufzeitdaten. |
+| `.github/workflows/ci.yml` | neu | Runner `ubuntu-24.04`, Python 3.11. Job `box`: `apt install mpd` (Systemdienst aus), `pip install -e "box[test]"`, pytest über `box/tests`. Job `firmware`: PlatformIO, `cp config.example.h config.h`, `pio test -e native`, `pio run -e esp32s3` (mit Platzhalter-Passwort; die gebaute Datei wird nicht veröffentlicht oder als Artefakt abgelegt). |
+| `.gitignore` | änd. | Nur ergänzen (`config.h` und `.pio/` stehen schon): `tobibox.toml`, `.venv/`, Laufzeitdaten. |
 
-**Abnahme Stufe 1:** Alle CUJ-Tests und übrigen Tests grün; Tobias führt am
-Mac mit echtem Leser CUJ 1, 2, 5, 6, 8, 13 vor, darunter einen **Leser-Neustart**
-(Abziehen und Einstecken des USB-Kabels bei spielender Figur; Test auch mit
-Abheben während der Unterbrechung); die Lautstärke-Grenze wirkt (auch beim Start
-und nach einem Absturz des Dienstes); der Test „Grenze wird nie überschritten“
-ist grün; das Ereignisprotokoll zeigt die Zeitgrenzen eingehalten. Die
-Messung wird als `docs/timing.md` festgehalten (Zeitbudget je Schritt — Lesen,
-Entprellen, Entsperren, Übertragen, MPD-Start — gegen 1,0 s / 1,5 s / 1,0 s,
-gemessen über das Ereignisprotokoll). Reißt sie die Grenze, gilt die
-Rückfallregel im Zeitbudget (Baustein 1).
+Abnahme AP 1.5:
+
+- Der Lauf auf einem Test-Branch ist in beiden Jobs grün.
+- Die CI lädt keine Firmware-Datei hoch.
+
+#### AP 1.6 Integration Stufe 1 und Messung (Sonnet)
+
+Ergebnis: Die CUJ-Tests der Stufe laufen, die Messung liegt vor. Das AP führt
+Änderungen zusammen, falls parallele APs `core.py`, `session.py` oder `app.py`
+berührt haben (Grundregel).
+
+| Datei | Neu/Änd. | Inhalt und Grund |
+|---|---|---|
+| `box/src/tobibox/core.py`, `box/src/tobibox/session.py`, `box/src/tobibox/app.py` | änd. | Nur Zusammenführen und Fehler beheben, die die CUJ-Tests zeigen. |
+| `box/tests/cuj/test_cuj01_bekannte_figur.py` | neu | CUJ 1: Kette gelesen → entprellt → zugeordnet → spielt, mit Vorgangs-ID; Folge 1 ohne Zeiger. |
+| `box/tests/cuj/test_cuj02_abheben.py` | neu | CUJ 2: Pause, Zeiger gespeichert. |
+| `box/tests/cuj/test_cuj05_nfc_karte.py` | neu | CUJ 5: Karte verhält sich wie CUJ 1 bis 4. |
+| `box/tests/cuj/test_cuj06_gesperrter_tonie.py` | neu | CUJ 6: Überraschungs-Serie, kurze Aussetzer starten sie nicht neu. |
+| `box/tests/cuj/test_cuj08_figur_verrutscht.py` | neu | CUJ 8 aus Sicht des Dienstes: Lese-Lücken (keine Zeile der Firmware) und gleiche Kennung nach der Lücke führen zu keiner Pause und keinem Neustart. Die verfälschte Kennung prüfen die nativen Firmware-Tests (AP 1.1). |
+| `box/tests/cuj/test_cuj13_leser_ausfall.py` | neu | CUJ 13: `seq`-Rücksetzen, Abheben während der Unterbrechung, Wächter-Alarm mit 1,5-s-Frist. |
+| `box/tools/measure_audio_latency.py` | neu | Misst die Zeit vom Auflegen (Zeitstempel im Ereignisprotokoll) bis zum ersten Ton in einer Aufnahme am Ausgang. |
+| `docs/timing.md` | neu | Messung je Schritt, mit Methode und Ergebnis (siehe Abnahme Stufe 1). |
+
+Abnahme AP 1.6:
+
+- Alle sechs CUJ-Tests sind grün.
+- `docs/timing.md` ist ausgefüllt.
+
+**Abnahme Stufe 1**
+
+- Alle CUJ-Tests und übrigen Tests sind grün (pytest und PlatformIO `native`); die CI ist grün.
+- Tobias führt am Mac mit echtem Leser CUJ 1, 2, 5, 6, 8 und 13 vor.
+- Dazu ein Leser-Neustart: USB-Kabel bei spielender Figur ziehen und stecken; ein zweites Mal mit Abheben während der Unterbrechung.
+- Nach Abheben, Neustart des Dienstes und erneutem Auflegen spielt die Figur an der gespeicherten Stelle weiter (Zeigerlogik).
+- Die Klemmung im Dienst wirkt auch beim Start; der Test „Grenze wird nie überschritten“ ist grün. Die harte ALSA-Kappung gehört in den Pi-Probelauf.
+- `docs/timing.md` enthält je einen Messwert für: Warten auf den Zyklus, erste Lesung, Entprellen, Entsperren (Tonie), Übertragung, Dienst, MPD-Start bis zum Ton am Ausgang.
+- Die Summen liegen bei Auflegen unter 1,0 s und bei Abheben unter 1,5 s; Lücken bis 1,0 s führen zu keiner Pause.
+- Überschreitet eine Messung die Grenze, gilt die Rückfallregel im Zeitbudget (Baustein 1).
 
 ### Stufe 2 — Resume, Serien, Zuordnung lokal (CUJ 3, 4, 7a/7b ohne HA, 11, 20)
 
-**AP 2.1 Resume und Serienzeiger** (Sonnet): `session.py`, `core.py`, `store.py`
-(Zeiger-Datei, nur bei Änderung speichern), `app.py` (Speichern höchstens alle
-30 s und bei Pause), CUJ-Tests 3, 4 und 20 (`box/tests/cuj/`), Test „Zeiger
-auf gelöschte oder umbenannte Folge“, Test „Folge zu Ende bei liegender Figur“ (Pause, Zeiger auf nächste Folge, nichts passiert bis Abheben und Auflegen; nach der letzten Folge Zeiger auf Folge 1), Stromausfall-Test (Prozess hart beenden
-während des Schreibens), Schema `resume.json` in `docs/data-model.md`.
+**Von Tobias bereitzustellen:** nichts Neues.
 
-**AP 2.2 Unbekannte Figuren und Lernmodus** (Sonnet):
-`box/src/tobibox/learn.py` (Teilautomat Lernmodus mit 2-min-Frist auf der Box
-und Ablaufzeit des Befehls), `unknown.json` (Eintrag erst nach Bestätigung
-des Brokers löschen), `box/src/tobibox/cli.py` ergänzt um `tobibox sim learn …` als
-Ersatz für HA bis Stufe 3a, CUJ-Tests 7a/7b (auch „stumm gegen Lernmodus“),
-Schema `unknown.json` in `docs/data-model.md`.
+**Reihenfolge:** AP 2.1, 2.2 und 2.3 laufen parallel; AP 2.4 am Schluss.
 
-**AP 2.3 Status und Admin-Karte** (Sonnet):
+#### AP 2.1 Resume-Abnahme (Sonnet)
+
+Ergebnis: Die Resume-Fälle aus CUJ 3, 4 und 20 sind als Tests festgeschrieben.
+Die Zeigerlogik selbst ist seit Stufe 1 gebaut; ein Fehler, den die Tests zeigen,
+wird in AP 2.4 behoben.
+
+| Datei | Neu/Änd. | Inhalt und Grund |
+|---|---|---|
+| `box/tests/cuj/test_cuj03_resume.py` | neu | CUJ 3: Resume mit 3-s-Rücksprung, auch nach Neustart; Folge zu Ende bei liegender Figur (Pause, Zeiger auf die nächste Folge, nichts passiert bis Abheben und Auflegen; nach der letzten Folge Zeiger auf Folge 1). |
+| `box/tests/cuj/test_cuj04_andere_figur.py` | neu | CUJ 4: Zeiger der alten Serie bleibt, neue Serie läuft an ihrem Zeiger oder bei Folge 1. |
+| `box/tests/cuj/test_cuj20_figur_beim_start.py` | neu | CUJ 20: Figur liegt beim Start (bekannt: Zeiger; unbekannt: Überraschungs-Serie). |
+| `box/tests/integration/test_resume_neustart.py` | neu | Dienst hart beenden und neu starten; Zeiger ist da, höchstens 30 s Wiedergabe verloren. |
+
+Abnahme AP 2.1:
+
+- Alle Tests sind grün.
+- Die Stromausfall-Grenze von 30 s ist im Test belegt.
+
+#### AP 2.2 Unbekannte Figuren, Lernmodus, Simulations-Treiber (Sonnet)
+
+Ergebnis: Teilautomat Lernmodus, Ereignis-Ausgang mit Bestätigung und der
+Simulations-Treiber `sim` mit Unix-Socket. Die Bestätigung kommt in dieser Stufe
+von `tobibox sim ack`; HA ersetzt sie in Stufe 3a.
+
+| Datei | Neu/Änd. | Inhalt und Grund |
+|---|---|---|
+| `box/src/tobibox/learn.py` | neu | Teilautomat Lernmodus (Tabelle „Lernmodus“): 2-min-Frist auf der Box und Ablaufzeit des Befehls nach `mqtt-v1.md`. |
+| `box/src/tobibox/outbox.py` | neu | Ereignis-Ausgang mit Bestätigung: `unknown.json` führen; Eintrag erst löschen, wenn das Ereignis `bestätigt` eintrifft. |
+| `box/src/tobibox/sim.py` | neu | **Gemeinsamer Simulations-Treiber:** lauscht auf dem Unix-Socket `sim.sock` im Zustandsverzeichnis, liest JSON-Zeilen und macht Ereignisse daraus. Befehle in Stufe 2: `learn`, `ack`, `card`. Spätere Stufen erweitern ihn. |
+| `box/tests/unit/test_learn.py` | neu | Alle Zeilen der Tabelle „Lernmodus“, abgelaufener Befehl wird ignoriert. |
+| `box/tests/unit/test_outbox.py` | neu | Eintrag bleibt ohne Bestätigung, auch nach Neustart; wird mit Bestätigung gelöscht; doppelte Bestätigung schadet nicht. |
+| `box/tests/unit/test_sim.py` | neu | JSON-Zeilen über den Socket werden zu den erwarteten Ereignissen; ungültige Zeilen werden protokolliert und ignoriert. |
+
+Abnahme AP 2.2:
+
+- Alle Tests sind grün.
+- Ohne `ack` bleibt ein Eintrag in `unknown.json` stehen, auch nach Neustart.
+
+#### AP 2.3 Status und Admin-Karte (Sonnet)
+
+Ergebnis: Die Prüfpunkte und die Tonfolge für die Status-Karte.
 
 | Datei | Neu/Änd. | Inhalt und Grund |
 |---|---|---|
 | `box/src/tobibox/selftest.py` | neu | Prüfpunkte (Leser, Medien, Netz, Speicher) und die eingebaute Prüfroutine; läuft ohne pytest. |
-| `box/src/tobibox/cli.py` | änd. | `tobibox status` ausführlich; `tobibox sim` kann eine Karte als Aktion (Typ `aktion`) in `config.json` zuordnen, bis HA das in Stufe 3a übernimmt. |
-| `box/src/tobibox/core.py`, `session.py` | änd. | Karte mit Typ `aktion` löst die Aktion aus statt einer Serie (Status). |
-| `box/sounds/` | änd. | Einfache Tonfolge je Prüfpunkt (kurz-hoch = in Ordnung, tief = Fehler). |
-| `box/tests/cuj/test_cuj11_*.py` | neu | CUJ 11 als pytest-Tabelle. |
-| `docs/data-model.md` | änd. | Eintrag Typ `aktion` in `config.json`. |
+| `box/sounds/pruef_ok.wav` | neu | Kurz-hoher Ton: Prüfpunkt in Ordnung. |
+| `box/sounds/pruef_fehler.wav` | neu | Tiefer Ton: Prüfpunkt hat einen Fehler. |
+| `box/tests/unit/test_selftest.py` | neu | Jeder Prüfpunkt in Ordnung und mit Fehler; Reihenfolge der Tonfolge. |
 
-**Abnahme Stufe 2:** wie Stufe 1, zusätzlich Vorführung von Resume über
-Neustart, Lernmodus per `tobibox sim`, CUJ 20 (Figur liegt beim Start) und die
-Pause nach jeder Folge (Folge zu Ende bei liegender Figur: nichts, bis die
-Figur abgehoben und wieder aufgelegt wird; nach der letzten Folge Zeiger auf
-Folge 1).
+Abnahme AP 2.3:
 
-### Pi-Probelauf (sobald der Pi 3A+ da ist)
+- Alle Tests sind grün.
+- Die Prüfroutine läuft ohne pytest und ohne Leser (Prüfpunkt „Leser“ auf Simulation).
 
-**AP P.1 Pi-Installation** (Sonnet)
+#### AP 2.4 Integration Stufe 2 (Sonnet)
+
+Ergebnis: Lernmodus, Ausgang, Status-Karte und `sim` sind im Dienst verdrahtet;
+die CUJ-Tests der Stufe laufen.
 
 | Datei | Neu/Änd. | Inhalt und Grund |
 |---|---|---|
-| `deploy/pi/install.sh` | neu | Auf frischem Pi OS Lite: Pakete (MPD, minisign), Benutzer, Verzeichnisse, Python-Umgebung, Dienste; Zustandsverzeichnis mit `noatime`. |
-| `deploy/pi/tobiboxd.service` | neu | systemd-Dienst, Neustart bei Absturz. |
-| `deploy/pi/99-tobibox-reader.rules` | neu | Fester Gerätename für den ESP32 (eigene USB-Kennung aus der Firmware). |
-| `deploy/pi/mpd.conf` | neu | MPD für die Box: feste Startlautstärke, harte Obergrenze der Ausgabe, ReplayGain ohne Vorverstärkung (nur dämpfend). |
-| `deploy/pi/journald-tobibox.conf` | neu | journald dauerhaft (`Storage=persistent`) mit begrenztem Platz, damit das Protokoll einen Stromausfall übersteht. |
-| `box/config/tobibox.pi.example.toml` | neu | Pi-Konfiguration. |
-| `docs/betrieb/pi-probelauf.md` | neu | Ablauf und Prüfliste: dieselben CUJ-Tests und Vorführungen wie am Mac, plus die Messpunkte der Tabelle unten. |
+| `box/src/tobibox/core.py` | änd. | `learn` in die Liste der Teilautomaten eintragen. |
+| `box/src/tobibox/session.py` | änd. | Karte mit Typ `aktion` löst die Aktion aus statt einer Serie (Status: Tonfolge); Fehler beheben, die die Tests aus AP 2.1 zeigen. |
+| `box/src/tobibox/app.py` | änd. | `outbox` und `sim` verdrahten. |
+| `box/src/tobibox/cli.py` | änd. | `tobibox status` ausführlich; `tobibox sim learn`, `tobibox sim ack` und `tobibox sim card` (Karte als Aktion in `config.json` zuordnen, bis HA das in Stufe 3a übernimmt). |
+| `box/tests/cuj/test_cuj07a_unbekannte_figur.py` | neu | CUJ 7a: Überraschungs-Serie, Eintrag in `unknown.json`, Löschen erst nach `ack`, Wechsel auf die Serie nach der Zuordnung. |
+| `box/tests/cuj/test_cuj07b_lernmodus.py` | neu | CUJ 7b ohne HA: Lernmodus per `tobibox sim learn`, Frist 2 min, Abbruch, abgelaufener Befehl. |
+| `box/tests/cuj/test_cuj11_status.py` | neu | CUJ 11: Status-Admin-Karte als pytest-Tabelle. |
+| `box/tests/integration/test_sim_cli.py` | neu | `tobibox sim …` als eigener Prozess gegen den laufenden Dienst. |
+
+Abnahme AP 2.4:
+
+- Die CUJ-Tests 7a, 7b und 11 sind grün.
+- Die Tests aus AP 2.1 sind grün.
+
+**Abnahme Stufe 2**
+
+- Alle Punkte der Abnahme Stufe 1 gelten weiter.
+- Tobias führt Resume über einen Neustart vor.
+- Tobias führt den Lernmodus per `tobibox sim learn` und die Bestätigung per `tobibox sim ack` vor.
+- CUJ 20 (Figur liegt beim Start) ist vorgeführt.
+- Die Pause nach jeder Folge ist vorgeführt (Regel: AP 2.1, Test `test_cuj03_resume.py`).
+
+### Pi-Probelauf (sobald der Pi 3A+ da ist)
+
+**Von Tobias bereitzustellen**
+
+| Was | Wofür | Frist |
+|---|---|---|
+| Raspberry Pi 3A+ | AP P.1 | vor AP P.1 |
+| microSD-Karte | AP P.1 | vor AP P.1 |
+| Netzteil | AP P.1 | vor AP P.1 |
+| Entscheidung zum Image: Pi OS Lite, Bookworm, 32 Bit (Python 3.11) | AP P.1, Paketbau | vor AP P.1 |
+| Bestätigung der Soll-Werte (Tabelle unten) | AP P.2 | vor AP P.2 |
+
+#### AP P.1 Pi-Installation (Sonnet)
+
+Ergebnis: Ein frischer Pi mit dem Dienst, MPD, harter Lautstärke-Kappung und
+dauerhaftem Protokoll.
+
+| Datei | Neu/Änd. | Inhalt und Grund |
+|---|---|---|
+| `deploy/pi/install.sh` | neu | Auf frischem Pi OS Lite: Pakete (MPD, minisign, rsync), Benutzer, Verzeichnisse, Python-Umgebung, Dienste; Zustandsverzeichnis mit `noatime`; setzt die Seriennummer des angesteckten ESP32 in die udev-Regel ein. |
+| `deploy/pi/tobiboxd.service` | neu | systemd-Dienst: `Type=notify`, `TimeoutStartSec=300`, `Restart=on-failure`, `RestartSec=3`, `StartLimitIntervalSec=120`, `StartLimitBurst=5`, `PYTHONPATH` auf die Abhängigkeiten, `StandardOutput=journal`. |
+| `deploy/pi/99-tobibox-reader.rules.example` | neu | udev-Regel: fester Gerätename nach der Seriennummer des ESP32 (Platzhalter). |
+| `deploy/pi/mpd.conf` | neu | MPD für die Box: ALSA-Ausgabe über `softvol`, Puffer-Startwerte (`audio_buffer_size`, `buffer_before_play`, `buffer_time`), ReplayGain (`replaygain_preamp` 0, `replaygain_missing_preamp` −6 dB, `replaygain_limit`). |
+| `deploy/pi/asound.conf` | neu | ALSA-`softvol` mit `max_dB`: die harte Kappung der Lautstärke. |
+| `deploy/pi/mpd.service.d/startvolume.conf` | neu | systemd-Drop-in für MPD: `ExecStartPost` setzt die Startlautstärke vor dem ersten Abspielen. |
+| `deploy/pi/journald-tobibox.conf` | neu | `Storage=persistent`, begrenzter Platz, `SyncIntervalSec=30s`, damit das Protokoll einen Stromausfall übersteht. |
+| `box/config/tobibox.pi.example.toml` | neu | Pi-Konfiguration (Gerätename, Pfade, Obergrenze, Startlautstärke). |
+| `box/tests/unit/test_deploy_configs.py` | neu | Prüft die Konfigurationsdateien: `max_dB` in `asound.conf`, ReplayGain-Zeilen in `mpd.conf`, Restart-Werte und `Type=notify` in `tobiboxd.service`. |
+
+Abnahme AP P.1:
+
+- `install.sh` läuft auf einem frischen Pi OS Lite ohne Handarbeit durch.
+- Der Dienst startet nach `systemctl start` und meldet `READY=1`.
+- `test_deploy_configs.py` ist grün.
+
+#### AP P.2 Prüfliste Pi-Probelauf (Haiku)
+
+Ergebnis: Eine Prüfliste mit Soll-Werten und Messmethoden.
+
+| Datei | Neu/Änd. | Inhalt und Grund |
+|---|---|---|
+| `docs/betrieb/pi-probelauf.md` | neu | Ablauf und Prüfliste: dieselben CUJ-Tests und Vorführungen wie am Mac, plus die Messpunkte der Tabelle unten, je mit Werkzeug und Methode (Ton am Ausgang: Mikrofon oder Loopback; Speicher: `free`; Startzeit: Zeitstempel im Protokoll). |
 
 **Soll-Werte für den Pi-Probelauf** (Vorschlag der Projektleitung; Tobias
 bestätigt oder ändert sie):
 
 | Messpunkt | Soll-Wert |
 |---|---|
-| Benutzter Arbeitsspeicher, alle Dienste laufen | ≤ 300 MB |
+| Belegter Arbeitsspeicher, alle Dienste laufen | ≤ 300 MB |
 | Start (Strom an) bis „bereit“ | ≤ 40 s |
-| Auflegen einer bekannten Figur, während ein Sync läuft | ≤ 1,0 s |
 | Auflegen eines Tonies (mit Entsperrzeit), ohne Last | ≤ 1,0 s |
+| Auflegen einer bekannten Figur, während ein Sync läuft | ≤ 1,0 s; wird erst nach AP 3.4 am Pi gemessen (Abnahme Stufe 3a) |
 | Abheben bis Pause | ≤ 1,5 s |
 | Figur liegt beim Start (CUJ 20) | spielt, sobald „bereit“ |
+| Lautstärke-Kappung (`softvol`) | Ausgang bleibt bei Dienst-Absturz und Neustart unter der Grenze |
 | Schreibvorgänge pro Tag (Zeiger, Protokoll) | im Schreibbudget des Datenmodells |
-| Temperatur, Stromausfall-Test | Dateien nach hartem Ausschalten lesbar |
+| Temperatur | nur protokollieren (kein Soll-Wert) |
+| Stromausfall-Test | Dateien nach hartem Ausschalten lesbar |
 
-Werden die Werte verfehlt, gilt die Rückfallregel im Zeitbudget (Abfragezyklus
-150 ms, dann Rückfrage an Tobias, ob 1,2 s akzeptabel sind).
+Werden Werte verfehlt, gilt die Rückfallregel aus Baustein 1: Zuerst die Arbeit
+pro Zyklus senken; bleibt ein Wert verfehlt, fragt die Projektleitung Tobias, ob
+1,2 s akzeptabel sind.
 
-**Abnahme:** Prüfliste vollständig grün, Unterschiede zum Mac dokumentiert;
-damit ist der Wegfall von V3 endgültig bestätigt.
+**Abnahme Pi-Probelauf**
+
+- Die Prüfliste ist vollständig grün.
+- Unterschiede zum Mac sind dokumentiert.
+- Bei bestandenem Probelauf bestätigt er den Verzicht auf V3 (Begründung: „Abgewogene Alternativen“).
 
 ### Go/No-Go mit Tobias vor Stufe 3a
 
@@ -1414,177 +1865,461 @@ Stufe 3a beginnt, wenn:
 1. die Abnahmen von Stufe 1 und 2 bestanden sind,
 2. der Pi-Probelauf bestanden oder bewusst verschoben ist (mit Begründung),
 3. keine Blocker-Befunde aus den Goldfisch-Reviews mehr offen sind,
-4. die Voraussetzungen bereit sind: Tailscale (HA-Add-on, QNAP-App) und der
+4. die Voraussetzungen erfüllt sind: Tailscale (HA-Add-on, QNAP-App) und der
    MQTT-Broker in HA laufen, HA hat vollen Schreibzugriff auf die
-   NAS-Freigabe (`medien/`, `export/`, `releases/`).
+   NAS-Freigabe (`medien/`, `export/`, `releases/`), und die Tabelle „Von Tobias
+   bereitzustellen“ der Stufe 3a ist abgearbeitet.
 
 Stufe 3b beginnt, wenn die Abnahme von Stufe 3a bestanden ist und Tobias das
 Schlüsselpaar zum Signieren (`minisign`) auf seinem Mac erzeugt hat.
 
 ### Stufe 3a — HA, Medienverwaltung, Sync, Netz, Tailscale (CUJ 7a/7b mit HA, 9, 12)
 
-**AP 3.1 HA-Integration Backend** (Sonnet)
+**Von Tobias bereitzustellen**
+
+| Was | Wofür | Frist |
+|---|---|---|
+| Home Assistant mit Mosquitto-Add-on (Broker) | HA-Tests, AP 3.3, Abnahme | vor Stufe 3a |
+| Laufende HA-Version (Nummer nennen) | feste Version für die HA-Tests | vor AP 3.1 |
+| Namen (SSIDs) von Heim-WLAN und Handy-Hotspot | `net.py`, Konfiguration | vor AP 3.3 |
+| QNAP: rsync-Daemon mit Modul `medien` (nur lesend) und den Zugangsdaten | AP 3.4 | vor AP 3.4 |
+| CPU-Architektur des QNAP | Container-Bild (Stufe 3b) | vor Stufe 3b |
+| Tailscale: Konto, HA-Add-on, QNAP-App, Box-Knoten | AP 3.5 | vor AP 3.5 |
+| Ein Ort für Zugangsdaten (`tobibox.toml`, MQTT-Passwörter), nie im Repo | AP 3.3, 3.5 | vor AP 3.3 |
+| Handy mit Nabu Casa | Abnahme (Upload, Seite) | Abnahme |
+
+**Vertrag W (zuerst, vor AP 3.1 und 3.2):** Die Projektleitung schreibt
+`docs/protocol/ha-websocket-v1.md` mit den WebSocket-Befehlen zwischen
+HA-Backend und Seite (Name, Eingabe, Ausgabe, Fehler). Ein Goldfisch prüft ihn,
+Tobias gibt ihn frei. Erst danach starten AP 3.1 und 3.2.
+
+**Reihenfolge:** Nach Vertrag W laufen AP 3.1 bis 3.6 parallel; AP 3.7 am Schluss.
+
+#### AP 3.1 HA-Integration Backend (Sonnet)
+
+Ergebnis: Die Integration `tobibox` mit Speicher, Medienverwaltung, MQTT und
+WebSocket nach Vertrag W.
 
 | Datei | Neu/Änd. | Inhalt und Grund |
 |---|---|---|
-| `homeassistant/custom_components/tobibox/manifest.json` | neu | Integration, Abhängigkeit MQTT, Version. |
-| `…/__init__.py`, `config_flow.py` | neu | Einrichtung: Medienpfad, Boxen. |
-| `…/store.py` | neu | Konfiguration (Zuordnungen, Leise-Zeiten, Gute-Nacht-Einstellungen) mit einer Revision und einer Listen-ID im HA-Speicher; automatischer Export auf das NAS nach jeder Änderung. |
-| `…/media.py` | neu | `serie.json` lesen/schreiben (mit `angelegt_am`, `typ`), Erkennen neuer Ordner/Dateien (neue Dateien hinten an die Reihenfolge), Formate und Kopierschutz-Warnung (D5: `ffprobe` kann die Datei nicht öffnen), Speicheranzeige aus den Box-Meldungen, Papierkorb ohne Automatik (Aktion „Papierkorb leeren“), Hochladen. |
-| `…/mqtt.py` | neu | `tobibox/config` veröffentlichen (Revision, Listen-ID; „Liste neu ausrollen“ = neue Listen-ID), Box-Ereignisse mit QoS 1 und dauerhafter Sitzung empfangen und idempotent verarbeiten, Befehle mit Ablaufzeit an eine Box senden, abgelehnte Listen anzeigen. |
-| `…/websocket_api.py`, `http.py` | neu | Daten für die Seite, Hochladen mit Anmeldung (nur Audioformate). |
-| `…/services.yaml`, `translations/de.json` | neu | Aktionen und Texte. |
-| `homeassistant/mosquitto/acl.example` | neu | Beispiel für Broker-Rechte: ein Konto je Box, Themenrechte wie in Baustein 4. |
-| `homeassistant/tests/` | neu | Tests mit `pytest-homeassistant-custom-component` (Testhilfe für HA-Integrationen); darunter „HA-Wiederherstellung mit neuer Listen-ID und niedriger Revision“ und „Liste neu ausrollen“. |
+| `homeassistant/custom_components/tobibox/manifest.json` | neu | Mit `version` und `dependencies` (`mqtt`, `http`, `panel_custom`, `websocket_api`). |
+| `homeassistant/custom_components/tobibox/__init__.py` | neu | Einrichtung; Seite über `panel_custom` registrieren, Dateien über `async_register_static_paths`. |
+| `homeassistant/custom_components/tobibox/config_flow.py` | neu | Einrichtung: Medienpfad, Boxen. |
+| `homeassistant/custom_components/tobibox/const.py` | neu | Konstanten. |
+| `homeassistant/custom_components/tobibox/store.py` | neu | Konfiguration (Zuordnungen, Leise-Zeiten, Gute-Nacht-Einstellungen) mit einer Revision und einer Listen-ID im HA-Speicher; automatischer Export auf das NAS nach jeder Änderung. |
+| `homeassistant/custom_components/tobibox/media.py` | neu | `serie.json` lesen/schreiben (mit `angelegt_am`, `typ`), neue Ordner/Dateien erkennen (neue Dateien hinten an die Reihenfolge), Format- und Kopierschutz-Prüfung (D5), Speicheranzeige aus den Box-Meldungen, Papierkorb ohne Automatik, Hochladen als Strom in Blöcken; Datei-Zugriffe über `async_add_executor_job`. |
+| `homeassistant/custom_components/tobibox/mqtt.py` | neu | `tobibox/config` veröffentlichen („Liste neu ausrollen“ = neue Listen-ID), Box-Ereignisse empfangen und idempotent verarbeiten, Kennungen auf `…/ack` bestätigen, Befehle mit Ablaufzeit senden, abgelehnte Listen anzeigen. |
+| `homeassistant/custom_components/tobibox/websocket_api.py` | neu | Die WebSocket-Befehle nach Vertrag W. |
+| `homeassistant/custom_components/tobibox/http.py` | neu | Upload-Endpunkt mit Anmeldung (nur Audioformate nach D5). |
+| `homeassistant/custom_components/tobibox/services.yaml` | neu | Aktionen. |
+| `homeassistant/custom_components/tobibox/strings.json` | neu | Texte (Quelle). |
+| `homeassistant/custom_components/tobibox/translations/de.json` | neu | Deutsche Texte. |
+| `homeassistant/mosquitto/acl.conf.example` | neu | Broker-Rechte: ein Konto je Box, Themenrechte wie in Baustein 4; `homeassistant` und `addons` unbeschränkt. |
+| `homeassistant/mosquitto/mosquitto-addon.example.yaml` | neu | Add-on-Einstellung mit `customize.active: true` und `logins` (Box-Konten ohne HA-Admin). |
+| `homeassistant/requirements-test.txt` | neu | Feste HA-Version und `pytest-homeassistant-custom-component`, passend zur HA-Version. |
+| `homeassistant/README.md` | neu | Installation der Integration, getestete HA-Version. |
+| `homeassistant/tests/conftest.py` | neu | Fixtures: Test-Medienordner, Fake-Box. |
+| `homeassistant/tests/test_store.py` | neu | Revision und Listen-ID, Export auf das NAS. |
+| `homeassistant/tests/test_media.py` | neu | Neue Ordner/Dateien, `serie.json`-Regeln, doppelte IDs, Papierkorb, DRM-Prüfung (`drms`, Probedekodierung). |
+| `homeassistant/tests/test_mqtt.py` | neu | Veröffentlichen, Bestätigung `…/ack`, Ablaufzeit der Befehle, Idempotenz. |
+| `homeassistant/tests/test_websocket_api.py` | neu | Jeder Befehl aus Vertrag W: gültig und ungültig. |
+| `homeassistant/tests/test_upload.py` | neu | Upload größer als 16 MiB im Strom; falsches Format wird abgelehnt; ohne Anmeldung abgelehnt. |
+| `homeassistant/tests/test_restore.py` | neu | „HA-Wiederherstellung mit neuer Listen-ID und niedriger Revision“ und „Liste neu ausrollen“. |
 
-**AP 3.2 HA-Seite** (Sonnet): `homeassistant/custom_components/tobibox/frontend/tobibox-panel.js`
-— Serienliste, Folgen ziehen, Hochladen, Umbenennen, Neue Figuren, Lernmodus,
-Zuordnen von Aktionskarten (Status, Gute Nacht), Box-Status mit freiem
-Speicher, Aktionen „Liste neu ausrollen“ und „Papierkorb leeren“; bedienbar am
-Handy.
+Abnahme AP 3.1:
 
-**AP 3.3 Box-Dienst: HA, Netz, Strom** (Sonnet)
+- Alle HA-Tests sind grün, in eigener venv mit der festen HA-Version.
+- Der Upload-Test belegt, dass eine Datei über 16 MiB ankommt.
+- Eine Kennung wird erst nach `…/ack` als bestätigt geführt.
+
+#### AP 3.2 HA-Seite (Sonnet)
+
+Ergebnis: Die Seite „Tobi Box“, bedienbar am Handy.
 
 | Datei | Neu/Änd. | Inhalt und Grund |
 |---|---|---|
-| `box/src/tobibox/ha.py` | neu | MQTT mit eigenem Konto (QoS 1, dauerhafte Sitzung), Discovery, Konfiguration nach der Revisionsregel (Listen-ID) übernehmen, abgelehnte Listen melden, Ereignisse melden (Eintrag in `unknown.json` bleibt, bis der Broker bestätigt), Befehle mit Ablaufzeit prüfen, HA-Sensoren inkl. Status und freiem Speicherplatz. |
-| `box/src/tobibox/net.py` | neu | Netz-Klasse; Zeitquelle (NTP). |
-| `box/src/tobibox/power.py` | neu | Strom-Schnittstelle **komplett**: Akkustand, Lader, Tastenereignis, Tiefstand, RTC beim Start lesen, Zeitquelle melden. |
-| `box/src/tobibox/sim.py` | neu | **Gemeinsamer Simulations-Treiber** (Tastatur/Terminal) für alle Eingänge. Hier mit dem Eingang Strom (`tobibox sim power …`); die APs 4.1–4.4 tragen ihre Eingänge in denselben Treiber ein. Die echte Hardware ersetzt später nur ihn. |
-| `box/src/tobibox/cli.py` | änd. | `tobibox sim power …` über den gemeinsamen Treiber. |
+| `homeassistant/custom_components/tobibox/frontend/tobibox-panel.js` | neu | Serienliste, Folgen ziehen, Hochladen, Umbenennen, Neue Figuren, Lernmodus, Zuordnen von Aktionskarten (Status, Gute Nacht), Box-Status mit freiem Speicher, Aktionen „Liste neu ausrollen“ und „Papierkorb leeren“. |
+| `homeassistant/custom_components/tobibox/frontend/lit-all.min.js` | neu | Lit in fester Version, eingecheckt (kein Laden aus dem Netz). |
+| `homeassistant/tests/frontend/mock-hass.mjs` | neu | Mock für die HA-WebSocket-Schnittstelle. |
+| `homeassistant/tests/frontend/panel.test.mjs` | neu | Mit `node --test`: Das Modul lädt; jeder Aufruf geht mit den Namen und Feldern aus Vertrag W gegen den Mock; Fehlerantworten werden angezeigt. |
+
+Abnahme AP 3.2:
+
+- `node --test homeassistant/tests/frontend` ist grün.
+- Tobias bedient die Seite am Handy über Nabu Casa (Vorführung).
+
+#### AP 3.3 Box-Dienst: HA, Netz, Strom (Sonnet)
+
+Ergebnis: Die Box spricht MQTT, erkennt die Netz-Klasse und kennt die
+Strom-Schnittstelle. Die Eingänge in `sim.py` und `cli.py` trägt AP 3.7 ein.
+
+| Datei | Neu/Änd. | Inhalt und Grund |
+|---|---|---|
+| `box/src/tobibox/ha.py` | neu | MQTT mit eigenem Konto (QoS 1, dauerhafte Sitzung), Discovery, Konfiguration nach der Revisionsregel (Listen-ID) übernehmen, abgelehnte Listen melden, unbekannte Kennungen dauerhaft je Kennung veröffentlichen und `…/ack` als Ereignis `bestätigt` weitergeben, Befehle mit Ablaufzeit prüfen, HA-Sensoren inkl. Status und freiem Speicherplatz. |
+| `box/src/tobibox/net.py` | neu | Netz-Klasse (NetworkManager-SSID; im Test simuliert); Zeitquelle (NTP). |
+| `box/src/tobibox/power.py` | neu | Strom-Schnittstelle **komplett** (Akkustand, Lader, Tastenereignis, Tiefstand, RTC beim Start lesen, Zeitquelle melden) und eine Simulations-Fassung für `sim`. |
+| `box/tests/unit/test_ha_config_rules.py` | neu | Revisionsregel: neue Listen-ID gewinnt, höhere Revision gewinnt, alles andere wird abgelehnt und gemeldet. |
+| `box/tests/unit/test_net.py` | neu | Netz-Klassen `home`, `hotspot`, `offline`. |
 | `box/tests/unit/test_power.py` | neu | Tiefstand, Tastenereignis, Lader, Hotspot-/Akku-Regel des Syncs mit Simulation. |
-| `box/tests/cuj/test_cuj12_*.py` | neu | CUJ 12 als pytest-Tabelle. |
-| `docs/betrieb/mqtt-konten.md` | neu | Konto je Box anlegen, Themenrechte, Passwörter nur auf der Box (nicht im Repo). |
+| `box/tests/integration/test_ha_mqtt.py` | neu | Gegen einen echten lokalen Mosquitto: Konfiguration holen, Befehl mit Ablaufzeit, Kennung bleibt in `unknown.json`, bis `…/ack` kommt (auch wenn der Broker die Nachricht schon angenommen hat). |
 
-**AP 3.4 Medien-Sync** (Sonnet)
+Abnahme AP 3.3:
+
+- Alle Tests sind grün.
+- Eine Kennung wird nicht gelöscht, wenn nur der Broker, aber nicht HA bestätigt hat.
+
+#### AP 3.4 Medien-Sync (Sonnet)
+
+Ergebnis: Der Sync nach den Regeln aus „Netz, Sync, Strom“.
 
 | Datei | Neu/Änd. | Inhalt und Grund |
 |---|---|---|
-| `box/src/tobibox/sync.py` | neu | rsync-Regeln Heim/Hotspot/Akku (im Hotspot ohne Datenlimit), sichtbar erst nach Abschluss, `--delete` mit Schutz (Abbruch bei fehlender oder leerer Quelle oder mehr als 20 % Löschungen), Platzprüfung vorab, MPD neu einlesen, Sperre gegen Update, keine Abschaltung während des Syncs, spielende Datei nie ersetzen, `nice`/`ionice`. |
-| `box/tests/unit/test_sync.py` | neu | Tests mit lokalem rsync-Ziel, auch leere Quelle, fehlende Quelle, zu viele Löschungen, zu wenig Platz. |
-| `box/tests/cuj/test_cuj09_*.py` | neu | CUJ 9, darunter **Auflegen während Sync** (Figur startet innerhalb der Zeitgrenze, laufende Wiedergabe stockt nicht). |
+| `box/src/tobibox/sync.py` | neu | rsync gegen den rsync-Daemon des QNAP (Modul `medien`, nur lesend) über Tailscale; Regeln Heim/Hotspot/Akku (im Hotspot ohne Datenlimit); `--partial-dir` außerhalb des Medienordners auf demselben Dateisystem und `--delay-updates`; `--delete` mit Schutz (Abbruch bei fehlender oder leerer Quelle oder mehr als 20 % Löschungen, vorab gezählt mit `--dry-run --itemize-changes`); Platzprüfung vorab; die spielende Datei (MPD `currentsong`) per `--exclude`; MPD neu einlesen; Sperre gegen Update; keine Abschaltung während des Syncs; `nice`/`ionice`. |
+| `box/tests/unit/test_sync.py` | neu | Tests gegen einen lokalen rsync-Daemon: leere Quelle, fehlende Quelle, zu viele Löschungen, zu wenig Platz, spielende Datei ausgenommen, `--partial-dir` außerhalb des Medienordners, Netzregel. |
+| `box/tests/unit/test_sync_ereignisse.py` | neu | Während eines Syncs laufen Kern-Ereignisse weiter (Auflegen wird verarbeitet). Die Latenz unter echter Last misst Abnahme Stufe 3a am Pi. |
 
-**AP 3.6 Einrichtung Tailscale und NAS** (Haiku): `docs/betrieb/tailscale-nas.md`
-(QNAP-App, HA-Add-on, Box-Schlüssel, ACL mit Tags nur auf Medienfreigabe und
-HA, Nur-Lese-Konto für die Boxen, Rechte für HA: volles Schreibrecht auf
-`medien/`, `export/` und `releases/`, **Schlüsselablauf der Box-Knoten
-abschalten**, Schlüssel sperren), optional ein Assistenten-Skript für die
-Schritte, die nur Tobias machen kann. Dazu die Prüfung, dass die ACL andere
-Ziele sperrt.
+Abnahme AP 3.4:
 
-**Abnahme Stufe 3a:** CUJ 7a/7b mit HA, 9 und 12 als pytest-Tabellen grün;
-Vorführung mit HA am Handy (über Nabu Casa) und Mac-Box; zusätzlich diese
-Tests: **Auflegen während Sync** innerhalb der Zeitgrenze; **Leser-Neustart**
-bei spielender Figur; **HA-Wiederherstellung mit neuer Listen-ID** wird von
-beiden Boxen übernommen (auch bei niedrigerer Revision); „Liste neu
-ausrollen“ wird von beiden Boxen übernommen; Hotspot-/Akku-Regel mit
-Simulation; die Tailscale-ACL sperrt andere Ziele.
+- Alle Tests sind grün.
+- Eine laufende Datei wird nie ersetzt oder gelöscht.
+
+#### AP 3.5 Einrichtung Tailscale, NAS und MQTT-Konten (Haiku)
+
+Ergebnis: Anleitungen und Vorlagen für die Schritte, die nur Tobias machen kann.
+
+| Datei | Neu/Änd. | Inhalt und Grund |
+|---|---|---|
+| `docs/betrieb/tailscale-nas.md` | neu | Schritte für die QNAP-App, das HA-Add-on, die Box-Schlüssel, die ACL und den rsync-Daemon. |
+| `docs/betrieb/mqtt-konten.md` | neu | Konto je Box anlegen, Themenrechte, Passwörter nur auf der Box (nicht im Repo). |
+| `deploy/nas/rsyncd.example.conf` | neu | Modul `medien` und Modul `releases`, beide `read only = yes`. |
+| `deploy/tailscale/acl.example.json` | neu | ACL mit Tags: Boxen erreichen nur die Medienfreigabe und HA. |
+| `deploy/tailscale/acl-pruefung.sh` | neu | Prüft von einer Box aus, dass andere Ziele gesperrt sind. |
+| `deploy/tailscale/einrichtung-assistent.sh` | neu | Optional: führt durch die Schritte, die nur Tobias machen kann. |
+
+Die Anleitung enthält außerdem:
+
+- Rechte für HA: volles Schreibrecht auf `medien/`, `export/` und `releases/`.
+- Schlüsselablauf der Box-Knoten abschalten.
+- Schlüssel einer verlorenen Box sperren.
+
+Abnahme AP 3.5:
+
+- Tobias richtet nach der Anleitung beide Boxen ein, ohne nachzufragen.
+- `acl-pruefung.sh` meldet, dass andere Ziele gesperrt sind.
+
+#### AP 3.6 CI-Erweiterung Stufe 3a (Haiku)
+
+Ergebnis: Die CI prüft auch die HA-Integration, in einem eigenen Job.
+
+| Datei | Neu/Änd. | Inhalt und Grund |
+|---|---|---|
+| `.github/workflows/ci.yml` | änd. | Neuer Job `homeassistant` mit eigener venv (Python-Version passend zur festen HA-Version), `pip install -r homeassistant/requirements-test.txt`, pytest über `homeassistant/tests`, `node --test homeassistant/tests/frontend`. Im Job `box` zusätzlich `apt install mosquitto rsync`. |
+
+Abnahme AP 3.6:
+
+- Beide Jobs laufen getrennt und sind grün.
+
+#### AP 3.7 Integration Stufe 3a (Sonnet)
+
+Ergebnis: HA, Netz, Strom und Sync sind im Dienst verdrahtet; die CUJ-Tests der
+Stufe laufen.
+
+| Datei | Neu/Änd. | Inhalt und Grund |
+|---|---|---|
+| `box/src/tobibox/core.py` | änd. | Ereignisse aus HA, Netz, Strom und Sync an die Teilautomaten. |
+| `box/src/tobibox/app.py` | änd. | `ha`, `net`, `power`, `sync` verdrahten; die Bestätigung kommt nun von `ha` statt von `sim`. |
+| `box/src/tobibox/sim.py` | änd. | Eingang Strom (`power`). |
+| `box/src/tobibox/cli.py` | änd. | `tobibox sim power --charger on --battery 40`; `tobibox status` zeigt HA und Sync. |
+| `box/tests/cuj/test_cuj07_ha.py` | neu | CUJ 7a und 7b mit HA (Fake-HA über den lokalen Mosquitto). |
+| `box/tests/cuj/test_cuj09_sync.py` | neu | CUJ 9: unvollständige Dateien nie abspielbar, laufende Datei nie ersetzt. |
+| `box/tests/cuj/test_cuj12_unterwegs.py` | neu | CUJ 12 als pytest-Tabelle. |
+
+Abnahme AP 3.7:
+
+- Die CUJ-Tests 7, 9 und 12 sind grün.
+- Die Tests aus Stufe 1 und 2 sind weiter grün.
+
+**Abnahme Stufe 3a**
+
+- CUJ 7a/7b mit HA, 9 und 12 sind als pytest-Tabellen grün.
+- Tobias führt die Seite am Handy über Nabu Casa vor, mit einem Upload größer als 16 MiB, und eine Box am Mac.
+- Auflegen während Sync: Am Pi innerhalb der Zeitgrenze; ohne Pi holt das der Pi-Lauf nach, sobald der Pi da ist.
+- Leser-Neustart bei spielender Figur (CUJ 13) ist weiter bestanden.
+- Die HA-Wiederherstellung mit neuer Listen-ID wird von beiden Boxen übernommen, auch bei niedrigerer Revision.
+- „Liste neu ausrollen“ wird von beiden Boxen übernommen.
+- Die Hotspot-/Akku-Regel ist mit Simulation geprüft.
+- Die Tailscale-ACL sperrt andere Ziele.
 
 ### Stufe 3b — Update, Lautheit, Handbuch (CUJ 10)
 
 Voraussetzung: Abnahme Stufe 3a bestanden, Schlüsselpaar von Tobias erzeugt
 (siehe Go/No-Go).
 
-**AP 3.5 Update mit Rückfall und Signatur** (Sonnet): Weist nach, dass die
-Abhängigkeiten fertig gebaut im Paket liegen (kein Bauen auf dem Pi).
+**Von Tobias bereitzustellen**
+
+| Was | Wofür | Frist |
+|---|---|---|
+| `minisign`-Schlüsselpaar auf dem Mac (der geheime Schlüssel bleibt dort) | AP 3.8, Pakete signieren | vor Stufe 3b |
+| Container Station (oder Entsprechendes) auf dem QNAP | AP 3.9, Lautheits-Container | vor AP 3.9 |
+
+**Reihenfolge:** AP 3.8, 3.9 und 3.10 laufen parallel; danach AP 3.11, zuletzt AP 3.12.
+
+#### AP 3.8 Update mit Rückfall und Signatur (Sonnet)
+
+Ergebnis: Ein signiertes Paket lässt sich installieren, prüfen und bei Fehlern
+zurückrollen, auch wenn die neue Version nicht startet. Die Abhängigkeiten
+liegen fertig gebaut im Paket (kein Bauen auf dem Pi).
 
 | Datei | Neu/Änd. | Inhalt und Grund |
 |---|---|---|
-| `box/src/tobibox/update.py` | neu | Bedingungen prüfen, Paket holen, **Signatur prüfen** mit `minisign` (Prüfschlüssel auf der Box), nach `releases/<version>/` entpacken, Zustandsdateien sichern, `current` atomar umstellen (neuer Verweis, dann umbenennen), Zustand `testing`/`ok`/`failed`, Rückfall mit Zurückspielen der Sicherung, Meldung an HA. Die Entscheidung „bleiben oder zurück“ ist eine kleine eigene Funktion (Zustand, Zähler). |
-| `box/src/tobibox/selftest.py` | änd. | Prüfroutine für das Update: Dienst, `HELLO`, Dateien, MPD, Testton. Besteht sie nicht innerhalb von 5 min, beendet sich der Dienst (der Startzähler greift). Ohne pytest. |
-| `deploy/build_release.sh` | neu | Paket mit `manifest.json` und **fertig gebauten Abhängigkeiten** bauen. |
-| `deploy/sign_release.sh` | neu | Ruft nur `minisign` auf, um das Paket mit Tobias' Signierschlüssel zu signieren (Schlüssel bleibt bei Tobias auf seinem Mac, nicht im Repo, nicht auf NAS oder HA); der Prüfschlüssel kommt ins SD-Image. |
-| `deploy/pi/tobiboxd.service.d/rollback.conf` | neu | systemd-Drop-in: Start-Zähler (zählt nur im Zustand `testing`) und `OnFailure=`; kein eigener Wächter-Dienst, kein eigener Timer. |
-| `box/tests/unit/test_update.py` | neu | Umschalten, Selbsttest-Fehler, Selbsttest nicht in 5 min → Dienst beendet sich → Startzähler → Rückfall, Startfehler, ungültige Signatur, Zähler zählt im Zustand `ok` nicht. |
-| `box/tests/unit/test_rollback.py` | neu | Die Entscheidungsfunktion mit allen Eingabe-Kombinationen; **Rückfall spielt die gesicherten Zustandsdateien zurück**. |
-| `box/tests/cuj/test_cuj10_*.py` | neu | CUJ 10 als pytest-Tabelle. |
-| `docs/data-model.md` | änd. | Schema `manifest.json`; Hinweis „Schemas möglichst abwärtskompatibel erweitern“ (die Regel ist das Zurückspielen der Sicherung). |
+| `box/src/tobibox/update.py` | neu | Bedingungen prüfen, Paket holen, **Signatur prüfen** mit `minisign` (Prüfschlüssel auf der Box), nach `releases/<version>/` entpacken, Zustandsdateien sichern, `current` atomar umstellen, Zustand `testing`/`ok`/`failed` in `update.json`, Meldung an HA. |
+| `box/src/tobibox/selftest.py` | änd. | Prüfroutine für das Update: Dienst, `HELLO`, Dateien, MPD, Testton; meldet im Zustand `testing` `READY=1` erst nach bestandenem Test. Ohne pytest. |
+| `deploy/pi/guard.py` | neu | Wächter-Skript, nur Standardbibliothek: zählt Starts im Zustand `testing`, bei Zähler ≥ 3 Rückfall (Verweis zurück, Sicherung zurückspielen, `failed`); `--failed` für `OnFailure=`; die Entscheidungsfunktion „bleiben oder zurück“. Wird nach `/opt/tobibox/bin/guard.py` installiert, kommt mit dem SD-Image und wird nie per Update ersetzt. |
+| `deploy/pi/tobiboxd.service.d/rollback.conf` | neu | systemd-Drop-in: `ExecStartPre=/opt/tobibox/bin/guard.py`, `OnFailure=tobiboxd-failed.service`. |
+| `deploy/pi/tobiboxd-failed.service` | neu | Ruft `guard.py --failed` auf. |
+| `deploy/pi/install.sh` | änd. | Installiert `guard.py` und das Drop-in. |
+| `deploy/build_release.sh` | neu | Paket mit `manifest.json` und Abhängigkeiten per `pip install --target` bauen; Python-Minor-Version muss die des Pi OS (3.11) sein. |
+| `deploy/sign_release.sh` | neu | Ruft nur `minisign` auf, um das Paket mit Tobias' Signierschlüssel zu signieren (der Schlüssel bleibt auf seinem Mac, nicht im Repo, nicht auf NAS oder HA); der Prüfschlüssel kommt ins SD-Image. |
+| `box/tests/unit/test_update.py` | neu | Umschalten, Selbsttest-Fehler, ungültige Signatur (Test-Schlüsselpaar wird im Test erzeugt), Startfehler, Zähler zählt im Zustand `ok` nicht. |
+| `box/tests/unit/test_guard.py` | neu | Die Entscheidungsfunktion mit allen Eingabe-Kombinationen; Importfehler der neuen Version (der Wächter läuft trotzdem); **Rückfall spielt die gesicherten Zustandsdateien zurück**. |
+| `box/tests/unit/test_release_pure_python.py` | neu | Das gebaute Paket enthält nur reines Python (keine `.so`/`.dylib`). |
+| `docs/data-model.md` | änd. | Schema `update.json`; Hinweis „Schemas möglichst abwärtskompatibel erweitern“ (die Regel ist das Zurückspielen der Sicherung). |
 
-**AP 3.7 Betriebshandbuch** (Haiku): `docs/betrieb/handbuch.md` —
-Wiederherstellung von Null, SD-Image, „was ist wo konfiguriert“, Fehlerbilder,
-HA-Wiederherstellung (HA-Sicherung oder NAS-Export, danach „Liste neu
-ausrollen“), Signierschlüssel und Pakete bauen.
+Abnahme AP 3.8:
 
-**AP 3.8 Lautheitsangleich** (Haiku): Container-Definition für `rsgain` auf dem
-NAS und Doku (D6, Plan 7.2: Lautheitsangleich aller Titel).
+- Alle Tests sind grün; die CI installiert `minisign`.
+- Eine neue Version mit Importfehler wird nach 3 Starts zurückgerollt.
+- Wird der Selbsttest nicht in 5 min bestanden, beendet systemd den Dienst, der Neustart zählt, und der Rückfall greift.
+- Ein Update mit ungültiger Signatur wird abgelehnt.
+
+#### AP 3.9 Lautheitsangleich (Haiku)
+
+Ergebnis: Ein Container auf dem NAS schreibt ReplayGain-Tags (D6).
 
 | Datei | Neu/Änd. | Inhalt und Grund |
 |---|---|---|
-| `deploy/nas/` (Container-Definition, Zeitplan) | neu | Container mit `rsgain`, läuft **nur nach Zeitplan** (alle 15 min), schreibt ReplayGain-Tags in neue Dateien; konservativer Ziel-Pegel, nur dämpfend. Kein Auslöser aus HA. |
-| `docs/betrieb/lautheit.md` | neu | Einrichtung auf dem NAS, Modus Album oder Track (Track für gemischte Quellen), MPD-Einstellung ohne Vorverstärkung, Zusammenspiel mit der Lautstärke-Regel. Hinweis: Eine Datei, die die Box vor dem Messen geholt hat, wird einmal nachübertragen; das ist hingenommen. |
-| `box/tests/unit/test_replaygain_config.py` | neu | Prüft die Konfiguration: MPD ohne Vorverstärkung, `rsgain`-Einstellung ohne positive Anhebung (Max-Gain ≤ 0 dB). Die echte Prüfung ist die Messung am Verstärker (Stufe 4). |
+| `deploy/nas/Dockerfile` | neu | Baut `rsgain` in fester Version; Bild für die CPU-Architektur des QNAP. |
+| `deploy/nas/lautheit.sh` | neu | Ruft `rsgain` im Easy-Modus mit `-S` und Ziel −18 LUFS auf. |
+| `deploy/nas/crontab` | neu | Zeitplan im Container: alle 15 min; kein Auslöser aus HA. |
+| `deploy/nas/compose.yaml` | neu | Container-Definition mit Medienordner. |
+| `docs/betrieb/lautheit.md` | neu | Einrichtung auf dem NAS, Modus Track (für gemischte Quellen), MPD-Einstellung (`replaygain_preamp` 0, `replaygain_missing_preamp` −6 dB, `replaygain_limit`), Zusammenspiel mit der Lautstärke-Regel. Hinweis: Eine Datei, die die Box vor dem Messen geholt hat, wird einmal nachübertragen; das ist hingenommen. |
+| `box/tests/unit/test_replaygain_config.py` | neu | Prüft die Konfiguration: MPD-Zeilen in `deploy/pi/mpd.conf` und `box/config/mpd.mac.example.conf`; `-S` und −18 LUFS in `lautheit.sh`. Die echte Prüfung ist die Messung am Pi. |
 
-**Abnahme Stufe 3b:** CUJ 10 als pytest-Tabelle grün; **Rückfall spielt die
-Zustandsdateien zurück**; Selbsttest nicht in 5 min → Dienst beendet sich →
-Startzähler → Rückfall; Update mit ungültiger Signatur wird abgelehnt;
-ReplayGain-Konfiguration dämpfend (Max-Gain ≤ 0 dB); der Lautheits-Container
-läuft nach Zeitplan. Der Plan in `docs/plan/` ist nachgezogen.
+Abnahme AP 3.9:
+
+- Der Konfigurationstest ist grün.
+- Der Container läuft auf dem QNAP und schreibt nach Zeitplan Tags nur in neue Dateien (zweiter Lauf ändert nichts).
+
+#### AP 3.10 CI-Erweiterung Stufe 3b (Haiku)
+
+Ergebnis: Die CI prüft Paketbau und Signatur.
+
+| Datei | Neu/Änd. | Inhalt und Grund |
+|---|---|---|
+| `.github/workflows/ci.yml` | änd. | Im Job `box` `apt install minisign`; Schritt, der `deploy/build_release.sh` mit Test-Schlüsselpaar ausführt und die Signatur prüft. |
+
+Abnahme AP 3.10:
+
+- Der Job `box` ist grün, einschließlich der Update-Tests.
+
+#### AP 3.11 Integration Stufe 3b (Sonnet)
+
+Ergebnis: Update und Selbsttest sind verdrahtet; CUJ 10 läuft als Test.
+
+| Datei | Neu/Änd. | Inhalt und Grund |
+|---|---|---|
+| `box/src/tobibox/core.py` | änd. | Update-Ereignisse (gestartet, Selbsttest bestanden/durchgefallen); die Leerlauf-Regel wartet während eines Updates. |
+| `box/src/tobibox/app.py` | änd. | `update` und `selftest` verdrahten. |
+| `box/src/tobibox/cli.py` | änd. | `tobibox status` zeigt den Update-Zustand. |
+| `box/tests/cuj/test_cuj10_update.py` | neu | CUJ 10 als pytest-Tabelle. |
+
+Abnahme AP 3.11:
+
+- `test_cuj10_update.py` ist grün.
+- Alle früheren Tests sind weiter grün.
+
+#### AP 3.12 Betriebshandbuch (Haiku)
+
+Ergebnis: Tobias kann eine Box ohne Hilfe wiederherstellen.
+
+| Datei | Neu/Änd. | Inhalt und Grund |
+|---|---|---|
+| `docs/betrieb/handbuch.md` | neu | Neuinstallation, SD-Image, „was ist wo konfiguriert“, Fehlerbilder, HA-Wiederherstellung (HA-Sicherung oder NAS-Export, danach „Liste neu ausrollen“), Signierschlüssel und Pakete bauen. |
+
+Abnahme AP 3.12:
+
+- Ein Goldfisch kann anhand des Handbuchs jeden Schritt der Wiederherstellung benennen.
+
+**Abnahme Stufe 3b**
+
+- CUJ 10 ist als pytest-Tabelle grün.
+- Der Rückfall spielt die Zustandsdateien zurück.
+- Wird der Selbsttest nicht in 5 min bestanden, beendet sich der Dienst, der Startzähler greift, und der Rückfall greift.
+- Ein Update mit ungültiger Signatur wird abgelehnt.
+- Die ReplayGain-Konfiguration ist nach `test_replaygain_config.py` richtig; der Lautheits-Container läuft nach Zeitplan.
+- Der Plan in `docs/plan/` ist nachgezogen.
 
 ### Stufe 4 — Hardware-Funktionen mit Simulation (CUJ 14–19)
 
 Alle Funktionen entstehen jetzt, mit Simulation am Mac hinter derselben
 Schnittstelle, die die echte Hardware später nutzt. Alle Eingänge liefert **ein**
-gemeinsamer Simulations-Treiber (`sim.py`, Tastatur/Terminal, aus AP 3.3). Die
-APs 4.1–4.4 bleiben getrennt (parallel baubar), tragen aber nur ihren Eingang
-in diesen Treiber ein.
+gemeinsamer Simulations-Treiber (`sim.py`, seit Stufe 2). Die APs 4.1 bis 4.7
+sind getrennt voneinander baubar; jedes liefert nur seine eigenen Dateien. AP 4.8
+trägt alle Eingänge in `sim.py` ein und hängt alle Module in `core.py` und
+`app.py` ein.
 
-**AP 4.1 LED-Ring-Logik** (Sonnet), umsetzt CUJ 18
+**Von Tobias bereitzustellen:** nichts (Simulation). Die echte Hardware folgt
+später: LED-Ring, Tasten und Drehregler, PiSugar mit Akku, Kopfhörer-Buchse,
+Verstärker.
 
-| Datei | Neu/Änd. | Inhalt und Grund |
-|---|---|---|
-| `box/src/tobibox/led.py` | neu | Zustände laut Plan 5.5.2 (läuft, Pause, Akku, unbekannte Karte, Aufwachen) als reine Logik, Helligkeitsdeckel 25 %. Der Zustand wird über den gemeinsamen Treiber im Terminal und im Protokoll angezeigt; keine Anzeige in HA. Der echte Ring ersetzt später nur den Treiber. |
-| `box/src/tobibox/sim.py` | änd. | Ausgang „Ring-Zustand“ (Terminal, Protokoll). |
-| `box/tests/unit/test_led.py` | neu | Jeder Zustand; Deckel wird nie überschritten. |
+#### AP 4.1 LED-Ring-Logik (Sonnet), umsetzt CUJ 18
 
-**AP 4.2 Tasten und Drehregler** (Sonnet), umsetzt CUJ 19
-
-| Datei | Neu/Änd. | Inhalt und Grund |
-|---|---|---|
-| `box/src/tobibox/controls.py` | neu | Vor, Zurück, Lautstärke, Hauptknopf einfach/lang als Ereignisse für den Kern. |
-| `box/src/tobibox/sim.py` | änd. | Eingang Tasten und Drehregler per Tastatur. |
-| `box/src/tobibox/core.py`, `session.py` | änd. | Reagieren auf die Bedienereignisse. |
-| `box/tests/unit/test_controls.py` | neu | Tasten-Zuordnung, lang/einfach, Lautstärke bleibt unter der wirksamen Grenze. |
-
-**AP 4.3 Leerlauf und PiSugar-Beschreibung** (Sonnet), umsetzt CUJ 16
+Ergebnis: Ring-Zustände als reine Logik.
 
 | Datei | Neu/Änd. | Inhalt und Grund |
 |---|---|---|
-| `box/src/tobibox/idle.py` | neu | Teilautomat Strom / Leerlauf: Abschaltung nach 20 min, nie während Sync, Update oder Lernmodus, am Lader erst nach Sync und Update; beim Start am Lader Sync prüfen. Nutzt `power.py` aus AP 3.3. |
+| `box/src/tobibox/led.py` | neu | Zustände laut Projektplan (`docs/plan/`, Abschnitt 5.5.2): läuft, Pause, Akku, unbekannte Karte, Aufwachen; Helligkeitsdeckel 25 %. Der Zustand erscheint über den gemeinsamen Treiber im Terminal und im Protokoll; keine Anzeige in HA. Der echte Ring ersetzt später nur den Treiber. |
+| `box/tests/unit/test_led.py` | neu | Jeder Zustand; der Deckel wird nie überschritten. |
+
+Abnahme AP 4.1:
+
+- Jeder Zustand hat einen Test.
+- Die Helligkeit liegt nie über 25 %.
+
+#### AP 4.2 Tasten und Drehregler (Sonnet), umsetzt CUJ 19
+
+Ergebnis: Bedien-Ereignisse und der Hauptknopf nach Entscheidung E.
+
+| Datei | Neu/Änd. | Inhalt und Grund |
+|---|---|---|
+| `box/src/tobibox/controls.py` | neu | Vor, Zurück, Lautstärke, Hauptknopf kurz/lang als Ereignisse für den Kern. |
+| `box/tests/unit/test_controls.py` | neu | Tasten-Zuordnung, kurz/lang, Lautstärke bleibt unter der wirksamen Grenze. |
+| `box/tests/unit/test_session_hauptknopf.py` | neu | Hauptknopf kurz je Zustand: `spielt` → Pause; `pausiert` mit Figur → Abspielen; `beendet` mit Figur → nächste Folge ab Zeiger; ohne Figur → normale Funktion (Play / Pause). |
+
+Abnahme AP 4.2:
+
+- Vor / Zurück springt zur nächsten / vorigen Folge.
+- Der Drehregler ändert die Lautstärke nie über die wirksame Grenze.
+- Hauptknopf kurz: Play / Pause; ist eine Folge zu Ende und liegt die Figur noch auf der Box, spielt er die nächste Folge (Entscheidung E); ohne Figur gilt Play / Pause.
+- Hauptknopf lang: Zeiger speichern und herunterfahren.
+
+#### AP 4.3 Leerlauf und PiSugar-Beschreibung (Sonnet), umsetzt CUJ 16
+
+Ergebnis: Teilautomat Strom / Leerlauf.
+
+| Datei | Neu/Änd. | Inhalt und Grund |
+|---|---|---|
+| `box/src/tobibox/idle.py` | neu | Teilautomat Strom / Leerlauf: Abschaltung nach 20 min, nie während Sync, Update oder Lernmodus. Am Lader wird nicht abgeschaltet, solange Sync oder Update laufen; ist keines aktiv, gilt die 20-min-Regel. Beim Start am Lader Sync prüfen. Nutzt `power.py` aus AP 3.3. |
 | `box/tests/unit/test_idle.py` | neu | 20-min-Leerlauf und Lader-Regel (mit simulierter Uhr). |
 | `docs/betrieb/pisugar-wecker.md` | neu | Beschreibung der PiSugar-Anbindung und Option: nächtliches Wecken am Lader über den PiSugar-Wecker (nur Beschreibung, Umsetzung nach Tobias' Entscheidung). |
 
-**AP 4.4 Kopfhörer** (Sonnet), umsetzt CUJ 17
+Abnahme AP 4.3:
+
+- Nach 20 min Leerlauf wird heruntergefahren (in der Simulation nur protokolliert).
+- Während Sync, Update oder Lernmodus wird nie abgeschaltet.
+
+#### AP 4.4 Kopfhörer (Sonnet), umsetzt CUJ 17
+
+Ergebnis: Kopfhörer-Ereignis und Ausgangswechsel.
 
 | Datei | Neu/Änd. | Inhalt und Grund |
 |---|---|---|
 | `box/src/tobibox/headphones.py` | neu | Ereignis „Stecker erkannt / gezogen“. |
-| `box/src/tobibox/sim.py` | änd. | Eingang „Stecker“ per Tastatur. |
-| `box/src/tobibox/volume.py`, `player.py` | änd. | Kopfhörer-Grenze als weiterer Eingang der Funktion; Reihenfolge beim Wechsel: erst Grenze setzen, dann Ausgang schalten. |
-| `box/tests/unit/test_headphones.py` | neu | Grenze greift vor dem Umschalten und fällt beim Ziehen zurück. |
+| `box/src/tobibox/player.py` | änd. | Reihenfolge beim Wechsel: erst Grenze setzen, dann Ausgang schalten. `volume.py` bleibt unverändert (Liste benannter Grenzen). |
+| `box/tests/unit/test_headphones.py` | neu | Die Grenze greift vor dem Umschalten und fällt beim Ziehen zurück. |
 
-**AP 4.5 Leise-Zeiten** (Sonnet), umsetzt CUJ 15
+Abnahme AP 4.4:
 
-| Datei | Neu/Änd. | Inhalt und Grund |
-|---|---|---|
-| `box/src/tobibox/quiet.py` | neu | Teilautomat Leise-Zeiten (Plan 5.7): Fenster mit Wirkung „leiser“ oder „stumm“; die Einstellung kommt über das Thema `tobibox/config` (Teil derselben Konfiguration, kein eigener Verteilweg), lokale Kopie für offline; bei nicht vertrauenswürdiger Zeit gilt die kleinste „leiser“-Grenze aller Fenster, nie stumm. |
-| `homeassistant/custom_components/tobibox/` | änd. | Leise-Zeiten in der HA-Seite einstellen; sie gehen in `tobibox/config`. |
-| `box/tests/unit/test_quiet.py` | neu | Fenstergrenzen mit simulierter Uhr, Zeit nicht vertrauenswürdig (kleinste „leiser“-Grenze, nie stumm), stumm gegen Lernmodus, stumm beginnt während der Wiedergabe, stumm endet bei liegender Figur (nichts startet). |
+- Beim Einstecken gilt zuerst die Kopfhörer-Grenze, dann schaltet der Ausgang um.
+- Beim Ziehen gilt wieder Lautsprecher mit der normalen Grenze.
 
-**AP 4.6 Gute-Nacht-Karte** (Sonnet), umsetzt CUJ 14
+#### AP 4.5 Leise-Zeiten (Sonnet), umsetzt CUJ 15
+
+Ergebnis: Teilautomat Leise-Zeiten auf der Box.
 
 | Datei | Neu/Änd. | Inhalt und Grund |
 |---|---|---|
-| `box/src/tobibox/bedtime.py` | neu | Teilautomat Gute Nacht: Timer mit Ausblenden über die Lautstärke-Regel; Dauer von Timer und Ausblenden aus `config.json` (Vorschlag 30 min und 60 s); Karte ist ein Eintrag Typ `aktion` in `config.json`; muss am Mac funktionieren. |
-| `homeassistant/custom_components/tobibox/` | änd. | Einstellung „Gute-Nacht-Timer“ und „Ausblenden“ in HA; sie gehen in `tobibox/config`. |
-| `box/tests/cuj/test_cuj_gute_nacht.py` | neu | Karte auflegen nach Abheben der Serien-Figur, Timer läuft ab, Lautstärke blendet aus, Wiedergabe endet; andere Figur während des Timers; Abheben während des Ausblendens. |
+| `box/src/tobibox/quiet.py` | neu | Teilautomat Leise-Zeiten (Projektplan, Abschnitt 5.7): Fenster mit Wirkung „leiser“ oder „stumm“; die Einstellung kommt über das Thema `tobibox/config` (Teil derselben Konfiguration), lokale Kopie für offline; bei nicht vertrauenswürdiger Zeit gilt die kleinste „leiser“-Grenze aller Fenster, nie stumm. |
+| `box/tests/unit/test_quiet.py` | neu | Fenstergrenzen mit simulierter Uhr; Zeit nicht vertrauenswürdig; stumm beginnt während der Wiedergabe; stumm endet bei liegender Figur (nichts startet). |
 
-**Abnahme Stufe 4:** Jede Funktion ist am Mac per Simulation vorführbar; die
-Konflikt-Tabelle aus „Kern-Zustände“ ist als Tests grün (Folge zu Ende bei
-liegender Figur, stumm gegen Lernmodus, Stumm-Beginn und Stumm-Ende, Gute
-Nacht mit neuer Figur, Abheben beim Ausblenden, Figurwechsel bei
-Leser-Unterbrechung, Leerlauf gegen Sync/Update/Lernmodus, Tiefstand während
-Sync, mehrere Grenzen). Die echte Hardware ersetzt später nur den
-Simulations-Treiber; dann folgt die **Messung der Lautstärke am Verstärker**.
+Abnahme AP 4.5:
+
+- Alle Zeilen der Tabelle „Leise-Zeiten“ haben einen Test.
+- Bei nicht vertrauenswürdiger Zeit wird nie stumm geschaltet.
+
+#### AP 4.6 Gute-Nacht-Karte (Sonnet), umsetzt CUJ 14
+
+Ergebnis: Teilautomat Gute Nacht.
+
+| Datei | Neu/Änd. | Inhalt und Grund |
+|---|---|---|
+| `box/src/tobibox/bedtime.py` | neu | Teilautomat Gute Nacht: Timer mit Ausblenden über die Lautstärke-Regel; Dauer von Timer und Ausblenden aus `config.json` (Vorschlag 30 min und 60 s); die Karte ist ein Eintrag Typ `aktion` in `config.json`; funktioniert am Mac. |
+| `box/tests/unit/test_bedtime.py` | neu | Timer läuft ab, Lautstärke blendet aus, Wiedergabe endet; andere Figur während des Timers; Abheben während des Ausblendens. |
+
+Abnahme AP 4.6:
+
+- Alle Zeilen der Tabelle „Gute Nacht“ haben einen Test.
+- Die Lautstärke liegt beim Ausblenden nie über der wirksamen Grenze.
+
+#### AP 4.7 HA: Leise-Zeiten und Gute-Nacht-Einstellungen (Sonnet)
+
+Ergebnis: Tobias stellt Leise-Zeiten und Gute-Nacht-Dauern in der HA-Seite ein.
+Sie gehen in `tobibox/config`. Dieses AP ist das einzige in Stufe 4, das die
+HA-Dateien ändert.
+
+| Datei | Neu/Änd. | Inhalt und Grund |
+|---|---|---|
+| `homeassistant/custom_components/tobibox/store.py` | änd. | Prüfung und Speicherung der Leise-Zeiten und Gute-Nacht-Einstellungen. |
+| `homeassistant/custom_components/tobibox/websocket_api.py` | änd. | Befehle zum Lesen und Setzen (Vertrag W wird dafür ergänzt). |
+| `homeassistant/custom_components/tobibox/services.yaml` | änd. | Aktionen für Leise-Zeiten und Gute-Nacht-Einstellungen. |
+| `homeassistant/custom_components/tobibox/frontend/tobibox-panel.js` | änd. | Eingabe der Leise-Zeiten und der Gute-Nacht-Dauern. |
+| `homeassistant/tests/test_quiet_settings.py` | neu | Ungültige Fenster werden abgelehnt; Änderung erhöht die Revision und geht an `tobibox/config`. |
+| `homeassistant/tests/frontend/panel_quiet.test.mjs` | neu | Seite ruft die neuen Befehle mit den richtigen Feldern auf. |
+
+Abnahme AP 4.7:
+
+- Alle HA-Tests sind grün.
+- Eine Änderung in der Seite erscheint als neue Revision in `tobibox/config`.
+
+#### AP 4.8 Integration Stufe 4 (Sonnet)
+
+Ergebnis: Alle Hardware-Funktionen sind im Dienst verdrahtet und am Mac per
+Simulation vorführbar.
+
+| Datei | Neu/Änd. | Inhalt und Grund |
+|---|---|---|
+| `box/src/tobibox/core.py` | änd. | `quiet`, `bedtime`, `idle` in die Liste der Teilautomaten eintragen; Konflikt-Tabelle vollständig. |
+| `box/src/tobibox/app.py` | änd. | `led`, `controls`, `headphones`, `idle` verdrahten. |
+| `box/src/tobibox/sim.py` | änd. | Ausgang „Ring-Zustand“ (Terminal, Protokoll); Eingänge Tasten und Drehregler per Tastatur, Eingang „Stecker“. |
+| `box/src/tobibox/cli.py` | änd. | `tobibox sim key`, `tobibox sim headphones`, `tobibox sim time`. |
+| `box/tests/cuj/test_cuj14_gute_nacht.py` | neu | Karte auflegen nach Abheben der Serien-Figur, Timer, Ausblenden, Ende. |
+| `box/tests/cuj/test_cuj15_leise_zeiten.py` | neu | Leise-Zeiten über die Konfiguration. |
+| `box/tests/cuj/test_cuj16_leerlauf.py` | neu | Leerlauf-Abschaltung. |
+| `box/tests/cuj/test_cuj17_kopfhoerer.py` | neu | Kopfhörer rein und raus. |
+| `box/tests/cuj/test_cuj18_led_ring.py` | neu | Ring-Zustände im Terminal und im Protokoll. |
+| `box/tests/cuj/test_cuj19_tasten.py` | neu | Tasten, Drehregler und Hauptknopf, darunter Entscheidung E. |
+| `box/tests/cuj/test_konflikte.py` | neu | Jede Zeile der Konflikt-Tabelle als Test. |
+
+Abnahme AP 4.8:
+
+- Alle CUJ-Tests 14 bis 19 und `test_konflikte.py` sind grün.
+- Alle früheren Tests sind weiter grün.
+
+**Abnahme Stufe 4**
+
+- Jede Funktion ist am Mac per Simulation vorführbar.
+- Die Konflikt-Tabelle aus „Kern-Zustände“ ist als Tests grün, mit diesen Fällen:
+  - Folge zu Ende bei liegender Figur
+  - Hauptknopf kurz bei beendeter Folge mit liegender Figur (nächste Folge spielt) und ohne Figur (normale Funktion)
+  - stumm gegen Lernmodus
+  - Stumm-Beginn und Stumm-Ende
+  - Gute Nacht mit neuer Figur
+  - Abheben beim Ausblenden
+  - Figurwechsel bei Leser-Unterbrechung
+  - Leerlauf gegen Sync, Update und Lernmodus
+  - Tiefstand während Sync
+  - mehrere Grenzen
+- Die echte Hardware ersetzt später nur den Simulations-Treiber; dann folgt die **Messung der Lautstärke am Verstärker**.
 
 ### Dokumente, die am Ende nachgezogen werden
 
