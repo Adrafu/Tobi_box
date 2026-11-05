@@ -58,3 +58,33 @@ Zusammenfassung und Bewertung: `concepts_brief.md`.
 10. Major — Brücke ist ein dritter Codepfad; Alternativen: V3 nativ, socat-pty, Linux-VM mit USB-Durchreichung.
 11. Nit — Ablauf 6 ist auf Software-Seite gleich Ablauf 7.
 12. Nit — ESPHome als Alternative (unverifiziert), nicht empfohlen.
+
+## Migration & Rollout (implementation_readiness, Sonnet)
+
+1. Blocker — „Unverändert“ gilt nur für Plugin-Code + YAML, nicht für Umgebung (Docker/amd64-arm64 vs. Pi OS 32-bit armv7, Audio, Gerätepfade, 512 MB RAM). Pi-Smoke-Test als Pflicht vor „fertig“.
+2. Blocker — V3 auf Tag v3.6.0 (Commit 4fa84fd) hart pinnen, Versionsdatei im Repo, Anheben nur mit Vertragstests.
+3. Blocker — Kein Schema für persistente Dateien; Kanonisierung der Kennung ist die Schlüsselfrage. `schema_version`, Zuordnungen (gemeinsam) getrennt von Resume/Historie (pro Box), Migration N→N+1, Rückfall-tolerant.
+4. Blocker — Selbsttest/Rückfall undefiniert: A/B mit `releases/<version>/` + Symlink, Zustandsdatei pending/testing/ok/failed, systemd-Wächter schaltet beim Boot zurück; nur am Lader mit Akku-Mindeststand.
+5. Major — Sync-Konfliktregel, Tombstones, Versionsnummer im Sync-Protokoll; Boxen nie gleichzeitig aktualisieren.
+6. Major — Pi ohne RTC-Zeit vor NTP: Konflikte nicht an Systemzeit hängen; Schalter „Zeit falsch“. (Anm. Elefant: PiSugar 3 Plus hat eine RTC, Plan 5.1.4; im Prototyp trotzdem relevant.)
+7. Major — Alles atomar schreiben, `.bak` beim Start prüfen, Stromausfall-Schalter während des Schreibens; Kopie der Zuordnungen in HA.
+8. Major — Protokoll-Versionszeile beim Start, Leser-Modul prüft Kompatibilität; Passwort bleibt außerhalb von Update, Sync, Backup, HA.
+9. Major — Zuordnungen verweisen auf stabile Serien-IDs, nicht Pfade; Sync und Update nie parallel; Platz prüfen.
+10. Major — Update an Heim-SSID + Lader koppeln; Pi-Smoke-Test inkl. Dienste-Reihenfolge, kalter Start ohne Netz.
+11. Major — Plan Rev. 3.8 nachziehen; OS-Updates nur über neues Image.
+12. Nit — „gilt als identisch / darf abweichen“-Liste; fehlender Überraschungs-Ordner; Regel „Serie durchgehört“.
+
+## Architektur & Ressourcen (design_critic, Sonnet)
+
+1. Blocker — „Unverändert auf dem Pi“ ungedeckt (Audio, RAM, USB-CDC, Boot, WLAN). Prototyp = Logik-Prototyp; Pi als Zwischenziel nach Stufe 1.
+2. Blocker — V3 kennt kein Abheben; Zustandsautomat nur an einer Stelle (Firmware), V3 bekommt play/pause, V3-Watchdog aus. Messbare Zeitbudgets für Ablauf 8, Fehlerinjektion (Aussetzer 0,3 / 0,8 / 1,5 s).
+3. Major — Quelle der Wahrheit für Zuordnungen bei HA-Ausfall/zwei Boxen; Weg B ohne HA nicht möglich, festhalten.
+4. Major — Hotspot: Metered-Profil, keine Medien/Updates; Heimnetz = SSID **und** NAS erreichbar; Backoff.
+5. Major — SD-Schreiblast: Resume nur bei Ereignissen, atomar, Prüfsumme; Zustand evtl. eigene Partition.
+6. Major — Größe der Sammlung und SD beziffern; Erstsync dauert Stunden; Temp-Datei + Rename; NAS-Konto nur lesend; Scan nur nach Sync.
+7. Major — Update als gepinntes Bündel (inkl. venv), kein `apt upgrade` auf der Box; Selbsttest-Definition.
+8. Major — Umfang = ganze Software; Go/No-Go vor Stufe 3.
+9. Major — Gesperrte Tonies sind untereinander nicht unterscheidbar; „aufgelegt, nicht identifizierbar“ als stabiler Zustand ohne Neustart bei Aussetzern. PN5180-Firmware-Version, Poll-Periode, Strom messen.
+10. Major — Sicherheit: Brücke nur localhost, V3-RPC/Web nur localhost, NAS-Konto nur lesend.
+11. Nit — Schalter auf Ebene „Dienst erreichbar / Timeout“, nicht „WLAN an/aus“.
+12. Nit — Abweichungstabelle Plan ↔ Hypothese, Plan Rev. 3.8.
