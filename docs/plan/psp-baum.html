@@ -1,0 +1,514 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tobi Box — Projektstrukturplan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#F2F3F1;
+    --card:#FFFFFF;
+    --ink:#1F2421;
+    --ink-2:#565E59;
+    --ink-3:#858C87;
+    --rule:#D5D8D4;
+    --g-konzept:#5F6B66;
+    --g-bau:#1D6B5A;
+    --g-soft:#4B4590;
+    --g-schluss:#9A5B1E;
+    --krit:#A33333;
+    --neu:#1D6B5A;
+    --neu-bg:#E3F0EC;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --paper:#161917;
+      --card:#1F2321;
+      --ink:#E6E8E6;
+      --ink-2:#A9AFAB;
+      --ink-3:#7D847F;
+      --rule:#343A37;
+      --krit:#E07A7A;
+      --neu:#7FC8B4;
+      --neu-bg:#1E332D;
+    }
+  }
+  :root[data-theme="dark"]{
+    --paper:#161917;
+    --card:#1F2321;
+    --ink:#E6E8E6;
+    --ink-2:#A9AFAB;
+    --ink-3:#7D847F;
+    --rule:#343A37;
+    --krit:#E07A7A;
+    --neu:#7FC8B4;
+    --neu-bg:#1E332D;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+    font-size:15px;
+    line-height:1.5;
+    -webkit-text-size-adjust:100%;
+  }
+  .code{
+    font-family:"IBM Plex Mono",ui-monospace,monospace;
+    font-weight:500;
+    font-variant-numeric:tabular-nums;
+    color:var(--ink-3);
+  }
+
+  header.top{padding:32px 16px 20px;max-width:820px}
+  @media (min-width:600px){header.top{padding:32px 24px 20px}}
+  header.top h1{font-size:28px;font-weight:600;margin:0 0 6px;letter-spacing:-.01em}
+  header.top p{margin:0;color:var(--ink-2);max-width:60ch}
+  .hint{margin-top:14px;font-size:13px;color:var(--ink-3)}
+
+  .legend{display:flex;flex-wrap:wrap;gap:14px 22px;padding:0 16px 22px;font-size:13px;color:var(--ink-2)}
+  @media (min-width:600px){.legend{padding:0 24px 22px}}
+  .legend span{display:flex;align-items:center;gap:7px}
+  .swatch{width:11px;height:11px;border-radius:3px;flex:none}
+  .kritmark{color:var(--krit);font-weight:600}
+
+  .scroll{overflow-x:auto;padding:0 16px 48px;-webkit-overflow-scrolling:touch}
+  @media (min-width:600px){.scroll{padding:0 24px 48px}}
+  .plan{min-width:2280px}
+
+  .root{
+    width:320px;margin:0 auto 0;
+    background:var(--ink);color:var(--paper);
+    border-radius:10px;padding:14px 18px;text-align:center;
+  }
+  .root strong{display:block;font-weight:600;font-size:17px}
+  .root em{font-style:normal;font-size:13px;opacity:.72}
+
+  .stem{width:1px;height:22px;background:var(--rule);margin:0 auto}
+  .bus{height:1px;background:var(--rule);margin:0 auto;width:calc(100% - 250px)}
+
+  .cols{display:flex;gap:20px;align-items:flex-start}
+  .phase{flex:1 1 0;min-width:220px;position:relative;padding-top:22px}
+  .phase::before{
+    content:"";position:absolute;top:0;left:50%;width:1px;height:22px;background:var(--rule);
+  }
+  .phase>h2{
+    margin:0;padding:11px 13px;border-radius:8px;
+    font-size:15px;font-weight:600;color:#fff;
+    display:flex;gap:9px;align-items:baseline;
+  }
+  .phase>h2 .code{color:rgba(255,255,255,.6)}
+  .phase>h2 small{font-weight:400;font-size:12px;opacity:.75;margin-left:auto}
+  .phase[data-g="konzept"]>h2{background:var(--g-konzept)}
+  .phase[data-g="bau"]>h2{background:var(--g-bau)}
+  .phase[data-g="soft"]>h2{background:var(--g-soft)}
+  .phase[data-g="schluss"]>h2{background:var(--g-schluss)}
+
+  ul{list-style:none;margin:0;padding:0}
+  .l2{margin-top:10px;display:flex;flex-direction:column;gap:8px}
+  .l2>li{
+    background:var(--card);border:1px solid var(--rule);border-radius:8px;
+    padding:9px 11px;font-weight:500;font-size:14px;
+  }
+  .l2>li>.code{display:inline-block;margin-right:6px;font-size:12px}
+  .l3{margin-top:7px;padding-top:7px;border-top:1px solid var(--rule);
+      display:flex;flex-direction:column;gap:4px}
+  .l3>li{font-weight:400;font-size:13px;color:var(--ink-2);padding-left:2px}
+  .l3>li>.code{margin-right:5px;font-size:11.5px}
+
+  li.krit{border-color:var(--krit)}
+  li.krit>.code{color:var(--krit)}
+  li.krit::after{content:" ▲";color:var(--krit);font-size:11px}
+
+  .neu{
+    display:inline-block;margin-left:5px;padding:0 5px;border-radius:4px;
+    background:var(--neu-bg);color:var(--neu);
+    font-size:10.5px;font-weight:600;letter-spacing:.03em;vertical-align:1px;
+  }
+
+  footer{padding:0 16px 56px;max-width:760px;color:var(--ink-2);font-size:14px}
+  @media (min-width:600px){footer{padding:0 24px 56px}}
+  footer h3{font-size:16px;font-weight:600;color:var(--ink);margin:24px 0 8px}
+  footer ol{padding-left:20px;margin:0}
+  footer li{margin-bottom:6px}
+
+  @media print{
+    @page{size:A3 landscape;margin:10mm}
+    body{background:#fff;color:#1F2421}
+    .scroll{overflow:visible;padding:0}
+    .plan{min-width:0;zoom:.52}
+    .hint{display:none}
+  }
+</style>
+
+<header class="top">
+  <h1>Tobi Box — Projektstrukturplan</h1>
+  <p>Zwei baugleiche, mobile NFC-Audioboxen. Raspberry Pi 3 Model A+, Phoniebox V3 als Basis, eigene Plugins für Resume, LED-Ring, Akku, Leise-Zeiten und Figuren-Zuordnung.</p>
+  <p class="hint">Seitlich scrollen für alle neun Phasen · Drucken ergibt A3 quer</p>
+</header>
+
+<div class="legend">
+  <span><i class="swatch" style="background:var(--g-konzept)"></i>Steuerung &amp; Konzept</span>
+  <span><i class="swatch" style="background:var(--g-bau)"></i>Hardware &amp; Mechanik</span>
+  <span><i class="swatch" style="background:var(--g-soft)"></i>Software &amp; Inhalte</span>
+  <span><i class="swatch" style="background:var(--g-schluss)"></i>Test &amp; Betrieb</span>
+  <span class="kritmark">▲ kritischer Pfad</span>
+  <span><i class="neu" style="margin:0">NEU</i>seit Rev. 2</span>
+</div>
+
+<div class="scroll">
+<div class="plan">
+
+  <div class="root">
+    <strong>Tobi Box</strong>
+    <em>2 Geräte · ca. 575 € · Rev. 3.7</em>
+  </div>
+  <div class="stem"></div>
+  <div class="bus"></div>
+
+  <div class="cols">
+
+    <section class="phase" data-g="konzept">
+      <h2><span class="code">1</span>Projektsteuerung</h2>
+      <ul class="l2">
+        <li><span class="code">1.1</span>Plan &amp; Meilensteine
+          <ul class="l3">
+            <li><span class="code">1.1.1</span>Phasenplan mit Abnahmekriterien</li>
+            <li><span class="code">1.1.2</span>Muster / Box 1 / Box 2</li>
+          </ul>
+        </li>
+        <li><span class="code">1.2</span>Beschaffung
+          <ul class="l3">
+            <li><span class="code">1.2.1</span>Charge 1: nur Muster</li>
+            <li><span class="code">1.2.2</span>Charge 2: Box 1 + Reserve</li>
+            <li><span class="code">1.2.3</span>Charge 3: Box 2, Akku spät<span class="neu">NEU</span></li>
+            <li><span class="code">1.2.4</span>Wareneingang, Prüfung</li>
+          </ul>
+        </li>
+        <li><span class="code">1.3</span>Dokumentation
+          <ul class="l3">
+            <li><span class="code">1.3.1</span>Schaltplan &amp; Pinbelegung</li>
+            <li><span class="code">1.3.2</span>Aufbauanleitung mit Fotos</li>
+            <li><span class="code">1.3.3</span>Wartungsanleitung</li>
+          </ul>
+        </li>
+        <li><span class="code">1.4</span>Risiken &amp; offene Entscheidungen</li>
+      </ul>
+    </section>
+
+    <section class="phase" data-g="konzept">
+      <h2><span class="code">2</span>Anforderungen</h2>
+      <ul class="l2">
+        <li><span class="code">2.1</span>Feature-Freeze</li>
+        <li><span class="code">2.2</span>Bedienkonzept Kind
+          <ul class="l3">
+            <li><span class="code">2.2.1</span>Tasten inkl. PiSugar-Ereignisse</li>
+            <li><span class="code">2.2.2</span>LED-Sprache: Farben, Muster</li>
+            <li><span class="code">2.2.3</span>Audio-Feedback &amp; Fehlertöne</li>
+            <li><span class="code">2.2.4</span>Aufwachsound</li>
+          </ul>
+        </li>
+        <li class="krit"><span class="code">2.3</span>Datenmodell
+          <ul class="l3">
+            <li><span class="code">2.3.1</span>Kartenmapping im V3-Format</li>
+            <li><span class="code">2.3.2</span>Resume nach Toniebox-Logik</li>
+            <li><span class="code">2.3.3</span>Profil &amp; Limits je Box</li>
+          </ul>
+        </li>
+        <li><span class="code">2.4</span>Identität je Kind: Farbe, Name, Startsound</li>
+        <li><span class="code">2.5</span>Kindersicherheit<span class="neu">NEU</span>
+          <ul class="l3">
+            <li><span class="code">2.5.1</span>Kleinteile, Magnete unzugänglich</li>
+            <li><span class="code">2.5.2</span>Akku mechanisch geschützt</li>
+            <li><span class="code">2.5.3</span>Nur mit Werkzeug zu öffnen</li>
+          </ul>
+        </li>
+      </ul>
+    </section>
+
+    <section class="phase" data-g="bau">
+      <h2><span class="code">3</span>Hardware</h2>
+      <ul class="l2">
+        <li class="krit"><span class="code">3.1</span>Bauteilverifikation
+          <ul class="l3">
+            <li><span class="code">3.1.1</span>Pi 3A+ auf PiSugar, Akkustart<span class="neu">NEU</span></li>
+            <li><span class="code">3.1.2</span>Leser-Reichweite durch Material</li>
+            <li><span class="code">3.1.3</span>Laufzeit messen, ggf. heruntertakten</li>
+            <li><span class="code">3.1.4</span>Pinbelegung final</li>
+            <li><span class="code">3.1.5</span>Tonie-Test: PN5180 + ESP32-S3<span class="neu">NEU</span></li>
+          </ul>
+        </li>
+        <li><span class="code">3.2</span>Breadboard-Aufbau
+          <ul class="l3">
+            <li><span class="code">3.2.1</span>Audio mit Overlay, Boot-Pop</li>
+            <li><span class="code">3.2.2</span>Leser: PN5180 + ESP32-S3/USB</li>
+            <li><span class="code">3.2.3</span>Tasten, Encoder, APA102 + Pegel</li>
+            <li><span class="code">3.2.4</span>Hauptknopf, Ereignisse klären<span class="neu">NEU</span></li>
+            <li><span class="code">3.2.5</span>Power-Path Pololu-Modul<span class="neu">NEU</span></li>
+            <li><span class="code">3.2.6</span>DAC passiv, SD_MODE 1 kΩ<span class="neu">NEU</span></li>
+          </ul>
+        </li>
+        <li><span class="code">3.3</span>Kabelbaum, Pufferelko</li>
+        <li><span class="code">3.4</span>Löten &amp; Endmontage</li>
+        <li><span class="code">3.5</span>Ladekontakte &amp; Dock
+          <ul class="l3">
+            <li><span class="code">3.5.1</span>Verpolschutz</li>
+            <li><span class="code">3.5.2</span>Load-Switch mit Reed</li>
+            <li><span class="code">3.5.3</span>Kontakte 3–4 mm versenkt</li>
+            <li><span class="code">3.5.4</span>Kurzschlusstest Dock + Box</li>
+          </ul>
+        </li>
+        <li><span class="code">3.6</span>Laden unterwegs: USB-C<span class="neu">NEU</span></li>
+      </ul>
+    </section>
+
+    <section class="phase" data-g="bau">
+      <h2><span class="code">4</span>Gehäuse</h2>
+      <ul class="l2">
+        <li><span class="code">4.1</span>Maßkonzept
+          <ul class="l3">
+            <li><span class="code">4.1.1</span>Innenraumaufteilung</li>
+            <li><span class="code">4.1.2</span>Abstand Metall ↔ NFC<span class="neu">NEU</span></li>
+          </ul>
+        </li>
+        <li><span class="code">4.2</span>CAD-Konstruktion
+          <ul class="l3">
+            <li><span class="code">4.2.1</span>Träger: Pi 3A+ auf PiSugar</li>
+            <li><span class="code">4.2.2</span>Oberteil mit Kartenfeld</li>
+            <li><span class="code">4.2.3</span>Lautsprechergitter</li>
+            <li><span class="code">4.2.4</span>Bedienfeld</li>
+            <li><span class="code">4.2.5</span>LED-Diffusor</li>
+            <li><span class="code">4.2.6</span>Trennwand Audio / Elektronik</li>
+            <li><span class="code">4.2.7</span>USB-C mit TPU-Lasche<span class="neu">NEU</span></li>
+            <li><span class="code">4.2.8</span>Klinkenbuchse versenkt<span class="neu">NEU</span></li>
+            <li><span class="code">4.2.9</span>Halt für Tonie-Figuren<span class="neu">NEU</span></li>
+          </ul>
+        </li>
+        <li><span class="code">4.3</span>Druck &amp; Iterationen
+          <ul class="l3">
+            <li><span class="code">4.3.1</span>Passung Gewindeeinsätze</li>
+            <li><span class="code">4.3.2</span>Sturztest mit TPU-Ecken</li>
+          </ul>
+        </li>
+        <li><span class="code">4.4</span>Dual-Ladestation</li>
+        <li><span class="code">4.5</span>Audiokammer abdichten
+          <ul class="l3">
+            <li><span class="code">4.5.1</span>Volumen 0,5–0,8 l</li>
+            <li><span class="code">4.5.2</span>Treiber mit Dichtband</li>
+            <li><span class="code">4.5.3</span>Kabeldurchführung verkleben</li>
+            <li><span class="code">4.5.4</span>Dämmung &amp; Klangprobe</li>
+          </ul>
+        </li>
+        <li><span class="code">4.6</span>Wärmeabfuhr
+          <ul class="l3">
+            <li><span class="code">4.6.1</span>Kühlkörper auf dem Pi</li>
+            <li><span class="code">4.6.2</span>Konvektionsspalte</li>
+            <li><span class="code">4.6.3</span>Temperatur unter Last</li>
+          </ul>
+        </li>
+        <li><span class="code">4.7</span>Kleinteile sichern<span class="neu">NEU</span>
+          <ul class="l3">
+            <li><span class="code">4.7.1</span>Magnete verkapselt, geklebt</li>
+            <li><span class="code">4.7.2</span>Knopf verschraubt, Kappen geklebt</li>
+          </ul>
+        </li>
+      </ul>
+    </section>
+
+    <section class="phase" data-g="soft">
+      <h2><span class="code">5</span>Software Box<small>V3 + Plugins</small></h2>
+      <ul class="l2">
+        <li><span class="code">5.1</span>Basissystem
+          <ul class="l3">
+            <li><span class="code">5.1.1</span>Pi OS Legacy 32-bit + V3</li>
+            <li><span class="code">5.1.2</span>WLAN, SSH, Hostname je Box</li>
+            <li><span class="code">5.1.3</span>Kein Warten auf Netz<span class="neu">NEU</span></li>
+            <li><span class="code">5.1.4</span>Uhrzeit aus RTC<span class="neu">NEU</span></li>
+            <li><span class="code">5.1.5</span>Logs tmpfs, noatime, kein Swap</li>
+          </ul>
+        </li>
+        <li><span class="code">5.2</span>Audio
+          <ul class="l3">
+            <li><span class="code">5.2.1</span>Overlay max98357a, SD_MODE</li>
+            <li><span class="code">5.2.2</span>Downmix auf Mono<span class="neu">NEU</span></li>
+            <li><span class="code">5.2.3</span>Max- &amp; Startlautstärke</li>
+            <li><span class="code">5.2.4</span>ReplayGain</li>
+            <li><span class="code">5.2.5</span>Kopfhörer-Limit<span class="neu">NEU</span></li>
+          </ul>
+        </li>
+        <li><span class="code">5.3</span>NFC
+          <ul class="l3">
+            <li><span class="code">5.3.1</span>Leser in V3 einrichten</li>
+            <li><span class="code">5.3.2</span>Place-not-Swipe, Pause</li>
+            <li><span class="code">5.3.3</span>Admin-Karten<span class="neu">NEU</span></li>
+            <li><span class="code">5.3.4</span>Tonies wie Karten anlernen<span class="neu">NEU</span></li>
+            <li><span class="code">5.3.5</span>Abheben über USB-Leser<span class="neu">NEU</span></li>
+          </ul>
+        </li>
+        <li class="krit"><span class="code">5.4</span>Plugin Resume
+          <ul class="l3">
+            <li><span class="code">5.4.1</span>Eine Position, letzte Karte</li>
+            <li><span class="code">5.4.2</span>Verwerfen bei Kartenwechsel</li>
+            <li><span class="code">5.4.3</span>Karenzzeit 10 s</li>
+            <li><span class="code">5.4.4</span>Atomar schreiben</li>
+          </ul>
+        </li>
+        <li><span class="code">5.5</span>Plugin LED-Ring
+          <ul class="l3">
+            <li><span class="code">5.5.1</span>APA102 per Bit-Bang</li>
+            <li><span class="code">5.5.2</span>Zustände</li>
+            <li><span class="code">5.5.3</span>Helligkeitsdeckel ~25 %</li>
+          </ul>
+        </li>
+        <li><span class="code">5.6</span>Plugin PiSugar &amp; Energie
+          <ul class="l3">
+            <li><span class="code">5.6.1</span>Akkustand an V3 und LEDs</li>
+            <li><span class="code">5.6.2</span>Tastenereignisse → RPC</li>
+            <li><span class="code">5.6.3</span>Idle-Shutdown 20 min</li>
+            <li><span class="code">5.6.4</span>Shutdown bei Tiefstand</li>
+            <li><span class="code">5.6.5</span>Auto-Power-On, Mistouch aus<span class="neu">NEU</span></li>
+            <li><span class="code">5.6.6</span>WLAN-Powersave messen</li>
+            <li><span class="code">5.6.7</span>Hotspot per Admin-Karte<span class="neu">NEU</span></li>
+          </ul>
+        </li>
+        <li><span class="code">5.7</span>Plugin Leise-Zeiten</li>
+        <li><span class="code">5.8</span>Gute-Nacht-Karte (V3-Timer)</li>
+        <li><span class="code">5.9</span>HA-Anbindung
+          <ul class="l3">
+            <li><span class="code">5.9.1</span>MQTT aus V3</li>
+            <li><span class="code">5.9.2</span>Offline puffern<span class="neu">NEU</span></li>
+          </ul>
+        </li>
+        <li><span class="code">5.10</span>Plugin Figuren-Zuordnung<span class="neu">NEU</span>
+          <ul class="l3">
+            <li><span class="code">5.10.1</span>Unbekannt → Überraschung</li>
+            <li><span class="code">5.10.2</span>Handy: Serie antippen</li>
+            <li><span class="code">5.10.3</span>Lernmodus „neuer Tonie“</li>
+            <li><span class="code">5.10.4</span>Nächste ungehörte Folge</li>
+            <li><span class="code">5.10.5</span>LED „neu“ / „Lernen“</li>
+            <li><span class="code">5.10.6</span>Abgleich beider Boxen</li>
+          </ul>
+        </li>
+      </ul>
+    </section>
+
+    <section class="phase" data-g="soft">
+      <h2><span class="code">6</span>Verwaltung &amp; Sync</h2>
+      <ul class="l2">
+        <li><span class="code">6.1</span>V3-Web-UI: Karten, Wiedergabe</li>
+        <li><span class="code">6.2</span>Medien-Sync vom Server
+          <ul class="l3">
+            <li><span class="code">6.2.1</span>rsync nur im Heim-WLAN</li>
+            <li><span class="code">6.2.2</span>Scan nach Sync, nicht beim Boot</li>
+          </ul>
+        </li>
+        <li><span class="code">6.3</span>Kartenmapping A ↔ B abgleichen</li>
+        <li><span class="code">6.4</span>Hörprotokoll in HA</li>
+        <li><span class="code">6.5</span>Backup: SD-Image + Konfig</li>
+        <li><span class="code">6.6</span>Zugriffsschutz, nur lokal</li>
+      </ul>
+    </section>
+
+    <section class="phase" data-g="soft">
+      <h2><span class="code">7</span>Inhalte</h2>
+      <ul class="l2">
+        <li><span class="code">7.1</span>Bibliothek aufbauen, sortieren</li>
+        <li><span class="code">7.2</span>Lautheitsangleich alle Titel</li>
+        <li><span class="code">7.3</span>Kartendesign
+          <ul class="l3">
+            <li><span class="code">7.3.1</span>Motive &amp; Bebilderung</li>
+            <li><span class="code">7.3.2</span>Druck &amp; Laminierung</li>
+            <li><span class="code">7.3.3</span>Haltbarkeit: Speichel, Biegung</li>
+          </ul>
+        </li>
+        <li><span class="code">7.4</span>Sonderkarten
+          <ul class="l3">
+            <li><span class="code">7.4.1</span>Shuffle, Gute Nacht</li>
+            <li><span class="code">7.4.2</span>Oma-Karte über Sync-Ordner</li>
+            <li><span class="code">7.4.3</span>Admin-Karten für Eltern<span class="neu">NEU</span></li>
+          </ul>
+        </li>
+        <li><span class="code">7.5</span>Kartenaufbewahrung</li>
+      </ul>
+    </section>
+
+    <section class="phase" data-g="schluss">
+      <h2><span class="code">8</span>Test</h2>
+      <ul class="l2">
+        <li><span class="code">8.1</span>Funktionstest gegen Anforderungen</li>
+        <li><span class="code">8.2</span>Energie
+          <ul class="l3">
+            <li><span class="code">8.2.1</span>Dauertest, Ziel 8 h</li>
+            <li><span class="code">8.2.2</span>Leerlauf, Auto-Shutdown</li>
+            <li><span class="code">8.2.3</span>Knopfdruck bis erster Ton</li>
+            <li><span class="code">8.2.4</span>Andocken weckt nicht<span class="neu">NEU</span></li>
+          </ul>
+        </li>
+        <li><span class="code">8.3</span>Kindertauglichkeit
+          <ul class="l3">
+            <li><span class="code">8.3.1</span>Sturztest</li>
+            <li><span class="code">8.3.2</span>Flüssigkeiten &amp; Krümel</li>
+            <li><span class="code">8.3.3</span>Lautstärke in dB</li>
+            <li><span class="code">8.3.4</span>Ladekontakte kurzschlussfest</li>
+            <li><span class="code">8.3.5</span>Zugtest Knopf, Kappen<span class="neu">NEU</span></li>
+            <li><span class="code">8.3.6</span>Kopfhörerpegel in dB<span class="neu">NEU</span></li>
+          </ul>
+        </li>
+        <li><span class="code">8.4</span>Fehlerfälle
+          <ul class="l3">
+            <li><span class="code">8.4.1</span>Unterwegs ohne WLAN</li>
+            <li><span class="code">8.4.2</span>Stromverlust beim Schreiben</li>
+            <li><span class="code">8.4.3</span>Unbekannte, defekte Karte</li>
+            <li><span class="code">8.4.4</span>LED-Flackern bei NFC</li>
+            <li><span class="code">8.4.5</span>USB-C + Pogo gleichzeitig<span class="neu">NEU</span></li>
+            <li><span class="code">8.4.6</span>Lernmodus-Fehlerfälle<span class="neu">NEU</span></li>
+          </ul>
+        </li>
+        <li><span class="code">8.5</span>Abnahme Box 1</li>
+      </ul>
+    </section>
+
+    <section class="phase" data-g="schluss">
+      <h2><span class="code">9</span>Serie &amp; Betrieb</h2>
+      <ul class="l2">
+        <li><span class="code">9.1</span>Box 2 bauen</li>
+        <li><span class="code">9.2</span>Image klonen, individualisieren</li>
+        <li><span class="code">9.3</span>Einführung bei den Kindern</li>
+        <li><span class="code">9.4</span>Wartung
+          <ul class="l3">
+            <li><span class="code">9.4.1</span>SD-Backup</li>
+            <li><span class="code">9.4.2</span>Akkutausch</li>
+            <li><span class="code">9.4.3</span>V3-Updates gegen Plugins<span class="neu">NEU</span></li>
+          </ul>
+        </li>
+        <li><span class="code">9.5</span>Ersatzteillager</li>
+      </ul>
+    </section>
+
+  </div>
+</div>
+</div>
+
+<footer>
+  <h3>Kritischer Pfad</h3>
+  <ol>
+    <li><strong>3.1.5 Tonie-Test</strong> — Leser entschieden (PN5180). <strong>Test 5 bestanden (05.11.):</strong> durch 2 mm zentriert 100 %, auch durch MagSafe-Hülle. Offen: Test 5b (Stahlscheibe mittig), Test 6 (max. Distanz) und Strom (Test 7); sie bestimmen Deckelstärke und Laufzeit. Design-Regeln: Figur mittig über der Antenne, kein Vollmetall/Magnet über der Mitte, UID-Entprellung in der Firmware.</li>
+    <li><strong>3.1.3 Laufzeit</strong> — mit dem Pi 3A+ wird das 8-h-Ziel knapp. Reicht es nicht: heruntertakten, sonst für Box 2 auf die Zero 2 W warten.</li>
+    <li><strong>3.1.2 PN5180-Reichweite</strong> — bestimmt die Wandstärke im Kartenfeld und damit das CAD.</li>
+    <li><strong>3.1.4 Pinbelegung</strong> — I²S, SPI0, APA102 und UART kollisionsfrei, bevor gelötet wird.</li>
+    <li><strong>2.3 / 5.4 Resume</strong> — V3 hat noch kein Resume, das Plugin ist das größte eigene Software-Stück.</li>
+  </ol>
+  <p>Phase 4 (CAD) startet erst, wenn 3.2 auf dem Breadboard läuft.</p>
+
+  <h3>Entscheidungen (12.10.2026, ergänzt 17.10.)</h3>
+  <ol>
+    <li><strong>Kopfhörer</strong> — Klinkenbuchse mit zweitem DAC, Hardware-Deckel plus Software-Limit.</li>
+    <li><strong>Einschalten</strong> — ein Druck, Anti-Mistouch aus.</li>
+    <li><strong>Read-only Root</strong> — zurückgestellt, erst bei Problemen.</li>
+    <li><strong>Tonie-Figuren</strong> — Pflicht. PN5180 gesetzt (04.11.), RC522 entfällt.</li>
+    <li><strong>Abheben am USB-Leser</strong> — Firmware wiederholt die Kennung alle 500 ms, Abhebe-Code wird in Phoniebox auf „Pause“ gelegt.</li>
+    <li><strong>Zweiter DAC</strong> — PCM5102A passiv am I²S, kein eigenes Overlay.</li>
+    <li><strong>Ohne bekanntes WLAN</strong> — kein Hotspot, per Admin-Karte einschaltbar.</li>
+  </ol>
+</footer>
