@@ -117,3 +117,15 @@ def test_beispielkonfiguration_im_repo_ist_gueltig():
     if not beispiel.exists():
         pytest.skip("kommt mit AP 1.4")
     config.lade(beispiel)
+
+
+def test_toene_vorgabe_und_eigenes_kommando():
+    k = config.pruefe({"pfade": {"zustand": "v", "medien": "m"}}, Path("/b"))
+    assert k.toene.kommando[0] == "afplay" and k.toene.ordner is None
+    k = config.pruefe(
+        {"pfade": {"zustand": "v", "medien": "m"}, "toene": {"kommando": ["aplay", "{datei}"], "ordner": "t"}},
+        Path("/b"),
+    )
+    assert k.toene.kommando == ("aplay", "{datei}") and k.toene.ordner == Path("/b/t")
+    with pytest.raises(KonfigFehler):
+        config.pruefe({"pfade": {"zustand": "v", "medien": "m"}, "toene": {"kommando": []}}, Path("/b"))
