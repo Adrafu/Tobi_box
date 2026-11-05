@@ -1,6 +1,6 @@
 # Tobi Box — Stückliste & Projektstrukturplan
 
-Rev. 3.7 · 05.11.2026 · Pi 3 Model A+ · Phoniebox V3 als Basis · zwei baugleiche, mobile Boxen
+Rev. 3.8 · 05.11.2026 · Pi 3 Model A+ · eigene Box-Software auf MPD · zwei baugleiche, mobile Boxen
 
 **Änderungen gegenüber Rev. 2**
 - Software-Basis: Phoniebox V3 + eigene Plugins statt Eigenbau
@@ -14,6 +14,7 @@ Rev. 3.7 · 05.11.2026 · Pi 3 Model A+ · Phoniebox V3 als Basis · zwei baugle
 - **3.5:** Tonie-Test läuft: Karte und Tonie werden gelesen, eigenes Passwort entsperrt die Figur. Neu: Plugin Figuren-Zuordnung (5.10), neue Tonies mit einem Tipp am Handy einer Serie zuordnen
 - **3.6:** Entscheidung 04.11.: Echte Tonies sind Pflicht, deshalb ist der **PN5180 gesetzt**. Der RC522 entfällt als Rückfallebene (kann kein ISO 15693). Der Deckel-Test entscheidet nur noch die Deckelstärke, nicht mehr den Leser. Stückliste, Pinplan und kritischer Pfad entsprechend bereinigt
 - **3.7:** Deckel-Test Teil 1 (05.11.): **Test 5 bestanden** — durch 2 mm liest der PN5180 zentriert 100 % (58 ms, Feld nur 15,9 % an). MagSafe-Hülle als Gegenprobe liest ebenfalls 100 %, weil der Magnetring ein freies Zentrum hat. Drei Design-Regeln abgeleitet (Zentrierung über der Antenne, kein Vollmetall/Magnet über der Antennenmitte, UID-Entprellung in der Firmware). Offen bleiben Test 5b (Stahlscheibe mittig) und Test 6 (max. Distanz)
+- **3.8:** Entscheidung 05.11.: Phoniebox V3 entfällt. Eigene schlanke Box-Software in Python direkt auf MPD (python-mpd2, pyserial, paho-mqtt), endgültige Bestätigung nach dem ersten Lauf am Pi. Der Leser spricht ein serielles Textprotokoll, die Firmware entscheidet „aufgelegt“ / „abgehoben“, keine USB-Tastatur mehr. Home Assistant ist die einzige Oberfläche und einziger Schreiber der Zuordnungen, Resume bleibt pro Box. Kein eigener Hotspot, NAS von unterwegs nur über Tailscale, Updates manuell als Paket mit Selbsttest und Rückfall. Grundlage: `docs/egm/software-prototyp/concepts_brief.md`.
 
 ---
 
@@ -96,18 +97,28 @@ Place-not-Swipe mit Aktion beim Abheben, GPIO-Tasten und Encoder, Max- und
 Startlautstärke, Idle-Shutdown, Sleep-Timer mit Lautstärkeabsenkung (= die
 Gute-Nacht-Karte), MQTT, Karten anlernen in der Web-UI.
 
+**Überholt in 3.8:** Phoniebox V3 entfällt. Die genannten Funktionen werden nur nachgebaut, wenn eine Stufe sie braucht (feste Liste im Design).
+
 **18. Was V3 nicht hat:** Resume, Upload über die Web-UI, Akku-Anbindung an den
 PiSugar, LED-Ringe. Upload übernimmt unser Sync-Ordner, der Rest wird Plugin.
+
+**Überholt in 3.8:** Resume ist Kern des eigenen Dienstes (2.3, 5.4). Medien kommen weiter über den Sync vom NAS; eine eigene Web-Oberfläche gibt es nicht.
 
 **19. WLAN-Powersave:** V3 schaltet beim Start den WLAN-Stromsparmodus ab
 (Reaktionszeit). Rev. 2 wollte ihn einschalten → messen statt annehmen.
 
+**Überholt in 3.8:** V3 entfällt. Die Messung gilt weiter für den eigenen Dienst (5.6.6).
+
 **20. Auto-Hotspot:** V3 öffnet ohne bekanntes WLAN einen eigenen Hotspot.
 Unterwegs heißt das Dauerfunk. Standard aus, per Admin-Karte einschaltbar.
+
+**Überholt in 3.8:** Kein eigener Hotspot. Bekannte Netze sind Heim-WLAN und Handy-Hotspot (5.6.7).
 
 **21. Bibliotheks-Scan beim Start:** V3 aktualisiert die MPD-Bibliothek beim
 Booten. Bei großer Sammlung verlängert das die Zeit bis zum ersten Ton →
 messen; falls nötig nur nach dem Sync scannen.
+
+**Überholt in 3.8:** Die Bibliothek wird nur nach dem Sync neu eingelesen, nie beim Start (6.2.2).
 
 **22. Read-only Root zurückgestellt.** Mit dem PiSugar (sauberes Herunterfahren
 bei Tiefstand und Langdruck) fällt der Hauptgrund weg. Basis: High-Endurance-SD,
@@ -125,6 +136,8 @@ Muster für den kritischen Pfad, Akkus für Box 2 erst kurz vor deren Bau.
 **25. Phase 6 schrumpft deutlich.** Die eigene Web-UI entfällt, V3 deckt
 Kartenverwaltung und Wiedergabe ab.
 
+**Überholt in 3.8:** Die Oberfläche ist Home Assistant (6.1). Eine eigene Web-UI gibt es nicht, Phase 6 bleibt schlank.
+
 ## Neu in Rev. 3.4 — Lücken aus der Review
 
 **26. Abheben erkennen über den USB-Leser.** Ein USB-Leser tippt die Kennung einmal
@@ -134,6 +147,8 @@ Solange die Figur liegt, wird die Kennung alle ~500 ms wiederholt, beim Abheben
 tippt der Leser einen eigenen Abhebe-Code, den Phoniebox auf „Pause" legt. Das
 Testprogramm macht das seit 3.4. Zu prüfen in 5.3.5: V3 muss wiederholte gleiche
 Kennungen vom USB-Leser so behandeln wie vom RC522.
+
+**Überholt in 3.8:** Keine USB-Tastatur mehr. Der ESP32-S3 sendet ein serielles Textprotokoll, die Firmware entprellt und meldet „abgehoben“ direkt. Wiederholung und Abhebe-Code entfallen (5.3).
 
 **27. Zwei DACs am I²S, nur ein Overlay.** Das Overlay `max98357a` meldet die
 Soundkarte an. Der PCM5102A bekommt **kein** eigenes Overlay, sonst streiten zwei
@@ -175,6 +190,7 @@ selbst spielen keine Rolle.
   USB-Tastatur ausgibt. Phoniebox V3 unterstützt USB-Leser bereits, ein eigenes
   Plugin entfällt. Die PN5180-Bibliothek von tueddy ist auf ESP32 und ESP32-S3
   erprobt (ESPuino).
+  **Überholt in 3.8:** Kein Tastatur-Weg mehr, der ESP32-S3 sendet ein serielles Textprotokoll an den Pi (5.3). Phoniebox V3 entfällt, das Leser-Modul gehört zum eigenen Dienst.
 - **Strom:** ~0,1–0,2 W mehr mit Abfrage in Intervallen, also 30–60 min weniger
   Laufzeit. Dauerhaft eingeschaltetes Feld wäre fast 1 W und ist tabu.
 - **Kosten bei Erfolg:** praktisch null. Das Testset wurde gleich doppelt bestellt
@@ -316,8 +332,8 @@ statt ~21 €. Kommt die Zero 2 W zurück, läuft dasselbe SD-Image darauf.
 
 **PN5180 als Leser (statt RC522/PN532).** Einziger der drei, der ISO 15693 und
 damit echte Tonies liest, und er liest die NTAG215-Karten mit. Er hängt über
-einen ESP32-S3 am USB und meldet sich als Tastatur, V3 braucht dafür kein
-eigenes Plugin. Reichweite durch den Deckel ≤ ~2 mm über der Antenne anpeilen.
+einen ESP32-S3 am USB und sendet seit 3.8 ein serielles Textprotokoll (keine
+Tastatur mehr). Reichweite durch den Deckel ≤ ~2 mm über der Antenne anpeilen.
 
 **APA102 statt WS2812.** WS2812 brauchen exaktes Timing über PWM, PCM oder SPI.
 PWM und PCM kollidieren mit I²S. APA102 laufen per Bit-Bang auf beliebigen
@@ -394,31 +410,38 @@ Entschieden: Der Leser (PN5180) hängt am USB. Die oben gelisteten RC522-SPI-Pin
 
 # Teil 3 — Software-Aufteilung
 
+Stand 3.8: Aufteilung neu. V3 entfällt, die Firmware macht den Leser, Home Assistant die Oberfläche. **NEU 3.8**
+
 | Funktion | Quelle |
 |---|---|
-| Karte auflegen → Ordner spielt, Abheben → Pause | V3, Konfiguration |
-| Karten anlernen über Web-UI | V3 |
-| Vor / Zurück / Lautstärke-Encoder | V3, GPIO-Konfiguration |
-| Max- und Startlautstärke | V3, Konfiguration |
-| Idle-Shutdown | V3, Konfiguration |
-| Gute-Nacht-Karte (Timer mit Ausblenden) | V3, Konfiguration |
-| MQTT an Home Assistant | V3, Konfiguration |
-| **Resume nach Toniebox-Logik + 10-s-Karenz** | Plugin |
-| **LED-Ring APA102** | Plugin |
-| **PiSugar: Akkustand, Tastenereignisse, Shutdown** | Plugin + pisugar-server |
-| **Leise-Zeiten** | Plugin |
-| **Kopfhörer-Limit bei eingestecktem Stecker** | Plugin + Hardware-Deckel |
-| Tonie-Figuren erkennen | PN5180 an ESP32-S3, in V3 als USB-Leser (gesetzt) |
-| **Figuren zuordnen per Handy (Weg A und B)** | Plugin + eigene Handy-Seite |
-| Medien-Sync vom Server | rsync, systemd-Timer |
+| Kennung lesen, entprellen, „aufgelegt“ / „abgehoben“ | Firmware ESP32-S3 + PN5180 |
+| Serielles Protokoll, Versionszeile, Herzschlag, Fehlerzeilen | Firmware; Leser-Modul im eigenen Dienst |
+| Figur auflegen → Serie spielt, Abheben → Pause | Eigener Dienst, Steuerung über python-mpd2 |
+| Wiedergabe, Playlists, Dateien | MPD |
+| Resume, nächste ungehörte Folge, Serienlogik | Eigener Dienst (pro Box, atomar lokal) |
+| Zuordnung Kennung → Serie | Home Assistant (einziger Schreiber), Box holt |
+| Figuren zuordnen (Weg A und B) | Home Assistant |
+| Max- und Startlautstärke, Idle-Shutdown, Sleep-Timer | Eigener Dienst, nur wenn eine Stufe sie braucht |
+| Kopfhörer-Limit, Leise-Zeiten | Eigener Dienst + Hardware-Deckel |
+| Vor / Zurück / Lautstärke-Encoder | Eigener Dienst (GPIO), nur wenn eine Stufe sie braucht |
+| LED-Ring APA102 | Eigener Dienst (Bit-Bang) |
+| PiSugar: Akkustand, Tasten, Shutdown | Eigener Dienst + pisugar-server |
 | Uhrzeit offline | pisugar-server (`rtc_rtc2pi`) |
 | Pop-Unterdrückung | Kernel-Overlay `max98357a` |
+| Status, Ereignisprotokoll mit Puffer | Eigener Dienst, an HA wenn erreichbar |
+| Oberfläche | Home Assistant über Nabu Casa |
+| Notweg ohne HA | SSH `tobibox status`, Status-Admin-Karte, myMPD optional |
+| Medien-Sync vom NAS | rsync, systemd-Timer; Heimnetz und Handy-Hotspot |
+| Bibliotheks-Scan | MPD, nur nach dem Sync |
+| Zugriff aufs NAS von unterwegs | Tailscale (ACL nur Medienordner) |
+| Dienste, Timer, Update-Wächter | systemd |
+| Update-Paket, Symlink `current`, Selbsttest | Eigene Update-Funktion, aus HA angestoßen |
 
 ---
 
 # Teil 4 — Projektstrukturplan
 
-▲ = kritischer Pfad · **NEU** = seit Rev. 2 hinzugekommen
+▲ = kritischer Pfad · **NEU** = seit Rev. 2 hinzugekommen · **NEU 3.8** = in Rev. 3.8 geändert
 
 ## 1 Projektsteuerung
 
@@ -510,10 +533,10 @@ Entschieden: Der Leser (PN5180) hängt am USB. Die oben gelisteten RC522-SPI-Pin
   - 4.7.1 Magnete verkapselt und eingeklebt
   - 4.7.2 Encoderknopf verschraubt, Kappen eingeklebt
 
-## 5 Software Box — Phoniebox V3 + Plugins
+## 5 Software Box — eigener Dienst auf MPD **NEU 3.8**
 
 - **5.1 Basissystem**
-  - 5.1.1 Pi OS Legacy 32-bit Lite + Phoniebox V3 stable
+  - 5.1.1 Pi OS Lite + MPD + eigener Dienst **NEU 3.8**
   - 5.1.2 WLAN, SSH, Hostname je Box
   - 5.1.3 Warten auf Netzwerk beim Boot deaktivieren **NEU**
   - 5.1.4 Uhrzeit: RTC beim Boot, NTP bei Netz **NEU**
@@ -524,13 +547,13 @@ Entschieden: Der Leser (PN5180) hängt am USB. Die oben gelisteten RC522-SPI-Pin
   - 5.2.3 Max- und Startlautstärke
   - 5.2.4 ReplayGain
   - 5.2.5 Kopfhörer-Limit bei eingestecktem Stecker **NEU**
-- **5.3 NFC**
-  - 5.3.1 Leser in V3 einrichten (PN5180 als USB-Leser)
-  - 5.3.2 Place-not-Swipe mit Pause beim Abheben
-  - 5.3.3 Admin-Karten (Hotspot, Akkustand) **NEU**
-  - 5.3.4 Tonie-Kennungen wie Karten anlernen **NEU**
-  - 5.3.5 Abheben über USB-Leser: Wiederholung alle 500 ms, Abhebe-Code auf „Pause" **NEU**
-- **5.4 Plugin Resume** ▲
+- **5.3 NFC über serielles Protokoll** **NEU 3.8**
+  - 5.3.1 Leser-Modul: PN5180 am ESP32-S3, Protokoll über USB-Seriell **NEU 3.8**
+  - 5.3.2 Firmware entprellt, meldet „aufgelegt" / „abgehoben", Pause bei Abheben **NEU 3.8**
+  - 5.3.3 Admin-Karten (Status, Akkustand; kein Hotspot) **NEU 3.8**
+  - 5.3.4 Tonie-Kennungen über HA zuordnen (5.10) **NEU 3.8**
+  - 5.3.5 Protokoll-Vertrag: Zeilenformat, Versionszeile, Herzschlag, Fehlerzeilen, gemeinsame Testdatei **NEU 3.8**
+- **5.4 Resume (eigener Kern)** ▲ **NEU 3.8**
   - 5.4.1 Eine Position, gebunden an die zuletzt gespielte Karte
   - 5.4.2 Verwerfen bei Kartenwechsel
   - 5.4.3 Karenzzeit ~10 s beim Abheben
@@ -546,30 +569,31 @@ Entschieden: Der Leser (PN5180) hängt am USB. Die oben gelisteten RC522-SPI-Pin
   - 5.6.4 Shutdown bei Tiefstand
   - 5.6.5 Auto-Power-On aus, Anti-Mistouch aus **NEU**
   - 5.6.6 WLAN-Powersave messen und entscheiden
-  - 5.6.7 Auto-Hotspot aus, per Admin-Karte an **NEU**
+  - 5.6.7 Kein eigener Hotspot; Handy-Hotspot als bekanntes Netz **NEU 3.8**
 - **5.7 Plugin Leise-Zeiten**
 - **5.8 Gute-Nacht-Karte** — V3-Timer mit Ausblenden
 - **5.9 HA-Anbindung**
-  - 5.9.1 MQTT aus V3
+  - 5.9.1 MQTT vom eigenen Dienst (paho-mqtt) **NEU 3.8**
   - 5.9.2 Status und Protokoll offline puffern **NEU**
-- **5.10 Plugin Figuren-Zuordnung** **NEU 3.5**
+- **5.10 Figuren-Zuordnung über Home Assistant** **NEU 3.5** · **NEU 3.8** (HA einziger Schreiber)
   - 5.10.1 Unbekannte Kennung → Überraschungs-Ordner + Meldung „neue Figur"
-  - 5.10.2 Handy-Seite: Serienliste, Zuordnen mit einem Tipp (Weg A)
+  - 5.10.2 HA-Oberfläche: Serienliste, Zuordnen mit einem Tipp (Weg A) **NEU 3.8**
   - 5.10.3 Lernmodus „Jetzt kommt ein neuer Tonie", 2 min, auch Umbelegen (Weg B)
   - 5.10.4 Serie → nächste ungehörte Folge, Zusammenspiel mit Resume
   - 5.10.5 LED-Zustände „neue Figur" und „Lernmodus"
-  - 5.10.6 Zuordnungen speichern und an 6.3 übergeben
+  - 5.10.6 Zuordnungen in HA gespeichert, Boxen holen sie (6.3) **NEU 3.8**
 
 ## 6 Verwaltung & Sync
 
-- **6.1 V3-Web-UI** — Karten anlernen, Wiedergabe
+- **6.1 Home Assistant statt V3-Web-UI** — Karten, Zuordnung, Status, Wiedergabe **NEU 3.8**
 - **6.2 Medien-Sync vom Server**
-  - 6.2.1 rsync nur im Heim-WLAN
+  - 6.2.1 rsync im Heim-WLAN; über Handy-Hotspot voller Abgleich, Medien nur am Lader oder Akku über ~50 % **NEU 3.8**
   - 6.2.2 Bibliotheks-Scan nach dem Sync statt bei jedem Boot
-- **6.3 Kartenmapping zwischen beiden Boxen abgleichen** — inkl. Figuren-Zuordnungen aus 5.10
+  - 6.2.3 Zugriff aufs NAS von unterwegs: Tailscale, ACL nur Medienordner, NAS-Konto nur lesend, Schlüssel pro Box widerrufbar **NEU 3.8**
+- **6.3 Zuordnungen zwischen beiden Boxen abgleichen** — HA einziger Schreiber, Boxen holen; inkl. Figuren aus 5.10. Resume und Hörstand bleiben pro Box **NEU 3.8**
 - **6.4 Hörprotokoll & Statistik** — in HA
 - **6.5 Backup** — SD-Image + Konfiguration
-- **6.6 Zugriffsschutz** — nur lokales Netz
+- **6.6 Zugriffsschutz** — HA über Nabu Casa, NAS über Tailscale, keine offenen Ports, kein myQNAPcloud **NEU 3.8**
 
 ## 7 Inhalte & Karten
 
@@ -617,7 +641,7 @@ Entschieden: Der Leser (PN5180) hängt am USB. Die oben gelisteten RC522-SPI-Pin
 - **9.4 Wartung**
   - 9.4.1 SD-Backup
   - 9.4.2 Akkutausch
-  - 9.4.3 Phoniebox-Updates gegen eigene Plugins testen **NEU**
+  - 9.4.3 Box-Update als Paket mit Selbsttest und Rückfall, nur manuell aus HA am Lader **NEU 3.8**
 - **9.5 Ersatzteillager**
 
 ---
@@ -631,22 +655,34 @@ Entschieden: Der Leser (PN5180) hängt am USB. Die oben gelisteten RC522-SPI-Pin
    heruntertakten, sonst für Box 2 auf die Zero 2 W warten.
 3. **3.1.2 Leser-Reichweite** — bestimmt die Wandstärke im Kartenfeld.
 4. **3.1.4 Pinbelegung** — vor dem Löten kollisionsfrei festlegen.
-5. **2.3 / 5.4 Resume-Datenmodell** — das größte eigene Software-Stück.
+5. **2.3 / 5.4 Resume-Datenmodell** — das größte eigene Software-Stück. Seit 3.8 Kern des eigenen Dienstes, nicht eines V3-Plugins. **NEU 3.8**
+6. **Software-Prototyp am Mac, dann Pi-Probelauf** — Logik (Abläufe 1–8, Szenario-Tests) am Mac beweisen, Umgebung (Serielle, Audio, WLAN, RAM) am Pi. Pi 3A+ jetzt bestellen (Charge 1). **NEU 3.8**
 
 CAD (4.2) startet erst, wenn 3.2 auf dem Breadboard läuft.
 
-## Entscheidungen (12.10.2026, ergänzt 17.10. und 04.11.)
+## Entscheidungen (12.10.2026, ergänzt 17.10., 04.11. und 05.11. für Rev. 3.8)
 
 | Frage | Entscheidung |
 |---|---|
 | Kopfhörer | Klinkenbuchse mit zweitem DAC |
 | Einschalten | Ein Druck, Anti-Mistouch aus |
 | Read-only Root | Zurückgestellt, erst bei Problemen |
-| Ohne bekanntes WLAN | Kein Hotspot, per Admin-Karte einschaltbar |
+| ~~Ohne bekanntes WLAN~~ | ~~Kein Hotspot, per Admin-Karte einschaltbar~~ **überholt in 3.8:** kein eigener Hotspot, Handy-Hotspot als bekanntes Netz |
 | Tonie-Figuren | Pflicht. PN5180 gesetzt (04.11.), RC522 entfällt |
-| Abheben am USB-Leser | Firmware wiederholt die Kennung, Abhebe-Code → Pause |
+| ~~Abheben am USB-Leser~~ | ~~Firmware wiederholt die Kennung, Abhebe-Code → Pause~~ **überholt in 3.8:** keine USB-Tastatur, Firmware meldet „abgehoben“ direkt |
 | Zweiter DAC | Passiv am I²S, kein eigenes Overlay |
 | Neue Figuren zuordnen (04.11.) | Einmal pro Exemplar per Handy, Weg A und B, keine automatische Erkennung |
+| **Box-Software (05.11., 3.8)** | Phoniebox V3 entfällt. Eigener schlanker Dienst in Python direkt auf MPD (python-mpd2, pyserial, paho-mqtt). Endgültige Bestätigung nach dem ersten Lauf am Pi |
+| **Leser-Anbindung (3.8)** | Serielles Textprotokoll, keine USB-Tastatur. Firmware entprellt und entscheidet „aufgelegt“ / „abgehoben“ |
+| **Oberfläche (3.8)** | Home Assistant einzige UI über Nabu Casa. HA einziger Schreiber der Zuordnungen, Boxen holen. Notweg ohne HA: SSH `tobibox status` + Status-Admin-Karte, myMPD optional |
+| **Resume (3.8)** | Pro Box, lokal atomar. Nie synchronisiert, nur angezeigt |
+| **Netz (3.8)** | Bekannte Netze: Heim-WLAN und Handy-Hotspot. Kein eigener Hotspot. Hotspot: voller Abgleich inkl. neuer Folgen, Medien nur am Lader oder über ~50 % Akku |
+| **NAS von unterwegs (3.8)** | Tailscale (QNAP-App + Boxen), ACL nur auf den Medienordner, NAS-Konto nur lesend, Schlüssel pro Box widerrufbar. Kein myQNAPcloud, keine offenen Ports |
+| **Update (3.8)** | Nur manuell aus HA, nur zu Hause am Lader. Paket in `releases/<version>/`, Symlink `current`, Selbsttest, Wächter. Betriebssystem nur per neuem SD-Image |
+| **Logs (3.8)** | tmpfs plus kleiner dauerhafter Ereignispuffer (nur Zustandswechsel und Fehler) |
+| **Serie durchgehört (3.8)** | Start wieder bei Folge 1 |
+| **Prototyp (3.8)** | Zuerst am Mac (nativ, kein Docker, keine Brücke), dann am Pi. Der Mac beweist die Logik, der Pi die Umgebung. Pi 3A+ jetzt bestellen |
+| **ESPuino (3.8)** | Verworfen: Medien-Sync, Update mit Rückfall und HA-Abgleich wären auf dem ESP32 zu mühsam und schlechter testbar |
 
 ## Bewusst nicht enthalten
 
