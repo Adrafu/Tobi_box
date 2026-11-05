@@ -224,7 +224,7 @@ Dieselbe Kennung überschreibt die vorige Nachricht (neue Zählung).
 | `uid` | string | Kennung, gleich dem Themenende |
 | `art` | string | `unbekannt` oder `gelernt` |
 | `zuerst` | string | Zeitstempel der ersten Meldung |
-| `zuletzt` | string | Zeitstempel der letzten Meldung |
+| `zuletzt` | string | Zeitstempel der letzten Meldung, ISO 8601 mit Millisekunden (`2026-11-05T09:12:03.412Z`) |
 | `anzahl` | int | wie oft die Kennung gemeldet wurde |
 | `zeit_ok` | bool | war die Uhrzeit bei der letzten Meldung vertrauenswürdig |
 | `befehl_id` | string oder `null` | bei `gelernt` die ID des Lernbefehls |
@@ -237,7 +237,7 @@ Beispiel:
   "uid": "e0040312345678ab",
   "art": "gelernt",
   "zuerst": "2026-11-05T09:12:03Z",
-  "zuletzt": "2026-11-05T09:12:03Z",
+  "zuletzt": "2026-11-05T09:12:03.412Z",
   "anzahl": 1,
   "zeit_ok": true,
   "befehl_id": "6f1c0a7e-3b52-4d1a-9c58-0e2b7a41d9f3"
@@ -263,7 +263,7 @@ des Brokers bestätigt nichts (HA kann gerade neu starten).
 |---|---|---|
 | `v` | int | `1` |
 | `ts` | string | Zeitpunkt |
-| `zuletzt` | string | `zuletzt` der Meldung, die HA bestätigt (aus der Nachricht auf `…/unknown/<uid>`, unverändert zurückgegeben) |
+| `zuletzt` | string | `zuletzt` der Meldung, die HA bestätigt (aus der Nachricht auf `…/unknown/<uid>`, **unverändert** zurückgegeben, mit Millisekunden) |
 | `art` | string | `art` dieser Meldung (`unbekannt` oder `gelernt`) |
 | `grund` | string | `neu` (HA hat die Figur als „neue Figur“ aufgenommen), `bekannt` (die Kennung war schon aufgenommen, z. B. von der anderen Box), `zugeordnet` (Lernmodus: HA hat die Zuordnung geschrieben), `abgelehnt` (HA nimmt sie nicht an, z. B. Lernbefehl abgelaufen) |
 
@@ -281,7 +281,7 @@ würde.
 Beispiel:
 
 ```json
-{ "v": 1, "ts": "2026-11-05T09:12:05Z", "zuletzt": "2026-11-05T09:12:03Z", "art": "gelernt", "grund": "zugeordnet" }
+{ "v": 1, "ts": "2026-11-05T09:12:05Z", "zuletzt": "2026-11-05T09:12:03.412Z", "art": "gelernt", "grund": "zugeordnet" }
 ```
 
 ### 3.7 `tobibox/<box>/cmd` (nicht retained)
@@ -654,7 +654,9 @@ Projektleitung (P) entschieden oder aus dem Goldfisch-Review übernommen
     Der `ack` trägt `zuletzt` und `art`; die Box löscht nur bei Übereinstimmung;
     HA ignoriert die leere (löschende) Nachricht auf `…/unknown/<uid>`.
 6.  **`ack`-Gründe** `neu`, `bekannt`, `zugeordnet`, `abgelehnt`; die Box löscht
-    bei jedem (bei passendem `zuletzt`).
+    bei jedem (bei passendem `zuletzt`). **Bestätigt (05.11., P):** `zuletzt`
+    hat Millisekunden-Auflösung (ISO 8601 mit Millisekunden), damit zwei
+    Meldungen kurz nacheinander nicht denselben Wert tragen.
 7.  **Gleiche Liste (gleiche Listen-ID und gleiche Revision)** wird still
     ignoriert; das Design nennt „alles andere wird abgelehnt“, aber die
     dauerhafte Nachricht kommt bei jedem Verbinden erneut.

@@ -80,9 +80,14 @@ die Felder und die Quelle (das Modul, das den Wert in die Ereignisschleife gibt)
     Identität (gleiche Kennung bzw. beide `LOCKED`) wie die offene (noch nicht
     abgehobene) Figur, ist das eine **Wiedermeldung**: `reader` behält die
     bestehende Vorgangs-ID. Das betrifft die Meldung auf `PING` und die
-    Meldung nach einem Neustart der Firmware. Jedes andere `PLACED`/`LOCKED`
-    (andere Identität, oder bereits abgehoben, oder ohne `HELLO` dazwischen, etwa
-    nach verlorenem `REMOVED`) bekommt eine neue ID. Ein `REMOVED` gibt die ID
+    Meldung nach einem Neustart der Firmware. **Bestätigt (05.11.):** Dasselbe
+    gilt für die **erste** `PLACED`/`LOCKED`-Zeile mit `seq=0` oder nach einem
+    erkannten `seq_reset` (`reader-v1.md`, Abschnitt 5), auch wenn kein `HELLO`
+    ankam (das `HELLO` ging verloren, die Firmware wurde neu gestartet): bei
+    gleicher Identität wie die offene Figur ist es eine Wiedermeldung, `reader`
+    behält die ID. Jedes andere `PLACED`/`LOCKED` (andere Identität, oder bereits
+    abgehoben, oder weder `HELLO` noch `seq=0` noch `seq_reset` davor, etwa nach
+    verlorenem `REMOVED`) bekommt eine neue ID. Ein `REMOVED` gibt die ID
     frei. `vorgang=None` im `Abgehoben` entsteht deshalb nur, wenn `reader` gar
     keine ID kennt; die Aussage „direkt nach `HELLO` ist `vorgang` leer“ gilt
     nicht.
@@ -546,6 +551,30 @@ aller aktiven Grenzen**, und keine Lautstärke liegt darüber.
 *   **Kopfhörerwechsel:** erst die neue Grenze (`GrenzeGesetzt` → `LautstaerkeSetzen`),
     dann `AusgangWaehlen` (Rang 1 vor Rang 2).
 
+### 8.1 Töne (bestätigt 05.11.)
+
+*   **Wer:** Das Modul `sounds` führt den bestehenden Befehl
+    `TonSpielen(ton)` aus (Abschnitt 4); es gibt keinen neuen Befehl. Der Kern
+    kennt keine Tonpegel.
+*   **Gleicher Ausgang wie MPD:** Alle Töne gehen über denselben Audioausgang wie
+    die Wiedergabe. Auf dem Pi spielt `sounds` über das ALSA-`softvol`-Gerät, das
+    auch MPD benutzt; die **harte Kappe** (`lautstaerke_max`) gilt damit auch für
+    Töne. Auf dem Mac spielt `sounds` mit `afplay -v <pegel/100>`; dort gibt es
+    **keine** harte Kappe, es gilt nur die Regel unten.
+*   **Pegel in Prozent** (Felder `ton_pegel` und `hinweis_pegel` in `config.json`,
+    `data-model.md`, Abschnitt 2). `grenze` ist die **wirksame Grenze** aus
+    Abschnitt 8; `app.py` gibt sie `sounds` beim Ausführen mit (der zuletzt mit
+    `LautstaerkeSetzen` ausgegebene Wert `grenze`; `TonSpielen` bekommt kein Feld).
+    *   Alle Töne außer `hinweis`: `pegel = min(ton_pegel, grenze)`. `ton_pegel`
+        ist ein **eigener fester Wert** (Vorgabe 40), unabhängig von der
+        Wiedergabelautstärke `wunsch`, aber nie über der wirksamen Grenze.
+    *   `hinweis` (der leise Hinweiston unter „stumm“, 6.2 Regel 2):
+        `pegel = max(5, min(hinweis_pegel, grenze))`. `hinweis_pegel` hat die
+        Vorgabe 15 (hörbar, aber leise). Die Untergrenze 5 hält den Hinweiston
+        auch bei sehr kleiner Grenze hörbar; die harte Kappe bleibt wirksam.
+    *   Fehlen die Felder (keine Konfiguration geladen), gelten die Vorgaben 40
+        und 15.
+
 ## 9. Fälle, die die Tabellen des Designs offenlassen
 
 Alle Punkte sind Festlegungen dieses Vertrags; die als „bestätigt (05.11.)“
@@ -564,8 +593,10 @@ gekennzeichneten sind von Tobias oder der Projektleitung entschieden
         nicht). Nur `Abgehoben` (oder der Abgleich in Punkt 3) ändert das.
     *   Zustand `leer`: keine Wirkung.
     *   **Wiedermeldung:** Ein `Aufgelegt` oder `Gesperrt` mit **derselben
-        Vorgangs-ID** wie die gemerkte liegende Figur ist in allen Zuständen eine
-        Wiedermeldung nach `HELLO` (3.1) und ein **No-op**: kein `Abspielen`, keine
+        Vorgangs-ID** wie die gemerkte liegende Figur ist **in allen Zuständen
+        außer `unbekannt` (siehe 9.2)** eine Wiedermeldung nach `HELLO` (3.1,
+        auch nach `seq=0` oder `seq_reset` ohne `HELLO`) und ein **No-op**: kein
+        `Abspielen`, keine
         `AktionAusgeloest`, kein `Melden`, kein Ton, keine Zustandsänderung. Eine
         **andere** Vorgangs-ID gilt als neues Auflegen (Tabellen des Designs).
     *   **Zeitgrenze und Ausnahme:** Nach einem bestätigten Verlust (Alarm oder
@@ -590,8 +621,17 @@ gekennzeichneten sind von Tobias oder der Projektleitung entschieden
 2.  **Im Zustand `unbekannt`:**
     *   `Aufgelegt` oder `Gesperrt` mit **derselben** Vorgangs-ID (dieselbe Figur:
         gleiche Kennung bzw. beide gesperrt) innerhalb der Frist: Zustand
-        `spielt`, kein Befehl.
-    *   `Aufgelegt` oder `Gesperrt` mit **anderer** Vorgangs-ID (andere Kennung,
+        `spielt`, kein Befehl. Das ist die **einzige** Ausnahme vom No-op der
+        Wiedermeldung (Punkt 1). **Bestätigt (05.11.):** Ist dabei der MPD
+        verloren (Punkt 10, `PlayerVerbindung(ok=False)` ohne spätere Rückkehr)
+        oder ist die `MPD_FRIST_S` während `unbekannt` abgelaufen, geht die
+        Sitzung statt nach `spielt` sofort nach `pausiert` (Zeiger ist
+        gespeichert; die Figur liegt weiter). Ein laufender MPD-Fristzähler wird
+        beim Eintritt in `unbekannt` verworfen.
+    *   `StummBeginnt` in `unbekannt` (bestätigt 05.11.): wirkt erst, **nachdem
+        die Sitzung `unbekannt` verlassen hat**; bis dahin spielt nichts. Verlässt
+        sie `unbekannt` nach `spielt` (gleiche Figur zurück), gilt „stumm“ sofort
+        (Punkt 5); verlässt sie es nach `pausiert`, gilt Punkt 12.    *   `Aufgelegt` oder `Gesperrt` mit **anderer** Vorgangs-ID (andere Kennung,
         oder gesperrt gegen Kennung): Frist endet sofort, Pause und Zeiger der
         alten Serie speichern, danach die neue Figur wie ein normales Auflegen
         (Tabelle: „Figurwechsel während einer Leser-Unterbrechung“).
@@ -693,7 +733,12 @@ gekennzeichneten sind von Tobias oder der Projektleitung entschieden
             nicht.
         *   Beginnt „stumm“ während der Frist: kein Ausblenden, sondern sofort
             Zustand `gehalten` (der Zeiger ist gespeichert).
-        *   `Abgehoben` während der Frist: normale Pause (Zeiger ist gespeichert),
+        *   **Leser-Unterbrechung während der Frist (bestätigt 05.11.):** Geht die
+            Sitzung nach `unbekannt` (Punkt 1), wird der laufende Fristzähler
+            **verworfen**. Kehrt sie von `unbekannt` nach `spielt` zurück (Punkt 2)
+            und ist der MPD weiter verloren oder die Frist inzwischen abgelaufen,
+            geht sie **sofort nach `pausiert`** (Zeiger gespeichert, Figur liegt),
+            ohne `Abspielen`.        *   `Abgehoben` während der Frist: normale Pause (Zeiger ist gespeichert),
             `pausiert`. `Hauptknopf` kurz: Pause, `pausiert`. Weitere
             `PlayerFehler` während der Frist: nur `Protokoll`.
     *   `PlayerVerbindung` in den übrigen Zuständen: nur `Protokoll`.
@@ -712,7 +757,12 @@ gekennzeichneten sind von Tobias oder der Projektleitung entschieden
         `leer`, `unbekannt` → keine Wirkung. `Weiter`/`Zurueck` springen zur
         nächsten/vorigen Folge in der Reihenfolge (zyklisch), Position 0,
         `ZeigerSpeichern("folgenende")`-Regeln wie bei einer neuen Folge, nur im
-        Zustand `spielt` oder `pausiert` mit Serie.
+        Zustand `spielt` oder `pausiert` mit Serie. **Bestätigt (05.11.) für
+        `beendet`:** `Weiter` = nächste Folge wie `Hauptknopf` kurz (Position 0,
+        Zustand `spielt`); `Zurueck` = die **aktuelle** Folge des Zeigers neu ab
+        Position 0 (Zustand `spielt`). Beide setzen die Figur voraus (`beendet`
+        mit liegender Figur wie beim Hauptknopf) und sind im „stumm“-Fenster
+        gesperrt (nur Hinweiston, Tabelle unten).
     *   **Im „stumm“-Fenster** (`quiet` im Zustand `stumm`) startet **kein**
         Abspielen-Auslöser eine Wiedergabe. Jeder Auslöser, der ohne „stumm“ ein
         `Abspielen` ergäbe, gibt stattdessen nur `TonSpielen("hinweis")` aus
@@ -721,6 +771,7 @@ gekennzeichneten sind von Tobias oder der Projektleitung entschieden
         | Auslöser unter „stumm“ | Wirkung |
         |---|---|
         | `Aufgelegt` (Serie, unbekannt) und `Gesperrt` in `leer`, `pausiert` | Hinweiston, Zustand `gehalten` (Tabelle des Designs); `Melden` bei unbekannter Figur bleibt |
+        | `Aufgelegt` (Serie) in `beendet` und `gehalten` (Figur wird neu aufgelegt; bestätigt 05.11.) | nur Hinweiston, nichts startet, Zustand unverändert (`gehalten` bleibt, `beendet` bleibt); `Melden` bei unbekannter Figur bleibt |
         | `Hauptknopf` kurz in `pausiert`, `beendet`, `gehalten` | Hinweiston, Zustand unverändert |
         | `Weiter`, `Zurueck` in `pausiert`, `beendet`, `gehalten` (dort, wo sie ohne „stumm“ spielen würden) | Hinweiston, Zeiger unverändert |
         | Wechsel nach `KonfigGeladen` (Punkt 14) | Hinweiston, Zustand und Zeiger unverändert |
@@ -911,6 +962,18 @@ Projektleitung (P) entschieden oder aus dem Goldfisch-Review übernommen
     „stumm“-Fenster startet nichts (Hauptknopf kurz, Weiter, Zurück, Auflegen,
     Wechsel nach `KonfigGeladen`); es gibt nur den Hinweiston (9.12).
 13. **Zweite Gute-Nacht-Karte** startet den Timer neu.
+    **Bestätigt (05.11., P):** weitere Festlegungen dieses Stands:
+    *   Die Wiedermeldung (gleiche Vorgangs-ID) ist **in allen Zuständen außer
+        `unbekannt`** ein No-op (9.1, 9.2).
+    *   Aus `unbekannt` zurück nach `spielt` bei verlorenem MPD oder abgelaufener
+        `MPD_FRIST_S`: sofort `pausiert`; ein laufender MPD-Fristzähler wird beim
+        Eintritt in `unbekannt` verworfen (9.2, 9.10).
+    *   Die Vorgangs-ID bleibt auch bei der ersten `PLACED`/`LOCKED`-Zeile mit
+        `seq=0` oder nach `seq_reset` erhalten, selbst ohne `HELLO` (3.1).
+    *   Töne: gleicher Ausgang wie MPD, `ton_pegel` (40) und `hinweis_pegel` (15,
+        Untergrenze 5), nie über der wirksamen Grenze; Mac ohne harte Kappe (8.1).
+    *   Auflegen in `beendet` und `gehalten` unter „stumm“: nur Hinweiston (9.12); `StummBeginnt` in `unbekannt` wirkt erst nach dem
+        Verlassen (9.2); `Weiter`/`Zurueck` in `beendet` (9.12).
 14. **Bestätigt (05.11., P): `volume.rampe`** und `LautstaerkeGeaendert` als
     Weg, den Startwert der Rampe zu kennen (Abschnitt 8).
 15. **`kopfhoerer`-Grenze** kommt aus `tobibox.toml` als `lautstaerke_kopfhoerer`

@@ -172,7 +172,12 @@ MQTT-Themen verwendet; sie enthält deshalb nur `[0-9a-f]`.
         die Erwartung auf `seq + 1`.
     *   Es gibt **keine** Verwerfung wegen `seq`: Eine Zeile mit gültigen Feldern
         wird immer verarbeitet.
-
+    *   **Vorgangs-ID und Wiedermeldung (bestätigt 05.11.):** Die Regel „eine
+        Wiedermeldung behält die Vorgangs-ID und startet nichts“
+        (`core-interface.md`, Abschnitte 3.1 und 9.1) gilt für die **erste**
+        `PLACED`/`LOCKED`-Zeile mit `seq=0` **oder nach einem erkannten
+        `seq_reset`**, auch wenn kein `HELLO` ankam. Gleiche Identität wie die
+        offene Figur: gleiche Vorgangs-ID; andere Identität: neue ID.
 ## 6. Herzschlag `HB`
 
 Die Firmware sendet `HB` alle `HEARTBEAT_INTERVAL_MS` (2000 ms) auf der
@@ -610,7 +615,10 @@ bestätigt oder entschieden. Alle anderen Punkte sind noch offen.
     (Neustart des ESP32 nach Spannungseinbruch) reichen, misst Stufe 1 am
     Gerät.
 14. **Keine Verwerfung wegen `seq`:** Der Dienst verarbeitet gültige Zeilen
-    immer, `seq` dient der Diagnose.
+    immer, `seq` dient der Diagnose. **Bestätigt (05.11., P):** Die Wiedermeldung
+    behält die Vorgangs-ID auch bei der ersten `PLACED`/`LOCKED`-Zeile mit
+    `seq=0` oder nach `seq_reset` ohne `HELLO` (Abschnitt 5, Querverweis auf
+    `core-interface.md` 3.1).
 15. **Bestätigt (05.11., Projektleitung): ein `LeserAlarm` je Ausfall**, mit den
     Gründen aus Abschnitt 12 (Tabelle); `proto_unbekannt` löst keinen
     `LeserHallo` aus, wohl aber den Alarm.

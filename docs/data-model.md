@@ -146,6 +146,8 @@ Struktur ist die Nachricht auf dem Thema `tobibox/config` (`mqtt-v1.md`).
 | `gute_nacht` | object | ja | |
 | `gute_nacht.timer_min` | int 1–240 | ja | Dauer des Timers (Vorschlag 30) |
 | `gute_nacht.ausblenden_s` | int 5–600 | ja | Dauer des Ausblendens (Vorschlag 60) |
+| `ton_pegel` | int 0–100 | nein | Pegel der Rückmeldetöne in Prozent; Vorgabe 40 (Feld fehlt). Nie über der wirksamen Grenze (`core-interface.md`, Abschnitt 8.1). |
+| `hinweis_pegel` | int 0–100 | nein | Pegel des leisen Hinweistons unter „stumm“ in Prozent; Vorgabe 15. Nie über der wirksamen Grenze, aber mindestens 5 (`core-interface.md`, Abschnitt 8.1). |
 
 Regeln:
 
@@ -215,7 +217,9 @@ Beispiel:
       }
     ]
   },
-  "gute_nacht": { "timer_min": 30, "ausblenden_s": 60 }
+  "gute_nacht": { "timer_min": 30, "ausblenden_s": 60 },
+  "ton_pegel": 40,
+  "hinweis_pegel": 15
 }
 ```
 
@@ -278,7 +282,7 @@ nichts (der Eintrag wurde inzwischen überschrieben; `anzahl` und `zuletzt`
 | `eintraege` | object | ja (darf leer sein) | Schlüssel = Kennung (kanonisch); höchstens ein Eintrag je Kennung |
 | `eintraege.<uid>.art` | `"unbekannt"` oder `"gelernt"` | ja | `gelernt`: im Lernmodus aufgelegt. `gelernt` ersetzt `unbekannt`, nie umgekehrt. |
 | `eintraege.<uid>.zuerst` | string (Zeitstempel) | ja | erste Meldung |
-| `eintraege.<uid>.zuletzt` | string (Zeitstempel) | ja | letzte Meldung |
+| `eintraege.<uid>.zuletzt` | string (Zeitstempel) | ja | letzte Meldung, ISO 8601 mit **Millisekunden** (`2026-11-05T09:12:03.412Z`); der `ack` gibt den Wert unverändert zurück (`mqtt-v1.md`) |
 | `eintraege.<uid>.anzahl` | int ≥ 1 | ja | wie oft die Kennung gemeldet wurde |
 | `eintraege.<uid>.zeit_ok` | bool | ja | war die Uhrzeit bei der **letzten** Meldung vertrauenswürdig? Bei `false` sind `zuerst` und `zuletzt` mit Vorsicht zu lesen. |
 | `eintraege.<uid>.befehl_id` | string oder `null` | ja | bei `gelernt` die ID des Lernbefehls aus `tobibox/<box>/cmd`, sonst `null` |
@@ -300,7 +304,7 @@ Beispiel:
     "04a1b2c3": {
       "art": "unbekannt",
       "zuerst": "2026-11-04T16:02:11Z",
-      "zuletzt": "2026-11-05T08:15:40Z",
+      "zuletzt": "2026-11-05T08:15:40.127Z",
       "anzahl": 3,
       "zeit_ok": true,
       "befehl_id": null
@@ -308,7 +312,7 @@ Beispiel:
     "e0040312345678ab": {
       "art": "gelernt",
       "zuerst": "2026-11-05T09:12:03Z",
-      "zuletzt": "2026-11-05T09:12:03Z",
+      "zuletzt": "2026-11-05T09:12:03.412Z",
       "anzahl": 1,
       "zeit_ok": true,
       "befehl_id": "6f1c0a7e-3b52-4d1a-9c58-0e2b7a41d9f3"
@@ -580,3 +584,10 @@ Projektleitung (P) entschieden oder aus dem Goldfisch-Review übernommen
 19. **Offen:** `position_s` wird auf 1 Nachkommastelle abgerundet (nicht
     gerundet), damit der gespeicherte Zeiger nie weiter vorn liegt als die
     tatsächliche Position.
+20. **Bestätigt (05.11., P): Tonpegel in `config.json`:** optionale Felder
+    `ton_pegel` (Vorgabe 40) und `hinweis_pegel` (Vorgabe 15), 0 bis 100. Sie
+    ergänzen nur optionale Felder, `schema_version` bleibt 1. Regel für die
+    Wirkung: `core-interface.md`, Abschnitt 8.1.
+21. **Bestätigt (05.11., P): `zuletzt` in `unknown.json`** hat Millisekunden-
+    Auflösung (ISO 8601 mit Millisekunden); der `ack` gibt den Wert unverändert
+    zurück (`mqtt-v1.md`).
