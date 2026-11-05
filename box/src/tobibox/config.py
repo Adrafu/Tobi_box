@@ -44,6 +44,17 @@ class LautstaerkeKonfig:
     kopfhoerer: int = 30
 
 
+#: Mac-Vorgabe; auf dem Pi z. B. ["aplay", "-q", "-D", "softvol", "{datei}"].
+#: Platzhalter: {datei}, {pegel} (0 bis 100), {lautstaerke} (0.0 bis 1.0).
+STANDARD_TON_KOMMANDO: tuple[str, ...] = ("afplay", "-v", "{lautstaerke}", "{datei}")
+
+
+@dataclass(frozen=True, slots=True)
+class TonKonfig:
+    kommando: tuple[str, ...] = STANDARD_TON_KOMMANDO
+    ordner: Path | None = None  # None: ``box/sounds`` neben dem Quellbaum
+
+
 @dataclass(frozen=True, slots=True)
 class ProtokollKonfig:
     ziel: str = "stdout"  # "stdout" (Pi) oder "datei" (Mac)
@@ -60,6 +71,7 @@ class BoxKonfig:
     mpd: MpdKonfig = field(default_factory=MpdKonfig)
     lautstaerke: LautstaerkeKonfig = field(default_factory=LautstaerkeKonfig)
     protokoll: ProtokollKonfig = field(default_factory=ProtokollKonfig)
+    toene: TonKonfig = field(default_factory=TonKonfig)
 
     def geraete_einstellungen(self) -> ev.GeraeteEinstellungen:
         """Das erste Ereignis des Kerns (``core-interface.md``, 3.3)."""
@@ -73,6 +85,7 @@ _BEKANNT = {
     "mpd": {"host", "port"},
     "lautstaerke": {"max", "start", "kopfhoerer"},
     "protokoll": {"ziel", "datei", "ebene", "max_bytes", "anzahl"},
+    "toene": {"kommando", "ordner"},
 }
 
 
@@ -128,6 +141,15 @@ def pruefe(roh: dict[str, Any], basis: Path | None = None) -> BoxKonfig:
     mpd = _abschnitt(roh, "mpd")
     vol = _abschnitt(roh, "lautstaerke")
     prot = _abschnitt(roh, "protokoll")
+    ton = _abschnitt(roh, "toene")
+    kommando = ton.get("kommando", list(STANDARD_TON_KOMMANDO))
+    if (
+        not isinstance(kommando, list)
+        or not kommando
+        or not all(isinstance(k, str) and k for k in kommando)
+    ):
+        raise KonfigFehler("[toene] kommando muss eine nicht leere Liste von Texten sein")
+    ton_ordner = _text(ton, "toene", "ordner", None)
 
     v = LautstaerkeKonfig(
         max=_ganz(vol, "lautstaerke", "max", 50, 0, 100),
@@ -163,6 +185,7 @@ def pruefe(roh: dict[str, Any], basis: Path | None = None) -> BoxKonfig:
             max_bytes=_ganz(prot, "protokoll", "max_bytes", 1_000_000, 10_000, 100_000_000),
             anzahl=_ganz(prot, "protokoll", "anzahl", 5, 1, 50),
         ),
+        toene=TonKonfig(tuple(kommando), _pfad(ton_ordner, basis) if ton_ordner else None),
     )
 
 

@@ -1,0 +1,31 @@
+# Beispiel-Konfiguration für den Mac-Prototyp (Kopie: box/config/tobibox.toml).
+# Relative Pfade gelten ab dem Ordner dieser Datei (box/config/).
+# Die Kopie tobibox.toml steht in .gitignore und wird nie committet.
+
+[pfade]
+zustand = "../var"                 # Laufzeitdaten (resume.json, config.json, Protokoll), in box/var
+medien = "../medien-beispiel"      # Serienordner; hier liegen die Beispielserien
+
+[leser]
+# Der SuperMini am Mac heißt meist /dev/cu.usbmodemXXXX. Das Muster fängt das ab.
+# Mit dem Fake-Leser (box/tools/fake_reader.py) hier stattdessen den Symlink eintragen,
+# z. B. "/tmp/tobibox-fake/ttyACM0" (siehe docs/betrieb/mac-prototyp.md).
+geraet = "/dev/cu.usbmodem*"
+
+[mpd]
+host = "localhost"
+port = 6600                        # Muss zu "port" in mpd.mac.example.conf passen
+
+[lautstaerke]
+# Am Mac klemmt nur der Dienst (MPD kennt keine Maximal- und Startlautstärke).
+# Start darf nicht über max liegen (sonst Fehler beim Laden).
+max = 40
+start = 20
+kopfhoerer = 30
+
+[protokoll]
+ziel = "datei"                     # am Mac: Protokoll in eine Datei (nicht stdout)
+datei = "../var/log/tobibox.log"
+ebene = "INFO"
+max_bytes = 1000000
+anzahl = 5
