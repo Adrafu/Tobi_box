@@ -104,7 +104,8 @@ der am Mac mit echtem Leser vollständig testbar ist, bevor die Box steht.
     die Integration erkennt neue Ordner und Dateien selbst. Folgen-Reihenfolge
     steht in `serie.json` (nicht nur Dateiname). Offen: andere Formate als mp3
     (m4a, flac …) umwandeln oder nur warnen; Lautheitsangleich (Plan 7.2).
-*   **Q6 — Oberfläche der Medienverwaltung:** siehe Entscheidung D4.
+*   **Q6 — Oberfläche der Medienverwaltung:** Entschieden (D4, 05.11.):
+    **eigene Seite in HA**, siehe Baustein 4.
 
 ## Critical User Journeys (CUJs)
 
@@ -375,6 +376,46 @@ fsync → umbenennen), beim Start geprüft; bei Fehler Rückfall auf `.bak`.
   dauerhafte MQTT-Nachricht mit Revisionsnummer, die Boxen übernehmen sie.
 - Die HA-Konfiguration (Dashboard, Skripte, Automationen) liegt als Dateien
   im Repo unter `homeassistant/`.
+
+### Baustein 4 — HA-Integration `tobibox` mit eigener Seite
+
+Liegt im Repo unter `homeassistant/custom_components/tobibox/`, wird in HA
+als eigene Integration installiert. Sie ist der **einzige Schreiber** für
+Zuordnungen und Serien-Metadaten.
+
+- **Speicher:** Zuordnungen im HA-Speicher (`.storage/tobibox`), mit
+  Revisionsnummer; Export als Datei für die Sicherung.
+- **Medien:** Die Medienfreigabe des QNAP ist in HA als Netzwerkspeicher
+  eingebunden (Schreibrecht nur für HA). Aufbau auf dem NAS:
+  `tobibox/medien/<ordner>/serie.json` + mp3-Dateien,
+  `tobibox/medien/_papierkorb/`, `tobibox/releases/`.
+- **`serie.json`:** `schema_version`, `id` (zufällig, unveränderlich),
+  `name` (Anzeige), `folgen` (Reihenfolge als Liste von Dateinamen),
+  `typ` (`normal` oder `ueberraschung`). Geschrieben atomar.
+- **Erkennen von außen:** Beim Öffnen der Seite und alle 10 min prüft die
+  Integration die Freigabe. Neuer Ordner → `serie.json` mit neuer ID und
+  Ordnername als Anzeigename. Neue Datei → hinten an die Reihenfolge.
+  Fehlende Datei → aus der Reihenfolge, Hinweis. Nicht-mp3 → Warnung (Q5).
+- **Löschen** verschiebt in `_papierkorb/` (30 Tage), nie endgültig sofort.
+  Die Boxen übernehmen `_papierkorb/` nicht.
+- **Aktionen** (auch für Automationen): zuordnen, lösen, Lernmodus starten /
+  abbrechen, Serie anlegen / umbenennen, Folgen sortieren / löschen,
+  Sync anstoßen, Update anstoßen.
+- **Eigene Seite** in der HA-Seitenleiste („Tobi Box“), läuft auch über
+  Nabu Casa am Handy:
+  - Serienliste mit Anzahl Folgen und zugeordneten Figuren
+  - Serie öffnen: Folgen per Ziehen sortieren, löschen, umbenennen,
+    mp3 vom Handy hochladen
+  - „Neue Figuren“: unbekannte Kennungen beider Boxen, mit einem Tipp einer
+    Serie zuordnen (Weg A); „Jetzt kommt ein neuer Tonie“ (Weg B)
+  - Box-Status: Version, Netz, Akku, Sync-Stand, letzter Fehler
+- **Technik der Seite:** ein Web-Baustein (JavaScript-Modul, Lit, ohne
+  eigenen Build-Server), Daten über die HA-WebSocket-Schnittstelle mit
+  HA-Anmeldung; Hochladen über einen eigenen HA-HTTP-Endpunkt mit Anmeldung.
+- **MQTT** (über den vorhandenen Broker):
+  `tobibox/mappings` (dauerhaft, ganze Liste + Revision),
+  `tobibox/<box>/event` (unbekannt, gelernt, Fehler),
+  `tobibox/<box>/cmd` (Lernmodus, Sync, Update), Status per Discovery.
 
 ### Netz, Sync, Strom
 
