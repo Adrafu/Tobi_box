@@ -492,3 +492,90 @@ es keine Abfrage „bin ich am Mac?“.
     die Medienfreigabe des NAS mit Schreibrecht ein; die Boxen lesen nur.
 *   **D3 — Broker:** MQTT läuft in HA. Tailscale ist noch nicht eingerichtet
     (HA-Add-on, QNAP-App, Boxen) → Einrichtungsschritte für Tobias in Stufe 3.
+
+## Alternatives Considered
+
+Quellen: `concepts_brief.md` (Abgewogene Alternativen, Entscheidungen Runde
+1 und 2), `pivot_ohne_v3.md`, Entscheidungen D1–D4 in diesem Dokument.
+
+### Phoniebox V3 als Basis mit eigenen Plugins
+
+Plan bis Rev. 3.7. **Abgelehnt von Tobias:** Nach den übrigen Entscheidungen
+übernimmt eigener Code fast alles (Leser, Resume, Serien, Zuordnung,
+Oberfläche, Sync, Update); V3 bliebe nur als MPD-Steuerung mit einer
+instabilen Plugin-Schnittstelle, einem eingefrorenen Versionsstand, der in
+wenigen Jahren nicht mehr frisch installierbar ist, und am Mac nur in Docker
+mit Brücke testbar. Bestätigung nach dem ersten Pi-Lauf.
+
+### Leser als USB-Tastatur (HID)
+
+**Abgelehnt von Tobias:** Eine Tastatur kann kein Abheben, keine Fehler und
+keine Version melden; der V3-Lese-Thread stirbt bei Gerätewegfall; am Mac
+tippt sie in das vordere Fenster.
+
+### Mac-Prototyp mit Docker und Serial-zu-TCP-Brücke
+
+**Abgelehnt von Tobias** (mit dem Wegfall von V3): Docker auf dem Mac kommt
+nicht an USB; die Brücke wäre ein dritter Codepfad, den es am Pi nicht gibt.
+Natives MPD am Mac liest den Leser direkt.
+
+### ESPuino (ESP32 als kompletter Player, ohne Pi)
+
+**Abgelehnt von Tobias:** Abspielen ginge, aber Medien-Sync über WLAN auf
+SD, Update mit Rückfall, HA-Abgleich und Serienlogik wären auf dem ESP32
+mühsam und schlecht testbar.
+
+### ESPHome mit PN5180
+
+**Abgelehnt von der Projektleitung:** Tonie-Entsperrung fehlt vermutlich,
+die eigene Firmware ist erprobt.
+
+### V3-Weboberfläche oder eigene Handy-Seite auf der Box
+
+**Abgelehnt von Tobias:** HA ist die einzige Oberfläche, auch von unterwegs
+über Nabu Casa. Die Box wird nicht ins Netz geöffnet. Notweg ohne HA:
+`tobibox status` per SSH und Status-Admin-Karte.
+
+### Zuordnungen auf mehreren Seiten schreiben (Box und HA, Zwei-Wege-Sync)
+
+**Abgelehnt von Tobias:** Konflikte bei zwei Boxen und Offline-Betrieb.
+HA ist einziger Schreiber, Resume bleibt pro Box.
+
+### Zuordnungen als dauerhafte MQTT-Nachricht oder in einem Dienst auf dem NAS (D1)
+
+**Abgelehnt von Tobias:** Die MQTT-Variante braucht fummelige HA-Skripte und
+kann die Liste bei einem Fehler überschreiben; ein NAS-Dienst wäre ein
+weiterer Dienst. Gewählt: eigene HA-Integration.
+
+### Serie über den Ordnernamen erkennen (D2)
+
+**Abgelehnt von Tobias:** Umbenennen würde Zuordnungen und Resume brechen;
+gewünscht ist eine saubere Dateiverwaltung in HA. Gewählt: `serie.json` mit
+fester ID.
+
+### Medienverwaltung mit HA-Bordmitteln oder fertigem Datei-Manager (D4)
+
+**Abgelehnt von Tobias:** Bordmittel verteilen die Bedienung auf zwei Orte
+und machen Sortieren umständlich; ein fremder Datei-Manager kennt keine
+Serien. Gewählt: eigene Seite in HA.
+
+### NAS von außen über myQNAPcloud oder QVPN/WireGuard
+
+**Abgelehnt von Tobias:** Ein aus dem Internet erreichbares QNAP ist ein
+bekanntes Angriffsziel (QNAP-Hinweis QSA-22-24 nach DeadBolt); QVPN braucht
+einen offenen Port am Router. Gewählt: Tailscale mit ACL.
+
+### Eigener WLAN-Hotspot der Box
+
+**Abgelehnt von Tobias:** Dauerfunk kostet Akku; stattdessen verbindet sich
+die Box mit seinem Handy-Hotspot wie mit einem bekannten Netz.
+
+### Update per `git pull`
+
+**Abgelehnt von Tobias:** Kein Selbsttest, kein automatischer Rückfall.
+Gewählt: Paket in eigenem Verzeichnis, Verweis `current`, Wächter.
+
+### Automatische Erkennung der Figur
+
+**Nicht möglich** (siehe `research_tonie_erkennung.md`): Der Chip trägt nur
+eine Seriennummer; die Zuordnung erfolgt einmal pro Exemplar.
