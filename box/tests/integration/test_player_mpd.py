@@ -225,3 +225,121 @@ async def test_mpd_weg_und_zurueck(mpd, probe):
     await probe.player.abspielen(abspielen(pos=5.0))
     assert (await probe.status())["state"] == "play"
     assert not probe.alle(ev.FolgeZuEnde)
+
+
+# --------------------------------------------------------------------------
+# Sicherheit beim Verbinden: MPD darf nie von selbst weiterspielen
+# --------------------------------------------------------------------------
+
+
+def _mpd_spielt_mit_zustand_neu(mpd) -> None:
+    """Zustand ``play`` mit hoher Lautstärke in die Zustandsdatei schreiben, MPD neu starten."""
+    mpd._frage("add lang/a.wav")
+    mpd._frage("setvol 90")
+    mpd._frage("play 0")
+    mpd.stop()  # schreibt state_file
+    assert "state: play" in (mpd.verz / "state").read_text()
+    mpd.start()
+
+
+def _status_roh(mpd) -> dict[str, str]:
+    return dict(z.split(": ", 1) for z in mpd._frage("status").splitlines() if ": " in z)
+
+
+async def test_mpd_spielt_nach_neustart_von_selbst_weiter_wird_beim_verbinden_angehalten(mpd_mit_zustand):
+    mpd = mpd_mit_zustand
+    _mpd_spielt_mit_zustand_neu(mpd)
+    # Gegenprobe: ohne Box-Dienst spielt dieses MPD mit hoher Lautstärke von selbst
+    vorher = _status_roh(mpd)
+    assert vorher["state"] == "play" and int(vorher["volume"]) == 90
+
+    p = Probe(mpd)
+    await p.start()
+    try:
+        st = await p.status()
+        assert st["state"] in ("pause", "stop")
+        # noch keine Einstellungen: stumm
+        assert int(st["volume"]) == 0
+        # der Kern sendet die Lautstärke: danach gilt sie (unter der Grenze)
+        await p.player.lautstaerke_setzen(20, 50)
+        assert int((await p.status())["volume"]) == 20
+    finally:
+        await p.stop()
+
+
+async def test_verbinden_mit_bekannter_grenze_klemmt_vor_allem_anderen(mpd_mit_zustand):
+    mpd = mpd_mit_zustand
+    _mpd_spielt_mit_zustand_neu(mpd)
+    p = Probe(mpd)
+    await p.player.lautstaerke_setzen(80, 30)  # vor dem Verbinden: Wert 30 (geklemmt)
+    await p.start()
+    try:
+        st = await p.status()
+        assert st["state"] in ("pause", "stop")
+        assert int(st["volume"]) <= 30
+    finally:
+        await p.stop()
+
+
+async def test_lautstaerke_setzen_waehrend_des_verbindens_geht_nicht_verloren(mpd):
+    p = Probe(mpd)
+    p.player.start()
+    for prozent in (10, 15, 20, 25):  # mitten im Verbinden
+        await p.player.lautstaerke_setzen(prozent, 50)
+        await asyncio.sleep(0)
+    assert await p.player.warte_verbunden(5.0)
+    await warte(lambda: True)
+    await asyncio.sleep(0.2)
+    try:
+        assert int((await p.status())["volume"]) == 25
+    finally:
+        await p.stop()
+
+
+async def test_player_fehler_gleicher_art_gedrosselt(mpd):
+    zeit = [0.0]
+    p = Probe(mpd, mono=lambda: zeit[0])
+    await p.start()
+    try:
+        await p.player.lautstaerke_setzen(20, 50)
+        for _ in range(5):
+            await p.player.abspielen(abspielen(datei="gibt-es-nicht.wav"))
+        assert len(p.alle(ev.PlayerFehler)) == 1
+        zeit[0] = 6.0
+        await p.player.abspielen(abspielen(datei="gibt-es-nicht.wav"))
+        assert len(p.alle(ev.PlayerFehler)) == 2
+    finally:
+        await p.stop()
+
+
+async def test_pausieren_bei_stop_ist_folgenende_kein_fehler(probe, monkeypatch):
+    await probe.player.lautstaerke_setzen(20, 50)
+    await probe.player.abspielen(abspielen("kurz", "a.wav"))
+    await warte(lambda: probe.alle(ev.FolgeZuEnde), 5.0, "(Folgenende)")  # läuft 1 s
+    assert not probe.alle(ev.PlayerFehler)
+
+
+async def test_pausiere_hart_ohne_serie(mpd):
+    mpd._frage("add lang/a.wav")
+    mpd._frage("setvol 10")
+    mpd._frage("play 0")
+    p = Probe(mpd)
+    await p.start()
+    try:
+        # der Player hat beim Verbinden schon angehalten; wieder starten und hart pausieren
+        mpd._frage("play 0")
+        assert _status_roh(mpd)["state"] == "play"
+        assert await p.player.pausiere_hart()
+        assert _status_roh(mpd)["state"] in ("pause", "stop")
+    finally:
+        await p.stop()
+
+
+async def test_pausiere_hart_ohne_player_verbindung(mpd):
+    mpd._frage("add lang/a.wav")
+    mpd._frage("play 0")
+    from tobibox.player import Player
+
+    pl = Player(lambda e: None, "127.0.0.1", mpd.port)  # nie gestartet: frische Verbindung
+    assert await pl.pausiere_hart()
+    assert _status_roh(mpd)["state"] in ("pause", "stop")

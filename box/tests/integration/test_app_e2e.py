@@ -45,12 +45,19 @@ async def warte(bedingung, timeout: float = 10.0, text: str = "") -> None:
 
 
 async def mpd_status(port: int) -> dict:
-    c = MPDClient()
-    await c.connect("127.0.0.1", port)
-    try:
-        return dict(await c.status())
-    finally:
-        c.disconnect()
+    # MPD (Null-Ausgabe) antwortet nach dem Pausieren selten einmal nicht rechtzeitig
+    # (auch ohne Änderung der Box-Software beobachtet): einmal wiederholen.
+    for versuch in (1, 2):
+        c = MPDClient()
+        try:
+            await c.connect("127.0.0.1", port)
+            return dict(await c.status())
+        except ConnectionError:
+            if versuch == 2:
+                raise
+        finally:
+            c.disconnect()
+    raise AssertionError("unerreichbar")
 
 
 @pytest.fixture

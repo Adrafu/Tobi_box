@@ -1,21 +1,27 @@
 """Kurze Töne über ein konfigurierbares Kommando (``core-interface.md``, 8.1).
 
-Mac: ``afplay -v <0..1> <datei>``; Pi: ``aplay`` (über das ALSA-Gerät, das auch MPD
-nutzt). Das Kommando ist eine Liste mit den Platzhaltern ``{datei}``,
-``{pegel}`` (0 bis 100) und ``{lautstaerke}`` (0.0 bis 1.0).
+Die Lautstärke setzt **dieses Modul selbst**: die 16-Bit-PCM-Samples der WAV-Datei
+werden in Python auf den Pegel herunterskaliert (``samples * pegel / 100``) und in
+eine temporäre Datei geschrieben. Das Kommando braucht nur ``{datei}``: Mac
+``afplay {datei}``, Pi ``aplay -q {datei}``. Die Platzhalter ``{pegel}`` (0 bis 100)
+und ``{lautstaerke}`` (0.0 bis 1.0) werden weiter ersetzt, wenn sie vorkommen, aber
+die Skalierung geschieht immer. So sind Töne auch bei einem Abspielprogramm ohne
+Pegeloption nie lauter als die Grenze.
 
 Pegel: alle Töne außer ``hinweis``: ``min(ton_pegel, grenze)``; ``hinweis``:
-``max(5, min(hinweis_pegel, grenze))``. Vorgaben 40 und 15. Ohne Tondatei wird
-nichts gestartet.
-
-TODO (Pi-Probelauf): ``aplay`` kann keinen Pegel setzen – Lösung im Pi-Probelauf.
-Bis dahin ignoriert das Pi-Kommando ``{pegel}`` und ``{lautstaerke}``.
+``max(5, min(hinweis_pegel, grenze))``. Vorgaben 40 und 15. Ohne Tondatei, oder
+wenn die Datei kein 16-Bit-PCM ist (nicht sicher skalierbar), wird nichts gestartet.
 """
 
 from __future__ import annotations
 
+import array
 import asyncio
 import contextlib
+import os
+import sys
+import tempfile
+import wave
 from collections.abc import Awaitable, Callable, Sequence
 from pathlib import Path
 
@@ -38,6 +44,29 @@ def pegel(ton: str, grenze: int, ton_pegel: int | None = None, hinweis_pegel: in
         return max(HINWEIS_MINDEST, min(h, grenze))
     t = TON_PEGEL_VORGABE if ton_pegel is None else ton_pegel
     return min(t, grenze)
+
+
+def skaliere_wav(quelle: Path, pegel_prozent: int, ziel: Path) -> None:
+    """16-Bit-PCM-WAV auf ``pegel_prozent`` (0 bis 100) herunterskalieren und nach ``ziel`` schreiben.
+
+    Wirft ``ValueError``, wenn die Datei kein 16-Bit-PCM ist.
+    """
+    faktor = max(0, min(100, int(pegel_prozent))) / 100
+    with wave.open(str(quelle), "rb") as r:
+        if r.getsampwidth() != 2 or r.getcomptype() != "NONE":
+            raise ValueError(f"{quelle.name}: nur 16-Bit-PCM wird unterstützt")
+        params = r.getparams()
+        roh = r.readframes(r.getnframes())
+    samples = array.array("h")
+    samples.frombytes(roh[: len(roh) - len(roh) % 2])
+    if sys.byteorder == "big":
+        samples.byteswap()
+    leise = array.array("h", (max(-32768, min(32767, round(x * faktor))) for x in samples))
+    if sys.byteorder == "big":
+        leise.byteswap()
+    with wave.open(str(ziel), "wb") as w:
+        w.setparams(params)
+        w.writeframes(leise.tobytes())
 
 
 def baue_kommando(vorlage: Sequence[str], datei: Path, pegel_prozent: int) -> list[str]:
@@ -81,6 +110,7 @@ class Toene:
         self.kommando = tuple(kommando)
         self._starter = starter or _starte_prozess
         self._aufgaben: set[asyncio.Task] = set()
+        self._temp: set[Path] = set()
 
     def datei(self, ton: str) -> Path:
         return self.ordner / f"{ton}.wav"
@@ -93,7 +123,24 @@ class Toene:
         if not d.is_file():
             logge("sounds", "DEBUG" if ton in _OHNE_DATEI else "WARNING", "ton", "datei_fehlt", daten={"ton": ton, "datei": str(d)})
             return None
-        return baue_kommando(self.kommando, d, pegel(ton, grenze, ton_pegel, hinweis_pegel))
+        p = pegel(ton, grenze, ton_pegel, hinweis_pegel)
+        fd, name = tempfile.mkstemp(prefix=f"tobibox-ton-{ton}-", suffix=".wav")
+        os.close(fd)
+        tmp = Path(name)
+        try:
+            skaliere_wav(d, p, tmp)
+        except (ValueError, wave.Error, EOFError, OSError) as e:
+            tmp.unlink(missing_ok=True)
+            logge("sounds", "WARNING", "ton", "nicht_skalierbar", daten={"ton": ton, "detail": str(e)})
+            return None  # lieber still als unbegrenzt laut
+        self._temp.add(tmp)
+        return baue_kommando(self.kommando, tmp, p)
+
+    def _aufraeumen(self, kommando: Sequence[str]) -> None:
+        for tmp in list(self._temp):
+            if str(tmp) in kommando:
+                tmp.unlink(missing_ok=True)
+                self._temp.discard(tmp)
 
     def spiele(self, ton: str, grenze: int, ton_pegel: int | None = None, hinweis_pegel: int | None = None) -> bool:
         """Ton starten (Hintergrundaufgabe). ``False``, wenn nichts gestartet wurde."""
@@ -113,6 +160,8 @@ class Toene:
             logge("sounds", "WARNING", "ton", "programm_fehlt", daten={"ton": ton, "kommando": kommando[0]})
         except OSError as e:
             logge("sounds", "WARNING", "ton", "start_fehler", daten={"ton": ton, "detail": str(e)})
+        finally:
+            self._aufraeumen(kommando)
 
     async def warte(self) -> None:
         """Auf laufende Töne warten (Tests, sauberes Beenden)."""
@@ -123,3 +172,6 @@ class Toene:
         for t in list(self._aufgaben):
             t.cancel()
         await self.warte()
+        for tmp in list(self._temp):
+            tmp.unlink(missing_ok=True)
+        self._temp.clear()

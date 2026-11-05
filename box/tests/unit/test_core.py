@@ -516,3 +516,14 @@ def test_weiter_in_pausiert_echte_sitzung():
         ev.Abspielen("s1", "s1", "b.mp3", 0.0, "v1"),
     ]
     assert k.modus == "spielt"
+
+
+def test_dienst_endet_pausiert_ohne_herunterfahren():
+    k = KernHarnisch()
+    k.sende(ev.Aufgelegt(UID_S1, "ntag", False, 5, "v1"))
+    k.sende(ev.PlayerPosition("s1", "a.mp3", 10.0, True))
+    assert k.z.session.modus == "spielt"
+    out = ohne_meldung(k.sende(ev.DienstEndet()))
+    assert ev.Pausieren("herunterfahren") in out
+    assert any(isinstance(b, ev.ZeigerSpeichern) for b in out)
+    assert not any(isinstance(b, ev.Herunterfahren) for b in out)

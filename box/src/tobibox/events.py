@@ -434,6 +434,11 @@ class HerunterfahrenAngefordert(InternesEreignis):
     grund: Literal["leerlauf", "hauptknopf", "akku_tiefstand"]
 
 
+@dataclass(frozen=True, slots=True)
+class DienstEndet(InternesEreignis):
+    """Der Dienst wird beendet (SIGTERM). Pausieren und Zeiger sichern, **kein** ``Herunterfahren``."""
+
+
 # --------------------------------------------------------------------------
 # 4. Befehle
 # --------------------------------------------------------------------------

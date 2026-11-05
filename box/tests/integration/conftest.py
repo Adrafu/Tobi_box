@@ -35,7 +35,7 @@ class TestMpd:
 
     __test__ = False
 
-    def __init__(self, verzeichnis: Path) -> None:
+    def __init__(self, verzeichnis: Path, *, mit_zustandsdatei: bool = False) -> None:
         self.verz = verzeichnis
         self.medien = verzeichnis / "medien"
         self.port = freier_port()
@@ -43,10 +43,13 @@ class TestMpd:
         self.medien.mkdir(parents=True, exist_ok=True)
         (verzeichnis / "playlists").mkdir(exist_ok=True)
         self.konf = verzeichnis / "mpd.conf"
-        self.konf.write_text(
-            VORLAGE.read_text(encoding="utf-8").replace("@VERZ@", str(verzeichnis)).replace("@PORT@", str(self.port)),
-            encoding="utf-8",
-        )
+        text = VORLAGE.read_text(encoding="utf-8").replace("@VERZ@", str(verzeichnis)).replace("@PORT@", str(self.port))
+        if mit_zustandsdatei:
+            # Gefährliche Gegenprobe zur Vorlage: MPD sichert und stellt den Zustand wieder her
+            # (Wiedergabe läuft nach dem Neustart von selbst weiter).
+            text = text.replace('restore_paused      "yes"', 'restore_paused      "no"')
+            text += f'\nstate_file "{verzeichnis}/state"\n'
+        self.konf.write_text(text, encoding="utf-8")
 
     def _frage(self, *zeilen: str, timeout: float = 2.0) -> str:
         with socket.create_connection(("127.0.0.1", self.port), timeout=timeout) as s:
@@ -89,6 +92,9 @@ class TestMpd:
             time.sleep(0.05)
         raise RuntimeError("mpd-Update dauert zu lange")
 
+    def frage(self, *zeilen: str) -> str:
+        return self._frage(*zeilen)
+
     def stop(self) -> None:
         if self.proc is not None and self.proc.poll() is None:
             self.proc.terminate()
@@ -108,6 +114,19 @@ def mpd(tmp_path: Path) -> Iterator[TestMpd]:
     # Medien: lange Folgen für Positionstests, kurze für das Folgenende
     audio.erzeuge_serie(m.medien, "lang", ["a.wav", "b.wav"], serie_id="lang", dauer_s=30.0)
     audio.erzeuge_serie(m.medien, "kurz", ["a.wav", "b.wav"], serie_id="kurz", dauer_s=1.0)
+    m.start()
+    m.aktualisiere()
+    yield m
+    m.stop()
+
+
+@pytest.fixture
+def mpd_mit_zustand(tmp_path: Path) -> Iterator[TestMpd]:
+    """MPD mit ``state_file`` und ``restore_paused "no"``: kann nach dem Neustart von selbst spielen."""
+    if MPD is None:
+        pytest.skip("mpd ist nicht installiert (apt install mpd / brew install mpd)")
+    m = TestMpd(tmp_path / "mpd", mit_zustandsdatei=True)
+    audio.erzeuge_serie(m.medien, "lang", ["a.wav", "b.wav"], serie_id="lang", dauer_s=30.0)
     m.start()
     m.aktualisiere()
     yield m

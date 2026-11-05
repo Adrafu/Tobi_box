@@ -44,9 +44,11 @@ class LautstaerkeKonfig:
     kopfhoerer: int = 30
 
 
-#: Mac-Vorgabe; auf dem Pi z. B. ["aplay", "-q", "-D", "softvol", "{datei}"].
-#: Platzhalter: {datei}, {pegel} (0 bis 100), {lautstaerke} (0.0 bis 1.0).
-STANDARD_TON_KOMMANDO: tuple[str, ...] = ("afplay", "-v", "{lautstaerke}", "{datei}")
+#: Mac-Vorgabe; auf dem Pi ["aplay", "-q", "{datei}"] (optional "-D", "<Gerät>").
+#: Nötig ist nur {datei}: die Töne werden in Python auf den Pegel skaliert (sounds.py).
+#: Optional weiter ersetzt: {pegel} (0 bis 100), {lautstaerke} (0.0 bis 1.0).
+STANDARD_TON_KOMMANDO: tuple[str, ...] = ("afplay", "{datei}")
+STANDARD_TON_KOMMANDO_PI: tuple[str, ...] = ("aplay", "-q", "{datei}")
 
 
 @dataclass(frozen=True, slots=True)

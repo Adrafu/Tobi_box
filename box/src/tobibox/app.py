@@ -28,6 +28,8 @@ from .sounds import Toene
 from .store import KonfigStore, ResumeStore
 
 TAKT_S = 0.1
+VERBINDEN_WARTEN_S = 10.0  # so lange wartet ``starte`` auf MPD, bevor ``Bereit`` kommt
+ENDE_WARTEN_S = 5.0
 ENV_KONFIG = "TOBIBOX_CONFIG"
 STANDARD_KONFIG = "tobibox.toml"
 STANDARD_TOENE = Path(__file__).resolve().parents[2] / "sounds"
@@ -155,6 +157,14 @@ class App:
 
     async def starte(self) -> None:
         """Daten laden, Kern starten, Leser und Player starten, ``READY=1`` melden."""
+        try:
+            await self._starte()
+        except BaseException:
+            eventlog.logge("app", "ERROR", "start", "fehler")
+            await self._raeume_auf()
+            raise
+
+    async def _starte(self) -> None:
         eventlog.logge("app", "INFO", "start", "ok", daten={"version": __version__})
         self.bibliothek = await asyncio.to_thread(library.lade_bibliothek, self.konfig.pfade.medien)
         self._aufgaben = [
@@ -164,15 +174,18 @@ class App:
         self.player.start()
         # Reihenfolge wie im Vertrag (3.3): Einstellungen zuerst (daraus entsteht
         # die erste Lautstärke), Leser-Ereignisse erst nach ``Bereit``.
-        start = (
+        for e in (
             self.konfig.geraete_einstellungen(),
             self.konfig_store.laden(),
             self.bibliothek.ereignis(),
             self.resume.laden(),
-            ev.Bereit(),
-        )
-        for e in start:
+        ):
             self.ereignisse.put_nowait(e)
+        # Erst wenn MPD verbunden ist (und damit die Lautstärke gilt), kommt ``Bereit``;
+        # ohne MPD startet die Box trotzdem (Wiedergabe meldet dann PlayerFehler).
+        if not await self.player.warte_verbunden(VERBINDEN_WARTEN_S):
+            eventlog.logge("app", "WARNING", "start", "mpd_nicht_verbunden", daten={"timeout_s": VERBINDEN_WARTEN_S})
+        self.ereignisse.put_nowait(ev.Bereit())
         await self._leere_ereignisse()
         self.leser.start()
         self._aufgaben.append(asyncio.create_task(self._taktgeber(), name="tobibox-takt"))
@@ -184,25 +197,54 @@ class App:
     async def _leere_ereignisse(self) -> None:
         await self.ereignisse.join()
 
-    async def beende(self) -> None:
-        """Sauber beenden: Leser zu, laufende Wiedergabe pausieren und Zeiger sichern."""
-        notify.stoppt()
-        await self.leser.stop()
-        for t in self._aufgaben:
-            if t.get_name() == "tobibox-takt":
-                t.cancel()
-        if self.kern.session.modus == "spielt":
-            self.ereignisse.put_nowait(ev.HerunterfahrenAngefordert("hauptknopf"))
-            await self._leere_ereignisse()
-        await asyncio.wait_for(self.befehle.join(), 5.0)
+    async def _warte(self, aufruf, name: str, timeout_s: float = ENDE_WARTEN_S) -> None:
+        """Einen Schritt des Beendens mit Zeitgrenze; Fehler stoppen die übrigen Schritte nicht."""
+        try:
+            await asyncio.wait_for(aufruf, timeout_s)
+        except asyncio.CancelledError:
+            raise
+        except asyncio.TimeoutError:
+            eventlog.logge("app", "WARNING", "beende", "zeitueberschreitung", daten={"schritt": name})
+        except Exception as e:
+            eventlog.logge("app", "ERROR", "beende", "fehler", daten={"schritt": name, "detail": repr(e)})
+
+    async def _raeume_auf(self) -> None:
+        """Alles stoppen, jeder Schritt unabhängig: Aufgaben, Player, Töne, Leser."""
         for t in self._aufgaben:
             t.cancel()
         for t in self._aufgaben:
-            with contextlib.suppress(asyncio.CancelledError):
+            with contextlib.suppress(asyncio.CancelledError, Exception):
                 await t
-        await self.player.stop()
-        await self.toene.stop()
-        eventlog.logge("app", "INFO", "ende", "ok")
+        await self._warte(self.player.pausiere_hart(), "pause_hart")
+        await self._warte(self.player.stop(), "player")
+        await self._warte(self.toene.stop(), "toene")
+        await self._warte(self.leser.stop(), "leser")
+
+    async def beende(self) -> None:
+        """Sauber beenden: Leser zu, laufende Wiedergabe pausieren und Zeiger sichern.
+
+        Danach geht immer ein harter Pause-Befehl direkt an MPD (auch ohne Serie).
+        Auf dem Pi ergänzt die systemd-Unit (AP P.1) ``ExecStopPost`` mit Pause,
+        falls der Dienst abstürzt oder diesen Weg nicht mehr erreicht.
+        """
+        notify.stoppt()
+        try:
+            await self._warte(self.leser.stop(), "leser")
+            for t in self._aufgaben:
+                if t.get_name() == "tobibox-takt":
+                    t.cancel()
+            if self.kern.session.modus in ("spielt", "unbekannt"):
+                # Dienst-Ende, nicht Herunterfahren des Geräts
+                self.ereignisse.put_nowait(ev.DienstEndet())
+                await self._warte(self._leere_ereignisse(), "ereignisse")
+            await self._warte(self.befehle.join(), "befehle")
+            # Ereignisse aus den letzten Befehlen (frische Position) noch verarbeiten,
+            # danach die daraus entstandenen Befehle (Zeiger speichern).
+            await self._warte(self._leere_ereignisse(), "ereignisse_nach")
+            await self._warte(self.befehle.join(), "befehle_nach")
+        finally:
+            await self._raeume_auf()
+            eventlog.logge("app", "INFO", "ende", "ok")
 
     async def laufe(self) -> None:
         """Starten, auf SIGTERM/SIGINT warten, sauber beenden."""

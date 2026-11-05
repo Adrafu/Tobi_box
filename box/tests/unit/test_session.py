@@ -1120,3 +1120,24 @@ def test_verbindung_ok_in_unbekannt_fuehrt_bei_rueckkehr_zu_pausiert():
     assert h.sende(ev.PlayerVerbindung(True)) == []
     h.sende(A(UID_S1, "v1", 6))
     assert h.modus == "pausiert"
+
+
+# --------------------------------------------------------------------------
+# DienstEndet: Dienst endet, Gerät bleibt an
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("zustand", ["spielt", "unbekannt"])
+def test_dienst_endet_pausiert_und_speichert(zustand):
+    h = in_zustand(zustand)
+    out = h.sende(ev.DienstEndet())
+    assert ev.Pausieren("herunterfahren") in out
+    assert any(isinstance(b, ev.ZeigerSpeichern) for b in out)
+    assert h.modus == "pausiert"
+
+
+@pytest.mark.parametrize("zustand", ["leer", "pausiert", "beendet", "gehalten"])
+def test_dienst_endet_in_ruhe_ohne_wirkung(zustand):
+    h = in_zustand(zustand)
+    assert h.sende(ev.DienstEndet()) == []
+    assert h.modus == zustand

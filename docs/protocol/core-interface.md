@@ -217,6 +217,7 @@ Unterklassen von `InternesEreignis` und verlassen den Kern nie.
 | `LautstaerkeGeaendert` | `wirksam: int` | `core` → alle Teilautomaten | die **wirksame Lautstärke** (`klemmen(wunsch, grenzen)`) hat sich geändert (und einmal nach `GeraeteEinstellungen`). Die Teilautomaten sind reine Funktionen und kennen `wunsch` und `grenzen` nicht; sie merken sich den zuletzt gemeldeten Wert und benutzen ihn als **Startwert einer Rampe** (Abschnitt 8) und für die Entscheidung „laute Wiedergabe“ (`wirksam` größer als die Zielgrenze). |
 | `GuteNachtEnde` | – | `bedtime` → `session` | Das Ausblenden von „Gute Nacht“ hat die Lautstärke 0 erreicht; die Sitzung pausiert (9, Punkt 6). |
 | `HerunterfahrenAngefordert` | `grund: Literal["leerlauf","hauptknopf","akku_tiefstand"]` | `idle` → `session`, `core` | Herunterfahren ist beschlossen. `session` pausiert und speichert den Zeiger; `core` hängt danach den Befehl `Herunterfahren` an. |
+| `DienstEndet` | – | `app` → `session` | Der Dienst wird beendet (SIGTERM). `session` pausiert und speichert den Zeiger (`spielt` und `unbekannt`); `core` hängt **keinen** Befehl `Herunterfahren` an. |
 
 ## 4. Befehle
 
@@ -270,7 +271,7 @@ kennzeichen(zustand: Zustand) -> str                # kurzer Name des Zustands f
 
 | Modul | Name im Design | Zustände (`kennzeichen`) | Verarbeitet (Ereignisse) | Gibt aus |
 |---|---|---|---|---|
-| `session.py` | Wiedergabe-Sitzung | `leer`, `spielt`, `pausiert`, `beendet`, `gehalten`, `unbekannt` | `GeraeteEinstellungen`, `KonfigGeladen`, `BibliothekGeladen`, `ResumeGeladen`, `Bereit`, `Aufgelegt`, `Gesperrt`, `Abgehoben`, `LeserHallo`, `LeserAlarm`, `LeserHerzschlag`, `LautstaerkeGeaendert`, `FolgeZuEnde`, `PlayerPosition`, `PlayerFehler`, `PlayerVerbindung`, `Hauptknopf`, `Weiter`, `Zurueck`, `Kopfhoerer`, `Takt`, `StummBeginnt`, `StummEndet`, `LernenGeaendert`, `GuteNachtEnde`, `HerunterfahrenAngefordert` | `Abspielen`, `Pausieren`, `ZeigerSpeichern`, `TonSpielen`, `Melden`, `AusgangWaehlen`, `LeserPing`, `Protokoll`; intern `SitzungGeaendert`, `AktionAusgeloest`, `GrenzeGesetzt` (`kopfhoerer`, `ausblenden`) |
+| `session.py` | Wiedergabe-Sitzung | `leer`, `spielt`, `pausiert`, `beendet`, `gehalten`, `unbekannt` | `GeraeteEinstellungen`, `KonfigGeladen`, `BibliothekGeladen`, `ResumeGeladen`, `Bereit`, `Aufgelegt`, `Gesperrt`, `Abgehoben`, `LeserHallo`, `LeserAlarm`, `LeserHerzschlag`, `LautstaerkeGeaendert`, `FolgeZuEnde`, `PlayerPosition`, `PlayerFehler`, `PlayerVerbindung`, `Hauptknopf`, `Weiter`, `Zurueck`, `Kopfhoerer`, `Takt`, `StummBeginnt`, `StummEndet`, `LernenGeaendert`, `GuteNachtEnde`, `HerunterfahrenAngefordert`, `DienstEndet` | `Abspielen`, `Pausieren`, `ZeigerSpeichern`, `TonSpielen`, `Melden`, `AusgangWaehlen`, `LeserPing`, `Protokoll`; intern `SitzungGeaendert`, `AktionAusgeloest`, `GrenzeGesetzt` (`kopfhoerer`, `ausblenden`) |
 | `learn.py` | Lernmodus | `aus`, `lernt` | `HaLernmodus`, `HaLernmodusAbbruch`, `Aufgelegt`, `Gesperrt`, `Takt` | `TonSpielen`, `Melden`, `EreignisSenden`, `Protokoll`; intern `LernenGeaendert` |
 | `quiet.py` und `bedtime.py` | Ruhe-Regeln | `quiet`: `normal`, `leiser`, `stumm`; `bedtime`: `aus`, `laeuft`, `ausblenden` | `KonfigGeladen`, `Takt`, `ZeitquelleGeaendert`, `LautstaerkeGeaendert` (`quiet`); `KonfigGeladen`, `Takt`, `AktionAusgeloest`, `Abgehoben`, `LautstaerkeGeaendert` (`bedtime`) | `Protokoll`; intern `StummBeginnt`, `StummEndet`, `GrenzeGesetzt` (`leise_zeit`, `ausblenden` aus `quiet`; `gute_nacht` aus `bedtime`), `GuteNachtEnde` (aus `bedtime`) |
 | `idle.py` | Strom / Leerlauf | `aktiv`, `leerlauf`, `herunterfahren` | `SitzungGeaendert`, `LernenGeaendert`, `Takt`, `Hauptknopf` (lang), `AkkuTiefstand`, `LaderGeaendert`, `NetzKlasse`, `SyncGestartet`, `SyncFertig`, `SyncAbgebrochen`, `UpdateGestartet`, `SelbsttestErgebnis`, `HaSyncAnstossen`, `HaUpdateAnstossen`, `Bereit` | `SyncStarten`, `SyncAbbrechen`, `UpdateStarten`, `EreignisSenden`, `Protokoll`; intern `HerunterfahrenAngefordert` |
@@ -996,6 +997,9 @@ Projektleitung (P) entschieden oder aus dem Goldfisch-Review übernommen
     Zuordnung gilt beim nächsten Auflegen (6.3).
 18. **Bestätigt (05.11., P): Bestätigung mit `zuletzt`** (und `art`): die Box
     löscht nur bei Übereinstimmung (Abschnitt 7).
+    **Bestätigt (05.11., T/P): `DienstEndet`** (Dienst-Ende per SIGTERM) pausiert
+    und speichert den Zeiger wie `HerunterfahrenAngefordert`, löst aber **kein**
+    `Herunterfahren` aus (nur der Dienst endet, das Gerät läuft weiter).
 19. **Offen: Statusaufbau (Abschnitt 12).** Quellen der Felder, Abbildung von
     `leser` und die Kriterien der vier Prüfpunkte sind Vorschläge der
     Umsetzung; insbesondere `SPEICHER_MIN_FREI_MB` = 500 und „Netz ok nur mit

@@ -575,6 +575,13 @@ def _herunterfahren(z: Zustand, e: ev.HerunterfahrenAngefordert, jetzt: Jetzt) -
     return z, []
 
 
+def _dienst_endet(z: Zustand, e: ev.DienstEndet, jetzt: Jetzt) -> tuple[Zustand, Ausgabe]:
+    """Dienst-Ende: pausieren und Zeiger sichern, aber das Gerät nicht herunterfahren."""
+    if z.modus in ("spielt", "unbekannt"):
+        return _pausiere(z, "herunterfahren", "herunterfahren", jetzt)
+    return z, []
+
+
 # --------------------------------------------------------------------------
 # Takt
 # --------------------------------------------------------------------------
@@ -638,6 +645,7 @@ _HANDLER: dict[type, _Handler] = {
     ev.LernenGeaendert: _lernen,
     ev.GuteNachtEnde: _gute_nacht_ende,
     ev.HerunterfahrenAngefordert: _herunterfahren,
+    ev.DienstEndet: _dienst_endet,
 }
 
 
