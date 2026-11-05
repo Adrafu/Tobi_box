@@ -1,7 +1,7 @@
 # Tobi Box — Arbeitsregeln
 
-Zwei baugleiche, mobile NFC-Audioboxen (Raspberry Pi 3A+, Phoniebox V3,
-PN5180 an ESP32-S3). Projektplan und Stand: `docs/plan/`.
+Zwei baugleiche, mobile NFC-Audioboxen (Raspberry Pi 3A+, eigene
+Box-Software auf MPD, PN5180 an ESP32-S3). Projektplan und Stand: `docs/plan/`.
 
 ## Rollen
 
