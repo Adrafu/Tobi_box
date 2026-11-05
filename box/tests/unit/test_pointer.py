@@ -138,14 +138,29 @@ def test_sitzung_zurueck_in_beendet_spielt_die_eben_beendete_folge():
 
 
 def test_sitzung_speichert_nur_bei_aenderung_und_alle_30_s():
+    """Die Drosselung liegt allein in der Sitzung: genau alle 30 s, nie dazwischen."""
     h = in_zustand("spielt")
     h.position(sek=12.0)
-    speicherungen = []
-    for _ in range(100):  # 100 s Wiedergabe, Position wandert mit
-        speicherungen += [b for b in h.takt(1.0) if isinstance(b, ev.ZeigerSpeichern)]
+    start = h.uhr.mono
+    assert h.z.letzte_speicherung == start
+    zeiten, grund = [], []
+    for _ in range(100):  # 100 s Wiedergabe, Position wandert jede Sekunde mit
+        for b in h.takt(1.0):
+            if isinstance(b, ev.ZeigerSpeichern):
+                zeiten.append(round(h.uhr.mono - start))
+                grund.append(b.grund)
         h.position(sek=h.z.position_s + 1.0)
-    assert 2 <= len(speicherungen) <= 4
-    assert all(s.grund == "periodisch" for s in speicherungen)
+    assert zeiten == [30, 60, 90]
+    assert grund == ["periodisch"] * 3
+
+
+def test_sitzung_speichert_nicht_periodisch_wenn_die_position_stehen_bleibt():
+    h = in_zustand("spielt")
+    h.position(sek=12.0)
+    h.takt(1.0)
+    erste = [b for b in h.takt(31.0) if isinstance(b, ev.ZeigerSpeichern)]
+    assert len(erste) == 1
+    assert not [b for b in h.takt(61.0) if isinstance(b, ev.ZeigerSpeichern)]  # Position unverändert
 
 
 def test_sitzung_unveraenderter_zeiger_wird_nicht_erneut_gespeichert():

@@ -215,12 +215,14 @@ def test_unveraenderter_zeiger_wird_nicht_geschrieben(tmp_path):
     assert s.schreibungen == 2
 
 
-def test_periodisch_hoechstens_alle_30_s(tmp_path):
+def test_speicher_drosselt_nicht_selbst_geaendert_wird_immer_geschrieben(tmp_path):
+    """Die 30-s-Drosselung entscheidet allein die Sitzung; der Speicher schreibt jeden geänderten Zeiger."""
     s = ResumeStore(tmp_path)
     s.laden()
     assert s.speichern(zeiger_befehl(pos=1.0, grund="periodisch"), 100.0)
-    assert not s.speichern(zeiger_befehl(pos=20.0, grund="periodisch"), 129.9)
-    assert s.speichern(zeiger_befehl(pos=21.0, grund="periodisch"), 130.0)
+    assert s.speichern(zeiger_befehl(pos=20.0, grund="periodisch"), 100.1)
+    assert not s.speichern(zeiger_befehl(pos=20.0, grund="periodisch"), 200.0)  # unverändert
+    assert s.schreibungen == 2
 
 
 def test_andere_gruende_speichern_sofort(tmp_path):

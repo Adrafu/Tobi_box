@@ -3,17 +3,21 @@
 * ``schreibe_atomar``: ``.tmp`` -> ``fsync`` -> ``.bak`` (harter Verweis) ->
   ``os.replace`` -> Verzeichnis-``fsync`` (Abschnitt 1.2).
 * ``lade_zustandsdatei``: Rückfall ``<name>`` -> ``<name>.bak`` -> Standardwerte
-  (Abschnitt 1.3) samt Protokoll.
+  (Abschnitt 1.3) samt Protokoll. Fehlt ``<name>``, gibt es aber eine gültige
+  ``.bak``, gilt die ``.bak``; „erster Start“ nur, wenn beide fehlen.
 * ``ResumeStore``: ``resume.json`` laden und auf ``ZeigerSpeichern`` schreiben,
-  nur bei Änderung und höchstens alle 30 s für den Grund ``periodisch``.
+  nur bei geändertem Zeiger. Die Drosselung (30 s für ``periodisch``) liegt
+  allein in ``session`` (``core-interface.md``, 6.3).
 * ``KonfigStore``: ``config.json`` (Abschnitt 2) laden, prüfen, annehmen.
 """
 
 from __future__ import annotations
 
 import json
+import math
 import os
 import re
+import shutil
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -54,7 +58,8 @@ def serialisiere(inhalt: Mapping[str, Any]) -> bytes:
     """JSON nach 1.1: UTF-8, 2 Leerzeichen, ``\\n`` am Ende, ``schema_version`` zuerst."""
     obj = dict(inhalt)
     version = obj.pop("schema_version", SCHEMA_VERSION)
-    return (json.dumps({"schema_version": version, **obj}, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
+    text = json.dumps({"schema_version": version, **obj}, indent=2, ensure_ascii=False, allow_nan=False)
+    return (text + "\n").encode("utf-8")
 
 
 def _fsync_verzeichnis(verzeichnis: Path) -> None:
@@ -82,28 +87,34 @@ def schreibe_atomar(pfad: str | Path, inhalt: Mapping[str, Any]) -> None:
     bak_tmp = pfad.with_name(pfad.name + ".bak.tmp")
     pfad.parent.mkdir(parents=True, exist_ok=True)
 
-    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644)
     try:
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644)
         with os.fdopen(fd, "wb") as f:
             f.write(daten)
             f.flush()
             os.fsync(f.fileno())
-    except BaseException:
-        try:
-            tmp.unlink()
-        except OSError:
-            pass
-        raise
 
-    if pfad.exists() and _lesbar(pfad):
-        try:
-            bak_tmp.unlink()
-        except FileNotFoundError:
-            pass
-        os.link(pfad, bak_tmp)
-        os.replace(bak_tmp, bak)
-    os.replace(tmp, pfad)
-    _fsync_verzeichnis(pfad.parent)
+        if pfad.exists() and _lesbar(pfad):
+            _loesche(bak_tmp)
+            try:
+                os.link(pfad, bak_tmp)
+            except (OSError, NotImplementedError):  # Dateisystem ohne harte Verweise: kopieren
+                shutil.copyfile(pfad, bak_tmp)
+                with open(bak_tmp, "rb") as f:
+                    os.fsync(f.fileno())
+            os.replace(bak_tmp, bak)
+        os.replace(tmp, pfad)
+        _fsync_verzeichnis(pfad.parent)
+    finally:
+        _loesche(tmp)  # nach Erfolg schon umbenannt; bei Fehlern bleibt kein Rest
+        _loesche(bak_tmp)
+
+
+def _loesche(pfad: Path) -> None:
+    try:
+        pfad.unlink()
+    except OSError:
+        pass
 
 
 def raeume_auf(verzeichnis: str | Path) -> int:
@@ -155,30 +166,42 @@ def lade_zustandsdatei(
     bak = pfad.with_name(pfad.name + ".bak")
     baustein = "store"
     if not pfad.exists():
-        return standard(), "neu"
-    try:
-        return lese_pruefe(pfad, pruefe), "datei"
-    except (Ungueltig, OSError) as e:
-        grund = e.grund if isinstance(e, Ungueltig) else "lesefehler"
-        if grund == "schema_zu_neu":
-            logge(baustein, "ERROR", "schema_zu_neu", "fehler", datei=pfad.name, detail=str(e))
+        if not bak.exists():
+            return standard(), "neu"  # erster Start: beide Dateien fehlen
+        logge(baustein, "ERROR", "datei_fehlt", "fehler", daten={"datei": pfad.name})
+        defekt_grund = None
+    else:
+        try:
+            return lese_pruefe(pfad, pruefe), "datei"
+        except (Ungueltig, OSError) as e:
+            defekt_grund = e.grund if isinstance(e, Ungueltig) else "lesefehler"
+            if defekt_grund == "schema_zu_neu":
+                logge(baustein, "ERROR", "schema_zu_neu", "fehler", daten={"datei": pfad.name, "detail": str(e)})
+
+    # ``.bak`` lesen, bevor die defekte Datei umbenannt wird.
+    wert: T | None = None
+    bak_ok = False
+    if bak.exists():
+        try:
+            wert, bak_ok = lese_pruefe(bak, pruefe), True
+        except (Ungueltig, OSError):
+            pass
+
+    if defekt_grund is not None:
         defekt = pfad.with_name(pfad.name + ".defekt")
         try:
             os.replace(pfad, defekt)
+            _fsync_verzeichnis(pfad.parent)
         except OSError:
             pass
-        logge(baustein, "ERROR", "datei_defekt", "fehler", datei=pfad.name, grund=grund)
-    if bak.exists():
-        try:
-            wert = lese_pruefe(bak, pruefe)
-        except (Ungueltig, OSError):
-            wert = None
-        else:
-            if zurueckschreiben is not None:
-                schreibe_atomar(pfad, zurueckschreiben(wert))
-            logge(baustein, "WARNING", "datei_aus_bak", "ok", datei=pfad.name)
-            return wert, "bak"
-    logge(baustein, "ERROR", "datei_verloren", "fehler", datei=pfad.name)
+        logge(baustein, "ERROR", "datei_defekt", "fehler", daten={"datei": pfad.name, "grund": defekt_grund})
+
+    if bak_ok:
+        if zurueckschreiben is not None:
+            schreibe_atomar(pfad, zurueckschreiben(wert))  # type: ignore[arg-type]
+        logge(baustein, "WARNING", "datei_aus_bak", "ok", daten={"datei": pfad.name})
+        return wert, "bak"  # type: ignore[return-value]
+    logge(baustein, "ERROR", "datei_verloren", "fehler", daten={"datei": pfad.name})
     return standard(), "standard"
 
 
@@ -189,6 +212,13 @@ def lade_zustandsdatei(
 
 def _zahl(x: Any) -> bool:
     return isinstance(x, (int, float)) and not isinstance(x, bool)
+
+
+def _endlich(x: Any) -> bool:
+    try:
+        return math.isfinite(x)
+    except (OverflowError, TypeError):
+        return False
 
 
 def _ganz(x: Any) -> bool:
@@ -208,7 +238,7 @@ def parse_resume(roh: Mapping[str, Any]) -> dict[str, ev.Zeiger]:
             raise Ungueltig("schema_ungueltig", f"serien.{sid}.folge")
         if not _ganz(index) or index < 0:
             raise Ungueltig("schema_ungueltig", f"serien.{sid}.index")
-        if not _zahl(pos) or pos < 0:
+        if not _zahl(pos) or not _endlich(pos) or pos < 0:
             raise Ungueltig("schema_ungueltig", f"serien.{sid}.position_s")
         if not _ganz(zaehler) or zaehler < 1:
             raise Ungueltig("schema_ungueltig", f"serien.{sid}.zaehler")
@@ -234,7 +264,6 @@ class ResumeStore:
     def __init__(self, verzeichnis: str | Path) -> None:
         self.pfad = Path(verzeichnis) / self.NAME
         self._zeiger: dict[str, ev.Zeiger] = {}
-        self._letzte_schreibung: float | None = None
         self.quelle = "neu"
         self.schreibungen = 0
 
@@ -253,35 +282,24 @@ class ResumeStore:
         """``ZeigerSpeichern`` ausführen. ``True``, wenn geschrieben wurde.
 
         Schreibt nicht, wenn Datei, Index und abgerundete Position unverändert
-        sind. Der Grund ``periodisch`` schreibt höchstens alle 30 s (``mono``);
-        alle anderen Gründe sofort.
+        sind; sonst immer. Die 30-s-Drosselung für ``periodisch`` entscheidet
+        allein ``session``. ``mono`` bleibt für die Aufrufer-Schnittstelle.
         """
         alt = self._zeiger.get(befehl.serie_id)
         if pointer.unveraendert(alt, befehl.datei, befehl.index, befehl.position_s):
-            return False
-        if (
-            befehl.grund == "periodisch"
-            and self._letzte_schreibung is not None
-            and not pointer.periodisch_faellig(self._letzte_schreibung, mono)
-        ):
             return False
         neu = pointer.neuer_zeiger(alt, befehl.serie_id, befehl.datei, befehl.index, befehl.position_s)
         zeiger = dict(self._zeiger)
         zeiger[befehl.serie_id] = neu
         schreibe_atomar(self.pfad, resume_zu_json(zeiger))
         self._zeiger = zeiger
-        self._letzte_schreibung = mono
         self.schreibungen += 1
         logge(
             "store",
             "DEBUG",
             "zeiger_gespeichert",
             "ok",
-            serie=befehl.serie_id,
-            folge=befehl.datei,
-            position_s=neu.position_s,
-            grund=befehl.grund,
-            zaehler=neu.zaehler,
+            daten={"serie": befehl.serie_id, "folge": befehl.datei, "position_s": neu.position_s, "grund": befehl.grund, "zaehler": neu.zaehler},
         )
         return True
 
@@ -460,21 +478,20 @@ class KonfigStore:
         """Revisionsregel aus Abschnitt 2. Ungültig: bisherige Konfiguration bleibt."""
         try:
             version = roh.get("schema_version")
-            if version not in BEKANNTE_VERSIONEN:
+            if not _ganz(version) or version not in BEKANNTE_VERSIONEN:
                 raise Ungueltig("schema_zu_neu" if _ganz(version) and version > 1 else "schema_ungueltig")
             neu, behalten = _parse_mit_roh(roh)
         except Ungueltig as e:
-            logge("store", "ERROR", "konfig_abgelehnt", "abgelehnt", grund="schema_ungueltig", detail=str(e))
+            logge("store", "ERROR", "konfig_abgelehnt", "abgelehnt", daten={"grund": 'schema_ungueltig', "detail": str(e)})
             return Annahme(False, "schema_ungueltig")
         alt = self.konfig
         if neu.liste_id == alt.liste_id:
             if neu.revision == alt.revision:
                 return Annahme(False, "gleich")
             if neu.revision < alt.revision:
-                logge("store", "WARNING", "konfig_abgelehnt", "abgelehnt", grund="revision_zu_niedrig",
-                      revision=neu.revision, aktuell=alt.revision)
+                logge("store", "WARNING", "konfig_abgelehnt", "abgelehnt", daten={"grund": 'revision_zu_niedrig', "revision": neu.revision, "aktuell": alt.revision})
                 return Annahme(False, "revision_zu_niedrig")
         schreibe_atomar(self.pfad, behalten)
         self.konfig, self.roh = neu, behalten
-        logge("store", "INFO", "konfig_angenommen", "ok", revision=neu.revision, liste_id=neu.liste_id)
+        logge("store", "INFO", "konfig_angenommen", "ok", daten={"revision": neu.revision, "liste_id": neu.liste_id})
         return Annahme(True, "ok")

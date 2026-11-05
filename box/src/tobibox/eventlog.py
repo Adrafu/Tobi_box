@@ -26,16 +26,30 @@ DATEI_ANZAHL = 5  # bis zu 5 Dateien
 EBENEN = ("DEBUG", "INFO", "WARNING", "ERROR")
 ZEITQUELLEN = ("system", "rtc", "ntp", "unbekannt")
 
-_GEHEIM = ("passwort", "password", "secret", "token", "schluessel", "key", "zugang")
+#: Schlüsselnamen, die ganz oder als Endung (``mqtt_passwort``, ``api_key``) als geheim gelten.
+_GEHEIM = ("passwort", "password", "token", "secret", "key")
+_MAX_TIEFE = 8
 
 
-def _geheim(name: str) -> bool:
-    n = name.lower()
-    return any(t in n for t in _GEHEIM)
+def _geheim(name: object) -> bool:
+    """Ganzer Schlüsselname oder Endung ``_<name>`` / ``-<name>`` (nicht Teilstrings wie ``monkey``)."""
+    n = str(name).lower()
+    return any(n == t or n.endswith("_" + t) or n.endswith("-" + t) for t in _GEHEIM)
 
 
-def _bereinige(daten: Mapping[str, Any]) -> dict[str, Any]:
-    return {k: ("***" if _geheim(k) else v) for k, v in daten.items()}
+def _bereinige(wert: Any, tiefe: int = 0) -> Any:
+    """Ersetzt Werte geheimer Schlüssel durch ``***``, rekursiv in Objekten und Listen.
+
+    Grenze: Nur Schlüsselnamen werden geprüft. Freitext-Werte (z. B. eine
+    Fehlermeldung mit einem Passwort darin) werden nicht durchsucht.
+    """
+    if tiefe > _MAX_TIEFE:
+        return "…"
+    if isinstance(wert, Mapping):
+        return {k: ("***" if _geheim(k) else _bereinige(v, tiefe + 1)) for k, v in wert.items()}
+    if isinstance(wert, (list, tuple)):
+        return [_bereinige(v, tiefe + 1) for v in wert]
+    return wert
 
 
 def zeitstempel(wall: float) -> str:
@@ -58,6 +72,21 @@ class JsonFormatter(logging.Formatter):
         self._uhr = uhr
 
     def format(self, record: logging.LogRecord) -> str:
+        try:
+            # unpaarige Ersatzzeichen (Dateinamen mit ungültigem UTF-8) lesbar machen
+            return self._format(record).encode("utf-8", "backslashreplace").decode("utf-8")
+        except Exception:  # Protokollieren darf nie werfen
+            try:
+                ereignis = str(getattr(record, "ereignis", "meldung"))
+            except Exception:
+                ereignis = "meldung"
+            return json.dumps(
+                {"zeit": zeitstempel(time.time()), "ebene": "ERROR", "baustein": "eventlog",
+                 "ereignis": "format_fehler", "ergebnis": "fehler", "meldung": ereignis},
+                ensure_ascii=False, separators=(",", ":"),
+            )
+
+    def _format(self, record: logging.LogRecord) -> str:
         if self._uhr is not None:
             wall, mono, quelle = self._uhr()
         else:
@@ -101,9 +130,20 @@ def logge(
     meldung: str | None = None,
     sim: bool = False,
     zeitquelle: str | None = None,
-    **daten: Any,
+    daten: Mapping[str, Any] | None = None,
 ) -> None:
-    """Eine Protokollzeile schreiben (Weg für alle Bausteine mit Ein-/Ausgabe)."""
+    """Eine Protokollzeile schreiben (Weg für alle Bausteine mit Ein-/Ausgabe).
+
+    ``daten`` ist ein ausdrückliches Objekt (kein ``**``), damit Schlüssel wie
+    ``ebene`` oder ``meldung`` nicht mit Parametern kollidieren. Wirft nie.
+    """
+    try:
+        _logge(baustein, ebene, ereignis, ergebnis, vorgang, meldung, sim, zeitquelle, daten)
+    except Exception:
+        pass
+
+
+def _logge(baustein, ebene, ereignis, ergebnis, vorgang, meldung, sim, zeitquelle, daten) -> None:  # type: ignore[no-untyped-def]
     extra: dict[str, Any] = {"baustein": baustein, "ereignis": ereignis, "ergebnis": ergebnis}
     if vorgang:
         extra["vorgang"] = vorgang
@@ -114,7 +154,7 @@ def logge(
     if zeitquelle:
         extra["zeitquelle"] = zeitquelle
     if daten:
-        extra["daten"] = daten
+        extra["daten"] = dict(daten)
     logger().log(getattr(logging, ebene, logging.INFO), "%s", ereignis, extra=extra)
 
 
@@ -128,7 +168,7 @@ def logge_befehl(befehl: ev.Protokoll, *, sim: bool = False, zeitquelle: str | N
         befehl.vorgang,
         sim=sim,
         zeitquelle=zeitquelle,
-        **dict(befehl.daten),
+        daten=befehl.daten,
     )
 
 

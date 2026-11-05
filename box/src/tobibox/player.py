@@ -138,7 +138,7 @@ class Player:
     async def ausgang_waehlen(self, ausgang: str) -> None:
         """``AusgangWaehlen``: nur wirksam, wenn Ausgabenamen konfiguriert sind (Pi)."""
         if not self._ausgaenge or not self._verbunden:
-            logge("player", "DEBUG", "ausgang", "ohne_wirkung", ausgang=ausgang)
+            logge("player", "DEBUG", "ausgang", "ohne_wirkung", daten={"ausgang": ausgang})
             return
         async with self._lock:
             await self._schutz(self._waehle_ausgang(ausgang), None, None)
@@ -222,7 +222,7 @@ class Player:
             try:
                 await c.seek(0, f"{b.position_s:.3f}")
             except CommandError as e:
-                logge("player", "WARNING", "seek", "fehler", detail=str(e), position_s=b.position_s)
+                logge("player", "WARNING", "seek", "fehler", daten={"detail": str(e), "position_s": b.position_s})
                 await c.play(0)
         else:
             await c.play(0)
@@ -284,7 +284,7 @@ class Player:
     # ------------------------------------------------------------------
 
     def _fehler(self, serie: str | None, datei: str | None, art: str, detail: str) -> None:
-        logge("player", "ERROR", "player_fehler", art, serie=serie, datei=datei, detail=detail)
+        logge("player", "ERROR", "player_fehler", art, daten={"serie": serie, "datei": datei, "detail": detail})
         self._ausgabe(ev.PlayerFehler(serie, datei, art, detail))  # type: ignore[arg-type]
 
     async def _schutz(self, aufruf: Awaitable[None], serie: str | None, datei: str | None) -> bool:
@@ -317,7 +317,7 @@ class Player:
         self._trenne()
         self._phase = "aus"  # der MPD-Zustand ist verloren; Wiederaufnahme kommt per Abspielen
         if war or not self._verlust_gemeldet:
-            logge("player", "ERROR", "mpd_verbindung", "verloren", detail=grund)
+            logge("player", "ERROR", "mpd_verbindung", "verloren", daten={"detail": grund})
             self._verlust_gemeldet = True
             self._ausgabe(ev.PlayerVerbindung(False))
 
@@ -338,7 +338,7 @@ class Player:
             self._trenne()
             raise
         self._verbunden = True
-        logge("player", "INFO", "mpd_verbindung", "ok", host=self._host, port=self._port)
+        logge("player", "INFO", "mpd_verbindung", "ok", daten={"host": self._host, "port": self._port})
         if self._verlust_gemeldet:
             self._verlust_gemeldet = False
             self._ausgabe(ev.PlayerVerbindung(True))
@@ -361,7 +361,7 @@ class Player:
             except asyncio.CancelledError:
                 raise
             except Exception as e:  # die Schleife darf nie still sterben
-                logge("player", "ERROR", "abfrage", "fehler", detail=f"{type(e).__name__}: {e}")
+                logge("player", "ERROR", "abfrage", "fehler", daten={"detail": f'{type(e).__name__}: {e}'})
                 self._verbindung_weg(f"{type(e).__name__}: {e}")
                 await self._schlafen(self._backoff[0])
 
@@ -386,7 +386,7 @@ class Player:
             except (TypeError, ValueError):
                 vol = -1
             if vol > self._grenze:
-                logge("player", "WARNING", "lautstaerke_geklemmt", "ok", mpd=vol, grenze=self._grenze)
+                logge("player", "WARNING", "lautstaerke_geklemmt", "ok", daten={"mpd": vol, "grenze": self._grenze})
                 await self._setze_lautstaerke()
         zustand = st.get("state")
         if self._phase != "spielt" or self._serie is None or self._datei is None:
@@ -412,5 +412,5 @@ class Player:
                 return
             ende = self._dauer if self._dauer > 0 else self._elapsed
             self._sende_position(spielt=False, position_s=max(ende, self._elapsed))
-            logge("player", "INFO", "folge_zu_ende", "ok", serie=serie, datei=datei)
+            logge("player", "INFO", "folge_zu_ende", "ok", daten={"serie": serie, "datei": datei})
             self._ausgabe(ev.FolgeZuEnde(serie, datei))

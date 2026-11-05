@@ -49,9 +49,9 @@ class FakeReader:
         self._zaehler = {"polls": 0, "hits": 0, "rejected": 0, "errors": 0}
         self._lock = threading.Lock()
         self._stop = threading.Event()
-        self.master, slave = os.openpty()
-        self.pfad = os.ttyname(slave)
-        os.close(slave)
+        self.master, self._slave = os.openpty()  # Slave offen halten (macOS: sonst EIO beim Lesen)
+        self.pfad = os.ttyname(self._slave)
+        os.set_blocking(self.master, False)
         self.link.parent.mkdir(parents=True, exist_ok=True)
         if self.link.is_symlink() or self.link.exists():
             self.link.unlink()
@@ -66,8 +66,11 @@ class FakeReader:
 
     def sende_zeile(self, zeile: str) -> None:
         with self._lock:
+            daten = (zeile + "\n").encode("ascii")
             try:
-                os.write(self.master, (zeile + "\n").encode("ascii"))
+                os.write(self.master, daten)
+            except BlockingIOError:  # Puffer voll (niemand liest): verwerfen statt hängen
+                print(f"fake_reader: Puffer voll, Zeile verworfen: {zeile!r}", file=sys.stderr)
             except OSError:
                 pass
 
@@ -148,10 +151,11 @@ class FakeReader:
                 self.link.unlink()
         except OSError:
             pass
-        try:
-            os.close(self.master)
-        except OSError:
-            pass
+        for fd in (self.master, self._slave):
+            try:
+                os.close(fd)
+            except OSError:
+                pass
 
     def __enter__(self) -> FakeReader:
         return self

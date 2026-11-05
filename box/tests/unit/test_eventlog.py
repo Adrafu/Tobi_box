@@ -29,7 +29,7 @@ def zeilen(s: io.StringIO) -> list[dict]:
 
 
 def test_zeile_hat_alle_pflichtfelder_und_formate(strom):
-    eventlog.logge("session", "INFO", "spielt", "ok", "a1b2c3d4", uid="04a1b2c3", serie="s1", position_s=409.5)
+    eventlog.logge("session", "INFO", "spielt", "ok", "a1b2c3d4", daten={"uid": '04a1b2c3', "serie": 's1', "position_s": 409.5})
     (z,) = zeilen(strom)
     assert PFLICHT <= set(z)
     assert z["zeit"] == "2025-11-05T09:30:00.123Z"
@@ -43,7 +43,7 @@ def test_zeile_hat_alle_pflichtfelder_und_formate(strom):
 
 
 def test_genau_eine_zeile_je_ereignis_ohne_umbruch(strom):
-    eventlog.logge("core", "ERROR", "fehler", "fehler", meldung="zwei\nZeilen", x="a\nb")
+    eventlog.logge("core", "ERROR", "fehler", "fehler", meldung="zwei\nZeilen", daten={"x": 'a\nb'})
     text = strom.getvalue()
     assert text.count("\n") == 1 and text.endswith("\n")
     assert json.loads(text)["meldung"] == "zwei\nZeilen"
@@ -65,7 +65,7 @@ def test_vorgangs_id_in_jeder_zeile_der_kette(strom):
 
 
 def test_geheimnisse_werden_nicht_protokolliert(strom):
-    eventlog.logge("ha", "INFO", "verbunden", "ok", mqtt_passwort="geheim123", token="t0k", benutzer="box")
+    eventlog.logge("ha", "INFO", "verbunden", "ok", daten={"mqtt_passwort": 'geheim123', "token": 't0k', "benutzer": 'box'})
     text = strom.getvalue()
     assert "geheim123" not in text and "t0k" not in text
     assert json.loads(text)["daten"] == {"mqtt_passwort": "***", "token": "***", "benutzer": "box"}
@@ -105,7 +105,7 @@ def test_datei_ziel_rotiert_mit_fester_obergrenze(tmp_path):
     pfad = tmp_path / "log" / "tobibox.log"
     eventlog.einrichten(ziel="datei", datei=pfad, max_bytes=2000, anzahl=3, uhr=UHR)
     for i in range(400):
-        eventlog.logge("x", "INFO", "fuellen", "ok", n=i, text="y" * 40)
+        eventlog.logge("x", "INFO", "fuellen", "ok", daten={"n": i, "text": 'y' * 40})
     eventlog.einrichten(ziel="stdout", strom=io.StringIO())  # Datei schließen
     dateien = sorted(p.name for p in pfad.parent.iterdir())
     assert dateien == ["tobibox.log", "tobibox.log.1", "tobibox.log.2"]  # 3 Dateien, keine weiteren

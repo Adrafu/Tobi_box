@@ -82,7 +82,7 @@ class App:
                 self.verarbeite(e)
             except Exception:  # ein Fehler im Kern darf die Box nicht anhalten
                 log.exception("Kern: Ausnahme bei %s", type(e).__name__)
-                eventlog.logge("app", "ERROR", "kern_ausnahme", "fehler", ereignis=type(e).__name__)
+                eventlog.logge("app", "ERROR", "kern_ausnahme", "fehler", daten={"ereignis": type(e).__name__})
             finally:
                 self.ereignisse.task_done()
 
@@ -130,11 +130,11 @@ class App:
         elif isinstance(b, ev.LeserPing):
             self.leser.ping()
         elif isinstance(b, ev.Herunterfahren):
-            eventlog.logge("app", "INFO", "herunterfahren", "angefordert", grund=b.grund)
+            eventlog.logge("app", "INFO", "herunterfahren", "angefordert", daten={"grund": b.grund})
         elif isinstance(b, ev.ZustandMelden):
             pass  # Anzeige und Statussammler folgen in Stufe 2
         else:  # Melden, EreignisSenden, StatusPruefen, Sync, Update: Stufe 2 bis 3
-            eventlog.logge("app", "DEBUG", "befehl_nicht_umgesetzt", "ignoriert", befehl=type(b).__name__)
+            eventlog.logge("app", "DEBUG", "befehl_nicht_umgesetzt", "ignoriert", daten={"befehl": type(b).__name__})
 
     async def _ausfuehrer(self) -> None:
         while True:
@@ -142,7 +142,7 @@ class App:
             try:
                 await self._fuehre_aus(b, mono)
             except Exception as e:  # Ausführung darf die Schlange nicht anhalten
-                eventlog.logge("app", "ERROR", "befehl_fehler", "fehler", befehl=type(b).__name__, detail=repr(e))
+                eventlog.logge("app", "ERROR", "befehl_fehler", "fehler", daten={"befehl": type(b).__name__, "detail": repr(e)})
             finally:
                 self.befehle.task_done()
 
@@ -155,7 +155,7 @@ class App:
 
     async def starte(self) -> None:
         """Daten laden, Kern starten, Leser und Player starten, ``READY=1`` melden."""
-        eventlog.logge("app", "INFO", "start", "ok", version=__version__)
+        eventlog.logge("app", "INFO", "start", "ok", daten={"version": __version__})
         self.bibliothek = await asyncio.to_thread(library.lade_bibliothek, self.konfig.pfade.medien)
         self._aufgaben = [
             asyncio.create_task(self._ausfuehrer(), name="tobibox-ausfuehrer"),

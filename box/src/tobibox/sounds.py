@@ -7,6 +7,9 @@ nutzt). Das Kommando ist eine Liste mit den Platzhaltern ``{datei}``,
 Pegel: alle Töne außer ``hinweis``: ``min(ton_pegel, grenze)``; ``hinweis``:
 ``max(5, min(hinweis_pegel, grenze))``. Vorgaben 40 und 15. Ohne Tondatei wird
 nichts gestartet.
+
+TODO (Pi-Probelauf): ``aplay`` kann keinen Pegel setzen – Lösung im Pi-Probelauf.
+Bis dahin ignoriert das Pi-Kommando ``{pegel}`` und ``{lautstaerke}``.
 """
 
 from __future__ import annotations
@@ -64,10 +67,10 @@ async def _starte_prozess(kommando: Sequence[str]) -> None:
         with contextlib.suppress(ProcessLookupError):
             proc.kill()
         await proc.wait()
-        logge("sounds", "WARNING", "ton", "zeitueberschreitung", kommando=kommando[0])
+        logge("sounds", "WARNING", "ton", "zeitueberschreitung", daten={"kommando": kommando[0]})
         return
     if rc != 0:
-        logge("sounds", "WARNING", "ton", "kommando_fehler", kommando=kommando[0], rc=rc)
+        logge("sounds", "WARNING", "ton", "kommando_fehler", daten={"kommando": kommando[0], "rc": rc})
 
 
 class Toene:
@@ -88,7 +91,7 @@ class Toene:
         """Das fertige Kommando, oder ``None`` ohne Datei."""
         d = self.datei(ton)
         if not d.is_file():
-            logge("sounds", "DEBUG" if ton in _OHNE_DATEI else "WARNING", "ton", "datei_fehlt", ton=ton, datei=str(d))
+            logge("sounds", "DEBUG" if ton in _OHNE_DATEI else "WARNING", "ton", "datei_fehlt", daten={"ton": ton, "datei": str(d)})
             return None
         return baue_kommando(self.kommando, d, pegel(ton, grenze, ton_pegel, hinweis_pegel))
 
@@ -105,11 +108,11 @@ class Toene:
     async def _lauf(self, ton: str, kommando: list[str]) -> None:
         try:
             await self._starter(kommando)
-            logge("sounds", "DEBUG", "ton", "gespielt", ton=ton, kommando=kommando[0])
+            logge("sounds", "DEBUG", "ton", "gespielt", daten={"ton": ton, "kommando": kommando[0]})
         except FileNotFoundError:
-            logge("sounds", "WARNING", "ton", "programm_fehlt", ton=ton, kommando=kommando[0])
+            logge("sounds", "WARNING", "ton", "programm_fehlt", daten={"ton": ton, "kommando": kommando[0]})
         except OSError as e:
-            logge("sounds", "WARNING", "ton", "start_fehler", ton=ton, detail=str(e))
+            logge("sounds", "WARNING", "ton", "start_fehler", daten={"ton": ton, "detail": str(e)})
 
     async def warte(self) -> None:
         """Auf laufende Töne warten (Tests, sauberes Beenden)."""

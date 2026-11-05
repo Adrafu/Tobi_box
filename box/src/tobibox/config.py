@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from . import events as ev
-from .eventlog import EBENEN
+from .eventlog import EBENEN, logge
 
 
 class KonfigFehler(ValueError):
@@ -98,8 +98,9 @@ def _abschnitt(roh: dict[str, Any], name: str, pflicht: bool = False) -> dict[st
     if not isinstance(wert, dict):
         raise KonfigFehler(f"[{name}] muss ein Abschnitt sein")
     unbekannt = set(wert) - _BEKANNT[name]
-    if unbekannt:
-        raise KonfigFehler(f"[{name}]: unbekannte Schlüssel {sorted(unbekannt)}")
+    if unbekannt:  # nur warnen: eine neuere Datei muss nach einem Update-Rückfall noch laden
+        logge("config", "WARNING", "unbekannte_schluessel", "ignoriert",
+              daten={"abschnitt": name, "schluessel": sorted(unbekannt)})
     return wert
 
 
@@ -129,7 +130,7 @@ def pruefe(roh: dict[str, Any], basis: Path | None = None) -> BoxKonfig:
     basis = basis or Path.cwd()
     unbekannt = set(roh) - set(_BEKANNT)
     if unbekannt:
-        raise KonfigFehler(f"unbekannte Abschnitte {sorted(unbekannt)}")
+        logge("config", "WARNING", "unbekannte_abschnitte", "ignoriert", daten={"abschnitte": sorted(unbekannt)})
 
     p = _abschnitt(roh, "pfade", pflicht=True)
     zustand = _text(p, "pfade", "zustand", None)
@@ -151,14 +152,18 @@ def pruefe(roh: dict[str, Any], basis: Path | None = None) -> BoxKonfig:
         raise KonfigFehler("[toene] kommando muss eine nicht leere Liste von Texten sein")
     ton_ordner = _text(ton, "toene", "ordner", None)
 
+    maximum = _ganz(vol, "lautstaerke", "max", 50, 0, 100)
+    # Nur ``max`` gegeben: die Vorgaben werden auf ``max`` gekappt. Ausdrücklich
+    # gesetzte Werte über ``max`` sind ein Fehler im Eintrag, kein stilles Kappen.
     v = LautstaerkeKonfig(
-        max=_ganz(vol, "lautstaerke", "max", 50, 0, 100),
-        start=_ganz(vol, "lautstaerke", "start", 20, 0, 100),
-        kopfhoerer=_ganz(vol, "lautstaerke", "kopfhoerer", 30, 0, 100),
+        max=maximum,
+        start=_ganz(vol, "lautstaerke", "start", min(20, maximum), 0, 100),
+        kopfhoerer=_ganz(vol, "lautstaerke", "kopfhoerer", min(30, maximum), 0, 100),
     )
-    # Die Startlautstärke über der Obergrenze ist ein Fehler im Eintrag, kein stilles Kappen.
     if v.start > v.max:
         raise KonfigFehler("[lautstaerke] start darf nicht über max liegen")
+    if v.kopfhoerer > v.max:
+        raise KonfigFehler("[lautstaerke] kopfhoerer darf nicht über max liegen")
 
     ziel = _text(prot, "protokoll", "ziel", "stdout")
     if ziel not in ("stdout", "datei"):

@@ -97,8 +97,7 @@ def test_kein_gueltiges_toml(tmp_path):
         (MINIMAL + '[protokoll]\nziel = "mail"\n', "ziel"),
         (MINIMAL + '[protokoll]\nziel = "datei"\n', "datei"),
         (MINIMAL + '[protokoll]\nebene = "LAUT"\n', "ebene"),
-        (MINIMAL + "[unbekannt]\nx = 1\n", "unbekannt"),
-        (MINIMAL + "[mpd]\nhots = 'x'\n", "hots"),
+        (MINIMAL + "[lautstaerke]\nmax = 25\nkopfhoerer = 26\n", "kopfhoerer"),
         (MINIMAL + "mpd = 3\n", "mpd"),
     ],
 )
@@ -129,3 +128,36 @@ def test_toene_vorgabe_und_eigenes_kommando():
     assert k.toene.kommando == ("aplay", "{datei}") and k.toene.ordner == Path("/b/t")
     with pytest.raises(KonfigFehler):
         config.pruefe({"pfade": {"zustand": "v", "medien": "m"}, "toene": {"kommando": []}}, Path("/b"))
+
+
+def test_unbekannte_schluessel_sind_nur_eine_warnung(tmp_path, caplog):
+    """Rollback-Sicherheit: eine neuere Datei lädt auch mit älterer Software."""
+    import logging
+
+    log = logging.getLogger("tobibox")
+    zeilen = []
+
+    class H(logging.Handler):
+        def emit(self, record):
+            zeilen.append(record)
+
+    alt, level = log.handlers[:], log.level
+    log.handlers = [H()]
+    log.setLevel(logging.DEBUG)
+    try:
+        k = config.lade(schreibe(tmp_path, MINIMAL + "[unbekannt]\nx = 1\n[mpd]\nhots = 'x'\nport = 6601\n"))
+    finally:
+        log.handlers = alt
+        log.setLevel(level)
+    assert k.mpd.port == 6601
+    assert [r.ereignis for r in zeilen if r.levelno == logging.WARNING] == ["unbekannte_abschnitte", "unbekannte_schluessel"]
+
+
+def test_nur_max_gegeben_kappt_die_vorgaben_auf_max(tmp_path):
+    k = config.lade(schreibe(tmp_path, MINIMAL + "[lautstaerke]\nmax = 10\n"))
+    assert (k.lautstaerke.max, k.lautstaerke.start, k.lautstaerke.kopfhoerer) == (10, 10, 10)
+
+
+def test_kopfhoerer_darf_max_erreichen(tmp_path):
+    k = config.lade(schreibe(tmp_path, MINIMAL + "[lautstaerke]\nmax = 40\nkopfhoerer = 40\n"))
+    assert k.lautstaerke.kopfhoerer == 40

@@ -12,14 +12,15 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from . import events as ev
 from .eventlog import logge
 
-#: Endungen, die ein Ordner ohne ``serie.json`` als Folgen zählt (Vertragslücke, siehe Bericht)
-AUDIO_ENDUNGEN = frozenset({".mp3", ".m4a", ".aac", ".flac", ".ogg", ".opus", ".wav"})
+#: Endungen, die ein Ordner ohne ``serie.json`` als Folgen zählt (``data-model.md``, Abschnitt 5; Namen mit ``.`` am Anfang zählen nicht)
+AUDIO_ENDUNGEN = frozenset({".mp3", ".m4a", ".m4b", ".aac", ".flac", ".ogg", ".opus", ".wav"})
 
 BEKANNTE_VERSIONEN = frozenset({1})
 
@@ -37,7 +38,8 @@ def natuerlicher_schluessel(name: str) -> tuple:
     Abschnitte: Ziffernblöcke (ASCII ``0``-``9``) sind kleiner als Textblöcke;
     Ziffernblöcke zählen als Zahl, Textblöcke ohne Groß-/Kleinschreibung
     (``casefold``) nach Codepunkten; kürzere Abschnittsfolge zuerst; bei
-    Gleichstand entscheidet der rohe UTF-8-Byte-String.
+    Gleichstand entscheidet der rohe UTF-8-Byte-String (ungültige Bytes im
+    Dateinamen bleiben über ``surrogateescape`` erhalten).
     """
     abschnitte: list[tuple[int, Any]] = []
     for teil in _ZIFFERN.split(name):
@@ -47,7 +49,7 @@ def natuerlicher_schluessel(name: str) -> tuple:
             abschnitte.append((0, int(teil)))
         else:
             abschnitte.append((1, teil.casefold()))
-    return (tuple(abschnitte), name.encode("utf-8"))
+    return (tuple(abschnitte), name.encode("utf-8", "surrogateescape"))
 
 
 def sortiere_natuerlich(namen: list[str]) -> list[str]:
@@ -161,12 +163,12 @@ def _lies_serie_json(pfad: Path, ordner_name: str) -> SerieJson | None:
     except FileNotFoundError:
         return None
     except OSError as e:
-        logge("library", "ERROR", "serie_json_unlesbar", "fehler", ordner=ordner_name, detail=str(e))
+        logge("library", "ERROR", "serie_json_unlesbar", "fehler", daten={"ordner": ordner_name, "detail": str(e)})
         return None
     try:
         return parse_serie_json(json.loads(raw.decode("utf-8")))
     except (ValueError, UnicodeDecodeError) as e:
-        logge("library", "ERROR", "serie_json_ungueltig", "fehler", ordner=ordner_name, grund=str(e))
+        logge("library", "ERROR", "serie_json_ungueltig", "fehler", daten={"ordner": ordner_name, "grund": str(e)})
         return None
 
 
@@ -177,9 +179,12 @@ def _serie_aus_ordner(ordner: Path, medien: Path) -> tuple[ev.Serie, str] | None
     rel = ordner.relative_to(medien).as_posix()
     if sj is None:
         if not serien_id_gueltig(ordner.name):
-            logge("library", "ERROR", "ordner_name_ungueltig", "uebersprungen", ordner=ordner.name)
+            logge("library", "ERROR", "ordner_name_ungueltig", "uebersprungen", daten={"ordner": ordner.name})
             return None
-        audio = [n for n in dateien if Path(n).suffix.lower() in AUDIO_ENDUNGEN and dateiname_gueltig(n)]
+        audio = [
+            n for n in dateien
+            if not n.startswith(".") and Path(n).suffix.lower() in AUDIO_ENDUNGEN and dateiname_gueltig(n)
+        ]
         folgen = tuple(sortiere_natuerlich(audio))
         return ev.Serie(ordner.name, ordner.name, "normal", rel, folgen), ""
     gesehen: set[str] = set()
@@ -191,31 +196,48 @@ def _serie_aus_ordner(ordner: Path, medien: Path) -> tuple[ev.Serie, str] | None
         if f in dateien:
             folgen_l.append(f)
         else:
-            logge("library", "WARNING", "folge_fehlt", "uebersprungen", serie=sj.id, datei=f)
+            logge("library", "WARNING", "folge_fehlt", "uebersprungen", daten={"serie": sj.id, "datei": f})
     return ev.Serie(sj.id, sj.name, sj.typ, rel, tuple(folgen_l)), sj.angelegt_am  # type: ignore[arg-type]
+
+
+_JUENGSTE = datetime.max.replace(tzinfo=timezone.utc)
+
+
+def _anlegezeit(text: str) -> datetime:
+    """``angelegt_am`` als Zeitpunkt; ungültig oder fehlend zählt als jüngster (verliert bei doppelter ID)."""
+    try:
+        dt = datetime.fromisoformat(text.strip())
+    except (ValueError, AttributeError):
+        return _JUENGSTE
+    return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt
 
 
 def lade_bibliothek(medien: str | Path) -> Bibliothek:
     """Alle Serien im Medienordner. Fehler einzelner Ordner stoppen die anderen nicht."""
     medien = Path(medien)
     if not medien.is_dir():
-        logge("library", "ERROR", "medienordner_fehlt", "fehler", pfad=str(medien))
+        logge("library", "ERROR", "medienordner_fehlt", "fehler", daten={"pfad": str(medien)})
         return Bibliothek((), "keine")
     kandidaten: list[tuple[ev.Serie, str]] = []
     for ordner in sorted((p for p in medien.iterdir() if p.is_dir() and not p.name.startswith(".")),
                          key=lambda p: natuerlicher_schluessel(p.name)):
-        e = _serie_aus_ordner(ordner, medien)
+        try:
+            e = _serie_aus_ordner(ordner, medien)
+        except Exception as ex:  # ein kaputter Ordner stoppt die anderen nicht
+            logge("library", "ERROR", "ordner_fehler", "uebersprungen",
+                  daten={"ordner": ascii(ordner.name), "detail": f"{type(ex).__name__}: {ex}"})
+            continue
         if e is not None:
             kandidaten.append(e)
 
     # Doppelte IDs: die ältere Kopie behält die ID, die jüngere wird nicht gespielt
     # (die neue ID vergibt die HA-Integration; Box schreibt nie serie.json).
-    kandidaten.sort(key=lambda k: (k[1], natuerlicher_schluessel(k[0].ordner)))
+    kandidaten.sort(key=lambda k: (_anlegezeit(k[1]), natuerlicher_schluessel(k[0].ordner)))
     serien: list[ev.Serie] = []
     ids: set[str] = set()
     for s, _am in kandidaten:
         if s.id in ids:
-            logge("library", "ERROR", "serie_id_doppelt", "uebersprungen", serie=s.id, ordner=s.ordner)
+            logge("library", "ERROR", "serie_id_doppelt", "uebersprungen", daten={"serie": s.id, "ordner": s.ordner})
             continue
         ids.add(s.id)
         serien.append(s)
@@ -224,7 +246,7 @@ def lade_bibliothek(medien: str | Path) -> Bibliothek:
     ergebnis = tuple(serien)
     status = ueberraschung_status(ergebnis)
     if status != "ok":
-        logge("library", "ERROR", "ueberraschung_ungueltig", "fehler", grund=status)
+        logge("library", "ERROR", "ueberraschung_ungueltig", "fehler", daten={"grund": status})
     return Bibliothek(ergebnis, status)
 
 

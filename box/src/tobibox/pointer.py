@@ -31,6 +31,8 @@ class Ort:
 
 def abrunden(x: float) -> float:
     """Auf 1 Nachkommastelle abrunden (nie weiter vorn als die Wirklichkeit)."""
+    if not math.isfinite(x):
+        return 0.0
     return math.floor(x * 10 + _EPS) / 10 if x > 0 else 0.0
 
 
