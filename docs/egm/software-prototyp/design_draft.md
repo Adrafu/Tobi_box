@@ -579,3 +579,180 @@ Gewählt: Paket in eigenem Verzeichnis, Verweis `current`, Wächter.
 
 **Nicht möglich** (siehe `research_tonie_erkennung.md`): Der Chip trägt nur
 eine Seriennummer; die Zuordnung erfolgt einmal pro Exemplar.
+
+## Detailed Implementation
+
+Grundregeln für die Umsetzung:
+
+- Jedes Arbeitspaket (AP) setzt ein Agent um, mit dem billigsten passenden
+  Modell (in Klammern). Danach prüft ein **frischer Agent** (Goldfisch, Sonnet)
+  den Code gegen dieses Dokument, bevor das AP als fertig gilt.
+- Jedes AP liefert Tests, die im Container ohne Hardware laufen
+  (Firmware-Logik: PlatformIO `native`; Box-Dienst: pytest; MPD-Tests mit
+  echtem MPD im Container).
+- Kein AP ändert die Verträge aus Stufe 0 eigenmächtig; Änderungswünsche
+  gehen an die Projektleitung.
+- Kein Geheimnis im Repo: `config.h`, `tobibox.toml` mit Zugangsdaten und
+  Tailscale-Schlüssel sind gitignored, im Repo liegen nur `*.example.*`.
+
+### Stufe 0 — Verträge (Projektleitung schreibt, Goldfisch prüft)
+
+| Datei | Neu/Änd. | Inhalt und Grund |
+|---|---|---|
+| `docs/protocol/reader-v1.md` | neu | Protokoll v1 vollständig: Zeilen, Felder, Kennungsformat, Zeitkonstanten, Fehlercodes, Verhalten bei unbekannten Zeilen. Einziger Vertrag zwischen Firmware und Box-Dienst. |
+| `docs/protocol/reader-v1-examples.txt` | neu | Gültige und ungültige Beispielzeilen mit erwarteter Auslegung; Testgrundlage für beide Seiten. |
+| `docs/data-model.md` | neu | Schemas: `serie.json`, `mappings.json`, `resume.json`, `unknown.json`, `admin_cards.json`, `manifest.json`, Ereignisprotokoll-Zeile, MQTT-Themen und -Nachrichten. Regeln: atomar schreiben, `.bak`, `schema_version`, Migration. |
+| `docs/timing.md` | neu | Zeitbudget je Schritt (Lesen, Entprellen, Übertragen, MPD-Start) für 1,0 s / 1,5 s / 1,0 s; wie gemessen wird (Ereignisprotokoll). |
+| `box/tests/scenarios/README.md` | neu | Format der Szenario-Dateien (Zeit, Eingabezeile oder Ereignis, erwartete Befehle). |
+
+Abnahme: Goldfisch-Review der fünf Dateien ohne Blocker, Freigabe durch Tobias.
+
+### Stufe 1 — Leser und Abspielen (CUJ 1, 2, 5, 6, 8, 13)
+
+**AP 1.1 Firmware `tobibox-reader`** (Sonnet)
+
+| Datei | Neu/Änd. | Inhalt und Grund |
+|---|---|---|
+| `firmware/tobibox-reader/platformio.ini` | neu | Umgebungen `esp32s3` (SuperMini, USB-CDC) und `native` (Tests am Rechner); Plattform, Core und PN5180-Bibliothek per fester Version/Commit. |
+| `firmware/tobibox-reader/include/config.example.h` | neu | Pins (aus `tonie_test/config.h`), Zeitkonstanten, Passwort-Platzhalter. |
+| `firmware/tobibox-reader/src/main.cpp` | neu | Zusammenbau: Leser → Entpreller → Protokoll; Herzschlag. |
+| `firmware/tobibox-reader/src/reader.h/.cpp` | neu | Ein Abfragezyklus 14443A/15693/Entsperren nach Vorbild `tonie_test`; liefert `nichts`/`uid`/`gesperrt`/`fehler`. |
+| `firmware/tobibox-reader/src/debounce.h/.cpp` | neu | Reiner Zustandsautomat ohne Hardware-Aufrufe (Zeit wird übergeben). |
+| `firmware/tobibox-reader/src/protocol.h/.cpp` | neu | Formatiert Zeilen nach `reader-v1.md`, zählt `seq` und Zähler. |
+| `firmware/tobibox-reader/test/test_debounce/` | neu | Native Tests: 2-gleich-Regel, 1,0-s-Lücke, 1,1-s-Abheben, Figurwechsel, verfälschte Kennung am Rand, gesperrter Tonie. |
+| `firmware/tobibox-reader/test/test_protocol/` | neu | Native Tests gegen `reader-v1-examples.txt`. |
+| `firmware/tobibox-reader/README.md` | neu | Bauen, Flashen am Mac, Passwort eintragen, serielle Ausgabe ansehen. |
+| `firmware/tonie_test/` | bleibt | Referenz, unverändert. |
+
+**AP 1.2 Box-Dienst: Kern, Protokoll, Speicher** (Sonnet)
+
+| Datei | Neu/Änd. | Inhalt und Grund |
+|---|---|---|
+| `box/pyproject.toml` | neu | Paket `tobibox`, Python ≥ 3.11, feste Abhängigkeiten (pyserial, python-mpd2, paho-mqtt, tomli bei Bedarf), Einstiegspunkte `tobiboxd`, `tobibox`. |
+| `box/src/tobibox/events.py` | neu | Ereignis- und Befehls-Typen des Kerns. |
+| `box/src/tobibox/core.py` | neu | Zustandsautomat (reine Logik): Auflegen, Abheben, Wechsel, gesperrt, unbekannt, Überraschung. |
+| `box/src/tobibox/protocol.py` | neu | Zeilen-Parser nach `reader-v1.md`, prüft Kennungsformat. |
+| `box/src/tobibox/reader.py` | neu | Serielle öffnen, Zeilen lesen, `HELLO`-Prüfung, Herzschlag-Wächter (5 s), selbst neu verbinden. |
+| `box/src/tobibox/store.py` | neu | Atomares Lesen/Schreiben, `.bak`, `schema_version`. |
+| `box/src/tobibox/library.py` | neu | Serien aus `serie.json` lesen, Folgen-Reihenfolge, Überraschungs-Serie. |
+| `box/src/tobibox/config.py` | neu | `tobibox.toml` laden und prüfen. |
+| `box/src/tobibox/eventlog.py` | neu | JSON-Zeilen, Vorgangs-ID, Ringpuffer auf Platte. |
+| `box/src/tobibox/scenario.py` | neu | Spielt Szenario-Dateien gegen den Kern ab (für Tests und `tobibox scenario`). |
+| `box/tools/fake_reader.py` | neu | Gibt Protokollzeilen auf ein Pseudo-Terminal aus; Vorführen und Testen ohne Hardware. |
+| `box/tests/unit/` | neu | Tests je Modul. |
+| `box/tests/scenarios/cuj01…cuj13*.yaml` | neu | Abläufe dieser Stufe als Szenarien. |
+| `box/tests/integration/test_reader_pty.py` | neu | Leser über Pseudo-Terminal: Trennung, Müllzeilen, Neustart des ESP32. |
+
+**AP 1.3 Player und Töne** (Sonnet)
+
+| Datei | Neu/Änd. | Inhalt und Grund |
+|---|---|---|
+| `box/src/tobibox/player.py` | neu | Dünne MPD-Schicht: `play(datei, position)`, `pause()`, `position()`, `volume()`, Ereignis „Folge zu Ende“. |
+| `box/src/tobibox/sounds.py` | neu | Kurze Töne über konfigurierbares Kommando. |
+| `box/src/tobibox/daemon.py` | neu | Verbindet reader → core → player, Zeitgeber, sauberes Beenden. |
+| `box/sounds/` | neu | Platzhalter-Töne (später eigene von Tobias). |
+| `box/tests/integration/test_player_mpd.py` | neu | Gegen echtes MPD im Container: Start, Pause, Position, Folgenende. |
+
+**AP 1.4 Mac-Einrichtung und Doku** (Haiku)
+
+| Datei | Neu/Änd. | Inhalt und Grund |
+|---|---|---|
+| `box/config/tobibox.mac.example.toml` | neu | Mac-Konfiguration (Gerätepfad, MPD, Pfade, Simulation). |
+| `docs/betrieb/mac-prototyp.md` | neu | Schritt für Schritt: Homebrew, MPD, Python-Umgebung, Firmware flashen, Testserie anlegen, `tobiboxd` starten, Vorführung der CUJs. |
+| `box/medien-beispiel/` | neu | Kleine Beispielserie mit `serie.json` und kurzen Test-mp3 (selbst erzeugte Töne, keine fremden Inhalte). |
+
+**AP 1.5 Automatische Prüfung** (Haiku)
+
+| Datei | Neu/Änd. | Inhalt und Grund |
+|---|---|---|
+| `.github/workflows/ci.yml` | neu | Bei jedem Push: pytest (mit MPD), PlatformIO `native`-Tests, Firmware-Build für `esp32s3`. |
+| `.gitignore` | änd. | `config.h`, `tobibox.toml`, `.venv/`, `.pio/`, Laufzeitdaten. |
+
+**Abnahme Stufe 1:** Alle Szenarien und Tests grün; Tobias führt am Mac mit
+echtem Leser CUJ 1, 2, 5, 6, 8, 13 vor; das Ereignisprotokoll zeigt die
+Zeitgrenzen eingehalten.
+
+### Stufe 2 — Resume, Serien, Zuordnung lokal (CUJ 3, 4, 7a/7b ohne HA, 11)
+
+**AP 2.1 Resume und Serienzeiger** (Sonnet): `core.py`, `store.py` (Resume-
+Datei), `daemon.py` (Speichern alle 30 s und bei Pause), Szenarien CUJ 3, 4,
+Stromausfall-Test (Prozess hart beenden während des Schreibens).
+
+**AP 2.2 Unbekannte Figuren und Lernmodus** (Sonnet): `core.py`
+(`unknown.json`, Lernmodus 2 min), `box/src/tobibox/cli.py` mit
+`tobibox sim learn …` als Ersatz für HA bis Stufe 3, Szenarien CUJ 7a/7b.
+
+**AP 2.3 Status und Admin-Karte** (Sonnet): `box/src/tobibox/selftest.py`
+(Prüfpunkte), `cli.py` (`tobibox status`), `box/admin_cards.example.json`,
+Töne je Prüfpunkt, Szenario CUJ 11.
+
+**Abnahme Stufe 2:** wie Stufe 1, zusätzlich Vorführung von Resume über
+Neustart und Lernmodus per `tobibox sim`.
+
+### Pi-Probelauf (sobald der Pi 3A+ da ist)
+
+**AP P.1 Pi-Installation** (Sonnet)
+
+| Datei | Neu/Änd. | Inhalt und Grund |
+|---|---|---|
+| `deploy/pi/install.sh` | neu | Auf frischem Pi OS Lite: Pakete (MPD), Benutzer, Verzeichnisse, Python-Umgebung, Dienste. |
+| `deploy/pi/tobiboxd.service` | neu | systemd-Dienst, Neustart bei Absturz. |
+| `deploy/pi/99-tobibox-reader.rules` | neu | Fester Gerätename für den ESP32 (eigene USB-Kennung aus der Firmware). |
+| `deploy/pi/mpd.conf` | neu | MPD für die Box. |
+| `box/config/tobibox.pi.example.toml` | neu | Pi-Konfiguration. |
+| `docs/betrieb/pi-probelauf.md` | neu | Ablauf und Prüfliste: dieselben Szenarien und Vorführungen wie am Mac, Startzeit, Speicherbedarf, Temperatur. |
+
+**Abnahme:** Prüfliste vollständig grün, Unterschiede zum Mac dokumentiert;
+damit ist der Wegfall von V3 endgültig bestätigt.
+
+### Go/No-Go mit Tobias vor Stufe 3
+
+### Stufe 3 — HA, Medienverwaltung, Sync, Netz, Update (CUJ 7a/7b mit HA, 9, 10, 12)
+
+**AP 3.1 HA-Integration Backend** (Sonnet)
+
+| Datei | Neu/Änd. | Inhalt und Grund |
+|---|---|---|
+| `homeassistant/custom_components/tobibox/manifest.json` | neu | Integration, Abhängigkeit MQTT, Version. |
+| `…/__init__.py`, `config_flow.py` | neu | Einrichtung: Medienpfad, Boxen. |
+| `…/store.py` | neu | Zuordnungen mit Revision im HA-Speicher, Export. |
+| `…/media.py` | neu | `serie.json` lesen/schreiben, Erkennen neuer Ordner/Dateien, Papierkorb, Hochladen. |
+| `…/mqtt.py` | neu | `tobibox/mappings` veröffentlichen, Box-Ereignisse empfangen, Befehle senden. |
+| `…/websocket_api.py`, `http.py` | neu | Daten für die Seite, Hochladen mit Anmeldung. |
+| `…/services.yaml`, `translations/de.json` | neu | Aktionen und Texte. |
+| `homeassistant/tests/` | neu | Tests mit `pytest-homeassistant-custom-component`. |
+
+**AP 3.2 HA-Seite** (Sonnet): `homeassistant/custom_components/tobibox/frontend/tobibox-panel.js`
+— Serienliste, Folgen ziehen, Hochladen, Umbenennen, Neue Figuren, Lernmodus,
+Box-Status; bedienbar am Handy.
+
+**AP 3.3 Box-Dienst: HA, Netz, Strom** (Sonnet): `box/src/tobibox/ha.py`
+(MQTT, Discovery, Zuordnungen übernehmen, Ereignisse), `net.py`, `power.py`
+(Simulation + Schnittstelle), Szenarien CUJ 12.
+
+**AP 3.4 Medien-Sync** (Sonnet): `box/src/tobibox/sync.py` (rsync-Regeln
+Heim/Hotspot/Akku, sichtbar erst nach Abschluss, MPD neu einlesen, Sperre
+gegen Update), Tests mit lokalem rsync-Ziel, Szenario CUJ 9.
+
+**AP 3.5 Update mit Wächter** (Sonnet): `box/src/tobibox/update.py`,
+`deploy/build_release.sh` (Paket + `manifest.json`), `deploy/pi/tobibox-guard.service`,
+Tests für Umschalten, Selbsttest-Fehler, Rückfall; Szenario CUJ 10.
+
+**AP 3.6 Einrichtung Tailscale und NAS** (Haiku): `docs/betrieb/tailscale-nas.md`
+(QNAP-App, HA-Add-on, Box-Schlüssel, ACL nur Medienfreigabe, Nur-Lese-Konto,
+Schlüssel sperren), optional ein Assistenten-Skript für die Schritte, die nur
+Tobias machen kann.
+
+**AP 3.7 Betriebshandbuch** (Haiku): `docs/betrieb/handbuch.md` —
+Wiederherstellung von Null, SD-Image, „was ist wo konfiguriert“, Fehlerbilder.
+
+**Abnahme Stufe 3:** Alle CUJs als Szenarien grün; Vorführung mit HA am Handy
+(über Nabu Casa) und Mac-Box; Plan auf Rev. 3.9 nachgezogen.
+
+### Dokumente, die am Ende nachgezogen werden
+
+| Datei | Änderung |
+|---|---|
+| `docs/plan/stueckliste-und-psp.md`, `docs/plan/psp-baum.html` | Rev. 3.9: PSP-Punkte, die durch dieses Design ersetzt sind |
+| `docs/designs/box-software.md` | angenommene Fassung dieses Dokuments |
+| `CLAUDE.md` | Verweis auf Verträge und Arbeitsweise je Stufe |
