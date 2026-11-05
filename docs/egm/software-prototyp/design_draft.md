@@ -96,6 +96,9 @@ der am Mac mit echtem Leser vollständig testbar ist, bevor die Box steht.
     Technical Plan; eigene Tonaufnahmen von Tobias möglich.
 *   **Q3 — Gute-Nacht-Karte und Lautstärke-Grenze:** in welcher Stufe?
 *   **Q4 — Pi-Probelauf:** Termin hängt an der Bestellung des Pi 3A+.
+*   **Q5 — Medienverwaltung in HA:** Was genau muss in HA gehen (Serien
+    anlegen/umbenennen, Folgen sortieren/löschen, mp3 vom Handy hochladen,
+    Bilder, Überraschungs-Ordner pflegen)? Woher kommen neue Hörspiele heute?
 
 ## Critical User Journeys (CUJs)
 
@@ -435,6 +438,10 @@ es keine Abfrage „bin ich am Mac?“.
     Lernmodus starten/abbrechen) und veröffentlicht die Liste per MQTT an
     die Boxen. Risiko: HA-Updates; Gegenmittel: wenig HA-API, Tests gegen
     die HA-Version, Liste zusätzlich als Export-Datei.
-*   **D2 — Woran erkennt man eine Serie dauerhaft?** (Ordnername oder eigene ID)
-*   **D3 — Broker:** Läuft bei dir schon ein MQTT-Broker (z. B. Mosquitto-Add-on)
-    und das Tailscale-Add-on in HA?
+*   **D2 — Woran erkennt man eine Serie dauerhaft?** Entschieden (05.11.):
+    eigene **ID-Datei `serie.json`** in jedem Serien-Ordner (ID, Anzeigename,
+    später Bild), angelegt und gepflegt von der HA-Integration. Tobias will
+    eine **saubere Dateiverwaltung in HA** (Umfang: siehe Q5). Dafür bindet HA
+    die Medienfreigabe des NAS mit Schreibrecht ein; die Boxen lesen nur.
+*   **D3 — Broker:** MQTT läuft in HA. Tailscale ist noch nicht eingerichtet
+    (HA-Add-on, QNAP-App, Boxen) → Einrichtungsschritte für Tobias in Stufe 3.
