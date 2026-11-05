@@ -1,0 +1,6 @@
+# Geheimnisse: Tonie-Passwort
+config.h
+# Build-Ausgaben
+.pio/
+build/
+.DS_Store
