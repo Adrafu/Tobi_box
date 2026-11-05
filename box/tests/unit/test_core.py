@@ -452,3 +452,67 @@ def test_events_sind_unveraenderlich_und_ascii():
         if isinstance(t, type) and issubclass(t, (ev.Ereignis, ev.InternesEreignis, ev.Befehl)):
             assert name.isascii()
             assert all(f.isascii() for f in getattr(t, "__dataclass_fields__", {}))
+
+
+# --------------------------------------------------------------------------
+# Review-Befunde (05.11.)
+# --------------------------------------------------------------------------
+
+
+def test_kopfhoerer_vor_einstellungen_nichts_hoerbar():
+    k = KernHarnisch(start=False)
+    out = k.sende(ev.Kopfhoerer(True))
+    assert k.z.grenzen["kopfhoerer"] == 0
+    assert not any(isinstance(o, ev.LautstaerkeSetzen) and o.prozent > 0 for o in out)
+    out = k.sende(ev.GeraeteEinstellungen(60, 40, 25))
+    assert [o for o in out if isinstance(o, ev.LautstaerkeSetzen)] == [ev.LautstaerkeSetzen(25, 25)]
+    assert k.z.grenzen["kopfhoerer"] == 25
+
+
+def test_zweite_einstellungen_aktualisieren_die_kopfhoerergrenze():
+    k = KernHarnisch()
+    k.sende(ev.Kopfhoerer(True))
+    out = k.sende(ev.GeraeteEinstellungen(60, 40, 15))
+    assert k.z.grenzen["kopfhoerer"] == 15
+    assert [o for o in out if isinstance(o, ev.LautstaerkeSetzen)] == [ev.LautstaerkeSetzen(15, 15)]
+
+
+def test_geraete_einstellungen_werden_auf_0_bis_100_geklemmt():
+    k = KernHarnisch(start=False)
+    out = k.sende(ev.GeraeteEinstellungen(150, -5, 200))
+    assert k.z.grenzen["global"] == 100
+    assert k.z.session.kopfhoerer_grenze == 100
+    assert [o for o in out if isinstance(o, ev.LautstaerkeSetzen)] == [ev.LautstaerkeSetzen(0, 100)]
+    k2 = KernHarnisch(start=False)
+    k2.sende(ev.GeraeteEinstellungen(-10, 50, -3))
+    assert k2.z.grenzen["global"] == 0 and k2.z.session.kopfhoerer_grenze == 0
+
+
+def test_regel7_abheben_waehrend_ausblenden_echte_sitzung():
+    k = KernHarnisch()
+    k.sende(ev.Aufgelegt(UID_S1, "ntag", False, 0, "v1"))
+    k.sende(ev.PlayerPosition("s1", "a.mp3", 10.0, True))
+    k.sende(ev.StummBeginnt())
+    werte = []
+    for _ in range(15):
+        werte += [o.prozent for o in k.sende(ev.Takt(), dt=0.1) if isinstance(o, ev.LautstaerkeSetzen)]
+    assert werte and werte[-1] < 40  # mitten im Ausblenden
+    out = k.sende(ev.Abgehoben(1, "v1"))
+    assert ev.Pausieren("abgehoben") in out
+    assert not any(isinstance(o, ev.LautstaerkeSetzen) for o in out)  # Anstieg zurückgehalten
+    assert k.z.zurueckgehalten
+
+
+def test_weiter_in_pausiert_echte_sitzung():
+    k = KernHarnisch()
+    k.sende(ev.Aufgelegt(UID_S1, "ntag", False, 0, "v1"))
+    k.sende(ev.PlayerPosition("s1", "a.mp3", 10.0, True))
+    k.sende(ev.Hauptknopf("kurz"))
+    assert k.modus == "pausiert"
+    out = [o for o in k.sende(ev.Weiter()) if not isinstance(o, (ev.ZustandMelden, ev.Protokoll))]
+    assert out == [
+        ev.LautstaerkeSetzen(40, 60),
+        ev.ZeigerSpeichern("s1", "b.mp3", 1, 0.0, "folgenende"),
+        ev.Abspielen("s1", "s1", "b.mp3", 0.0, "v1"),
+    ]
+    assert k.modus == "spielt"

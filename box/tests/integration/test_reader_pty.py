@@ -463,3 +463,50 @@ async def test_backoff_folge_0_25_verdoppelt_bis_2_und_wird_durch_hello_zurueckg
         assert zaehle(e, ev.LeserAlarm) == 2
     finally:
         await leser.stop()
+
+
+async def test_alte_zeilen_vor_dem_ping_erreichen_den_kern_nicht(tmp_path):
+    """Alter Puffer (HELLO, PLACED seq=0, REMOVED) wird verworfen; nur die Antwort auf PING zählt."""
+    leitung = Leitung(tmp_path, auto_hallo=False)
+    e: list = []
+    leser = Leser(e.append, str(tmp_path / "ttyACM*"), watchdog_s=0.6, hello_timeout_s=0.5, backoff_s=(0.02,))
+    try:
+        alt = HALLO + placed(UID2, 0) + removed(1)
+        leitung.sende(alt)  # schon im Puffer, bevor der Leser öffnet
+        leser.start()
+        await asyncio.sleep(0.1)
+        leitung.sende(alt)  # und noch einmal während des Verwerfens
+        await warte(lambda: leitung.pings >= 1)
+        await asyncio.sleep(0.05)
+        assert e == []
+        leitung.sende(HALLO)
+        await warte(lambda: zaehle(e, ev.LeserHallo) == 1)
+        leitung.sende(placed(UID, 0))
+        await warte(lambda: zaehle(e, ev.Aufgelegt) == 1)
+        assert [type(x) for x in e] == [ev.LeserHallo, ev.Aufgelegt]
+        assert e[1].uid == UID
+    finally:
+        await leser.stop()
+        leitung.trennen()
+
+
+async def test_ausnahme_im_rueckruf_beendet_die_aufgabe_nicht(tmp_path):
+    leitung = Leitung(tmp_path)
+    e: list = []
+    aufrufe = {"n": 0}
+
+    def rueckruf(x):
+        aufrufe["n"] += 1
+        if aufrufe["n"] == 1:
+            raise RuntimeError("Rückruf kaputt")
+        e.append(x)
+
+    leser = Leser(rueckruf, str(tmp_path / "ttyACM*"), watchdog_s=0.6, hello_timeout_s=0.3, backoff_s=(0.02, 0.04))
+    try:
+        task = leser.start()
+        await warte(lambda: zaehle(e, ev.LeserHallo) == 1)  # nach Alarm und neuem Verbinden
+        assert zaehle(e, ev.LeserAlarm, grund="getrennt") == 1
+        assert not task.done()
+    finally:
+        await leser.stop()
+        leitung.trennen()

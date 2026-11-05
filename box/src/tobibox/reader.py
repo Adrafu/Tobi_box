@@ -34,6 +34,7 @@ HELLO_TIMEOUT_S = 2.0
 PING_TRIES = 3
 RECONNECT_BACKOFF_S: tuple[float, ...] = (0.25, 0.5, 1.0, 2.0)
 BAUD = 115200
+VERWERFEN_S = 0.3  # nach dem Öffnen: alles Alte lesen und wegwerfen
 MAC_SUCHMUSTER = "/dev/cu.usbmodem*"
 
 _SEQ_MODUL = 2**32
@@ -62,6 +63,7 @@ _FEHLER = "fehler"
 _ZEILE = "zeile"
 _ZU_LANG = "zu_lang"
 _ENDE = "ende"
+_PING = "ping"  # der Thread hat PING geschrieben; davor Gelesenes ist alt
 
 
 class _SerielleThread(threading.Thread):
@@ -93,6 +95,18 @@ class _SerielleThread(threading.Thread):
         except Exception as exc:  # Gerät fehlt, keine Rechte, ...
             self._melde(_FEHLER, exc)
             return
+        try:
+            ser.reset_input_buffer()
+            ende = time.monotonic() + VERWERFEN_S
+            while time.monotonic() < ende and not self._stop_flag.is_set():
+                ser.read(max(1, ser.in_waiting))
+        except Exception as exc:
+            self._melde(_FEHLER, exc)
+            try:
+                ser.close()
+            except Exception:
+                pass
+            return
         self._melde(_OFFEN)
         puffer = bytearray()
         verwerfen = False
@@ -100,8 +114,11 @@ class _SerielleThread(threading.Thread):
             while not self._stop_flag.is_set():
                 try:
                     while True:
-                        ser.write(self._schreiben.get_nowait())
+                        daten = self._schreiben.get_nowait()
+                        ser.write(daten)
                         ser.flush()
+                        if daten == PING_ZEILE:
+                            self._melde(_PING)
                 except queue.Empty:
                     pass
                 daten = ser.read(max(1, ser.in_waiting))
@@ -240,15 +257,30 @@ class Leser:
     # ------------------------------------------------------------------
 
     async def _lauf(self) -> None:
+        """Die Aufgabe darf nie still sterben: jeder Durchlauf fängt Ausnahmen ab."""
         try:
             while not self._stopp:
-                await self._verbindung()
-                await self._trenne_warten()
+                try:
+                    await self._verbindung()
+                except Exception:
+                    log.exception("Fehler in der Leser-Schleife")
+                    try:
+                        self._alarm("getrennt")
+                    except Exception:
+                        log.exception("Alarm konnte nicht zugestellt werden")
+                try:
+                    await self._trenne_warten()
+                except Exception:
+                    log.exception("Trennen fehlgeschlagen")
                 if self._stopp:
                     break
                 warte = self._backoff[min(self._backoff_i, len(self._backoff) - 1)]
                 self._backoff_i += 1
-                await self._schlafen(warte)
+                try:
+                    await self._schlafen(warte)
+                except Exception:
+                    log.exception("Warten fehlgeschlagen")
+                    await asyncio.sleep(warte)
         finally:
             if self._thread is not None:
                 self._thread.stoppe()  # `stop()` wartet danach auf das Ende des Threads
@@ -271,6 +303,7 @@ class Leser:
             return
 
         hallo = False
+        ping_da = False  # erst HELLO nach unserem PING zählt
         versuche = 1
         thread.schreibe(PING_ZEILE)
         frist = loop.time() + self._hello_timeout_s
@@ -293,12 +326,18 @@ class Leser:
             if art == _ENDE or art == _FEHLER:
                 self._alarm("getrennt")
                 return
+            if art == _PING:
+                ping_da = True
+                continue
             if art == _ZU_LANG:
                 self._begrenzt_loggen(logging.WARNING, "too_long", "Zeile verworfen: too_long")
                 continue
             # art == _ZEILE
             zeile = self._parse(wert)
             if zeile is None:
+                continue
+            if not ping_da:
+                log.debug("Zeile vor dem PING verworfen: %s", zeile.typ)
                 continue
             if zeile.typ == "HELLO":
                 if int(zeile.felder["proto"]) not in PROTO_UNTERSTUETZT:

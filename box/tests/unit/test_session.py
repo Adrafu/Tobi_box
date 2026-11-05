@@ -584,7 +584,7 @@ def test_mpd_zurueck_ohne_figur_pausiert():
     h.sende(ev.PlayerVerbindung(False))
     h.sende(ev.Abgehoben(1, "v1"))
     assert h.modus == "pausiert"
-    assert h.sende(ev.PlayerVerbindung(True)) == []
+    assert h.sende(ev.PlayerVerbindung(True)) == [ev.Pausieren("fehler")]
 
 
 def test_stumm_waehrend_der_mpd_frist_geht_sofort_nach_gehalten():
@@ -617,9 +617,10 @@ def test_weitere_player_fehler_waehrend_der_mpd_frist_nur_protokoll():
 
 @pytest.mark.parametrize("zustand", ["leer", "pausiert", "beendet", "gehalten"])
 @pytest.mark.parametrize("ok", [True, False])
-def test_player_verbindung_in_uebrigen_zustaenden_nur_protokoll(zustand, ok):
+def test_player_verbindung_in_uebrigen_zustaenden(zustand, ok):
     h = in_zustand(zustand)
-    assert h.sende(ev.PlayerVerbindung(ok)) == []
+    # ok=True: defensiv Pausieren("fehler") (idempotent), ok=False: nur Protokoll
+    assert h.sende(ev.PlayerVerbindung(ok)) == ([ev.Pausieren("fehler")] if ok else [])
     assert h.modus == zustand
 
 
@@ -658,7 +659,8 @@ WEITER = [
     ("pausiert", ev.Weiter(), False, [ev.ZeigerSpeichern("s1", "b.mp3", 1, 0.0, "folgenende"), ev.Abspielen("s1", "s1", "b.mp3", 0.0, "v1")], "spielt"),
     ("pausiert_ohne_figur", ev.Zurueck(), False, [ev.ZeigerSpeichern("s1", "c.mp3", 2, 0.0, "folgenende"), ev.Abspielen("s1", "s1", "c.mp3", 0.0, None)], "spielt"),
     ("beendet", ev.Weiter(), False, [ev.Abspielen("s1", "s1", "b.mp3", 0.0, "v1")], "spielt"),
-    ("beendet", ev.Zurueck(), False, [ev.Abspielen("s1", "s1", "b.mp3", 0.0, "v1")], "spielt"),
+    # Zurueck in beendet: die eben beendete Folge (vor dem Zeiger), Position 0 (05.11.)
+    ("beendet", ev.Zurueck(), False, [ev.ZeigerSpeichern("s1", "a.mp3", 0, 0.0, "folgenende"), ev.Abspielen("s1", "s1", "a.mp3", 0.0, "v1")], "spielt"),
     ("leer", ev.Weiter(), False, [], "leer"),
     ("unbekannt", ev.Zurueck(), False, [], "unbekannt"),
     ("pausiert", ev.Weiter(), True, [ev.TonSpielen("hinweis")], "pausiert"),
@@ -988,3 +990,133 @@ def test_session_importiert_keine_io_module():
             elif isinstance(knoten, ast.ImportFrom) and knoten.level == 0 and knoten.module:
                 importiert.add(knoten.module.split(".")[0])
         assert not importiert & verboten, (modul, importiert & verboten)
+
+
+# --------------------------------------------------------------------------
+# Review-Befunde (05.11.)
+# --------------------------------------------------------------------------
+
+
+def test_stumm_auflegen_uebernimmt_den_gespeicherten_zeiger_der_neuen_serie():
+    """Zeiger c.mp3 (Index 2), stumm, auflegen, stumm endet, Weiter -> a.mp3 mit Umlauf."""
+    h = SitzungsHarnisch(zeiger=(ev.Zeiger("s1", "c.mp3", 2, 10.0, 1),))
+    h.sende(ev.StummBeginnt())
+    h.sende(A())
+    assert h.modus == "gehalten"
+    assert (h.z.serie_id, h.z.datei, h.z.index, h.z.position_s) == ("s1", "c.mp3", 2, 7.0)
+    h.sende(ev.StummEndet())
+    assert h.modus == "pausiert"
+    assert h.sende(ev.Weiter()) == [
+        ev.ZeigerSpeichern("s1", "a.mp3", 0, 0.0, "folgenende"),
+        ev.Abspielen("s1", "s1", "a.mp3", 0.0, "v2"),
+    ]
+
+
+def test_stumm_figurwechsel_laesst_keine_reste_einer_anderen_serie():
+    h = in_zustand("pausiert_ohne_figur")  # s1, a.mp3 bei 10 s
+    h.sende(ev.StummBeginnt())
+    h.sende(A(UID_S2))
+    assert (h.z.serie_id, h.z.datei, h.z.index) == ("s2", "x.mp3", 0)
+    h.sende(ev.StummEndet())
+    assert h.sende(ev.Weiter()) == [
+        ev.ZeigerSpeichern("s2", "y.mp3", 1, 0.0, "folgenende"),
+        ev.Abspielen("s2", "s2", "y.mp3", 0.0, "v2"),
+    ]
+
+
+def test_beendet_stumm_neue_figur_serie_folgt_der_neuen_figur():
+    h = in_zustand("beendet")
+    h.sende(ev.StummBeginnt())
+    assert h.sende(A(UID_S2)) == [ev.TonSpielen("hinweis")]
+    assert h.modus == "beendet"
+    assert (h.z.serie_id, h.z.datei, h.z.index) == ("s2", "x.mp3", 0)
+    h.sende(ev.StummEndet())
+    assert h.sende(ev.Hauptknopf("kurz")) == [ev.Abspielen("s2", "s2", "x.mp3", 0.0, "v2")]
+
+
+def test_beendet_weiter_spielt_zeigerfolge_zurueck_die_eben_beendete():
+    h = in_zustand("beendet")  # FolgeZuEnde a.mp3 -> Zeiger b.mp3
+    assert h.sende(ev.Weiter()) == [ev.Abspielen("s1", "s1", "b.mp3", 0.0, "v1")]
+    h = in_zustand("beendet")
+    assert h.sende(ev.Zurueck())[-1] == ev.Abspielen("s1", "s1", "a.mp3", 0.0, "v1")
+
+
+def test_zurueck_in_beendet_umlauf_bei_erster_folge():
+    h = SitzungsHarnisch(zeiger=(ev.Zeiger("s1", "c.mp3", 2, 0.0, 1),))
+    h.auflegen()
+    h.position("s1", "c.mp3", 10.0)
+    h.sende(ev.FolgeZuEnde("s1", "c.mp3"))  # Zeiger wieder a.mp3
+    assert h.modus == "beendet"
+    assert h.sende(ev.Zurueck())[-1] == ev.Abspielen("s1", "s1", "c.mp3", 0.0, "v1")
+
+
+@pytest.mark.parametrize("zustand", ["pausiert", "beendet", "gehalten", "leer"])
+def test_verbindung_ok_gibt_defensiv_pausieren_fehler(zustand):
+    h = in_zustand(zustand)
+    assert h.sende(ev.PlayerVerbindung(True)) == [ev.Pausieren("fehler")]
+    assert h.sende(ev.PlayerVerbindung(True)) == [ev.Pausieren("fehler")]  # idempotent
+    assert h.modus == zustand
+
+
+def test_kopfhoerer_vor_einstellungen_grenze_null():
+    h = SitzungsHarnisch.__new__(SitzungsHarnisch)
+    h.uhr = __import__("tobibox.clock", fromlist=["SimUhr"]).SimUhr()
+    h.z = session.neuer_zustand()
+    h.voll, h.alle = (), []
+    assert h.sende(ev.Kopfhoerer(True)) == [ev.GrenzeGesetzt("kopfhoerer", 0), ev.AusgangWaehlen("kopfhoerer")]
+    assert h.sende(ev.GeraeteEinstellungen(60, 40, 25)) == [ev.GrenzeGesetzt("kopfhoerer", 25)]
+
+
+def test_zweite_einstellungen_setzen_kopfhoerergrenze_neu():
+    h = SitzungsHarnisch()
+    assert h.sende(ev.GeraeteEinstellungen(60, 40, 30)) == []  # Kopfhörer nicht gesteckt
+    h.sende(ev.Kopfhoerer(True))
+    assert h.sende(ev.GeraeteEinstellungen(60, 40, 15)) == [ev.GrenzeGesetzt("kopfhoerer", 15)]
+
+
+def test_leser_zurueck_nach_abgelaufener_frist_ohne_takt_pausiert():
+    h = in_zustand("spielt")
+    h.sende(ev.LeserAlarm("kein_herzschlag"))
+    assert h.modus == "unbekannt"
+    out = h.sende(A("04a1b2c3", "v1", 6), dt=3.5)
+    assert ev.Pausieren("leser_unbekannt") in out
+    assert ev.Abspielen("s1", "s1", "a.mp3", 7.0, "v1") not in out
+    assert h.modus == "pausiert" and h.z.figur is not None
+
+
+def test_leser_zurueck_innerhalb_der_frist_spielt_weiter():
+    h = in_zustand("spielt")
+    h.sende(ev.LeserAlarm("kein_herzschlag"))
+    assert h.sende(A(UID_S1, "v1", 6), dt=2.0) == []
+    assert h.modus == "spielt"
+
+
+def test_player_fehler_in_unbekannt_wie_in_spielt():
+    h = in_zustand("unbekannt")
+    out = h.sende(ev.PlayerFehler("s1", "a.mp3", "mpd_fehler", "x"))
+    assert out == [ev.TonSpielen("fehler"), ev.Pausieren("fehler")]
+    assert h.modus == "pausiert" and h.z.figur is not None
+
+
+def test_player_fehler_fremde_datei_in_spielt_nur_protokoll():
+    h = in_zustand("spielt")
+    assert h.sende(ev.PlayerFehler("s1", "b.mp3", "datei_fehlt", "x")) == []
+    assert h.modus == "spielt"
+    assert any(isinstance(o, ev.Protokoll) and o.ergebnis == "fremde_datei" for o in h.voll)
+
+
+def test_weiter_zurueck_waehrend_mpd_frist_ignoriert():
+    h = in_zustand("spielt")
+    h.sende(ev.PlayerVerbindung(False))
+    assert h.sende(ev.Weiter()) == []
+    assert h.sende(ev.Zurueck()) == []
+    assert h.modus == "spielt" and h.z.datei == "a.mp3"
+
+
+def test_verbindung_ok_in_unbekannt_fuehrt_bei_rueckkehr_zu_pausiert():
+    h = in_zustand("spielt")
+    h.sende(ev.LeserAlarm("kein_herzschlag"))
+    h.sende(ev.PlayerVerbindung(False))
+    assert h.sende(ev.PlayerVerbindung(True)) == []
+    h.sende(A(UID_S1, "v1", 6))
+    assert h.modus == "pausiert"

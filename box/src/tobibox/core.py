@@ -96,6 +96,10 @@ def _zusammenfassung(teil: Mapping[str, Any]) -> ev.ZustandMelden:
     )
 
 
+def _prozent(wert: int) -> int:
+    return max(0, min(100, int(wert)))
+
+
 def _konflikte(befehle: list, ruhe: str) -> list:
     """Konfliktregeln 1 bis 5 (6 und 7 betreffen die Lautstärke, siehe ``step``)."""
     # 1. Herunterfahren hat Vorrang
@@ -179,8 +183,15 @@ def step(
 
             # Spezialbehandlung durch den Kern
             if isinstance(e, ev.GeraeteEinstellungen):
+                e = replace(
+                    e,
+                    lautstaerke_max=_prozent(e.lautstaerke_max),
+                    lautstaerke_start=_prozent(e.lautstaerke_start),
+                    lautstaerke_kopfhoerer=_prozent(e.lautstaerke_kopfhoerer),
+                )
                 grenzen[GRENZE_GLOBAL] = e.lautstaerke_max
-                wunsch = min(e.lautstaerke_start, wirksame_grenze(grenzen))
+                # nur die globale Grenze kappt den Startwert; Kopfhörer & Co. klemmt `klemmen` am Ende
+                wunsch = min(e.lautstaerke_start, e.lautstaerke_max)
                 start_setzen = True
             elif isinstance(e, ev.LautstaerkeDrehen):
                 wunsch = max(0, min(wunsch + e.delta, wirksame_grenze(grenzen)))

@@ -738,10 +738,18 @@ gekennzeichneten sind von Tobias oder der Projektleitung entschieden
             **verworfen**. Kehrt sie von `unbekannt` nach `spielt` zurück (Punkt 2)
             und ist der MPD weiter verloren oder die Frist inzwischen abgelaufen,
             geht sie **sofort nach `pausiert`** (Zeiger gespeichert, Figur liegt),
-            ohne `Abspielen`.        *   `Abgehoben` während der Frist: normale Pause (Zeiger ist gespeichert),
+            ohne `Abspielen`. Ebenso bleibt `mpd_verloren`, wenn
+            `PlayerVerbindung(ok=True)` in `unbekannt` eintrifft: die Rückkehr
+            nach `spielt` führt weiter nach `pausiert` (sicheres Verhalten,
+            05.11.).
+        *   `Weiter`/`Zurueck` während der Frist: ignoriert (nur Protokoll;
+            05.11.).
+        *   `Abgehoben` während der Frist: normale Pause (Zeiger ist gespeichert),
             `pausiert`. `Hauptknopf` kurz: Pause, `pausiert`. Weitere
             `PlayerFehler` während der Frist: nur `Protokoll`.
-    *   `PlayerVerbindung` in den übrigen Zuständen: nur `Protokoll`.
+    *   `PlayerVerbindung` in den übrigen Zuständen: nur `Protokoll`;
+        `ok=True` in `pausiert`, `beendet`, `gehalten`, `leer` gibt zusätzlich
+        defensiv `Pausieren("fehler")` aus (idempotent; 05.11.).
 11. **Aktionskarten** (`Zuordnung.typ="aktion"`) im Zustand `leer` oder
     `pausiert`: die Sitzung bleibt im Zustand, gibt `AktionAusgeloest` aus und
     merkt sich `figur_liegt=True` und die Vorgangs-ID; `Abgehoben` setzt es
@@ -758,9 +766,11 @@ gekennzeichneten sind von Tobias oder der Projektleitung entschieden
         nächsten/vorigen Folge in der Reihenfolge (zyklisch), Position 0,
         `ZeigerSpeichern("folgenende")`-Regeln wie bei einer neuen Folge, nur im
         Zustand `spielt` oder `pausiert` mit Serie. **Bestätigt (05.11.) für
-        `beendet`:** `Weiter` = nächste Folge wie `Hauptknopf` kurz (Position 0,
-        Zustand `spielt`); `Zurueck` = die **aktuelle** Folge des Zeigers neu ab
-        Position 0 (Zustand `spielt`). Beide setzen die Figur voraus (`beendet`
+        `beendet`:** `Weiter` = die Folge, auf die der Zeiger steht, wie
+        `Hauptknopf` kurz (Position 0, Zustand `spielt`); `Zurueck` = die Folge
+        **vor** dem Zeiger (zyklisch), also die eben beendete, neu ab Position 0
+        (Zustand `spielt`; geändert 05.11., Projektleitung: das Kind erwartet
+        „nochmal“). Beide setzen die Figur voraus (`beendet`
         mit liegender Figur wie beim Hauptknopf) und sind im „stumm“-Fenster
         gesperrt (nur Hinweiston, Tabelle unten).
     *   **Im „stumm“-Fenster** (`quiet` im Zustand `stumm`) startet **kein**
@@ -973,7 +983,7 @@ Projektleitung (P) entschieden oder aus dem Goldfisch-Review übernommen
     *   Töne: gleicher Ausgang wie MPD, `ton_pegel` (40) und `hinweis_pegel` (15,
         Untergrenze 5), nie über der wirksamen Grenze; Mac ohne harte Kappe (8.1).
     *   Auflegen in `beendet` und `gehalten` unter „stumm“: nur Hinweiston (9.12); `StummBeginnt` in `unbekannt` wirkt erst nach dem
-        Verlassen (9.2); `Weiter`/`Zurueck` in `beendet` (9.12).
+        Verlassen (9.2); `Weiter`/`Zurueck` in `beendet` (9.12; `Zurueck` spielt die eben beendete Folge neu).
 14. **Bestätigt (05.11., P): `volume.rampe`** und `LautstaerkeGeaendert` als
     Weg, den Startwert der Rampe zu kennen (Abschnitt 8).
 15. **`kopfhoerer`-Grenze** kommt aus `tobibox.toml` als `lautstaerke_kopfhoerer`

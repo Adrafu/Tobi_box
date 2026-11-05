@@ -53,7 +53,7 @@ class Zustand:
     serien: tuple[ev.Serie, ...] = ()
     zeiger: Mapping[str, ev.Zeiger] = field(default_factory=dict)
     wirksam: int = 0
-    kopfhoerer_grenze: int = 100
+    kopfhoerer_grenze: int = 0  # bis zu den Einstellungen: nichts hörbar (Punkt 9.15)
     kopfhoerer_steckt: bool = False
     stumm: bool = False
     lernt: bool = False
@@ -215,8 +215,13 @@ def _auflegen(z: Zustand, uid: str | None, vorgang: str, jetzt: Jetzt) -> tuple[
     if z.stumm:
         modus = z.modus if z.modus in ("beendet", "gehalten") else "gehalten"
         z = replace(z, modus=modus)
-        if serie is not None and modus == "gehalten":
-            z = replace(z, serie_id=serie.id)
+        if serie is not None:
+            # Felder folgen dem gespeicherten Zeiger der neuen Serie (nie Reste einer anderen)
+            ort = _ort_am_zeiger(serie, z.zeiger.get(serie.id))
+            if ort is not None:
+                z = replace(z, serie_id=serie.id, datei=ort[0], index=ort[1], position_s=ort[2])
+            else:
+                z = replace(z, serie_id=serie.id, datei=None, index=0, position_s=0.0)
         out.append(ev.TonSpielen("hinweis"))
         return z, out
 
@@ -263,6 +268,8 @@ def _figur_gemeldet(z: Zustand, uid: str | None, vorgang: str, jetzt: Jetzt) -> 
 
 def _leser_zurueck(z: Zustand, jetzt: Jetzt) -> tuple[Zustand, Ausgabe]:
     """Gleiche Figur kam innerhalb der Frist zurück (9.2)."""
+    if z.unbekannt_seit is not None and jetzt.mono - z.unbekannt_seit >= LESER_FRIST_S - _EPS:
+        return _pausiere(z, "leser_unbekannt", "pause", jetzt)  # Frist schon abgelaufen (9.2)
     if z.mpd_verloren:
         return _ruhe(z, modus="pausiert"), [_prot("WARNING", "leser_zurueck_mpd_weg", "pausiert", z.figur.vorgang if z.figur else None)]
     z = replace(z, modus="spielt", unbekannt_seit=None)
@@ -359,8 +366,10 @@ def _folge_zu_ende(z: Zustand, e: ev.FolgeZuEnde, jetzt: Jetzt) -> tuple[Zustand
 def _player_fehler(z: Zustand, e: ev.PlayerFehler, jetzt: Jetzt) -> tuple[Zustand, Ausgabe]:
     vorgang = z.figur.vorgang if z.figur else None
     daten = {"art": e.art, "detail": e.detail, "serie": e.serie_id, "datei": e.datei}
-    if z.modus != "spielt":
+    if z.modus not in ("spielt", "unbekannt"):
         return z, [ev.Protokoll("session", "WARNING", "player_fehler", "ignoriert", vorgang, daten)]
+    if (e.datei is not None and e.datei != z.datei) or (e.serie_id is not None and e.serie_id != z.serie_id):
+        return z, [ev.Protokoll("session", "WARNING", "player_fehler", "fremde_datei", vorgang, daten)]
     if z.mpd_bis is not None:
         return z, [ev.Protokoll("session", "ERROR", "player_fehler", "in_mpd_frist", vorgang, daten)]
     out: Ausgabe = _grenze_weg(z)
@@ -384,11 +393,14 @@ def _verbindung(z: Zustand, e: ev.PlayerVerbindung, jetzt: Jetzt) -> tuple[Zusta
             z = replace(z, mpd_verloren=True)
         return z, [ev.Protokoll("session", "ERROR" if not e.ok else "INFO", "mpd_verbindung", "nur_protokoll", vorgang, {"ok": e.ok})]
     if z.modus != "spielt":
-        return z, [ev.Protokoll("session", "WARNING" if not e.ok else "INFO", "mpd_verbindung", "nur_protokoll", vorgang, {"ok": e.ok})]
+        out: Ausgabe = [ev.Protokoll("session", "WARNING" if not e.ok else "INFO", "mpd_verbindung", "nur_protokoll", vorgang, {"ok": e.ok})]
+        if e.ok:
+            out.append(ev.Pausieren("fehler"))  # defensiv: MPD ist neu, nichts darf spielen (idempotent)
+        return z, out
     if not e.ok:
         if z.mpd_bis is not None or z.ausblenden is not None:
             return replace(z, mpd_verloren=True), [ev.Protokoll("session", "ERROR", "mpd_verbindung", "weg", vorgang, {"ok": False})]
-        out: Ausgabe = [ev.Protokoll("session", "ERROR", "mpd_verloren", "frist_laeuft", vorgang, {"frist_s": MPD_FRIST_S})]
+        out = [ev.Protokoll("session", "ERROR", "mpd_verloren", "frist_laeuft", vorgang, {"frist_s": MPD_FRIST_S})]
         z, sp = _speichern(z, "pause", jetzt)
         return replace(z, mpd_verloren=True, mpd_bis=jetzt.mono + MPD_FRIST_S), out + sp
     # ok=True
@@ -439,10 +451,22 @@ def _hauptknopf(z: Zustand, e: ev.Hauptknopf, jetzt: Jetzt) -> tuple[Zustand, Au
     return z, []
 
 
+def _zeiger_index(serie: ev.Serie, zeiger: ev.Zeiger | None) -> int:
+    """Index der Folge, auf die der gespeicherte Zeiger der Serie zeigt."""
+    n = len(serie.folgen)
+    if zeiger is None:
+        return 0
+    if zeiger.datei in serie.folgen:
+        return serie.folgen.index(zeiger.datei)
+    return zeiger.index if 0 <= zeiger.index < n else 0
+
+
 def _springen(z: Zustand, delta: int, jetzt: Jetzt) -> tuple[Zustand, Ausgabe]:
     """``Weiter`` (+1) und ``Zurueck`` (-1)."""
-    if z.modus == "spielt" and z.ausblenden is not None:
-        return z, []  # während des Ausblendens ignoriert (9.12)
+    vorgang = z.figur.vorgang if z.figur else None
+    if z.modus == "spielt" and (z.ausblenden is not None or z.mpd_bis is not None):
+        # während des Ausblendens und der MPD-Frist ignoriert (9.10, 9.12)
+        return z, [_prot("INFO", "springen", "ignoriert", vorgang, delta=delta)]
     if z.modus not in ("spielt", "pausiert", "beendet", "gehalten"):
         return z, []
     if z.modus in ("pausiert", "beendet", "gehalten") and z.stumm:
@@ -452,13 +476,15 @@ def _springen(z: Zustand, delta: int, jetzt: Jetzt) -> tuple[Zustand, Ausgabe]:
     serie = _serie(z, z.serie_id)
     if serie is None or not serie.folgen:
         return z, []
-    vorgang = z.figur.vorgang if z.figur else None
-    if z.modus == "beendet":
-        # Weiter = Hauptknopf kurz; Zurueck = aktuelle Folge des Zeigers ab 0 (9.12)
-        # (der Zeiger steht schon auf der Folge, die als Nächstes dran ist)
-        return _start(z, serie, vorgang, jetzt)
     n = len(serie.folgen)
-    aktuell = serie.folgen.index(z.datei) if z.datei in serie.folgen else min(z.index, n - 1)
+    if z.modus == "beendet" and delta > 0:
+        # Weiter = Hauptknopf kurz: die Folge, auf die der Zeiger steht (9.12)
+        return _start(z, serie, vorgang, jetzt)
+    if z.modus == "spielt":
+        aktuell = serie.folgen.index(z.datei) if z.datei in serie.folgen else min(z.index, n - 1)
+    else:
+        # pausiert/beendet: immer vom gespeicherten Zeiger dieser Serie rechnen
+        aktuell = _zeiger_index(serie, z.zeiger.get(serie.id))
     ziel = (aktuell + delta) % n
     z = replace(z, datei=serie.folgen[ziel], index=ziel, position_s=0.0)
     z, sp = _speichern(z, "folgenende", jetzt)
@@ -489,7 +515,10 @@ def _kopfhoerer(z: Zustand, e: ev.Kopfhoerer, jetzt: Jetzt) -> tuple[Zustand, Au
 
 
 def _einstellungen(z: Zustand, e: ev.GeraeteEinstellungen, jetzt: Jetzt) -> tuple[Zustand, Ausgabe]:
-    return replace(z, kopfhoerer_grenze=e.lautstaerke_kopfhoerer), []
+    z = replace(z, kopfhoerer_grenze=e.lautstaerke_kopfhoerer)
+    if z.kopfhoerer_steckt:
+        return z, [ev.GrenzeGesetzt(GRENZE_KOPFHOERER, e.lautstaerke_kopfhoerer)]
+    return z, []
 
 
 def _bibliothek(z: Zustand, e: ev.BibliothekGeladen, jetzt: Jetzt) -> tuple[Zustand, Ausgabe]:
