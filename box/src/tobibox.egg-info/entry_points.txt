@@ -1,3 +1,0 @@
-[console_scripts]
-tobibox = tobibox.cli:main
-tobiboxd = tobibox.app:main

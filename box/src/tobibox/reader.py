@@ -18,7 +18,7 @@ import queue
 import secrets
 import threading
 import time
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -153,6 +153,7 @@ class Leser:
         ping_tries: int = PING_TRIES,
         backoff_s: tuple[float, ...] = RECONNECT_BACKOFF_S,
         vorgang_id: Callable[[], str] = lambda: secrets.token_hex(4),
+        schlafen: Callable[[float], Awaitable[None]] = asyncio.sleep,
     ) -> None:
         self._ausgabe = ausgabe
         self._port = port
@@ -161,6 +162,7 @@ class Leser:
         self._ping_tries = ping_tries
         self._backoff = backoff_s
         self._neue_id = vorgang_id
+        self._schlafen = schlafen
         self._task: asyncio.Task | None = None
         self._thread: _SerielleThread | None = None
         self._stopp = False
@@ -182,7 +184,6 @@ class Leser:
 
     async def stop(self) -> None:
         self._stopp = True
-        self._trenne()
         if self._task is not None:
             self._task.cancel()
             try:
@@ -190,6 +191,7 @@ class Leser:
             except asyncio.CancelledError:
                 pass
             self._task = None
+        await self._trenne_warten()
 
     def ping(self) -> None:
         """``PING`` an den Leser senden (Befehl ``LeserPing``)."""
@@ -246,9 +248,10 @@ class Leser:
                     break
                 warte = self._backoff[min(self._backoff_i, len(self._backoff) - 1)]
                 self._backoff_i += 1
-                await asyncio.sleep(warte)
+                await self._schlafen(warte)
         finally:
-            self._trenne()
+            if self._thread is not None:
+                self._thread.stoppe()  # `stop()` wartet danach auf das Ende des Threads
 
     async def _verbindung(self) -> None:
         """Eine Verbindung vom Öffnen bis zum Ausfall; meldet den Ausfall."""

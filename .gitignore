@@ -4,3 +4,9 @@ config.h
 .pio/
 build/
 .DS_Store
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+.venv/
