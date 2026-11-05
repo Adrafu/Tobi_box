@@ -269,7 +269,29 @@ Abläufe 1, 2, 5, 6, 8 als Tests und mit echtem Leser vorführbar.
 - Der Sketch `tonie_test` war nur ein Machbarkeitstest; die Firmware wird
   neu und sauber aufgebaut, der Sketch dient als Referenz.
 
-## Offene Fragen (Runde 2)
+## Entscheidungen von Tobias (05.11.2026, Runde 2)
+
+Grundlage: `pivot_ohne_v3.md`, `goldfish_pivot_raw.md`, `research_mpd_bausteine.md`.
+
+- **Phoniebox V3 entfällt.** Eigene schlanke Box-Software in Python direkt
+  auf MPD (python-mpd2, pyserial, paho-mqtt). Kleinste Form: ein Dienst;
+  V3-Funktionen (Lautstärke-Grenzen, Timer, Leerlauf-Abschaltung, Tasten,
+  Installationsskript) werden nur nachgebaut, wenn eine Stufe sie braucht,
+  nach einer festen Liste im Design. Endgültige Bestätigung nach dem ersten
+  Lauf am Pi. Folgen: am Mac kein Docker und keine Brücke; Mac und Pi lesen
+  die Serielle direkt, Unterschied nur in der Konfiguration.
+- **Notweg ohne HA:** SSH-Befehl `tobibox status` + Status-Admin-Karte;
+  myMPD optional als fertige Oberfläche.
+- **NAS von unterwegs: Tailscale** (QNAP-App + Boxen), Zugriff per ACL nur
+  auf den Medienordner, NAS-Konto nur lesend, Schlüssel pro Box widerrufbar.
+  myQNAPcloud und offene Ports werden nicht genutzt.
+- **Hotspot:** voller Abgleich inkl. neuer Folgen, Medien-Download aber nur
+  am Lader oder bei Akku über ~50 %.
+- Damit sind in Thema 2 die Brücke und der TCP-Transport hinfällig, und
+  Themen 6 und 7 vereinfachen sich (kein V3-Adapter, kein V3-Pin, kein
+  V3 im Update-Paket).
+
+## Offene Fragen (Runde 2, erledigt)
 
 1. **Brauchen wir Phoniebox V3 noch?** (Frage von Tobias.) Nach den
    Entscheidungen oben bleibt von V3 wenig übrig, siehe Antwort im Chat
