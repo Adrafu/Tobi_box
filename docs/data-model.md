@@ -24,7 +24,9 @@
     1 Nachkommastelle.
 *   Kennungen (`uid`) sind kanonisch (`reader-v1.md`, Abschnitt 4). Serien-IDs
     sind Zeichenfolgen von 1 bis 64 Zeichen ohne `/` und ohne
-    Steuerzeichen; erzeugte IDs bestehen aus 12 Zeichen `[0-9a-f]`.
+    Steuerzeichen; erzeugte IDs bestehen aus 12 Zeichen `[0-9a-f]`. Ausnahme:
+    Für einen Ordner, der keine `serie.json` hatte, ist die ID der Ordnername
+    (Abschnitt 5).
 *   Dateinamen von Folgen sind reine Dateinamen (ohne `/`, ohne `\`, nicht `.`
     oder `..`), höchstens 255 Bytes.
 
@@ -125,20 +127,20 @@ Struktur ist die Nachricht auf dem Thema `tobibox/config` (`mqtt-v1.md`).
 | Feld | Typ | Pflicht | Bedeutung |
 |---|---|---|---|
 | `schema_version` | int | ja | `1` |
-| `revision` | int ≥ 1 | ja | Versionsnummer der Konfiguration. HA erhöht sie bei jeder Änderung um 1. (Eine Box ohne Datei rechnet mit Revision 0.) |
+| `revision` | int ≥ 1 | ja | Versionsnummer der Konfiguration. HA erhöht sie bei jeder Änderung um 1. Eine **neue Liste** (neue `liste_id`) beginnt mit Revision 1. (Eine Box ohne Datei rechnet mit Revision 0.) |
 | `liste_id` | string, 16 Zeichen `[0-9a-f]` | ja | Kennung des HA-Speichers. In Stufe 2 ohne HA hat die lokale Liste `0000000000000000`. |
 | `erzeugt_am` | string (Zeitstempel) | nein | wann HA diese Fassung erzeugt hat (nur zur Anzeige) |
 | `zuordnungen` | object | ja (darf leer sein) | Schlüssel = Kennung (kanonisch), Wert = Zuordnung |
 | `zuordnungen.<uid>.typ` | `"serie"` oder `"aktion"` | ja | |
-| `zuordnungen.<uid>.serie` | string | wenn `typ="serie"` | Serien-ID. Verweist die ID auf keine Serie auf der Box, spielt die Box die Überraschungs-Serie nicht, sondern gibt `TonSpielen("fehler")` aus und protokolliert (Serie fehlt noch). |
+| `zuordnungen.<uid>.serie` | string | wenn `typ="serie"` | Serien-ID. Verweist die ID auf keine Serie auf der Box (noch nicht synchronisiert), spielt die Box die **Überraschungs-Serie** und protokolliert den Grund (`serie_fehlt`); kommt die Serie später, gilt die Zuordnung beim nächsten Auflegen (`core-interface.md`, Abschnitt 6.3). |
 | `zuordnungen.<uid>.aktion` | `"status"` oder `"gute_nacht"` | wenn `typ="aktion"` | |
 | `leise_zeiten` | object | ja | |
-| `leise_zeiten.zeitzone` | string | ja | IANA-Zeitzone für `von` und `bis`, z. B. `Europe/Berlin` |
+| `leise_zeiten.zeitzone` | string | nein | IANA-Zeitzone für `von` und `bis`. Vorgabe, wenn das Feld fehlt: `Europe/Berlin`. Ein Name, den die Zeitzonendatenbank der Box nicht kennt, macht die ganze Liste ungültig (`schema_ungueltig`). HA stellt sie ein (auf Reisen umstellbar). |
 | `leise_zeiten.fenster` | array | ja (darf leer sein) | beliebig viele, höchstens 32 |
 | `fenster[].id` | string, 1–32 Zeichen `[a-z0-9_-]` | ja | eindeutig in der Liste |
 | `fenster[].tage` | array von int 1–7 | ja | ISO-Wochentage (1 Montag bis 7 Sonntag), nicht leer, ohne Doppelte. Das Fenster gehört zu dem Tag, an dem es **beginnt**. |
 | `fenster[].von` | string `HH:MM` | ja | Beginn, Ortszeit, 24 Stunden |
-| `fenster[].bis` | string `HH:MM` | ja | Ende (ausschließlich), Ortszeit. `bis` ≤ `von` heißt: das Fenster reicht über Mitternacht in den nächsten Tag. `bis` = `von` ist ungültig. |
+| `fenster[].bis` | string `HH:MM` | ja | Ende (ausschließlich), Ortszeit. `bis` **kleiner als** `von` heißt: das Fenster reicht über Mitternacht in den nächsten Tag. `bis` **gleich** `von` ist ungültig. |
 | `fenster[].wirkung` | `"leiser"` oder `"stumm"` | ja | |
 | `fenster[].grenze` | int 0–100 | bei `leiser` ja | Lautstärke-Grenze in Prozent. Bei `stumm` fehlt das Feld oder ist `null`. |
 | `gute_nacht` | object | ja | |
@@ -161,11 +163,22 @@ Regeln:
     `d+von ≤ t < d+bis` gilt (bei Fenstern über Mitternacht endet es am Tag
     nach `d`). Sind mehrere Fenster aktiv: gibt es ein „stumm“-Fenster, gilt
     **stumm**; sonst gilt **leiser** mit dem **kleinsten** `grenze`; sonst ist
-    nichts aktiv. Die Sommerzeit-Umstellung folgt der Ortszeit (ein Fenster
-    „19:30 bis 07:00“ ist in der Umstellungsnacht entsprechend länger oder kürzer).
+    nichts aktiv. `t` ist die Wanduhrzeit in `leise_zeiten.zeitzone`.
+*   **Sommerzeit-Umstellung:** `von` und `bis` sind Wanduhrzeiten. Auf Zeitpunkte
+    (UTC) abgebildet werden sie so: Eine Ortszeit, die es gibt, ist eindeutig.
+    Eine **nicht existierende** Ortszeit (Vorstellen der Uhr, z. B. 02:30 am Tag,
+    an dem 02:00 auf 03:00 springt) gilt als die **nächste gültige Minute** (03:00);
+    ein Fenster, das dort beginnt, beginnt also um 03:00, eines, das dort endet,
+    endet um 03:00. Eine **mehrdeutige** Ortszeit (Zurückstellen, z. B. 02:30 kommt
+    zweimal) gilt als ihr **erstes** Auftreten (Sommerzeit). Ein Fenster ist in der
+    Umstellungsnacht deshalb in echter Dauer länger oder kürzer (ein Fenster
+    „19:30 bis 07:00“ im Herbst eine Stunde länger) und fängt oder hört nie
+    doppelt auf.
 *   **Nicht vertrauenswürdige Zeit** (`Jetzt.zeit_ok = False`): es gilt die
     kleinste `grenze` aller „leiser“-Fenster der Liste, nie stumm; gibt es kein
-    „leiser“-Fenster, gilt die normale Grenze.
+    „leiser“-Fenster, gilt die normale Grenze. Außerdem lehnt die Box Lernmodus,
+    Sync und Update ab und meldet es an HA (`event` `befehl_abgelehnt`,
+    `grund="zeit_unsicher"`); HA zeigt den Grund an (`mqtt-v1.md`).
 *   Überraschungs-Serie und gesperrte Figuren stehen nicht in `zuordnungen`.
 
 Beispiel:
@@ -217,11 +230,13 @@ synchronisiert.
 | `serien` | object | ja (darf leer sein) | Schlüssel = Serien-ID |
 | `serien.<id>.folge` | string | ja | Dateiname der aktuellen Folge (nur der Name) |
 | `serien.<id>.index` | int ≥ 0 | ja | Nummer der Folge in der Reihenfolge der Serie, ab 0; Hinweis für den Fall, dass die Datei fehlt |
-| `serien.<id>.position_s` | number ≥ 0 | ja | Position in Sekunden, **ohne** den Rücksprung von 3 s (den rechnet die Box beim Abspielen). 0 heißt: Folge beginnt vorn (z. B. nach einem Folgenende). |
+| `serien.<id>.position_s` | number ≥ 0 | ja | Position in Sekunden, **ohne** den Rücksprung von 3 s (den rechnet die Box beim Abspielen), auf 1 Nachkommastelle **abgerundet**. 0 heißt: Folge beginnt vorn (z. B. nach einem Folgenende). |
 | `serien.<id>.zaehler` | int ≥ 1 | ja | Anzahl der Schreibungen dieses Zeigers; wird bei jedem Speichern um 1 erhöht. Dient der Fehlersuche und der Kontrolle des Schreibbudgets. |
 
 Regeln der Zeiger (Folgenende, fehlende Folge, Rücksprung): siehe
-`core-interface.md`, Abschnitt 6.3. Ein Eintrag für eine Serie, die es nicht
+`core-interface.md`, Abschnitt 6.3. Die Namen der JSON-Felder und die Typen im
+Kern bilden die Tabelle in `core-interface.md`, Abschnitt 3.8, aufeinander ab
+(`folge` ↔ `Zeiger.datei`, `serien` ↔ `tuple[Zeiger]`). Ein Eintrag für eine Serie, die es nicht
 mehr gibt, bleibt stehen und schadet nicht.
 
 Beispiel:
@@ -250,7 +265,12 @@ Beispiel:
 
 Der Ereignis-Ausgang der Box (`outbox`): Kennungen, die HA noch nicht bestätigt
 hat. Ein Eintrag wird **erst** gelöscht, wenn HA auf dem Thema `…/ack`
-bestätigt hat (nicht schon beim PUBACK des Brokers).
+bestätigt hat (nicht schon beim PUBACK des Brokers) und die Bestätigung zum
+**aktuellen** Eintrag passt: Der `ack` trägt `zuletzt` und `art` der
+Veröffentlichung, die er bestätigt, und die Box löscht nur, wenn beide mit dem
+Eintrag übereinstimmen. Ein verspäteter `ack` für eine ältere Fassung löscht
+nichts (der Eintrag wurde inzwischen überschrieben; `anzahl` und `zuletzt`
+ändern sich bei jeder neuen Meldung, `gelernt` ersetzt `unbekannt`).
 
 | Feld | Typ | Pflicht | Bedeutung |
 |---|---|---|---|
@@ -265,6 +285,9 @@ bestätigt hat (nicht schon beim PUBACK des Brokers).
 
 *   Höchstens **200** Einträge. Kommt ein 201. hinzu, wird der mit dem ältesten
     `zuletzt` verworfen und das protokolliert.
+*   Die Box löscht auf eine passende Bestätigung zuerst die dauerhafte Nachricht
+    auf dem Broker (leere Nutzlast), danach den Eintrag (`mqtt-v1.md`, 4.1). Die
+    HA-Integration ignoriert diese leere Nachricht.
 *   Beim Start veröffentlicht `ha` alle Einträge erneut, sobald die Verbindung
     steht (der Broker kennt sie als dauerhafte Nachrichten, doppelte schaden nicht).
 
@@ -302,7 +325,7 @@ HA-Integration legt sie an und pflegt sie; die Boxen lesen sie nur.
 | Feld | Typ | Pflicht | Bedeutung |
 |---|---|---|---|
 | `schema_version` | int | ja | `1` |
-| `id` | string | ja | Serien-ID: zufällig erzeugt, **unveränderlich**, 12 Zeichen `[0-9a-f]` |
+| `id` | string | ja | Serien-ID, **unveränderlich**: zufällig erzeugt (12 Zeichen `[0-9a-f]`), oder der Ordnername, wenn HA die Datei für einen Ordner anlegt, der vorher keine hatte (siehe Regeln) |
 | `name` | string, 1–100 Zeichen | ja | Anzeigename |
 | `typ` | `"normal"` oder `"ueberraschung"` | ja | Die Überraschungs-Serie ist **nur** daran erkennbar; es gibt keine feste ID. |
 | `folgen` | array von string | ja (darf leer sein) | Dateinamen in der maßgeblichen Reihenfolge |
@@ -317,7 +340,34 @@ Regeln (aus dem Design, hier zusammengefasst):
     Treffer).
 *   **Ordner ohne `serie.json`:** Die Box spielt ihn trotzdem. ID = Ordnername,
     `name` = Ordnername, `typ` = `normal`, Reihenfolge = natürliche Sortierung
-    der Dateinamen.
+    der Dateinamen (unten). Der Ordnername muss als ID gültig sein (1 bis 64
+    Zeichen, keine Steuerzeichen); sonst spielt die Box den Ordner nicht und
+    protokolliert `ordner_name_ungueltig`.
+*   **HA legt `serie.json` für einen solchen Ordner an:** Die Integration
+    übernimmt den **Ordnernamen als `id`** (keine neue Zufalls-ID), damit Zeiger
+    (`resume.json`) und Zuordnungen (`config.json`) erhalten bleiben. Die
+    Reihenfolge in `folgen` ist die natürliche Sortierung (unten). Eine Serie,
+    die HA neu anlegt (neuer Ordner), bekommt eine zufällige ID.
+*   **Natürliche Sortierung** (Box und HA-Integration benutzen **dieselbe**
+    Regel; gibt es ein gemeinsames Hilfsmodul, dann dieses). Sortiert werden die
+    Dateinamen (UTF-8, unverändert, ohne Unicode-Normalisierung):
+    1.  Jeder Name wird in abwechselnde Abschnitte zerlegt: **Ziffernblöcke**
+        (maximale Folgen der ASCII-Ziffern `0`–`9`) und **Textblöcke** (alles
+        dazwischen).
+    2.  Zwei Namen werden Abschnitt für Abschnitt von vorn verglichen. Ein
+        Ziffernblock ist **kleiner** als ein Textblock. Zwei Ziffernblöcke
+        vergleicht man als ganze Zahlen (führende Nullen zählen nicht, Länge
+        beliebig). Zwei Textblöcke vergleicht man **ohne Unterscheidung von Groß-
+        und Kleinschreibung** (Unicode-`casefold`) nach Codepunkten.
+    3.  Ist ein Name am Ende seiner Abschnitte, aber der andere nicht, ist der
+        kürzere kleiner.
+    4.  Sind alle Abschnitte gleich, entscheidet der **rohe Byte-String** des
+        Namens (UTF-8, Byte für Byte, kleinerer Wert zuerst). Das macht die
+        Ordnung total und eindeutig (z. B. `Folge-01.mp3` vor `folge-01.mp3`,
+        `1.mp3` nach `01.mp3`).
+
+    Beispiele (aufsteigend): `folge-2.mp3`, `folge-10.mp3`; `a1.mp3`, `a1b.mp3`;
+    `01.mp3`, `1.mp3`, `2.mp3`, `10.mp3`; `Folge.mp3`, `folge.mp3`.
 *   **Ungültige `serie.json`:** behandelt die Box wie eine fehlende; die Datei
     wird nicht repariert, aber protokolliert. (Die Integration repariert sie.)
 *   **Überraschungs-Serie:** genau eine Serie mit `typ="ueberraschung"`. Keine,
@@ -461,10 +511,12 @@ Beispiel (simuliertes Ereignis):
 Obergrenze des Protokolls: Pi: journald mit begrenztem Platz; Mac: bis zu
 5 Dateien zu je 1 MB (Vorschlag aus dem Design, im Pi-Probelauf geprüft).
 
-## Festlegungen in diesem Vertrag (bitte bestätigen)
+## Festlegungen in diesem Vertrag (Stand 05.11.)
 
 Das Design lässt diese Einzelheiten offen. Entschieden wurde die einfachste
-stimmige Lösung.
+stimmige Lösung. „Bestätigt (05.11.)“ heißt: von Tobias (T) oder der
+Projektleitung (P) entschieden oder aus dem Goldfisch-Review übernommen
+(`protocol/review-stufe0.md`). Alle anderen Punkte sind noch offen.
 
 1.  **Zusatzfeld `index`** in `resume.json`: Es macht die Regel „nächste
     vorhandene Folge“ für eine gelöschte oder umbenannte Datei bestimmt
@@ -478,11 +530,16 @@ stimmige Lösung.
 5.  **Migration** im Speicher beim Lesen, neuere Version gilt als ungültig; keine
     Abwärtsmigration. Eine Änderung, die nur optionale Felder ergänzt, erhöht
     `schema_version` nicht.
-6.  **Ortszeit für Leise-Zeiten:** Das Feld `leise_zeiten.zeitzone` (IANA-Name)
-    gehört zur Liste. Das Design nennt keine Zeitzone. Wochentage als
-    ISO-Zahlen 1 bis 7; Fenster über Mitternacht (`bis` ≤ `von`) gehören zum
-    Tag des Beginns; mehrere aktive Fenster: „stumm“ gewinnt, bei „leiser“ die
-    kleinste Grenze.
+6.  **Bestätigt (05.11., P): Ortszeit für Leise-Zeiten:** Das Feld
+    `leise_zeiten.zeitzone` (IANA-Name) gehört zur Liste in `config.json`, ist
+    einstellbar und hat die Vorgabe `Europe/Berlin`. Das Design nennt keine
+    Zeitzone. Sommerzeit: Fenster gelten nach Wanduhrzeit, eine nicht
+    existierende Startzeit beginnt zur nächsten gültigen Minute, eine mehrdeutige
+    gilt als ihr erstes Auftreten. Wochentage als ISO-Zahlen 1 bis 7; Fenster
+    über Mitternacht (`bis` < `von`; `bis` = `von` ungültig) gehören zum Tag des
+    Beginns; mehrere aktive Fenster: „stumm“ gewinnt, bei „leiser“ die kleinste
+    Grenze. Bei unsicherer Uhr lehnt die Box Lernmodus, Sync und Update ab, und
+    HA zeigt den Grund (bestätigt, T).
 7.  **Wertebereiche:** `timer_min` 1–240, `ausblenden_s` 5–600, höchstens 32
     Fenster, `grenze` 0–100, Listen-ID 16 Zeichen `[0-9a-f]`, Serien-ID 12
     Zeichen `[0-9a-f]` (erzeugt).
@@ -503,5 +560,23 @@ stimmige Lösung.
 13. **Exportdatei** `export/config.json` hat das Schema von `config.json` plus
     `exportiert_am` (das Design verlangt eine Exportdatei, nennt aber das Format
     nicht).
-14. **Verweist eine Zuordnung auf eine Serie, die auf der Box fehlt:** Fehlerton
-    und Protokoll, nicht die Überraschungs-Serie.
+14. **Bestätigt (05.11., T): Verweist eine Zuordnung auf eine Serie, die auf der
+    Box fehlt,** spielt die Box die Überraschungs-Serie (kein Fehlerton, keine
+    Stille), protokolliert den Grund, und die Zuordnung gilt beim nächsten Auflegen,
+    sobald die Serie da ist.
+15. **Bestätigt (05.11., P, Review-Befund 9): Natürliche Sortierung** der
+    Dateinamen ist festgelegt (Ziffernblöcke numerisch, Groß-/Kleinschreibung
+    ignoriert, Gleichstand nach rohem Byte-String) und wird von Box und
+    HA-Integration gleich benutzt. Legt HA `serie.json` für einen Ordner ohne
+    Datei an, ist die `id` der Ordnername; Zeiger und Zuordnungen bleiben.
+16. **Bestätigt (05.11., P, Review-Befund 8): Bestätigung nur bei Übereinstimmung
+    von `zuletzt` und `art`;** HA ignoriert die leere (löschende) Nachricht auf
+    `…/unknown/<uid>`.
+17. **Bestätigt (05.11., P, Review-Befund 14): Eine neue Liste beginnt mit
+    Revision 1;** Fenster mit `bis` = `von` sind ungültig.
+18. **Offen: Zeitzonenname unbekannt** macht die ganze Liste ungültig; die Box
+    braucht dafür eine Zeitzonendatenbank (`tzdata`). Ordnernamen, die keine
+    gültige ID sind, werden nicht gespielt.
+19. **Offen:** `position_s` wird auf 1 Nachkommastelle abgerundet (nicht
+    gerundet), damit der gespeicherte Zeiger nie weiter vorn liegt als die
+    tatsächliche Position.

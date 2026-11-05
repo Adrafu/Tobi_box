@@ -23,8 +23,13 @@
 *   **QoS 1** für alle Nachrichten dieses Vertrags (Zustellung mindestens
     einmal). Empfänger verarbeiten **idempotent**: doppelte Zustellung schadet
     nicht (Mittel: `id` der Nachricht, Schlüssel `uid`, Revision).
-*   **Nachrichtenformat:** JSON, UTF-8. Jede Nachricht außer `tobibox/config` und
-    `…/online` enthält `"v": 1` (Abschnitt 8). Zeitstempel wie in `data-model.md`
+*   **Nachrichtenformat:** JSON, UTF-8. Jede JSON-Nachricht dieses Vertrags
+    enthält `"v": 1` (Abschnitt 8), **außer**: `tobibox/config` (hat
+    `schema_version`), `…/online` (reiner Text), `…/ui/*` (feste Texte oder
+    Anzeigename aus der HA-Entität), `homeassistant/status` (Text von Home
+    Assistant), die Discovery-Nachrichten `homeassistant/…/config` (Format von
+    Home Assistant) und die leere Nutzlast, die eine dauerhafte Nachricht
+    löscht. Zeitstempel wie in `data-model.md`
     (`2026-11-05T09:30:00Z`). Unbekannte Felder werden ignoriert. Höchstens
     64 KiB je Nachricht, `tobibox/config` höchstens 256 KiB.
 *   **Box-Name** `<box>`: `[a-z0-9][a-z0-9_-]{1,23}`, in `tobibox.toml`
@@ -42,9 +47,9 @@
 | `tobibox/<box>/status` | Box → HA | Box | HA | 1 | **ja** | Zustand für Sensoren |
 | `tobibox/<box>/event` | Box → HA | Box | HA | 1 | nein | Ereignisse ohne Bestätigung: abgelehnte Liste, Fehler, abgelehnter Befehl |
 | `tobibox/<box>/unknown/<uid>` | Box → HA | Box | HA | 1 | **ja** | unbekannte oder gelernte Kennung, bis HA bestätigt |
-| `tobibox/<box>/unknown/<uid>/ack` | HA → Box | HA-Integration | diese Box | 1 | **nein** | Bestätigung einer Kennung (mit Grund) |
+| `tobibox/<box>/unknown/<uid>/ack` | HA → Box | HA-Integration | diese Box | 1 | **nein** | Bestätigung einer Kennung (mit Grund, `zuletzt` und `art` der bestätigten Meldung) |
 | `tobibox/<box>/cmd` | HA → Box | HA-Integration | diese Box | 1 | **nein** | Befehle mit Ablaufzeit (Lernmodus, Sync, Update) |
-| `tobibox/<box>/ui/<objekt>` | HA → HA-Integration | Home-Assistant-Entität (Knopf, Auswahl) | HA-Integration | 1 | nein | Eingaben der Entitäten, die die Integration in `cmd` umsetzt (3.8) |
+| `tobibox/<box>/ui/<objekt>` | HA → HA-Integration | Home-Assistant-Entität (Knopf, Auswahl) | HA-Integration | 1 | nein | Eingaben der Entitäten, die die Integration in `cmd` umsetzt oder sich merkt (3.8) |
 | `homeassistant/<komponente>/tobibox_<box>/<objekt>/config` | Box → HA | Box | HA | 1 | **ja** | MQTT-Discovery (Abschnitt 6) |
 | `homeassistant/status` | HA → alle | Home Assistant | Box | – | – | HA meldet `online` nach dem Start; die Box veröffentlicht daraufhin die Discovery erneut |
 
@@ -62,7 +67,7 @@ zusätzliches `v`; `schema_version` übernimmt diese Rolle.
 *   HA veröffentlicht nach **jeder** Änderung der Konfiguration (Revision + 1)
     und bei „Liste neu ausrollen“ (neue `liste_id`).
 *   Der Broker liefert die dauerhafte Nachricht bei jedem Abonnieren erneut. Die
-    Box wendet deshalb die Revisionsregel (Abschnitt 5.3) an und tut bei
+    Box wendet deshalb die Revisionsregel (Abschnitt 5.2) an und tut bei
     gleicher Fassung nichts.
 
 Beispiel (gekürzt):
@@ -95,7 +100,9 @@ Reiner Text, kein JSON: `online` oder `offline`.
 
 Gesamtzustand der Box. Die Box veröffentlicht, wenn sich ein Feld außer `ts`
 ändert, zusammengefasst auf höchstens **eine Nachricht je 5 s**, und
-unabhängig davon alle 300 s sowie nach jedem Verbinden.
+unabhängig davon alle 300 s sowie nach jedem Verbinden. Wer den Status zusammenbaut
+und woher jedes Feld stammt (einschließlich der Abbildung von `leser`), steht in
+`core-interface.md`, Abschnitt 12.
 
 | Feld | Typ | Bedeutung |
 |---|---|---|
@@ -192,6 +199,19 @@ Beispiel:
 Abgelaufene Befehle (`jetzt > erzeugt + ttl_s`) erzeugen **keine** Meldung, nur
 einen Protokolleintrag auf der Box (Design: „ignorieren, protokollieren“).
 
+Die Meldungen `liste_abgelehnt`, `fehler` mit `code` `v_unbekannt` oder
+`befehl_unbekannt` und `befehl_abgelehnt` veröffentlicht das Modul `ha` der Box;
+die ersten drei entstehen dort selbst (Revisionsregel, Nachrichtenversion und
+Befehlsname liegen außerhalb des Kerns), `befehl_abgelehnt` kommt als Befehl
+`EreignisSenden` aus dem Kern (`core-interface.md`, Abschnitt 9, Punkt 9).
+
+**HA zeigt den Grund an.** Die Integration macht aus jedem `befehl_abgelehnt`
+eine Benachrichtigung im Klartext. Bei `grund="zeit_unsicher"`: „Die Box <name>
+hat <Befehl> abgelehnt: ihre Uhr ist nicht vertrauenswürdig (Zeitquelle:
+<zeitquelle>). Lernmodus, Sync und Update gehen wieder, sobald die Box die
+Uhrzeit sicher kennt.“ Bei `grund="bedingung"`: der Text aus `detail`. Der
+Sensor „Zeitquelle“ (6.2) zeigt dazu `zeit_ok`.
+
 ### 3.5 `tobibox/<box>/unknown/<uid>` (retained)
 
 Eine unbekannte oder gelernte Kennung, die HA noch nicht bestätigt hat. Die Box
@@ -228,6 +248,12 @@ Der Inhalt entspricht dem Eintrag in `unknown.json` (`data-model.md`). Eine
 Figur, die **beide** Boxen melden, erscheint in HA als **ein** Eintrag
 (Schlüssel = Kennung).
 
+**Leere Nachricht:** Löscht die Box die dauerhafte Nachricht (leere Nutzlast,
+retained, siehe 4.1), kommt diese leere Nachricht auch bei der HA-Integration an,
+die das Thema abonniert hat. Die Integration **ignoriert jede leere Nutzlast** auf
+`…/unknown/<uid>`; sie ist keine Meldung und löst weder eine Aufnahme noch eine
+Bestätigung aus.
+
 ### 3.6 `tobibox/<box>/unknown/<uid>/ack` (nicht retained)
 
 Die Bestätigung von HA. Erst sie lässt die Box den Eintrag löschen. Der PUBACK
@@ -237,17 +263,25 @@ des Brokers bestätigt nichts (HA kann gerade neu starten).
 |---|---|---|
 | `v` | int | `1` |
 | `ts` | string | Zeitpunkt |
+| `zuletzt` | string | `zuletzt` der Meldung, die HA bestätigt (aus der Nachricht auf `…/unknown/<uid>`, unverändert zurückgegeben) |
+| `art` | string | `art` dieser Meldung (`unbekannt` oder `gelernt`) |
 | `grund` | string | `neu` (HA hat die Figur als „neue Figur“ aufgenommen), `bekannt` (die Kennung war schon aufgenommen, z. B. von der anderen Box), `zugeordnet` (Lernmodus: HA hat die Zuordnung geschrieben), `abgelehnt` (HA nimmt sie nicht an, z. B. Lernbefehl abgelaufen) |
 
-Die Box löscht den Eintrag bei **jedem** `grund`; unbekannte Gründe werden
-protokolliert und wirken wie `bekannt`. Das Thema ist **nicht** retained, weil
-eine dauerhafte Bestätigung eine spätere neue Meldung derselben Kennung sofort
-„bestätigen“ würde.
+Die Box löscht den Eintrag **nur, wenn `zuletzt` und `art` mit dem aktuellen
+Eintrag übereinstimmen**, dann bei **jedem** `grund`; unbekannte Gründe werden
+protokolliert und wirken wie `bekannt`. Passt eine Bestätigung nicht (sie gehört
+zu einer älteren Fassung, die inzwischen überschrieben wurde), tut die Box
+nichts außer einem Protokolleintrag (`ack_veraltet`); der neuere Eintrag und
+seine dauerhafte Nachricht bleiben stehen, und HA bestätigt sie selbst. Ein
+`ack` ohne `zuletzt` (Version 1 verlangt es) wird wie eine unpassende
+Bestätigung behandelt. Das Thema ist **nicht** retained, weil eine dauerhafte
+Bestätigung eine spätere neue Meldung derselben Kennung sofort „bestätigen“
+würde.
 
 Beispiel:
 
 ```json
-{ "v": 1, "ts": "2026-11-05T09:12:05Z", "grund": "zugeordnet" }
+{ "v": 1, "ts": "2026-11-05T09:12:05Z", "zuletzt": "2026-11-05T09:12:03Z", "art": "gelernt", "grund": "zugeordnet" }
 ```
 
 ### 3.7 `tobibox/<box>/cmd` (nicht retained)
@@ -264,10 +298,16 @@ Ablaufzeit.
 | `ttl_s` | int 1–3600 | Lebensdauer in Sekunden |
 | `daten` | object | `{}`; bei `update` `{"version": "<MAJOR.MINOR.PATCH>"}` |
 
-Gültigkeit: Die Box berechnet `gueltig_bis = erzeugt + ttl_s`. Sie führt den
-Befehl nur aus, wenn `jetzt.wall ≤ gueltig_bis` **und** die Uhr vertrauenswürdig
-ist (`zeit_ok`). Sonst wird er nicht ausgeführt (abgelaufen: nur Protokoll;
-Uhr unsicher: zusätzlich `event` mit `befehl_abgelehnt`, Grund `zeit_unsicher`).
+Gültigkeit: Das Modul `ha` der Box berechnet `gueltig_bis = erzeugt + ttl_s` und
+gibt es mit dem Ereignis an den Kern; **der Kern** (`learn`, `idle`) prüft mit
+`jetzt.wall` und `jetzt.zeit_ok` (Zuständigkeit je Prüfung: `core-interface.md`,
+Abschnitt 9, Punkt 9). Er führt den Befehl nur aus, wenn `jetzt.wall ≤ gueltig_bis`
+**und** die Uhr vertrauenswürdig ist (`zeit_ok`). Sonst wird er nicht ausgeführt
+(abgelaufen: nur Protokoll; Uhr unsicher: zusätzlich `event` mit
+`befehl_abgelehnt`, Grund `zeit_unsicher`). Ausnahme `lernen_abbrechen`: Er hat
+eine Ablaufzeit, wird aber auch bei unsicherer Uhr ausgeführt (die Ablaufzeit
+wird dann nicht geprüft), wird nie mit `befehl_abgelehnt` beantwortet und ist im
+Zustand „Lernmodus aus“ wirkungslos.
 Voreinstellungen der Integration: `lernen` 60 s, `lernen_abbrechen` 30 s,
 `sync` 300 s, `update` 300 s.
 
@@ -297,7 +337,8 @@ Beispiel:
 ```
 
 Die Zuordnung der Serie zum Lernen hält HA selbst (Box, Serie, Beginn). Die Box
-bekommt die Serie nicht; sie meldet nur die Kennung.
+bekommt die Serie nicht; sie meldet nur die Kennung. Welche Serie gilt, bestimmt
+die **HA-Aktion „Lernmodus starten“** (3.8), nicht die Auswahl der Box.
 
 ### 3.8 `tobibox/<box>/ui/<objekt>` (nicht retained)
 
@@ -312,10 +353,15 @@ sondern an die HA-Integration. Sie setzt die Eingabe in einen Befehl auf
 | `tobibox/<box>/ui/sync` | `PRESS` | `cmd` mit `befehl="sync"` |
 | `tobibox/<box>/ui/update` | `PRESS` | `cmd` mit `befehl="update"` und der neuesten Version aus `releases/` |
 | `tobibox/<box>/ui/lernen_abbrechen` | `PRESS` | `cmd` mit `befehl="lernen_abbrechen"` |
-| `tobibox/<box>/ui/lern_serie` | Anzeigename der gewählten Serie | merkt sich die Wahl für den nächsten Lernmodus (Auswahl ohne Rückmeldung, `optimistic`) |
+| `tobibox/<box>/ui/lern_serie` | Anzeigename der gewählten Serie | merkt sich die Wahl als **Vorbelegung** des Felds „Serie“ der Aktion „Lernmodus starten“ (Auswahl ohne Rückmeldung, `optimistic`); setzt selbst keinen Befehl ab und legt nichts fest |
 
 Den Lernmodus selbst startet Tobias über die HA-Aktion „Lernmodus starten“
-(Box und Serie), nicht über einen Knopf der Box.
+(Box und Serie), nicht über einen Knopf der Box. Die Aktion trägt die **Serien-ID
+ausdrücklich** (`box`, `serie_id`); die Auswahl `lern_serie` füllt das Feld nur
+vor. Die Auswahl enthält nur Serien, die die Box schon synchronisiert hat; die
+Aktion darf jede Serie der HA-Medienverwaltung nehmen, auch eine noch nicht
+synchronisierte (dann spielt die Box die Überraschungs-Serie, bis sie da ist,
+`data-model.md`, Abschnitt 2).
 
 ## 4. Abläufe
 
@@ -328,12 +374,15 @@ Den Lernmodus selbst startet Tobias über die HA-Aktion „Lernmodus starten“
     `tobibox/<box>/unknown/<uid>` (retained, QoS 1).
 3.  HA nimmt die Kennung als „neue Figur“ auf (gleiche Kennung von beiden
     Boxen = ein Eintrag) und antwortet auf `…/ack` mit `grund` `neu` oder
-    `bekannt`.
-4.  Die Box löscht auf den `ack` hin zuerst die dauerhafte Nachricht (leere
-    Nutzlast, retained, QoS 1, auf `tobibox/<box>/unknown/<uid>`), und nach dem
-    PUBACK dieses Löschens den Eintrag in `unknown.json`. Stürzt sie dazwischen
-    ab, ist die Nachricht weg und der Eintrag bleibt: Er wird beim nächsten
-    Verbinden erneut veröffentlicht, HA bestätigt erneut (idempotent).
+    `bekannt` sowie `zuletzt` und `art` der bestätigten Meldung.
+4.  Passen `zuletzt` und `art` zum aktuellen Eintrag, löscht die Box auf den `ack`
+    hin zuerst die dauerhafte Nachricht (leere Nutzlast, retained, QoS 1, auf
+    `tobibox/<box>/unknown/<uid>`; HA ignoriert diese leere Nachricht, 3.5), und
+    nach dem PUBACK dieses Löschens den Eintrag in `unknown.json`, sofern er sich
+    inzwischen nicht geändert hat (sonst bleibt er und wird erneut
+    veröffentlicht). Passen sie nicht, bleibt alles stehen. Stürzt die Box
+    dazwischen ab, ist die Nachricht weg und der Eintrag bleibt: Er wird beim
+    nächsten Verbinden erneut veröffentlicht, HA bestätigt erneut (idempotent).
 5.  Kommt der `ack` nie (HA aus), bleibt der Eintrag stehen; die dauerhafte
     Nachricht wartet im Broker, bis HA sie liest.
 6.  Tippt Tobias in HA eine Serie an, ändert HA die Konfiguration (Revision + 1)
@@ -343,15 +392,17 @@ Den Lernmodus selbst startet Tobias über die HA-Aktion „Lernmodus starten“
 
 ### 4.2 Lernmodus (CUJ 7b)
 
-1.  Tobias wählt in HA Box und Serie. Die Integration sendet auf
+1.  Tobias startet in HA die Aktion „Lernmodus starten“ mit Box und Serie
+    (`serie_id` ausdrücklich in der Aktion; die Auswahl `lern_serie` füllt sie nur
+    vor). Die Integration merkt sich Box, Serie und Beginn und sendet auf
     `tobibox/<box>/cmd` `befehl="lernen"` (`ttl_s` 60).
 2.  Die Box prüft Gültigkeit und Uhr (3.7), beginnt den Lernmodus und misst
     2 min selbst.
 3.  Wird in dieser Zeit eine Figur mit Kennung aufgelegt, meldet die Box sie als
     `art="gelernt"` mit `befehl_id` auf `tobibox/<box>/unknown/<uid>`.
-4.  HA ordnet die Kennung der gewählten Serie zu. Ist die Kennung schon
+4.  HA ordnet die Kennung der Serie aus der Aktion zu. Ist die Kennung schon
     zugeordnet, fragt HA vor dem Überschreiben nach. HA antwortet auf `…/ack`
-    mit `grund="zugeordnet"` (oder `abgelehnt`).
+    mit `grund="zugeordnet"` (oder `abgelehnt`) und `zuletzt`/`art` der Meldung.
 5.  HA veröffentlicht die neue Konfiguration; die Serie spielt.
 6.  `lernen_abbrechen` beendet den Lernmodus jederzeit. Nach 2 min ohne Figur
     endet er von selbst.
@@ -360,7 +411,7 @@ Den Lernmodus selbst startet Tobias über die HA-Aktion „Lernmodus starten“
 
 1.  HA ändert die Konfiguration → `revision` + 1, gleiche `liste_id` →
     Veröffentlichung auf `tobibox/config` (retained).
-2.  Jede Box wendet die **Revisionsregel** an (5.3).
+2.  Jede Box wendet die **Revisionsregel** an (5.2).
 3.  Angenommen: Box prüft das Schema (`data-model.md`), schreibt `config.json`
     und meldet `KonfigGeladen` an den Kern. Der Status zeigt die neue Revision.
 4.  Abgelehnt: Box behält ihre Kopie und veröffentlicht `event` mit
@@ -377,7 +428,7 @@ Reihenfolge bei jedem Verbinden der Box:
 3.  `online` (retained) veröffentlichen.
 4.  Discovery veröffentlichen (Abschnitt 6) und `status`.
 5.  Offene Einträge aus `unknown.json` veröffentlichen.
-6.  Die retained `tobibox/config` trifft ein und wird nach 5.3 behandelt.
+6.  Die retained `tobibox/config` trifft ein und wird nach 5.2 behandelt.
 
 ## 5. Konfiguration: Revision und Listen-ID
 
@@ -453,17 +504,17 @@ mit `value_template` aus.
 | `sensor` | `zustand` | Zustand | `{{ value_json.zustand }}` | |
 | `sensor` | `serie` | Läuft gerade | `{{ value_json.serie.name if value_json.serie else 'keine' }}` | |
 | `sensor` | `akku` | Akku | `{{ value_json.akku_prozent }}` | `device_class` `battery`, Einheit `%`, `state_class` `measurement` |
-| `binary_sensor` | `lader` | Lader | `{{ 'ON' if value_json.lader else 'OFF' }}` | `device_class` `battery_charging` |
+| `binary_sensor` | `lader` | Lader | `{% if value_json.lader is none %}None{% else %}{{ 'ON' if value_json.lader else 'OFF' }}{% endif %}` (bei `null` also „unbekannt“, nicht `OFF`; Home Assistant liest den Text `None` als unbekannt) | `device_class` `battery_charging` |
 | `sensor` | `netz` | Netz | `{{ value_json.netz }}` | `device_class` `enum`, Optionen `home`, `hotspot`, `offline` |
 | `sensor` | `sync` | Sync-Stand | `{{ value_json.sync.zustand }}` | `json_attributes_topic` = Status, `json_attributes_template` `{{ value_json.sync \| tojson }}` (zeigt Zeitpunkt, Ergebnis, Grund) |
 | `sensor` | `speicher_frei` | Freier Speicher | `{{ value_json.speicher_frei_mb }}` | Einheit `MB`, `device_class` `data_size`, `state_class` `measurement` |
 | `sensor` | `version` | Version | `{{ value_json.version }}` | `entity_category` `diagnostic` |
 | `sensor` | `letzter_fehler` | Letzter Fehler | `{{ value_json.letzter_fehler.text if value_json.letzter_fehler else 'kein Fehler' }}` | Attribute: Zeit |
-| `sensor` | `zeitquelle` | Zeitquelle | `{{ value_json.zeitquelle }}` | Attribut `zeit_ok`; `entity_category` `diagnostic` |
+| `sensor` | `zeitquelle` | Zeitquelle | `{{ value_json.zeitquelle }}` | Attribut `zeit_ok` (`json_attributes_template` `{{ {'zeit_ok': value_json.zeit_ok} \| tojson }}`); `entity_category` `diagnostic`. Erklärt, warum die Box Lernmodus, Sync und Update ablehnt (3.4) |
 | `button` | `sync_jetzt` | Sync jetzt | – | `command_topic` `tobibox/<box>/ui/sync`, `payload_press` `PRESS` |
 | `button` | `update` | Update | – | `command_topic` `tobibox/<box>/ui/update`, `payload_press` `PRESS` |
 | `button` | `lernen_abbrechen` | Lernmodus abbrechen | – | `command_topic` `tobibox/<box>/ui/lernen_abbrechen`, `payload_press` `PRESS` |
-| `select` | `lern_serie` | Serie für Lernmodus | – | `options` = Anzeigenamen der Serien auf der Box (bei doppelten Namen hängt die Box ` (<id>)` an), `command_topic` `tobibox/<box>/ui/lern_serie`, `optimistic` `true` |
+| `select` | `lern_serie` | Serie für Lernmodus | – | **Vorbelegung** für die Aktion „Lernmodus starten“ (3.8), kein Befehl. `options` = Anzeigenamen der Serien auf der Box (bei doppelten Namen hängt die Box ` (<id>)` an), `command_topic` `tobibox/<box>/ui/lern_serie`, `optimistic` `true` |
 
 Beispiel der Nachricht für den Sensor „Akku“ (Thema
 `homeassistant/sensor/tobibox_box1/akku/config`):
@@ -555,8 +606,10 @@ topic write homeassistant/+/tobibox_box1/+/config
 
 ## 8. Versionierung
 
-*   Jede Nachricht (außer `tobibox/config` und `…/online`) hat das Feld `v`.
-    `tobibox/config` hat `schema_version`. Beide Versionen sind hier `1`.
+*   Jede JSON-Nachricht hat das Feld `v`, mit den Ausnahmen aus Abschnitt 1
+    (`tobibox/config` hat `schema_version`; `…/online`, `…/ui/*`,
+    `homeassistant/status` und die Discovery-Nachrichten sind Text bzw. Format
+    von Home Assistant). Beide Versionen sind hier `1`.
 *   **Ohne Erhöhung** erlaubt: neue optionale Felder, neue `art`-Werte in
     `event`, neue Entitäten, neue `befehl`-Werte. Empfänger ignorieren
     Unbekanntes: unbekannte Felder werden ignoriert, ein unbekannter `befehl`
@@ -571,18 +624,21 @@ topic write homeassistant/+/tobibox_box1/+/config
     (`tobibox2/…`) und läuft neben der alten, bis alle Boxen aktualisiert sind.
 *   Eine Änderung dieses Vertrags geht an die Projektleitung.
 
-## Festlegungen in diesem Vertrag (bitte bestätigen)
+## Festlegungen in diesem Vertrag (Stand 05.11.)
 
 Das Design lässt diese Einzelheiten offen. Entschieden wurde die einfachste
-stimmige Lösung.
+stimmige Lösung. „Bestätigt (05.11.)“ heißt: von Tobias (T) oder der
+Projektleitung (P) entschieden oder aus dem Goldfisch-Review übernommen
+(`review-stufe0.md`). Alle anderen Punkte sind noch offen.
 
 1.  **MQTT 3.1.1** mit dauerhafter Sitzung, Keep-Alive 30 s, Client-ID
     `tobibox-<box>`. Verzichtet wird auf MQTT 5 (die HA-Veröffentlichung kann die
     „Message Expiry“-Eigenschaft nicht setzen); die Ablaufzeit steht deshalb in
     der Nachricht (`erzeugt` + `ttl_s`).
-2.  **Ablaufzeit mit Wanduhr:** Eine Box mit unsicherer Uhrzeit führt Befehle
-    nicht aus (Sicherheit, vor allem beim Update). Das Design nennt nur die
-    Ablaufzeit.
+2.  **Bestätigt (05.11., T): Ablaufzeit mit Wanduhr:** Eine Box mit unsicherer
+    Uhrzeit führt Lernmodus, Sync und Update nicht aus (Sicherheit, vor allem beim
+    Update), und HA zeigt den Grund (3.4). Das Design nennt nur die Ablaufzeit.
+    Der Abbruch des Lernmodus ist davon ausgenommen (3.7).
 3.  **Gelernte Kennungen** laufen wie unbekannte über `…/unknown/<uid>` mit
     Bestätigung (`art="gelernt"`). Das Design nennt im Themenbaum „gelernt“ unter
     `…/event`, führt aber im Abschnitt „Ereignis-Ausgang mit Bestätigung“ beide
@@ -594,14 +650,17 @@ stimmige Lösung.
     Entitäten auf der Box an; ihr `command_topic` ist hier ein anderes.
 5.  **`ack` nicht retained** (sonst würde er eine spätere neue Meldung derselben
     Kennung sofort bestätigen). Die Box löscht erst die dauerhafte Nachricht,
-    danach den Eintrag in `unknown.json`.
+    danach den Eintrag in `unknown.json`. **Bestätigt (05.11., P, Review-Befund 8):**
+    Der `ack` trägt `zuletzt` und `art`; die Box löscht nur bei Übereinstimmung;
+    HA ignoriert die leere (löschende) Nachricht auf `…/unknown/<uid>`.
 6.  **`ack`-Gründe** `neu`, `bekannt`, `zugeordnet`, `abgelehnt`; die Box löscht
-    bei jedem.
+    bei jedem (bei passendem `zuletzt`).
 7.  **Gleiche Liste (gleiche Listen-ID und gleiche Revision)** wird still
     ignoriert; das Design nennt „alles andere wird abgelehnt“, aber die
     dauerhafte Nachricht kommt bei jedem Verbinden erneut.
 8.  **Status:** Felder wie in 3.3; Veröffentlichung bei Änderung (höchstens alle
-    5 s) und alle 300 s; `retained`.
+    5 s) und alle 300 s; `retained`. **Bestätigt (05.11., P, Review-Befund 5):**
+    Quelle je Feld und Abbildung von `leser` in `core-interface.md`, Abschnitt 12.
 9.  **Befehlsarten** `lernen`, `lernen_abbrechen`, `sync`, `update` und die
     Lebensdauern 60/30/300/300 s.
 10. **Box-Namen** `box1`, `box2` als Beispiel; Regel `[a-z0-9][a-z0-9_-]{1,23}`.
@@ -609,6 +668,14 @@ stimmige Lösung.
     Diagnose-Kategorien für Version und Zeitquelle sind eine Zutat.
 12. **Wiederholte Veröffentlichung** der Discovery bei jedem Verbinden und bei
     `homeassistant/status` = `online`.
-13. **Der Wechsel auf die zugeordnete Serie** bei liegender Figur (CUJ 7a) wird
-    im Kern durch `KonfigGeladen` ausgelöst (`core-interface.md`, Abschnitt 9,
-    Punkt 14). Das Design beschreibt das Verhalten, aber keine Tabellenzeile.
+13. **Bestätigt (05.11., P, Review-Befund 6): Der Wechsel auf die zugeordnete
+    Serie** bei liegender Figur (CUJ 7a) wird im Kern durch `KonfigGeladen`
+    ausgelöst (`core-interface.md`, Abschnitt 9, Punkt 14), auch in `pausiert`
+    und `beendet`; unter „stumm“ nur mit Hinweiston.
+14. **Bestätigt (05.11., P, Review-Befund 8): Lernmodus-Serie ausdrücklich.** Die
+    HA-Aktion „Lernmodus starten“ trägt die Serien-ID; die Auswahl `lern_serie`
+    füllt sie nur vor.
+15. **Bestätigt (05.11., P, Review-Befund 7 und 15): Zuständigkeiten** (`ha`
+    prüft `v`, Befehlsname, `id`-Dublette und die Revisionsregel; der Kern prüft
+    Ablaufzeit und Uhr), vollständige Ausnahmeliste für `v`, Lader `null` wird zu
+    „unbekannt“.

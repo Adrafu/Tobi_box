@@ -281,6 +281,8 @@ Alternativen“.
     Hauptknopf die nächste Folge** (der Zeiger zeigt schon darauf). Ohne Figur
     auf der Box behält der Hauptknopf seine normale Funktion (Play / Pause).
 
+- **Nachtrag 05.11. (Stufe-0-Verträge):** Ein Leser-Neustart startet nie von selbst eine Wiedergabe; nach einem bestätigten Leserverlust (> 3 s) bleibt die Box pausiert, auch wenn die Figur danach wieder gemeldet wird – das Kind legt neu auf. Lesefehler gelten bis 5 s als „Figur liegt“; fehlende Serie → Überraschungs-Serie; „stumm“ sperrt auch Knöpfe; MPD-Verlust bis 5 s wird überbrückt. Maßgeblich sind die Verträge in `docs/protocol/` und `docs/data-model.md`.
+
 ## Offene Fragen
 
 *   **Leser-Rückkanal:** Soll der Box-Dienst dem ESP32 etwas

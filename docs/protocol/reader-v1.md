@@ -46,14 +46,19 @@ Regeln:
 2.  Erlaubt sind nur die Zeichen 0x20 bis 0x7E (nach Entfernen eines `\r` am
     Ende). Alles andere macht die Zeile ungültig (`not_ascii`).
 3.  Zwischen Wörtern steht genau ein Leerzeichen; am Anfang und Ende der Zeile
-    keines.
+    keines. Eine Zeile, die mit einem Leerzeichen beginnt (auch eine Zeile nur
+    aus Leerzeichen), hat kein Typwort und ist `bad_syntax`.
 4.  Die Reihenfolge der Felder ist festgelegt (Abschnitt 3, „Zeilentabelle“).
     Die Firmware hält sie ein, der Parser des Box-Dienstes darf **jede**
     Reihenfolge akzeptieren.
 5.  Ausnahme `ERR`: Das Feld `detail=` steht immer zuletzt, sein Wert ist der
     **Rest der Zeile** und darf Leerzeichen und `=` enthalten. Erlaubte Zeichen
     in `detail`: 0x20 bis 0x7E außer `|` und `;`; 1 bis 80 Zeichen. Die Firmware
-    ersetzt andere Zeichen durch `_` und kürzt auf 80 Zeichen.
+    ersetzt andere Zeichen durch `_` und kürzt auf 80 Zeichen. Der **Parser**
+    ist streng: `detail` mit `|` oder `;` oder mit mehr als 80 Zeichen ist
+    `bad_value`; ein leeres `detail=` ist `bad_syntax` (leerer Wert). Neue
+    Zusatzfelder einer `ERR`-Zeile stehen **vor** `detail=` (Abschnitt 13),
+    sonst würden sie Teil von `detail`.
 6.  Zahlen sind Dezimalzahlen ohne Vorzeichen und ohne führende Nullen
     (`0` oder `[1-9][0-9]*`). „uint32“ heißt: 0 bis 4294967295, höchstens
     10 Stellen.
@@ -85,7 +90,7 @@ Alle Felder jeder Zeile sind **Pflicht**. Es gibt keine optionalen Felder.
 | `type` | PLACED | `ntag` (ISO 14443A) oder `iso15693`. |
 | `tonie` | PLACED | `1` genau dann, wenn `type=iso15693` und `uid` mit `e00403` beginnt; sonst `0`. |
 | `seq` | PLACED, LOCKED, REMOVED | uint32, Abschnitt 5. |
-| `up` | HB | uint32, Sekunden seit dem Start. |
+| `up` | HB | uint32, Sekunden seit dem Start. Die Firmware rechnet aus einer 64-Bit-Zeit; `up` läuft erst nach 2³² s über (nicht schon nach 49,7 Tagen wie `millis()`). |
 | `present` | HB | `0` oder `1`. |
 | `polls` `hits` `rejected` `errors` | HB | uint32 (Zähler seit Start; sie laufen bei 2³² über auf 0). |
 | `cycle_ms` | HB | 0 bis 65535. |
@@ -193,12 +198,14 @@ Zyklen sind „nichts“.
 *   Der Wächter läuft ab dem `HELLO`. Jede gültige `HB` setzt ihn zurück.
 *   **5 s ohne `HB`** (`WATCHDOG_S = 5`) lösen den Wächter-Alarm aus (zwei
     verpasste Herzschläge plus Reserve). Der Dienst protokolliert, schließt die
-    Verbindung und verbindet sich neu (Abschnitt 10).
+    Verbindung und verbindet sich neu (Abschnitt 12).
 *   **Abgleich über `present`:** Der Kern vergleicht `present` mit seinem
     Wissen, ob eine Figur liegt. Stimmen sie in **zwei aufeinanderfolgenden**
     `HB` nicht überein, schickt der Dienst `PING` (Abschnitt 8). Das `HELLO`
-    mit der erneuten Meldung stellt den Zustand wieder her. Details:
-    `core-interface.md`.
+    mit der erneuten Meldung stellt den Zustand wieder her. Liegt nichts mehr
+    und kommt deshalb nur das `HELLO`, gilt die Figur beim Kern mit der ersten
+    `HB` danach (`present=0`) als abgehoben. Details: `core-interface.md`,
+    Abschnitt 9, Punkt 3.
 
 ## 7. Fehlercodes (`ERR`)
 
@@ -215,7 +222,10 @@ Firmware) ist gültig und wird vom Dienst als Warnung behandelt.
 | `bad_command` | Die Firmware erhielt eine Zeile, die kein gültiger Befehl ist. | Hinweis | Antwort auf eine Zeile vom Box-Dienst |
 | `internal` | Interner Fehler der Firmware (z. B. Warteschlange voll). | Fehler | jederzeit |
 
-„Schwere“ ist keine Zeilenangabe, sondern eine feste Zuordnung im Box-Dienst:
+„Schwere“ ist keine Zeilenangabe, sondern eine feste Zuordnung im Box-Dienst.
+`reader` setzt sie beim Ereignis `LeserFehler` im Feld `schwere` (`core-interface.md`,
+Abschnitt 3.1); den Prüfpunkt „Leser“ leitet der Statussammler daraus ab
+(`core-interface.md`, Abschnitt 12):
 
 *   **Fehler:** Der Prüfpunkt „Leser“ steht auf Fehler (Status-Karte, `tobibox
     status`), solange innerhalb der letzten 10 s ein solcher Code kam.
@@ -228,11 +238,17 @@ tragen: `pn5180_no_response`, `pn5180_timeout`, `bad_response`, `uid_invalid`.
 ### Ausgabe der `ERR`-Zeilen (Firmware)
 
 1.  Jedes Ergebnis `fehler(code)` erhöht `errors`. Die Zeile
-    `ERR code=<code> detail=<text>` wird nur geschrieben, wenn für **denselben
-    Code** innerhalb der letzten `ERR_MIN_INTERVAL_MS` (2000 ms) keine solche
-    Zeile geschrieben wurde. Die erste Zeile je Code erscheint sofort.
+    `ERR code=<code> detail=<text>` wird nur geschrieben, wenn seit der letzten
+    geschriebenen `ERR`-Zeile **desselben Codes** mindestens
+    `ERR_MIN_INTERVAL_MS` (2000 ms) vergangen sind (nicht „innerhalb der letzten
+    2000 ms“: bei genau 2000 ms wird geschrieben). Zeitbasis ist der Zeitstempel
+    `t` des Zyklus-Ergebnisses (Ende der Arbeit des Zyklus), nicht die
+    tatsächliche Sendezeit; Differenzen vorzeichenlos modulo 2³². Die erste Zeile
+    je Code erscheint sofort.
 2.  `unlock_failed` wird einmal je `LOCKED`-Meldung geschrieben, **unmittelbar
     nach** der `LOCKED`-Zeile, ohne Ratenbegrenzung und ohne `errors` zu erhöhen.
+    Auch die erneute `LOCKED`-Meldung nach einem `PING` (Abschnitt 8) ist eine
+    `LOCKED`-Meldung und bekommt ihre `unlock_failed`-Zeile.
 3.  `bad_command` ist die Antwort auf jede ungültige Zeile vom Box-Dienst
     (Abschnitt 8), außer auf eine leere Zeile.
 4.  Beim Start prüft die Firmware den PN5180 (Produktversion lesen). Scheitert
@@ -242,6 +258,9 @@ tragen: `pn5180_no_response`, `pn5180_timeout`, `bad_response`, `uid_invalid`.
     bleibt nicht stehen.
 5.  Die Firmware startet bei Fehlern **nicht** selbst neu. Ein Neustart des
     ESP32 ist Sache des Boxbetreibers (USB ziehen) bzw. des Wächters.
+6.  **Reihenfolge innerhalb eines Schritts:** erst die Zeilen des Entprellers
+    (`REMOVED`, `PLACED` bzw. `LOCKED` samt `unlock_failed`), dann die `ERR`-Zeile
+    des Fehlerzyklus.
 
 ## 8. Zeilen vom Box-Dienst zum Leser
 
@@ -282,8 +301,8 @@ vergibt kein `seq` und schreibt keine Zeilen; das macht die Protokoll-Ausgabe
 *   **Ausgabe**, null bis zwei Ereignisse je Eingabe, in dieser Reihenfolge:
     `Entfernt`, dann `Platziert(typ, uid)` oder `Gesperrt`.
 *   **Parameter** (dem Entpreller übergeben, Standardwerte aus `timing.h`):
-    `confirm_reads` (= `CONFIRM_READS`) und `remove_after_ms`
-    (= `REMOVE_AFTER_MS`).
+    `confirm_reads` (= `CONFIRM_READS`), `remove_after_ms`
+    (= `REMOVE_AFTER_MS`) und `error_hold_ms` (= `ERROR_HOLD_MS`).
 
 ### Identität
 
@@ -297,20 +316,31 @@ derselben Kennung (Zeichenfolge gleich). Typ und Entsperrweg zählen nicht.
 |---|---|---|
 | `LEER` | nichts liegt, kein Kandidat | – |
 | `PRUEFT` | ein Kandidat wurde gelesen, noch nicht bestätigt (nichts gemeldet) | Kandidat `K`, Zähler `n` (1 bis `confirm_reads`−1) |
-| `LIEGT` | Figur ist gemeldet (`PLACED` oder `LOCKED`) | liegende Identität `L`, Zeit der letzten Lesung von `L` (`last`), Herausforderer `H` mit Zähler `hn` (oder keiner) |
+| `LIEGT` | Figur ist gemeldet (`PLACED` oder `LOCKED`) | liegende Identität `L`, Zeit der letzten Lesung von `L` (`last`), Marke `nur_fehler`, Herausforderer `H` mit Zähler `hn` (oder keiner) |
 
 Die Unterscheidung „Kennung liegt“ gegen „gesperrt liegt“ ist die Identität
 `L`; beide Fälle laufen in demselben Zustand `LIEGT` mit denselben Regeln.
 
+`nur_fehler` ist wahr, solange seit der letzten gültigen Lesung von `L` **nur
+Fehlerzyklen** kamen (auch: gar kein Zyklus). Jedes `nichts` und jede gültige
+Lesung einer anderen Identität macht sie falsch; eine gültige Lesung von `L`
+macht sie wieder wahr.
+
 ### Schritt 0: Zeitregel (vor jeder Eingabe)
 
-Im Zustand `LIEGT`: Ist `t − last ≥ remove_after_ms`, dann Ausgabe `Entfernt`,
-neuer Zustand `LEER`, Herausforderer gelöscht. Danach wird **die Eingabe dieses
-Zyklus trotzdem im neuen Zustand verarbeitet** (Schritt 1). Das gilt für jede
-Eingabe einschließlich `fehler` und einer gültigen Lesung derselben Figur:
-Eine Lücke von `remove_after_ms` und mehr zwischen zwei gültigen Lesungen der
-liegenden Figur führt immer zu `REMOVED`, danach ist es ein neues Auflegen mit
-frischer Bestätigung.
+Im Zustand `LIEGT` gilt als Grenze `g`:
+
+*   `g = error_hold_ms` (5000 ms), wenn `nur_fehler` wahr ist: Fehlerzyklen
+    zählen bis zu dieser Zeit als „Figur liegt noch“.
+*   `g = remove_after_ms` (1100 ms) sonst: `nichts` (und fremde Lesungen) sind
+    kein Beleg für die liegende Figur.
+
+Ist `t − last ≥ g`, dann Ausgabe `Entfernt`, neuer Zustand `LEER`,
+Herausforderer gelöscht. Danach wird **die Eingabe dieses Zyklus trotzdem im
+neuen Zustand verarbeitet** (Schritt 1). Das gilt für jede Eingabe
+einschließlich `fehler` und einer gültigen Lesung derselben Figur: Eine Lücke
+von `g` und mehr zwischen zwei gültigen Lesungen der liegenden Figur führt
+immer zu `REMOVED`, danach ist es ein neues Auflegen mit frischer Bestätigung.
 
 ### Schritt 1: Übergänge
 
@@ -321,27 +351,35 @@ frischer Bestätigung.
 | 1 | `LEER` | `nichts` | – | – | `LEER` |
 | 2 | `LEER` | `fehler` | – | – | `LEER` |
 | 3 | `LEER` | gültig `X` | `N ≥ 2` | – | `PRUEFT`, `K=X`, `n=1` |
-| 4 | `LEER` | gültig `X` | `N = 1` | `Platziert`/`Gesperrt` | `LIEGT`, `L=X`, `last=t` |
+| 4 | `LEER` | gültig `X` | `N = 1` | `Platziert`/`Gesperrt` | `LIEGT`, `L=X`, `last=t`, `nur_fehler` wahr |
 | 5 | `PRUEFT` | `nichts` | – | – | `LEER` (Folge unterbrochen) |
 | 6 | `PRUEFT` | `fehler` | – | – | `LEER` (Kandidat verworfen) |
 | 7 | `PRUEFT` | gültig `X`, `X = K` | `n+1 < N` | – | `PRUEFT`, `n = n+1` |
-| 8 | `PRUEFT` | gültig `X`, `X = K` | `n+1 ≥ N` | `Platziert`/`Gesperrt` | `LIEGT`, `L=X`, `last=t` |
+| 8 | `PRUEFT` | gültig `X`, `X = K` | `n+1 ≥ N` | `Platziert`/`Gesperrt` | `LIEGT`, `L=X`, `last=t`, `nur_fehler` wahr |
 | 9 | `PRUEFT` | gültig `X`, `X ≠ K` | – | – | `PRUEFT`, `K=X`, `n=1`; **rejected +1** (für `N=1` nicht erreichbar) |
-| 10 | `LIEGT` | `nichts` | – | – | `LIEGT`, Herausforderer gelöscht |
-| 11 | `LIEGT` | `fehler` | – | – | `LIEGT`, Herausforderer gelöscht (`last` bleibt: der Fehler ist kein Beleg für die Figur) |
-| 12 | `LIEGT` | gültig `X`, `X = L` | – | – | `LIEGT`, `last=t`, Herausforderer gelöscht |
-| 13 | `LIEGT` | gültig `X`, `X ≠ L` | `X` ist neu oder ≠ `H`; `N ≥ 2` | – | `H=X`, `hn=1`; **rejected +1** |
-| 14 | `LIEGT` | gültig `X`, `X ≠ L` | `X = H`, `hn+1 < N` | – | `hn = hn+1`; **rejected +1** |
-| 15 | `LIEGT` | gültig `X`, `X ≠ L` | (`X = H` und `hn+1 ≥ N`) oder `N = 1` | `Entfernt`, dann `Platziert(X)`/`Gesperrt` | `LIEGT`, `L=X`, `last=t`, Herausforderer gelöscht; **rejected +1** |
+| 10 | `LIEGT` | `nichts` | – | – | `LIEGT`, Herausforderer gelöscht, `nur_fehler` falsch |
+| 11 | `LIEGT` | `fehler` | – | – | `LIEGT`, Herausforderer gelöscht; `last` und `nur_fehler` bleiben (der Fehler ist kein Beleg, aber auch keine Lücke) |
+| 12 | `LIEGT` | gültig `X`, `X = L` | – | – | `LIEGT`, `last=t`, `nur_fehler` wahr, Herausforderer gelöscht |
+| 13 | `LIEGT` | gültig `X`, `X ≠ L` | `X` ist neu oder ≠ `H`; `N ≥ 2` | – | `H=X`, `hn=1`, `nur_fehler` falsch; **rejected +1** |
+| 14 | `LIEGT` | gültig `X`, `X ≠ L` | `X = H`, `hn+1 < N` | – | `hn = hn+1`, `nur_fehler` falsch; **rejected +1** |
+| 15 | `LIEGT` | gültig `X`, `X ≠ L` | (`X = H` und `hn+1 ≥ N`) oder `N = 1` | `Entfernt`, dann `Platziert(X)`/`Gesperrt` | `LIEGT`, `L=X`, `last=t`, `nur_fehler` wahr, Herausforderer gelöscht; **rejected +1** |
 
 Zu den Zeilen:
 
 *   **Zeile 11 (`fehler` bei liegender Figur):** Ein Fehlerzyklus ist weder ein
     Beleg dafür, dass die Figur da ist (`last` wird nicht erneuert), noch dafür,
-    dass sie weg ist. Die Uhr für `REMOVED` läuft einfach weiter. Dauert der
-    Fehler `remove_after_ms` oder länger, kommt `REMOVED` (Zeitregel). Das ist
-    gewollt: Ein dauerhaft defekter Leser kann die Figur nicht mehr belegen, und
-    `ERR` zeigt den Grund.
+    dass sie weg ist. Eine **ununterbrochene Fehlerfolge** (`nur_fehler` wahr)
+    lässt die Figur bis zu `error_hold_ms` (5 s) als „liegt noch“ gelten: Ein
+    defekter oder gestörter Leser soll die Wiedergabe nicht schon nach 1,1 s
+    anhalten. Wird die Lücke seit der letzten gültigen Lesung `error_hold_ms`
+    lang, kommt `REMOVED` (Zeitregel; `ERR` zeigt den Grund). Kommt vorher eine
+    gültige Lesung von `L`, geschieht nichts. Kommt zwischen den Fehlern auch nur
+    ein `nichts` (oder eine fremde Lesung), gilt wieder `remove_after_ms`, gemessen
+    ab der letzten gültigen Lesung von `L`. Fehler und `nichts` im Wechsel
+    verhalten sich also wie bisher.
+*   **Zeile 10 (`nichts` bei liegender Figur):** löscht einen offenen
+    Herausforderer; die Bestätigungen eines Wechsels müssen **unmittelbar
+    aufeinander** folgen.
 *   **Zeilen 13 bis 15 (Wechsel):** Eine andere Identität gilt erst nach `N`
     gleichen Lesungen in Folge. Dazwischen ändert sie weder die liegende Figur
     noch `last`. Eine einzelne verfälschte Kennung am Rand (CUJ 8) wird so zu
@@ -354,6 +392,9 @@ Zu den Zeilen:
 *   **Gleiche Kennung, offen oder entsperrt gelesen:** Zeile 12, keine Meldung.
 *   **Zählung von `rejected`:** nur in den fett markierten Zeilen, jeweils
     einmal je Zyklus. Zeile 15 zählt auch die bestätigende Lesung.
+*   **`PING`** (Abschnitt 8) ändert den Zustand des Entprellers nicht, auch nicht
+    im Zustand `PRUEFT`; die Meldung einer liegenden Figur (`LIEGT`) wiederholt
+    sich nur als Ausgabe.
 
 ### Protokoll-Ausgabe aus den Ereignissen
 
@@ -387,16 +428,19 @@ Eingecheckt, ohne Geheimnisse. Die Namen sind verbindlich.
 |---|---|---|---|
 | `POLL_PERIOD_MS` | 200 | Abfragezyklus, Beginn zu Beginn | Design, Baustein 1 |
 | `CONFIRM_READS` | 2 | gleiche Lesungen in Folge für `PLACED`, `LOCKED` und Wechsel (3, falls die Messung in Stufe 1 zeigt, dass 2 nicht reichen) | Design, Baustein 1 |
-| `REMOVE_AFTER_MS` | 1100 | `REMOVED` nach so langer Zeit ohne gültige Lesung der liegenden Figur | Design, Baustein 1 |
+| `REMOVE_AFTER_MS` | 1100 | `REMOVED` nach so langer Zeit ohne gültige Lesung der liegenden Figur, wenn dazwischen ein `nichts` oder eine fremde Lesung kam | Design, Baustein 1 |
+| `ERROR_HOLD_MS` | 5000 | `REMOVED` bei **ununterbrochenen Lesefehlern** erst nach so langer Zeit seit der letzten gültigen Lesung (Fehlerzyklen zählen bis dahin als „Figur liegt noch“) | Entscheidung Tobias, 05.11. |
 | `HEARTBEAT_INTERVAL_MS` | 2000 | Abstand der `HB` | Design, Baustein 2 |
 | `ERR_MIN_INTERVAL_MS` | 2000 | Mindestabstand gleicher `ERR`-Codes | Festlegung dieses Vertrags |
 | `PN5180_INIT_RETRY_MS` | 5000 | Abstand der Startversuche, wenn der PN5180 nicht antwortet | Festlegung dieses Vertrags |
 | `PN5180_CMD_TIMEOUT_MS` | 30 | Zeitgrenze je PN5180-Befehl (heißt in `tonie_test` `COMMAND_TIMEOUT_MS`) | `firmware/tonie_test/config.example.h` |
 
-Daraus folgt: Lücken bis 1000 ms (= `REMOVE_AFTER_MS` − 100 ms) führen zu
-keinem `REMOVED`. `REMOVE_AFTER_MS` muss größer als 5 × `POLL_PERIOD_MS` sein
-(1000 ms Lücke plus Reserve). Die Abhebe-Zeit beträgt bis zu
-`REMOVE_AFTER_MS` + 1 Zyklus.
+Daraus folgt: Lücken aus `nichts` bis 1000 ms (= `REMOVE_AFTER_MS` − 100 ms)
+führen zu keinem `REMOVED`. `REMOVE_AFTER_MS` muss größer als 5 × `POLL_PERIOD_MS`
+sein (1000 ms Lücke plus Reserve). Die Abhebe-Zeit beträgt bis zu
+`REMOVE_AFTER_MS` + 1 Zyklus. `ERROR_HOLD_MS` muss größer oder gleich
+`REMOVE_AFTER_MS` sein. Lesefehler allein verzögern die Abhebe-Erkennung bis zu
+`ERROR_HOLD_MS` + 1 Zyklus (gewollt, siehe Abschnitt 9, Zeile 11).
 
 ### Im Box-Dienst (Modulkonstanten in `reader.py`)
 
@@ -405,10 +449,12 @@ keinem `REMOVED`. `REMOVE_AFTER_MS` muss größer als 5 × `POLL_PERIOD_MS` sein
 | `WATCHDOG_S` | 5 | Wächter-Alarm bei so langer Zeit ohne `HB` (Abschnitt 6) |
 | `HELLO_TIMEOUT_S` | 2 | Wartezeit auf `HELLO` nach `PING` |
 | `PING_TRIES` | 3 | Versuche, davor gilt die Verbindung als gescheitert |
-| `RECONNECT_BACKOFF_S` | 1, 2, 5, dann 5 | Wartezeiten zwischen Verbindungsversuchen |
+| `RECONNECT_BACKOFF_S` | 0,25 · 0,5 · 1 · 2, danach 2 | Wartezeiten zwischen Verbindungsversuchen: der erste Versuch nach einem Ausfall folgt nach 0,25 s, dann verdoppelt sich die Wartezeit bis höchstens 2 s. Ein gültiges `HELLO` setzt die Folge zurück. |
 
-Der Wert `LESER_FRIST_S = 1.5` (Frist im Zustand `unbekannt`) steht in
-`core-interface.md`.
+Der Wert `LESER_FRIST_S = 3.0` (Frist im Zustand `unbekannt`, Karenzzeit des
+Kerns) steht in `core-interface.md`. Er ist so gewählt, dass ein kurzer
+USB-Aussetzer (Wiederverbinden mit dem Backoff oben, `PING`, `HELLO`, erneute
+Meldung der Figur) die Wiedergabe nicht unterbricht.
 
 ## 11. Verhalten bei unbekannten oder ungültigen Zeilen
 
@@ -419,18 +465,20 @@ Der Wert `LESER_FRIST_S = 1.5` (Frist im Zustand `unbekannt`) steht in
 | leere Zeile | `empty_line` | still ignoriert |
 | über 200 Zeichen | `too_long` | verworfen, protokolliert (WARNING) |
 | Zeichen außerhalb 0x20 bis 0x7E | `not_ascii` | verworfen, protokolliert |
+| Zeile beginnt mit einem Leerzeichen (auch nur Leerzeichen) | `bad_syntax` | verworfen, protokolliert (WARNING) |
 | erstes Wort ist kein bekannter Zeilentyp (`HELLO PLACED LOCKED REMOVED HB ERR`) | `unknown_type` | verworfen, protokolliert (DEBUG, höchstens eine Meldung je Sekunde) |
-| Syntaxfehler (Wort ohne `=`, doppelte Leerzeichen, leerer Wert, ungültiger Schlüssel) | `bad_syntax` | verworfen, protokolliert (WARNING) |
+| Syntaxfehler (Wort ohne `=`, doppelte Leerzeichen, Leerzeichen am Ende, leerer Wert, auch leeres `detail=`, ungültiger Schlüssel) | `bad_syntax` | verworfen, protokolliert (WARNING) |
 | Schlüssel doppelt | `duplicate_key` | verworfen, protokolliert |
 | Pflichtfeld fehlt | `missing_field` | verworfen, protokolliert |
-| Wert verletzt Format oder Bereich | `bad_value` / `bad_uid` | verworfen, protokolliert |
+| Wert verletzt Format oder Bereich (auch `detail` mit `|` oder `;` oder über 80 Zeichen) | `bad_value` / `bad_uid` | verworfen, protokolliert |
 | `uid`, `type`, `tonie` passen nicht zusammen | `uid_type_mismatch` | verworfen, protokolliert |
 
 *   **Eine ungültige Zeile hat nie eine halbe Wirkung:** Entweder sie ist
     gültig und wird vollständig verarbeitet, oder sie wird verworfen.
-*   **Unbekannte Zusatzfelder** in einer bekannten Zeile werden ignoriert
-    (nicht protokolliert, nicht in der Auslegung). Das ist die Vorwärts­
-    kompatibilität.
+*   **Unbekannte Zusatzfelder** in einer bekannten Zeile werden ignoriert (nicht
+    in der Auslegung), wie im Design („ignoriert und protokolliert“) aber nur
+    leise: Ebene DEBUG, höchstens eine Meldung je Zeilentyp und Feldname und
+    Minute. Das ist die Vorwärtskompatibilität.
 *   **Unbekannte Zeilentypen** werden ignoriert. So kann spätere Firmware neue
     Zeilen senden, ohne ältere Dienste zu stören.
 *   Die Firmware verhält sich auf der Befehlsseite genauso (Abschnitt 8).
@@ -443,26 +491,52 @@ Der Wert `LESER_FRIST_S = 1.5` (Frist im Zustand `unbekannt`) steht in
 1.  Gerät öffnen (Mac: Suchmuster `/dev/cu.usbmodem*`; Pi: festes
     `/dev/serial/by-id/…`), ohne DTR/RTS (Abschnitt 1).
 2.  `PING` senden. Innerhalb `HELLO_TIMEOUT_S` muss ein `HELLO` kommen, sonst
-    erneut `PING`, höchstens `PING_TRIES` Mal. Gelingt es nicht, Wächter-Alarm
-    mit Grund `hello_timeout`, Verbindung schließen, nach `RECONNECT_BACKOFF_S`
-    neu öffnen.
-3.  `HELLO` prüfen: `proto` muss 1 sein. Sonst Alarm mit Grund
-    `proto_unbekannt`, keine Ereignisse an den Kern, Prüfpunkt „Leser“ auf
-    Fehler, weiter nach Backoff versuchen.
-4.  Nach gültigem `HELLO`: Wächter starten, `seq`-Erwartung auf 0, Ereignis
-    `LeserHallo` an den Kern.
+    erneut `PING`, höchstens `PING_TRIES` Mal. Gelingt es nicht, Ausfall mit
+    Grund `hello_timeout` (siehe unten), Verbindung schließen, nach
+    `RECONNECT_BACKOFF_S` neu öffnen.
+3.  `HELLO` prüfen: `proto` muss 1 sein. Sonst Ausfall mit Grund
+    `proto_unbekannt`: **kein `LeserHallo`**, Prüfpunkt „Leser“ auf Fehler,
+    weiter nach Backoff versuchen. Das Ereignis `LeserAlarm(proto_unbekannt)`
+    geht an den Kern (es zählt wie jeder Alarm, siehe unten); nur das
+    `LeserHallo` unterbleibt.
+4.  Nach gültigem `HELLO`: Wächter starten, `seq`-Erwartung auf 0, Backoff
+    zurücksetzen, Ereignis `LeserHallo` an den Kern. Meldet die Firmware danach
+    dieselbe Figur erneut (`PLACED`/`LOCKED` mit `seq=0` nach `PING`, Abschnitt
+    8, oder nach einem Neustart der Firmware), behält `reader` die bisherige
+    Vorgangs-ID (`core-interface.md`, Abschnitt 3.1).
 5.  Verliert der Dienst die Verbindung (Lesefehler, Gerät weg) oder löst der
-    Wächter aus, gilt dasselbe wie bei Schritt 2: Alarm melden, schließen, neu
-    verbinden.
+    Wächter aus, gilt dasselbe wie bei Schritt 2: Ausfall melden, schließen,
+    neu verbinden.
 6.  Jedes gültige `HELLO` — beim Start der Firmware oder auf `PING` — hat
     dieselbe Wirkung. Der Dienst unterscheidet beide Fälle nicht.
+
+### Ausfall und `LeserAlarm`
+
+*   **Ein Alarm je Ausfall.** Ein Ausfall beginnt mit dem ersten Fehlschlag nach
+    dem letzten gültigen `HELLO` (oder nach dem Start des Dienstes) und endet mit
+    dem nächsten gültigen `HELLO`. Zu Beginn sendet `reader` genau **ein**
+    `LeserAlarm` an den Kern. Weitere fehlgeschlagene Versuche im selben Ausfall
+    senden keinen weiteren Alarm (nur Protokoll, DEBUG).
+*   **Grund** des Alarms (die Zeichenketten des Ereignisses `LeserAlarm`):
+
+    | `grund` | Wann |
+    |---|---|
+    | `getrennt` | Lesefehler oder Gerät weg bei bestehender Verbindung; auch: das Gerät lässt sich beim ersten Versuch nicht öffnen |
+    | `kein_herzschlag` | `WATCHDOG_S` ohne gültige `HB` |
+    | `hello_timeout` | nach `PING_TRIES` Versuchen kein `HELLO` |
+    | `proto_unbekannt` | `HELLO` mit nicht unterstützter `proto` |
+
+*   Der Kern pausiert nach einem bestätigten Verlust spätestens
+    `LESER_FRIST_S` + `TAKT_S` = 3,1 s nach dem ersten Ereignis (Alarm oder
+    `LeserHallo`), siehe `core-interface.md`, Abschnitt 9, Punkt 1.
 
 ## 13. Versionsregel
 
 *   `proto` im `HELLO` ist die **Hauptversion** des Protokolls, hier 1.
 *   **Ohne Erhöhung** von `proto` (rückwärts- und vorwärtskompatibel) sind
-    erlaubt: neue **optionale** Zusatzfelder am Ende bekannter Zeilen, neue
-    Zeilentypen, neue Fehlercodes. Alte Parser ignorieren sie (Abschnitt 11).
+    erlaubt: neue **optionale** Zusatzfelder am Ende bekannter Zeilen (bei `ERR`
+    **vor** `detail=`, Abschnitt 2, Regel 5), neue Zeilentypen, neue Fehlercodes.
+    Alte Parser ignorieren sie (Abschnitt 11).
     Neue Pflichtfelder gibt es in Version 1 nicht.
 *   **Erhöhung** von `proto` ist nötig bei jeder anderen Änderung: Feld entfernen
     oder umbenennen, Bedeutung oder Wertebereich ändern, Grammatik ändern, neues
@@ -476,10 +550,11 @@ Der Wert `LESER_FRIST_S = 1.5` (Frist im Zustand `unbekannt`) steht in
 *   Eine Änderung dieses Vertrags geht an die Projektleitung; die
     Beispieldatei wird im selben Schritt angepasst.
 
-## Festlegungen in diesem Vertrag (bitte bestätigen)
+## Festlegungen in diesem Vertrag (Stand 05.11.)
 
 Das Design lässt diese Einzelheiten offen. Entschieden wurde die einfachste
-stimmige Lösung.
+stimmige Lösung. „Bestätigt (05.11.)“ heißt: von Tobias oder der Projektleitung
+bestätigt oder entschieden. Alle anderen Punkte sind noch offen.
 
 1.  **`seq` zählt nur `PLACED`, `LOCKED`, `REMOVED`.** `HB`, `ERR` und `HELLO`
     haben kein `seq`, wie in der Zeilentabelle des Designs. Das Design sagt
@@ -491,20 +566,29 @@ stimmige Lösung.
     Damit beides zusammenpasst, setzt die Firmware auf `PING` ihr `seq` zurück
     und meldet eine liegende Figur sofort erneut (`PLACED`/`LOCKED` mit
     `seq=0`). So ist `PING` der Weg, nach dem Öffnen der Verbindung oder nach
-    einem `present`-Widerspruch den Zustand abzugleichen.
+    einem `present`-Widerspruch den Zustand abzugleichen. **Bestätigt (05.11.,
+    Projektleitung):** Die erneute Meldung startet nie von selbst eine
+    Wiedergabe; `reader` behält dafür die Vorgangs-ID (`core-interface.md`,
+    Abschnitt 3.1 und 9.1).
 3.  **Wechsel gilt als `REMOVED` + `PLACED`/`LOCKED`**, auch bei „gesperrt →
     Kennung“ und „Kennung → gesperrt“ (Abschnitt 9). Die Firmware meldet keinen
     „Aufstieg“ von gesperrt zu Kennung als eigene Zeile.
-4.  **`fehler(code)` mitten in der Entprellung:** verwirft den Kandidaten
-    (Zeile 6). **Bei liegender Figur:** ändert nichts außer der Uhr (Zeile 11);
-    ein dauerhafter Fehler führt nach `REMOVE_AFTER_MS` zu `REMOVED`.
+4.  **Bestätigt (05.11., Tobias): `fehler(code)`** mitten in der Entprellung
+    verwirft den Kandidaten (Zeile 6). **Bei liegender Figur** zählen
+    Lesefehler bis zu `ERROR_HOLD_MS` = 5 s als „Figur liegt noch“ (Zeile 11);
+    erst nach 5 s ununterbrochener Fehler seit der letzten gültigen Lesung
+    kommt `REMOVED` (und `ERR`). `nichts` behält die Regel `REMOVE_AFTER_MS`
+    = 1,1 s. Ein `nichts` zwischen den Fehlern stellt die 1,1-s-Regel wieder her
+    (Festlegung der Umsetzung, Marke `nur_fehler`).
 5.  **Zeitregel vor der Eingabe (Schritt 0):** Eine Lücke von mindestens
     `REMOVE_AFTER_MS` führt auch dann zu `REMOVED`, wenn im selben Zyklus die
     liegende Figur wieder gelesen wird.
 6.  **Fehlercodes:** `pn5180_no_response`, `pn5180_timeout` und `unlock_failed`
     nennt das Design; `bad_response`, `uid_invalid`, `bad_command` und
-    `internal` kommen von diesem Vertrag. Der Prüfpunkt „Leser“ steht auf Fehler, solange in den letzten
-    10 s ein Code der Schwere „Fehler“ kam. `unlock_failed` ist ein Hinweis
+    `internal` kommen von diesem Vertrag. Der Prüfpunkt „Leser“ steht auf Fehler,
+    solange in den letzten 10 s ein Code der Schwere „Fehler“ kam; die
+    Abbildung auf `ok`/`fehler`/`getrennt`/`simulation` steht in
+    `core-interface.md`, Abschnitt 12. `unlock_failed` ist ein Hinweis
     (Zusatzzeile nach `LOCKED`), kein Zyklusfehler.
 7.  **Ratenbegrenzung** der `ERR`-Zeilen (`ERR_MIN_INTERVAL_MS` = 2000 ms je Code)
     und **Wiederholung** des PN5180-Starts (`PN5180_INIT_RETRY_MS` = 5000 ms).
@@ -518,8 +602,22 @@ stimmige Lösung.
 12. **`rejected`:** zählt gültige Lesungen, die der Bezugsfigur widersprechen
     (Tabelle Abschnitt 9). Das Design nennt „verfälscht oder abweichend“ ohne
     genaue Regel.
-13. **Verbindungsaufbau-Zeiten** `HELLO_TIMEOUT_S` = 2, `PING_TRIES` = 3,
-    Backoff 1, 2, 5 s und der Abgleich über `present` nach **zwei**
-    abweichenden `HB`.
+13. **Verbindungsaufbau-Zeiten** `HELLO_TIMEOUT_S` = 2, `PING_TRIES` = 3 und
+    der Abgleich über `present` nach **zwei** abweichenden `HB`. **Bestätigt
+    (05.11., Projektleitung):** Backoff 0,25 · 0,5 · 1 · 2 s, danach 2 s;
+    Karenzzeit des Kerns `LESER_FRIST_S` = 3,0 s, damit ein kurzer
+    USB-Aussetzer nicht pausiert. Offen: Ob 3,0 s für den echten Aussetzer
+    (Neustart des ESP32 nach Spannungseinbruch) reichen, misst Stufe 1 am
+    Gerät.
 14. **Keine Verwerfung wegen `seq`:** Der Dienst verarbeitet gültige Zeilen
     immer, `seq` dient der Diagnose.
+15. **Bestätigt (05.11., Projektleitung): ein `LeserAlarm` je Ausfall**, mit den
+    Gründen aus Abschnitt 12 (Tabelle); `proto_unbekannt` löst keinen
+    `LeserHallo` aus, wohl aber den Alarm.
+16. **Parser streng bei `detail`** (`|`, `;`, über 80 Zeichen: `bad_value`;
+    leeres `detail=`: `bad_syntax`); Zeile mit führendem Leerzeichen:
+    `bad_syntax`; unbekannte Zusatzfelder: leise DEBUG-Meldung (Abgleich mit dem
+    Design, das „ignoriert und protokolliert“ sagt).
+17. **`up` aus 64-Bit-Zeit**, Ratenbegrenzung „mindestens 2000 ms seit der
+    letzten Zeile“ auf der Zeitbasis des Zyklus-Ergebnisses, Reihenfolge der
+    Zeilen innerhalb eines Schritts (Abschnitt 7, Regel 6).

@@ -34,7 +34,7 @@ Der Kern fragt nie selbst eine Uhr.
 
 | Feld | Typ | Bedeutung |
 |---|---|---|
-| `mono` | `float` | monotone Uhr in Sekunden, beliebiger Nullpunkt, springt nie rückwärts. **Alle Dauern und Fristen** (Frist 1,5 s, Lernmodus 2 min, Gute-Nacht-Timer, Leerlauf 20 min, Zeiger alle 30 s) laufen auf `mono`. |
+| `mono` | `float` | monotone Uhr in Sekunden, beliebiger Nullpunkt, springt nie rückwärts. **Alle Dauern und Fristen** (Leser-Frist 3 s, MPD-Frist 5 s, Lernmodus 2 min, Gute-Nacht-Timer, Leerlauf 20 min, Zeiger alle 30 s) laufen auf `mono`. |
 | `wall` | `float` | Wanduhr als UTC-Sekunden seit 1970. Nur für Leise-Zeiten, Ablaufzeit von HA-Befehlen und Zeitstempel im Ereignisprotokoll und in `unknown.json`. |
 | `zeit_quelle` | `Literal["system","rtc","ntp","unbekannt"]` | woher `wall` stammt (`system` = Systemuhr am Mac) |
 | `zeit_ok` | `bool` | `wall` ist vertrauenswürdig (Mac: immer `True`; Pi: RTC beim Start gelesen oder NTP seit dem Start synchron) |
@@ -42,10 +42,14 @@ Der Kern fragt nie selbst eine Uhr.
 *   Das Modul `clock` liefert `Jetzt` (Uhr im Betrieb, simuliert in Tests).
 *   `app.py` bildet für jedes Ereignis genau **ein** `Jetzt` zum Zeitpunkt, an
     dem das Ereignis in die Ereignisschleife gelangt, und reicht es dem Kern.
-*   **Takt:** `app.py` speist alle `TAKT_S` = 0,5 s das Ereignis `Takt()` ein
-    (Zeitgeber sind Ereignisse). Zeitgesteuerte Übergänge geschehen, wenn bei
-    einem Aufruf `jetzt.mono ≥ Frist` gilt, **nie** über eine eigene Uhr. Die
-    Auflösung aller Fristen ist deshalb `TAKT_S`.
+*   **Takt:** `app.py` speist alle `TAKT_S` = 0,1 s das Ereignis `Takt()` ein
+    (Zeitgeber sind Ereignisse; ein fristgenauer Zeitgeber ist nicht vorgesehen).
+    Zeitgesteuerte Übergänge geschehen, wenn bei einem Aufruf `jetzt.mono ≥ Frist`
+    gilt, **nie** über eine eigene Uhr. Die Auflösung aller Fristen ist deshalb
+    `TAKT_S`: eine Frist löst höchstens `TAKT_S` nach ihrem Ablauf aus. Fällt die
+    Ereignisschleife kurz aus, fallen Takte aus; Fristen bleiben richtig, weil sie
+    auf `jetzt.mono` verglichen werden. Rampen (Ausblenden, Absenken) laufen in
+    Schritten von `TAKT_S` (3 s ergeben 30 Lautstärke-Stufen).
 *   Ändert sich `zeit_ok` oder `zeit_quelle`, kommt zusätzlich das Ereignis
     `ZeitquelleGeaendert` (Abschnitt 3.7); die Teilautomaten dürfen sich aber
     nicht darauf verlassen, sondern lesen `jetzt.zeit_ok` bei jedem Aufruf.
@@ -62,15 +66,26 @@ die Felder und die Quelle (das Modul, das den Wert in die Ereignisschleife gibt)
 | `LeserHallo` | `proto: int`, `fw: str`, `build: str`, `pn5180: str` | gültiges `HELLO` (beim Start der Firmware oder auf `PING`). |
 | `Aufgelegt` | `uid: str`, `typ: Literal["ntag","iso15693"]`, `tonie: bool`, `seq: int`, `vorgang: str` | `PLACED`. `uid` ist die kanonische Kennung, unverändert. |
 | `Gesperrt` | `seq: int`, `vorgang: str` | `LOCKED` (nicht zuordenbar, keine Kennung). |
-| `Abgehoben` | `seq: int`, `vorgang: str \| None` | `REMOVED`. `vorgang` ist der des zugehörigen Auflegens, `None`, wenn `reader` keines kennt (z. B. direkt nach `HELLO`). |
+| `Abgehoben` | `seq: int`, `vorgang: str \| None` | `REMOVED`. `vorgang` ist der des zugehörigen Auflegens, `None`, wenn `reader` keines kennt (nur nach einem Neustart des Dienstes oder wenn das zugehörige Auflegen verloren ging; **nicht** nach einem `HELLO`, siehe unten). |
 | `LeserHerzschlag` | `present: bool`, `up_s: int`, `polls: int`, `hits: int`, `rejected: int`, `errors: int`, `cycle_ms: int` | `HB`. |
-| `LeserAlarm` | `grund: Literal["kein_herzschlag","getrennt","hello_timeout","proto_unbekannt"]` | Wächter-Alarm oder Verbindungsverlust. `reader` verbindet sich danach selbst neu. |
-| `LeserFehler` | `code: str`, `detail: str` | `ERR`-Zeile des Lesers. |
+| `LeserAlarm` | `grund: Literal["kein_herzschlag","getrennt","hello_timeout","proto_unbekannt"]` | Wächter-Alarm oder Verbindungsverlust; **ein** Alarm je Ausfall (Gründe und Regel: `reader-v1.md`, Abschnitt 12). `reader` verbindet sich danach selbst neu. |
+| `LeserFehler` | `code: str`, `detail: str`, `schwere: Literal["fehler","warnung","hinweis"]` | `ERR`-Zeile des Lesers. `reader` setzt `schwere` aus der Tabelle in `reader-v1.md`, Abschnitt 7 (unbekannter Code: `warnung`). Die Sitzung wertet das Ereignis nicht aus; es dient dem Status (Abschnitt 12). |
 
 *   **Vorgangs-ID:** `reader` erzeugt sie beim Empfang von `PLACED` oder
     `LOCKED`: 8 Zeichen `[0-9a-f]` aus einer Zufallsquelle. `reader` merkt sie
     sich bis zum zugehörigen `REMOVED` und gibt sie in `Abgehoben` mit.
     Ein `PLACED` nach einem `REMOVED` bekommt eine neue ID.
+*   **Wiedermeldung nach `HELLO` behält die ID.** Kommt nach einem gültigen
+    `HELLO` als **erste** `PLACED`/`LOCKED`-Zeile eine Meldung derselben
+    Identität (gleiche Kennung bzw. beide `LOCKED`) wie die offene (noch nicht
+    abgehobene) Figur, ist das eine **Wiedermeldung**: `reader` behält die
+    bestehende Vorgangs-ID. Das betrifft die Meldung auf `PING` und die
+    Meldung nach einem Neustart der Firmware. Jedes andere `PLACED`/`LOCKED`
+    (andere Identität, oder bereits abgehoben, oder ohne `HELLO` dazwischen, etwa
+    nach verlorenem `REMOVED`) bekommt eine neue ID. Ein `REMOVED` gibt die ID
+    frei. `vorgang=None` im `Abgehoben` entsteht deshalb nur, wenn `reader` gar
+    keine ID kennt; die Aussage „direkt nach `HELLO` ist `vorgang` leer“ gilt
+    nicht.
 *   Alle `seq`-Prüfungen macht `reader` (siehe `reader-v1.md`, Abschnitt 5). Der
     Kern wertet `seq` nicht aus.
 
@@ -101,16 +116,16 @@ Kern diese Position für `ZeigerSpeichern`; sie ist höchstens
 ### 3.4 Home Assistant (Quelle `ha`; in Stufe 2 `sim`)
 
 Alle HA-Befehle tragen eine Ablaufzeit. Der Kern prüft sie mit `jetzt.wall` und
-`jetzt.zeit_ok` (Abschnitt 6.2).
+`jetzt.zeit_ok`; wer welche Prüfung macht, steht in Abschnitt 9, Punkt 9.
 
 | Ereignis | Felder | Bedeutung |
 |---|---|---|
 | `HaLernmodus` | `befehl_id: str`, `gueltig_bis: float` | Lernmodus starten. `gueltig_bis` = `erzeugt + ttl_s` als UTC-Sekunden. |
-| `HaLernmodusAbbruch` | `befehl_id: str` | Lernmodus abbrechen. |
+| `HaLernmodusAbbruch` | `befehl_id: str`, `gueltig_bis: float` | Lernmodus abbrechen. `gueltig_bis` = `erzeugt + ttl_s` des Befehls `lernen_abbrechen`. |
 | `HaSyncAnstossen` | `befehl_id: str`, `gueltig_bis: float` | Sync jetzt. |
 | `HaUpdateAnstossen` | `befehl_id: str`, `version: str`, `gueltig_bis: float` | Update installieren. |
-| `HaVerbindung` | `ok: bool` | Verbindung zum Broker steht (`True`) oder ist weg. Der Kern wertet sie nur für den Status aus. |
-| `Bestaetigt` | `id: str`, `grund: str` | Bestätigung von HA für einen gemeldeten Eintrag (Abschnitt 7). **Geht nicht an den Kern**, sondern an `outbox` (`app` verteilt). |
+| `HaVerbindung` | `ok: bool` | Verbindung zum Broker steht (`True`) oder ist weg. **Geht nicht an den Kern** (kein Teilautomat verarbeitet sie), sondern nur an den Statussammler und `selftest` (Abschnitt 6.5 und 12). |
+| `Bestaetigt` | `id: str`, `grund: str`, `zuletzt: str`, `art: Literal["unbekannt","gelernt"]` | Bestätigung von HA für einen gemeldeten Eintrag (Abschnitt 7). `zuletzt` und `art` sind die Werte der veröffentlichten Meldung, die HA bestätigt. **Geht nicht an den Kern**, sondern an `outbox` (`app` verteilt). |
 
 ### 3.5 Bedienung und Kopfhörer (Quelle `controls`, `headphones`; in der Simulation `sim`)
 
@@ -154,9 +169,30 @@ Alle HA-Befehle tragen eine Ablaufzeit. Der Kern prüft sie mit `jetzt.wall` und
 | `LeiseZeiten` | `zeitzone: str` (IANA), `fenster: tuple[Fenster, ...]` |
 | `GuteNacht` | `timer_min: int`, `ausblenden_s: int` |
 | `Konfig` | `revision: int`, `liste_id: str`, `zuordnungen: Mapping[str, Zuordnung]` (Schlüssel = Kennung), `leise_zeiten: LeiseZeiten`, `gute_nacht: GuteNacht` |
+| `Eintrag` (von `outbox.offen()`) | `uid: str`, `art: Literal["unbekannt","gelernt"]`, `zuerst: str`, `zuletzt: str`, `anzahl: int`, `zeit_ok: bool`, `befehl_id: str \| None` (die Felder von `unknown.json`, `data-model.md` Abschnitt 4, plus der Schlüssel `uid`) |
 
 Wertebereiche und Bedeutung der Felder: `data-model.md`. `events.py` übernimmt
-sie 1:1 aus den Schemas.
+die Werte aus den Schemas; die **Namen weichen an einigen Stellen ab** und
+werden so abgebildet:
+
+| JSON (`data-model.md`) | Typ in `events.py` |
+|---|---|
+| `resume.json`: `serien` (Objekt, Schlüssel = Serien-ID) | `ResumeGeladen.zeiger: tuple[Zeiger, ...]`, ein `Zeiger` je Eintrag |
+| `serien.<id>` (Schlüssel) | `Zeiger.serie_id` |
+| `serien.<id>.folge` | `Zeiger.datei` |
+| `serien.<id>.index`, `.position_s`, `.zaehler` | `Zeiger.index`, `.position_s`, `.zaehler` (gleiche Namen) |
+| `config.json`: `zuordnungen.<uid>.serie` | `Zuordnung.serie_id` (und `typ`, `aktion` gleich) |
+| `zuordnungen` (Objekt, Schlüssel = Kennung) | `Konfig.zuordnungen: Mapping[str, Zuordnung]` |
+| `leise_zeiten.fenster[].tage / von / bis / wirkung / grenze / id` | `Fenster.tage / von / bis / wirkung / grenze / id` (gleiche Namen; `tage` als `tuple`) |
+| `leise_zeiten.zeitzone` (fehlt: `Europe/Berlin`) | `LeiseZeiten.zeitzone` (immer gesetzt) |
+| `gute_nacht.timer_min`, `.ausblenden_s` | `GuteNacht.timer_min`, `.ausblenden_s` |
+| `config.json`: `erzeugt_am`, `schema_version` | kein Feld in `Konfig` (nur Anzeige bzw. Format) |
+| `serie.json`: `id`, `name`, `typ`, `ordner` (aus dem Pfad), `folgen` | `Serie.id`, `.name`, `.typ`, `.ordner`, `.folgen` |
+
+`position_s` wird beim Speichern auf **eine Nachkommastelle abgerundet**
+(`floor(x · 10) / 10`), damit der gespeicherte Zeiger nie weiter vorn liegt als
+die tatsächliche Position. „Unverändert“ im Sinne von `ZeigerSpeichern` heißt: gleiche Datei,
+gleicher Index und gleiche so abgerundete Position.
 
 ### 3.9 Interne Ereignisse (zwischen Teilautomaten)
 
@@ -170,9 +206,10 @@ Unterklassen von `InternesEreignis` und verlassen den Kern nie.
 | `SitzungGeaendert` | `zustand: str`, `figur_liegt: bool`, `spielt: bool`, `serie_id: str \| None` | `session` → `idle`, `bedtime` | Zustand der Wiedergabe-Sitzung hat sich geändert. `figur_liegt` gilt auch für Aktionskarten. |
 | `AktionAusgeloest` | `aktion: Literal["status","gute_nacht"]`, `vorgang: str` | `session` → `bedtime` (und `core` für `status`) | Aktionskarte wurde aufgelegt. |
 | `LernenGeaendert` | `aktiv: bool` | `learn` → `idle`, `session` | Lernmodus beginnt oder endet. |
-| `StummBeginnt` | – | `quiet` → `session` | ein „stumm“-Fenster beginnt (oder die Zeit ist nicht vertrauenswürdig und es gibt ein solches Fenster; siehe 9). |
+| `StummBeginnt` | – | `quiet` → `session` | ein „stumm“-Fenster beginnt. Bei nicht vertrauenswürdiger Zeit gibt es nie „stumm“ (`data-model.md`, Abschnitt 2). |
 | `StummEndet` | – | `quiet` → `session` | ein „stumm“-Fenster endet. |
 | `GrenzeGesetzt` | `name: str`, `prozent: int \| None` | `quiet`, `bedtime`, `session` → `core` | setzt (`int`) oder löscht (`None`) die benannte Lautstärke-Grenze (Abschnitt 8). `core` behandelt sie selbst, die Teilautomaten sehen sie nicht. |
+| `LautstaerkeGeaendert` | `wirksam: int` | `core` → alle Teilautomaten | die **wirksame Lautstärke** (`klemmen(wunsch, grenzen)`) hat sich geändert (und einmal nach `GeraeteEinstellungen`). Die Teilautomaten sind reine Funktionen und kennen `wunsch` und `grenzen` nicht; sie merken sich den zuletzt gemeldeten Wert und benutzen ihn als **Startwert einer Rampe** (Abschnitt 8) und für die Entscheidung „laute Wiedergabe“ (`wirksam` größer als die Zielgrenze). |
 | `GuteNachtEnde` | – | `bedtime` → `session` | Das Ausblenden von „Gute Nacht“ hat die Lautstärke 0 erreicht; die Sitzung pausiert (9, Punkt 6). |
 | `HerunterfahrenAngefordert` | `grund: Literal["leerlauf","hauptknopf","akku_tiefstand"]` | `idle` → `session`, `core` | Herunterfahren ist beschlossen. `session` pausiert und speichert den Zeiger; `core` hängt danach den Befehl `Herunterfahren` an. |
 
@@ -187,12 +224,12 @@ nennt, wer sie ausführt.
 | `AusgangWaehlen` | `ausgang: Literal["lautsprecher","kopfhoerer"]` | `player` | Ausgang umschalten (Mac: nur protokolliert). |
 | `Abspielen` | `serie_id: str`, `ordner: str`, `datei: str`, `position_s: float`, `vorgang: str \| None` | `player` | Warteschlange leeren, **nur diese Folge** laden, auf `position_s` springen (`seek`), spielen. `position_s` enthält schon den Rücksprung (Abschnitt 6.3). Der Pfad für MPD ist `ordner + "/" + datei`. |
 | `Pausieren` | `grund: Literal["abgehoben","folgenende","knopf","stumm","gute_nacht","leser_unbekannt","fehler","herunterfahren"]` | `player` | Pause. Ist MPD schon gestoppt (Folgenende), ist der Befehl wirkungslos. Danach sendet der Player sofort `PlayerPosition`. |
-| `ZeigerSpeichern` | `serie_id: str`, `datei: str`, `index: int`, `position_s: float`, `grund: Literal["pause","folgenende","figurwechsel","periodisch","herunterfahren"]` | `store` (`resume.json`) | Zeiger schreiben, `zaehler` dieser Serie um 1 erhöhen. `store` schreibt nicht, wenn Datei, Index und Position (auf 1 Nachkommastelle) unverändert sind. |
+| `ZeigerSpeichern` | `serie_id: str`, `datei: str`, `index: int`, `position_s: float`, `grund: Literal["pause","folgenende","figurwechsel","periodisch","herunterfahren"]` | `store` (`resume.json`) | Zeiger schreiben, `zaehler` dieser Serie um 1 erhöhen. `position_s` ist abgerundet auf 1 Nachkommastelle (Abschnitt 3.8). `store` schreibt nicht, wenn Datei, Index und Position unverändert sind. |
 | `TonSpielen` | `ton: Literal["start","unbekannt","fehler","hinweis","lernen_beginn","lernen_ende","akku_leer","pruef_ok","pruef_fehler"]` | `sounds` | kurzer Rückmeldeton (Datei `box/sounds/<ton>.wav`, `pruef_*` in AP 2.3). |
-| `StatusPruefen` | `vorgang: str \| None` | `selftest`, `sounds` | Prüfpunkte Leser, Medien, Netz, Speicher in dieser Reihenfolge prüfen und je Punkt `pruef_ok` oder `pruef_fehler` spielen (Status-Admin-Karte, CUJ 11). |
+| `StatusPruefen` | `vorgang: str \| None` | `selftest` | Prüfpunkte Leser, Medien, Netz, Speicher in dieser Reihenfolge nach den Kriterien aus Abschnitt 12.3 prüfen und je Punkt `pruef_ok` oder `pruef_fehler` spielen (Status-Admin-Karte, CUJ 11). `selftest` wertet aus und lässt `sounds` die Töne spielen; ausgeführt wird der Befehl nur von `selftest`. |
 | `Melden` | `art: Literal["unbekannt","gelernt"]`, `uid: str`, `befehl_id: str \| None` | `outbox` | Eintrag in `unknown.json`, Veröffentlichung an HA, Löschen erst nach Bestätigung (Abschnitt 7). `befehl_id` ist bei `gelernt` die ID des Lernbefehls, sonst `None`. |
-| `EreignisSenden` | `art: Literal["fehler","befehl_abgelehnt"]`, `daten: Mapping[str, str \| int \| bool \| None]` | `ha` | Meldung an HA ohne Bestätigung (`…/event`). `befehl_abgelehnt` hat `daten = {"befehl": <lernen\|sync\|update>, "befehl_id": <str>, "grund": <bedingung\|zeit_unsicher>}` und optional `"detail"`. |
-| `ZustandMelden` | `sitzung: str`, `serie_id: str \| None`, `lernmodus: bool`, `ruhe: Literal["normal","leiser","stumm"]`, `gute_nacht: Literal["aus","laeuft","ausblenden"]`, `figur_liegt: bool` | `ha` (Status), `led` | Sammelzustand für Status-Sensoren und LED-Ring. `core` erzeugt ihn bei jeder Änderung (6.1, Schritt 6). |
+| `EreignisSenden` | `art: Literal["fehler","befehl_abgelehnt"]`, `daten: Mapping[str, str \| int \| bool \| None]` | `ha` | Meldung an HA ohne Bestätigung (`…/event`). `befehl_abgelehnt` hat `daten = {"befehl": <lernen\|sync\|update>, "befehl_id": <str>, "grund": <bedingung\|zeit_unsicher>}` und optional `"detail"`; `lernen_abbrechen` wird nie abgelehnt. Die Meldungen `liste_abgelehnt`, `v_unbekannt` und `befehl_unbekannt` entstehen **nicht** im Kern, sondern direkt in `ha` (Abschnitt 9, Punkt 9). |
+| `ZustandMelden` | `sitzung: str`, `strom: Literal["aktiv","leerlauf","herunterfahren"]`, `serie_id: str \| None`, `lernmodus: bool`, `ruhe: Literal["normal","leiser","stumm"]`, `gute_nacht: Literal["aus","laeuft","ausblenden"]`, `figur_liegt: bool` | `ha` (Statussammler, Abschnitt 12), `led` | Sammelzustand für Status-Sensoren und LED-Ring. `core` erzeugt ihn bei jeder Änderung (6.1, Schritt 6). Den Status-JSON baut nicht der Kern, sondern der Statussammler in `ha` (Abschnitt 12). |
 | `LeserPing` | – | `reader` | `PING` an den Leser senden. |
 | `SyncStarten` | `grund: Literal["ha","start_lader"]` | `sync` | Sync anfordern. `sync` entscheidet nach der Netz-Regel (Heim / Hotspot und Akku), ob er läuft; wenn nicht, meldet er `SyncAbgebrochen(grund="regel")`. |
 | `SyncAbbrechen` | `grund: Literal["akku_tiefstand"]` | `sync` | laufenden Sync abbrechen. |
@@ -228,9 +265,9 @@ kennzeichen(zustand: Zustand) -> str                # kurzer Name des Zustands f
 
 | Modul | Name im Design | Zustände (`kennzeichen`) | Verarbeitet (Ereignisse) | Gibt aus |
 |---|---|---|---|---|
-| `session.py` | Wiedergabe-Sitzung | `leer`, `spielt`, `pausiert`, `beendet`, `gehalten`, `unbekannt` | `GeraeteEinstellungen`, `KonfigGeladen`, `BibliothekGeladen`, `ResumeGeladen`, `Bereit`, `Aufgelegt`, `Gesperrt`, `Abgehoben`, `LeserHallo`, `LeserAlarm`, `LeserHerzschlag`, `LeserFehler`, `FolgeZuEnde`, `PlayerPosition`, `PlayerFehler`, `PlayerVerbindung`, `Hauptknopf`, `Weiter`, `Zurueck`, `Kopfhoerer`, `Takt`, `StummBeginnt`, `StummEndet`, `LernenGeaendert`, `GuteNachtEnde`, `HerunterfahrenAngefordert` | `Abspielen`, `Pausieren`, `ZeigerSpeichern`, `TonSpielen`, `Melden`, `AusgangWaehlen`, `LeserPing`, `Protokoll`; intern `SitzungGeaendert`, `AktionAusgeloest`, `GrenzeGesetzt` (`kopfhoerer`, `ausblenden`) |
+| `session.py` | Wiedergabe-Sitzung | `leer`, `spielt`, `pausiert`, `beendet`, `gehalten`, `unbekannt` | `GeraeteEinstellungen`, `KonfigGeladen`, `BibliothekGeladen`, `ResumeGeladen`, `Bereit`, `Aufgelegt`, `Gesperrt`, `Abgehoben`, `LeserHallo`, `LeserAlarm`, `LeserHerzschlag`, `LautstaerkeGeaendert`, `FolgeZuEnde`, `PlayerPosition`, `PlayerFehler`, `PlayerVerbindung`, `Hauptknopf`, `Weiter`, `Zurueck`, `Kopfhoerer`, `Takt`, `StummBeginnt`, `StummEndet`, `LernenGeaendert`, `GuteNachtEnde`, `HerunterfahrenAngefordert` | `Abspielen`, `Pausieren`, `ZeigerSpeichern`, `TonSpielen`, `Melden`, `AusgangWaehlen`, `LeserPing`, `Protokoll`; intern `SitzungGeaendert`, `AktionAusgeloest`, `GrenzeGesetzt` (`kopfhoerer`, `ausblenden`) |
 | `learn.py` | Lernmodus | `aus`, `lernt` | `HaLernmodus`, `HaLernmodusAbbruch`, `Aufgelegt`, `Gesperrt`, `Takt` | `TonSpielen`, `Melden`, `EreignisSenden`, `Protokoll`; intern `LernenGeaendert` |
-| `quiet.py` und `bedtime.py` | Ruhe-Regeln | `quiet`: `normal`, `leiser`, `stumm`; `bedtime`: `aus`, `laeuft`, `ausblenden` | `KonfigGeladen`, `Takt`, `ZeitquelleGeaendert` (`quiet`); `KonfigGeladen`, `Takt`, `AktionAusgeloest`, `Abgehoben` (`bedtime`) | `Protokoll`; intern `StummBeginnt`, `StummEndet`, `GrenzeGesetzt` (`leise_zeit`, `ausblenden` aus `quiet`; `gute_nacht` aus `bedtime`), `GuteNachtEnde` (aus `bedtime`) |
+| `quiet.py` und `bedtime.py` | Ruhe-Regeln | `quiet`: `normal`, `leiser`, `stumm`; `bedtime`: `aus`, `laeuft`, `ausblenden` | `KonfigGeladen`, `Takt`, `ZeitquelleGeaendert`, `LautstaerkeGeaendert` (`quiet`); `KonfigGeladen`, `Takt`, `AktionAusgeloest`, `Abgehoben`, `LautstaerkeGeaendert` (`bedtime`) | `Protokoll`; intern `StummBeginnt`, `StummEndet`, `GrenzeGesetzt` (`leise_zeit`, `ausblenden` aus `quiet`; `gute_nacht` aus `bedtime`), `GuteNachtEnde` (aus `bedtime`) |
 | `idle.py` | Strom / Leerlauf | `aktiv`, `leerlauf`, `herunterfahren` | `SitzungGeaendert`, `LernenGeaendert`, `Takt`, `Hauptknopf` (lang), `AkkuTiefstand`, `LaderGeaendert`, `NetzKlasse`, `SyncGestartet`, `SyncFertig`, `SyncAbgebrochen`, `UpdateGestartet`, `SelbsttestErgebnis`, `HaSyncAnstossen`, `HaUpdateAnstossen`, `Bereit` | `SyncStarten`, `SyncAbbrechen`, `UpdateStarten`, `EreignisSenden`, `Protokoll`; intern `HerunterfahrenAngefordert` |
 
 Hinweise:
@@ -281,7 +318,9 @@ step(zustand: KernZustand, ereignis: Ereignis, jetzt: Jetzt)
 
 `KernZustand` enthält die fünf Zustände (`session`, `learn`, `quiet`, `bedtime`,
 `idle`), die Lautstärke-Grenzen (`grenzen: Mapping[str,int]`), den Wunsch der
-Lautstärke (`wunsch: int`), und die zuletzt gemeldete `ZustandMelden`-Zusammenfassung.
+Lautstärke (`wunsch: int`), die zuletzt als `LautstaerkeGeaendert` gemeldete
+wirksame Lautstärke, den zuletzt als `LautstaerkeSetzen` **ausgegebenen** Wert
+(`ausgegeben`) und die zuletzt gemeldete `ZustandMelden`-Zusammenfassung.
 Neue Teilautomaten trägt das Integrations-AP der Stufe in die Liste ein
 (`core.py`: `TEILAUTOMATEN`, in fester Reihenfolge).
 
@@ -299,6 +338,14 @@ Die Reihenfolge der Teilautomaten ist **fest**: `session`, `learn`, `quiet`,
     *   Interne Ereignisse aus der Ausgabe kommen **hinten** in die Warteschlange.
         Befehle kommen in die Ausgabeliste, in der Reihenfolge Teilautomat →
         Emissionsreihenfolge.
+    *   Ist die Warteschlange leer, berechnet `core` die wirksame Lautstärke
+        `klemmen(wunsch, grenzen)` (Abschnitt 8). Weicht sie vom zuletzt
+        gemeldeten Wert ab, hängt `core` ein `LautstaerkeGeaendert(wirksam)` an
+        die Warteschlange; es geht an alle Teilautomaten (sie geben darauf nichts
+        aus, was eine neue Rampe oder eine Schleife auslöst). Erst wenn danach
+        nichts mehr in der Warteschlange steht, ist die Verarbeitung zu Ende.
+        `LautstaerkeSetzen` entsteht einmal **am Ende** der Verarbeitung aus dem
+        Nettowert (Abschnitt 8), nicht nach jedem einzelnen `GrenzeGesetzt`.
 3.  Schutz gegen Schleifen: Nach 32 verarbeiteten Ereignissen je äußerem
     Ereignis bricht `core` ab, hängt `Protokoll(ebene="ERROR", ereignis="kern_schleife")`
     an und gibt aus, was bis dahin gesammelt ist.
@@ -306,7 +353,7 @@ Die Reihenfolge der Teilautomaten ist **fest**: `session`, `learn`, `quiet`,
     Teilautomaten):
     *   `GeraeteEinstellungen`: Grenzen `global` und `kopfhoerer`-Wert setzen,
         `wunsch := min(lautstaerke_start, wirksame Grenze)`, `LautstaerkeSetzen`
-        ausgeben (Abschnitt 8).
+        ausgeben (Abschnitt 8) und `LautstaerkeGeaendert` an alle Teilautomaten.
     *   `LautstaerkeDrehen(delta)`: `wunsch := clamp(wunsch + delta, 0, wirksame Grenze)`,
         `LautstaerkeSetzen`.
     *   `AktionAusgeloest(status)`: `StatusPruefen(vorgang)`.
@@ -336,7 +383,17 @@ Die Reihenfolge der Teilautomaten ist **fest**: `session`, `learn`, `quiet`,
 5.  **Mehrere `Abspielen`:** Es bleibt das letzte.
 6.  **Lautstärke vor Abspielen:** Steht in der Ausgabe ein `Abspielen` und kein
     `LautstaerkeSetzen`, setzt `core` vor das `Abspielen` ein
-    `LautstaerkeSetzen` mit dem aktuellen Wunsch und der wirksamen Grenze.
+    `LautstaerkeSetzen` mit dem aktuellen Wunsch und der wirksamen Grenze,
+    **auch wenn** `ausgegeben` schon denselben Wert hat (der Player-Wert kann
+    durch Regel 7 oder einen MPD-Neustart abweichen).
+7.  **Keine Lautstärke-Rückkehr vor einer Pause:** Enthält die Ausgabe ein
+    `Pausieren`, und würde ein `LautstaerkeSetzen` nur deshalb entstehen, weil in
+    derselben Verarbeitung die Grenze `ausblenden` oder `gute_nacht` gelöscht
+    wurde (der Wert stiege wieder), gibt `core` es **nicht** aus. Der Player
+    behält die niedrige Lautstärke während der Pause, `ausgegeben` bleibt der
+    niedrige Wert. Erst eine Änderung von `wunsch` oder Regel 6 vor dem nächsten
+    `Abspielen` setzt wieder. So springt die Box am Ende von „Gute Nacht“ und
+    „stumm“ nie kurz auf volle Lautstärke zurück.
 
 ### 6.3 Zeigerregeln, die `session` anwendet
 
@@ -357,6 +414,14 @@ Die Funktionen stehen in `pointer.py` (rein). `session` benutzt sie so:
 *   **Überraschungs-Serie** (für unbekannte und gesperrte Figuren): die einzige
     Serie mit `typ="ueberraschung"`. Gibt es keine, mehr als eine oder ist sie
     leer: `TonSpielen("fehler")` und `Protokoll`.
+*   **Zuordnung auf eine Serie, die die Box noch nicht kennt** (die `serie_id`
+    steht nicht in der Bibliothek; Entscheidung Tobias 05.11.): Die Box spielt die
+    **Überraschungs-Serie** (wie bei einer unbekannten Figur, aber **ohne**
+    `Melden`: die Figur ist ja zugeordnet) und protokolliert den Grund
+    (`Protokoll(WARNING, ereignis="serie_fehlt", daten={"uid": …, "serie": …})`).
+    Kommt die Serie später (`BibliothekGeladen`), gilt die Zuordnung beim **nächsten
+    Auflegen**; die laufende Überraschungs-Serie wird dadurch nicht gewechselt.
+    Gibt es auch keine Überraschungs-Serie, gilt deren Fehlerfall (Fehlerton).
 *   Der Zeiger wird nur geschrieben, wenn er sich geändert hat (Datei, Index oder
     Position). `ZeigerSpeichern` trägt den Wert aus `PlayerPosition`.
 *   **Periodisch:** Bei `Takt` im Zustand `spielt` gibt `session`
@@ -394,6 +459,11 @@ Reihenfolge nacheinander aus.
     als Ereignis (z. B. `PlayerFehler`).
 4.  `app` setzt `sim=true` im Protokoll für Ereignisse aus dem Simulations-Treiber;
     die Ereignistypen selbst unterscheiden sich nicht.
+5.  **Beobachter:** `app` gibt nach jedem Kern-Aufruf eine **Kopie** jedes äußeren
+    Ereignisses sowie jedes ausgegebenen `ZustandMelden` und `Protokoll` an den
+    Statussammler in `ha` (Abschnitt 12). Zusätzlich erhält er `HaVerbindung`,
+    das den Kern nicht erreicht. Der Beobachter ändert nichts am Kern und gibt
+    keine Befehle zurück.
 
 ## 7. Ereignis-Ausgang mit Bestätigung
 
@@ -406,18 +476,27 @@ Reihenfolge nacheinander aus.
 *   Nach dem Schreiben lässt `outbox` den Eintrag durch `ha` veröffentlichen
     (`mqtt-v1.md`). Ohne Verbindung bleibt er in der Datei und wird bei der
     nächsten Verbindung veröffentlicht.
-*   Die **Bestätigung** kommt als `Bestaetigt(id, grund)` (`id` = Kennung):
-    in Stufe 2 von `tobibox sim ack`, ab Stufe 3a von `ha` (HA hat auf dem
-    Thema `…/ack` geantwortet). Erst dann löscht `outbox` den Eintrag aus
-    `unknown.json` und `ha` die dauerhafte Nachricht auf dem Broker.
-    `grund` ist ein beliebiger Text aus der Antwort von HA und wird protokolliert.
+*   Die **Bestätigung** kommt als `Bestaetigt(id, grund, zuletzt, art)` (`id` =
+    Kennung): in Stufe 2 von `tobibox sim ack`, ab Stufe 3a von `ha` (HA hat auf
+    dem Thema `…/ack` geantwortet). `zuletzt` und `art` nennen die
+    Veröffentlichung, die HA bestätigt. `outbox` löscht den Eintrag **nur, wenn
+    `zuletzt` und `art` mit dem aktuellen Eintrag in `unknown.json`
+    übereinstimmen**. Eine Bestätigung für eine ältere Veröffentlichung (der
+    Eintrag wurde inzwischen überschrieben, z. B. `unbekannt` durch `gelernt`
+    oder höhere `anzahl`) ist **wirkungslos**, wird protokolliert (`ack_veraltet`)
+    und lässt den Eintrag samt der neueren dauerhaften Nachricht stehen; HA
+    bestätigt die neuere Veröffentlichung selbst. Bei Übereinstimmung löscht
+    `outbox` den Eintrag aus `unknown.json` und `ha` die dauerhafte Nachricht auf
+    dem Broker. `grund` ist ein beliebiger Text aus der Antwort von HA und wird
+    protokolliert. Ändert sich der Eintrag zwischen der Prüfung und dem PUBACK der
+    Löschung, behält `outbox` ihn und veröffentlicht ihn erneut.
 *   Eine Bestätigung für eine unbekannte `id` oder eine zweite Bestätigung ist
     **wirkungslos** (idempotent), kein Fehler.
 *   Der Broker allein (PUBACK) bestätigt nichts.
 *   Schnittstelle von `outbox` (Namen verbindlich):
     *   `melden(art, uid, befehl_id, jetzt) -> None`
     *   `offen() -> list[Eintrag]` (alle noch nicht bestätigten Einträge)
-    *   `bestaetigt(id, grund) -> bool` (`True`, wenn ein Eintrag gelöscht wurde)
+    *   `bestaetigt(id, grund, zuletzt, art) -> bool` (`True`, wenn ein Eintrag gelöscht wurde)
 
 ## 8. Lautstärke: Schnittstelle der Regel
 
@@ -431,8 +510,8 @@ aller aktiven Grenzen**, und keine Lautstärke liegt darüber.
     | `global` | `core` bei `GeraeteEinstellungen` | `lautstaerke_max` |
     | `leise_zeit` | `quiet` (Fenster „leiser“, oder bei nicht vertrauenswürdiger Zeit die kleinste „leiser“-Grenze aller Fenster) | `Fenster.grenze` |
     | `kopfhoerer` | `session` bei `Kopfhoerer(steckt=True)`; `None` beim Ziehen | `lautstaerke_kopfhoerer` |
-    | `gute_nacht` | `bedtime` während des Ausblendens | fällt von der wirksamen Lautstärke zu Beginn des Ausblendens linear auf 0 über `ausblenden_s` |
-    | `ausblenden` | `session` beim sanften Ausblenden wegen „stumm“ (und `quiet` beim sanften Absenken wegen „leiser“) | fällt über `STUMM_AUSBLENDEN_S` bzw. `LEISER_ABSENKEN_S` (je 3,0 s) linear auf das Ziel |
+    | `gute_nacht` | `bedtime` während des Ausblendens | fällt vom Startwert (die `wirksam` aus dem letzten `LautstaerkeGeaendert` zu Beginn des Ausblendens) linear auf 0 über `ausblenden_s` |
+    | `ausblenden` | `session` beim sanften Ausblenden wegen „stumm“ (und `quiet` beim sanften Absenken wegen „leiser“) | fällt vom Startwert (`wirksam` zu Beginn) über `STUMM_AUSBLENDEN_S` bzw. `LEISER_ABSENKEN_S` (je 3,0 s) linear auf das Ziel |
 
 *   **Funktionen von `volume.py`** (rein):
     *   `wirksame_grenze(grenzen: Mapping[str, int]) -> int`: Minimum aller
@@ -441,47 +520,99 @@ aller aktiven Grenzen**, und keine Lautstärke liegt darüber.
         `min(wunsch, wirksame_grenze(grenzen))`, nie unter 0.
     *   `rampe(von: int, nach: int, start_mono: float, dauer_s: float, jetzt_mono: float) -> int`:
         lineare Rampe, auf ganze Prozent gerundet, an den Rändern begrenzt.
-*   **Wer sie anwendet:** `core` hält `grenzen` und `wunsch`. Bei jeder Änderung
-    von `grenzen` oder `wunsch` und bei jedem `Takt` während einer Rampe berechnet
-    `core` `klemmen(wunsch, grenzen)` und gibt `LautstaerkeSetzen(prozent, grenze)`
-    **nur aus, wenn sich `prozent` oder `grenze` ändern**. `player` setzt den Wert
-    durch und klemmt auf `grenze`.
+*   **Woher die Teilautomaten den Startwert kennen:** Sie sehen `wunsch` und
+    `grenzen` nicht. `core` meldet ihnen jede Änderung der wirksamen Lautstärke
+    als `LautstaerkeGeaendert(wirksam)`; jeder Teilautomat merkt sich den letzten
+    Wert. Beim Beginn einer Rampe hält er `von = wirksam` (und `start_mono`)
+    fest und gibt dann bei jedem `Takt` `GrenzeGesetzt(name, rampe(von, nach,
+    start_mono, dauer_s, jetzt.mono))` aus. „Laute Wiedergabe“ beim Beginn eines
+    „leiser“-Fensters heißt: `wirksam` größer als `Fenster.grenze`; nur dann
+    gibt es eine Absenk-Rampe, sonst wird die Grenze `leise_zeit` sofort gesetzt.
+*   **Wer sie anwendet:** `core` hält `grenzen` und `wunsch`. Am **Ende jeder
+    Verarbeitung** (nach dem Leeren der Warteschlange, 6.1) berechnet `core`
+    `klemmen(wunsch, grenzen)` und gibt `LautstaerkeSetzen(prozent, grenze)`
+    **nur aus, wenn sich `prozent` oder `grenze` gegenüber `ausgegeben` ändern**
+    (Nettowert: mehrere `GrenzeGesetzt` in einer Verarbeitung ergeben höchstens
+    einen Befehl). `player` setzt den Wert durch und klemmt auf `grenze`. Während
+    einer Rampe entsteht so je `Takt` (alle 0,1 s) höchstens ein Befehl.
 *   **Start:** Auf `GeraeteEinstellungen` gibt `core` als **allerersten** Befehl
     `LautstaerkeSetzen` aus, bevor etwas spielt. Zusätzlich gilt 6.2, Regel 6.
-*   **Ausblenden wegen Gute Nacht:** Wird die Wiedergabe beim Ausblenden
-    beendet (Grenze bei 0), setzt `bedtime` die Grenze `gute_nacht` auf `None`
-    zurück, und `wunsch` bleibt unverändert.
+*   **Ende einer Rampe mit Pause** (Ausblenden bei „Gute Nacht“ oder „stumm“):
+    Erreicht die Rampe ihr Ziel und pausiert die Sitzung, löscht der Teilautomat
+    seine Grenze (`GrenzeGesetzt(…, None)`), `wunsch` bleibt unverändert. Wegen
+    6.2, Regel 7 folgt daraus **kein** `LautstaerkeSetzen` vor oder mit der Pause;
+    die Lautstärke bleibt in der Pause niedrig, und vor dem nächsten `Abspielen`
+    setzt Regel 6 den Wunsch.
 *   **Kopfhörerwechsel:** erst die neue Grenze (`GrenzeGesetzt` → `LautstaerkeSetzen`),
     dann `AusgangWaehlen` (Rang 1 vor Rang 2).
 
 ## 9. Fälle, die die Tabellen des Designs offenlassen
 
-Alle Punkte sind Festlegungen dieses Vertrags (bitte bestätigen, Abschnitt 11).
+Alle Punkte sind Festlegungen dieses Vertrags; die als „bestätigt (05.11.)“
+gekennzeichneten sind von Tobias oder der Projektleitung entschieden
+(Abschnitt „Festlegungen“ am Ende).
 
-1.  **`LeserHallo` und `LeserAlarm` außerhalb von `spielt`:** Die Sitzung
-    behandelt beides im Zustand `pausiert`, `beendet` oder `gehalten` wie
-    `Abgehoben` (die Figur gilt als weg, Zustand `pausiert`), im Zustand `leer`
-    gar nicht. Im Zustand `spielt` gilt die Tabelle des Designs: Frist
-    `LESER_FRIST_S` = 1,5 s, Zustand `unbekannt`. Die Frist beginnt mit dem
-    **ersten** der beiden Ereignisse (Alarm oder `LeserHallo`) und wird durch ein
-    zweites nicht verlängert.
+1.  **Leser-Unterbrechung: `LeserHallo` und `LeserAlarm`** (bestätigt 05.11.,
+    Projektleitung). Beide Ereignisse starten **nie** eine Wiedergabe.
+    *   Zustand `spielt`: Wechsel nach `unbekannt`, Frist `LESER_FRIST_S` = 3,0 s.
+        Die Frist beginnt mit dem **ersten** der beiden Ereignisse (Alarm oder
+        `LeserHallo`) und wird durch ein zweites nicht verlängert. Meldet `reader`
+        innerhalb der Frist dieselbe Figur erneut (Punkt 2), läuft die Wiedergabe
+        ohne Neustart weiter. Sonst Pause.
+    *   Zustände `pausiert`, `beendet`, `gehalten`: **keine Wirkung.** Die Figur
+        gilt weiter als liegend (`figur_liegt` und die gemerkte Figur ändern sich
+        nicht). Nur `Abgehoben` (oder der Abgleich in Punkt 3) ändert das.
+    *   Zustand `leer`: keine Wirkung.
+    *   **Wiedermeldung:** Ein `Aufgelegt` oder `Gesperrt` mit **derselben
+        Vorgangs-ID** wie die gemerkte liegende Figur ist in allen Zuständen eine
+        Wiedermeldung nach `HELLO` (3.1) und ein **No-op**: kein `Abspielen`, keine
+        `AktionAusgeloest`, kein `Melden`, kein Ton, keine Zustandsänderung. Eine
+        **andere** Vorgangs-ID gilt als neues Auflegen (Tabellen des Designs).
+    *   **Zeitgrenze und Ausnahme:** Nach einem bestätigten Verlust (Alarm oder
+        `LeserHallo` während `spielt`) pausiert die Sitzung spätestens
+        `LESER_FRIST_S` + `TAKT_S` = **3,1 s** nach dem ersten der beiden Ereignisse
+        (plus Ausführungszeit des Pausenbefehls). Das ist eine **bewusste
+        Ausnahme von der 1,5-s-Regel** des Designs (CUJ 13): Das Abheben erkennt
+        die Firmware (`REMOVED` nach `REMOVE_AFTER_MS`), nicht der Kern; bei
+        Verbindungsverlust kann der Kern ein Abheben nicht sehen und wartet
+        deshalb absichtlich länger, damit ein kurzer USB-Aussetzer die Wiedergabe
+        nicht pausiert. Bei einem Hänger ohne Verbindungsabbruch kommt der Alarm
+        erst nach `WATCHDOG_S` = 5 s, die Pause also bis zu 8,1 s nach dem letzten
+        Herzschlag. Mit `RECONNECT_BACKOFF_S` ab 0,25 s und der Frist von 3,0 s
+        reicht die Karenz für Aussetzer in der Größenordnung von 1 bis 2 s
+        (Messung in Stufe 1).
+    *   **Abweichung vom Design (Tabellenzeile „Frist abgelaufen“ und der Satz
+        „Kommt nach der Frist dieselbe Kennung wieder, ist das ein normales
+        Auflegen“):** Nach Ablauf der Frist pausiert die Sitzung, die Figur gilt
+        aber weiter als liegend. Meldet `reader` sie danach erneut (Wiedermeldung,
+        gleiche Vorgangs-ID), startet nichts von selbst; erst Abheben und
+        erneutes Auflegen oder der Hauptknopf kurz spielen wieder (Punkt 12).
 2.  **Im Zustand `unbekannt`:**
-    *   `Aufgelegt` mit **derselben** Kennung (nur diese; für `Gesperrt` gilt:
-        wenn die Figur vorher auch gesperrt war) innerhalb der Frist: Zustand
+    *   `Aufgelegt` oder `Gesperrt` mit **derselben** Vorgangs-ID (dieselbe Figur:
+        gleiche Kennung bzw. beide gesperrt) innerhalb der Frist: Zustand
         `spielt`, kein Befehl.
-    *   `Aufgelegt` mit **anderer** Kennung oder `Gesperrt` bei vorher bekannter
-        Kennung: Frist endet sofort, Pause und Zeiger der alten Serie speichern,
-        danach die neue Figur wie ein normales Auflegen (Tabelle: „Figurwechsel
-        während einer Leser-Unterbrechung“).
-    *   `Abgehoben`: Frist endet, Pause, Zeiger speichern, `pausiert`.
-    *   Frist abgelaufen (`Takt`): Pause, Zeiger speichern, `pausiert`.
-    *   `LeserHerzschlag` mit `present=False` nach `LeserHallo`: Frist endet
-        sofort wie bei Ablauf.
+    *   `Aufgelegt` oder `Gesperrt` mit **anderer** Vorgangs-ID (andere Kennung,
+        oder gesperrt gegen Kennung): Frist endet sofort, Pause und Zeiger der
+        alten Serie speichern, danach die neue Figur wie ein normales Auflegen
+        (Tabelle: „Figurwechsel während einer Leser-Unterbrechung“).
+    *   `Abgehoben`: Frist endet, Pause, Zeiger speichern, `pausiert`,
+        `figur_liegt` falsch.
+    *   Frist abgelaufen (`Takt`): Pause, Zeiger speichern, `pausiert`; die Figur
+        gilt weiter als liegend (Punkt 1, letzte Abweichung).
+    *   `LeserHerzschlag` mit `present=False` nach `LeserHallo`: die Figur ist weg;
+        Frist endet sofort, Pause, Zeiger speichern, `pausiert`, `figur_liegt`
+        falsch.
 3.  **Abgleich über den Herzschlag:** Die Sitzung vergleicht `present` mit
     ihrem Wissen `figur_liegt`. Weichen zwei **aufeinanderfolgende**
     `LeserHerzschlag` voneinander ab (beide `present` anders als `figur_liegt`),
     gibt sie `LeserPing()` aus und zählt neu. Das `HELLO` auf den `PING` und die
-    erneute Meldung der Firmware stellen den Zustand her.
+    erneute Meldung der Firmware stellen den Zustand her. **Danach:** Ist die
+    erste `LeserHerzschlag` nach einem `LeserHallo` `present=False`, während
+    `figur_liegt` wahr ist (die Figur wurde im Ausfall abgehoben, ohne dass ein
+    `REMOVED` ankam), behandelt die Sitzung das wie `Abgehoben` mit der gemerkten
+    Vorgangs-ID: in `pausiert`, `beendet`, `gehalten` Zustand `pausiert`,
+    `figur_liegt` falsch, kein Befehl (in diesen Zuständen läuft nichts mehr); in
+    `unbekannt` Punkt 2.
 4.  **`PLACED` im Zustand `spielt`** (bekannte Kennung, andere als die aktuelle,
     oder dieselbe nach verlorenem `REMOVED`): Die Firmware meldet einen Wechsel
     als `Abgehoben` + `Aufgelegt`. `Aufgelegt` im Zustand `spielt` kommt daher
@@ -489,70 +620,135 @@ Alle Punkte sind Festlegungen dieses Vertrags (bitte bestätigen, Abschnitt 11).
     „`spielt` | `PLACED` andere Kennung“; bei **gleicher** Kennung geschieht
     nichts (Wiedergabe läuft weiter).
 5.  **Sanftes Ausblenden bei „stumm“** (Tabellenzeile `spielt` | stumm beginnt):
-    `session` setzt `GrenzeGesetzt("ausblenden", rampe(...))` bei jedem `Takt`
-    über `STUMM_AUSBLENDEN_S`; am Ende `Pausieren("stumm")`,
-    `ZeigerSpeichern("pause")`, `GrenzeGesetzt("ausblenden", None)`, Zustand
-    `gehalten`. `Abgehoben` während des Ausblendens beendet es sofort wie ein
-    normales Abheben. Dasselbe Verfahren (`LEISER_ABSENKEN_S`, Grenze
-    `ausblenden`, danach `leise_zeit` gesetzt) benutzt `quiet`, um eine laute
-    Wiedergabe beim Beginn eines „leiser“-Fensters abzusenken.
-6.  **Ausblenden bei „Gute Nacht“:** `bedtime` setzt bei jedem `Takt` die Grenze
-    `gute_nacht` nach der Rampe. Erreicht sie 0, gibt `bedtime` `GrenzeGesetzt("gute_nacht", 0)`
-    und das interne Ereignis `GuteNachtEnde` aus; `session` pausiert dann
-    (`Pausieren("gute_nacht")`, `ZeigerSpeichern("pause")`), `bedtime` löscht die
-    Grenze und geht auf `aus`. (`GuteNachtEnde` ist ein weiteres internes
-    Ereignis ohne Felder, `bedtime` → `session`.)
+    `session` hält beim Eintreffen von `StummBeginnt` den Startwert
+    `von = wirksam` (zuletzt gemeldetes `LautstaerkeGeaendert`) fest und setzt bei
+    jedem `Takt` `GrenzeGesetzt("ausblenden", rampe(von, 0, start, STUMM_AUSBLENDEN_S,
+    jetzt.mono))`; am Ende `Pausieren("stumm")`, `ZeigerSpeichern("pause")`,
+    `GrenzeGesetzt("ausblenden", None)`, Zustand `gehalten`. Wegen 6.2, Regel 7,
+    folgt daraus kein Lautstärkesprung. `Abgehoben` während des Ausblendens beendet
+    es sofort wie ein normales Abheben (Grenze löschen, Regel 7 gilt auch hier).
+    Dasselbe Verfahren (`LEISER_ABSENKEN_S`, Grenze `ausblenden`, Ziel
+    `Fenster.grenze`, danach `leise_zeit` gesetzt und `ausblenden` gelöscht)
+    benutzt `quiet`, um eine laute Wiedergabe (`wirksam` > `Fenster.grenze`) beim
+    Beginn eines „leiser“-Fensters abzusenken.
+6.  **Ausblenden bei „Gute Nacht“:** `bedtime` hält zu Beginn des Ausblendens den
+    Startwert `von = wirksam` fest und setzt bei jedem `Takt` die Grenze
+    `gute_nacht` nach `rampe(von, 0, start, ausblenden_s, jetzt.mono)`. Erreicht sie
+    0, gibt `bedtime` `GrenzeGesetzt("gute_nacht", 0)` und das interne Ereignis
+    `GuteNachtEnde` aus; `session` pausiert dann (`Pausieren("gute_nacht")`,
+    `ZeigerSpeichern("pause")`), `bedtime` löscht die Grenze und geht auf `aus`.
+    Wegen 6.2, Regel 7, springt die Lautstärke nicht zurück. (`GuteNachtEnde` ist
+    ein internes Ereignis ohne Felder, `bedtime` → `session`.)
 7.  **Zweite Gute-Nacht-Karte** im Zustand `laeuft`: Der Timer beginnt von vorn.
     Im Zustand `ausblenden`: ignoriert.
 8.  **Lernmodus:** `Gesperrt` im Zustand `lernt` ändert nichts (keine Kennung,
     der Lernmodus läuft weiter). Bei „stumm“ und Lernmodus gilt Regel 6.2.2:
     Beginn- und Endeton werden zum leisen Hinweiston. Die Frist 2 min beginnt
     bei der Annahme des Befehls auf `jetzt.mono` und heißt `LERN_FRIST_S` = 120.
-9.  **Befehle von HA** prüft der Kern mit `jetzt.wall` und `jetzt.zeit_ok`:
-    *   `zeit_ok` ist `False`: Befehl abgelehnt, `Protokoll(WARNING)` und
-        `EreignisSenden("befehl_abgelehnt", {"befehl":…, "befehl_id":…, "grund":"zeit_unsicher"})`.
-    *   `jetzt.wall > gueltig_bis`: Befehl ignoriert, nur `Protokoll`
-        (kein `EreignisSenden`).
-    *   `HaUpdateAnstossen` verlangt außerdem: Netz-Klasse `home`, Lader an,
-        Zustand der Sitzung nicht `spielt`, kein Sync und kein Update aktiv. Sonst
-        `EreignisSenden("befehl_abgelehnt", {…, "grund":"bedingung", "detail": <welche>})`.
-    *   `HaSyncAnstossen` wird durchgereicht: `SyncStarten("ha")`. Ob der Sync
-        läuft, entscheidet `sync` (Netz-Regel).
-    *   Diese Prüfungen liegen in `idle.py` (Strom / Leerlauf, es kennt Netz,
-        Lader, Sync und Update); `HaLernmodus` prüft `learn.py`.
+9.  **Befehle von HA: wer prüft was** (bestätigt 05.11. für die unsichere Uhr).
+    Die Prüfungen verteilen sich so; `ha` ist das Modul der Box, das MQTT
+    spricht, der „Kern“ ist `learn.py`/`idle.py`:
+
+    | Prüfung | Modul | Wirkung |
+    |---|---|---|
+    | `v` bekannt (`mqtt-v1.md`, Abschnitt 8) | `ha` | größeres `v`: Nachricht verworfen, Protokoll, `event` `fehler` mit `code="v_unbekannt"`, von `ha` direkt veröffentlicht |
+    | `befehl` bekannt | `ha` | unbekannt: verworfen, `event` `fehler` mit `code="befehl_unbekannt"`, von `ha` direkt |
+    | Doppelte `id` (letzte 50) | `ha` | verworfen, nur Protokoll |
+    | `tobibox/config`: Schema, Listen-ID, Revision | `ha` mit `store` (Revisionsregel `mqtt-v1.md` 5.2) | angenommen: `KonfigGeladen`; abgelehnt: `event` `liste_abgelehnt`, von `ha` direkt. Diese Regel liegt **außerhalb des Kerns**. |
+    | Ablaufzeit (`jetzt.wall > gueltig_bis`) | Kern: `learn` (`HaLernmodus`, `HaLernmodusAbbruch`), `idle` (`HaSyncAnstossen`, `HaUpdateAnstossen`) | abgelaufen: ignoriert, nur `Protokoll` (kein `EreignisSenden`) |
+    | Uhr (`jetzt.zeit_ok`) | Kern: `learn` (nur `HaLernmodus`), `idle` | `False`: Befehl abgelehnt, `Protokoll(WARNING)` und `EreignisSenden("befehl_abgelehnt", {"befehl":…, "befehl_id":…, "grund":"zeit_unsicher"})`. Gilt für `lernen`, `sync`, `update` |
+    | Bedingungen für `HaUpdateAnstossen` | Kern: `idle` | verlangt Netz-Klasse `home`, Lader an, Zustand der Sitzung nicht `spielt`, kein Sync und kein Update aktiv. Sonst `EreignisSenden("befehl_abgelehnt", {…, "grund":"bedingung", "detail": <welche>})` |
+    | Sync-Regel (Heim / Hotspot, Akku) | `sync` | `HaSyncAnstossen` wird durchgereicht (`SyncStarten("ha")`); ob er läuft, entscheidet `sync` (sonst `SyncAbgebrochen(grund="regel")`) |
+
+    *   `HaLernmodusAbbruch` hat eine Ablaufzeit (`gueltig_bis`, 30 s), aber
+        **keine Sperre bei unsicherer Uhr**: Ein Abbruch schadet nie. Bei
+        `zeit_ok` falsch wird die Ablaufzeit nicht geprüft (die Wanduhr ist dann
+        nicht verlässlich) und der Abbruch ausgeführt. Im Zustand `aus` ist er
+        wirkungslos (nur Protokoll). Er wird **nie** mit `befehl_abgelehnt`
+        beantwortet.
+    *   Bei unsicherer Uhr lehnt die Box Lernmodus, Sync und Update ab (wie
+        bisher). **HA zeigt den Grund an** (`mqtt-v1.md`, Abschnitt 6.2): das
+        Ereignis `befehl_abgelehnt` mit `grund="zeit_unsicher"` wird als
+        Benachrichtigung im Klartext angezeigt, und der Sensor „Zeitquelle“ trägt
+        `zeit_ok` als Attribut.
 10. **Fehler des Players:**
     *   `PlayerFehler` im Zustand `spielt`: `TonSpielen("fehler")`,
         `Pausieren("fehler")`, `Protokoll(ERROR)`. Bei `datei_fehlt` oder
         `datei_unlesbar` geht der Zeiger auf die nächste Folge (Position 0),
         sonst bleibt er. Zustand `pausiert`; die Figur liegt weiter.
-    *   `PlayerVerbindung(ok=False)` im Zustand `spielt`: `Protokoll(ERROR)`,
-        Zeiger mit der letzten Position speichern, Zustand `pausiert`. Bei `ok=True`
-        geschieht nichts Weiteres; das Kind legt die Figur neu auf.
+    *   **MPD weg während der Wiedergabe** (bestätigt 05.11., Tobias):
+        `PlayerVerbindung(ok=False)` im Zustand `spielt`: `Protokoll(ERROR)`,
+        Zeiger mit der letzten Position speichern (`ZeigerSpeichern("pause")`).
+        Die Sitzung bleibt im Zustand `spielt` (Kennzeichen unverändert), merkt
+        sich aber die Frist `MPD_FRIST_S` = 5,0 s ab diesem Ereignis.
+        *   Kommt `PlayerVerbindung(ok=True)` **innerhalb** der Frist und liegt die
+            Figur weiter (`figur_liegt`), setzt die Wiedergabe am gespeicherten
+            Zeiger fort: `AusgangWaehlen` (der MPD-Zustand ist verloren) und
+            `Abspielen` mit `position_s = max(0, position − RUECKSPRUNG_S)`
+            (Regel 6.2.6 setzt die Lautstärke davor). Zustand `spielt`.
+        *   Sonst (Frist abgelaufen, `Takt`): `Pausieren("fehler")` (wirkungslos,
+            wenn MPD weg ist), Zustand `pausiert`; die Figur gilt weiter als
+            liegend. Das Kind legt die Figur neu auf (Abheben und Auflegen) oder
+            drückt den Hauptknopf (Punkt 12). `TonSpielen("fehler")` gibt es hier
+            nicht.
+        *   Beginnt „stumm“ während der Frist: kein Ausblenden, sondern sofort
+            Zustand `gehalten` (der Zeiger ist gespeichert).
+        *   `Abgehoben` während der Frist: normale Pause (Zeiger ist gespeichert),
+            `pausiert`. `Hauptknopf` kurz: Pause, `pausiert`. Weitere
+            `PlayerFehler` während der Frist: nur `Protokoll`.
+    *   `PlayerVerbindung` in den übrigen Zuständen: nur `Protokoll`.
 11. **Aktionskarten** (`Zuordnung.typ="aktion"`) im Zustand `leer` oder
     `pausiert`: die Sitzung bleibt im Zustand, gibt `AktionAusgeloest` aus und
-    merkt sich `figur_liegt=True`; `Abgehoben` setzt es zurück. Aktionskarten im
-    Zustand `spielt` können nur nach verlorenem `REMOVED` vorkommen und werden
-    wie Punkt 4 behandelt (erst Pause, dann Aktion).
-12. **Hauptknopf kurz** je Zustand (Tabelle plus):
-    `spielt` → Pause, Zeiger speichern, `pausiert`; `pausiert` mit liegender
-    Figur → Abspielen am Zeiger (mit Rücksprung); `pausiert` ohne Figur →
-    Abspielen am Zeiger der zuletzt gespielten Serie (normale Play/Pause-Funktion);
-    `beendet` mit liegender Figur → nächste Folge ab Zeiger (Entscheidung E);
-    `gehalten`, `leer`, `unbekannt` → keine Wirkung. `Weiter`/`Zurueck` springen
-    zur nächsten/vorigen Folge in der Reihenfolge (zyklisch), Position 0,
-    `ZeigerSpeichern("folgenende")`-Regeln wie bei einer neuen Folge, nur im
-    Zustand `spielt` oder `pausiert` mit Serie.
+    merkt sich `figur_liegt=True` und die Vorgangs-ID; `Abgehoben` setzt es
+    zurück. Eine Wiedermeldung (Punkt 1) löst die Aktion **nicht** erneut aus.
+    Aktionskarten im Zustand `spielt` können nur nach verlorenem `REMOVED`
+    vorkommen und werden wie Punkt 4 behandelt (erst Pause, dann Aktion).
+12. **Abspielen-Auslöser und „stumm“ (bestätigt 05.11., Tobias).**
+    *   **Hauptknopf kurz** je Zustand (Tabelle plus): `spielt` → Pause, Zeiger
+        speichern, `pausiert`; `pausiert` mit liegender Figur → Abspielen am
+        Zeiger (mit Rücksprung); `pausiert` ohne Figur → Abspielen am Zeiger der
+        zuletzt gespielten Serie (normale Play/Pause-Funktion); `beendet` mit
+        liegender Figur → nächste Folge ab Zeiger (Entscheidung E); `gehalten`,
+        `leer`, `unbekannt` → keine Wirkung. `Weiter`/`Zurueck` springen zur
+        nächsten/vorigen Folge in der Reihenfolge (zyklisch), Position 0,
+        `ZeigerSpeichern("folgenende")`-Regeln wie bei einer neuen Folge, nur im
+        Zustand `spielt` oder `pausiert` mit Serie.
+    *   **Im „stumm“-Fenster** (`quiet` im Zustand `stumm`) startet **kein**
+        Abspielen-Auslöser eine Wiedergabe. Jeder Auslöser, der ohne „stumm“ ein
+        `Abspielen` ergäbe, gibt stattdessen nur `TonSpielen("hinweis")` aus
+        (Regel 6.2.3 fasst gleiche Töne zusammen):
+
+        | Auslöser unter „stumm“ | Wirkung |
+        |---|---|
+        | `Aufgelegt` (Serie, unbekannt) und `Gesperrt` in `leer`, `pausiert` | Hinweiston, Zustand `gehalten` (Tabelle des Designs); `Melden` bei unbekannter Figur bleibt |
+        | `Hauptknopf` kurz in `pausiert`, `beendet`, `gehalten` | Hinweiston, Zustand unverändert |
+        | `Weiter`, `Zurueck` in `pausiert`, `beendet`, `gehalten` (dort, wo sie ohne „stumm“ spielen würden) | Hinweiston, Zeiger unverändert |
+        | Wechsel nach `KonfigGeladen` (Punkt 14) | Hinweiston, Zustand und Zeiger unverändert |
+        | Fortsetzen nach MPD-Verlust (Punkt 10) | kommt unter „stumm“ nicht vor: die Sitzung ist dann nicht `spielt` |
+
+        Während des Ausblendens (`spielt` bis `gehalten`, 3 s) gilt: Hauptknopf
+        kurz pausiert wie üblich, `Weiter`/`Zurueck` werden ignoriert. Hauptknopf
+        lang (Herunterfahren) bleibt unberührt.
 13. **Kein Zeiger-Eingang vor `Bereit`:** `Aufgelegt` vor `ResumeGeladen`,
     `KonfigGeladen` und `BibliothekGeladen` kommt nie vor, weil `app` die
     Ereignisse des Lesers zurückhält.
 14. **Neue Konfiguration bei liegender Figur** (CUJ 7a: Tobias ordnet eine
-    unbekannte Figur zu, während sie noch liegt): Kommt `KonfigGeladen`, während
-    die Sitzung `spielt` und die Kennung der liegenden Figur jetzt einer Serie
-    zugeordnet ist, die nicht die laufende ist, speichert die Sitzung den Zeiger
-    der laufenden Serie (`ZeigerSpeichern("figurwechsel")`) und startet die
-    zugeordnete Serie wie beim Auflegen (Zeiger laden, `Abspielen`). Ist die
-    Zuordnung unverändert oder gehört die Figur zur laufenden Serie, geschieht
-    nichts. Dafür merkt sich die Sitzung die Kennung der liegenden Figur.
+    unbekannte Figur zu, während sie noch liegt). Die Sitzung merkt sich die
+    liegende Figur (Kennung, Vorgangs-ID, Art) und die Serie `serie_id`, die für
+    sie zuletzt gestartet wurde (auch die Überraschungs-Serie). Kommt
+    `KonfigGeladen` und ist die Kennung der liegenden Figur jetzt einer Serie `S`
+    zugeordnet (und `S` ist in der Bibliothek; sonst Punkt „Serie fehlt“ in 6.3:
+    nichts), die **nicht** `serie_id` ist:
+    *   `spielt`: Zeiger der laufenden Serie speichern
+        (`ZeigerSpeichern("figurwechsel")`), `S` starten wie beim Auflegen
+        (Zeiger laden, `Abspielen`).
+    *   `pausiert` und `beendet` (die Figur liegt): `S` starten wie beim Auflegen,
+        Zustand `spielt` (CUJ 7a „wechselt sofort“). Der Zeiger der bisherigen
+        Serie ist dort schon gespeichert.
+    *   `gehalten`, `unbekannt`, `leer`: nichts.
+    *   Unter „stumm“ in `pausiert`/`beendet`: nur Hinweiston (Punkt 12).
+    *   Ist die Zuordnung unverändert, gehört die Figur zur laufenden Serie oder ist
+        sie eine Aktionskarte, geschieht nichts.
 
 ## 10. Wer sendet welches Ereignis, wer führt welchen Befehl aus
 
@@ -564,14 +760,14 @@ Alle Punkte sind Festlegungen dieses Vertrags (bitte bestätigen, Abschnitt 11).
 | `store` | – | `ZeigerSpeichern` |
 | `library` | `BibliothekGeladen` (nach Änderung) | – |
 | `outbox` | – | `Melden`; nimmt `Bestaetigt` an |
-| `ha` | `KonfigGeladen` (angenommene Liste), `HaLernmodus`, `HaLernmodusAbbruch`, `HaSyncAnstossen`, `HaUpdateAnstossen`, `HaVerbindung`, `Bestaetigt` | `EreignisSenden`, `ZustandMelden` (Status), Veröffentlichung für `outbox` |
-| `sounds` | – | `TonSpielen`, `StatusPruefen` (mit `selftest`) |
+| `ha` | `KonfigGeladen` (angenommene Liste), `HaLernmodus`, `HaLernmodusAbbruch`, `HaSyncAnstossen`, `HaUpdateAnstossen`, `HaVerbindung` (nur an Statussammler und `selftest`), `Bestaetigt` | `EreignisSenden`, `ZustandMelden` (Statussammler baut daraus den Status, Abschnitt 12), Veröffentlichung für `outbox`; veröffentlicht `liste_abgelehnt`, `v_unbekannt`, `befehl_unbekannt` selbst (Punkt 9.9), ohne Kern-Befehl |
+| `sounds` | – | `TonSpielen` (auch für `selftest`) |
 | `controls` | `Hauptknopf`, `Weiter`, `Zurueck`, `LautstaerkeDrehen` | – |
 | `headphones` | `Kopfhoerer` | – |
 | `power` | `LaderGeaendert`, `AkkuStand`, `AkkuTiefstand`, `ZeitquelleGeaendert` | `Herunterfahren` |
 | `net` | `NetzKlasse`, `ZeitquelleGeaendert` | – |
 | `sync` | `SyncGestartet`, `SyncFertig`, `SyncAbgebrochen`, `BibliothekGeladen` (über `library`) | `SyncStarten`, `SyncAbbrechen` |
-| `update`, `selftest` | `UpdateGestartet`, `SelbsttestErgebnis` | `UpdateStarten`, `StatusPruefen` |
+| `update`, `selftest` | `UpdateGestartet`, `SelbsttestErgebnis` | `UpdateStarten` (`update`), `StatusPruefen` (`selftest`, Kriterien Abschnitt 12.3) |
 | `led` | – | `ZustandMelden` (Anzeige) |
 | `eventlog` | – | `Protokoll` |
 | `sim` | jedes Ereignis der Quellen `controls`, `headphones`, `power`, `net`, `ha` (Befehle `learn`, `ack`, `card`, später mehr) | – |
@@ -585,24 +781,88 @@ Modulkonstanten mit genau diesen Namen. Es gibt keine eigene Konstanten-Datei.
 
 | Name | Wert | Modul |
 |---|---|---|
-| `TAKT_S` | 0,5 | `app.py` |
+| `TAKT_S` | 0,1 | `app.py` (Takt und Auflösung aller Fristen und Rampen) |
 | `POSITION_INTERVAL_S` | 1,0 | `player.py` |
-| `LESER_FRIST_S` | 1,5 | `session.py` (aus dem Design: Pause ≤ 1,5 s nach dem Wächter-Alarm) |
+| `LESER_FRIST_S` | 3,0 | `session.py` (Karenzzeit bei Leser-Unterbrechung; Pause ≤ `LESER_FRIST_S` + `TAKT_S` = 3,1 s nach dem ersten Ereignis, bewusste Ausnahme von der 1,5-s-Regel des Designs, Punkt 9.1) |
+| `MPD_FRIST_S` | 5,0 | `session.py` (MPD weg während der Wiedergabe, Punkt 9.10) |
 | `RUECKSPRUNG_S` | 3,0 | `pointer.py` |
 | `SPEICHERN_PERIODISCH_S` | 30 | `session.py` |
 | `LERN_FRIST_S` | 120 | `learn.py` |
 | `LEERLAUF_S` | 1200 (20 min) | `idle.py` |
 | `STUMM_AUSBLENDEN_S` | 3,0 | `session.py` |
 | `LEISER_ABSENKEN_S` | 3,0 | `quiet.py` |
+| `LESER_FEHLER_FENSTER_S` | 10 | `ha.py` (Statussammler: Prüfpunkt Leser auf `fehler`, Abschnitt 12.2) |
+| `SPEICHER_MIN_FREI_MB` | 500 | `selftest.py` (Prüfpunkt Speicher, Abschnitt 12.3) |
 | `GRENZE_GLOBAL`, `GRENZE_LEISE_ZEIT`, `GRENZE_KOPFHOERER`, `GRENZE_GUTE_NACHT`, `GRENZE_AUSBLENDEN` | `"global"`, `"leise_zeit"`, `"kopfhoerer"`, `"gute_nacht"`, `"ausblenden"` | `volume.py` |
 
 Die Werte der Gute-Nacht-Dauern und der Leise-Zeiten kommen nicht aus
 Konstanten, sondern aus `Konfig` (Vorschlag 30 min und 60 s).
 
-## Festlegungen in diesem Vertrag (bitte bestätigen)
+## 12. Statusaufbau und Prüfpunkte
+
+### 12.1 Wer baut den Status
+
+Den Status-JSON (`mqtt-v1.md`, Abschnitt 3.3) baut der **Statussammler** im Modul
+`ha`. Er ist kein Teilautomat und kein Teil des Kerns: Er hält nur zuletzt
+gesehene Werte, und `app` füttert ihn als Beobachter (Abschnitt 6.5) mit Kopien
+der Ereignisse sowie der ausgegebenen `ZustandMelden` und `Protokoll`. Quelle je
+Feld:
+
+| Status-Feld | Quelle |
+|---|---|
+| `zustand` | `ZustandMelden.sitzung`; ist `ZustandMelden.strom` = `herunterfahren`, dann `herunterfahren` |
+| `lernmodus` | `ZustandMelden.lernmodus` |
+| `serie` | `ZustandMelden.serie_id`; der Name aus der letzten `BibliothekGeladen` (ohne Treffer: `name` = `id`); `null` ohne Serie |
+| `akku_prozent` | letztes `AkkuStand`; `null` bis zum ersten |
+| `lader` | letztes `LaderGeaendert`; `null` bis zum ersten |
+| `netz` | letztes `NetzKlasse` (bis zum ersten: `offline`) |
+| `sync` | `SyncGestartet` → `zustand="laeuft"`. `SyncFertig` → `idle`, `ergebnis="ok"`, `neu`, `letzter_ende` = `jetzt.wall`. `SyncAbgebrochen` mit `grund="regel"` → `idle`, `ergebnis="abgebrochen"`, `grund`; mit anderem Grund → `fehler`, `ergebnis="abgebrochen"`, `grund` |
+| `speicher_frei_mb` | `ha` fragt bei jeder Veröffentlichung das Dateisystem des Medienordners ab (freier Platz, ganze MB abgerundet) |
+| `version` | `manifest.json` der laufenden Version, beim Start gelesen |
+| `firmware` | `fw` des letzten gültigen `LeserHallo`; `null` ab einem `LeserAlarm` bis zum nächsten `LeserHallo` und vor dem ersten |
+| `protokoll` | Konstante des Dienstes (die unterstützte Hauptversion, hier 1) |
+| `leser` | Abbildung in 12.2 |
+| `letzter_fehler` | der letzte `Protokoll`-Befehl der Ebene `ERROR`: `zeit` = Zeitstempel (`jetzt.wall`), `text` = `ereignis` und `meldung` |
+| `zeitquelle`, `zeit_ok` | `Jetzt` des zuletzt verarbeiteten Ereignisses |
+| `konfig` | letztes `KonfigGeladen`: `revision`, `liste_id` (ohne: `0` und `""`) |
+| `update` | `update.json` beim Start; danach `UpdateGestartet` und `SelbsttestErgebnis` |
+| `ts` | Wanduhr der Box bei der Veröffentlichung |
+
+### 12.2 Prüfpunkt „Leser“ (Feld `leser`)
+
+Der Statussammler hält die 10-s-Frist (`LESER_FEHLER_FENSTER_S`) auf `jetzt.mono`
+(er sieht den `Takt`). Es gilt die erste zutreffende Zeile:
+
+| `leser` | Bedingung |
+|---|---|
+| `simulation` | die Ereignisse des Lesers kommen aus `sim` (Stufe 2) |
+| `getrennt` | noch kein `LeserHallo` seit dem Start, oder das letzte Ausfall-Ereignis ist ein `LeserAlarm` mit Grund `getrennt`, `kein_herzschlag` oder `hello_timeout` und danach kam kein gültiges `LeserHallo` |
+| `fehler` | das letzte Ausfall-Ereignis ist `LeserAlarm(proto_unbekannt)`, oder in den letzten 10 s kam ein `LeserFehler` mit `schwere="fehler"` |
+| `ok` | sonst |
+
+`LeserFehler` mit `schwere` `warnung` oder `hinweis` ändern `leser` nicht.
+
+### 12.3 Prüfpunkte der Status-Admin-Karte (`StatusPruefen`)
+
+`selftest` führt `StatusPruefen` aus, prüft die vier Punkte in der Reihenfolge
+Leser, Medien, Netz, Speicher und lässt `sounds` je Punkt `pruef_ok` oder
+`pruef_fehler` spielen. Kriterium für `pruef_ok`:
+
+| Punkt | `pruef_ok`, wenn |
+|---|---|
+| Leser | `leser` ist `ok` oder `simulation` (12.2) |
+| Medien | der Medienordner ist lesbar, die Bibliothek enthält mindestens eine Serie mit mindestens einer Folge, und es gibt genau eine nicht leere Überraschungs-Serie |
+| Netz | `netz` ist `home` oder `hotspot` und die Verbindung zum Broker steht (`HaVerbindung(ok=True)`) |
+| Speicher | der freie Platz auf dem Medien-Dateisystem ist mindestens `SPEICHER_MIN_FREI_MB` und seit dem Start kam kein `datei_verloren` (`data-model.md`, Abschnitt 1.3) |
+
+Die Tonfolge ist unter „stumm“ unverändert (6.2, Regel 2: `pruef_*` bleiben).
+
+## Festlegungen in diesem Vertrag (Stand 05.11.)
 
 Das Design lässt diese Einzelheiten offen. Entschieden wurde die einfachste
-stimmige Lösung.
+stimmige Lösung. „Bestätigt (05.11.)“ heißt: von Tobias (T) oder der
+Projektleitung (P) entschieden oder aus dem Goldfisch-Review übernommen
+(`review-stufe0.md`). Alle anderen Punkte sind noch offen.
 
 1.  **Zeiger und Position liegen im Kern**, nicht im Player: `PlayerPosition`
     meldet die Position jede Sekunde, der Kern gibt `ZeigerSpeichern` mit dem
@@ -617,30 +877,57 @@ stimmige Lösung.
     `Bereit` hält `app` Ereignisse des Lesers zurück.
 4.  **Interne Ereignisse** (`InternesEreignis`) verbinden die Teilautomaten, damit
     sie reine Funktionen mit der Signatur des Designs bleiben. Zusätzlich zu
-    den Namen aus Abschnitt 3.9: `GuteNachtEnde`.
+    den Namen aus Abschnitt 3.9: `GuteNachtEnde`. Neu (bestätigt 05.11., P,
+    Review-Befund 1): `LautstaerkeGeaendert`, damit Rampen ihren Startwert kennen.
 5.  **Fünf Zustände in der Liste von `core`** (`quiet` und `bedtime` getrennt),
     obwohl das Design vier Teilautomaten zählt (Ruhe-Regeln = `quiet` + `bedtime`).
     Reihenfolge: `session`, `learn`, `quiet`, `bedtime`, `idle`.
-6.  **Takt alle 0,5 s**, Auflösung aller Fristen 0,5 s. Rampen (Ausblenden) laufen
-    über `Takt` und `LautstaerkeSetzen`, nicht als Befehl „Rampe“ des Players.
+6.  **Bestätigt (05.11., P): Takt alle 0,1 s**, Auflösung aller Fristen und
+    Rampen 0,1 s (Rampen in 0,1-s-Schritten). Rampen laufen über `Takt` und
+    `LautstaerkeSetzen`, nicht als Befehl „Rampe“ des Players.
 7.  **Fester Rang der Befehle** (6.4) und feste Konfliktregeln (6.2). Töne unter
-    „stumm“ werden zum Hinweiston; `pruef_*` bleiben.
+    „stumm“ werden zum Hinweiston; `pruef_*` bleiben. **Bestätigt (05.11., P,
+    Review-Befund 2):** `LautstaerkeSetzen` entsteht einmal am Ende der Verarbeitung
+    aus dem Nettowert; nach einer Rampe mit Pause kein Lautstärkesprung (Regel 7).
 8.  **Neue Befehle über die Liste im Design hinaus:** `LeserPing` (Abgleich),
     `StatusPruefen`, `ZustandMelden`, `Protokoll`, `EreignisSenden`,
     `AusgangWaehlen`. Neue Ereignisse: `Weiter`, `Zurueck` (das Design nennt
     „Vor, Zurück“), `LautstaerkeDrehen`, `HaVerbindung`, `AkkuStand`.
-9.  **Befehle von HA prüft der Kern** mit `jetzt.wall` und `zeit_ok`; bei
-    unsicherer Zeit werden sie abgelehnt (nicht ausgeführt), auch der Lernmodus.
-    Das Design nennt nur die Ablaufzeit.
-10. **Abgleich über `present`** nach zwei abweichenden Herzschlägen mit `PING`.
-11. **`LeserHallo`/`LeserAlarm` auch außerhalb von `spielt`** (Punkt 9.1) und
-    **Player-Fehler** (9.10): im Design ohne Tabellenzeile.
+9.  **Befehle von HA:** Der Kern prüft Ablaufzeit und Uhr; bei unsicherer Uhr
+    werden Lernmodus, Sync und Update abgelehnt, und HA zeigt den Grund
+    (bestätigt 05.11., T/P). **Bestätigt (05.11., P, Review-Befund 7):** Tabelle
+    „wer prüft was“ in 9.9; `lernen_abbrechen` hat Ablaufzeit, aber keine
+    Uhr-Sperre; `liste_abgelehnt`, `v_unbekannt`, `befehl_unbekannt` veröffentlicht
+    `ha` selbst.
+10. **Abgleich über `present`** nach zwei abweichenden Herzschlägen mit `PING`;
+    danach gilt die erste `HB` mit `present=0` als Abheben (9.3).
+11. **Bestätigt (05.11., P): `LeserHallo`/`LeserAlarm` starten nie eine
+    Wiedergabe** (9.1), Wiedermeldung mit gleicher Vorgangs-ID ist ein No-op,
+    Abweichung vom Design bei „Frist abgelaufen“. **Bestätigt (05.11., T):
+    MPD weg** (9.10): zurück innerhalb 5 s und Figur liegt → weiter am
+    gespeicherten Zeiger mit 3-s-Rücksprung; sonst Pause und neu auflegen.
 12. **Hauptknopf kurz bei `pausiert` ohne Figur** spielt weiter (Play/Pause),
-    wie CUJ 19 es für „ohne Figur“ beschreibt.
+    wie CUJ 19 es für „ohne Figur“ beschreibt. **Bestätigt (05.11., T):** Im
+    „stumm“-Fenster startet nichts (Hauptknopf kurz, Weiter, Zurück, Auflegen,
+    Wechsel nach `KonfigGeladen`); es gibt nur den Hinweiston (9.12).
 13. **Zweite Gute-Nacht-Karte** startet den Timer neu.
-14. **`volume.rampe`** als zusätzliche reine Funktion in `volume.py`.
+14. **Bestätigt (05.11., P): `volume.rampe`** und `LautstaerkeGeaendert` als
+    Weg, den Startwert der Rampe zu kennen (Abschnitt 8).
 15. **`kopfhoerer`-Grenze** kommt aus `tobibox.toml` als `lautstaerke_kopfhoerer`
     (das Design nennt die Grenze, aber nicht ihre Quelle).
-16. **Neue Konfiguration bei liegender Figur** wechselt auf die zugeordnete
-    Serie (9.14), damit CUJ 7a „Box wechselt sofort“ erfüllt ist; das Design
-    nennt das Verhalten, aber keine Tabellenzeile.
+16. **Bestätigt (05.11., P, Review-Befund 6): Neue Konfiguration bei liegender
+    Figur** wechselt auf die zugeordnete Serie, auch in `pausiert` und `beendet`
+    (9.14), damit CUJ 7a „Box wechselt sofort“ erfüllt ist.
+17. **Bestätigt (05.11., T): Zuordnung auf eine noch nicht synchronisierte
+    Serie** spielt die Überraschungs-Serie, protokolliert den Grund, und die
+    Zuordnung gilt beim nächsten Auflegen (6.3).
+18. **Bestätigt (05.11., P): Bestätigung mit `zuletzt`** (und `art`): die Box
+    löscht nur bei Übereinstimmung (Abschnitt 7).
+19. **Offen: Statusaufbau (Abschnitt 12).** Quellen der Felder, Abbildung von
+    `leser` und die Kriterien der vier Prüfpunkte sind Vorschläge der
+    Umsetzung; insbesondere `SPEICHER_MIN_FREI_MB` = 500 und „Netz ok nur mit
+    Broker“. Tobias entscheidet, ob die Schwellen so passen.
+20. **Offen: Position abgerundet** auf eine Nachkommastelle (3.8) und die
+    Umsetzung von „MPD weg“ als Frist innerhalb des Zustands `spielt` (kein
+    neuer Zustand, damit die Zustandsliste des Designs und der Status gleich
+    bleiben).
