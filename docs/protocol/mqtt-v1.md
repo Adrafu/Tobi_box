@@ -1,0 +1,614 @@
+# MQTT-Schnittstelle Box ↔ Home Assistant, Version 1 (`mqtt-v1`)
+
+*   **Status:** Vertrag Stufe 0, Entwurf zur Prüfung durch einen Goldfisch
+*   **Grundlage:** `docs/designs/box-software.md` (Baustein 4 „MQTT-Schnittstelle
+    Box ↔ HA“, CUJ 7a, 7b, 12, „Revisionsregel“, „Lernmodus“)
+*   **Gilt für:** Modul `ha` des Box-Dienstes und `mqtt.py` der
+    HA-Integration `tobibox`. Schemas der Inhalte: `data-model.md`. Ereignisse
+    und Befehle im Kern: `core-interface.md`.
+
+## 1. Grundsätze
+
+*   **MQTT ist nur Verteilkanal.** Die Zuordnungen liegen im HA-Speicher (D1);
+    die Nachrichten transportieren sie. Die Box spielt ohne Broker alles, was
+    sie kennt.
+*   **Broker:** Mosquitto-Add-on in HA. Die Box erreicht ihn über Tailscale
+    (Heimnetz oder Hotspot, ein einziger Weg).
+*   **Protokoll:** MQTT 3.1.1, `paho-mqtt` ab Version 2. TLS ist nicht nötig
+    (Tailscale verschlüsselt).
+*   **Verbindung der Box:** Konto = Box-Name (siehe 2), Client-ID
+    `tobibox-<box>`, **dauerhafte Sitzung** (`clean_session=False`),
+    Keep-Alive 30 s, Neuverbinden mit Wartezeit 1 s, 2 s, 5 s, 10 s, dann 30 s.
+    Will-Nachricht (siehe 3.2).
+*   **QoS 1** für alle Nachrichten dieses Vertrags (Zustellung mindestens
+    einmal). Empfänger verarbeiten **idempotent**: doppelte Zustellung schadet
+    nicht (Mittel: `id` der Nachricht, Schlüssel `uid`, Revision).
+*   **Nachrichtenformat:** JSON, UTF-8. Jede Nachricht außer `tobibox/config` und
+    `…/online` enthält `"v": 1` (Abschnitt 8). Zeitstempel wie in `data-model.md`
+    (`2026-11-05T09:30:00Z`). Unbekannte Felder werden ignoriert. Höchstens
+    64 KiB je Nachricht, `tobibox/config` höchstens 256 KiB.
+*   **Box-Name** `<box>`: `[a-z0-9][a-z0-9_-]{1,23}`, in `tobibox.toml`
+    (`box_id`), z. B. `box1`, `box2`. Er ist zugleich der MQTT-Benutzername.
+    Zugangsdaten stehen nie im Repo.
+
+## 2. Themenbaum
+
+`<box>` = Box-Name, `<uid>` = kanonische Kennung (`[0-9a-f]`, `reader-v1.md`).
+
+| Thema | Richtung | Veröffentlicht von | Abonniert von | QoS | retained | Zweck |
+|---|---|---|---|---|---|---|
+| `tobibox/config` | HA → Boxen | HA-Integration | alle Boxen | 1 | **ja** | ganze Konfiguration mit Revision und Listen-ID |
+| `tobibox/<box>/online` | Box → HA | Box (Birth) und Broker (Will) | HA | 1 | **ja** | Erreichbarkeit der Box |
+| `tobibox/<box>/status` | Box → HA | Box | HA | 1 | **ja** | Zustand für Sensoren |
+| `tobibox/<box>/event` | Box → HA | Box | HA | 1 | nein | Ereignisse ohne Bestätigung: abgelehnte Liste, Fehler, abgelehnter Befehl |
+| `tobibox/<box>/unknown/<uid>` | Box → HA | Box | HA | 1 | **ja** | unbekannte oder gelernte Kennung, bis HA bestätigt |
+| `tobibox/<box>/unknown/<uid>/ack` | HA → Box | HA-Integration | diese Box | 1 | **nein** | Bestätigung einer Kennung (mit Grund) |
+| `tobibox/<box>/cmd` | HA → Box | HA-Integration | diese Box | 1 | **nein** | Befehle mit Ablaufzeit (Lernmodus, Sync, Update) |
+| `tobibox/<box>/ui/<objekt>` | HA → HA-Integration | Home-Assistant-Entität (Knopf, Auswahl) | HA-Integration | 1 | nein | Eingaben der Entitäten, die die Integration in `cmd` umsetzt (3.8) |
+| `homeassistant/<komponente>/tobibox_<box>/<objekt>/config` | Box → HA | Box | HA | 1 | **ja** | MQTT-Discovery (Abschnitt 6) |
+| `homeassistant/status` | HA → alle | Home Assistant | Box | – | – | HA meldet `online` nach dem Start; die Box veröffentlicht daraufhin die Discovery erneut |
+
+Es gibt keine weiteren Themen. Die Box schreibt nie auf `tobibox/config`,
+`…/cmd`, `…/ack` oder `…/ui/…`.
+
+## 3. Nachrichten
+
+### 3.1 `tobibox/config` (retained)
+
+Inhalt: genau das Schema von `config.json` (`data-model.md`, Abschnitt 2),
+einschließlich `schema_version`, `revision` und `liste_id`. Es gibt kein
+zusätzliches `v`; `schema_version` übernimmt diese Rolle.
+
+*   HA veröffentlicht nach **jeder** Änderung der Konfiguration (Revision + 1)
+    und bei „Liste neu ausrollen“ (neue `liste_id`).
+*   Der Broker liefert die dauerhafte Nachricht bei jedem Abonnieren erneut. Die
+    Box wendet deshalb die Revisionsregel (Abschnitt 5.3) an und tut bei
+    gleicher Fassung nichts.
+
+Beispiel (gekürzt):
+
+```json
+{
+  "schema_version": 1,
+  "revision": 17,
+  "liste_id": "a3f9c1e07b2d4856",
+  "erzeugt_am": "2026-11-05T09:30:00Z",
+  "zuordnungen": {
+    "e0040312345678ab": { "typ": "serie", "serie": "3f9a1c07b2d4" },
+    "04ffeedd": { "typ": "aktion", "aktion": "status" }
+  },
+  "leise_zeiten": { "zeitzone": "Europe/Berlin", "fenster": [] },
+  "gute_nacht": { "timer_min": 30, "ausblenden_s": 60 }
+}
+```
+
+### 3.2 `tobibox/<box>/online` (retained)
+
+Reiner Text, kein JSON: `online` oder `offline`.
+
+*   Die Box setzt beim Verbinden die **Will-Nachricht** `offline`
+    (retained, QoS 1) und veröffentlicht nach erfolgreicher Verbindung und dem
+    Abonnieren `online` (retained, QoS 1).
+*   Ein sauberes Beenden des Dienstes veröffentlicht vor dem Trennen `offline`.
+
+### 3.3 `tobibox/<box>/status` (retained)
+
+Gesamtzustand der Box. Die Box veröffentlicht, wenn sich ein Feld außer `ts`
+ändert, zusammengefasst auf höchstens **eine Nachricht je 5 s**, und
+unabhängig davon alle 300 s sowie nach jedem Verbinden.
+
+| Feld | Typ | Bedeutung |
+|---|---|---|
+| `v` | int | `1` |
+| `ts` | string | Zeitpunkt der Nachricht (Wanduhr der Box) |
+| `zustand` | string | Zustand der Wiedergabe-Sitzung: `leer`, `spielt`, `pausiert`, `beendet`, `gehalten`, `unbekannt`; während des Herunterfahrens `herunterfahren` |
+| `lernmodus` | bool | Lernmodus aktiv |
+| `serie` | object oder `null` | aktuelle Serie `{"id": …, "name": …}`; `null`, wenn keine |
+| `akku_prozent` | int 0–100 oder `null` | `null`, wenn unbekannt (z. B. am Mac ohne Simulation) |
+| `lader` | bool oder `null` | Lader angeschlossen |
+| `netz` | string | `home`, `hotspot` oder `offline` |
+| `sync` | object | `{"zustand": "idle"\|"laeuft"\|"fehler", "letzter_ende": <Zeitstempel oder null>, "ergebnis": "ok"\|"abgebrochen"\|null, "grund": <Text oder null>, "neu": <int>}` |
+| `speicher_frei_mb` | int | freier Platz auf dem Medien-Dateisystem in MB |
+| `version` | string | Version des Dienstes (`manifest.json`) |
+| `firmware` | string oder `null` | `fw` des Lesers aus dem `HELLO`, `null` ohne Verbindung |
+| `protokoll` | int | Hauptversion des Leser-Protokolls, die der Dienst spricht |
+| `leser` | string | Prüfpunkt Leser: `ok`, `fehler`, `getrennt`, `simulation` |
+| `letzter_fehler` | object oder `null` | `{"zeit": <Zeitstempel>, "text": <Text>}` |
+| `zeitquelle` | string | `system`, `rtc`, `ntp` oder `unbekannt` |
+| `zeit_ok` | bool | Uhrzeit vertrauenswürdig (sonst gelten Leise-Zeiten vorsichtig, siehe Design) |
+| `konfig` | object | die gespeicherte Konfiguration `{"revision": <int>, "liste_id": <string>}`; `{"revision": 0, "liste_id": ""}`, wenn keine |
+| `update` | object | `{"zustand": "ok"\|"testing"\|"failed", "version": <string>, "grund": <Text oder null>}` |
+
+Beispiel:
+
+```json
+{
+  "v": 1,
+  "ts": "2026-11-05T09:30:00Z",
+  "zustand": "spielt",
+  "lernmodus": false,
+  "serie": { "id": "3f9a1c07b2d4", "name": "Der kleine Rabe" },
+  "akku_prozent": 76,
+  "lader": false,
+  "netz": "hotspot",
+  "sync": {
+    "zustand": "idle",
+    "letzter_ende": "2026-11-05T07:00:12Z",
+    "ergebnis": "ok",
+    "grund": null,
+    "neu": 3
+  },
+  "speicher_frei_mb": 5120,
+  "version": "1.2.0",
+  "firmware": "1.0.0",
+  "protokoll": 1,
+  "leser": "ok",
+  "letzter_fehler": null,
+  "zeitquelle": "ntp",
+  "zeit_ok": true,
+  "konfig": { "revision": 17, "liste_id": "a3f9c1e07b2d4856" },
+  "update": { "zustand": "ok", "version": "1.2.0", "grund": null }
+}
+```
+
+### 3.4 `tobibox/<box>/event` (nicht retained)
+
+Einmalige Meldungen ohne Bestätigung.
+
+| Feld | Typ | Bedeutung |
+|---|---|---|
+| `v` | int | `1` |
+| `id` | string | zufällige Kennung der Meldung (UUID); HA wertet doppelte `id` einmal aus |
+| `ts` | string | Zeitpunkt |
+| `art` | string | `liste_abgelehnt`, `fehler` oder `befehl_abgelehnt` |
+| `daten` | object | je nach `art` |
+
+`daten` je Art:
+
+| `art` | Felder in `daten` |
+|---|---|
+| `liste_abgelehnt` | `liste_id`, `revision` (der abgelehnten Liste), `gespeichert_liste_id`, `gespeichert_revision` (was die Box hat), `grund` ∈ `revision_zu_niedrig`, `schema_ungueltig`, `schema_zu_neu` |
+| `fehler` | `baustein` (string), `code` (string), `text` (string). Beispiel: der Update-Rückfall nach `failed` meldet `baustein="update"`, `code="rueckfall"`, `text=<Grund>` |
+| `befehl_abgelehnt` | `befehl` ∈ `lernen`, `sync`, `update`, `befehl_id`, `grund` ∈ `bedingung`, `zeit_unsicher`, optional `detail` |
+
+Beispiel:
+
+```json
+{
+  "v": 1,
+  "id": "0c9b7d52-61a8-4f07-b3e4-2d8f1a6c9e10",
+  "ts": "2026-11-05T09:40:00Z",
+  "art": "liste_abgelehnt",
+  "daten": {
+    "liste_id": "a3f9c1e07b2d4856",
+    "revision": 12,
+    "gespeichert_liste_id": "a3f9c1e07b2d4856",
+    "gespeichert_revision": 17,
+    "grund": "revision_zu_niedrig"
+  }
+}
+```
+
+Abgelaufene Befehle (`jetzt > erzeugt + ttl_s`) erzeugen **keine** Meldung, nur
+einen Protokolleintrag auf der Box (Design: „ignorieren, protokollieren“).
+
+### 3.5 `tobibox/<box>/unknown/<uid>` (retained)
+
+Eine unbekannte oder gelernte Kennung, die HA noch nicht bestätigt hat. Die Box
+veröffentlicht sie **dauerhaft (retained)** auf einem eigenen Thema je Kennung.
+Dieselbe Kennung überschreibt die vorige Nachricht (neue Zählung).
+
+| Feld | Typ | Bedeutung |
+|---|---|---|
+| `v` | int | `1` |
+| `uid` | string | Kennung, gleich dem Themenende |
+| `art` | string | `unbekannt` oder `gelernt` |
+| `zuerst` | string | Zeitstempel der ersten Meldung |
+| `zuletzt` | string | Zeitstempel der letzten Meldung |
+| `anzahl` | int | wie oft die Kennung gemeldet wurde |
+| `zeit_ok` | bool | war die Uhrzeit bei der letzten Meldung vertrauenswürdig |
+| `befehl_id` | string oder `null` | bei `gelernt` die ID des Lernbefehls |
+
+Beispiel:
+
+```json
+{
+  "v": 1,
+  "uid": "e0040312345678ab",
+  "art": "gelernt",
+  "zuerst": "2026-11-05T09:12:03Z",
+  "zuletzt": "2026-11-05T09:12:03Z",
+  "anzahl": 1,
+  "zeit_ok": true,
+  "befehl_id": "6f1c0a7e-3b52-4d1a-9c58-0e2b7a41d9f3"
+}
+```
+
+Der Inhalt entspricht dem Eintrag in `unknown.json` (`data-model.md`). Eine
+Figur, die **beide** Boxen melden, erscheint in HA als **ein** Eintrag
+(Schlüssel = Kennung).
+
+### 3.6 `tobibox/<box>/unknown/<uid>/ack` (nicht retained)
+
+Die Bestätigung von HA. Erst sie lässt die Box den Eintrag löschen. Der PUBACK
+des Brokers bestätigt nichts (HA kann gerade neu starten).
+
+| Feld | Typ | Bedeutung |
+|---|---|---|
+| `v` | int | `1` |
+| `ts` | string | Zeitpunkt |
+| `grund` | string | `neu` (HA hat die Figur als „neue Figur“ aufgenommen), `bekannt` (die Kennung war schon aufgenommen, z. B. von der anderen Box), `zugeordnet` (Lernmodus: HA hat die Zuordnung geschrieben), `abgelehnt` (HA nimmt sie nicht an, z. B. Lernbefehl abgelaufen) |
+
+Die Box löscht den Eintrag bei **jedem** `grund`; unbekannte Gründe werden
+protokolliert und wirken wie `bekannt`. Das Thema ist **nicht** retained, weil
+eine dauerhafte Bestätigung eine spätere neue Meldung derselben Kennung sofort
+„bestätigen“ würde.
+
+Beispiel:
+
+```json
+{ "v": 1, "ts": "2026-11-05T09:12:05Z", "grund": "zugeordnet" }
+```
+
+### 3.7 `tobibox/<box>/cmd` (nicht retained)
+
+Befehle an genau eine Box. Sie sind **nicht dauerhaft** und tragen eine
+Ablaufzeit.
+
+| Feld | Typ | Bedeutung |
+|---|---|---|
+| `v` | int | `1` |
+| `id` | string | zufällige Kennung des Befehls (UUID) |
+| `befehl` | string | `lernen`, `lernen_abbrechen`, `sync`, `update` |
+| `erzeugt` | string | Zeitpunkt, an dem HA den Befehl erzeugt hat (Wanduhr von HA) |
+| `ttl_s` | int 1–3600 | Lebensdauer in Sekunden |
+| `daten` | object | `{}`; bei `update` `{"version": "<MAJOR.MINOR.PATCH>"}` |
+
+Gültigkeit: Die Box berechnet `gueltig_bis = erzeugt + ttl_s`. Sie führt den
+Befehl nur aus, wenn `jetzt.wall ≤ gueltig_bis` **und** die Uhr vertrauenswürdig
+ist (`zeit_ok`). Sonst wird er nicht ausgeführt (abgelaufen: nur Protokoll;
+Uhr unsicher: zusätzlich `event` mit `befehl_abgelehnt`, Grund `zeit_unsicher`).
+Voreinstellungen der Integration: `lernen` 60 s, `lernen_abbrechen` 30 s,
+`sync` 300 s, `update` 300 s.
+
+Hat ein Befehl bei Ankunft die Ablaufzeit nicht erreicht, aber die Box war
+offline (dauerhafte Sitzung stellt Nachrichten später zu), sorgt die
+Ablaufzeit dafür, dass er verfällt. Doppelte Zustellung wird über `id`
+erkannt (die Box merkt sich die letzten 50 `id`).
+
+| `befehl` | Wirkung auf der Box |
+|---|---|
+| `lernen` | Ereignis `HaLernmodus`: Lernmodus beginnt, die Box misst die Frist von 2 min selbst |
+| `lernen_abbrechen` | Ereignis `HaLernmodusAbbruch` |
+| `sync` | Ereignis `HaSyncAnstossen` |
+| `update` | Ereignis `HaUpdateAnstossen` mit `daten.version` |
+
+Beispiel:
+
+```json
+{
+  "v": 1,
+  "id": "6f1c0a7e-3b52-4d1a-9c58-0e2b7a41d9f3",
+  "befehl": "lernen",
+  "erzeugt": "2026-11-05T09:11:50Z",
+  "ttl_s": 60,
+  "daten": {}
+}
+```
+
+Die Zuordnung der Serie zum Lernen hält HA selbst (Box, Serie, Beginn). Die Box
+bekommt die Serie nicht; sie meldet nur die Kennung.
+
+### 3.8 `tobibox/<box>/ui/<objekt>` (nicht retained)
+
+Eingaben der Home-Assistant-Entitäten, die die Box per Discovery anlegt
+(Abschnitt 6). Ein Knopf in HA sendet eine **feste** Nutzlast und kann deshalb
+keine frische Ablaufzeit tragen; darum gehen diese Themen **nicht** an die Box,
+sondern an die HA-Integration. Sie setzt die Eingabe in einen Befehl auf
+`tobibox/<box>/cmd` um und trägt dabei `id`, `erzeugt` und `ttl_s` ein.
+
+| Thema | Nutzlast | Wirkung in der Integration |
+|---|---|---|
+| `tobibox/<box>/ui/sync` | `PRESS` | `cmd` mit `befehl="sync"` |
+| `tobibox/<box>/ui/update` | `PRESS` | `cmd` mit `befehl="update"` und der neuesten Version aus `releases/` |
+| `tobibox/<box>/ui/lernen_abbrechen` | `PRESS` | `cmd` mit `befehl="lernen_abbrechen"` |
+| `tobibox/<box>/ui/lern_serie` | Anzeigename der gewählten Serie | merkt sich die Wahl für den nächsten Lernmodus (Auswahl ohne Rückmeldung, `optimistic`) |
+
+Den Lernmodus selbst startet Tobias über die HA-Aktion „Lernmodus starten“
+(Box und Serie), nicht über einen Knopf der Box.
+
+## 4. Abläufe
+
+### 4.1 Unbekannte Figur (CUJ 7a, 12)
+
+1.  Die Box legt die Kennung in `unknown.json` (`art="unbekannt"`) und spielt die
+    Überraschungs-Serie.
+2.  Sobald die Verbindung steht (sofort oder später, auch nach Tagen
+    offline), veröffentlicht die Box **jeden** noch offenen Eintrag auf
+    `tobibox/<box>/unknown/<uid>` (retained, QoS 1).
+3.  HA nimmt die Kennung als „neue Figur“ auf (gleiche Kennung von beiden
+    Boxen = ein Eintrag) und antwortet auf `…/ack` mit `grund` `neu` oder
+    `bekannt`.
+4.  Die Box löscht auf den `ack` hin zuerst die dauerhafte Nachricht (leere
+    Nutzlast, retained, QoS 1, auf `tobibox/<box>/unknown/<uid>`), und nach dem
+    PUBACK dieses Löschens den Eintrag in `unknown.json`. Stürzt sie dazwischen
+    ab, ist die Nachricht weg und der Eintrag bleibt: Er wird beim nächsten
+    Verbinden erneut veröffentlicht, HA bestätigt erneut (idempotent).
+5.  Kommt der `ack` nie (HA aus), bleibt der Eintrag stehen; die dauerhafte
+    Nachricht wartet im Broker, bis HA sie liest.
+6.  Tippt Tobias in HA eine Serie an, ändert HA die Konfiguration (Revision + 1)
+    und veröffentlicht `tobibox/config`. Die Box übernimmt die Liste, und läuft
+    die Figur noch, wechselt sie auf die Serie (Kern: neues `Aufgelegt` nicht
+    nötig; der Wechsel geschieht durch `KonfigGeladen`, wie im Design).
+
+### 4.2 Lernmodus (CUJ 7b)
+
+1.  Tobias wählt in HA Box und Serie. Die Integration sendet auf
+    `tobibox/<box>/cmd` `befehl="lernen"` (`ttl_s` 60).
+2.  Die Box prüft Gültigkeit und Uhr (3.7), beginnt den Lernmodus und misst
+    2 min selbst.
+3.  Wird in dieser Zeit eine Figur mit Kennung aufgelegt, meldet die Box sie als
+    `art="gelernt"` mit `befehl_id` auf `tobibox/<box>/unknown/<uid>`.
+4.  HA ordnet die Kennung der gewählten Serie zu. Ist die Kennung schon
+    zugeordnet, fragt HA vor dem Überschreiben nach. HA antwortet auf `…/ack`
+    mit `grund="zugeordnet"` (oder `abgelehnt`).
+5.  HA veröffentlicht die neue Konfiguration; die Serie spielt.
+6.  `lernen_abbrechen` beendet den Lernmodus jederzeit. Nach 2 min ohne Figur
+    endet er von selbst.
+
+### 4.3 Konfiguration verteilen
+
+1.  HA ändert die Konfiguration → `revision` + 1, gleiche `liste_id` →
+    Veröffentlichung auf `tobibox/config` (retained).
+2.  Jede Box wendet die **Revisionsregel** an (5.3).
+3.  Angenommen: Box prüft das Schema (`data-model.md`), schreibt `config.json`
+    und meldet `KonfigGeladen` an den Kern. Der Status zeigt die neue Revision.
+4.  Abgelehnt: Box behält ihre Kopie und veröffentlicht `event` mit
+    `art="liste_abgelehnt"`.
+5.  Hat der Broker nichts, behält die Box ihre letzte Kopie.
+
+### 4.4 Verbinden
+
+Reihenfolge bei jedem Verbinden der Box:
+
+1.  Verbinden mit Will `offline`.
+2.  Abonnieren: `tobibox/config`, `tobibox/<box>/cmd`,
+    `tobibox/<box>/unknown/+/ack`, `homeassistant/status`.
+3.  `online` (retained) veröffentlichen.
+4.  Discovery veröffentlichen (Abschnitt 6) und `status`.
+5.  Offene Einträge aus `unknown.json` veröffentlichen.
+6.  Die retained `tobibox/config` trifft ein und wird nach 5.3 behandelt.
+
+## 5. Konfiguration: Revision und Listen-ID
+
+### 5.1 Begriffe
+
+*   **Revision:** Versionsnummer der Konfiguration, eine für alles (Zuordnungen,
+    Leise-Zeiten, Gute-Nacht-Einstellungen). HA erhöht sie bei jeder Änderung
+    um 1.
+*   **Listen-ID:** zufällige Kennung des HA-Speichers (16 Zeichen `[0-9a-f]`). Sie
+    ändert sich, wenn HA die Konfiguration neu aufsetzt (Speicher leer), bei der
+    HA-Aktion **„Liste neu ausrollen“** und wenn die Integration beim Start
+    feststellt, dass der Speicher leer ist.
+
+### 5.2 Regel auf der Box
+
+Die Box vergleicht die eingehende Liste (`L_neu`, `R_neu`) mit der gespeicherten
+(`L_alt`, `R_alt`; ohne Datei `""` und `0`):
+
+| Fall | Wirkung |
+|---|---|
+| `L_neu ≠ L_alt` | **angenommen**, unabhängig von der Revision |
+| `L_neu = L_alt` und `R_neu > R_alt` | **angenommen** |
+| `L_neu = L_alt` und `R_neu = R_alt` | nichts zu tun, keine Meldung (derselbe Stand, etwa erneute Zustellung der dauerhaften Nachricht) |
+| `L_neu = L_alt` und `R_neu < R_alt` | **abgelehnt**, Meldung `liste_abgelehnt` mit Grund `revision_zu_niedrig` |
+| Schema ungültig (`data-model.md`) | **abgelehnt**, Grund `schema_ungueltig` |
+| `schema_version` neuer als bekannt | **abgelehnt**, Grund `schema_zu_neu` |
+
+### 5.3 Folgerungen
+
+*   Eine **HA-Wiederherstellung** mit neuer Listen-ID wird von allen Boxen
+    angenommen, auch bei niedrigerer Revision.
+*   Wird HA aus einer Sicherung wiederhergestellt, die die **alte** Listen-ID
+    enthält, lehnen die Boxen die Liste mit niedrigerer Revision ab. Dann hilft
+    die HA-Aktion „Liste neu ausrollen“ (neue Listen-ID), wie das Betriebshandbuch
+    es beschreibt.
+*   Die Box merkt sich nur die jeweils gespeicherte Liste, keine Historie.
+
+## 6. Home-Assistant-Discovery (Entitäten je Box)
+
+Die Box veröffentlicht je Entität eine retained Nachricht auf
+`homeassistant/<komponente>/tobibox_<box>/<objekt>/config` (QoS 1). Sie
+veröffentlicht alle Nachrichten erneut: bei jedem Verbinden, wenn
+`homeassistant/status` den Text `online` meldet, wenn sich `version` oder die
+Serienliste ändert (für die Auswahl).
+
+### 6.1 Gerät
+
+Alle Entitäten einer Box gehören zu einem Gerät:
+
+```json
+"device": {
+  "identifiers": ["tobibox_box1"],
+  "name": "Tobi Box box1",
+  "manufacturer": "Tobi Box",
+  "model": "NFC-Audiobox",
+  "sw_version": "1.2.0"
+}
+```
+
+`name` = `Tobi Box <anzeigename>`; `anzeigename` steht in `tobibox.toml`, Vorgabe
+ist der Box-Name. Jede Entität trägt außerdem:
+`"unique_id": "tobibox_<box>_<objekt>"`, `"has_entity_name": true`,
+`"availability_topic": "tobibox/<box>/online"`, `"payload_available": "online"`,
+`"payload_not_available": "offline"`.
+
+### 6.2 Entitäten
+
+Alle Sensoren lesen `tobibox/<box>/status` (`state_topic`) und werten die Felder
+mit `value_template` aus.
+
+| Komponente | `<objekt>` | Anzeigename (`name`) | Wert | Zusatz |
+|---|---|---|---|---|
+| `sensor` | `zustand` | Zustand | `{{ value_json.zustand }}` | |
+| `sensor` | `serie` | Läuft gerade | `{{ value_json.serie.name if value_json.serie else 'keine' }}` | |
+| `sensor` | `akku` | Akku | `{{ value_json.akku_prozent }}` | `device_class` `battery`, Einheit `%`, `state_class` `measurement` |
+| `binary_sensor` | `lader` | Lader | `{{ 'ON' if value_json.lader else 'OFF' }}` | `device_class` `battery_charging` |
+| `sensor` | `netz` | Netz | `{{ value_json.netz }}` | `device_class` `enum`, Optionen `home`, `hotspot`, `offline` |
+| `sensor` | `sync` | Sync-Stand | `{{ value_json.sync.zustand }}` | `json_attributes_topic` = Status, `json_attributes_template` `{{ value_json.sync \| tojson }}` (zeigt Zeitpunkt, Ergebnis, Grund) |
+| `sensor` | `speicher_frei` | Freier Speicher | `{{ value_json.speicher_frei_mb }}` | Einheit `MB`, `device_class` `data_size`, `state_class` `measurement` |
+| `sensor` | `version` | Version | `{{ value_json.version }}` | `entity_category` `diagnostic` |
+| `sensor` | `letzter_fehler` | Letzter Fehler | `{{ value_json.letzter_fehler.text if value_json.letzter_fehler else 'kein Fehler' }}` | Attribute: Zeit |
+| `sensor` | `zeitquelle` | Zeitquelle | `{{ value_json.zeitquelle }}` | Attribut `zeit_ok`; `entity_category` `diagnostic` |
+| `button` | `sync_jetzt` | Sync jetzt | – | `command_topic` `tobibox/<box>/ui/sync`, `payload_press` `PRESS` |
+| `button` | `update` | Update | – | `command_topic` `tobibox/<box>/ui/update`, `payload_press` `PRESS` |
+| `button` | `lernen_abbrechen` | Lernmodus abbrechen | – | `command_topic` `tobibox/<box>/ui/lernen_abbrechen`, `payload_press` `PRESS` |
+| `select` | `lern_serie` | Serie für Lernmodus | – | `options` = Anzeigenamen der Serien auf der Box (bei doppelten Namen hängt die Box ` (<id>)` an), `command_topic` `tobibox/<box>/ui/lern_serie`, `optimistic` `true` |
+
+Beispiel der Nachricht für den Sensor „Akku“ (Thema
+`homeassistant/sensor/tobibox_box1/akku/config`):
+
+```json
+{
+  "name": "Akku",
+  "unique_id": "tobibox_box1_akku",
+  "has_entity_name": true,
+  "state_topic": "tobibox/box1/status",
+  "value_template": "{{ value_json.akku_prozent }}",
+  "device_class": "battery",
+  "unit_of_measurement": "%",
+  "state_class": "measurement",
+  "availability_topic": "tobibox/box1/online",
+  "payload_available": "online",
+  "payload_not_available": "offline",
+  "device": {
+    "identifiers": ["tobibox_box1"],
+    "name": "Tobi Box box1",
+    "manufacturer": "Tobi Box",
+    "model": "NFC-Audiobox",
+    "sw_version": "1.2.0"
+  }
+}
+```
+
+Beispiel der Nachricht für den Knopf „Sync jetzt“ (Thema
+`homeassistant/button/tobibox_box1/sync_jetzt/config`):
+
+```json
+{
+  "name": "Sync jetzt",
+  "unique_id": "tobibox_box1_sync_jetzt",
+  "has_entity_name": true,
+  "command_topic": "tobibox/box1/ui/sync",
+  "payload_press": "PRESS",
+  "availability_topic": "tobibox/box1/online",
+  "payload_available": "online",
+  "payload_not_available": "offline",
+  "device": { "identifiers": ["tobibox_box1"], "name": "Tobi Box box1" }
+}
+```
+
+## 7. Mosquitto-Rechte je Box-Konto
+
+Das Mosquitto-Add-on in HA läuft mit `customize.active: true` und der
+ACL-Datei `/share/mosquitto/acl.conf`. Die Box-Konten werden unter `logins`
+angelegt, sind **keine** HA-Administratoren. Die Konten `homeassistant` und
+`addons` bleiben unbeschränkt (Standard des Add-ons). Beispieldateien liegen in
+`homeassistant/mosquitto/`.
+
+Rechte für das Konto `box1` (für `box2` entsprechend; ein Konto je Box):
+
+```
+user box1
+topic read tobibox/config
+topic read tobibox/box1/cmd
+topic read tobibox/box1/unknown/+/ack
+topic read homeassistant/status
+topic write tobibox/box1/online
+topic write tobibox/box1/status
+topic write tobibox/box1/event
+topic write tobibox/box1/unknown/+
+topic write homeassistant/+/tobibox_box1/+/config
+```
+
+*   Die Box darf **nicht**: `tobibox/config` schreiben, `…/cmd`, `…/ack` und
+    `…/ui/…` schreiben, Themen anderer Boxen lesen oder schreiben, Themen unter
+    `homeassistant/` außer der eigenen Discovery schreiben.
+*   `topic write tobibox/box1/unknown/+` erlaubt auch das Löschen der
+    dauerhaften Nachricht (leere Nutzlast).
+*   Gleichwertig ist eine einzige Regel mit `pattern` und `%u` (Benutzername =
+    Box-Name):
+
+    ```
+    pattern read tobibox/%u/cmd
+    pattern read tobibox/%u/unknown/+/ack
+    pattern write tobibox/%u/online
+    pattern write tobibox/%u/status
+    pattern write tobibox/%u/event
+    pattern write tobibox/%u/unknown/+
+    pattern write homeassistant/+/tobibox_%u/+/config
+    topic read tobibox/config
+    topic read homeassistant/status
+    ```
+*   Passwörter der Box-Konten stehen nur auf der Box (`tobibox.toml`,
+    gitignored) und im Add-on, nie im Repo.
+
+## 8. Versionierung
+
+*   Jede Nachricht (außer `tobibox/config` und `…/online`) hat das Feld `v`.
+    `tobibox/config` hat `schema_version`. Beide Versionen sind hier `1`.
+*   **Ohne Erhöhung** erlaubt: neue optionale Felder, neue `art`-Werte in
+    `event`, neue Entitäten, neue `befehl`-Werte. Empfänger ignorieren
+    Unbekanntes: unbekannte Felder werden ignoriert, ein unbekannter `befehl`
+    wird mit `event` `art="fehler"` (`code="befehl_unbekannt"`) beantwortet und
+    sonst verworfen.
+*   **Erhöhung** von `v` bei: Feld entfernt oder umbenannt, Bedeutung oder
+    Wertebereich geändert, neues Pflichtfeld. Ein Empfänger, der ein größeres `v`
+    sieht als er kennt, verwirft die Nachricht und protokolliert sie; die Box
+    meldet zusätzlich ein `event` mit `art="fehler"` (`code="v_unbekannt"`).
+*   Die Themennamen ändern sich nicht innerhalb einer Hauptversion. Würde eine
+    Hauptversion die Themen ändern, bekommt sie einen neuen Wurzelnamen
+    (`tobibox2/…`) und läuft neben der alten, bis alle Boxen aktualisiert sind.
+*   Eine Änderung dieses Vertrags geht an die Projektleitung.
+
+## Festlegungen in diesem Vertrag (bitte bestätigen)
+
+Das Design lässt diese Einzelheiten offen. Entschieden wurde die einfachste
+stimmige Lösung.
+
+1.  **MQTT 3.1.1** mit dauerhafter Sitzung, Keep-Alive 30 s, Client-ID
+    `tobibox-<box>`. Verzichtet wird auf MQTT 5 (die HA-Veröffentlichung kann die
+    „Message Expiry“-Eigenschaft nicht setzen); die Ablaufzeit steht deshalb in
+    der Nachricht (`erzeugt` + `ttl_s`).
+2.  **Ablaufzeit mit Wanduhr:** Eine Box mit unsicherer Uhrzeit führt Befehle
+    nicht aus (Sicherheit, vor allem beim Update). Das Design nennt nur die
+    Ablaufzeit.
+3.  **Gelernte Kennungen** laufen wie unbekannte über `…/unknown/<uid>` mit
+    Bestätigung (`art="gelernt"`). Das Design nennt im Themenbaum „gelernt“ unter
+    `…/event`, führt aber im Abschnitt „Ereignis-Ausgang mit Bestätigung“ beide
+    Meldungen über den Ausgang mit Bestätigung; dieser Vertrag folgt dem
+    zweiten. `…/event` trägt nur `liste_abgelehnt`, `fehler`, `befehl_abgelehnt`.
+4.  **Knöpfe und Auswahl** der Box senden an `tobibox/<box>/ui/…` und die
+    Integration macht daraus `cmd` mit Ablaufzeit. Grund: Eine Discovery-
+    Entität sendet eine feste Nutzlast ohne frische Zeit. Das Design legt die
+    Entitäten auf der Box an; ihr `command_topic` ist hier ein anderes.
+5.  **`ack` nicht retained** (sonst würde er eine spätere neue Meldung derselben
+    Kennung sofort bestätigen). Die Box löscht erst die dauerhafte Nachricht,
+    danach den Eintrag in `unknown.json`.
+6.  **`ack`-Gründe** `neu`, `bekannt`, `zugeordnet`, `abgelehnt`; die Box löscht
+    bei jedem.
+7.  **Gleiche Liste (gleiche Listen-ID und gleiche Revision)** wird still
+    ignoriert; das Design nennt „alles andere wird abgelehnt“, aber die
+    dauerhafte Nachricht kommt bei jedem Verbinden erneut.
+8.  **Status:** Felder wie in 3.3; Veröffentlichung bei Änderung (höchstens alle
+    5 s) und alle 300 s; `retained`.
+9.  **Befehlsarten** `lernen`, `lernen_abbrechen`, `sync`, `update` und die
+    Lebensdauern 60/30/300/300 s.
+10. **Box-Namen** `box1`, `box2` als Beispiel; Regel `[a-z0-9][a-z0-9_-]{1,23}`.
+11. **Entitätsnamen** wie in 6.2 (deutsch, wie im Design aufgezählt). Die
+    Diagnose-Kategorien für Version und Zeitquelle sind eine Zutat.
+12. **Wiederholte Veröffentlichung** der Discovery bei jedem Verbinden und bei
+    `homeassistant/status` = `online`.
+13. **Der Wechsel auf die zugeordnete Serie** bei liegender Figur (CUJ 7a) wird
+    im Kern durch `KonfigGeladen` ausgelöst (`core-interface.md`, Abschnitt 9,
+    Punkt 14). Das Design beschreibt das Verhalten, aber keine Tabellenzeile.

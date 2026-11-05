@@ -1,0 +1,468 @@
+# reader-v1-examples.txt — Beispiele und Testgrundlage zu docs/protocol/reader-v1.md
+#
+# Diese Datei prüfen zwei Seiten gleichermaßen: die native Firmware-Testumgebung
+# (formatiert Zeilen, wendet den Entpreller an) und der Parser des Box-Dienstes
+# (protocol.py). Keine Seite darf von dieser Datei abweichen; bei Streit gilt
+# reader-v1.md, und diese Datei wird dann korrigiert.
+#
+# ALLGEMEIN
+#   - Zeilen, die mit '#' beginnen, und leere Zeilen werden ignoriert.
+#   - Felder einer Beispielzeile sind durch '|' getrennt. In Beispielzeilen
+#     kommt '|' deshalb nie als Inhalt vor.
+#   - Escapes in der Spalte <zeile>: \r = CR (0x0D), \xNN = Byte NN (hex),
+#     \\ = ein Backslash. Das abschließende LF (\n) steht nie in der Spalte.
+#   - Alle Kennungen in dieser Datei sind erfundene Testwerte.
+#
+# ABSCHNITT 1: Zeilen vom Leser zum Box-Dienst (Parser und Formatierer)
+#   OK|<zeile>|zeile=<TYP>|<schlüssel>=<wert>|...
+#       Gültige Zeile in kanonischer Form. Der Parser liefert genau die
+#       aufgeführten Felder in genau dieser Reihenfolge. Das erste Element
+#       zeile=<TYP> ist das Wort am Zeilenanfang und kein Feld der Zeile. Der
+#       Formatierer der Firmware muss aus diesen Werten byte-genau diese Zeile
+#       erzeugen (Feldreihenfolge wie in reader-v1.md, Abschnitt "Zeilen").
+#       Bei ERR steht detail= immer zuletzt und darf Leerzeichen enthalten.
+#   OKN|<zeile>|zeile=<TYP>|...
+#       Gültige, aber nicht kanonische Zeile (andere Feldreihenfolge, unbekannte
+#       Zusatzfelder, CRLF, unbekannter Fehlercode). Der Parser akzeptiert sie
+#       und liefert nur die bekannten Felder in der Reihenfolge der Zeilentabelle;
+#       unbekannte Zusatzfelder fehlen in der Auslegung. Die Firmware erzeugt
+#       solche Zeilen nie.
+#   ERR|<zeile>|<grund>
+#       Ungültige Zeile. Der Parser liefert kein Ereignis. <grund> ist einer von:
+#         empty_line         leere Zeile (still ignoriert, nicht protokolliert)
+#         too_long           mehr als 200 Zeichen (ohne Zeilenende)
+#         not_ascii          Zeichen außerhalb 0x20 bis 0x7E (nach Entfernen eines CR am Ende)
+#         unknown_type       erstes Wort ist keiner der Zeilentypen (z. B. Boot-Text)
+#         bad_syntax         Wort ohne '=', doppelte/führende/nachgestellte Leerzeichen,
+#                            ungültiger Schlüsselname, leerer Wert
+#         duplicate_key      derselbe Schlüssel zweimal
+#         missing_field      ein Pflichtfeld fehlt
+#         bad_value          Wert verletzt Format oder Wertebereich
+#         bad_uid            uid verletzt den regulären Ausdruck der Kennung
+#         uid_type_mismatch  uid, type und tonie passen nicht zueinander
+#       Prüfreihenfolge, die erste zutreffende gewinnt: empty_line, too_long,
+#       not_ascii, unknown_type, bad_syntax, duplicate_key, missing_field,
+#       Wertprüfungen in der Feldreihenfolge der Zeilentabelle (bad_uid bzw.
+#       bad_value), zuletzt uid_type_mismatch.
+#
+# ABSCHNITT 2: Zeilen vom Box-Dienst zum Leser (Befehls-Parser der Firmware)
+#   CMDOK|<zeile>|zeile=<TYP>
+#       Gültiger Befehl. Die Firmware antwortet wie in reader-v1.md beschrieben.
+#   CMDERR|<zeile>|<grund>
+#       Ungültiger Befehl. <grund> ist einer von: empty_line (still ignoriert,
+#       keine Antwort), too_long, not_ascii, bad_command (jede andere Zeile).
+#       Bei allen Gründen außer empty_line antwortet die Firmware mit
+#       "ERR code=bad_command detail=...".
+#
+# ABSCHNITT 3: Zeitabläufe des Entprellers samt Protokoll-Ausgabe
+#   SEQ|<name>|<beschreibung>      beginnt einen Ablauf
+#   PARAM|confirm_reads=<n>|remove_after_ms=<n>
+#                                  Parameter des Entprellers für diesen Ablauf
+#                                  (Standardwerte aus timing.h: 2 und 1100)
+#   STEP|<t_ms>|<eingabe>|<ausgabe>
+#       <t_ms>: Zeitstempel in ms (vorzeichenlose 32 Bit, monoton, darf überlaufen).
+#       <eingabe> ist eines von:
+#         nichts                     Abfragezyklus ohne Treffer
+#         uid:<typ>:<hex>            gültige Lesung, <typ> = ntag oder iso15693
+#         gesperrt                   Tonie im Privacy-Modus, Entsperren gescheitert
+#         fehler:<code>              Abfragezyklus mit Fehler (Code aus reader-v1.md)
+#         PING                       Zeile "PING" vom Box-Dienst, zwischen zwei Zyklen
+#       <ausgabe> ist '-' (keine Zeile) oder die in diesem Schritt geschriebenen
+#       Zeilen in der Reihenfolge der Ausgabe, getrennt durch ';' (kommt in
+#       Zeilen nicht vor). '*' als kompletter Wert eines Feldes (fw=*, detail=*)
+#       passt auf jeden gültigen Wert dieses Feldes.
+#       Je STEP gilt: erst die Zeitregel (REMOVED nach remove_after_ms), dann die
+#       Eingabe (siehe Zustandstabelle in reader-v1.md). seq wird bei jeder
+#       Ausgabe von PLACED, LOCKED und REMOVED um 1 erhöht und durch PING auf 0
+#       gesetzt; es beginnt nach dem Start bei 0.
+#   COUNT|polls=<n>|hits=<n>|rejected=<n>|errors=<n>|present=<0|1>
+#       Zählerstände und Wert von present nach dem letzten STEP des Ablaufs
+#       (Definition der Zähler: reader-v1.md, Abschnitt "Herzschlag").
+#   END                            beendet den Ablauf
+#
+# Jede Zeile ohne Escape-Zeichen ist exakt so zu lesen, wie sie dasteht.
+
+# ===================================================================
+# ABSCHNITT 1a: gültige Zeilen, kanonisch (OK)
+# ===================================================================
+
+# HELLO
+OK|HELLO proto=1 fw=1.0.0 build=a1b2c3d pn5180=4.2|zeile=HELLO|proto=1|fw=1.0.0|build=a1b2c3d|pn5180=4.2
+OK|HELLO proto=1 fw=1.2.10-rc1 build=0123456789ab-dirty pn5180=unknown|zeile=HELLO|proto=1|fw=1.2.10-rc1|build=0123456789ab-dirty|pn5180=unknown
+OK|HELLO proto=1 fw=0.1.0 build=unknown pn5180=3.9|zeile=HELLO|proto=1|fw=0.1.0|build=unknown|pn5180=3.9
+
+# PLACED: ISO 14443A mit 4, 7 und 10 Byte (8, 14, 20 Hexzeichen)
+OK|PLACED uid=04a1b2c3 type=ntag tonie=0 seq=0|zeile=PLACED|uid=04a1b2c3|type=ntag|tonie=0|seq=0
+OK|PLACED uid=04a1b2c3d4e5f6 type=ntag tonie=0 seq=12|zeile=PLACED|uid=04a1b2c3d4e5f6|type=ntag|tonie=0|seq=12
+OK|PLACED uid=04a1b2c3d4e5f6071829 type=ntag tonie=0 seq=1|zeile=PLACED|uid=04a1b2c3d4e5f6071829|type=ntag|tonie=0|seq=1
+
+# PLACED: ISO 15693 (16 Hexzeichen), Tonie (e00403...) und anderer ISO-15693-Chip
+OK|PLACED uid=e0040312345678ab type=iso15693 tonie=1 seq=3|zeile=PLACED|uid=e0040312345678ab|type=iso15693|tonie=1|seq=3
+OK|PLACED uid=e0010203040506ab type=iso15693 tonie=0 seq=4|zeile=PLACED|uid=e0010203040506ab|type=iso15693|tonie=0|seq=4
+
+# LOCKED und REMOVED
+OK|LOCKED seq=4|zeile=LOCKED|seq=4
+OK|REMOVED seq=5|zeile=REMOVED|seq=5
+OK|REMOVED seq=4294967295|zeile=REMOVED|seq=4294967295
+
+# HB
+OK|HB up=0 present=0 polls=0 hits=0 rejected=0 errors=0 cycle_ms=0|zeile=HB|up=0|present=0|polls=0|hits=0|rejected=0|errors=0|cycle_ms=0
+OK|HB up=120 present=1 polls=590 hits=410 rejected=3 errors=0 cycle_ms=176|zeile=HB|up=120|present=1|polls=590|hits=410|rejected=3|errors=0|cycle_ms=176
+OK|HB up=86400 present=0 polls=429496 hits=0 rejected=0 errors=429496 cycle_ms=65535|zeile=HB|up=86400|present=0|polls=429496|hits=0|rejected=0|errors=429496|cycle_ms=65535
+
+# ERR
+OK|ERR code=pn5180_no_response detail=eeprom read returned 0xFF|zeile=ERR|code=pn5180_no_response|detail=eeprom read returned 0xFF
+OK|ERR code=pn5180_timeout detail=getInventory busy timeout|zeile=ERR|code=pn5180_timeout|detail=getInventory busy timeout
+OK|ERR code=bad_response detail=crc error in inventory response|zeile=ERR|code=bad_response|detail=crc error in inventory response
+OK|ERR code=uid_invalid detail=iso14443a uid length 3|zeile=ERR|code=uid_invalid|detail=iso14443a uid length 3
+OK|ERR code=unlock_failed detail=privacy mode active, password rejected|zeile=ERR|code=unlock_failed|detail=privacy mode active, password rejected
+OK|ERR code=bad_command detail=unknown command|zeile=ERR|code=bad_command|detail=unknown command
+OK|ERR code=internal detail=queue overflow|zeile=ERR|code=internal|detail=queue overflow
+
+# ===================================================================
+# ABSCHNITT 1b: gültige Zeilen, nicht kanonisch (OKN)
+# ===================================================================
+
+# unbekanntes Zusatzfeld wird ignoriert (Vorwärtskompatibilität)
+OKN|PLACED uid=04a1b2c3 type=ntag tonie=0 seq=1 rssi=40|zeile=PLACED|uid=04a1b2c3|type=ntag|tonie=0|seq=1
+OKN|HB up=2 present=0 polls=10 hits=0 rejected=0 errors=0 cycle_ms=58 temp=41|zeile=HB|up=2|present=0|polls=10|hits=0|rejected=0|errors=0|cycle_ms=58
+OKN|HELLO proto=1 fw=1.0.0 build=a1b2c3d pn5180=4.2 board=supermini|zeile=HELLO|proto=1|fw=1.0.0|build=a1b2c3d|pn5180=4.2
+OKN|REMOVED seq=7 vorgang=x|zeile=REMOVED|seq=7
+# andere Feldreihenfolge
+OKN|PLACED seq=1 tonie=0 type=ntag uid=04a1b2c3|zeile=PLACED|uid=04a1b2c3|type=ntag|tonie=0|seq=1
+OKN|HELLO pn5180=4.2 build=a1b2c3d fw=1.0.0 proto=1|zeile=HELLO|proto=1|fw=1.0.0|build=a1b2c3d|pn5180=4.2
+# CRLF am Ende wird entfernt
+OKN|REMOVED seq=2\r|zeile=REMOVED|seq=2
+OKN|LOCKED seq=9\r|zeile=LOCKED|seq=9
+# unbekannter Fehlercode ist gültig (der Dienst behandelt ihn als Warnung)
+OKN|ERR code=future_thing detail=something new|zeile=ERR|code=future_thing|detail=something new
+# detail darf '=' enthalten, weil es den Rest der Zeile bildet
+OKN|ERR code=bad_response detail=cmd=0x04 rc=3|zeile=ERR|code=bad_response|detail=cmd=0x04 rc=3
+
+# ===================================================================
+# ABSCHNITT 1c: ungültige Zeilen (ERR)
+# ===================================================================
+
+# leer, zu lang, nicht ASCII
+ERR||empty_line
+ERR|\r|empty_line
+ERR|AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA|too_long
+ERR|PLACED uid=04a1b2c3 type=ntag tonie=0 seq=1\xc3\xa4|not_ascii
+ERR|PLACED uid=04a1b2c3\x09type=ntag tonie=0 seq=1|not_ascii
+
+# Boot-Text und fremde Zeilen: unbekannter Typ, keine Auswirkung
+ERR|ESP-ROM:esp32s3-20210327|unknown_type
+ERR|BOOT ok|unknown_type
+ERR|placed uid=04a1b2c3 type=ntag tonie=0 seq=1|unknown_type
+ERR|PLACE uid=04a1b2c3 type=ntag tonie=0 seq=1|unknown_type
+ERR|PING|unknown_type
+ERR|STATISTIK Abfragen 10 Treffer 3|unknown_type
+
+# Syntax
+ERR|PLACED  uid=04a1b2c3 type=ntag tonie=0 seq=1|bad_syntax
+ERR|PLACED uid=04a1b2c3 type=ntag tonie=0 seq=1 |bad_syntax
+ERR|PLACED 04a1b2c3|bad_syntax
+ERR|PLACED uid= type=ntag tonie=0 seq=1|bad_syntax
+ERR|PLACED UID=04a1b2c3 type=ntag tonie=0 seq=1|bad_syntax
+ERR|REMOVED seq=1  seq=2|bad_syntax
+ERR|ERR code=pn5180_timeout  detail=x|bad_syntax
+
+# doppelter Schlüssel
+ERR|PLACED uid=04a1b2c3 uid=04a1b2c3 type=ntag tonie=0 seq=1|duplicate_key
+ERR|REMOVED seq=1 seq=2|duplicate_key
+
+# Pflichtfeld fehlt
+ERR|PLACED uid=04a1b2c3 type=ntag tonie=0|missing_field
+ERR|LOCKED|missing_field
+ERR|REMOVED|missing_field
+ERR|HELLO proto=1 fw=1.0.0 build=a1b2c3d|missing_field
+ERR|HB up=1 present=1 polls=1 hits=1 rejected=0 errors=0|missing_field
+ERR|ERR code=pn5180_timeout|missing_field
+ERR|ERR detail=x code=pn5180_timeout|missing_field
+
+# Wert verletzt Format oder Bereich
+ERR|PLACED uid=04a1b2c3 type=ntag tonie=0 seq=-1|bad_value
+ERR|PLACED uid=04a1b2c3 type=ntag tonie=0 seq=007|bad_value
+ERR|PLACED uid=04a1b2c3 type=ntag tonie=0 seq=4294967296|bad_value
+ERR|PLACED uid=04a1b2c3 type=ntag tonie=2 seq=1|bad_value
+ERR|PLACED uid=04a1b2c3 type=nfc tonie=0 seq=1|bad_value
+ERR|REMOVED seq=abc|bad_value
+ERR|HELLO proto=0 fw=1.0.0 build=a1b2c3d pn5180=4.2|bad_value
+ERR|HELLO proto=1 fw=1.0 build=a1b2c3d pn5180=4.2|bad_value
+ERR|HELLO proto=1 fw=1.0.0 build=XYZ pn5180=4.2|bad_value
+ERR|HELLO proto=1 fw=1.0.0 build=a1b2c3d pn5180=v4|bad_value
+ERR|HB up=1 present=2 polls=1 hits=1 rejected=0 errors=0 cycle_ms=10|bad_value
+ERR|HB up=1 present=1 polls=1 hits=1 rejected=0 errors=0 cycle_ms=65536|bad_value
+ERR|ERR code=Bad detail=x|bad_value
+ERR|ERR code=1abc detail=x|bad_value
+
+# Kennung verletzt den regulären Ausdruck
+ERR|PLACED uid=04A1B2C3 type=ntag tonie=0 seq=1|bad_uid
+ERR|PLACED uid=04a1b2 type=ntag tonie=0 seq=1|bad_uid
+ERR|PLACED uid=04a1b2c3d type=ntag tonie=0 seq=1|bad_uid
+ERR|PLACED uid=04:a1:b2:c3 type=ntag tonie=0 seq=1|bad_uid
+ERR|PLACED uid=0x04a1b2c3 type=ntag tonie=0 seq=1|bad_uid
+ERR|PLACED uid=e0040312345678abcd type=iso15693 tonie=1 seq=1|bad_uid
+
+# Kennung, Typ und Tonie-Kennzeichen passen nicht zusammen
+ERR|PLACED uid=04a1b2c3 type=iso15693 tonie=0 seq=1|uid_type_mismatch
+ERR|PLACED uid=e0040312345678ab type=ntag tonie=1 seq=1|uid_type_mismatch
+ERR|PLACED uid=e0040312345678ab type=iso15693 tonie=0 seq=1|uid_type_mismatch
+ERR|PLACED uid=e0010203040506ab type=iso15693 tonie=1 seq=1|uid_type_mismatch
+ERR|PLACED uid=04a1b2c3d4e5f607 type=ntag tonie=0 seq=1|uid_type_mismatch
+
+# ===================================================================
+# ABSCHNITT 2: Befehle zum Leser
+# ===================================================================
+CMDOK|PING|zeile=PING
+CMDOK|PING\r|zeile=PING
+CMDERR||empty_line
+CMDERR|\r|empty_line
+CMDERR|ping|bad_command
+CMDERR|PING |bad_command
+CMDERR|PING now|bad_command
+CMDERR|PING seq=1|bad_command
+CMDERR|RESET|bad_command
+CMDERR|SET poll=100|bad_command
+CMDERR|HELLO|bad_command
+CMDERR|PING\xc3\xa4|not_ascii
+CMDERR|AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA|too_long
+
+# ===================================================================
+# ABSCHNITT 3: Zeitabläufe des Entprellers
+# ===================================================================
+
+SEQ|auflegen-und-abheben|NTAG-Karte wird aufgelegt und nach 2 s abgehoben; REMOVED erst nach 1100 ms ohne Lesung
+PARAM|confirm_reads=2|remove_after_ms=1100
+STEP|0|nichts|-
+STEP|200|nichts|-
+STEP|400|uid:ntag:04a1b2c3|-
+STEP|600|uid:ntag:04a1b2c3|PLACED uid=04a1b2c3 type=ntag tonie=0 seq=0
+STEP|800|uid:ntag:04a1b2c3|-
+STEP|1000|nichts|-
+STEP|1200|nichts|-
+STEP|1400|nichts|-
+STEP|1600|nichts|-
+STEP|1800|nichts|-
+STEP|2000|nichts|REMOVED seq=1
+COUNT|polls=11|hits=3|rejected=0|errors=0|present=0
+END
+
+SEQ|luecke-1000ms-ueberbrueckt|Lesung setzt 1000 ms aus: keine Meldung
+PARAM|confirm_reads=2|remove_after_ms=1100
+STEP|0|uid:ntag:04a1b2c3|-
+STEP|200|uid:ntag:04a1b2c3|PLACED uid=04a1b2c3 type=ntag tonie=0 seq=0
+STEP|400|nichts|-
+STEP|600|nichts|-
+STEP|800|nichts|-
+STEP|1000|nichts|-
+STEP|1200|uid:ntag:04a1b2c3|-
+STEP|1400|uid:ntag:04a1b2c3|-
+COUNT|polls=8|hits=4|rejected=0|errors=0|present=1
+END
+
+SEQ|luecke-1200ms-gilt-als-abgehoben|Lesung setzt 1200 ms aus: REMOVED, danach neues Auflegen mit 2 gleichen Lesungen
+PARAM|confirm_reads=2|remove_after_ms=1100
+STEP|0|uid:ntag:04a1b2c3|-
+STEP|200|uid:ntag:04a1b2c3|PLACED uid=04a1b2c3 type=ntag tonie=0 seq=0
+STEP|400|nichts|-
+STEP|600|nichts|-
+STEP|800|nichts|-
+STEP|1000|nichts|-
+STEP|1200|nichts|-
+STEP|1400|uid:ntag:04a1b2c3|REMOVED seq=1
+STEP|1600|uid:ntag:04a1b2c3|PLACED uid=04a1b2c3 type=ntag tonie=0 seq=2
+COUNT|polls=9|hits=4|rejected=0|errors=0|present=1
+END
+
+SEQ|kandidat-verfaelscht|verfälschte Kennung vor der Bestätigung: Zählung beginnt neu
+PARAM|confirm_reads=2|remove_after_ms=1100
+STEP|0|uid:ntag:04a1b2c3|-
+STEP|200|uid:ntag:04a1b2c4|-
+STEP|400|uid:ntag:04a1b2c3|-
+STEP|600|uid:ntag:04a1b2c3|PLACED uid=04a1b2c3 type=ntag tonie=0 seq=0
+STEP|800|uid:ntag:04a1b2c3|-
+COUNT|polls=5|hits=5|rejected=2|errors=0|present=1
+END
+
+SEQ|kandidat-unterbrochen-durch-nichts|eine Lücke zwischen zwei Lesungen bricht die „in Folge“-Regel
+PARAM|confirm_reads=2|remove_after_ms=1100
+STEP|0|uid:ntag:04a1b2c3|-
+STEP|200|nichts|-
+STEP|400|uid:ntag:04a1b2c3|-
+STEP|600|nichts|-
+STEP|800|uid:ntag:04a1b2c3|-
+STEP|1000|uid:ntag:04a1b2c3|PLACED uid=04a1b2c3 type=ntag tonie=0 seq=0
+COUNT|polls=6|hits=4|rejected=0|errors=0|present=1
+END
+
+SEQ|rand-flip-bei-liegender-figur|einzelne verfälschte Kennung bei liegender Figur: keine Meldung
+PARAM|confirm_reads=2|remove_after_ms=1100
+STEP|0|uid:ntag:04a1b2c3|-
+STEP|200|uid:ntag:04a1b2c3|PLACED uid=04a1b2c3 type=ntag tonie=0 seq=0
+STEP|400|uid:ntag:04a1b2c4|-
+STEP|600|uid:ntag:04a1b2c3|-
+STEP|800|uid:ntag:04a1b2c4|-
+STEP|1000|uid:ntag:04ffeedd|-
+STEP|1200|uid:ntag:04a1b2c3|-
+STEP|1400|uid:ntag:04a1b2c3|-
+COUNT|polls=8|hits=8|rejected=3|errors=0|present=1
+END
+
+SEQ|figurwechsel|andere Kennung wird nach 2 gleichen Lesungen als REMOVED + PLACED gemeldet
+PARAM|confirm_reads=2|remove_after_ms=1100
+STEP|0|uid:ntag:04a1b2c3|-
+STEP|200|uid:ntag:04a1b2c3|PLACED uid=04a1b2c3 type=ntag tonie=0 seq=0
+STEP|400|uid:ntag:04ffeedd|-
+STEP|600|uid:ntag:04ffeedd|REMOVED seq=1;PLACED uid=04ffeedd type=ntag tonie=0 seq=2
+STEP|800|uid:ntag:04ffeedd|-
+COUNT|polls=5|hits=5|rejected=2|errors=0|present=1
+END
+
+SEQ|wechsel-karte-zu-tonie|Wechsel von NTAG zu Tonie (anderer Typ)
+PARAM|confirm_reads=2|remove_after_ms=1100
+STEP|0|uid:ntag:04a1b2c3|-
+STEP|200|uid:ntag:04a1b2c3|PLACED uid=04a1b2c3 type=ntag tonie=0 seq=0
+STEP|400|uid:iso15693:e0040312345678ab|-
+STEP|600|uid:iso15693:e0040312345678ab|REMOVED seq=1;PLACED uid=e0040312345678ab type=iso15693 tonie=1 seq=2
+COUNT|polls=4|hits=4|rejected=2|errors=0|present=1
+END
+
+SEQ|gesperrter-tonie|gesperrt wird wie eine Kennung entprellt; danach abgehoben
+PARAM|confirm_reads=2|remove_after_ms=1100
+STEP|0|gesperrt|-
+STEP|200|gesperrt|LOCKED seq=0;ERR code=unlock_failed detail=*
+STEP|400|gesperrt|-
+STEP|600|nichts|-
+STEP|800|nichts|-
+STEP|1000|nichts|-
+STEP|1200|nichts|-
+STEP|1400|nichts|-
+STEP|1600|nichts|REMOVED seq=1
+COUNT|polls=9|hits=3|rejected=0|errors=0|present=0
+END
+
+SEQ|gesperrt-dann-offen|gesperrt liegt, danach wird dieselbe Figur als Kennung gelesen: Wechsel REMOVED + PLACED
+PARAM|confirm_reads=2|remove_after_ms=1100
+STEP|0|gesperrt|-
+STEP|200|gesperrt|LOCKED seq=0;ERR code=unlock_failed detail=*
+STEP|400|uid:iso15693:e0040312345678ab|-
+STEP|600|uid:iso15693:e0040312345678ab|REMOVED seq=1;PLACED uid=e0040312345678ab type=iso15693 tonie=1 seq=2
+STEP|800|uid:iso15693:e0040312345678ab|-
+COUNT|polls=5|hits=5|rejected=2|errors=0|present=1
+END
+
+SEQ|offen-dann-gesperrt|Kennung liegt, danach 2 Mal gesperrt: Wechsel REMOVED + LOCKED
+PARAM|confirm_reads=2|remove_after_ms=1100
+STEP|0|uid:iso15693:e0040312345678ab|-
+STEP|200|uid:iso15693:e0040312345678ab|PLACED uid=e0040312345678ab type=iso15693 tonie=1 seq=0
+STEP|400|gesperrt|-
+STEP|600|gesperrt|REMOVED seq=1;LOCKED seq=2;ERR code=unlock_failed detail=*
+COUNT|polls=4|hits=4|rejected=2|errors=0|present=1
+END
+
+SEQ|entsperrt-dann-offen-gleiche-kennung|dieselbe Kennung, egal ob entsperrt oder offen gelesen: kein zweites PLACED
+PARAM|confirm_reads=2|remove_after_ms=1100
+STEP|0|uid:iso15693:e0040312345678ab|-
+STEP|200|uid:iso15693:e0040312345678ab|PLACED uid=e0040312345678ab type=iso15693 tonie=1 seq=0
+STEP|400|uid:iso15693:e0040312345678ab|-
+STEP|600|uid:iso15693:e0040312345678ab|-
+STEP|800|uid:iso15693:e0040312345678ab|-
+COUNT|polls=5|hits=5|rejected=0|errors=0|present=1
+END
+
+SEQ|fehler-vor-bestaetigung|fehler(code) verwirft den Kandidaten
+PARAM|confirm_reads=2|remove_after_ms=1100
+STEP|0|uid:ntag:04a1b2c3|-
+STEP|200|fehler:pn5180_timeout|ERR code=pn5180_timeout detail=*
+STEP|400|uid:ntag:04a1b2c3|-
+STEP|600|uid:ntag:04a1b2c3|PLACED uid=04a1b2c3 type=ntag tonie=0 seq=0
+COUNT|polls=4|hits=3|rejected=0|errors=1|present=1
+END
+
+SEQ|fehler-bei-liegender-figur-kurz|ein Fehlerzyklus bei liegender Figur ändert nichts
+PARAM|confirm_reads=2|remove_after_ms=1100
+STEP|0|uid:ntag:04a1b2c3|-
+STEP|200|uid:ntag:04a1b2c3|PLACED uid=04a1b2c3 type=ntag tonie=0 seq=0
+STEP|400|fehler:pn5180_timeout|ERR code=pn5180_timeout detail=*
+STEP|600|uid:ntag:04a1b2c3|-
+COUNT|polls=4|hits=3|rejected=0|errors=1|present=1
+END
+
+SEQ|fehler-bei-liegender-figur-dauerhaft|Fehler zählen zur Abhebe-Zeit: REMOVED 1100 ms nach der letzten gültigen Lesung
+PARAM|confirm_reads=2|remove_after_ms=1100
+STEP|0|uid:ntag:04a1b2c3|-
+STEP|200|uid:ntag:04a1b2c3|PLACED uid=04a1b2c3 type=ntag tonie=0 seq=0
+STEP|400|fehler:pn5180_no_response|ERR code=pn5180_no_response detail=*
+STEP|600|fehler:pn5180_no_response|-
+STEP|800|fehler:pn5180_no_response|-
+STEP|1000|fehler:pn5180_no_response|-
+STEP|1200|fehler:pn5180_no_response|-
+STEP|1400|fehler:pn5180_no_response|REMOVED seq=1
+COUNT|polls=8|hits=2|rejected=0|errors=6|present=0
+END
+
+SEQ|err-ratenbegrenzung|höchstens eine ERR-Zeile je Code und 2000 ms; errors zählt jeden Fehlerzyklus
+PARAM|confirm_reads=2|remove_after_ms=1100
+STEP|0|fehler:pn5180_no_response|ERR code=pn5180_no_response detail=*
+STEP|200|fehler:pn5180_no_response|-
+STEP|400|fehler:pn5180_no_response|-
+STEP|600|fehler:bad_response|ERR code=bad_response detail=*
+STEP|800|fehler:pn5180_no_response|-
+STEP|1000|fehler:pn5180_no_response|-
+STEP|1200|fehler:pn5180_no_response|-
+STEP|1400|fehler:pn5180_no_response|-
+STEP|1600|fehler:pn5180_no_response|-
+STEP|1800|fehler:pn5180_no_response|-
+STEP|2000|fehler:pn5180_no_response|ERR code=pn5180_no_response detail=*
+COUNT|polls=11|hits=0|rejected=0|errors=11|present=0
+END
+
+SEQ|drei-gleiche-lesungen|confirm_reads=3: PLACED erst bei der dritten gleichen Lesung
+PARAM|confirm_reads=3|remove_after_ms=1100
+STEP|0|uid:ntag:04a1b2c3|-
+STEP|200|uid:ntag:04a1b2c3|-
+STEP|400|uid:ntag:04a1b2c3|PLACED uid=04a1b2c3 type=ntag tonie=0 seq=0
+STEP|600|uid:ntag:04a1b2c3|-
+COUNT|polls=4|hits=4|rejected=0|errors=0|present=1
+END
+
+SEQ|ping-resync|PING setzt seq auf 0 zurück und meldet die liegende Figur erneut
+PARAM|confirm_reads=2|remove_after_ms=1100
+STEP|0|uid:ntag:04a1b2c3|-
+STEP|200|uid:ntag:04a1b2c3|PLACED uid=04a1b2c3 type=ntag tonie=0 seq=0
+STEP|400|uid:ntag:04a1b2c3|-
+STEP|500|PING|HELLO proto=1 fw=* build=* pn5180=*;PLACED uid=04a1b2c3 type=ntag tonie=0 seq=0
+STEP|600|uid:ntag:04a1b2c3|-
+STEP|800|nichts|-
+STEP|1000|nichts|-
+STEP|1200|nichts|-
+STEP|1400|nichts|-
+STEP|1600|nichts|-
+STEP|1800|nichts|REMOVED seq=1
+STEP|2000|nichts|-
+COUNT|polls=11|hits=4|rejected=0|errors=0|present=0
+END
+
+SEQ|ping-ohne-figur|PING ohne liegende Figur: nur HELLO
+PARAM|confirm_reads=2|remove_after_ms=1100
+STEP|0|nichts|-
+STEP|100|PING|HELLO proto=1 fw=* build=* pn5180=*
+STEP|200|nichts|-
+COUNT|polls=2|hits=0|rejected=0|errors=0|present=0
+END
+
+SEQ|zeit-ueberlauf|Zeitstempel laufen über 2^32 ms: Differenzen vorzeichenlos rechnen
+PARAM|confirm_reads=2|remove_after_ms=1100
+STEP|4294966896|uid:ntag:04a1b2c3|-
+STEP|4294967096|uid:ntag:04a1b2c3|PLACED uid=04a1b2c3 type=ntag tonie=0 seq=0
+STEP|0|nichts|-
+STEP|200|nichts|-
+STEP|400|nichts|-
+STEP|600|nichts|-
+STEP|800|nichts|-
+STEP|1000|nichts|REMOVED seq=1
+STEP|1200|nichts|-
+COUNT|polls=9|hits=2|rejected=0|errors=0|present=0
+END
+
