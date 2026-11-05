@@ -27,6 +27,49 @@ Die Software läuft zuerst auf einem Mac (natives MPD, ESP32 per USB am Mac)
 und danach auf dem Raspberry Pi 3A+ der Box. Unser Code ist auf beiden
 gleich; es unterscheidet sich nur die Konfiguration.
 
+## Begriffe
+
+*   **Figur:** Tonie oder NFC-Karte, die auf die Box gelegt wird.
+*   **Kennung (UID):** Seriennummer des Chips in der Figur. Sie ist auf der
+    Figur fest und das Einzige, woran die Box sie erkennt.
+*   **Serie:** Ordner mit Folgen (Audiodateien), die zusammen eine Geschichte
+    oder Reihe bilden.
+*   **Folge:** Eine Audiodatei in einer Serie.
+*   **Überraschungs-Ordner:** Serie für unbekannte und gesperrte Figuren. Sie
+    hat die feste ID `ueberraschung`.
+*   **Zuordnung:** Eintrag „Kennung → Serie“ (oder → Aktion, z. B. Status).
+    Tobias legt sie in Home Assistant an.
+*   **Resume:** Die Box merkt sich je Serie, wo sie aufgehört hat, und spielt
+    beim erneuten Auflegen dort weiter.
+*   **Zeiger:** Der gespeicherte Stand einer Serie: Folge und Position.
+*   **Entsperren / gesperrter Tonie:** Tonies sind im Privacy-Modus und
+    antworten erst nach einem Passwort. Mehr im Abschnitt „Baustein 1“.
+*   **Entpreller:** Logik in der Firmware, die einzelne Fehllesungen
+    ausfiltert und erst dann „liegt auf“ oder „abgehoben“ meldet.
+*   **Herzschlag:** Zeile `HB`, die die Firmware alle 2 s sendet. Bleibt sie
+    aus, ist der Leser vermutlich weg.
+*   **Vorgangs-ID:** Kurze Zufallskennung. Der Box-Dienst erzeugt sie, wenn
+    er `PLACED` oder `LOCKED` empfängt. Sie steht in jeder Protokollzeile
+    dieses Auflegens und macht den Ablauf nachvollziehbar.
+*   **Revision:** Versionsnummer der Zuordnungsliste. Nur für diese Liste
+    gebraucht. Versionen des Plans heißen **Plan-Revision**.
+*   **MQTT / Discovery:** MQTT ist ein einfacher Nachrichtenkanal zwischen
+    Geräten. Per Discovery meldet sich die Box so an, dass Home Assistant ihre
+    Sensoren und Knöpfe selbst anlegt.
+*   **Tailscale:** Privates VPN zwischen eigenen Geräten. Eine **ACL** ist die
+    Regel, welches Gerät was erreichen darf.
+*   **Nabu Casa:** Bezahlter Fernzugriff auf Home Assistant.
+*   **PiSugar:** Akku-Platine für den Raspberry Pi.
+*   **MPD:** Music Player Daemon, der Audio-Abspieler auf der Box.
+*   **Stufe:** Lieferabschnitt der Umsetzung (Stufe 0 bis 4).
+*   **Arbeitspaket (AP):** Aufgabe, die ein Agent umsetzt.
+*   **Abnahme:** Prüfung am Ende einer Stufe oder eines AP, bevor sie als
+    fertig gilt.
+*   **Goldfisch:** Frischer Prüf-Agent ohne Gesprächsverlauf. Er sieht nur das
+    Dokument und die darin genannten Dateien. Teil der Review-Methode.
+*   **Haiku / Sonnet:** Zwei KI-Modelle. Haiku ist günstiger, Sonnet stärker.
+    Beim AP steht, welches es umsetzt.
+
 ## The Problem
 
 Tobias will zwei Boxen bauen, an denen danach nicht mehr programmiert und
@@ -34,7 +77,8 @@ gesucht werden muss. Die Box muss sich genau so verhalten, wie er es sich
 vorstellt — auch mit geborgten Figuren, unterwegs ohne Netz und nach einem
 leeren Akku.
 
-Die bisherige Planung (Rev. 3.7) setzte auf Phoniebox V3 mit Plugins und
+Die bisherige Planung (Plan-Revision 3.7, Stand in `docs/plan/`) setzte auf
+Phoniebox V3 (fertige Open-Source-Software für NFC-Audioboxen) mit Plugins und
 einem Leser, der sich als USB-Tastatur meldet. Recherche und Goldfisch-Prüfung
 haben gezeigt: Phoniebox kann weder Resume noch eine sichere Abhebe-Meldung,
 eine Tastatur kann keine Fehler melden, und am Mac wäre der Aufbau nur mit
@@ -44,6 +88,25 @@ wäre ohnehin eigener Code.
 Lösung: eine eigene, schlanke Box-Software direkt auf MPD, ein festes
 Protokoll zum Leser, Home Assistant als einzige Oberfläche, und ein Aufbau,
 der am Mac mit echtem Leser vollständig testbar ist, bevor die Box steht.
+
+## Ausgangslage
+
+Was es schon gibt:
+
+- Das Testprogramm `firmware/tonie_test/`: Es liest NTAG-Karten und Tonies,
+  entsperrt Tonies mit dem eigenen Passwort und gibt das Ergebnis über die
+  serielle Schnittstelle aus.
+- Einen ESP32-S3 mit PN5180-Leser auf Tobias' Schreibtisch am Mac.
+- Home Assistant mit laufendem MQTT-Broker; Nabu Casa ist aktiv.
+- Ein QNAP-NAS.
+
+Was es noch nicht gibt: den Raspberry Pi (noch nicht da), Audiodateien,
+Box-Software, HA-Integration und Tailscale.
+
+Neu ist alles in diesem Dokument: die Firmware `tobibox-reader`, der Box-Dienst,
+die HA-Integration mit eigener Seite, Medien-Sync, Update und die
+Hardware-Funktionen mit Simulation. `firmware/tonie_test/` bleibt unverändert
+als Referenz.
 
 ## Goals
 
@@ -78,8 +141,8 @@ der am Mac mit echtem Leser vollständig testbar ist, bevor die Box steht.
 
 ## Non-Goals
 
-Hardware-Funktionen sind **kein** Nicht-Ziel mehr: Sie entstehen in Stufe 4
-mit Simulation (Ziel 9).
+Hardware-Funktionen (LED-Ring, Tasten, Akku, Kopfhörer) gehören zum Umfang:
+Sie entstehen in Stufe 4 mit Simulation (Ziel 9). Nicht-Ziele sind:
 
 *   Eigener WLAN-Hotspot der Box.
 *   Erreichbarkeit der Box aus dem Internet; Zugriff von außen nur über HA
@@ -105,30 +168,44 @@ Kurzfassung der Entscheidungen vom 05.11. (Begründungen: Abschnitte
 *   **D3:** MQTT-Broker läuft in HA; Tailscale wird in Stufe 3 eingerichtet.
 *   **D4:** Medienverwaltung als eigene Seite in HA (Baustein 4), gebaut in
     Stufe 3.
-*   **Medienverwaltung (ehem. Q5):** Serien anlegen und umbenennen, Folgen
-    sortieren und löschen, mp3 vom Handy hochladen, Überraschungs-Ordner
-    befüllen, Zuordnungen je Serie sehen — **keine Bilder**. Es gibt noch keine
+*   **Medienverwaltung:** Serien anlegen und umbenennen, Folgen sortieren und
+    löschen, Audiodateien vom Handy hochladen, Überraschungs-Ordner befüllen,
+    Zuordnungen je Serie sehen — **keine Bilder**. Es gibt noch keine
     Hörspiele; die Sammlung wächst aus vielen Quellen. Folge: Dateien kommen
     auch am HA vorbei aufs NAS (z. B. vom PC); die Integration erkennt neue
     Ordner und Dateien selbst. Die Folgen-Reihenfolge steht in `serie.json`
-    (nicht nur im Dateinamen).
-*   **Oberfläche (ehem. Q6):** eigene Seite in HA (= D4).
-*   **Lautstärke und Gute-Nacht-Karte (ehem. Q3):** Lautstärke-Obergrenze in
-    Stufe 1, Gute-Nacht-Karte in Stufe 4.
+    (siehe Datenmodell).
+*   **Oberfläche:** eigene Seite in HA (= D4).
+*   **Lautstärke und Gute-Nacht-Karte:** Lautstärke-Obergrenze in Stufe 1,
+    Gute-Nacht-Karte in Stufe 4.
+*   **D5 — Audioformate (05.11.):** Neben mp3 spielt die Box m4a/AAC, FLAC,
+    Ogg Vorbis, Opus und WAV (MPD kann sie). Kopiergeschützte Dateien (z. B.
+    alte iTunes-Käufe mit DRM) lassen sich nicht abspielen: Die HA-Integration
+    prüft neue Dateien und warnt. Die HA-Seite zeigt den belegten Speicher je
+    Box-Kapazität (FLAC ist etwa 5× größer als mp3).
+*   **D6 — Lautheitsangleich (05.11., Plan 7.2):** Die Lautstärke aller
+    Titel wird angeglichen. Gemessen wird **auf dem NAS** von einem kleinen
+    Container (Werkzeug `rsgain`), der ReplayGain-Werte in neue Dateien
+    schreibt. Auslöser: neue Dateien (erkannt von der HA-Integration) oder
+    ein Zeitplan. MPD wendet ReplayGain an (Modus Album oder Track; Track für
+    gemischte Quellen). Die Lautstärke-Obergrenze bleibt darüber bestehen.
+    Umsetzung: AP 3.8.
 *   **Hardware (Ziel 9):** Alle Hardware-Funktionen werden jetzt mit
     Simulation gebaut (Stufe 4).
 
 ## Open Questions
 
-*   **Q1 — Leser-Rückkanal:** Soll der Box-Dienst dem ESP32 etwas
+*   **Leser-Rückkanal:** Soll der Box-Dienst dem ESP32 etwas
     zurückschicken (z. B. Poll-Intervall ändern, Neustart)? Im Prototyp
     reserviert, nicht gebaut.
-*   **Q2 — Audio-Rückmeldungen:** Welche Töne gibt es (Start, Überraschung,
-    Fehlerklassen, Lernmodus, Status-Karte)? Klärt der Abschnitt
-    Technical Plan; eigene Tonaufnahmen von Tobias möglich.
-*   **Q4 — Pi-Probelauf:** Termin hängt an der Bestellung des Pi 3A+.
-*   **Q5 (Rest) — Medienformate und Lautheit:** Andere Formate als mp3 (m4a,
-    flac …) umwandeln oder nur warnen? Lautheitsangleich (Plan 7.2)?
+*   **Audio-Rückmeldungen:** Offen ist die genaue Liste der Töne und wie sie
+    klingen. Gebraucht werden Töne für: Start, unbekannte Figur / Überraschung,
+    Fehler, Lernmodus Beginn und Ende, Status-Karte in Ordnung / Fehler,
+    Akku fast leer. Bis zur Entscheidung gibt es Platzhalter-Töne; eigene
+    Aufnahmen von Tobias sind möglich.
+*   **Pi-Probelauf:** Termin hängt an der Bestellung des Pi 3A+.
+
+Erledigt: Medienformate und Lautheitsangleich (siehe D5 und D6).
 
 ## Risiken
 
@@ -145,8 +222,7 @@ Kurzfassung der Entscheidungen vom 05.11. (Begründungen: Abschnitte
 
 ## Critical User Journeys (CUJs)
 
-Begriffe: **Figur** = Tonie oder NFC-Karte. **Serie** = Ordner mit Folgen
-(mp3). **Überraschungs-Ordner** = Serie für unbekannte und gesperrte Figuren.
+Begriffe: siehe Abschnitt „Begriffe“ oben.
 
 ### CUJ 1: Bekannte Figur auflegen
 
@@ -164,7 +240,7 @@ Begriffe: **Figur** = Tonie oder NFC-Karte. **Serie** = Ordner mit Folgen
 *   **Then**: Innerhalb von 1,5 s Pause. Folge und Position sind für diese
     Serie gespeichert.
 
-### CUJ 3: Dieselbe Figur wieder auflegen (Resume)
+### CUJ 3: Figur einer Serie wieder auflegen (Resume)
 
 *   **Given**: Für die Serie gibt es einen gespeicherten Stand (Folge, Position).
 *   **When**: Kind legt eine Figur dieser Serie auf — auch nach Neustart oder
@@ -177,9 +253,9 @@ Begriffe: **Figur** = Tonie oder NFC-Karte. **Serie** = Ordner mit Folgen
 *   **Given**: Serie A ist pausiert oder spielt, Figur von Serie B wird aufgelegt.
 *   **When**: Kind wechselt die Figur.
 *   **Then**: Stand von Serie A bleibt gespeichert. Serie B läuft an ihrem
-    gespeicherten Stand weiter; ohne Stand beginnt sie bei der nächsten noch
-    nicht gehörten Folge. Ist die Serie durchgehört, beginnt sie wieder bei
-    Folge 1.
+    gespeicherten Stand weiter. Ohne gespeicherten Zeiger beginnt sie bei
+    Folge 1. Der Zeiger ist die „nächste ungehörte Folge“: Endet eine Folge,
+    rückt er auf die nächste; nach der letzten springt er auf Folge 1.
 
 ### CUJ 5: NFC-Karte
 
@@ -224,7 +300,7 @@ Begriffe: **Figur** = Tonie oder NFC-Karte. **Serie** = Ordner mit Folgen
 
 ### CUJ 9: Neue Folgen kommen auf die Box
 
-*   **Given**: Neue mp3 liegen auf dem NAS. Box im Heimnetz, oder im
+*   **Given**: Neue Audiodateien liegen auf dem NAS. Box im Heimnetz, oder im
     Handy-Hotspot und (am Lader oder Akku > 50 %).
 *   **When**: Der Abgleich läuft (zeitgesteuert oder von HA angestoßen).
 *   **Then**: Neue und geänderte Dateien kommen über Tailscale auf die Box,
@@ -263,6 +339,62 @@ Begriffe: **Figur** = Tonie oder NFC-Karte. **Serie** = Ordner mit Folgen
     es, verbindet sich selbst neu. Eine liegende Figur wird danach wieder
     erkannt, ohne dass die Serie neu startet.
 
+### CUJ 14: Gute-Nacht-Karte
+
+*   **Given**: Eine Serie spielt. Die Gute-Nacht-Karte ist als Aktion
+    zugeordnet.
+*   **When**: Tobias legt die Gute-Nacht-Karte auf.
+*   **Then**: Ein Timer startet. Nach Ablauf blendet die Lautstärke aus, dann
+    endet die Wiedergabe (Pause bzw. Stopp mit gespeichertem Stand). Das
+    funktioniert auch am Mac.
+
+### CUJ 15: Leise-Zeiten
+
+*   **Given**: Tobias hat in HA Leise-Zeiten frei eingestellt: beliebig viele
+    Zeitfenster (Wochentage, von–bis), je Fenster eine Wirkung — **leiser**
+    (mit eigener Lautstärke-Obergrenze) oder **stumm** (keine Wiedergabe).
+    HA hat die Einstellung an beide Boxen verteilt; jede Box hält eine Kopie.
+*   **When**: Die Uhrzeit erreicht ein Fenster, oder ein Kind legt in einem
+    Fenster eine Figur auf.
+*   **Then**: Bei „leiser“ spielt die Box höchstens bis zur Fenster-Grenze
+    (eine lautere laufende Wiedergabe wird sanft abgesenkt). Bei „stumm“
+    pausiert sie und spielt nicht; ein kurzer leiser Hinweiston zeigt, dass
+    die Figur erkannt wurde. Nach dem Fenster gilt wieder die normale
+    Obergrenze. Ohne Netz gilt die letzte Kopie.
+
+### CUJ 16: Leerlauf-Abschaltung
+
+*   **Given**: Es läuft keine Wiedergabe und keine Figur liegt.
+*   **When**: 20 min vergehen.
+*   **Then**: Die Box fährt herunter. In der Simulation wird das Herunterfahren
+    nur protokolliert.
+
+### CUJ 17: Kopfhörer
+
+*   **Given**: Eine Serie spielt über den Lautsprecher.
+*   **When**: Ein Kopfhörer-Stecker wird erkannt (später eingesteckt, am Mac
+    simuliert).
+*   **Then**: Der Lautsprecher schaltet ab, es gilt ein eigenes, niedrigeres
+    Lautstärke-Limit. Beim Ziehen des Steckers gilt wieder Lautsprecher und
+    normales Limit.
+
+### CUJ 18: LED-Ring-Zustände
+
+*   **Given**: Die Box läuft. Der Ring kennt die Zustände läuft, Pause, Akku,
+    unbekannte Karte, Aufwachen (Plan 5.5.2).
+*   **When**: Der Zustand der Box wechselt.
+*   **Then**: Der Ring zeigt den passenden Zustand. Die Helligkeit liegt nie
+    über 25 %. Am Mac zeigt der virtuelle Ring dasselbe.
+
+### CUJ 19: Tasten und Drehregler
+
+*   **Given**: Eine Serie spielt oder ist pausiert.
+*   **When**: Tobias drückt Vor / Zurück, dreht den Drehregler oder drückt den
+    Hauptknopf.
+*   **Then**: Vor / Zurück springt zur nächsten / vorigen Folge. Der
+    Drehregler ändert die Lautstärke innerhalb der Grenzen. Der Hauptknopf
+    kurz: Play / Pause. Lang: Stand speichern und herunterfahren.
+
 ## Technical Plan (Architecture)
 
 ### Überblick der Bausteine
@@ -282,7 +414,7 @@ Begriffe: **Figur** = Tonie oder NFC-Karte. **Serie** = Ordner mit Folgen
                                                              │               │
                                              ┌───────────────▼──┐   ┌────────▼─────────┐
                                              │ Home Assistant   │   │ QNAP-NAS          │
-                                             │ MQTT-Broker,     │   │ Medien (mp3),     │
+                                             │ MQTT-Broker,     │   │ Medien (Audio),   │
                                              │ Zuordnungen,     │   │ Update-Pakete     │
                                              │ Dashboard        │   │ (nur lesen)       │
                                              └──────────────────┘   └───────────────────┘
@@ -300,7 +432,7 @@ HA-Oberfläche.
   Lese- und Entsperr-Abläufe.
 - Build mit **PlatformIO**, feste Versionen (Plattform, Arduino-Core,
   PN5180-Bibliothek per Commit). USB-Modus: nur **CDC** (keine Tastatur).
-- Passwort aus `config.h` (gitignored), wie bisher.
+- Das Tonie-Passwort steht nur in `config.h` (gitignored, nie im Repo).
 - Aufbau in drei Teile:
   1. **Leser** (Hardware): ein Abfragezyklus liefert genau ein Ergebnis:
      `nichts`, `uid(typ, bytes)`, `gesperrt`, `fehler(code)`. Fehler werden
@@ -319,6 +451,25 @@ HA-Oberfläche.
 - **Gesperrter Tonie**: eigener stabiler Zustand „gesperrt liegt“; gleiche
   Entprell- und Abhebe-Regeln wie bei einer Kennung.
 
+**Gesperrter Tonie.** Tonies enthalten NXP-ICODE-SLIX-L-Chips im Privacy-Modus.
+Sie beantworten nur die Anfrage nach einer Zufallszahl, bis sie mit einem
+4-Byte-Passwort entsperrt werden. Mit dem richtigen Passwort liefert der Chip
+danach seine Kennung. Scheitert das Entsperren, meldet die Firmware `LOCKED`.
+Das Passwort liegt nur in der lokalen `config.h` der Firmware, nie im Repo. Das
+Entsperren hat das Testprogramm `firmware/tonie_test/` schon einmal gezeigt.
+
+**Zeitbudget.** Die Grenzen aus Ziel 2 ergeben sich so:
+
+- Auflegen: bis 1 Abfragezyklus Wartezeit (≤ 200 ms) + 2 Lesungen
+  (≤ 2 × 200 ms) + Übertragung (< 10 ms) + Dienst und MPD-Start (Ziel
+  ≤ 300 ms) = ca. 0,9 bis 1,0 s. Grenze: 1,0 s.
+- Abheben: 1,1 s Timeout + Übertragung (< 10 ms) + Pausenbefehl (< 100 ms) ≈
+  1,3 s. Grenze: 1,5 s.
+- Lücken: Lücken bis 1,0 s liegen unter der Schwelle von 1,1 s und führen zu
+  keinem `REMOVED`.
+
+Stufe 1 misst das nach; das Ergebnis steht in `docs/timing.md`.
+
 ### Baustein 2 — Protokoll v1 (Vertrag Firmware ↔ Box-Dienst)
 
 Eigenes Dokument `docs/protocol/reader-v1.md` (in der Umsetzung). Grundzüge:
@@ -334,10 +485,10 @@ Eigenes Dokument `docs/protocol/reader-v1.md` (in der Umsetzung). Grundzüge:
 | `PLACED uid=<hex> type=<ntag\|iso15693> tonie=<0\|1> seq=<n>` | Figur mit Kennung liegt (entprellt) |
 | `LOCKED seq=<n>` | gesperrter Tonie liegt |
 | `REMOVED seq=<n>` | liegende Figur ist weg |
-| `HB up=<s> present=<0\|1> polls=<n> hits=<n> rejected=<n> errors=<n> cycle_ms=<n>` | Herzschlag alle 2 s |
+| `HB up=<s> present=<0\|1> polls=<n> hits=<n> rejected=<n> errors=<n> cycle_ms=<n>` | Herzschlag alle 2 s; der Wächter im Box-Dienst schlägt nach 5 s an (2 verpasste Herzschläge plus Reserve) |
 | `ERR code=<wort> detail=<text>` | Fehler, z. B. `pn5180_no_response`, `unlock_failed` |
 
-- Zum Leser: `PING` (Antwort `HELLO`); weitere Befehle reserviert (Q1).
+- Zum Leser: `PING` (Antwort `HELLO`); weitere Befehle reserviert (siehe „Leser-Rückkanal“ in den Offenen Fragen).
 - **Kennung (kanonisch):** Hex, Kleinbuchstaben, MSB zuerst, ohne Trenner,
   bei ISO 15693 also 16 Zeichen beginnend mit `e00403` für Tonies. Diese
   Schreibweise entsteht **nur** in der Firmware; der Box-Dienst prüft sie
@@ -355,8 +506,8 @@ Ein Prozess, `asyncio`, ein Paket `tobibox` mit klar getrennten Modulen:
 | `core` | Zustandsautomat: Ereignisse rein, Befehle raus | **nein** (reine Logik, voll testbar) |
 | `library` | Serien und Folgen aus dem Medienordner lesen | Dateisystem (lesen) |
 | `store` | Zustandsdateien atomar lesen/schreiben | Dateisystem |
-| `reader` | Serielle öffnen, Zeilen parsen, Neuverbinden, Herzschlag überwachen | Serielle |
-| `player` | dünne Schicht über MPD (python-mpd2): Abspielen, Pause, Position, Lautstärke mit Obergrenze; genaue Typen legt AP 1.3 fest | MPD |
+| `reader` | Serielle öffnen, Zeilen parsen, Neuverbinden, Herzschlag überwachen (Wächter: 5 s ohne `HB`) | Serielle |
+| `player` | dünne Schicht über MPD (python-mpd2): Abspielen, Pause, Position, Lautstärke mit Obergrenze; die Typen für Player-Ereignisse legt AP 1.3 fest | MPD |
 | `sounds` | kurze Rückmeldetöne über eigenes Kommando (Mac `afplay`, Pi `aplay`) | Prozess |
 | `ha` | MQTT-Anbindung, HA-Discovery, Zuordnungen empfangen, Status senden | Netz |
 | `sync` | rsync vom NAS nach den Regeln, danach MPD-Bibliothek aktualisieren | Prozess, Netz |
@@ -367,7 +518,8 @@ Ein Prozess, `asyncio`, ein Paket `tobibox` mit klar getrennten Modulen:
 
 **Der Kern** kennt nur Ereignisse (vom Leser, vom Player, aus HA, vom
 Zeitgeber) und Befehle (Abspielen, Pause, Töne, Speichern, Melden). Die
-genauen Typen legt AP 1.2 fest.
+Typen für Ereignisse und Befehle liegen in `events.py` (einziger Eigentümer);
+`core.py` benutzt sie nur.
 
 Die Abläufe (CUJs) werden als **pytest-Tabellen** geschrieben: je CUJ ein
 parametrisierter Test mit Zeit, Eingabezeile oder Ereignis und erwarteten
@@ -382,13 +534,16 @@ fsync → umbenennen), beim Start geprüft; bei Fehler Rückfall auf `.bak`.
 
 | Datei | Inhalt | Wer schreibt | Sync |
 |---|---|---|---|
-| `mappings.json` | `uid → Eintrag` (Typ `serie` mit Serien-ID oder Typ `aktion`, z. B. Status oder Gute Nacht), Revisionsnummer von HA | nur aus HA übernommen | holt von HA |
+| `mappings.json` | `uid → Eintrag` (Typ `serie` mit Serien-ID oder Typ `aktion`, z. B. Status oder Gute Nacht), Revisionsnummer der Liste von HA | nur aus HA übernommen | holt von HA |
 | `resume.json` | je Serie: aktuelle Folge (Dateiname) + Position + Zähler | Box | nie |
 | `unknown.json` | unbekannte Kennungen mit Zeitpunkt, noch nicht an HA gemeldet | Box | an HA, dann leeren |
 | `eventlog/` | rotierende Logdateien (JSON-Zeilen) | Box | nie |
 
-- **Serie** = Ordner im Medienordner; Folgen = mp3 darin, sortiert nach
-  Dateiname (natürliche Sortierung). Neue Folgen am Ende verlängern die Serie.
+- **Serie** = Ordner im Medienordner; Folgen = Audiodateien darin (D5).
+  **Reihenfolge, eine Regel überall:** Sie steht in `serie.json` (Liste
+  `folgen`). Nur wenn `serie.json` fehlt, gilt die natürliche Sortierung nach
+  Dateiname. Dateien, die im Ordner liegen, aber nicht in der Liste stehen,
+  kommen am Ende dazu, in Dateinamen-Reihenfolge.
 - **Serien-ID** — siehe Entscheidung D2. Die Box spielt auch Ordner ohne
   `serie.json`: Ordnername als ID, Reihenfolge nach Dateiname. Tragen zwei
   Ordner dieselbe ID (Ordner samt `serie.json` kopiert), gibt die
@@ -399,7 +554,8 @@ fsync → umbenennen), beim Start geprüft; bei Fehler Rückfall auf `.bak`.
 - `docs/data-model.md` wächst mit jeder Stufe: Jedes AP ergänzt die Schemas,
   die es einführt.
 - **Resume = „nächste ungehörte Folge“** in einem: je Serie ein Zeiger
-  (Folge + Position). Folge zu Ende → Zeiger auf nächste Folge, Position 0.
+  (Folge + Position). Ohne gespeicherten Zeiger beginnt die Serie bei Folge 1.
+  Folge zu Ende → Zeiger auf nächste Folge, Position 0.
   Letzte Folge zu Ende → Zeiger auf Folge 1. Beim Weiterspielen 3 s
   Rücksprung.
 - Resume wird gespeichert bei Pause, Folgenwechsel, Figurwechsel und
@@ -418,7 +574,8 @@ fsync → umbenennen), beim Start geprüft; bei Fehler Rückfall auf `.bak`.
   HA-Integration `tobibox` (D1); diese veröffentlicht die Liste als
   dauerhafte MQTT-Nachricht mit Revisionsnummer, die Boxen übernehmen sie.
   MQTT ist dabei nur der **Verteilkanal**, nicht der Speicher.
-- **Revisionsregel:** Die Box übernimmt eine Zuordnungs-Nachricht nur, wenn
+- **Revisionsregel** (Revision = Versionsnummer der Zuordnungsliste): Die Box
+  übernimmt eine Zuordnungs-Nachricht nur, wenn
   ihre Revision **höher** ist als die gespeicherte. Niedrigere oder gleiche
   Revisionen werden ignoriert. Hat der Broker nichts, behält die Box ihre
   letzte Kopie.
@@ -435,15 +592,19 @@ Zuordnungen und Serien-Metadaten.
   Revisionsnummer; Export als Datei für die Sicherung.
 - **Medien:** Die Medienfreigabe des QNAP ist in HA als Netzwerkspeicher
   eingebunden (Schreibrecht nur für HA). Aufbau auf dem NAS:
-  `tobibox/medien/<ordner>/serie.json` + mp3-Dateien,
+  `tobibox/medien/<ordner>/serie.json` + Audiodateien,
   `tobibox/medien/_papierkorb/`, `tobibox/releases/`.
 - **`serie.json`:** `schema_version`, `id` (zufällig, unveränderlich),
-  `name` (Anzeige), `folgen` (Reihenfolge als Liste von Dateinamen),
+  `name` (Anzeige), `folgen` (Reihenfolge als Liste von Dateinamen; maßgeblich, siehe
+  Datenmodell),
   `typ` (`normal` oder `ueberraschung`). Geschrieben atomar.
 - **Erkennen von außen:** Beim Öffnen der Seite und alle 10 min prüft die
   Integration die Freigabe. Neuer Ordner → `serie.json` mit neuer ID und
   Ordnername als Anzeigename. Neue Datei → hinten an die Reihenfolge.
-  Fehlende Datei → aus der Reihenfolge, Hinweis. Nicht-mp3 → Warnung (Q5).
+  Fehlende Datei → aus der Reihenfolge, Hinweis. Neue Dateien werden geprüft:
+  Kopiergeschützte Dateien (DRM) lassen sich nicht abspielen und lösen eine
+  Warnung aus (D5). Erkannte neue Dateien stoßen auch den Lautheits-Container
+  auf dem NAS an (D6, AP 3.8).
 - **Löschen** verschiebt in `_papierkorb/` (30 Tage), nie endgültig sofort.
   Die Boxen übernehmen `_papierkorb/` nicht.
 - **Aktionen** (auch für Automationen): zuordnen, lösen, Lernmodus starten /
@@ -453,10 +614,11 @@ Zuordnungen und Serien-Metadaten.
   Nabu Casa am Handy:
   - Serienliste mit Anzahl Folgen und zugeordneten Figuren
   - Serie öffnen: Folgen per Ziehen sortieren, löschen, umbenennen,
-    mp3 vom Handy hochladen
+    Audiodateien vom Handy hochladen
   - „Neue Figuren“: unbekannte Kennungen beider Boxen, mit einem Tipp einer
     Serie zuordnen (Weg A); „Jetzt kommt ein neuer Tonie“ (Weg B)
   - Box-Status: Version, Netz, Akku, Sync-Stand, letzter Fehler
+  - Speicher: belegter Platz je Box-Kapazität (FLAC ist etwa 5× größer als mp3)
 - **Technik der Seite:** ein Web-Baustein (JavaScript-Modul, Lit, ohne
   eigenen Build-Server), Daten über die HA-WebSocket-Schnittstelle mit
   HA-Anmeldung; Hochladen über einen eigenen HA-HTTP-Endpunkt mit Anmeldung.
@@ -497,17 +659,23 @@ Zuordnungen und Serien-Metadaten.
   die Box kommen, entscheidet AP 3.5.
 - **Ablauf**: HA-Knopf → Box prüft Bedingungen (daheim, Lader, spielt
   nicht, kein Sync) → lädt Paket → entpackt nach `releases/<version>/`
-  → sichert Zustandsdateien → stellt Verweis `current` um → startet neu →
-  Zustand `testing`.
+  → sichert Zustandsdateien → stellt Verweis `current` um → startet neu.
+  Der Zustand (`testing`, `ok`, `failed`) steht in einer Zustandsdatei.
 - **Selbsttest** (feste Liste): Dienst läuft, Leser meldet `HELLO` mit
   passender Protokoll-Version, Zustandsdateien lesbar, MPD antwortet,
   Testton spielt, dazu die schnellen Unit-Tests des Kerns (Sekunden). Dann
   Zustand `ok`.
-- **Rückfall mit systemd-Mitteln** (kein eigener Wächter-Dienst): Ein
-  Start-/Boot-Zähler und `OnFailure=` am Dienst. Erreicht die neue Version
-  nicht innerhalb von 5 min den Zustand `ok` oder startet sie nicht, stellt
-  der nächste Start `current` auf die vorige Version zurück und meldet den
-  Grund an HA.
+- **Rückfall mit systemd-Mitteln** (kein eigener Wächter-Dienst), Schritt für
+  Schritt:
+  1. Die Box schreibt Zustand `testing` und Zähler 0, bevor sie `current`
+     umstellt.
+  2. Bei jedem Start des Dienstes erhöht ein systemd-Schritt (`ExecStartPre`)
+     den Zähler.
+  3. Besteht der Selbsttest, wird der Zustand `ok`.
+  4. Schlägt der Dienst fehl (`OnFailure=`), steht der Zähler bei 3 oder mehr,
+     oder ist `testing` älter als 5 min (geprüft von einem systemd-Timer),
+     dann stellt die Box `current` auf die vorige Version zurück, setzt
+     `failed`, startet neu und meldet den Grund an HA.
 - Firmware-Updates des ESP32 sind **nicht** Teil des Pakets (Flashen per
   USB am Mac); das Paket nennt nur die Mindestversion.
 
@@ -516,8 +684,10 @@ Zuordnungen und Serien-Metadaten.
 - **Ereignisprotokoll**: Python `logging` mit JSON-Formatter und
   `RotatingFileHandler` auf dauerhaftem Speicher; auf dem Pi zusätzlich
   journald dauerhaft. Eine JSON-Zeile je Ereignis mit Zeit, Zeitquelle,
-  Baustein, Ereignis, Ergebnis; die Vorgangs-ID (je `PLACED`) ist ein
-  Log-Feld. Simulierte Ereignisse tragen `sim=true`. Keine Geheimnisse.
+  Baustein, Ereignis, Ergebnis; die Vorgangs-ID (je `PLACED`/`LOCKED`, siehe
+  Begriffe) ist ein Log-Feld. Die **Zeitquelle** sagt, woher die Uhrzeit
+  stammt (Systemuhr, RTC oder NTP). So erkennt man falsche Zeiten nach einem
+  Stromausfall. Simulierte Ereignisse tragen `sim=true`. Keine Geheimnisse.
 - **`tobibox status`** (SSH, ab Stufe 1/2): Prüfpunkte (Leser, Medien, Netz,
   Speicher, HA) ausführlich, letzte Fehler, Versionen, Sync-Stand. In Stufe 3
   kommen HA-Sensoren dazu; für unterwegs gibt es einen Fehlerton.
@@ -551,11 +721,11 @@ es keine Abfrage „bin ich am Mac?“.
     die HA-Version, Liste zusätzlich als Export-Datei.
 *   **D2 — Woran erkennt man eine Serie dauerhaft?** Entschieden (05.11.):
     eigene **ID-Datei `serie.json`** in jedem Serien-Ordner (ID, Anzeigename,
-    später Bild), angelegt und gepflegt von der HA-Integration. Tobias will
-    eine **saubere Dateiverwaltung in HA** (Umfang: siehe Q5). Dafür bindet HA
+    Folgen-Reihenfolge), angelegt und gepflegt von der HA-Integration. Tobias will
+    eine **saubere Dateiverwaltung in HA** (Umfang: siehe „Medienverwaltung“ in den Entscheidungen). Dafür bindet HA
     die Medienfreigabe des NAS mit Schreibrecht ein; die Boxen lesen nur.
     Zwei Regeln: Die Box spielt auch Ordner **ohne** `serie.json`
-    (Ordnername als ID, Dateiname als Reihenfolge). Tragen zwei Ordner
+    (Ordnername als ID, Reihenfolge nach Dateiname). Tragen zwei Ordner
     dieselbe ID (Ordner samt `serie.json` kopiert), gibt die Integration der
     jüngeren Kopie eine neue ID und meldet das.
 *   **D3 — Broker:** MQTT läuft in HA. Tailscale ist noch nicht eingerichtet
@@ -564,11 +734,12 @@ es keine Abfrage „bin ich am Mac?“.
 ## Alternatives Considered
 
 Quellen: `concepts_brief.md` (Abgewogene Alternativen, Entscheidungen Runde
-1 und 2), `pivot_ohne_v3.md`, Entscheidungen D1–D4 in diesem Dokument.
+1 und 2), `pivot_ohne_v3.md` (Begründung für den Verzicht auf Phoniebox V3),
+Entscheidungen D1–D6 in diesem Dokument.
 
 ### Phoniebox V3 als Basis mit eigenen Plugins
 
-Plan bis Rev. 3.7. **Abgelehnt von Tobias:** Nach den übrigen Entscheidungen
+Plan bis Plan-Revision 3.7. **Abgelehnt von Tobias:** Nach den übrigen Entscheidungen
 übernimmt eigener Code fast alles (Leser, Resume, Serien, Zuordnung,
 Oberfläche, Sync, Update); V3 bliebe nur als MPD-Steuerung mit einer
 instabilen Plugin-Schnittstelle, einem eingefrorenen Versionsstand, der in
@@ -637,6 +808,12 @@ Agents sie parallel bauen können.
 bekanntes Angriffsziel (QNAP-Hinweis QSA-22-24 nach DeadBolt); QVPN braucht
 einen offenen Port am Router. Gewählt: Tailscale mit ACL.
 
+### Lautheit auf jeder Box messen (D6)
+
+**Abgelehnt vom Autor:** Jede Box würde selbst rechnen und dafür eigenen Code
+brauchen, statt das eingebaute ReplayGain von MPD zu nutzen. Gewählt: einmal
+auf dem NAS messen und Tags in die Dateien schreiben.
+
 ### Eigener WLAN-Hotspot der Box
 
 **Abgelehnt von Tobias:** Dauerfunk kostet Akku; stattdessen verbindet sich
@@ -658,8 +835,9 @@ eine Seriennummer; die Zuordnung erfolgt einmal pro Exemplar.
 Grundregeln für die Umsetzung:
 
 - Jedes Arbeitspaket (AP) setzt ein Agent um, mit dem billigsten passenden
-  Modell (in Klammern). Danach prüft ein **frischer Agent** (Goldfisch, Sonnet)
-  den Code gegen dieses Dokument, bevor das AP als fertig gilt.
+  Modell (in Klammern; Haiku = günstiger, Sonnet = stärker). Danach prüft ein
+  **frischer Agent** (Goldfisch, Sonnet) den Code gegen dieses Dokument, bevor
+  das AP als fertig gilt.
 - Jedes AP liefert Tests, die im Container ohne Hardware laufen
   (Firmware-Logik: PlatformIO `native`; Box-Dienst: pytest; MPD-Tests mit
   echtem MPD im Container).
@@ -706,12 +884,12 @@ Abnahme: Goldfisch-Review der zwei Dateien ohne Blocker, Freigabe durch Tobias.
 | Datei | Neu/Änd. | Inhalt und Grund |
 |---|---|---|
 | `box/pyproject.toml` | neu | Paket `tobibox`, Python ≥ 3.11, feste Abhängigkeiten (pyserial, python-mpd2, paho-mqtt, tomli bei Bedarf), Einstiegspunkte `tobiboxd`, `tobibox`. |
-| `box/src/tobibox/events.py` | neu | Ereignis- und Befehls-Typen des Kerns. |
-| `box/src/tobibox/core.py` | neu | Zustandsautomat (reine Logik): Auflegen, Abheben, Wechsel, gesperrt, unbekannt, Überraschung; legt die Ereignis- und Befehlstypen fest. |
+| `box/src/tobibox/events.py` | neu | Ereignis- und Befehls-Typen des Kerns; einziger Eigentümer dieser Typen. |
+| `box/src/tobibox/core.py` | neu | Zustandsautomat (reine Logik): Auflegen, Abheben, Wechsel, gesperrt, unbekannt, Überraschung; benutzt die Typen aus `events.py`. |
 | `box/src/tobibox/protocol.py` | neu | Zeilen-Parser nach `reader-v1.md`, prüft Kennungsformat. |
-| `box/src/tobibox/reader.py` | neu | Serielle öffnen, Zeilen lesen, `HELLO`-Prüfung, Herzschlag-Wächter (5 s), selbst neu verbinden. |
+| `box/src/tobibox/reader.py` | neu | Serielle öffnen, Zeilen lesen, `HELLO`-Prüfung, Herzschlag-Wächter (5 s ohne `HB`, bei 2-s-Takt), selbst neu verbinden. |
 | `box/src/tobibox/store.py` | neu | Atomares Lesen/Schreiben, `.bak`, `schema_version`. |
-| `box/src/tobibox/library.py` | neu | Serien aus `serie.json` lesen, Folgen-Reihenfolge, Überraschungs-Serie. |
+| `box/src/tobibox/library.py` | neu | Serien aus `serie.json` lesen; Folgen-Reihenfolge nach der Regel im Datenmodell (`serie.json`, sonst Dateiname, nicht gelistete Dateien am Ende); Überraschungs-Serie. |
 | `box/src/tobibox/config.py` | neu | `tobibox.toml` laden und prüfen, inkl. Lautstärke-Obergrenze und Startlautstärke. |
 | `box/src/tobibox/eventlog.py` | neu | Dünne Einrichtung von Python `logging`: JSON-Formatter, `RotatingFileHandler` auf dauerhaftem Speicher; Vorgangs-ID als Log-Feld. |
 | `box/src/tobibox/cli.py` | neu | Erste Fassung von `tobibox status` (Leser, letzte Fehler, Versionen). |
@@ -737,7 +915,7 @@ Abnahme: Goldfisch-Review der zwei Dateien ohne Blocker, Freigabe durch Tobias.
 |---|---|---|
 | `box/config/tobibox.mac.example.toml` | neu | Mac-Konfiguration (Gerätepfad, MPD, Pfade, Lautstärke-Obergrenze, Simulation). |
 | `docs/betrieb/mac-prototyp.md` | neu | Schritt für Schritt: Homebrew, MPD, Python-Umgebung, Firmware flashen, Testserie anlegen, `tobiboxd` starten, Vorführung der CUJs. |
-| `box/medien-beispiel/` | neu | Kleine Beispielserie mit `serie.json` und kurzen Test-mp3 (selbst erzeugte Töne, keine fremden Inhalte). |
+| `box/medien-beispiel/` | neu | Kleine Beispielserie mit `serie.json` und kurzen Test-Audiodateien (selbst erzeugte Töne, keine fremden Inhalte). |
 
 **AP 1.5 Automatische Prüfung** (Haiku)
 
@@ -807,7 +985,7 @@ Stufe 3 beginnt, wenn:
 4. die Voraussetzungen bereit sind: Tailscale (HA-Add-on, QNAP-App) und der
    MQTT-Broker in HA laufen, HA hat Schreibrecht auf die Medienfreigabe.
 
-### Stufe 3 — HA, Medienverwaltung, Sync, Netz, Update (CUJ 7a/7b mit HA, 9, 10, 12)
+### Stufe 3 — HA, Medienverwaltung, Sync, Netz, Update, Lautheit (CUJ 7a/7b mit HA, 9, 10, 12)
 
 **AP 3.1 HA-Integration Backend** (Sonnet)
 
@@ -816,11 +994,11 @@ Stufe 3 beginnt, wenn:
 | `homeassistant/custom_components/tobibox/manifest.json` | neu | Integration, Abhängigkeit MQTT, Version. |
 | `…/__init__.py`, `config_flow.py` | neu | Einrichtung: Medienpfad, Boxen. |
 | `…/store.py` | neu | Zuordnungen mit Revision im HA-Speicher, Export. |
-| `…/media.py` | neu | `serie.json` lesen/schreiben, Erkennen neuer Ordner/Dateien, Papierkorb, Hochladen. |
+| `…/media.py` | neu | `serie.json` lesen/schreiben, Erkennen neuer Ordner/Dateien, Formate und DRM-Warnung (D5), Speicheranzeige, Papierkorb, Hochladen, Auslöser für AP 3.8. |
 | `…/mqtt.py` | neu | `tobibox/mappings` veröffentlichen, Box-Ereignisse empfangen, Befehle senden. |
 | `…/websocket_api.py`, `http.py` | neu | Daten für die Seite, Hochladen mit Anmeldung. |
 | `…/services.yaml`, `translations/de.json` | neu | Aktionen und Texte. |
-| `homeassistant/tests/` | neu | Tests mit `pytest-homeassistant-custom-component`. |
+| `homeassistant/tests/` | neu | Tests mit `pytest-homeassistant-custom-component` (Testhilfe für HA-Integrationen). |
 
 **AP 3.2 HA-Seite** (Sonnet): `homeassistant/custom_components/tobibox/frontend/tobibox-panel.js`
 — Serienliste, Folgen ziehen, Hochladen, Umbenennen, Neue Figuren, Lernmodus,
@@ -856,23 +1034,32 @@ Tobias machen kann.
 **AP 3.7 Betriebshandbuch** (Haiku): `docs/betrieb/handbuch.md` —
 Wiederherstellung von Null, SD-Image, „was ist wo konfiguriert“, Fehlerbilder.
 
-**Abnahme Stufe 3:** Alle CUJs als pytest-Tabellen grün; Vorführung mit HA am
-Handy (über Nabu Casa) und Mac-Box; Plan auf Rev. 3.9 nachgezogen.
+**AP 3.8 Lautheitsangleich** (Haiku): Container-Definition für `rsgain` auf dem
+NAS, Doku und HA-Auslöser (D6, Plan 7.2: Lautheitsangleich aller Titel).
 
-### Stufe 4 — Hardware-Funktionen mit Simulation
+| Datei | Neu/Änd. | Inhalt und Grund |
+|---|---|---|
+| `deploy/nas/` (Container-Definition, Zeitplan) | neu | Container mit `rsgain`, schreibt ReplayGain-Tags in neue Dateien; läuft nach Auslöser aus HA oder nach Zeitplan. |
+| `docs/betrieb/lautheit.md` | neu | Einrichtung auf dem NAS, Modus Album oder Track (Track für gemischte Quellen), MPD-Einstellung, Zusammenspiel mit der Obergrenze. |
+| `homeassistant/custom_components/tobibox/media.py` | änd. | Löst den Container aus, wenn neue Dateien erkannt werden. |
+
+**Abnahme Stufe 3:** Alle CUJs als pytest-Tabellen grün; Vorführung mit HA am
+Handy (über Nabu Casa) und Mac-Box; der Plan in `docs/plan/` ist nachgezogen.
+
+### Stufe 4 — Hardware-Funktionen mit Simulation (CUJ 14–19)
 
 Alle Funktionen entstehen jetzt, mit Simulation am Mac hinter derselben
 Schnittstelle, die die echte Hardware später nutzt.
 
-**AP 4.1 LED-Ring-Logik** (Sonnet)
+**AP 4.1 LED-Ring-Logik** (Sonnet), umsetzt CUJ 18
 
 | Datei | Neu/Änd. | Inhalt und Grund |
 |---|---|---|
-| `box/src/tobibox/led.py` | neu | Zustände laut Plan 5.5.2 als reine Logik, Helligkeitsdeckel 25 %. |
+| `box/src/tobibox/led.py` | neu | Zustände laut Plan 5.5.2 (läuft, Pause, Akku, unbekannte Karte, Aufwachen) als reine Logik, Helligkeitsdeckel 25 %. |
 | `box/src/tobibox/led_sim.py` | neu | Virtueller Ring am Mac (Terminal- oder HA-Anzeige); der echte Ring ersetzt nur diesen Treiber. |
 | `box/tests/unit/test_led.py` | neu | Jeder Zustand; Deckel wird nie überschritten. |
 
-**AP 4.2 Tasten und Drehregler** (Sonnet)
+**AP 4.2 Tasten und Drehregler** (Sonnet), umsetzt CUJ 19
 
 | Datei | Neu/Änd. | Inhalt und Grund |
 |---|---|---|
@@ -881,7 +1068,7 @@ Schnittstelle, die die echte Hardware später nutzt.
 | `box/src/tobibox/core.py` | änd. | Reagiert auf die Bedienereignisse. |
 | `box/tests/unit/test_controls.py` | neu | Tasten-Zuordnung, lang/einfach, Lautstärke-Obergrenze bleibt. |
 
-**AP 4.3 PiSugar-Schnittstelle** (Sonnet)
+**AP 4.3 PiSugar-Schnittstelle** (Sonnet), umsetzt CUJ 16
 
 | Datei | Neu/Änd. | Inhalt und Grund |
 |---|---|---|
@@ -890,7 +1077,7 @@ Schnittstelle, die die echte Hardware später nutzt.
 | `box/src/tobibox/idle.py` | neu | Leerlauf-Abschaltung nach 20 min. |
 | `box/tests/unit/test_power.py`, `test_idle.py` | neu | Tiefstand, Tastenereignis, 20-min-Leerlauf (mit simulierter Uhr). |
 
-**AP 4.4 Kopfhörer** (Sonnet)
+**AP 4.4 Kopfhörer** (Sonnet), umsetzt CUJ 17
 
 | Datei | Neu/Änd. | Inhalt und Grund |
 |---|---|---|
@@ -899,14 +1086,15 @@ Schnittstelle, die die echte Hardware später nutzt.
 | `box/src/tobibox/player.py` | änd. | Zweites, niedrigeres Limit, solange Kopfhörer stecken. |
 | `box/tests/unit/test_headphones.py` | neu | Limit greift beim Einstecken und fällt beim Ziehen zurück. |
 
-**AP 4.5 Leise-Zeiten** (Haiku)
+**AP 4.5 Leise-Zeiten** (Haiku), umsetzt CUJ 15
 
 | Datei | Neu/Änd. | Inhalt und Grund |
 |---|---|---|
-| `box/src/tobibox/quiet.py` | neu | Leise-Zeiten nach der Plugin-Idee aus Plan 5.7 (Zeitfenster aus `tobibox.toml`). |
+| `box/src/tobibox/quiet.py` | neu | Leise-Zeiten (Plan 5.7): Fenster mit Wirkung „leiser“ oder „stumm“; Einstellung kommt aus HA (MQTT, dauerhaft, mit Revision wie die Zuordnungen), lokale Kopie für offline. |
+| `homeassistant/custom_components/tobibox/` | änd. | Leise-Zeiten in der HA-Seite einstellen und an die Boxen verteilen. |
 | `box/tests/unit/test_quiet.py` | neu | Fenstergrenzen mit simulierter Uhr. |
 
-**AP 4.6 Gute-Nacht-Karte** (Sonnet)
+**AP 4.6 Gute-Nacht-Karte** (Sonnet), umsetzt CUJ 14
 
 | Datei | Neu/Änd. | Inhalt und Grund |
 |---|---|---|
@@ -920,6 +1108,6 @@ echte Hardware ersetzt später nur den Simulations-Treiber.
 
 | Datei | Änderung |
 |---|---|
-| `docs/plan/stueckliste-und-psp.md`, `docs/plan/psp-baum.html` | Rev. 3.9: PSP-Punkte, die durch dieses Design ersetzt sind |
+| `docs/plan/stueckliste-und-psp.md`, `docs/plan/psp-baum.html` | Projektplan (Stückliste und Arbeitspaket-Baum) nachziehen: Punkte, die durch dieses Design ersetzt sind, neu fassen |
 | `docs/designs/box-software.md` | angenommene Fassung dieses Dokuments |
 | `CLAUDE.md` | Verweis auf Verträge und Arbeitsweise je Stufe |
