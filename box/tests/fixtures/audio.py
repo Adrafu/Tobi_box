@@ -80,6 +80,33 @@ def erzeuge_serie(
     return wurzel
 
 
+def erzeuge_folge_ordner(
+    serie_ordner: str | Path,
+    name: str,
+    tracks: list[str],
+    *,
+    dauer_s: float = DEFAULT_DAUER_S,
+    dotfiles: bool = False,
+    fremde: list[str] | None = None,
+) -> Path:
+    """Folge aus mehreren Tracks: Unterordner ``name`` im Serien-Ordner (Entscheidung F, 05.11.).
+
+    ``tracks`` sind die Dateinamen (alle als WAV erzeugt, jeder Track mit eigener Tonhöhe).
+    ``dotfiles`` legt zusätzlich ``._01.wav`` und ``.versteckt.wav`` an (müssen ignoriert werden),
+    ``fremde`` Dateien ohne Audio-Endung (z. B. ``cover.jpg``, ebenfalls ignoriert).
+    """
+    wurzel = Path(serie_ordner) / name
+    wurzel.mkdir(parents=True, exist_ok=True)
+    for i, f in enumerate(tracks):
+        schreibe_wav(wurzel / f, dauer_s, 500.0 + 60 * i)
+    if dotfiles:
+        schreibe_wav(wurzel / "._01.wav", dauer_s, 900.0)
+        schreibe_wav(wurzel / ".versteckt.wav", dauer_s, 950.0)
+    for f in fremde or []:
+        (wurzel / f).write_bytes(b"kein audio")
+    return wurzel
+
+
 def erzeuge_medien(medien: str | Path) -> Path:
     """Kleine Bibliothek: zwei normale Serien und eine Überraschungs-Serie."""
     medien = Path(medien)

@@ -2,9 +2,16 @@
 
 Liest ``medien/<ordner>/serie.json`` (nur lesen) und bildet ``events.Serie``.
 Die Liste ``folgen`` ist maßgeblich; Dateien außerhalb der Liste werden nicht
-gespielt, Namen ohne Datei werden übersprungen. Ein Ordner ohne (gültige)
-``serie.json`` wird mit dem Ordnernamen als ID gespielt, in natürlicher
-Sortierung.
+gespielt, Namen ohne Datei oder Ordner werden übersprungen. Ein Ordner ohne
+(gültige) ``serie.json`` wird mit dem Ordnernamen als ID gespielt, in
+natürlicher Sortierung.
+
+Eine **Folge** ist eine Audiodatei im Serien-Ordner oder ein Unterordner mit
+mindestens einem Track (Entscheidung F, 05.11.). Die Tracks eines Folgen-Ordners
+sind die Audiodateien direkt darin (ohne Dotfiles, gleiche Endungsliste), in
+natürlicher Sortierung. ``Serie.tracks`` nennt je Folge die Track-Pfade relativ
+zum Serien-Ordner: ``(name,)`` bei einer Datei, ``("Ordner/01.wav", …)`` bei
+einem Folgen-Ordner.
 """
 
 from __future__ import annotations
@@ -150,11 +157,36 @@ def finde_ueberraschung(serien: tuple[ev.Serie, ...]) -> ev.Serie | None:
     return next((s for s in serien if s.typ == "ueberraschung"), None) if ueberraschung_status(serien) == "ok" else None
 
 
+def _ist_audio(name: str) -> bool:
+    return not name.startswith(".") and Path(name).suffix.lower() in AUDIO_ENDUNGEN and dateiname_gueltig(name)
+
+
 def _vorhandene_dateien(ordner: Path) -> set[str]:
     try:
         return {p.name for p in ordner.iterdir() if p.is_file()}
     except OSError:
         return set()
+
+
+def _folgen_ordner(ordner: Path) -> dict[str, tuple[str, ...]]:
+    """Unterordner (ohne Punkt am Anfang) -> ihre Tracks als Pfade ``Ordner/Datei``.
+
+    Ordner ohne Track stehen mit leerem Tupel drin (der Aufrufer protokolliert
+    sie als ``folge_leer`` und zählt sie nicht)."""
+    aus: dict[str, tuple[str, ...]] = {}
+    try:
+        kandidaten = [p for p in ordner.iterdir() if p.is_dir() and not p.name.startswith(".")]
+    except OSError:
+        return aus
+    for sub in kandidaten:
+        if not dateiname_gueltig(sub.name):
+            continue
+        try:
+            namen = [q.name for q in sub.iterdir() if q.is_file() and _ist_audio(q.name)]
+        except OSError:
+            namen = []
+        aus[sub.name] = tuple(f"{sub.name}/{n}" for n in sortiere_natuerlich(namen))
+    return aus
 
 
 def _lies_serie_json(pfad: Path, ordner_name: str) -> SerieJson | None:
@@ -175,29 +207,39 @@ def _lies_serie_json(pfad: Path, ordner_name: str) -> SerieJson | None:
 def _serie_aus_ordner(ordner: Path, medien: Path) -> tuple[ev.Serie, str] | None:
     """(Serie, angelegt_am) oder ``None``, wenn der Ordner nicht gespielt wird."""
     dateien = _vorhandene_dateien(ordner)
+    ordner_tracks = _folgen_ordner(ordner)
     sj = _lies_serie_json(ordner / "serie.json", ordner.name)
     rel = ordner.relative_to(medien).as_posix()
     if sj is None:
         if not serien_id_gueltig(ordner.name):
             logge("library", "ERROR", "ordner_name_ungueltig", "uebersprungen", daten={"ordner": ordner.name})
             return None
-        audio = [
-            n for n in dateien
-            if not n.startswith(".") and Path(n).suffix.lower() in AUDIO_ENDUNGEN and dateiname_gueltig(n)
-        ]
-        folgen = tuple(sortiere_natuerlich(audio))
-        return ev.Serie(ordner.name, ordner.name, "normal", rel, folgen), ""
+        audio = [n for n in dateien if _ist_audio(n)]
+        mit_tracks = [n for n, tr in ordner_tracks.items() if tr]
+        for n, tr in ordner_tracks.items():
+            if not tr:
+                logge("library", "WARNING", "folge_leer", "uebersprungen", daten={"serie": ordner.name, "folge": n})
+        folgen = tuple(sortiere_natuerlich(audio + mit_tracks))
+        tracks = {f: (ordner_tracks[f] if f in ordner_tracks else (f,)) for f in folgen}
+        return ev.Serie(ordner.name, ordner.name, "normal", rel, folgen, tracks), ""
     gesehen: set[str] = set()
     folgen_l: list[str] = []
+    tracks: dict[str, tuple[str, ...]] = {}
     for f in sj.folgen:
         if f in gesehen:
             continue
         gesehen.add(f)
         if f in dateien:
             folgen_l.append(f)
+            tracks[f] = (f,)
+        elif f in ordner_tracks and ordner_tracks[f]:
+            folgen_l.append(f)
+            tracks[f] = ordner_tracks[f]
+        elif f in ordner_tracks:
+            logge("library", "WARNING", "folge_leer", "uebersprungen", daten={"serie": sj.id, "folge": f})
         else:
             logge("library", "WARNING", "folge_fehlt", "uebersprungen", daten={"serie": sj.id, "datei": f})
-    return ev.Serie(sj.id, sj.name, sj.typ, rel, tuple(folgen_l)), sj.angelegt_am  # type: ignore[arg-type]
+    return ev.Serie(sj.id, sj.name, sj.typ, rel, tuple(folgen_l), tracks), sj.angelegt_am  # type: ignore[arg-type]
 
 
 _JUENGSTE = datetime.max.replace(tzinfo=timezone.utc)
@@ -251,7 +293,7 @@ def lade_bibliothek(medien: str | Path) -> Bibliothek:
 
 
 def abspielpfad(medien: str | Path, serie: ev.Serie, datei: str) -> Path | None:
-    """Pfad der Folge, nur wenn sie in ``serie.folgen`` steht (sonst ``None``)."""
+    """Pfad der Folge (Datei oder Folgen-Ordner), nur wenn sie in ``serie.folgen`` steht (sonst ``None``)."""
     if datei not in serie.folgen or not dateiname_gueltig(datei):
         return None
     return Path(medien) / serie.ordner / datei

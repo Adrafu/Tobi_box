@@ -126,8 +126,12 @@ Beim Start (und bei jedem Lesen) in dieser Reihenfolge:
 
 *   `resume.json`: höchstens eine Schreibung je Pause, Folgen- und
     Track-Wechsel, Tobie-Wechsel, Herunterfahren und alle 30 s während der Wiedergabe, und nur
-    bei Änderung (`reader-v1`/`core-interface`). Rund 240 Schreibungen am Tag
-    bei 2 h Wiedergabe.
+    bei Änderung (`reader-v1`/`core-interface`). **Neu gerechnet (Entscheidung F,
+    05.11.):** bei 2 h Wiedergabe am Tag höchstens 240 periodische Schreibungen
+    (7200 s / 30 s) plus je eine für jede Pause, jeden Tobie-Wechsel und jeden
+    Track-Wechsel; mit angenommenen 40 Pausen oder Wechseln und 40 Track-Wechseln
+    am Tag **höchstens 320 Schreibungen am Tag und Box** (jede Schreibung setzt die
+    30-s-Frist zurück, die Zahl ist also eine Obergrenze).
 *   `unknown.json`: eine Schreibung je neuer Meldung und je Bestätigung.
 *   `config.json`: eine Schreibung je angenommener Liste.
 *   `update.json`: je Start im Zustand `testing` eine Schreibung (Zähler).
@@ -169,7 +173,12 @@ Regeln:
 *   **Gültigkeit:** Ist irgendein Teil ungültig (Wertebereich, doppelte `id`,
     Kennung nicht kanonisch, unbekannter `ziel.typ`, `folge` ohne `serie`), wird die **ganze Liste**
     abgelehnt (Grund `schema_ungueltig`). Die Box behält ihre bisherige
-    Konfiguration.
+    Konfiguration. **Die Prüfung von `ziel` läuft nach der Migration**
+    (Entscheidung F, 05.11.): Eine Liste der Version 1 (aus der Datei oder von
+    `tobibox/config`) wird zuerst im Speicher nach Version 2 migriert und dann mit
+    derselben Funktion geprüft wie jede Liste der Version 2. Diese eine Funktion
+    (Migration und Prüfung) liegt in `store.py`; `ha.py` benutzt sie, statt
+    eine eigene Prüfung zu schreiben.
 *   **Annahme (Revisionsregel):** Die Box nimmt eine Liste an, wenn ihre
     `liste_id` von der gespeicherten abweicht, oder wenn sie gleich ist und die
     `revision` **höher** ist. Gleiche `liste_id` und gleiche `revision`: nichts
@@ -279,6 +288,10 @@ gibt, bleibt stehen und schadet nicht.
 *   **Migration Version 1 → 2 (Entscheidung F, 05.11.):** Jeder Eintrag in `serien` bekommt `track` 0
     (die gespeicherte Position gilt für den ersten Track); `folgen` ist leer.
     Die Migration ist rein und hat einen eigenen Test.
+*   **Der Zustand `beendet` steht nicht in `resume.json`** (Entscheidung F,
+    05.11.): Nach einem Neustart des Dienstes gibt es keine „eben beendete Folge“;
+    die Sitzung beginnt ohne Wiedergabe mit dem gespeicherten Zeiger
+    (`core-interface.md`, 9.12).
 
 Beispiel:
 

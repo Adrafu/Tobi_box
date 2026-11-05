@@ -5,7 +5,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import pytest
-from conftest import UID_NACHT, UID_S1, UID_STATUS, KernHarnisch, kern
+from conftest import UID_CD, UID_NACHT, UID_S1, UID_STATUS, KernHarnisch, abspielen, kern, ppos, zeiger_speichern
 
 from tobibox import core, session
 from tobibox import events as ev
@@ -77,7 +77,7 @@ def test_auflegen_ordnet_befehle_nach_rang():
     raenge = [core._RANG[type(o)] for o in out]
     assert raenge == sorted(raenge)
     assert out[0] == ev.LautstaerkeSetzen(40, 60)
-    assert ev.Abspielen("ueb", "ueb", "u1.mp3", 0.0, "v1") in out
+    assert abspielen("ueb", "ueb", "u1.mp3", 0.0, "v1") in out
 
 
 def test_lautstaerke_vor_abspielen_auch_wenn_unveraendert():
@@ -100,7 +100,7 @@ def test_zustand_melden_nur_bei_aenderung_und_mit_standardwerten():
     k.sende(ev.BibliothekGeladen((__import__("conftest").S1,)))
     out = k.sende(ev.Aufgelegt(UID_S1, "ntag", False, 0, "v1"))
     assert [o for o in out if isinstance(o, ev.ZustandMelden)] == [
-        ev.ZustandMelden("spielt", "aktiv", "s1", False, "normal", "aus", True)
+        ev.ZustandMelden("spielt", "aktiv", "s1", False, "normal", "aus", True, "a.mp3", 0)
     ]
 
 
@@ -214,7 +214,7 @@ def test_ausblenden_bei_stumm_ohne_lautstaerkesprung():
     """Regel 7: am Ende des Ausblendens bleibt die Lautstärke in der Pause niedrig."""
     k = KernHarnisch()
     k.sende(ev.Aufgelegt(UID_S1, "ntag", False, 0, "v1"))
-    k.sende(ev.PlayerPosition("s1", "a.mp3", 10.0, True))
+    k.sende(ppos("s1", "a.mp3", 10.0, True))
     k.sende(ev.StummBeginnt())
     gesetzt = []
     ende = None
@@ -283,7 +283,7 @@ def test_regel1_herunterfahren_hat_vorrang(monkeypatch):
     a = fake_teil(
         {
             ev.Takt: [
-                ev.Abspielen("s1", "s1", "a.mp3", 0.0, "v"),
+                abspielen("s1", "s1", "a.mp3", 0.0, "v"),
                 ev.SyncStarten("ha"),
                 ev.UpdateStarten("b1", "1.2.3"),
                 ev.AusgangWaehlen("kopfhoerer"),
@@ -310,11 +310,11 @@ def test_herunterfahren_ist_der_letzte_befehl(monkeypatch, grund):
 def test_herunterfahren_mit_laufender_wiedergabe_pausiert_zuerst(monkeypatch):
     k = baue(monkeypatch, ("a", fake_teil({ev.Hauptknopf: [ev.HerunterfahrenAngefordert("hauptknopf")]})))
     k.sende(ev.Aufgelegt(UID_S1, "ntag", False, 0, "v1"))
-    k.sende(ev.PlayerPosition("s1", "a.mp3", 10.0, True))
+    k.sende(ppos("s1", "a.mp3", 10.0, True))
     out = ohne_meldung(k.sende(ev.Hauptknopf("lang")))
     assert out == [
         ev.Pausieren("herunterfahren"),
-        ev.ZeigerSpeichern("s1", "a.mp3", 0, 10.0, "herunterfahren"),
+        zeiger_speichern("s1", "a.mp3", 0, 10.0, "herunterfahren"),
         ev.Herunterfahren("hauptknopf"),
     ]
 
@@ -366,8 +366,8 @@ def test_regel4_doppelte_meldungen(monkeypatch, eingabe, erwartet):
 
 
 def test_regel5_mehrere_abspielen_es_bleibt_das_letzte(monkeypatch):
-    erstes = ev.Abspielen("s1", "s1", "a.mp3", 0.0, "v")
-    letztes = ev.Abspielen("s2", "s2", "x.mp3", 0.0, "v")
+    erstes = abspielen("s1", "s1", "a.mp3", 0.0, "v")
+    letztes = abspielen("s2", "s2", "x.mp3", 0.0, "v")
     k = baue(monkeypatch, ("a", fake_teil({ev.Takt: [erstes, ev.TonSpielen("hinweis"), letztes]})))
     out = ohne_meldung(k.sende(ev.Takt()))
     assert out == [ev.LautstaerkeSetzen(40, 60), letztes, ev.TonSpielen("hinweis")]
@@ -378,7 +378,7 @@ def test_befehle_gleichen_rangs_behalten_die_emissionsreihenfolge(monkeypatch):
         ev.SyncStarten("ha"),
         ev.TonSpielen("fehler"),
         ev.Melden("unbekannt", "u1"),
-        ev.ZeigerSpeichern("s1", "a.mp3", 0, 1.0, "pause"),
+        zeiger_speichern("s1", "a.mp3", 0, 1.0, "pause"),
         ev.Pausieren("knopf"),
         ev.TonSpielen("hinweis"),
         ev.AusgangWaehlen("kopfhoerer"),
@@ -391,7 +391,7 @@ def test_befehle_gleichen_rangs_behalten_die_emissionsreihenfolge(monkeypatch):
     assert out == [
         ev.AusgangWaehlen("kopfhoerer"),
         ev.Pausieren("knopf"),
-        ev.ZeigerSpeichern("s1", "a.mp3", 0, 1.0, "pause"),
+        zeiger_speichern("s1", "a.mp3", 0, 1.0, "pause"),
         ev.TonSpielen("fehler"),
         ev.TonSpielen("hinweis"),
         ev.Melden("unbekannt", "u1"),
@@ -491,7 +491,7 @@ def test_geraete_einstellungen_werden_auf_0_bis_100_geklemmt():
 def test_regel7_abheben_waehrend_ausblenden_echte_sitzung():
     k = KernHarnisch()
     k.sende(ev.Aufgelegt(UID_S1, "ntag", False, 0, "v1"))
-    k.sende(ev.PlayerPosition("s1", "a.mp3", 10.0, True))
+    k.sende(ppos("s1", "a.mp3", 10.0, True))
     k.sende(ev.StummBeginnt())
     werte = []
     for _ in range(15):
@@ -506,14 +506,14 @@ def test_regel7_abheben_waehrend_ausblenden_echte_sitzung():
 def test_weiter_in_pausiert_echte_sitzung():
     k = KernHarnisch()
     k.sende(ev.Aufgelegt(UID_S1, "ntag", False, 0, "v1"))
-    k.sende(ev.PlayerPosition("s1", "a.mp3", 10.0, True))
+    k.sende(ppos("s1", "a.mp3", 10.0, True))
     k.sende(ev.Hauptknopf("kurz"))
     assert k.modus == "pausiert"
     out = [o for o in k.sende(ev.Weiter()) if not isinstance(o, (ev.ZustandMelden, ev.Protokoll))]
     assert out == [
         ev.LautstaerkeSetzen(40, 60),
-        ev.ZeigerSpeichern("s1", "b.mp3", 1, 0.0, "folgenende"),
-        ev.Abspielen("s1", "s1", "b.mp3", 0.0, "v1"),
+        zeiger_speichern("s1", "b.mp3", 1, 0.0, "folgenende"),
+        abspielen("s1", "s1", "b.mp3", 0.0, "v1"),
     ]
     assert k.modus == "spielt"
 
@@ -521,9 +521,46 @@ def test_weiter_in_pausiert_echte_sitzung():
 def test_dienst_endet_pausiert_ohne_herunterfahren():
     k = KernHarnisch()
     k.sende(ev.Aufgelegt(UID_S1, "ntag", False, 5, "v1"))
-    k.sende(ev.PlayerPosition("s1", "a.mp3", 10.0, True))
+    k.sende(ppos("s1", "a.mp3", 10.0, True))
     assert k.z.session.modus == "spielt"
     out = ohne_meldung(k.sende(ev.DienstEndet()))
     assert ev.Pausieren("herunterfahren") in out
     assert any(isinstance(b, ev.ZeigerSpeichern) for b in out)
     assert not any(isinstance(b, ev.Herunterfahren) for b in out)
+
+
+# --- Entscheidung F (05.11.): Tracks im Kern -----------------------------------------------
+
+
+def test_zustand_melden_traegt_folge_und_track_und_aendert_sich_beim_track_wechsel():
+    k = KernHarnisch()
+    out = k.sende(ev.Aufgelegt(UID_CD, "ntag", False, 0, "v1"))
+    melden = [o for o in out if isinstance(o, ev.ZustandMelden)]
+    assert [(m.sitzung, m.serie_id, m.folge, m.track) for m in melden] == [("spielt", "s3", "cd", 0)]
+    out = k.sende(ev.TrackWechsel("s3", "cd", 1))
+    melden = [o for o in out if isinstance(o, ev.ZustandMelden)]
+    assert [(m.sitzung, m.folge, m.track) for m in melden] == [("spielt", "cd", 1)]
+    assert [o for o in out if isinstance(o, ev.ZeigerSpeichern)] == [
+        zeiger_speichern("s3", "cd", None, 0.0, "trackwechsel", track=1, art="folge")
+    ]
+    assert not [o for o in out if isinstance(o, ev.Pausieren)]
+
+
+def test_folge_mit_tracks_lautstaerke_kommt_vor_dem_abspielen_mit_allen_tracks():
+    k = KernHarnisch()
+    out = [o for o in k.sende(ev.Aufgelegt(UID_CD, "ntag", False, 0, "v1")) if isinstance(o, (ev.LautstaerkeSetzen, ev.Abspielen))]
+    assert [type(o) for o in out] == [ev.LautstaerkeSetzen, ev.Abspielen]
+    assert out[1].tracks == ("cd/01.mp3", "cd/02.mp3", "cd/03.mp3") and out[1].track == 0
+
+
+def test_folge_zu_ende_im_kern_pausiert_und_speichert_den_folgen_zeiger():
+    k = KernHarnisch()
+    k.sende(ev.Aufgelegt(UID_CD, "ntag", False, 0, "v1"))
+    k.sende(ev.TrackWechsel("s3", "cd", 2))
+    out = k.sende(ev.FolgeZuEnde("s3", "cd"))
+    befehle = [o for o in out if isinstance(o, (ev.Pausieren, ev.ZeigerSpeichern))]
+    assert befehle == [
+        ev.Pausieren("folgenende"),
+        zeiger_speichern("s3", "cd", None, 0.0, "folgenende", track=0, art="folge"),
+    ]
+    assert k.modus == "beendet"

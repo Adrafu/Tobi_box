@@ -8,6 +8,7 @@ import json
 import pytest
 from fixtures.audio import erzeuge_medien, erzeuge_serie
 
+from conftest import zeiger_speichern
 from tobibox import cli, eventlog
 from tobibox import events as ev
 from tobibox.store import KonfigStore, ResumeStore
@@ -45,7 +46,7 @@ def test_status_ohne_laufenden_dienst_sagt_es(box):
 
 def test_status_zeigt_zustandsdateien(box):
     tmp, toml = box
-    ResumeStore(tmp / "var").speichern(ev.ZeigerSpeichern("s", "a", 0, 1.0, "pause"), 0)
+    ResumeStore(tmp / "var").speichern(zeiger_speichern("s", "a", 0, 1.0, "pause"), 0)
     code, text = lauf("status", "--config", str(toml))
     assert "Zeiger: 1 Zeiger" in text
 

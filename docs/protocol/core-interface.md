@@ -113,7 +113,10 @@ die Felder und die Quelle (das Modul, das den Wert in die Ereignisschleife gibt)
 Die Position ist eine Eigenschaft des Players, der Kern hält die zuletzt
 gemeldete (`PlayerPosition`) im Zustand der Sitzung. Beim Abheben benutzt der
 Kern diese Position für `ZeigerSpeichern`; sie ist höchstens
-`POSITION_INTERVAL_S` alt.
+`POSITION_INTERVAL_S` alt. **Der Kern übernimmt eine `PlayerPosition` nur in den
+Zuständen mit laufendem MPD (`spielt`, `unbekannt`) und nur, wenn `serie_id`,
+`datei` und `track` zum aktuellen Zeiger der Sitzung passen; sonst wird sie
+ignoriert (6.3) (Entscheidung F, 05.11.).**
 
 ### 3.3 Start und Daten (Quelle `app`, `store`, `library`, `ha`)
 
@@ -174,7 +177,7 @@ Alle HA-Befehle tragen eine Ablaufzeit. Der Kern prüft sie mit `jetzt.wall` und
 
 | Typ | Felder |
 |---|---|
-| `Serie` | `id: str`, `name: str`, `typ: Literal["normal","ueberraschung"]`, `ordner: str` (Pfad relativ zum Medienordner), `folgen: tuple[str, ...]` (Namen der Folgen in maßgeblicher Reihenfolge, nur vorhandene: Dateiname oder Ordnername), `tracks: Mapping[str, tuple[str, ...]]` (Name der Folge → Namen ihrer Tracks in Reihenfolge; eine Folge aus einer Datei hat genau einen Track, nämlich ihren eigenen Namen) (Entscheidung F, 05.11.) |
+| `Serie` | `id: str`, `name: str`, `typ: Literal["normal","ueberraschung"]`, `ordner: str` (Pfad relativ zum Medienordner), `folgen: tuple[str, ...]` (Namen der Folgen in maßgeblicher Reihenfolge, nur vorhandene: Dateiname oder Ordnername), `tracks: Mapping[str, tuple[str, ...]]` (Name der Folge → Pfade ihrer Tracks **relativ zum Serien-Ordner** in Reihenfolge; eine Folge aus einer Datei hat genau einen Track, nämlich ihren eigenen Namen, ein Folgen-Ordner `Ordnername/Dateiname`; so stehen sie unverändert in `Abspielen.tracks`) (Entscheidung F, 05.11.) |
 | `Zeiger` | `art: Literal["serie","folge"]` (Serien-Zeiger oder Folgen-Zeiger) (Entscheidung F, 05.11.), `serie_id: str`, `datei: str` (Name der Folge), `index: int \| None` (Nummer der Folge in `folgen`, ab 0, Hinweis für den Fall einer fehlenden Folge; `None` bei `art="folge"`), `track: int` (≥ 0, Nummer des Tracks in der Folge), `position_s: float` (≥ 0, Sekunden im Track, ohne Rücksprung), `zaehler: int` |
 | `Zuordnung` | `typ: Literal["serie","folge","aktion"]`, `serie_id: str \| None`, `folge: str \| None` (Name der Folge bei `typ="folge"`), `aktion: Literal["status","gute_nacht"] \| None` (Entscheidung F, 05.11.) |
 | `Fenster` | `id: str`, `tage: tuple[int, ...]` (1 = Montag bis 7 = Sonntag), `von: str`, `bis: str` (`"HH:MM"`, Ortszeit), `wirkung: Literal["leiser","stumm"]`, `grenze: int \| None` |
@@ -237,12 +240,12 @@ nennt, wer sie ausführt.
 | `AusgangWaehlen` | `ausgang: Literal["lautsprecher","kopfhoerer"]` | `player` | Ausgang umschalten (Mac: nur protokolliert). |
 | `Abspielen` | `serie_id: str`, `ordner: str`, `datei: str` (Name der Folge), `tracks: tuple[str, ...]` (Pfade der Tracks relativ zu `ordner`, in Reihenfolge), `track: int`, `position_s: float`, `vorgang: str \| None` | `player` | Warteschlange leeren, **alle Tracks dieser Folge und nur diese** laden, auf Track `track` und `position_s` springen (`seek`), spielen (Entscheidung F, 05.11.). `position_s` ist die Position im Track und enthält schon den Rücksprung (Abschnitt 6.3). Der Pfad für MPD ist `ordner + "/" + tracks[i]`; bei einer Folge aus einer Datei ist `tracks = (datei,)`, bei einem Folgen-Ordner `tracks = (datei + "/" + trackname, …)`. |
 | `Pausieren` | `grund: Literal["abgehoben","folgenende","knopf","stumm","gute_nacht","leser_unbekannt","fehler","herunterfahren"]` | `player` | Pause. Ist MPD schon gestoppt (Folgenende), ist der Befehl wirkungslos. Danach sendet der Player sofort `PlayerPosition`. |
-| `ZeigerSpeichern` | `art: Literal["serie","folge"]`, `serie_id: str`, `datei: str`, `index: int \| None`, `track: int`, `position_s: float`, `grund: Literal["pause","folgenende","trackwechsel","figurwechsel","periodisch","herunterfahren"]` | `store` (`resume.json`) | Zeiger schreiben (`art="serie"` in `serien`, `art="folge"` in `folgen`), `zaehler` dieses Zeigers um 1 erhöhen (Entscheidung F, 05.11.). `position_s` ist abgerundet auf 1 Nachkommastelle (Abschnitt 3.8). `store` schreibt nicht, wenn Art, Folge, Index, Track und Position unverändert sind. |
+| `ZeigerSpeichern` | `art: Literal["serie","folge"]`, `serie_id: str`, `datei: str`, `index: int \| None`, `track: int`, `position_s: float`, `grund: Literal["pause","folgenende","trackwechsel","zurueck","figurwechsel","periodisch","herunterfahren"]` (`zurueck`: Zurück in `beendet`, 9.12) (Entscheidung F, 05.11.) | `store` (`resume.json`) | Zeiger schreiben (`art="serie"` in `serien`, `art="folge"` in `folgen`), `zaehler` dieses Zeigers um 1 erhöhen (Entscheidung F, 05.11.). `position_s` ist abgerundet auf 1 Nachkommastelle (Abschnitt 3.8). `store` schreibt nicht, wenn Art, Folge, Index, Track und Position unverändert sind. |
 | `TonSpielen` | `ton: Literal["start","unbekannt","fehler","hinweis","lernen_beginn","lernen_ende","akku_leer","pruef_ok","pruef_fehler"]` | `sounds` | kurzer Rückmeldeton (Datei `box/sounds/<ton>.wav`, `pruef_*` in AP 2.3). |
 | `StatusPruefen` | `vorgang: str \| None` | `selftest` | Prüfpunkte Leser, Medien, Netz, Speicher in dieser Reihenfolge nach den Kriterien aus Abschnitt 12.3 prüfen und je Punkt `pruef_ok` oder `pruef_fehler` spielen (Status-Admin-Karte, CUJ 11). `selftest` wertet aus und lässt `sounds` die Töne spielen; ausgeführt wird der Befehl nur von `selftest`. |
 | `Melden` | `art: Literal["unbekannt","gelernt"]`, `uid: str`, `befehl_id: str \| None` | `outbox` | Eintrag in `unknown.json`, Veröffentlichung an HA, Löschen erst nach Bestätigung (Abschnitt 7). `befehl_id` ist bei `gelernt` die ID des Lernbefehls, sonst `None`. |
 | `EreignisSenden` | `art: Literal["fehler","befehl_abgelehnt"]`, `daten: Mapping[str, str \| int \| bool \| None]` | `ha` | Meldung an HA ohne Bestätigung (`…/event`). `befehl_abgelehnt` hat `daten = {"befehl": <lernen\|sync\|update>, "befehl_id": <str>, "grund": <bedingung\|zeit_unsicher>}` und optional `"detail"`; `lernen_abbrechen` wird nie abgelehnt. Die Meldungen `liste_abgelehnt`, `v_unbekannt` und `befehl_unbekannt` entstehen **nicht** im Kern, sondern direkt in `ha` (Abschnitt 9, Punkt 9). |
-| `ZustandMelden` | `sitzung: str`, `strom: Literal["aktiv","leerlauf","herunterfahren"]`, `serie_id: str \| None`, `lernmodus: bool`, `ruhe: Literal["normal","leiser","stumm"]`, `gute_nacht: Literal["aus","laeuft","ausblenden"]`, `figur_liegt: bool` | `ha` (Statussammler, Abschnitt 12), `led` | Sammelzustand für Status-Sensoren und LED-Ring. `core` erzeugt ihn bei jeder Änderung (6.1, Schritt 6). Den Status-JSON baut nicht der Kern, sondern der Statussammler in `ha` (Abschnitt 12). |
+| `ZustandMelden` | `sitzung: str`, `strom: Literal["aktiv","leerlauf","herunterfahren"]`, `serie_id: str \| None`, `lernmodus: bool`, `ruhe: Literal["normal","leiser","stumm"]`, `gute_nacht: Literal["aus","laeuft","ausblenden"]`, `figur_liegt: bool`, `folge: str \| None = None`, `track: int \| None = None` (Name der aktuellen Folge und Nummer des Tracks, für das optionale Statusfeld `folge`, 12.1) (Entscheidung F, 05.11.) | `ha` (Statussammler, Abschnitt 12), `led` | Sammelzustand für Status-Sensoren und LED-Ring. `core` erzeugt ihn bei jeder Änderung (6.1, Schritt 6). Den Status-JSON baut nicht der Kern, sondern der Statussammler in `ha` (Abschnitt 12). |
 | `LeserPing` | – | `reader` | `PING` an den Leser senden. |
 | `SyncStarten` | `grund: Literal["ha","start_lader"]` | `sync` | Sync anfordern. `sync` entscheidet nach der Netz-Regel (Heim / Hotspot und Akku), ob er läuft; wenn nicht, meldet er `SyncAbgebrochen(grund="regel")`. |
 | `SyncAbbrechen` | `grund: Literal["akku_tiefstand"]` | `sync` | laufenden Sync abbrechen. |
@@ -434,20 +437,37 @@ Die Funktionen stehen in `pointer.py` (rein). `session` benutzt sie so:
     `Protokoll(WARNING, ereignis="zeiger_track_fehlt")`.
 *   **Track-Wechsel (`TrackWechsel`) (Entscheidung F, 05.11.):** Der Zeiger wird auf den neuen Track,
     Position 0 gesetzt; `ZeigerSpeichern(grund="trackwechsel")`. **Keine Pause**,
-    der Zustand bleibt `spielt`. Die Pause nach jeder Folge (Entscheidung A)
-    gilt nur am Ende der ganzen Folge.
+    der Zustand bleibt. Die Pause nach jeder Folge (Entscheidung A)
+    gilt nur am Ende der ganzen Folge. **Entscheidung F, 05.11.: `TrackWechsel`
+    gilt in jedem Zustand mit laufendem MPD**, also in `spielt` (auch während des
+    Ausblendens wegen „stumm“ und während der MPD-Frist) und in `unbekannt`: Der
+    Zeiger wird je Ziel immer nachgeführt (Serien-Zeiger bzw. Folgen-Zeiger) und
+    gespeichert; der Zustand ändert sich nicht. Ein `TrackWechsel` mit anderer
+    Serie oder Folge als der aktuellen, mit einem Track außerhalb der Folge oder
+    mit einem Track, der nicht größer als der aktuelle ist (veraltet), wird
+    ignoriert (`Protokoll`). In den übrigen Zuständen (`leer`, `pausiert`,
+    `beendet`, `gehalten`) wird er ignoriert.
 *   **Folge zu Ende (`FolgeZuEnde`) (Entscheidung F, 05.11.):** Ziel `serie`: Serien-Zeiger auf die nächste
     Folge, Track 0, Position 0, nach der letzten Folge auf Folge 1. Ziel `folge`:
     Folgen-Zeiger dieser Folge auf Track 0, Position 0 (das nächste Auflegen
     spielt sie von vorn). Dann `ZeigerSpeichern(grund="folgenende")`,
     `Pausieren("folgenende")`, Zustand `beendet`. Die Sitzung merkt sich die eben
     beendete Folge (Serie und Name) für `Zurueck` (Abschnitt 9, Punkt 12).
+    **Entscheidung F, 05.11.: `FolgeZuEnde` gilt in jedem Zustand mit laufendem
+    MPD.** In `unbekannt` (und in der MPD-Frist) geschieht dasselbe wie in
+    `spielt`: Zeiger je Ziel setzen und speichern, Pause, Zustand `beendet`
+    (Fristen werden verworfen). **Während des Ausblendens wegen „stumm“** wird das
+    Ausblenden beendet (Grenze `ausblenden` gelöscht, Regel 6.2.7), der Zeiger je
+    Ziel gesetzt und gespeichert, `Pausieren("folgenende")`, und der Zustand ist
+    `gehalten` (nicht `beendet`; `StummEndet` macht daraus wie üblich `pausiert`).
+    In den übrigen Zuständen wird `FolgeZuEnde` ignoriert.
 *   **Überraschungs-Serie** (für unbekannte und gesperrte Tobies; sie verhält sich
     wie ein Ziel `serie` (Entscheidung F, 05.11.)): die einzige
     Serie mit `typ="ueberraschung"`. Gibt es keine, mehr als eine oder ist sie
     leer: `TonSpielen("fehler")` und `Protokoll`.
-*   **Zuordnung auf eine Serie, die die Box noch nicht kennt** (die `serie_id`
-    steht nicht in der Bibliothek; Entscheidung Tobias 05.11.): Die Box spielt die
+*   **Zuordnung auf eine Serie oder Folge, die die Box noch nicht kennt** (die `serie_id`
+    steht nicht in der Bibliothek, oder bei `typ="folge"` fehlt die Folge in der
+    Serie; Entscheidung Tobias 05.11., für Folgen Entscheidung F, 05.11.): Die Box spielt die
     **Überraschungs-Serie** (wie bei einem unbekannten Tobie, aber **ohne**
     `Melden`: der Tobie ist ja zugeordnet) und protokolliert den Grund
     (`Protokoll(WARNING, ereignis="serie_fehlt", daten={"uid": …, "serie": …})`).
@@ -456,6 +476,14 @@ Die Funktionen stehen in `pointer.py` (rein). `session` benutzt sie so:
     Gibt es auch keine Überraschungs-Serie, gilt deren Fehlerfall (Fehlerton).
 *   Der Zeiger wird nur geschrieben, wenn er sich geändert hat (Art, Folge, Index,
     Track oder Position). `ZeigerSpeichern` trägt den Wert aus `PlayerPosition`.
+*   **`PlayerPosition` (Entscheidung F, 05.11.):** Die Sitzung übernimmt die
+    Position nur in `spielt` und `unbekannt` (Zustände mit laufendem MPD) und nur,
+    wenn `serie_id`, `datei` **und** `track` mit dem aktuellen Zeiger übereinstimmen.
+    In allen anderen Zuständen (auch `pausiert`, `beendet`, `gehalten`) und bei
+    anderer Serie, Folge oder anderem Track wird sie ignoriert. So überschreibt
+    eine veraltete Position nach `FolgeZuEnde`, `TrackWechsel`, Vor oder Zurück nie
+    den Zeiger. Die Position der Pause ist die zuletzt übernommene (höchstens
+    `POSITION_INTERVAL_S` alt).
 *   **Periodisch:** Bei `Takt` im Zustand `spielt` gibt `session`
     `ZeigerSpeichern(grund="periodisch")` aus, wenn seit dem letzten Speichern
     (auf `jetzt.mono`) mindestens `SPEICHERN_PERIODISCH_S` = 30 s vergangen sind
@@ -777,6 +805,14 @@ gekennzeichneten sind von Tobias oder der Projektleitung entschieden
         *   `Abgehoben` während der Frist: normale Pause (Zeiger ist gespeichert),
             `pausiert`. `Hauptknopf` kurz: Pause, `pausiert`. Weitere
             `PlayerFehler` während der Frist: nur `Protokoll`.
+    *   **Fehlender oder unlesbarer Track in einer Folge mit mehreren Tracks
+        (bestätigt 05.11., Entscheidung F):** Der Player überspringt den Track und
+        spielt den nächsten Track **derselben Folge** (`Protokoll(WARNING,
+        ereignis="datei_fehlt")` bzw. `datei_unlesbar`, `TrackWechsel` auf den
+        nächsten vorhandenen Track). Erst wenn nach dem letzten Track nichts mehr
+        spielbar ist, gilt das als Ende der Folge (`FolgeZuEnde`). Ein
+        `PlayerFehler` entsteht nur, wenn **kein** Track der Folge spielbar ist
+        (und bei einer Folge aus einer Datei); dann gilt die Regel oben.
     *   `PlayerVerbindung` in den übrigen Zuständen: nur `Protokoll`;
         `ok=True` in `pausiert`, `beendet`, `gehalten`, `leer` gibt zusätzlich
         defensiv `Pausieren("fehler")` aus (idempotent; 05.11.).
@@ -817,6 +853,18 @@ gekennzeichneten sind von Tobias oder der Projektleitung entschieden
         Folge **vor** dem Serien-Zeiger (zyklisch), der Serien-Zeiger wird auf
         sie gesetzt; bei Ziel `folge` ist es dieselbe Folge. Beide Tasten sind im
         „stumm“-Fenster gesperrt (nur Hinweiston, Tabelle unten).
+        **Festlegung (Entscheidung F, 05.11.): einzige Quelle für `Zurueck` in
+        `beendet` ist die gemerkte, eben beendete Folge** (Serie und Name, von
+        `FolgeZuEnde` gesetzt, mit dem Zustand `beendet` verworfen). Die Sitzung
+        setzt `index` durch Nachschlagen des Namens in `Serie.folgen` (bei Ziel
+        `folge` bleibt `index` `None`), Track 0, Position 0, und gibt
+        `ZeigerSpeichern(grund="zurueck")` aus. Fehlt die Folge inzwischen in der
+        Bibliothek, gibt es nur `TonSpielen("hinweis")` und `Protokoll`.
+        **`beendet` wird nicht gespeichert:** Nach einem Neustart des Dienstes gibt
+        es keine gemerkte Folge und keinen Zustand `beendet`; die Sitzung beginnt
+        ohne Wiedergabe (`leer`) mit dem gespeicherten Zeiger (nach einem Folgenende
+        steht er schon auf der nächsten Folge bzw. bei einer Folge auf Track 0),
+        und ein liegender Tobie startet dort wie beim Auflegen (CUJ 20).
     *   **Im „stumm“-Fenster** (`quiet` im Zustand `stumm`) startet **kein**
         Abspielen-Auslöser eine Wiedergabe. Jeder Auslöser, der ohne „stumm“ ein
         `Abspielen` ergäbe, gibt stattdessen nur `TonSpielen("hinweis")` aus
@@ -824,8 +872,8 @@ gekennzeichneten sind von Tobias oder der Projektleitung entschieden
 
         | Auslöser unter „stumm“ | Wirkung |
         |---|---|
-        | `Aufgelegt` (Serie, unbekannt) und `Gesperrt` in `leer`, `pausiert` | Hinweiston, Zustand `gehalten` (Tabelle des Designs); `Melden` bei unbekanntem Tobie bleibt |
-        | `Aufgelegt` (Serie) in `beendet` und `gehalten` (Tobie wird neu aufgelegt; bestätigt 05.11.) | nur Hinweiston, nichts startet, Zustand unverändert (`gehalten` bleibt, `beendet` bleibt); `Melden` bei unbekanntem Tobie bleibt |
+        | `Aufgelegt` (Serie oder Folge, unbekannt) und `Gesperrt` in `leer`, `pausiert` | Hinweiston, Zustand `gehalten` (Tabelle des Designs); `Melden` bei unbekanntem Tobie bleibt |
+        | `Aufgelegt` (Serie oder Folge) in `beendet` und `gehalten` (Tobie wird neu aufgelegt; bestätigt 05.11.) | nur Hinweiston, nichts startet, Zustand unverändert (`gehalten` bleibt, `beendet` bleibt); `Melden` bei unbekanntem Tobie bleibt |
         | `Hauptknopf` kurz in `pausiert`, `beendet`, `gehalten` | Hinweiston, Zustand unverändert |
         | `Weiter`, `Zurueck` in `pausiert`, `beendet`, `gehalten` (dort, wo sie ohne „stumm“ spielen würden) | Hinweiston, Zeiger unverändert |
         | Wechsel nach `KonfigGeladen` (Punkt 14) | Hinweiston, Zustand und Zeiger unverändert |
@@ -918,6 +966,7 @@ Feld:
 | `zustand` | `ZustandMelden.sitzung`; ist `ZustandMelden.strom` = `herunterfahren`, dann `herunterfahren` |
 | `lernmodus` | `ZustandMelden.lernmodus` |
 | `serie` | `ZustandMelden.serie_id`; der Name aus der letzten `BibliothekGeladen` (ohne Treffer: `name` = `id`); `null` ohne Serie |
+| `folge` (optional) (Entscheidung F, 05.11.) | `ZustandMelden.folge` und `.track`: `{"name": <Name der Folge>, "track": <int ab 0>}`; fehlt das Feld (oder ist `null`), wenn keine Folge gewählt ist. Ein optionales Feld, kein neues `v` |
 | `akku_prozent` | letztes `AkkuStand`; `null` bis zum ersten |
 | `lader` | letztes `LaderGeaendert`; `null` bis zum ersten |
 | `netz` | letztes `NetzKlasse` (bis zum ersten: `offline`) |
@@ -1070,3 +1119,19 @@ Projektleitung (P) entschieden oder aus dem Goldfisch-Review übernommen
     `folge`-Ziels wird der vorhandene Ton `hinweis` benutzt; ein Folgen-Tobie
     auf eine fehlende Folge spielt die Überraschungs-Serie (`folge_fehlt`).
     Tobias bestätigt oder ändert das.
+
+25. **Bestätigt (05.11., Entscheidung F): Position und Player-Ereignisse in jedem
+    Zustand mit laufendem MPD.** `PlayerPosition` wird nur in `spielt` und
+    `unbekannt` und nur bei passender Serie, Folge und Track übernommen;
+    `TrackWechsel` und `FolgeZuEnde` führen den Zeiger in jedem Zustand mit
+    laufendem MPD nach (`unbekannt`, Ausblenden wegen „stumm“, MPD-Frist);
+    `FolgeZuEnde` in `unbekannt` → `beendet`, während des Ausblendens →
+    `gehalten` (6.3).
+26. **Bestätigt (05.11., Entscheidung F): Zurück in `beendet`** nimmt die gemerkte,
+    eben beendete Folge als einzige Quelle, setzt `index` durch Nachschlagen,
+    Grund `zurueck`; `beendet` wird nicht gespeichert (9.12).
+27. **Bestätigt (05.11., Entscheidung F): fehlender oder unlesbarer Track** in
+    einer Folge mit mehreren Tracks wird übersprungen (`datei_fehlt` im
+    Protokoll), erst nach dem letzten Track gilt das Ende der Folge (9.10).
+28. **Bestätigt (05.11., Entscheidung F): Statusfeld `folge`** `{name, track}`
+    ist optional (12.1).

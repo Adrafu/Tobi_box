@@ -187,3 +187,52 @@ async def test_dienst_startet_ohne_simulation_und_endet_auf_sigterm(welt):
     assert any(z.get("ereignis") == "ende" for z in zeilen), ausgabe
     assert (await mpd_status(mpd.port))["state"] == "pause"
     assert float(_zeiger(welt["zustand"])["position_s"]) >= 1.0
+
+
+async def test_folgen_tobie_mit_drei_tracks_ende_zu_ende(welt):
+    """Ketten-Test mit echtem MPD: Folge aus drei Tracks, Track-Wechsel im Zeiger, Pause erst am Ende."""
+    mpd = welt["mpd"]
+    ordner = mpd.medien / "cdserie"
+    audio.erzeuge_serie(mpd.medien, "cdserie", ["z.wav"], serie_id="cdserie", name="CD", dauer_s=1.0)
+    audio.erzeuge_folge_ordner(ordner, "Rip", ["01.wav", "02.wav", "03.wav"], dauer_s=1.5)
+    audio.schreibe_serie_json(ordner, "cdserie", "CD", ["Rip", "z.wav"])
+    mpd.aktualisiere()
+    k = ev.Konfig(
+        2, "a3f9c1e07b2d4856", {UID: ev.Zuordnung("folge", "cdserie", "Rip")}, ev.LeiseZeiten("Europe/Berlin", ()), ev.GuteNacht(30, 60)
+    )
+    store.schreibe_atomar(welt["zustand"] / "config.json", {**store.konfig_zu_json(k), "ton_pegel": 40, "hinweis_pegel": 15})
+    kfg = konfig_modul.lade(welt["toml"])
+    with fake_reader.FakeReader(welt["link"], hb_intervall_s=0.5) as fr:
+        app = App(kfg, melde_bereit=False)
+        await app.starte()
+        try:
+            await warte(lambda: "PING" in fr.empfangen, 5.0, "(Leser verbunden)")
+            await asyncio.sleep(0.8)
+            fr.place(UID)
+            await warte(lambda: _spielt(mpd.port), 8.0, "(spielt)")
+            st = await mpd_status(mpd.port)
+            assert st["playlistlength"] == "3"  # alle Tracks der Folge, nur diese
+            await warte(lambda: app.kern.session.track == 1, 6.0, "(zweiter Track)")
+            assert app.kern.session.modus == "spielt"  # keine Pause zwischen den Tracks
+            await warte(lambda: app.kern.session.modus == "beendet", 10.0, "(Folge zu Ende)")
+            assert (await mpd_status(mpd.port))["state"] == "stop"
+            await warte(lambda: _folgen_zeiger(welt["zustand"]) == (0, 0.0), 5.0, "(Folgen-Zeiger zurück auf den Anfang)")
+            roh = resume_zeiger(welt["zustand"])
+            assert roh["schema_version"] == 2 and "cdserie" not in roh["serien"]  # nur der Folgen-Zeiger
+            # Abheben, erneut auflegen: von vorn
+            fr.remove()
+            await warte(lambda: app.kern.session.modus == "pausiert", 5.0, "(abgehoben)")
+            fr.place(UID)
+            await warte(lambda: _spielt(mpd.port), 8.0, "(spielt wieder)")
+            st = await mpd_status(mpd.port)
+            assert st["song"] == "0" and float(st["elapsed"]) < 1.0
+        finally:
+            await app.beende()
+
+
+def _folgen_zeiger(zustand: Path):
+    try:
+        z = resume_zeiger(zustand)["folgen"]["cdserie"]["Rip"]
+    except (OSError, KeyError, ValueError):
+        return None
+    return z["track"], z["position_s"]

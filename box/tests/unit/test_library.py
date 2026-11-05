@@ -6,7 +6,7 @@ import json
 import logging
 
 import pytest
-from fixtures.audio import erzeuge_medien, erzeuge_serie, schreibe_serie_json, schreibe_wav
+from fixtures.audio import erzeuge_folge_ordner, erzeuge_medien, erzeuge_serie, schreibe_serie_json, schreibe_wav
 
 from tobibox import library
 from tobibox.library import lade_bibliothek, natuerlicher_schluessel, sortiere_natuerlich
@@ -276,3 +276,61 @@ def test_doppelte_id_unlesbarer_zeitstempel_zaehlt_als_juengster(tmp_path):
     erzeuge_serie(tmp_path, "a", ["x.wav"], serie_id="d", angelegt_am="gestern")
     erzeuge_serie(tmp_path, "b", ["y.wav"], serie_id="d", angelegt_am="2026-11-05T09:00:00Z")
     assert [s.ordner for s in lade_bibliothek(tmp_path).serien] == ["b"]
+
+
+# --- Folge = Datei oder Ordner mit Tracks (Entscheidung F, 05.11.) --------------------
+
+
+def test_folge_als_datei_hat_genau_einen_track_den_eigenen_namen(tmp_path):
+    erzeuge_serie(tmp_path, "s", ["a.wav", "b.wav"], serie_id="s1")
+    s = lade_bibliothek(tmp_path).serie("s1")
+    assert s.tracks == {"a.wav": ("a.wav",), "b.wav": ("b.wav",)}
+
+
+def test_folge_als_ordner_tracks_in_natuerlicher_sortierung_ohne_dotfiles(tmp_path):
+    ordner = erzeuge_serie(tmp_path, "s", ["x.wav"], serie_id="s1", mit_serie_json=False)
+    erzeuge_folge_ordner(ordner, "CD Schatzinsel", ["track-10.wav", "track-2.wav", "Track-1.wav"],
+                         dotfiles=True, fremde=["cover.jpg", "info.txt"])
+    s = lade_bibliothek(tmp_path).serie("s")
+    assert s.folgen == ("CD Schatzinsel", "x.wav")  # Ordner und Datei zusammen, natürlich sortiert
+    assert s.tracks["CD Schatzinsel"] == (
+        "CD Schatzinsel/Track-1.wav", "CD Schatzinsel/track-2.wav", "CD Schatzinsel/track-10.wav",
+    )
+    assert s.tracks["x.wav"] == ("x.wav",)
+
+
+def test_folge_ordner_in_der_liste_von_serie_json_ist_massgeblich(tmp_path):
+    ordner = erzeuge_serie(tmp_path, "s", ["a.wav"], serie_id="s1")
+    erzeuge_folge_ordner(ordner, "rip", ["02.wav", "01.wav"])
+    erzeuge_folge_ordner(ordner, "nicht-gelistet", ["01.wav"])
+    schreibe_serie_json(ordner, "s1", "S", ["rip", "a.wav"])
+    s = lade_bibliothek(tmp_path).serie("s1")
+    assert s.folgen == ("rip", "a.wav")  # „nicht-gelistet“ wird nicht gespielt
+    assert s.tracks["rip"] == ("rip/01.wav", "rip/02.wav")
+
+
+def test_leerer_folgen_ordner_zaehlt_nicht_und_wird_protokolliert(tmp_path, protokoll):
+    ordner = erzeuge_serie(tmp_path, "s", ["a.wav"], serie_id="s1", mit_serie_json=False)
+    (ordner / "leer").mkdir()
+    erzeuge_folge_ordner(ordner, "nur-fremdes", [], fremde=["cover.jpg"], dotfiles=True)
+    s = lade_bibliothek(tmp_path).serie("s")
+    assert s.folgen == ("a.wav",)
+    assert ereignisse(protokoll).count("folge_leer") == 2
+    # auch aus der Liste: leerer Ordner wird übersprungen
+    schreibe_serie_json(ordner, "s1", "S", ["leer", "a.wav"])
+    assert lade_bibliothek(tmp_path).serie("s1").folgen == ("a.wav",)
+
+
+def test_versteckter_ordner_ist_keine_folge(tmp_path):
+    ordner = erzeuge_serie(tmp_path, "s", ["a.wav"], serie_id="s1", mit_serie_json=False)
+    erzeuge_folge_ordner(ordner, ".Trash", ["01.wav"])
+    assert lade_bibliothek(tmp_path).serie("s").folgen == ("a.wav",)
+
+
+def test_serie_einzelfolgen_ohne_sonderregel(tmp_path):
+    """Ein Hörspiel ohne Reihe liegt in einer gewöhnlichen Serie „Einzelfolgen“."""
+    ordner = erzeuge_serie(tmp_path, "Einzelfolgen", ["Frosch.wav"], mit_serie_json=False)
+    erzeuge_folge_ordner(ordner, "Schatzinsel", ["01.wav", "02.wav", "03.wav"])
+    s = lade_bibliothek(tmp_path).serie("Einzelfolgen")
+    assert (s.typ, s.folgen) == ("normal", ("Frosch.wav", "Schatzinsel"))
+    assert len(s.tracks["Schatzinsel"]) == 3 and s.tracks["Frosch.wav"] == ("Frosch.wav",)

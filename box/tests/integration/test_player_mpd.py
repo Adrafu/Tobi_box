@@ -8,6 +8,7 @@ import time
 import pytest
 from mpd.asyncio import MPDClient
 
+from conftest import abspielen as _abspielen
 from tobibox import events as ev
 from tobibox.player import Player
 
@@ -57,7 +58,7 @@ async def probe(mpd):
 
 
 def abspielen(serie="lang", datei="a.wav", pos=0.0, vorgang="v1") -> ev.Abspielen:
-    return ev.Abspielen(serie, serie, datei, pos, vorgang)
+    return _abspielen(serie, serie, datei, pos, vorgang)
 
 
 async def test_ohne_lautstaerke_wird_nicht_gespielt(probe):
@@ -343,3 +344,192 @@ async def test_pausiere_hart_ohne_player_verbindung(mpd):
     pl = Player(lambda e: None, "127.0.0.1", mpd.port)  # nie gestartet: frische Verbindung
     assert await pl.pausiere_hart()
     assert _status_roh(mpd)["state"] in ("pause", "stop")
+
+
+# --- Folgen mit mehreren Tracks (Entscheidung F, 05.11.) ---------------------------------------
+
+CD3 = ("rip/01.wav", "rip/02.wav", "rip/03.wav")
+
+
+def ab_tracks(tracks=CD3, track=0, pos=0.0, serie="cdserie", datei="rip", ordner="cdserie") -> ev.Abspielen:
+    return ev.Abspielen(serie, ordner, datei, tracks, track, pos, "v1")
+
+
+@pytest.fixture
+def cd_medien(mpd):
+    """Serie „cdserie“ mit der Folge „rip“: drei kurze Tracks; „lang“ hat zwei lange Tracks."""
+    from fixtures import audio
+
+    audio.erzeuge_folge_ordner(mpd.medien / "cdserie", "rip", ["01.wav", "02.wav", "03.wav"], dauer_s=1.0)
+    audio.erzeuge_folge_ordner(mpd.medien / "cdlang", "rip", ["01.wav", "02.wav", "03.wav"], dauer_s=30.0)
+    mpd.aktualisiere()
+    return mpd
+
+
+async def test_folge_mit_drei_tracks_spielt_durch_track_wechsel_je_wechsel_folge_zu_ende_nur_am_ende(cd_medien, probe):
+    await probe.player.lautstaerke_setzen(20, 50)
+    await probe.player.abspielen(ab_tracks())
+    st = await probe.status()
+    assert st["state"] == "play" and st["playlistlength"] == "3" and st["song"] == "0"
+    await warte(lambda: probe.alle(ev.FolgeZuEnde), 10.0, "(FolgeZuEnde nach drei Tracks)")
+    wechsel = probe.alle(ev.TrackWechsel)
+    assert wechsel == [ev.TrackWechsel("cdserie", "rip", 1), ev.TrackWechsel("cdserie", "rip", 2)]
+    assert probe.alle(ev.FolgeZuEnde) == [ev.FolgeZuEnde("cdserie", "rip")]
+    # Reihenfolge: Wechsel 1, Wechsel 2, dann (Endposition), dann FolgeZuEnde; FolgeZuEnde zuletzt
+    arten = [type(x) for x in probe.e if isinstance(x, (ev.TrackWechsel, ev.FolgeZuEnde))]
+    assert arten == [ev.TrackWechsel, ev.TrackWechsel, ev.FolgeZuEnde]
+    assert probe.e[-1] == ev.FolgeZuEnde("cdserie", "rip")
+    # die Position kommt sofort nach jedem Track-Wechsel mit dem neuen Track
+    for w in wechsel:
+        i = probe.e.index(w)
+        nach = probe.e[i + 1]
+        assert isinstance(nach, ev.PlayerPosition) and nach.track == w.track and nach.spielt
+    # Positionen tragen den Track; die Endposition gehört zum letzten Track
+    spaet = [x for x in probe.alle(ev.PlayerPosition)]
+    assert {x.track for x in spaet} == {0, 1, 2}
+    ende_pos = probe.e[probe.e.index(probe.alle(ev.FolgeZuEnde)[0]) - 1]
+    assert isinstance(ende_pos, ev.PlayerPosition) and ende_pos.track == 2 and not ende_pos.spielt
+    # MPD stoppt nach dem letzten Track und spielt nie von selbst weiter
+    await asyncio.sleep(1.0)
+    st = await probe.status()
+    assert st["state"] == "stop" and len(probe.alle(ev.FolgeZuEnde)) == 1
+    assert not probe.alle(ev.PlayerFehler)
+
+
+async def test_resume_per_seek_in_track_2(cd_medien, probe):
+    await probe.player.lautstaerke_setzen(20, 50)
+    await probe.player.abspielen(ab_tracks(track=2, pos=12.5, serie="cdlang", ordner="cdlang"))
+    st = await probe.status()
+    assert st["state"] == "play" and st["playlistlength"] == "3"
+    assert st["song"] == "2"  # mitten im dritten Track, nie bei Track 0 begonnen
+    assert float(st["elapsed"]) >= 12.5
+    erste = probe.alle(ev.PlayerPosition)[0]
+    assert erste.track == 2 and erste.position_s >= 12.5
+    assert not probe.alle(ev.TrackWechsel)  # der Start ist kein Wechsel
+
+
+async def test_pause_und_wiederaufnahme_mitten_im_zweiten_track(cd_medien, probe):
+    await probe.player.lautstaerke_setzen(20, 50)
+    await probe.player.abspielen(ab_tracks(track=1, pos=5.0, serie="cdlang", ordner="cdlang"))
+    await probe.player.pausieren(ev.Pausieren("knopf"))
+    pos = probe.alle(ev.PlayerPosition)[-1]
+    assert (pos.track, pos.spielt) == (1, False) and pos.position_s >= 5.0
+    assert (await probe.status())["state"] == "pause"
+    await probe.player.abspielen(ab_tracks(track=1, pos=pos.position_s - 3.0, serie="cdlang", ordner="cdlang"))
+    st = await probe.status()
+    assert st["state"] == "play" and st["song"] == "1" and float(st["elapsed"]) >= pos.position_s - 3.0
+
+
+async def test_fehlender_track_in_der_mitte_wird_uebersprungen(cd_medien, probe):
+    await probe.player.lautstaerke_setzen(20, 50)
+    tracks = ("rip/01.wav", "rip/gibt-es-nicht.wav", "rip/03.wav")
+    await probe.player.abspielen(ab_tracks(tracks))
+    assert (await probe.status())["playlistlength"] == "2"
+    await warte(lambda: probe.alle(ev.FolgeZuEnde), 10.0, "(FolgeZuEnde)")
+    # Track-Nummern sind die der Folge: 0 -> 2
+    assert probe.alle(ev.TrackWechsel) == [ev.TrackWechsel("cdserie", "rip", 2)]
+    assert not probe.alle(ev.PlayerFehler)
+
+
+async def test_fehlt_der_start_track_beginnt_der_naechste_vorhandene_bei_position_0(cd_medien, probe):
+    await probe.player.lautstaerke_setzen(20, 50)
+    tracks = ("rip/01.wav", "rip/gibt-es-nicht.wav", "rip/03.wav")
+    await probe.player.abspielen(ab_tracks(tracks, track=1, pos=30.0, serie="cdlang", ordner="cdlang"))
+    st = await probe.status()
+    assert st["state"] == "play" and st["song"] == "1"  # Warteschlange: 01 (0), 03 (1)
+    assert float(st["elapsed"]) < 5.0  # Position gilt nur für den gewünschten Track
+    assert probe.alle(ev.PlayerPosition)[0].track == 2
+
+
+async def test_fehlt_der_letzte_track_endet_die_folge_nach_dem_vorletzten(cd_medien, probe):
+    await probe.player.lautstaerke_setzen(20, 50)
+    tracks = ("rip/01.wav", "rip/02.wav", "rip/gibt-es-nicht.wav")
+    await probe.player.abspielen(ab_tracks(tracks))
+    await warte(lambda: probe.alle(ev.FolgeZuEnde), 10.0, "(FolgeZuEnde)")
+    assert probe.alle(ev.TrackWechsel) == [ev.TrackWechsel("cdserie", "rip", 1)]
+    assert not probe.alle(ev.PlayerFehler)
+
+
+async def test_fehlt_alles_ab_dem_start_track_ist_das_ende_der_folge(cd_medien, probe):
+    await probe.player.lautstaerke_setzen(20, 50)
+    tracks = ("rip/01.wav", "rip/02.wav", "rip/gibt-es-nicht.wav")
+    await probe.player.abspielen(ab_tracks(tracks, track=2))
+    assert probe.alle(ev.FolgeZuEnde) == [ev.FolgeZuEnde("cdserie", "rip")]
+    assert (await probe.status())["state"] == "stop"
+    assert not probe.alle(ev.PlayerFehler)
+
+
+async def test_fehlt_jeder_track_ist_es_ein_player_fehler(cd_medien, probe):
+    await probe.player.lautstaerke_setzen(20, 50)
+    await probe.player.abspielen(ab_tracks(("rip/a.wav", "rip/b.wav")))
+    assert [x.art for x in probe.alle(ev.PlayerFehler)] == ["datei_fehlt"]
+    assert not probe.alle(ev.FolgeZuEnde)
+
+
+async def test_unlesbarer_track_nicht_im_mpd_bestand_wird_uebersprungen(cd_medien, probe):
+    from fixtures import audio
+
+    ordner = audio.erzeuge_folge_ordner(cd_medien.medien / "cdmuell", "rip", ["01.wav", "03.wav"], dauer_s=1.0)
+    (ordner / "02.wav").write_bytes(b"kein wav" * 50)  # Müll: MPD nimmt ihn nicht in den Bestand auf
+    cd_medien.aktualisiere()
+    await probe.player.lautstaerke_setzen(20, 50)
+    await probe.player.abspielen(ab_tracks(serie="cdmuell", ordner="cdmuell"))
+    assert (await probe.status())["playlistlength"] == "2"
+    await warte(lambda: probe.alle(ev.FolgeZuEnde), 10.0, "(FolgeZuEnde)")
+    assert probe.alle(ev.TrackWechsel) == [ev.TrackWechsel("cdmuell", "rip", 2)]
+    assert not probe.alle(ev.PlayerFehler)
+
+
+async def test_track_nach_dem_einlesen_geloescht_mpd_ueberspringt_ihn_ohne_fehler(cd_medien):
+    """Ohne Prüfung im Player (kein Medienordner): MPD springt über die fehlende Datei."""
+    p = Probe(cd_medien)
+    p.player = Player(p.e.append, "127.0.0.1", cd_medien.port, medien=None, abfrage_s=0.05)
+    await p.start()
+    try:
+        (cd_medien.medien / "cdserie" / "rip" / "02.wav").unlink()  # MPD kennt sie noch
+        await p.player.lautstaerke_setzen(20, 50)
+        await p.player.abspielen(ab_tracks())
+        await warte(lambda: p.alle(ev.FolgeZuEnde), 10.0, "(FolgeZuEnde)")
+        assert p.alle(ev.TrackWechsel) == [ev.TrackWechsel("cdserie", "rip", 2)]
+        assert not p.alle(ev.PlayerFehler)
+    finally:
+        await p.stop()
+
+
+async def test_letzter_track_nach_dem_einlesen_geloescht_ist_das_ende_der_folge_kein_fehler(cd_medien):
+    p = Probe(cd_medien)
+    p.player = Player(p.e.append, "127.0.0.1", cd_medien.port, medien=None, abfrage_s=0.05)
+    await p.start()
+    try:
+        (cd_medien.medien / "cdserie" / "rip" / "03.wav").unlink()
+        await p.player.lautstaerke_setzen(20, 50)
+        await p.player.abspielen(ab_tracks())
+        await warte(lambda: p.alle(ev.FolgeZuEnde), 10.0, "(FolgeZuEnde)")
+        assert p.alle(ev.TrackWechsel) == [ev.TrackWechsel("cdserie", "rip", 1)]
+        assert not p.alle(ev.PlayerFehler)
+        assert (await p.status())["state"] == "stop"
+    finally:
+        await p.stop()
+
+
+async def test_einzige_datei_nach_dem_einlesen_geloescht_bleibt_ein_player_fehler(mpd):
+    """Eine Folge aus einer Datei hat keinen „nächsten Track“: weiter ``datei_unlesbar``."""
+    p = Probe(mpd)
+    p.player = Player(p.e.append, "127.0.0.1", mpd.port, medien=None, abfrage_s=0.05)
+    await p.start()
+    try:
+        (mpd.medien / "kurz" / "a.wav").unlink()
+        await p.player.lautstaerke_setzen(20, 50)
+        await p.player.abspielen(abspielen("kurz", "a.wav"))
+        await warte(lambda: p.alle(ev.PlayerFehler), 6.0, "(PlayerFehler)")
+        assert not p.alle(ev.FolgeZuEnde)
+    finally:
+        await p.stop()
+
+
+async def test_warteschlange_enthaelt_nur_die_tracks_der_aktuellen_folge(cd_medien, probe):
+    await probe.player.lautstaerke_setzen(20, 50)
+    await probe.player.abspielen(ab_tracks(serie="cdlang", ordner="cdlang"))
+    await probe.player.abspielen(abspielen("lang", "a.wav"))
+    st = await probe.status()
+    assert st["playlistlength"] == "1" and st["state"] == "play"

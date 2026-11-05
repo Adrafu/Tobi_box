@@ -93,6 +93,8 @@ def _zusammenfassung(teil: Mapping[str, Any]) -> ev.ZustandMelden:
         ruhe=kz("quiet", "normal"),  # type: ignore[arg-type]
         gute_nacht=kz("bedtime", "aus"),  # type: ignore[arg-type]
         figur_liegt=session.figur_liegt(sz),
+        folge=sz.datei if sz.serie_id is not None else None,
+        track=sz.track if sz.serie_id is not None and sz.datei is not None else None,
     )
 
 

@@ -7,7 +7,7 @@ import logging
 import os
 
 import pytest
-from conftest import KernHarnisch, UID_S1
+from conftest import zeiger_speichern, zeiger, ppos, KernHarnisch, UID_S1
 
 from tobibox import events as ev
 from tobibox import eventlog, store
@@ -33,12 +33,16 @@ def protokoll():
     log.setLevel(alt_level)
 
 
+S1K = ("serie", "s1", "")  # Schlüssel des Serien-Zeigers (pointer.schluessel)
+SK = ("serie", "s", "")
+
+
 def ereignisse(zeilen):
     return [z.ereignis for z in zeilen]
 
 
 def zeiger_befehl(datei="a.mp3", index=0, pos=10.0, grund="pause", serie="s1"):
-    return ev.ZeigerSpeichern(serie, datei, index, pos, grund)
+    return zeiger_speichern(serie, datei, index, pos, grund)
 
 
 # --- schreibe_atomar -----------------------------------------------------------
@@ -122,7 +126,7 @@ def test_beschaedigte_datei_rueckfall_auf_bak(tmp_path, protokoll):
     p.write_text('{"schema_version": 1, "serien": {')  # abgeschnitten
     wert, quelle = lade_resume(p)
     assert quelle == "bak"
-    assert wert["s1"].position_s == 10.0
+    assert wert[S1K].position_s == 10.0
     assert (tmp_path / "resume.json.defekt").exists()
     assert json.loads(p.read_text())["serien"]["s1"]["position_s"] == 10.0  # zurückgeschrieben
     assert "datei_defekt" in ereignisse(protokoll)
@@ -151,7 +155,7 @@ def test_aeltere_defekt_datei_wird_ueberschrieben(tmp_path):
 
 
 def test_schema_zu_neu_gilt_als_ungueltig(tmp_path, protokoll):
-    (tmp_path / "resume.json").write_text(json.dumps({"schema_version": 2, "serien": {}}))
+    (tmp_path / "resume.json").write_text(json.dumps({"schema_version": 3, "serien": {}}))
     wert, quelle = lade_resume(tmp_path / "resume.json")
     assert quelle == "standard"
     assert "schema_zu_neu" in ereignisse(protokoll)
@@ -170,7 +174,7 @@ def test_schema_zu_neu_gilt_als_ungueltig(tmp_path, protokoll):
 )
 def test_ungueltige_eintraege_machen_die_datei_ungueltig(serien):
     with pytest.raises(store.Ungueltig):
-        store.parse_resume({"serien": serien})
+        store.parse_resume({"schema_version": 2, "serien": {k: {"track": 0, **v} if isinstance(v, dict) else v for k, v in serien.items()}, "folgen": {}})
 
 
 def test_unbekannte_felder_werden_ignoriert(tmp_path):
@@ -178,7 +182,7 @@ def test_unbekannte_felder_werden_ignoriert(tmp_path):
     p.write_text(json.dumps({"schema_version": 1, "neu": 1,
                              "serien": {"s": {"folge": "a", "index": 0, "position_s": 1.5, "zaehler": 2, "x": 1}}}))
     wert, quelle = lade_resume(p)
-    assert quelle == "datei" and wert["s"].position_s == 1.5
+    assert quelle == "datei" and wert[SK].position_s == 1.5
 
 
 # --- ResumeStore ----------------------------------------------------------------
@@ -194,7 +198,7 @@ def test_resume_speichern_und_neu_laden(tmp_path):
     s.laden()
     assert s.speichern(zeiger_befehl("b.mp3", 1, 412.56), 0)
     geladen = ResumeStore(tmp_path).laden()
-    assert geladen.zeiger == (ev.Zeiger("s1", "b.mp3", 1, 412.5, 1),)
+    assert geladen.zeiger == (zeiger("s1", "b.mp3", 1, 412.5, 1),)
 
 
 def test_zaehler_steigt_je_schreibung(tmp_path):
@@ -202,7 +206,7 @@ def test_zaehler_steigt_je_schreibung(tmp_path):
     s.laden()
     for i, pos in enumerate((1.0, 2.0, 3.0), start=1):
         s.speichern(zeiger_befehl(pos=pos), i * 100)
-        assert s.zeiger["s1"].zaehler == i
+        assert s.zeiger[S1K].zaehler == i
 
 
 def test_unveraenderter_zeiger_wird_nicht_geschrieben(tmp_path):
@@ -247,7 +251,7 @@ def test_zeigerschreibung_hoechstens_alle_30_s_ueber_2_stunden_wiedergabe(tmp_pa
     pos = 0.0
     for sek in range(7200):
         pos += 1.0
-        h.sende(ev.PlayerPosition("s1", "a.mp3", pos, True), dt=1.0)
+        h.sende(ppos("s1", "a.mp3", pos, True), dt=1.0)
         for _ in range(10):  # Takt alle 0,1 s: Uhr nicht weiter vorstellen
             out = h.sende(ev.Takt())
             for b in out:
@@ -263,7 +267,7 @@ def test_kern_resume_ende_zu_ende(tmp_path):
 
     s = ResumeStore(tmp_path)
     s.laden()
-    s.speichern(ev.ZeigerSpeichern("s1", "b.mp3", 1, 100.0, "pause"), 0)
+    s.speichern(zeiger_speichern("s1", "b.mp3", 1, 100.0, "pause"), 0)
 
     h = KernHarnisch(start=True)
     h.sende(ev.KonfigGeladen(mk_konfig()))
@@ -271,7 +275,7 @@ def test_kern_resume_ende_zu_ende(tmp_path):
     out = h.sende(ev.Aufgelegt(UID_S1, "ntag", False, 0, "v1"))
     ab = [b for b in out if isinstance(b, ev.Abspielen)]
     assert [(a.datei, a.position_s) for a in ab] == [("b.mp3", 97.0)]
-    h.sende(ev.PlayerPosition("s1", "b.mp3", 130.0, True), dt=1.0)
+    h.sende(ppos("s1", "b.mp3", 130.0, True), dt=1.0)
     out = h.sende(ev.Hauptknopf("kurz"), dt=1.0)
     sp = [b for b in out if isinstance(b, ev.ZeigerSpeichern)]
     assert len(sp) == 1 and s.speichern(sp[0], h.uhr.mono)
@@ -308,8 +312,8 @@ def gute_konfig(**kw):
 def test_konfig_beispiel_aus_dem_datenmodell_ist_gueltig():
     k = store.parse_konfig(gute_konfig())
     assert k.revision == 17 and k.liste_id == "a3f9c1e07b2d4856"
-    assert k.zuordnungen["04ffeedd"] == ev.Zuordnung("aktion", None, "status")
-    assert k.zuordnungen["e0040312345678ab"] == ev.Zuordnung("serie", "3f9a1c07b2d4", None)
+    assert k.zuordnungen["04ffeedd"] == ev.Zuordnung("aktion", aktion="status")
+    assert k.zuordnungen["e0040312345678ab"] == ev.Zuordnung("serie", "3f9a1c07b2d4")
     assert k.leise_zeiten.fenster[1].grenze is None
     assert k.gute_nacht == ev.GuteNacht(30, 60)
 
@@ -411,7 +415,7 @@ def test_fehlende_datei_mit_gueltiger_bak_nimmt_die_bak(tmp_path, protokoll):
     s.speichern(zeiger_befehl(pos=20.0), 1)
     (tmp_path / "resume.json").unlink()  # .bak hat 10.0
     wert, quelle = lade_resume(tmp_path / "resume.json")
-    assert quelle == "bak" and wert["s1"].position_s == 10.0
+    assert quelle == "bak" and wert[S1K].position_s == 10.0
     assert "datei_aus_bak" in ereignisse(protokoll)
     assert "datei_verloren" not in ereignisse(protokoll)
     assert json.loads((tmp_path / "resume.json").read_text())["serien"]["s1"]["position_s"] == 10.0  # zurückgeschrieben

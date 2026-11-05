@@ -9,6 +9,12 @@
   nur bei geändertem Zeiger. Die Drosselung (30 s für ``periodisch``) liegt
   allein in ``session`` (``core-interface.md``, 6.3).
 * ``KonfigStore``: ``config.json`` (Abschnitt 2) laden, prüfen, annehmen.
+
+``resume.json`` und ``config.json`` haben ``schema_version`` 2 (Entscheidung F,
+05.11.). Version 1 wird beim Lesen im Speicher migriert
+(``migriere_resume_v1_nach_v2``, ``migriere_konfig_v1_nach_v2``, rein); gespeichert
+wird danach Version 2. **``validiere_konfig`` ist die eine Funktion für Migration
+und Prüfung einer Konfiguration** (Datei und MQTT-Liste); ``ha.py`` benutzt sie.
 """
 
 from __future__ import annotations
@@ -29,8 +35,8 @@ from .eventlog import logge
 
 T = TypeVar("T")
 
-SCHEMA_VERSION = 1
-BEKANNTE_VERSIONEN = frozenset({1})
+SCHEMA_VERSION = 2
+BEKANNTE_VERSIONEN = frozenset({1, 2})
 
 #: Vorgabe-Zeitzone von ``leise_zeiten`` (Abschnitt 2)
 STANDARD_ZEITZONE = "Europe/Berlin"
@@ -225,35 +231,93 @@ def _ganz(x: Any) -> bool:
     return isinstance(x, int) and not isinstance(x, bool)
 
 
-def parse_resume(roh: Mapping[str, Any]) -> dict[str, ev.Zeiger]:
+def migriere_resume_v1_nach_v2(roh: Mapping[str, Any]) -> dict[str, Any]:
+    """``resume.json`` Version 1 -> 2 (rein): jeder Eintrag in ``serien`` bekommt ``track`` 0,
+    ``folgen`` ist leer. Die gespeicherte Position gilt für den ersten Track."""
+    serien = roh.get("serien")
+    neu: dict[str, Any] = {k: v for k, v in roh.items() if k != "schema_version"}
+    if isinstance(serien, dict):
+        neu["serien"] = {
+            sid: ({**e, "track": e.get("track", 0)} if isinstance(e, dict) else e) for sid, e in serien.items()
+        }
+    neu["folgen"] = {}
+    return {"schema_version": 2, **neu}
+
+
+def _gueltiger_name(x: Any) -> bool:
+    return (
+        isinstance(x, str)
+        and x not in ("", ".", "..")
+        and "/" not in x
+        and "\\" not in x
+        and len(x.encode("utf-8", "surrogateescape")) <= 255
+    )
+
+
+def _pruefe_zeiger_felder(e: Any, wo: str) -> tuple[int, float, int]:
+    if not isinstance(e, dict):
+        raise Ungueltig("schema_ungueltig", wo)
+    track, pos, zaehler = e.get("track"), e.get("position_s"), e.get("zaehler")
+    if not _ganz(track) or track < 0:
+        raise Ungueltig("schema_ungueltig", f"{wo}.track")
+    if not _zahl(pos) or not _endlich(pos) or pos < 0:
+        raise Ungueltig("schema_ungueltig", f"{wo}.position_s")
+    if not _ganz(zaehler) or zaehler < 1:
+        raise Ungueltig("schema_ungueltig", f"{wo}.zaehler")
+    return track, float(pos), zaehler
+
+
+def parse_resume(roh: Mapping[str, Any]) -> dict[pointer.Schluessel, ev.Zeiger]:
+    """``resume.json`` prüfen (Version 1 wird zuerst migriert). Schlüssel: ``pointer.schluessel``."""
+    if roh.get("schema_version") == 1:
+        roh = migriere_resume_v1_nach_v2(roh)
     serien = roh.get("serien")
     if not isinstance(serien, dict):
         raise Ungueltig("schema_ungueltig", "serien fehlt")
-    aus: dict[str, ev.Zeiger] = {}
+    aus: dict[pointer.Schluessel, ev.Zeiger] = {}
     for sid, e in serien.items():
-        if not isinstance(e, dict):
-            raise Ungueltig("schema_ungueltig", f"serien.{sid}")
-        folge, index, pos, zaehler = e.get("folge"), e.get("index"), e.get("position_s"), e.get("zaehler")
+        track, pos, zaehler = _pruefe_zeiger_felder(e, f"serien.{sid}")
+        folge, index = e.get("folge"), e.get("index")
         if not isinstance(folge, str) or not folge:
             raise Ungueltig("schema_ungueltig", f"serien.{sid}.folge")
         if not _ganz(index) or index < 0:
             raise Ungueltig("schema_ungueltig", f"serien.{sid}.index")
-        if not _zahl(pos) or not _endlich(pos) or pos < 0:
-            raise Ungueltig("schema_ungueltig", f"serien.{sid}.position_s")
-        if not _ganz(zaehler) or zaehler < 1:
-            raise Ungueltig("schema_ungueltig", f"serien.{sid}.zaehler")
-        aus[sid] = ev.Zeiger(sid, folge, index, float(pos), zaehler)
+        z = ev.Zeiger("serie", sid, folge, index, track, pos, zaehler)
+        aus[pointer.schluessel_von(z)] = z
+    folgen = roh.get("folgen")
+    if not isinstance(folgen, dict):
+        raise Ungueltig("schema_ungueltig", "folgen fehlt")
+    for sid, je_folge in folgen.items():
+        if not isinstance(je_folge, dict):
+            raise Ungueltig("schema_ungueltig", f"folgen.{sid}")
+        for name, e in je_folge.items():
+            if not _gueltiger_name(name):
+                raise Ungueltig("schema_ungueltig", f"folgen.{sid}.{name}")
+            track, pos, zaehler = _pruefe_zeiger_felder(e, f"folgen.{sid}.{name}")
+            z = ev.Zeiger("folge", sid, name, None, track, pos, zaehler)
+            aus[pointer.schluessel_von(z)] = z
     return aus
 
 
-def resume_zu_json(zeiger: Mapping[str, ev.Zeiger]) -> dict[str, Any]:
-    return {
-        "schema_version": SCHEMA_VERSION,
-        "serien": {
-            sid: {"folge": z.datei, "index": z.index, "position_s": z.position_s, "zaehler": z.zaehler}
-            for sid, z in sorted(zeiger.items())
-        },
-    }
+def resume_zu_json(zeiger: Mapping[pointer.Schluessel, ev.Zeiger]) -> dict[str, Any]:
+    serien: dict[str, Any] = {}
+    folgen: dict[str, dict[str, Any]] = {}
+    for z in sorted(zeiger.values(), key=lambda z: (z.serie_id, z.datei)):
+        if z.art == "serie":
+            serien[z.serie_id] = {
+                "folge": z.datei,
+                "index": z.index if z.index is not None else 0,
+                "track": z.track,
+                "position_s": z.position_s,
+                "zaehler": z.zaehler,
+            }
+        else:
+            folgen.setdefault(z.serie_id, {})[z.datei] = {
+                "track": z.track,
+                "position_s": z.position_s,
+                "zaehler": z.zaehler,
+            }
+    return {"schema_version": SCHEMA_VERSION, "serien": serien, "folgen": folgen}
 
 
 class ResumeStore:
@@ -263,12 +327,12 @@ class ResumeStore:
 
     def __init__(self, verzeichnis: str | Path) -> None:
         self.pfad = Path(verzeichnis) / self.NAME
-        self._zeiger: dict[str, ev.Zeiger] = {}
+        self._zeiger: dict[pointer.Schluessel, ev.Zeiger] = {}
         self.quelle = "neu"
         self.schreibungen = 0
 
     @property
-    def zeiger(self) -> Mapping[str, ev.Zeiger]:
+    def zeiger(self) -> Mapping[pointer.Schluessel, ev.Zeiger]:
         return dict(self._zeiger)
 
     def laden(self) -> ev.ResumeGeladen:
@@ -281,16 +345,19 @@ class ResumeStore:
     def speichern(self, befehl: ev.ZeigerSpeichern, mono: float) -> bool:
         """``ZeigerSpeichern`` ausführen. ``True``, wenn geschrieben wurde.
 
-        Schreibt nicht, wenn Datei, Index und abgerundete Position unverändert
-        sind; sonst immer. Die 30-s-Drosselung für ``periodisch`` entscheidet
-        allein ``session``. ``mono`` bleibt für die Aufrufer-Schnittstelle.
+        Schreibt nicht, wenn Art, Folge, Index, Track und abgerundete Position
+        unverändert sind; sonst immer. Die 30-s-Drosselung für ``periodisch``
+        entscheidet allein ``session``. ``mono`` bleibt für die Aufrufer-Schnittstelle.
         """
-        alt = self._zeiger.get(befehl.serie_id)
-        if pointer.unveraendert(alt, befehl.datei, befehl.index, befehl.position_s):
+        key = pointer.schluessel(befehl.art, befehl.serie_id, befehl.datei)
+        alt = self._zeiger.get(key)
+        if pointer.unveraendert(alt, befehl.art, befehl.datei, befehl.index, befehl.track, befehl.position_s):
             return False
-        neu = pointer.neuer_zeiger(alt, befehl.serie_id, befehl.datei, befehl.index, befehl.position_s)
+        neu = pointer.neuer_zeiger(
+            alt, befehl.art, befehl.serie_id, befehl.datei, befehl.index, befehl.track, befehl.position_s
+        )
         zeiger = dict(self._zeiger)
-        zeiger[befehl.serie_id] = neu
+        zeiger[key] = neu
         schreibe_atomar(self.pfad, resume_zu_json(zeiger))
         self._zeiger = zeiger
         self.schreibungen += 1
@@ -299,7 +366,10 @@ class ResumeStore:
             "DEBUG",
             "zeiger_gespeichert",
             "ok",
-            daten={"serie": befehl.serie_id, "folge": befehl.datei, "position_s": neu.position_s, "grund": befehl.grund, "zaehler": neu.zaehler},
+            daten={
+                "art": befehl.art, "serie": befehl.serie_id, "folge": befehl.datei, "track": neu.track,
+                "position_s": neu.position_s, "grund": befehl.grund, "zaehler": neu.zaehler,
+            },
         )
         return True
 
@@ -309,8 +379,50 @@ class ResumeStore:
 # --------------------------------------------------------------------------
 
 
+def migriere_konfig_v1_nach_v2(roh: Mapping[str, Any]) -> dict[str, Any]:
+    """``config.json`` Version 1 -> 2 (rein): ``{typ, …}`` wird zu ``{ziel: {typ, …}}``.
+
+    Nur Einträge mit ``typ`` ``serie`` oder ``aktion`` (Version 1 kennt nichts anderes)
+    werden verpackt; alles andere bleibt, wie es ist, und fällt in der Prüfung durch."""
+    neu: dict[str, Any] = {k: v for k, v in roh.items() if k != "schema_version"}
+    zuo = roh.get("zuordnungen")
+    if isinstance(zuo, dict):
+        neu["zuordnungen"] = {
+            uid: (
+                {"ziel": z}
+                if isinstance(z, dict) and "ziel" not in z and z.get("typ") in ("serie", "aktion")
+                else z
+            )
+            for uid, z in zuo.items()
+        }
+    return {"schema_version": 2, **neu}
+
+
+def validiere_konfig(roh: Mapping[str, Any]) -> tuple[ev.Konfig, dict[str, Any]]:
+    """**Die eine Funktion für Migration und Prüfung einer Konfiguration** (Datei und MQTT-Liste).
+
+    Liste der Version 1: erst im Speicher nach Version 2 migrieren, dann prüfen
+    (``ziel`` wird nach der Migration geprüft, ``data-model.md``, Abschnitt 2).
+    Gibt ``(Konfig, behaltene Felder in Version 2)`` zurück; wirft ``Ungueltig``
+    (``schema_zu_neu``, ``schema_ungueltig``)."""
+    version = roh.get("schema_version")
+    if not _ganz(version):
+        raise Ungueltig("schema_ungueltig", "schema_version")
+    if version > max(BEKANNTE_VERSIONEN):
+        raise Ungueltig("schema_zu_neu", str(version))
+    if version not in BEKANNTE_VERSIONEN:
+        raise Ungueltig("schema_ungueltig", f"unbekannte Version {version}")
+    if version == 1:
+        roh = migriere_konfig_v1_nach_v2(roh)
+    return parse_konfig(roh), {k: roh[k] for k in _KONFIG_FELDER if k in roh}
+
+
 def parse_konfig(roh: Mapping[str, Any]) -> ev.Konfig:
-    """``config.json`` (Abschnitt 2) prüfen. Ist irgendein Teil ungültig, wirft es ``Ungueltig``."""
+    """``config.json`` Version 2 (Abschnitt 2) prüfen. Ist irgendein Teil ungültig, wirft es ``Ungueltig``.
+
+    Eine Liste der Version 1 geht vorher durch ``validiere_konfig``."""
+    if roh.get("schema_version") == 1:
+        roh = migriere_konfig_v1_nach_v2(roh)
 
     def fail(was: str) -> Ungueltig:
         return Ungueltig("schema_ungueltig", was)
@@ -328,19 +440,28 @@ def parse_konfig(roh: Mapping[str, Any]) -> ev.Konfig:
     for uid, z in zuo_roh.items():
         if not _UID_RE.match(uid) or not isinstance(z, dict):
             raise fail(f"zuordnungen.{uid}")
-        typ = z.get("typ")
-        if typ == "serie":
-            sid = z.get("serie")
+        ziel = z.get("ziel")
+        if not isinstance(ziel, dict):
+            raise fail(f"zuordnungen.{uid}.ziel")
+        typ = ziel.get("typ")
+        if typ in ("serie", "folge"):
+            sid = ziel.get("serie")
             if not isinstance(sid, str) or not 1 <= len(sid) <= 64:
-                raise fail(f"zuordnungen.{uid}.serie")
-            zuordnungen[uid] = ev.Zuordnung("serie", sid, None)
+                raise fail(f"zuordnungen.{uid}.ziel.serie")
+            if typ == "serie":
+                zuordnungen[uid] = ev.Zuordnung("serie", sid)
+            else:
+                folge = ziel.get("folge")
+                if not _gueltiger_name(folge):
+                    raise fail(f"zuordnungen.{uid}.ziel.folge")
+                zuordnungen[uid] = ev.Zuordnung("folge", sid, folge)
         elif typ == "aktion":
-            akt = z.get("aktion")
+            akt = ziel.get("aktion")
             if akt not in ("status", "gute_nacht"):
-                raise fail(f"zuordnungen.{uid}.aktion")
-            zuordnungen[uid] = ev.Zuordnung("aktion", None, akt)
+                raise fail(f"zuordnungen.{uid}.ziel.aktion")
+            zuordnungen[uid] = ev.Zuordnung("aktion", aktion=akt)
         else:
-            raise fail(f"zuordnungen.{uid}.typ")
+            raise fail(f"zuordnungen.{uid}.ziel.typ")
 
     lz = roh.get("leise_zeiten")
     if not isinstance(lz, dict):
@@ -419,7 +540,13 @@ def leere_konfig() -> ev.Konfig:
 def konfig_zu_json(k: ev.Konfig) -> dict[str, Any]:
     zuo: dict[str, Any] = {}
     for uid, z in k.zuordnungen.items():
-        zuo[uid] = {"typ": "serie", "serie": z.serie_id} if z.typ == "serie" else {"typ": "aktion", "aktion": z.aktion}
+        if z.typ == "serie":
+            ziel: dict[str, Any] = {"typ": "serie", "serie": z.serie_id}
+        elif z.typ == "folge":
+            ziel = {"typ": "folge", "serie": z.serie_id, "folge": z.folge}
+        else:
+            ziel = {"typ": "aktion", "aktion": z.aktion}
+        zuo[uid] = {"ziel": ziel}
     fenster = []
     for f in k.leise_zeiten.fenster:
         d: dict[str, Any] = {"id": f.id, "tage": list(f.tage), "von": f.von, "bis": f.bis, "wirkung": f.wirkung}
@@ -439,7 +566,7 @@ def konfig_zu_json(k: ev.Konfig) -> dict[str, Any]:
 @dataclass(frozen=True, slots=True)
 class Annahme:
     angenommen: bool
-    grund: str  # "ok", "gleich", "schema_ungueltig", "revision_zu_niedrig"
+    grund: str  # "ok", "gleich", "schema_ungueltig", "schema_zu_neu", "revision_zu_niedrig"
 
 
 _KONFIG_FELDER = (
@@ -449,8 +576,8 @@ _KONFIG_FELDER = (
 
 
 def _parse_mit_roh(roh: Mapping[str, Any]) -> tuple[ev.Konfig, dict[str, Any]]:
-    """Prüfen und die bekannten Felder behalten (``ton_pegel`` u. a. haben kein Feld in ``Konfig``)."""
-    return parse_konfig(roh), {k: roh[k] for k in _KONFIG_FELDER if k in roh}
+    """Migrieren, prüfen und die bekannten Felder behalten (``ton_pegel`` u. a. haben kein Feld in ``Konfig``)."""
+    return validiere_konfig(roh)
 
 
 class KonfigStore:
@@ -477,13 +604,10 @@ class KonfigStore:
     def annehmen(self, roh: Mapping[str, Any]) -> Annahme:
         """Revisionsregel aus Abschnitt 2. Ungültig: bisherige Konfiguration bleibt."""
         try:
-            version = roh.get("schema_version")
-            if not _ganz(version) or version not in BEKANNTE_VERSIONEN:
-                raise Ungueltig("schema_zu_neu" if _ganz(version) and version > 1 else "schema_ungueltig")
-            neu, behalten = _parse_mit_roh(roh)
+            neu, behalten = validiere_konfig(roh)  # Version 1 wird im Speicher migriert
         except Ungueltig as e:
-            logge("store", "ERROR", "konfig_abgelehnt", "abgelehnt", daten={"grund": 'schema_ungueltig', "detail": str(e)})
-            return Annahme(False, "schema_ungueltig")
+            logge("store", "ERROR", "konfig_abgelehnt", "abgelehnt", daten={"grund": e.grund, "detail": str(e)})
+            return Annahme(False, "schema_zu_neu" if e.grund == "schema_zu_neu" else "schema_ungueltig")
         alt = self.konfig
         if neu.liste_id == alt.liste_id:
             if neu.revision == alt.revision:

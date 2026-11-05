@@ -5,6 +5,15 @@ from __future__ import annotations
 
 import pytest
 from conftest import (
+    S3,
+    UID_CD,
+    UID_FOLGE,
+    UID_FOLGE_FEHLT,
+    UID_S3,
+    abspielen,
+    zeiger_speichern,
+    zeiger,
+    ppos,
     S1,
     UEB,
     UID_FEHLT,
@@ -43,9 +52,9 @@ def mit_stumm(aktion):
     return f
 
 
-ABSPIELEN_S1_NEU = ev.Abspielen("s1", "s1", "a.mp3", 0.0, "v2")
-ABSPIELEN_UEB = ev.Abspielen("ueb", "ueb", "u1.mp3", 0.0, "v2")
-ZEIGER_S1_PAUSE = ev.ZeigerSpeichern("s1", "a.mp3", 0, 10.0, "pause")
+ABSPIELEN_S1_NEU = abspielen("s1", "s1", "a.mp3", 0.0, "v2")
+ABSPIELEN_UEB = abspielen("ueb", "ueb", "u1.mp3", 0.0, "v2")
+ZEIGER_S1_PAUSE = zeiger_speichern("s1", "a.mp3", 0, 10.0, "pause")
 
 # --------------------------------------------------------------------------
 # Tabelle „Wiedergabe-Sitzung“ des Designs, Zeile für Zeile
@@ -58,7 +67,7 @@ TABELLE = [
         "pausiert|PLACED serie bekannt, nicht stumm (Resume mit 3 s Rücksprung)",
         "pausiert_ohne_figur",
         lambda h: h.sende(A()),
-        [ev.Abspielen("s1", "s1", "a.mp3", 7.0, "v2")],
+        [abspielen("s1", "s1", "a.mp3", 7.0, "v2")],
         "spielt",
     ),
     (
@@ -110,14 +119,14 @@ TABELLE = [
         "spielt|PLACED andere Kennung",
         "spielt",
         lambda h: h.sende(A(UID_S2)),
-        [ev.ZeigerSpeichern("s1", "a.mp3", 0, 10.0, "figurwechsel"), ev.Abspielen("s2", "s2", "x.mp3", 0.0, "v2")],
+        [zeiger_speichern("s1", "a.mp3", 0, 10.0, "figurwechsel"), abspielen("s2", "s2", "x.mp3", 0.0, "v2")],
         "spielt",
     ),
     (
         "spielt|Folge zu Ende (nicht die letzte)",
         "spielt",
         lambda h: h.sende(ev.FolgeZuEnde("s1", "a.mp3")),
-        [ev.ZeigerSpeichern("s1", "b.mp3", 1, 0.0, "folgenende"), ev.Pausieren("folgenende")],
+        [zeiger_speichern("s1", "b.mp3", 1, 0.0, "folgenende"), ev.Pausieren("folgenende")],
         "beendet",
     ),
     ("beendet|REMOVED", "beendet", lambda h: h.sende(ev.Abgehoben(1, "v1")), [], "pausiert"),
@@ -125,7 +134,7 @@ TABELLE = [
         "beendet (Figur liegt)|Hauptknopf kurz",
         "beendet",
         lambda h: h.sende(ev.Hauptknopf("kurz")),
-        [ev.Abspielen("s1", "s1", "b.mp3", 0.0, "v1")],
+        [abspielen("s1", "s1", "b.mp3", 0.0, "v1")],
         "spielt",
     ),
     (
@@ -139,7 +148,7 @@ TABELLE = [
         "pausiert (Figur liegt)|Hauptknopf kurz",
         "pausiert",
         lambda h: h.sende(ev.Hauptknopf("kurz")),
-        [ev.Abspielen("s1", "s1", "a.mp3", 7.0, "v1")],
+        [abspielen("s1", "s1", "a.mp3", 7.0, "v1")],
         "spielt",
     ),
     ("spielt|Wächter-Alarm", "spielt", lambda h: h.sende(ev.LeserAlarm("kein_herzschlag")), [], "unbekannt"),
@@ -187,7 +196,7 @@ def test_start_mit_liegender_figur_cuj20():
     """Zeile `leer|Start mit liegender Figur`: Start-Ton bei Bereit, dann wie PLACED."""
     h = SitzungsHarnisch()
     assert h.sende(ev.Bereit()) == [ev.TonSpielen("start")]
-    assert h.auflegen(UID_S1, "v7") == [ev.Abspielen("s1", "s1", "a.mp3", 0.0, "v7")]
+    assert h.auflegen(UID_S1, "v7") == [abspielen("s1", "s1", "a.mp3", 0.0, "v7")]
     assert h.modus == "spielt"
 
 
@@ -276,7 +285,7 @@ def test_wiedermeldung_nach_der_frist_startet_nichts_von_selbst():
     assert h.modus == "pausiert"
     assert h.sende(A(UID_S1, "v1", 0)) == []
     assert h.modus == "pausiert"
-    assert h.sende(ev.Hauptknopf("kurz")) == [ev.Abspielen("s1", "s1", "a.mp3", 7.0, "v1")]
+    assert h.sende(ev.Hauptknopf("kurz")) == [abspielen("s1", "s1", "a.mp3", 7.0, "v1")]
 
 
 def test_unbekannt_andere_kennung_beendet_die_frist_figurwechsel():
@@ -286,8 +295,8 @@ def test_unbekannt_andere_kennung_beendet_die_frist_figurwechsel():
     out = h.sende(A(UID_S2, "v2", 0))
     assert out == [
         ev.Pausieren("leser_unbekannt"),
-        ev.ZeigerSpeichern("s1", "a.mp3", 0, 10.0, "figurwechsel"),
-        ev.Abspielen("s2", "s2", "x.mp3", 0.0, "v2"),
+        zeiger_speichern("s1", "a.mp3", 0, 10.0, "figurwechsel"),
+        abspielen("s2", "s2", "x.mp3", 0.0, "v2"),
     ]
     assert h.modus == "spielt"
 
@@ -297,7 +306,7 @@ def test_unbekannt_gesperrt_statt_kennung_ist_anderer_vorgang():
     out = h.sende(G("v2", 0))
     assert out == [
         ev.Pausieren("leser_unbekannt"),
-        ev.ZeigerSpeichern("s1", "a.mp3", 0, 10.0, "figurwechsel"),
+        zeiger_speichern("s1", "a.mp3", 0, 10.0, "figurwechsel"),
         ABSPIELEN_UEB,
     ]
     assert h.modus == "spielt"
@@ -421,7 +430,7 @@ def test_placed_im_spielt_aktionskarte_erst_pause_dann_aktion():
     h = in_zustand("spielt")
     out = h.sende(A(UID_NACHT, "v2"))
     assert out == [
-        ev.ZeigerSpeichern("s1", "a.mp3", 0, 10.0, "figurwechsel"),
+        zeiger_speichern("s1", "a.mp3", 0, 10.0, "figurwechsel"),
         ev.Pausieren("abgehoben"),
         ev.AktionAusgeloest("gute_nacht", "v2"),
     ]
@@ -497,7 +506,7 @@ def test_gute_nacht_ende_in_ruhezustaenden_ohne_wirkung(zustand):
 def test_herunterfahren_angefordert_pausiert_und_speichert():
     h = in_zustand("spielt")
     out = h.sende(ev.HerunterfahrenAngefordert("hauptknopf"))
-    assert out == [ev.Pausieren("herunterfahren"), ev.ZeigerSpeichern("s1", "a.mp3", 0, 10.0, "herunterfahren")]
+    assert out == [ev.Pausieren("herunterfahren"), zeiger_speichern("s1", "a.mp3", 0, 10.0, "herunterfahren")]
     assert h.modus == "pausiert"
 
 
@@ -514,8 +523,8 @@ def test_herunterfahren_angefordert_in_ruhe_ohne_wirkung():
 @pytest.mark.parametrize(
     "art, extra",
     [
-        ("datei_fehlt", [ev.ZeigerSpeichern("s1", "b.mp3", 1, 0.0, "pause")]),
-        ("datei_unlesbar", [ev.ZeigerSpeichern("s1", "b.mp3", 1, 0.0, "pause")]),
+        ("datei_fehlt", [zeiger_speichern("s1", "b.mp3", 1, 0.0, "pause")]),
+        ("datei_unlesbar", [zeiger_speichern("s1", "b.mp3", 1, 0.0, "pause")]),
         ("mpd_fehler", []),
     ],
 )
@@ -528,11 +537,11 @@ def test_player_fehler_im_spielt(art, extra):
 
 
 def test_player_fehler_letzte_folge_springt_auf_folge_1():
-    h = SitzungsHarnisch(zeiger=(ev.Zeiger("s1", "c.mp3", 2, 0.0, 1),))
+    h = SitzungsHarnisch(zeiger=(zeiger("s1", "c.mp3", 2, 0.0, 1),))
     h.auflegen()
     h.position("s1", "c.mp3", 5.0)
     out = h.sende(ev.PlayerFehler("s1", "c.mp3", "datei_fehlt", ""))
-    assert ev.ZeigerSpeichern("s1", "a.mp3", 0, 0.0, "pause") in out
+    assert zeiger_speichern("s1", "a.mp3", 0, 0.0, "pause") in out
 
 
 @pytest.mark.parametrize("zustand", ["leer", "pausiert", "beendet", "gehalten"])
@@ -558,7 +567,7 @@ def test_mpd_zurueck_innerhalb_der_frist_setzt_am_zeiger_fort(steckt, ausgang):
     h.sende(ev.PlayerVerbindung(False))
     h.sende(ev.Takt(), dt=4.0)
     out = h.sende(ev.PlayerVerbindung(True), dt=0.5)
-    assert out == [ev.AusgangWaehlen(ausgang), ev.Abspielen("s1", "s1", "a.mp3", 7.0, "v1")]
+    assert out == [ev.AusgangWaehlen(ausgang), abspielen("s1", "s1", "a.mp3", 7.0, "v1")]
     assert h.modus == "spielt"
 
 
@@ -631,9 +640,9 @@ def test_player_verbindung_in_uebrigen_zustaenden(zustand, ok):
 HAUPTKNOPF = [
     # (Zustand, stumm, erwartete Befehle, neuer Zustand)
     ("spielt", False, [ev.Pausieren("knopf"), ZEIGER_S1_PAUSE], "pausiert"),
-    ("pausiert", False, [ev.Abspielen("s1", "s1", "a.mp3", 7.0, "v1")], "spielt"),
-    ("pausiert_ohne_figur", False, [ev.Abspielen("s1", "s1", "a.mp3", 7.0, None)], "spielt"),
-    ("beendet", False, [ev.Abspielen("s1", "s1", "b.mp3", 0.0, "v1")], "spielt"),
+    ("pausiert", False, [abspielen("s1", "s1", "a.mp3", 7.0, "v1")], "spielt"),
+    ("pausiert_ohne_figur", False, [abspielen("s1", "s1", "a.mp3", 7.0, None)], "spielt"),
+    ("beendet", False, [abspielen("s1", "s1", "b.mp3", 0.0, "v1")], "spielt"),
     ("leer", False, [], "leer"),
     ("unbekannt", False, [], "unbekannt"),
     ("pausiert", True, [ev.TonSpielen("hinweis")], "pausiert"),
@@ -654,13 +663,14 @@ def test_hauptknopf_kurz(zustand, stumm, erwartet, neu):
 
 WEITER = [
     # (Zustand, Ereignis, stumm, erwartete Befehle, neuer Zustand)
-    ("spielt", ev.Weiter(), False, [ev.ZeigerSpeichern("s1", "b.mp3", 1, 0.0, "folgenende"), ev.Abspielen("s1", "s1", "b.mp3", 0.0, "v1")], "spielt"),
-    ("spielt", ev.Zurueck(), False, [ev.ZeigerSpeichern("s1", "c.mp3", 2, 0.0, "folgenende"), ev.Abspielen("s1", "s1", "c.mp3", 0.0, "v1")], "spielt"),
-    ("pausiert", ev.Weiter(), False, [ev.ZeigerSpeichern("s1", "b.mp3", 1, 0.0, "folgenende"), ev.Abspielen("s1", "s1", "b.mp3", 0.0, "v1")], "spielt"),
-    ("pausiert_ohne_figur", ev.Zurueck(), False, [ev.ZeigerSpeichern("s1", "c.mp3", 2, 0.0, "folgenende"), ev.Abspielen("s1", "s1", "c.mp3", 0.0, None)], "spielt"),
-    ("beendet", ev.Weiter(), False, [ev.Abspielen("s1", "s1", "b.mp3", 0.0, "v1")], "spielt"),
+    ("spielt", ev.Weiter(), False, [zeiger_speichern("s1", "b.mp3", 1, 0.0, "folgenende"), abspielen("s1", "s1", "b.mp3", 0.0, "v1")], "spielt"),
+    # Zurück nach Track (Entscheidung F): Position 10 s >= 3 s -> aktueller Track von vorn (vorher: vorige Folge)
+    ("spielt", ev.Zurueck(), False, [zeiger_speichern("s1", "a.mp3", 0, 0.0, "trackwechsel"), abspielen("s1", "s1", "a.mp3", 0.0, "v1")], "spielt"),
+    ("pausiert", ev.Weiter(), False, [zeiger_speichern("s1", "b.mp3", 1, 0.0, "folgenende"), abspielen("s1", "s1", "b.mp3", 0.0, "v1")], "spielt"),
+    ("pausiert_ohne_figur", ev.Zurueck(), False, [zeiger_speichern("s1", "a.mp3", 0, 0.0, "trackwechsel"), abspielen("s1", "s1", "a.mp3", 0.0, None)], "spielt"),
+    ("beendet", ev.Weiter(), False, [abspielen("s1", "s1", "b.mp3", 0.0, "v1")], "spielt"),
     # Zurueck in beendet: die eben beendete Folge (vor dem Zeiger), Position 0 (05.11.)
-    ("beendet", ev.Zurueck(), False, [ev.ZeigerSpeichern("s1", "a.mp3", 0, 0.0, "folgenende"), ev.Abspielen("s1", "s1", "a.mp3", 0.0, "v1")], "spielt"),
+    ("beendet", ev.Zurueck(), False, [zeiger_speichern("s1", "a.mp3", 0, 0.0, "zurueck"), abspielen("s1", "s1", "a.mp3", 0.0, "v1")], "spielt"),
     ("leer", ev.Weiter(), False, [], "leer"),
     ("unbekannt", ev.Zurueck(), False, [], "unbekannt"),
     ("pausiert", ev.Weiter(), True, [ev.TonSpielen("hinweis")], "pausiert"),
@@ -741,8 +751,8 @@ def test_konfig_bei_liegender_figur_spielt_wechselt_sofort():
     h = unbekannte_figur_liegt("spielt")
     out = h.sende(konfig_mit(UID_UNBEKANNT, "s1"))
     assert out == [
-        ev.ZeigerSpeichern("ueb", "u1.mp3", 0, 4.0, "figurwechsel"),
-        ev.Abspielen("s1", "s1", "a.mp3", 0.0, "v1"),
+        zeiger_speichern("ueb", "u1.mp3", 0, 4.0, "figurwechsel"),
+        abspielen("s1", "s1", "a.mp3", 0.0, "v1"),
     ]
     assert h.modus == "spielt" and h.z.serie_id == "s1"
 
@@ -751,7 +761,7 @@ def test_konfig_bei_liegender_figur_spielt_wechselt_sofort():
 def test_konfig_bei_liegender_figur_in_pause_oder_ende_startet_die_neue_serie(zustand):
     h = unbekannte_figur_liegt(zustand)
     assert h.modus == zustand
-    assert h.sende(konfig_mit(UID_UNBEKANNT, "s1")) == [ev.Abspielen("s1", "s1", "a.mp3", 0.0, "v1")]
+    assert h.sende(konfig_mit(UID_UNBEKANNT, "s1")) == [abspielen("s1", "s1", "a.mp3", 0.0, "v1")]
     assert h.modus == "spielt"
 
 
@@ -798,12 +808,12 @@ def test_konfig_aktionskarte_nichts():
 @pytest.mark.parametrize(
     "zeiger, erwartet",
     [
-        (None, ev.Abspielen("s1", "s1", "a.mp3", 0.0, "v2")),  # kein Zeiger: Folge 1, Position 0
-        (ev.Zeiger("s1", "b.mp3", 1, 100.0, 4), ev.Abspielen("s1", "s1", "b.mp3", 97.0, "v2")),
-        (ev.Zeiger("s1", "b.mp3", 1, 2.0, 4), ev.Abspielen("s1", "s1", "b.mp3", 0.0, "v2")),  # nie unter 0
-        (ev.Zeiger("s1", "c.mp3", 2, 0.0, 4), ev.Abspielen("s1", "s1", "c.mp3", 0.0, "v2")),  # nach Folgenende kein Rücksprung
-        (ev.Zeiger("s1", "weg.mp3", 1, 50.0, 4), ev.Abspielen("s1", "s1", "b.mp3", 0.0, "v2")),  # Folge am Platz index
-        (ev.Zeiger("s1", "weg.mp3", 7, 50.0, 4), ev.Abspielen("s1", "s1", "a.mp3", 0.0, "v2")),  # index zu groß: Folge 1
+        (None, abspielen("s1", "s1", "a.mp3", 0.0, "v2")),  # kein Zeiger: Folge 1, Position 0
+        (zeiger("s1", "b.mp3", 1, 100.0, 4), abspielen("s1", "s1", "b.mp3", 97.0, "v2")),
+        (zeiger("s1", "b.mp3", 1, 2.0, 4), abspielen("s1", "s1", "b.mp3", 0.0, "v2")),  # nie unter 0
+        (zeiger("s1", "c.mp3", 2, 0.0, 4), abspielen("s1", "s1", "c.mp3", 0.0, "v2")),  # nach Folgenende kein Rücksprung
+        (zeiger("s1", "weg.mp3", 1, 50.0, 4), abspielen("s1", "s1", "b.mp3", 0.0, "v2")),  # Folge am Platz index
+        (zeiger("s1", "weg.mp3", 7, 50.0, 4), abspielen("s1", "s1", "a.mp3", 0.0, "v2")),  # index zu groß: Folge 1
     ],
     ids=["ohne", "rücksprung", "nicht-unter-0", "nach-folgenende", "datei-fehlt", "index-zu-gross"],
 )
@@ -813,7 +823,7 @@ def test_zeiger_beim_auflegen(zeiger, erwartet):
 
 
 def test_fehlende_folge_wird_protokolliert():
-    h = SitzungsHarnisch(zeiger=(ev.Zeiger("s1", "weg.mp3", 1, 50.0, 4),))
+    h = SitzungsHarnisch(zeiger=(zeiger("s1", "weg.mp3", 1, 50.0, 4),))
     h.sende(A())
     log = [o for o in h.voll if isinstance(o, ev.Protokoll)]
     assert [(p.ebene, p.ereignis) for p in log] == [("WARNING", "zeiger_folge_fehlt")]
@@ -855,16 +865,16 @@ def test_serie_kommt_spaeter_gilt_beim_naechsten_auflegen():
     assert h.sende(ev.BibliothekGeladen((S1, S2, UEB, neu))) == []
     assert h.z.serie_id == "ueb" and h.modus == "spielt"  # die laufende Serie wechselt nicht
     h.sende(ev.Abgehoben(6, "v1"))
-    assert h.sende(A(UID_FEHLT, "v3")) == [ev.Abspielen("unbekannte-serie", "neu", "n1.mp3", 0.0, "v3")]
+    assert h.sende(A(UID_FEHLT, "v3")) == [abspielen("unbekannte-serie", "neu", "n1.mp3", 0.0, "v3")]
 
 
 def test_folge_zu_ende_nach_der_letzten_folge_auf_folge_1():
-    h = SitzungsHarnisch(zeiger=(ev.Zeiger("s1", "c.mp3", 2, 0.0, 1),))
+    h = SitzungsHarnisch(zeiger=(zeiger("s1", "c.mp3", 2, 0.0, 1),))
     h.auflegen()
     out = h.sende(ev.FolgeZuEnde("s1", "c.mp3"))
-    assert out == [ev.ZeigerSpeichern("s1", "a.mp3", 0, 0.0, "folgenende"), ev.Pausieren("folgenende")]
+    assert out == [zeiger_speichern("s1", "a.mp3", 0, 0.0, "folgenende"), ev.Pausieren("folgenende")]
     assert h.modus == "beendet"
-    assert h.sende(ev.Hauptknopf("kurz")) == [ev.Abspielen("s1", "s1", "a.mp3", 0.0, "v1")]
+    assert h.sende(ev.Hauptknopf("kurz")) == [abspielen("s1", "s1", "a.mp3", 0.0, "v1")]
 
 
 def test_folge_zu_ende_bei_liegender_figur_pausiert_trotzdem():
@@ -880,7 +890,7 @@ def test_folge_zu_ende_fremde_folge_wird_ignoriert():
 
 
 def test_zeiger_wird_nur_bei_aenderung_geschrieben():
-    h = SitzungsHarnisch(zeiger=(ev.Zeiger("s1", "a.mp3", 0, 10.0, 1),))
+    h = SitzungsHarnisch(zeiger=(zeiger("s1", "a.mp3", 0, 10.0, 1),))
     h.auflegen()
     h.position("s1", "a.mp3", 10.0)
     assert h.sende(ev.Abgehoben(1, "v1")) == [ev.Pausieren("abgehoben")]
@@ -890,12 +900,12 @@ def test_zeiger_position_wird_auf_eine_nachkommastelle_abgerundet():
     h = in_zustand("spielt")
     h.position("s1", "a.mp3", 12.39)
     out = h.sende(ev.Abgehoben(1, "v1"))
-    assert out[1] == ev.ZeigerSpeichern("s1", "a.mp3", 0, 12.3, "pause")
+    assert out[1] == zeiger_speichern("s1", "a.mp3", 0, 12.3, "pause")
 
 
 def test_position_einer_anderen_folge_wird_ignoriert():
     h = in_zustand("spielt")
-    h.sende(ev.PlayerPosition("s1", "b.mp3", 99.0, True))
+    h.sende(ppos("s1", "b.mp3", 99.0, True))
     out = h.sende(ev.Abgehoben(1, "v1"))
     assert out[1].position_s == 10.0
 
@@ -903,10 +913,10 @@ def test_position_einer_anderen_folge_wird_ignoriert():
 def test_periodisches_speichern_nach_30_s_und_nur_bei_aenderung():
     h = in_zustand("spielt")
     assert h.sende(ev.Takt(), dt=29.9) == []
-    assert h.sende(ev.Takt(), dt=0.1) == [ev.ZeigerSpeichern("s1", "a.mp3", 0, 10.0, "periodisch")]
+    assert h.sende(ev.Takt(), dt=0.1) == [zeiger_speichern("s1", "a.mp3", 0, 10.0, "periodisch")]
     assert h.sende(ev.Takt(), dt=30.0) == []  # Zeiger unverändert
     h.position("s1", "a.mp3", 41.0)
-    assert h.sende(ev.Takt(), dt=0.1) == [ev.ZeigerSpeichern("s1", "a.mp3", 0, 41.0, "periodisch")]
+    assert h.sende(ev.Takt(), dt=0.1) == [zeiger_speichern("s1", "a.mp3", 0, 41.0, "periodisch")]
     assert h.sende(ev.Takt(), dt=29.8) == []
 
 
@@ -952,7 +962,7 @@ def test_sitzung_geaendert_wird_nur_bei_aenderung_ausgegeben():
     h = SitzungsHarnisch()
     h.auflegen()
     assert ev.SitzungGeaendert("spielt", True, True, "s1") in h.voll
-    h.sende(ev.PlayerPosition("s1", "a.mp3", 3.0, True))
+    h.sende(ppos("s1", "a.mp3", 3.0, True))
     assert not any(isinstance(o, ev.SitzungGeaendert) for o in h.voll)
     h.sende(ev.Abgehoben(1, "v1"))
     assert ev.SitzungGeaendert("pausiert", False, False, "s1") in h.voll
@@ -999,7 +1009,7 @@ def test_session_importiert_keine_io_module():
 
 def test_stumm_auflegen_uebernimmt_den_gespeicherten_zeiger_der_neuen_serie():
     """Zeiger c.mp3 (Index 2), stumm, auflegen, stumm endet, Weiter -> a.mp3 mit Umlauf."""
-    h = SitzungsHarnisch(zeiger=(ev.Zeiger("s1", "c.mp3", 2, 10.0, 1),))
+    h = SitzungsHarnisch(zeiger=(zeiger("s1", "c.mp3", 2, 10.0, 1),))
     h.sende(ev.StummBeginnt())
     h.sende(A())
     assert h.modus == "gehalten"
@@ -1007,8 +1017,8 @@ def test_stumm_auflegen_uebernimmt_den_gespeicherten_zeiger_der_neuen_serie():
     h.sende(ev.StummEndet())
     assert h.modus == "pausiert"
     assert h.sende(ev.Weiter()) == [
-        ev.ZeigerSpeichern("s1", "a.mp3", 0, 0.0, "folgenende"),
-        ev.Abspielen("s1", "s1", "a.mp3", 0.0, "v2"),
+        zeiger_speichern("s1", "a.mp3", 0, 0.0, "folgenende"),
+        abspielen("s1", "s1", "a.mp3", 0.0, "v2"),
     ]
 
 
@@ -1019,8 +1029,8 @@ def test_stumm_figurwechsel_laesst_keine_reste_einer_anderen_serie():
     assert (h.z.serie_id, h.z.datei, h.z.index) == ("s2", "x.mp3", 0)
     h.sende(ev.StummEndet())
     assert h.sende(ev.Weiter()) == [
-        ev.ZeigerSpeichern("s2", "y.mp3", 1, 0.0, "folgenende"),
-        ev.Abspielen("s2", "s2", "y.mp3", 0.0, "v2"),
+        zeiger_speichern("s2", "y.mp3", 1, 0.0, "folgenende"),
+        abspielen("s2", "s2", "y.mp3", 0.0, "v2"),
     ]
 
 
@@ -1031,23 +1041,23 @@ def test_beendet_stumm_neue_figur_serie_folgt_der_neuen_figur():
     assert h.modus == "beendet"
     assert (h.z.serie_id, h.z.datei, h.z.index) == ("s2", "x.mp3", 0)
     h.sende(ev.StummEndet())
-    assert h.sende(ev.Hauptknopf("kurz")) == [ev.Abspielen("s2", "s2", "x.mp3", 0.0, "v2")]
+    assert h.sende(ev.Hauptknopf("kurz")) == [abspielen("s2", "s2", "x.mp3", 0.0, "v2")]
 
 
 def test_beendet_weiter_spielt_zeigerfolge_zurueck_die_eben_beendete():
     h = in_zustand("beendet")  # FolgeZuEnde a.mp3 -> Zeiger b.mp3
-    assert h.sende(ev.Weiter()) == [ev.Abspielen("s1", "s1", "b.mp3", 0.0, "v1")]
+    assert h.sende(ev.Weiter()) == [abspielen("s1", "s1", "b.mp3", 0.0, "v1")]
     h = in_zustand("beendet")
-    assert h.sende(ev.Zurueck())[-1] == ev.Abspielen("s1", "s1", "a.mp3", 0.0, "v1")
+    assert h.sende(ev.Zurueck())[-1] == abspielen("s1", "s1", "a.mp3", 0.0, "v1")
 
 
 def test_zurueck_in_beendet_umlauf_bei_erster_folge():
-    h = SitzungsHarnisch(zeiger=(ev.Zeiger("s1", "c.mp3", 2, 0.0, 1),))
+    h = SitzungsHarnisch(zeiger=(zeiger("s1", "c.mp3", 2, 0.0, 1),))
     h.auflegen()
     h.position("s1", "c.mp3", 10.0)
     h.sende(ev.FolgeZuEnde("s1", "c.mp3"))  # Zeiger wieder a.mp3
     assert h.modus == "beendet"
-    assert h.sende(ev.Zurueck())[-1] == ev.Abspielen("s1", "s1", "c.mp3", 0.0, "v1")
+    assert h.sende(ev.Zurueck())[-1] == abspielen("s1", "s1", "c.mp3", 0.0, "v1")
 
 
 @pytest.mark.parametrize("zustand", ["pausiert", "beendet", "gehalten", "leer"])
@@ -1080,7 +1090,7 @@ def test_leser_zurueck_nach_abgelaufener_frist_ohne_takt_pausiert():
     assert h.modus == "unbekannt"
     out = h.sende(A("04a1b2c3", "v1", 6), dt=3.5)
     assert ev.Pausieren("leser_unbekannt") in out
-    assert ev.Abspielen("s1", "s1", "a.mp3", 7.0, "v1") not in out
+    assert abspielen("s1", "s1", "a.mp3", 7.0, "v1") not in out
     assert h.modus == "pausiert" and h.z.figur is not None
 
 
@@ -1141,3 +1151,750 @@ def test_dienst_endet_in_ruhe_ohne_wirkung(zustand):
     h = in_zustand(zustand)
     assert h.sende(ev.DienstEndet()) == []
     assert h.modus == zustand
+
+
+# ==========================================================================
+# Entscheidung F (05.11.): Folgen-Tobies, Tracks, Zeiger mit Track
+# ==========================================================================
+
+CD = ("cd/01.mp3", "cd/02.mp3", "cd/03.mp3")  # Tracks der Folge „cd“ in Serie s3
+
+
+def ab_cd(position=0.0, track=0, vorgang="v1"):
+    return abspielen("s3", "s3", "cd", position, vorgang, track=track, tracks=CD)
+
+
+def cd_spielt(uid=UID_CD, sek=10.0, track=0, zeiger_liste=()):
+    """Harnisch: Tobie ``uid`` (Folge „cd“ bzw. Serie s3) liegt und spielt."""
+    h = SitzungsHarnisch(zeiger=zeiger_liste)
+    h.auflegen(uid)
+    h.position("s3", "cd", sek, track)
+    assert h.modus == "spielt"
+    return h
+
+
+def zustand_s3(name, uid=UID_CD):
+    """Wie ``in_zustand``, aber mit dem Tobie ``uid`` auf Serie s3 (Folge „cd“ mit drei Tracks)."""
+    h = SitzungsHarnisch()
+    if name == "leer":
+        return h
+    if name == "gehalten":
+        h.sende(ev.StummBeginnt())
+        h.auflegen(uid)
+        return h
+    h.auflegen(uid)
+    h.position("s3", "cd", 10.0, 0)
+    if name == "pausiert":
+        h.sende(ev.Hauptknopf("kurz"))
+    elif name == "pausiert_ohne_figur":
+        h.sende(ev.Abgehoben(1, "v1"))
+    elif name == "beendet":
+        h.sende(ev.FolgeZuEnde("s3", "cd"))
+    elif name == "unbekannt":
+        h.sende(ev.LeserAlarm("kein_herzschlag"))
+    elif name != "spielt":
+        raise ValueError(name)
+    assert h.modus == name.replace("_ohne_figur", ""), (name, h.modus)
+    return h
+
+
+# --- Auflegen: Ziel serie / folge, Zeiger mit Track -------------------------------
+
+
+def test_folgen_tobie_spielt_seine_folge_ab_track_0():
+    h = SitzungsHarnisch()
+    assert h.auflegen(UID_FOLGE) == [abspielen("s1", "s1", "b.mp3", 0.0, "v1")]
+    assert (h.modus, h.z.ziel, h.z.datei, h.z.index, h.z.track) == ("spielt", "folge", "b.mp3", 1, 0)
+
+
+def test_folgen_tobie_mit_mehreren_tracks_laedt_alle_tracks():
+    h = SitzungsHarnisch()
+    assert h.auflegen(UID_CD) == [ab_cd()]
+
+
+def test_serien_tobie_auf_serie_mit_cd_folge_startet_mit_track_0_der_ersten_folge():
+    h = SitzungsHarnisch()
+    assert h.auflegen(UID_S3) == [ab_cd()]
+    assert h.z.ziel == "serie"
+
+
+def test_folgen_zeiger_mit_track_und_ruecksprung_im_track():
+    fz = zeiger("s3", "cd", None, 50.0, 4, track=2, art="folge")
+    h = SitzungsHarnisch(zeiger=(fz,))
+    assert h.auflegen(UID_CD) == [ab_cd(47.0, track=2)]
+
+
+def test_serien_zeiger_mit_track_und_ruecksprung_im_track():
+    sz = zeiger("s3", "cd", 0, 50.0, 4, track=1)
+    h = SitzungsHarnisch(zeiger=(sz,))
+    assert h.auflegen(UID_S3) == [ab_cd(47.0, track=1)]
+
+
+def test_folgen_zeiger_und_serien_zeiger_derselben_serie_sind_unabhaengig():
+    sz = zeiger("s1", "a.mp3", 0, 30.0, 2)
+    fz = zeiger("s1", "b.mp3", None, 12.0, 2, art="folge")
+    h = SitzungsHarnisch(zeiger=(sz, fz))
+    assert h.auflegen(UID_FOLGE) == [abspielen("s1", "s1", "b.mp3", 9.0, "v1")]
+    h2 = SitzungsHarnisch(zeiger=(sz, fz))
+    assert h2.auflegen(UID_S1) == [abspielen("s1", "s1", "a.mp3", 27.0, "v1")]
+
+
+def test_fehlender_track_im_zeiger_track_0_und_protokoll():
+    sz = zeiger("s3", "cd", 0, 50.0, 4, track=9)
+    h = SitzungsHarnisch(zeiger=(sz,))
+    assert h.auflegen(UID_S3) == [ab_cd(0.0, track=0)]
+    assert any(isinstance(o, ev.Protokoll) and o.ereignis == "zeiger_track_fehlt" for o in h.alle)
+
+
+def test_folgen_tobie_speichert_in_den_folgen_zeiger_und_nicht_in_den_serien_zeiger():
+    h = SitzungsHarnisch()
+    h.auflegen(UID_FOLGE)
+    h.position("s1", "b.mp3", 20.0)
+    out = h.sende(ev.Abgehoben(1, "v1"))
+    assert out == [ev.Pausieren("abgehoben"), zeiger_speichern("s1", "b.mp3", None, 20.0, "pause", art="folge")]
+
+
+# --- Zuordnung auf fehlende Serie oder Folge (6.3) ---------------------------------
+
+
+def test_folgen_tobie_auf_fehlende_folge_spielt_ueberraschung_ohne_melden_und_protokolliert():
+    h = SitzungsHarnisch()
+    out = h.auflegen(UID_FOLGE_FEHLT)
+    assert out == [abspielen("ueb", "ueb", "u1.mp3", 0.0, "v1")]
+    assert not any(isinstance(o, ev.Melden) for o in h.alle)
+    p = next(o for o in h.alle if isinstance(o, ev.Protokoll) and o.ereignis == "folge_fehlt")
+    assert p.ebene == "WARNING"
+    assert dict(p.daten) == {"uid": UID_FOLGE_FEHLT, "serie": "s1", "folge": "gibt-es-nicht.mp3"}
+    assert (h.z.ziel, h.z.serie_id) == ("serie", "ueb")  # die Überraschungs-Serie verhält sich wie Ziel serie
+
+
+def test_zuordnung_auf_fehlende_serie_spielt_ueberraschung_ohne_melden_und_protokolliert():
+    h = SitzungsHarnisch()
+    out = h.auflegen(UID_FEHLT)
+    assert [type(o) for o in out] == [ev.Abspielen] and out[0].serie_id == "ueb"
+    assert not any(isinstance(o, ev.Melden) for o in h.alle)
+    p = next(o for o in h.alle if isinstance(o, ev.Protokoll) and o.ereignis == "serie_fehlt")
+    assert dict(p.daten) == {"uid": UID_FEHLT, "serie": "unbekannte-serie"}
+
+
+def test_folgen_tobie_auf_fehlende_folge_ohne_ueberraschung_gibt_fehlerton():
+    h = SitzungsHarnisch(serien=(S1,))
+    out = h.auflegen(UID_FOLGE_FEHLT)
+    assert out == [ev.TonSpielen("fehler")]
+    assert h.modus == "pausiert"
+
+
+def test_folgen_tobie_auf_fehlende_folge_unter_stumm_nur_hinweiston():
+    h = SitzungsHarnisch()
+    h.sende(ev.StummBeginnt())
+    assert h.auflegen(UID_FOLGE_FEHLT) == [ev.TonSpielen("hinweis")]
+    assert h.modus == "gehalten"
+
+
+def test_folge_kommt_spaeter_gilt_beim_naechsten_auflegen_laufende_ueberraschung_bleibt():
+    s1_ohne = ev.Serie("s1", "Serie 1", "normal", "s1", ("a.mp3", "c.mp3"))
+    h = SitzungsHarnisch(serien=(s1_ohne, S2, UEB, S3))
+    h.auflegen(UID_FOLGE)  # b.mp3 gibt es noch nicht
+    assert h.z.serie_id == "ueb"
+    assert h.sende(ev.BibliothekGeladen((S1, S2, UEB, S3))) == []
+    assert h.z.serie_id == "ueb" and h.modus == "spielt"  # läuft weiter
+    h.sende(ev.Abgehoben(1, "v1"))
+    assert h.auflegen(UID_FOLGE, "v2")[-1] == abspielen("s1", "s1", "b.mp3", 0.0, "v2")
+
+
+# --- TrackWechsel ------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "uid, art, index",
+    [(UID_CD, "folge", None), (UID_S3, "serie", 0)],
+)
+def test_track_wechsel_fuehrt_den_zeiger_nach_ohne_pause(uid, art, index):
+    h = cd_spielt(uid)
+    out = h.sende(ev.TrackWechsel("s3", "cd", 1))
+    assert out == [zeiger_speichern("s3", "cd", index, 0.0, "trackwechsel", track=1, art=art)]
+    assert h.modus == "spielt"
+    assert not any(isinstance(o, ev.Pausieren) for o in h.voll)
+    h.position("s3", "cd", 5.0, track=1)
+    assert h.sende(ev.Abgehoben(1, "v1"))[-1] == zeiger_speichern("s3", "cd", index, 5.0, "pause", track=1, art=art)
+
+
+def test_track_wechsel_hintereinander_zaehlt_die_zeiger_schreibungen():
+    h = cd_spielt()
+    a = h.sende(ev.TrackWechsel("s3", "cd", 1))
+    b = h.sende(ev.TrackWechsel("s3", "cd", 2))
+    assert [o.track for o in a + b] == [1, 2]
+
+
+@pytest.mark.parametrize(
+    "e",
+    [
+        ev.TrackWechsel("s3", "cd", 0),  # nicht größer als der aktuelle Track (veraltet)
+        ev.TrackWechsel("s3", "cd", 3),  # außerhalb der Folge
+        ev.TrackWechsel("s3", "z.mp3", 1),  # andere Folge
+        ev.TrackWechsel("s2", "cd", 1),  # andere Serie
+    ],
+)
+def test_track_wechsel_veraltet_oder_fremd_wird_ignoriert(e):
+    h = cd_spielt()
+    assert h.sende(e) == []
+    assert h.z.track == 0
+    assert any(isinstance(o, ev.Protokoll) and o.ereignis == "track_wechsel_fremd" for o in h.voll)
+
+
+@pytest.mark.parametrize("zustand", ["leer", "pausiert", "pausiert_ohne_figur", "beendet", "gehalten"])
+def test_track_wechsel_und_folge_zu_ende_ohne_laufendes_mpd_werden_ignoriert(zustand):
+    h = zustand_s3(zustand)
+    vorher = h.z
+    assert h.sende(ev.TrackWechsel("s3", "cd", 1)) == []
+    assert h.sende(ev.FolgeZuEnde("s3", "cd")) == []
+    assert h.z == vorher
+
+
+def test_track_wechsel_in_unbekannt_fuehrt_nach_und_bleibt_unbekannt():
+    h = zustand_s3("unbekannt")
+    assert h.sende(ev.TrackWechsel("s3", "cd", 1)) == [
+        zeiger_speichern("s3", "cd", None, 0.0, "trackwechsel", track=1, art="folge")
+    ]
+    assert h.modus == "unbekannt"
+    # Frist läuft weiter: Pause mit dem neuen Zeiger
+    out = h.takt(3.2)
+    assert ev.Pausieren("leser_unbekannt") in out and h.modus == "pausiert" and h.z.track == 1
+
+
+def test_track_wechsel_beim_ausblenden_wegen_stumm_fuehrt_nach_und_blendet_weiter_aus():
+    h = cd_spielt(UID_S3)
+    h.sende(ev.StummBeginnt())
+    assert h.z.ausblenden is not None
+    assert h.sende(ev.TrackWechsel("s3", "cd", 1)) == [
+        zeiger_speichern("s3", "cd", 0, 0.0, "trackwechsel", track=1)
+    ]
+    assert h.z.ausblenden is not None and h.modus == "spielt"
+    out = h.takt(3.1)
+    assert ev.Pausieren("stumm") in out and h.modus == "gehalten"
+    assert h.z.track == 1
+
+
+def test_track_wechsel_in_der_mpd_frist_fuehrt_nach():
+    h = cd_spielt(UID_S3)
+    h.sende(ev.PlayerVerbindung(False))
+    assert h.z.mpd_bis is not None
+    assert h.sende(ev.TrackWechsel("s3", "cd", 1)) == [
+        zeiger_speichern("s3", "cd", 0, 0.0, "trackwechsel", track=1)
+    ]
+    assert h.z.mpd_bis is not None and h.modus == "spielt"
+
+
+# --- FolgeZuEnde je Ziel -------------------------------------------------------------
+
+
+def test_folge_zu_ende_ziel_serie_zeiger_auf_naechste_folge_track_0():
+    h = cd_spielt(UID_S3, track=0)
+    h.sende(ev.TrackWechsel("s3", "cd", 2))
+    h.position("s3", "cd", 99.0, track=2)
+    out = h.sende(ev.FolgeZuEnde("s3", "cd"))
+    assert out == [
+        zeiger_speichern("s3", "z.mp3", 1, 0.0, "folgenende", track=0),
+        ev.Pausieren("folgenende"),
+    ]
+    assert h.modus == "beendet" and h.z.ende == ("s3", "cd")
+
+
+def test_folge_zu_ende_ziel_serie_nach_der_letzten_folge_auf_folge_1():
+    h = SitzungsHarnisch(zeiger=(zeiger("s3", "z.mp3", 1, 0.0, 1),))
+    h.auflegen(UID_S3)
+    h.position("s3", "z.mp3", 3.0)
+    out = h.sende(ev.FolgeZuEnde("s3", "z.mp3"))
+    assert out[0] == zeiger_speichern("s3", "cd", 0, 0.0, "folgenende", track=0)
+
+
+def test_folge_zu_ende_ziel_folge_zeiger_springt_auf_track_0_position_0():
+    h = cd_spielt(UID_CD)
+    h.sende(ev.TrackWechsel("s3", "cd", 2))
+    h.position("s3", "cd", 99.0, track=2)
+    out = h.sende(ev.FolgeZuEnde("s3", "cd"))
+    # der Folgen-Zeiger stand auf Track 2 (TrackWechsel); er springt zurück auf Track 0 / 0 s
+    assert out == [
+        zeiger_speichern("s3", "cd", None, 0.0, "folgenende", track=0, art="folge"),
+        ev.Pausieren("folgenende"),
+    ]
+    assert h.modus == "beendet"
+    assert (h.z.datei, h.z.track, h.z.position_s) == ("cd", 0, 0.0)
+
+
+def test_serien_zeiger_derselben_serie_bleibt_beim_folgen_tobie_unberuehrt():
+    sz = zeiger("s3", "z.mp3", 1, 8.0, 3)
+    h = SitzungsHarnisch(zeiger=(sz,))
+    h.auflegen(UID_CD)
+    h.position("s3", "cd", 5.0)
+    h.sende(ev.TrackWechsel("s3", "cd", 1))
+    h.sende(ev.FolgeZuEnde("s3", "cd"))
+    h.sende(ev.Abgehoben(1, "v1"))
+    assert h.z.zeiger[("serie", "s3", "")] == sz
+    assert h.z.zeiger[("folge", "s3", "cd")].track == 0
+
+
+def test_folge_zu_ende_wiederauflegen_folgen_tobie_spielt_von_vorn_serien_tobie_naechste_folge():
+    h = cd_spielt(UID_CD)
+    h.sende(ev.FolgeZuEnde("s3", "cd"))
+    h.sende(ev.Abgehoben(1, "v1"))
+    assert h.auflegen(UID_CD, "v2") == [ab_cd(0.0, 0, "v2")]
+    h = cd_spielt(UID_S3)
+    h.sende(ev.FolgeZuEnde("s3", "cd"))
+    h.sende(ev.Abgehoben(1, "v1"))
+    assert h.auflegen(UID_S3, "v2") == [abspielen("s3", "s3", "z.mp3", 0.0, "v2")]
+
+
+def test_folge_zu_ende_in_unbekannt_geht_nach_beendet_mit_zeiger_je_ziel():
+    h = zustand_s3("unbekannt", UID_CD)
+    out = h.sende(ev.FolgeZuEnde("s3", "cd"))
+    assert out == [
+        zeiger_speichern("s3", "cd", None, 0.0, "folgenende", track=0, art="folge"),
+        ev.Pausieren("folgenende"),
+    ]
+    assert h.modus == "beendet" and h.z.unbekannt_seit is None and h.z.figur is not None
+    assert h.takt(5.0) == []  # die verworfene Leser-Frist pausiert nicht noch einmal
+    h = zustand_s3("unbekannt", UID_S3)
+    out = h.sende(ev.FolgeZuEnde("s3", "cd"))
+    assert out[0] == zeiger_speichern("s3", "z.mp3", 1, 0.0, "folgenende")
+    assert h.modus == "beendet"
+
+
+def test_folge_zu_ende_beim_ausblenden_wegen_stumm_geht_nach_gehalten_zeiger_je_ziel():
+    h = cd_spielt(UID_S3)
+    h.sende(ev.StummBeginnt())
+    out = h.sende(ev.FolgeZuEnde("s3", "cd"))
+    assert out == [
+        ev.GrenzeGesetzt("ausblenden", None),
+        zeiger_speichern("s3", "z.mp3", 1, 0.0, "folgenende"),
+        ev.Pausieren("folgenende"),
+    ]
+    assert h.modus == "gehalten" and h.z.ausblenden is None
+    assert h.sende(ev.StummEndet()) == [] and h.modus == "pausiert"
+    h = cd_spielt(UID_CD)
+    h.sende(ev.StummBeginnt())
+    out = h.sende(ev.FolgeZuEnde("s3", "cd"))
+    assert out == [
+        ev.GrenzeGesetzt("ausblenden", None),
+        zeiger_speichern("s3", "cd", None, 0.0, "folgenende", track=0, art="folge"),
+        ev.Pausieren("folgenende"),
+    ]
+    assert h.modus == "gehalten"
+
+
+def test_folge_zu_ende_in_der_mpd_frist_geht_nach_beendet_und_verwirft_die_frist():
+    h = cd_spielt(UID_S3)
+    h.sende(ev.PlayerVerbindung(False))
+    out = h.sende(ev.FolgeZuEnde("s3", "cd"))
+    assert out[-1] == ev.Pausieren("folgenende")
+    assert h.modus == "beendet" and h.z.mpd_bis is None and not h.z.mpd_verloren
+    assert h.takt(6.0) == []  # nichts mehr: keine zweite Pause nach der Frist
+
+
+def test_folge_zu_ende_fremde_folge_wird_ignoriert_auch_bei_cd():
+    h = cd_spielt()
+    assert h.sende(ev.FolgeZuEnde("s3", "z.mp3")) == [] and h.modus == "spielt"
+
+
+# --- PlayerPosition (6.3, Entscheidung F) ------------------------------------------
+
+
+@pytest.mark.parametrize("zustand", ["spielt", "unbekannt"])
+def test_position_wird_in_zustaenden_mit_laufendem_mpd_uebernommen(zustand):
+    h = zustand_s3(zustand)
+    h.position("s3", "cd", 33.3, 0)
+    assert h.z.position_s == 33.3
+
+
+@pytest.mark.parametrize("zustand", ["leer", "pausiert", "pausiert_ohne_figur", "beendet", "gehalten"])
+def test_position_wird_ausserhalb_von_spielt_und_unbekannt_ignoriert(zustand):
+    h = zustand_s3(zustand)
+    vorher = h.z
+    h.position("s3", "cd", 77.0, 0)
+    assert h.z == vorher
+
+
+@pytest.mark.parametrize(
+    "serie, datei, track",
+    [("s2", "cd", 0), ("s3", "z.mp3", 0), ("s3", "cd", 1), ("s3", "cd", 2)],
+)
+def test_position_mit_anderer_serie_folge_oder_track_wird_ignoriert(serie, datei, track):
+    h = cd_spielt(sek=12.0)
+    h.position(serie, datei, 88.0, track)
+    assert h.z.position_s == 12.0
+
+
+def test_veraltete_position_ueberschreibt_nach_track_wechsel_den_zeiger_nicht():
+    h = cd_spielt(UID_S3, sek=50.0)
+    h.sende(ev.TrackWechsel("s3", "cd", 1))
+    h.position("s3", "cd", 51.0, track=0)  # kam noch vom alten Track
+    assert (h.z.track, h.z.position_s) == (1, 0.0)
+    out = h.sende(ev.Abgehoben(1, "v1"))
+    assert zeiger_speichern("s3", "cd", 0, 0.0, "pause", track=1) not in out  # unverändert zum TrackWechsel-Zeiger
+    assert h.z.zeiger[("serie", "s3", "")].track == 1 and h.z.zeiger[("serie", "s3", "")].position_s == 0.0
+
+
+def test_veraltete_position_nach_folge_zu_ende_aendert_den_zeiger_nicht():
+    h = cd_spielt(UID_S3, sek=50.0)
+    h.sende(ev.FolgeZuEnde("s3", "cd"))
+    zeiger_vorher = dict(h.z.zeiger)
+    h.position("s3", "cd", 61.0, track=0)  # Endposition kommt nach dem Ende
+    h.sende(ev.Abgehoben(1, "v1"))
+    assert dict(h.z.zeiger) == zeiger_vorher
+    assert zeiger_vorher[("serie", "s3", "")].datei == "z.mp3" and zeiger_vorher[("serie", "s3", "")].position_s == 0.0
+
+
+def test_position_in_der_pause_nach_pausieren_aendert_den_zeiger_nicht():
+    """Die Position, die der Player nach ``Pausieren`` sofort sendet, trifft auf ``pausiert``: ignoriert."""
+    h = cd_spielt(UID_S3, sek=10.0)
+    h.sende(ev.Hauptknopf("kurz"))
+    gespeichert = h.z.zeiger[("serie", "s3", "")]
+    h.position("s3", "cd", 11.0, 0)
+    assert h.z.zeiger[("serie", "s3", "")] == gespeichert and h.z.position_s == 10.0
+
+
+# --- Vor / Zurück nach Track ----------------------------------------------------------
+
+
+@pytest.mark.parametrize("uid, art, index", [(UID_CD, "folge", None), (UID_S3, "serie", 0)])
+@pytest.mark.parametrize("zustand", ["spielt", "pausiert"])
+def test_weiter_springt_zum_naechsten_track_derselben_folge(uid, art, index, zustand):
+    h = zustand_s3(zustand, uid)
+    assert h.sende(ev.Weiter()) == [
+        zeiger_speichern("s3", "cd", index, 0.0, "trackwechsel", track=1, art=art),
+        ab_cd(0.0, 1),
+    ]
+    assert h.modus == "spielt"
+
+
+def test_weiter_beim_letzten_track_ziel_serie_erster_track_der_naechsten_folge():
+    h = cd_spielt(UID_S3)
+    h.sende(ev.TrackWechsel("s3", "cd", 2))
+    assert h.sende(ev.Weiter()) == [
+        zeiger_speichern("s3", "z.mp3", 1, 0.0, "folgenende"),
+        abspielen("s3", "s3", "z.mp3", 0.0, "v1"),
+    ]
+    assert h.modus == "spielt"
+
+
+def test_weiter_beim_letzten_track_ziel_folge_nur_hinweiston_nichts_aendert_sich():
+    h = cd_spielt(UID_CD)
+    h.sende(ev.TrackWechsel("s3", "cd", 2))
+    zustand = h.z
+    assert h.sende(ev.Weiter()) == [ev.TonSpielen("hinweis")]
+    assert h.z == zustand and h.modus == "spielt"
+    # auch ein Folgen-Tobie auf eine Datei hat nur einen Track
+    h = SitzungsHarnisch()
+    h.auflegen(UID_FOLGE)
+    assert h.sende(ev.Weiter()) == [ev.TonSpielen("hinweis")]
+
+
+@pytest.mark.parametrize("uid, art, index", [(UID_CD, "folge", None), (UID_S3, "serie", 0)])
+def test_zurueck_unter_3_s_springt_zum_vorigen_track(uid, art, index):
+    h = cd_spielt(uid, sek=2.9, track=0)
+    h.sende(ev.TrackWechsel("s3", "cd", 1))
+    h.position("s3", "cd", 2.9, track=1)
+    assert h.sende(ev.Zurueck()) == [
+        zeiger_speichern("s3", "cd", index, 0.0, "trackwechsel", track=0, art=art),
+        ab_cd(0.0, 0),
+    ]
+
+
+def test_zurueck_ab_3_s_startet_den_aktuellen_track_neu():
+    h = cd_spielt(UID_S3, sek=3.0, track=0)
+    h.sende(ev.TrackWechsel("s3", "cd", 1))
+    h.position("s3", "cd", 3.0, track=1)
+    assert h.sende(ev.Zurueck()) == [ab_cd(0.0, 1)]  # Zeiger steht schon auf Track 1, Position 0: unverändert
+
+
+def test_zurueck_im_ersten_track_startet_den_track_neu_auch_unter_3_s():
+    h = cd_spielt(UID_S3, sek=1.0, track=0)
+    assert h.sende(ev.Zurueck()) == [
+        zeiger_speichern("s3", "cd", 0, 0.0, "trackwechsel", track=0),
+        ab_cd(0.0, 0),
+    ]
+
+
+def test_weiter_zurueck_in_pausiert_starten_die_wiedergabe_am_neuen_track():
+    h = zustand_s3("pausiert", UID_S3)
+    out = h.sende(ev.Weiter())
+    assert out[-1] == ab_cd(0.0, 1) and h.modus == "spielt"
+
+
+def test_weiter_zurueck_springen_nur_nach_dem_zustand_wie_im_vertrag():
+    for zustand in ("leer", "unbekannt"):
+        h = zustand_s3(zustand)
+        assert h.sende(ev.Weiter()) == [] and h.sende(ev.Zurueck()) == []
+
+
+# --- beendet: Hauptknopf, Weiter, Zurück je Ziel ---------------------------------------
+
+
+@pytest.mark.parametrize(
+    "ereignis",
+    [ev.Hauptknopf("kurz"), ev.Weiter()],
+    ids=["hauptknopf", "weiter"],
+)
+def test_beendet_hauptknopf_und_weiter_ziel_serie_spielt_die_naechste_folge(ereignis):
+    h = zustand_s3("beendet", UID_S3)
+    assert h.sende(ereignis) == [abspielen("s3", "s3", "z.mp3", 0.0, "v1")]
+    assert h.modus == "spielt"
+
+
+@pytest.mark.parametrize(
+    "ereignis",
+    [ev.Hauptknopf("kurz"), ev.Weiter()],
+    ids=["hauptknopf", "weiter"],
+)
+def test_beendet_hauptknopf_und_weiter_ziel_folge_spielt_dieselbe_folge_von_vorn(ereignis):
+    h = zustand_s3("beendet", UID_CD)
+    assert h.sende(ereignis) == [ab_cd(0.0, 0)]
+    assert h.modus == "spielt"
+
+
+def test_beendet_zurueck_ziel_serie_spielt_die_eben_beendete_folge_index_per_nachschlagen():
+    h = zustand_s3("beendet", UID_S3)  # cd ist zu Ende, Zeiger steht auf z.mp3 (Index 1)
+    assert h.z.datei == "z.mp3" and h.z.index == 1
+    out = h.sende(ev.Zurueck())
+    assert out == [zeiger_speichern("s3", "cd", 0, 0.0, "zurueck", track=0), ab_cd(0.0, 0)]
+    assert h.modus == "spielt" and (h.z.datei, h.z.index) == ("cd", 0)
+    assert h.z.zeiger[("serie", "s3", "")].datei == "cd"
+
+
+def test_beendet_zurueck_ziel_folge_spielt_dieselbe_folge_von_vorn_ohne_neues_speichern():
+    h = zustand_s3("beendet", UID_CD)
+    out = h.sende(ev.Zurueck())
+    assert out == [ab_cd(0.0, 0)]  # der Folgen-Zeiger steht schon auf Track 0 / 0 s
+    assert h.modus == "spielt"
+
+
+def test_beendet_zurueck_index_wird_nachgeschlagen_nicht_aus_dem_alten_zustand_genommen():
+    """Bibliothek ändert sich im beendet-Zustand: die beendete Folge steht jetzt an anderer Stelle."""
+    h = zustand_s3("beendet", UID_S3)
+    neu = ev.Serie("s3", "Serie 3", "normal", "s3", ("neu.mp3", "cd", "z.mp3"), S3.tracks | {"neu.mp3": ("neu.mp3",)})
+    h.sende(ev.BibliothekGeladen((S1, S2, UEB, neu)))
+    out = h.sende(ev.Zurueck())
+    assert out[0] == zeiger_speichern("s3", "cd", 1, 0.0, "zurueck", track=0)
+
+
+def test_beendet_zurueck_beendete_folge_fehlt_inzwischen_nur_hinweiston():
+    h = zustand_s3("beendet", UID_S3)
+    ohne = ev.Serie("s3", "Serie 3", "normal", "s3", ("z.mp3",))
+    h.sende(ev.BibliothekGeladen((S1, S2, UEB, ohne)))
+    assert h.sende(ev.Zurueck()) == [ev.TonSpielen("hinweis")] and h.modus == "beendet"
+
+
+@pytest.mark.parametrize("uid", [UID_CD, UID_S3])
+@pytest.mark.parametrize("ereignis", [ev.Hauptknopf("kurz"), ev.Weiter(), ev.Zurueck()])
+@pytest.mark.parametrize("zustand", ["pausiert", "beendet", "gehalten"])
+def test_stumm_sperrt_hauptknopf_vor_zurueck_in_pausiert_beendet_gehalten(uid, ereignis, zustand):
+    h = zustand_s3(zustand, uid)
+    if zustand != "gehalten":
+        h.sende(ev.StummBeginnt())
+    zeiger_vorher = dict(h.z.zeiger)
+    assert h.sende(ereignis) == [ev.TonSpielen("hinweis")]
+    assert h.modus == zustand and dict(h.z.zeiger) == zeiger_vorher
+
+
+def test_beendet_wird_nicht_gespeichert_nach_neustart_beginnt_die_sitzung_ohne_wiedergabe():
+    """Serie s3 ist zu Ende; der Zeiger steht auf z.mp3. Nach einem Neustart gibt es nur den Zeiger."""
+    h = zustand_s3("beendet", UID_S3)
+    gespeichert = tuple(h.z.zeiger.values())
+    neu = SitzungsHarnisch(zeiger=gespeichert)
+    assert neu.modus == "leer" and neu.z.ende is None
+    assert neu.sende(ev.Zurueck()) == [] and neu.sende(ev.Hauptknopf("kurz")) == []
+    assert neu.auflegen(UID_S3) == [abspielen("s3", "s3", "z.mp3", 0.0, "v1")]
+
+
+# --- KonfigGeladen mit Ziel folge (9.14) --------------------------------------------------
+
+
+def konfig_ziel(uid, zuordnung):
+    z = dict(ZUORDNUNGEN)
+    z[uid] = zuordnung
+    return ev.KonfigGeladen(mk_konfig(z))
+
+
+def test_konfig_mit_ziel_folge_wechselt_bei_liegender_figur_in_spielt():
+    h = unbekannte_figur_liegt("spielt")
+    out = h.sende(konfig_ziel(UID_UNBEKANNT, ev.Zuordnung("folge", "s3", "cd")))
+    assert out == [zeiger_speichern("ueb", "u1.mp3", 0, 4.0, "figurwechsel"), ab_cd(0.0, 0)]
+    assert (h.modus, h.z.ziel, h.z.datei) == ("spielt", "folge", "cd")
+
+
+@pytest.mark.parametrize("zustand", ["pausiert", "beendet"])
+def test_konfig_mit_ziel_folge_startet_in_pause_oder_ende(zustand):
+    h = unbekannte_figur_liegt(zustand)
+    assert h.sende(konfig_ziel(UID_UNBEKANNT, ev.Zuordnung("folge", "s3", "cd"))) == [ab_cd(0.0, 0)]
+    assert h.modus == "spielt"
+
+
+def test_konfig_mit_ziel_folge_unter_stumm_nur_hinweiston():
+    h = unbekannte_figur_liegt("pausiert")
+    h.sende(ev.StummBeginnt())
+    assert h.sende(konfig_ziel(UID_UNBEKANNT, ev.Zuordnung("folge", "s3", "cd"))) == [ev.TonSpielen("hinweis")]
+    assert h.modus == "pausiert"
+
+
+def test_konfig_in_gehalten_unbekannt_leer_mit_ziel_folge_nichts():
+    for zustand in ("gehalten", "unbekannt", "leer"):
+        h = zustand_s3(zustand, UID_S1)
+        assert h.sende(konfig_ziel(UID_S1, ev.Zuordnung("folge", "s3", "cd"))) == []
+
+
+def test_konfig_ziel_folge_unveraendert_nichts():
+    h = cd_spielt(UID_CD)
+    assert h.sende(konfig_ziel(UID_CD, ev.Zuordnung("folge", "s3", "cd"))) == []
+
+
+def test_konfig_wechsel_von_serie_auf_folge_derselben_serie_ist_ein_anderes_ziel():
+    h = cd_spielt(UID_S3)
+    out = h.sende(konfig_ziel(UID_S3, ev.Zuordnung("folge", "s3", "z.mp3")))
+    assert out[-1] == abspielen("s3", "s3", "z.mp3", 0.0, "v1") and h.z.ziel == "folge"
+
+
+def test_konfig_wechsel_auf_andere_folge_derselben_serie():
+    h = cd_spielt(UID_CD)
+    out = h.sende(konfig_ziel(UID_CD, ev.Zuordnung("folge", "s3", "z.mp3")))
+    assert out[-1] == abspielen("s3", "s3", "z.mp3", 0.0, "v1")
+
+
+def test_konfig_ziel_folge_fehlt_in_der_serie_nichts():
+    h = unbekannte_figur_liegt("spielt")
+    assert h.sende(konfig_ziel(UID_UNBEKANNT, ev.Zuordnung("folge", "s3", "gibt-es-nicht"))) == []
+    assert h.z.serie_id == "ueb"
+
+
+# --- Fortsetzen nach MPD-Verlust mit Track -------------------------------------------------
+
+
+@pytest.mark.parametrize("uid", [UID_CD, UID_S3])
+def test_mpd_zurueck_innerhalb_der_frist_setzt_mit_track_und_position_fort(uid):
+    h = cd_spielt(uid)
+    h.sende(ev.TrackWechsel("s3", "cd", 2))
+    h.position("s3", "cd", 40.0, track=2)
+    h.sende(ev.PlayerVerbindung(False))
+    out = h.sende(ev.PlayerVerbindung(True), dt=1.0)
+    assert out == [ev.AusgangWaehlen("lautsprecher"), ab_cd(37.0, 2)]
+    assert h.modus == "spielt"
+
+
+# --- Leser-Neustart startet nie eine Wiedergabe (9.1) -----------------------------------------
+
+
+@pytest.mark.parametrize("uid", [UID_CD, UID_FOLGE, UID_S3])
+def test_leser_neustart_startet_nie_eine_wiedergabe_auch_nicht_mit_folgen_zeiger(uid):
+    fz = zeiger("s3", "cd", None, 30.0, 2, track=1, art="folge")
+    h = SitzungsHarnisch(zeiger=(fz,))
+    h.auflegen(uid, "v1")
+    h.sende(ev.Abgehoben(1, "v1"))
+    h.auflegen(uid, "v2")
+    h.position(h.z.serie_id, h.z.datei, 5.0, h.z.track)
+    h.sende(ev.Hauptknopf("kurz"))  # pausiert, der Tobie liegt
+    assert h.modus == "pausiert"
+    for e in (ev.LeserAlarm("kein_herzschlag"), ev.LeserHallo(1, "1.0", "b", "p")):
+        assert h.sende(e) == []
+    assert h.sende(A(uid, "v2")) == []  # Wiedermeldung, gleiche Vorgangs-ID
+    assert not any(isinstance(o, ev.Abspielen) for o in h.voll)
+    assert h.modus == "pausiert"
+
+
+def test_leser_neustart_waehrend_spielt_mit_folgen_zeiger_setzt_nach_unbekannt_ohne_neustart_fort():
+    h = cd_spielt(UID_CD)
+    h.sende(ev.TrackWechsel("s3", "cd", 1))
+    h.sende(ev.LeserHallo(1, "1.0", "b", "p"), dt=0.1)
+    assert h.modus == "unbekannt"
+    n = len([o for o in h.alle if isinstance(o, ev.Abspielen)])
+    assert h.sende(A(UID_CD, "v1"), dt=0.2) == []  # derselbe Tobie innerhalb der Frist
+    assert h.modus == "spielt" and len([o for o in h.alle if isinstance(o, ev.Abspielen)]) == n
+
+
+def test_leser_neustart_nach_abgelaufener_frist_startet_den_folgen_tobie_nicht_neu():
+    h = cd_spielt(UID_CD)
+    h.sende(ev.LeserAlarm("kein_herzschlag"))
+    h.takt(3.2)
+    assert h.modus == "pausiert"
+    n = len([o for o in h.alle if isinstance(o, ev.Abspielen)])
+    h.sende(ev.LeserHallo(1, "1.0", "b", "p"))
+    assert h.sende(A(UID_CD, "v1")) == []
+    assert len([o for o in h.alle if isinstance(o, ev.Abspielen)]) == n
+
+
+# --- Hauptknopf kurz je Zustand mit Folgen-Tobie (hier statt eigener Datei) -------------------
+
+
+HAUPTKNOPF_FOLGE = [
+    # (Zustand, Tobie, erwartete Befehle, neuer Zustand)
+    ("spielt", UID_CD, [ev.Pausieren("knopf"), zeiger_speichern("s3", "cd", None, 10.0, "pause", art="folge")], "pausiert"),
+    ("pausiert", UID_CD, [ab_cd(7.0, 0)], "spielt"),
+    ("pausiert_ohne_figur", UID_CD, [ab_cd(7.0, 0, None)], "spielt"),
+    ("beendet", UID_CD, [ab_cd(0.0, 0)], "spielt"),
+    ("beendet", UID_S3, [abspielen("s3", "s3", "z.mp3", 0.0, "v1")], "spielt"),
+    ("leer", UID_CD, [], "leer"),
+    ("unbekannt", UID_CD, [], "unbekannt"),
+    ("gehalten", UID_CD, [ev.TonSpielen("hinweis")], "gehalten"),  # „gehalten“ gibt es nur unter stumm
+]
+
+
+@pytest.mark.parametrize("zustand, uid, erwartet, neu", HAUPTKNOPF_FOLGE)
+def test_hauptknopf_kurz_je_zustand_mit_folgen_tobie(zustand, uid, erwartet, neu):
+    h = zustand_s3(zustand, uid)
+    assert h.sende(ev.Hauptknopf("kurz")) == erwartet
+    assert h.modus == neu.replace("_ohne_figur", "")
+
+
+# --- PlayerFehler bei Folgen-Zeiger ---------------------------------------------------------------
+
+
+def test_player_fehler_datei_fehlt_ziel_folge_dieselbe_folge_track_0_position_0():
+    h = cd_spielt(UID_CD)
+    h.sende(ev.TrackWechsel("s3", "cd", 1))
+    out = h.sende(ev.PlayerFehler("s3", "cd", "datei_fehlt", "x"))
+    assert out == [
+        ev.TonSpielen("fehler"),
+        ev.Pausieren("fehler"),
+        zeiger_speichern("s3", "cd", None, 0.0, "pause", track=0, art="folge"),
+    ]
+    assert h.modus == "pausiert"
+
+
+def test_player_fehler_datei_fehlt_ziel_serie_naechste_folge_track_0():
+    h = cd_spielt(UID_S3)
+    out = h.sende(ev.PlayerFehler("s3", "cd", "datei_unlesbar", "x"))
+    assert zeiger_speichern("s3", "z.mp3", 1, 0.0, "pause", track=0) in out
+
+
+# --- Schreibbudget (neu gerechnet, Entscheidung F) -----------------------------------------------
+
+
+def test_schreibbudget_zwei_stunden_wiedergabe_hoechstens_320_zeiger_schreibungen():
+    """2 h Wiedergabe, 40 Pausen (Hauptknopf zweimal) und 40 Track-Wechsel: höchstens 240 + 40 + 40.
+
+    Die Position wandert jede Sekunde mit, damit jede periodische Schreibung wirklich nötig ist."""
+    viele = tuple(f"rip/{i:02}.mp3" for i in range(60))
+    gross = ev.Serie("gross", "Gross", "normal", "gross", ("rip",), {"rip": viele})
+    h = SitzungsHarnisch(serien=(S1, S2, UEB, gross))
+    h.sende(konfig_mit("04a1b2d0", "gross"))
+    h.auflegen("04a1b2d0")
+
+    def zaehle(out) -> int:
+        return sum(isinstance(o, ev.ZeigerSpeichern) for o in out)
+
+    schreibungen = track = pausen = 0
+    sek = 0.0
+    for s in range(1, 7201):
+        for _ in range(10):
+            schreibungen += zaehle(h.sende(ev.Takt(), dt=0.1))
+        sek += 1.0
+        h.position("gross", "rip", sek, track)
+        if s % 180 == 0 and track < 40:  # 40 Track-Wechsel
+            track += 1
+            schreibungen += zaehle(h.sende(ev.TrackWechsel("gross", "rip", track)))
+            sek = 0.0
+        if s % 180 == 90 and pausen < 40:  # 40 Pausen: Hauptknopf kurz (Pause), Hauptknopf kurz (weiter)
+            schreibungen += zaehle(h.sende(ev.Hauptknopf("kurz")))
+            schreibungen += zaehle(h.sende(ev.Hauptknopf("kurz")))
+            sek = max(0.0, sek - 3.0)
+            pausen += 1
+    assert h.modus == "spielt" and track == 40 and pausen == 40
+    assert 200 <= schreibungen <= 240 + 40 + 40, schreibungen

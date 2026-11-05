@@ -32,26 +32,48 @@ class Jetzt:
 
 @dataclass(frozen=True, slots=True)
 class Serie:
+    """Eine Serie mit ihren Folgen (Datei oder Ordner) und deren Tracks.
+
+    ``tracks`` bildet den Namen einer Folge auf die Pfade ihrer Tracks relativ zum
+    Serien-Ordner ab; eine Folge aus einer Datei hat genau einen Track, nämlich
+    ihren eigenen Namen. Fehlt ein Eintrag, ergänzt ``__post_init__`` ihn so
+    (Entscheidung F, 05.11.).
+    """
+
     id: str
     name: str
     typ: Literal["normal", "ueberraschung"]
     ordner: str
     folgen: tuple[str, ...]
+    tracks: Mapping[str, tuple[str, ...]] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        fehlend = [f for f in self.folgen if f not in self.tracks]
+        if fehlend:
+            voll = dict(self.tracks)
+            for f in fehlend:
+                voll[f] = (f,)
+            object.__setattr__(self, "tracks", voll)
 
 
 @dataclass(frozen=True, slots=True)
 class Zeiger:
+    """Resume-Zustand: Serien-Zeiger (``art="serie"``) oder Folgen-Zeiger (``art="folge"``)."""
+
+    art: Literal["serie", "folge"]
     serie_id: str
-    datei: str
-    index: int
-    position_s: float
+    datei: str  # Name der Folge
+    index: int | None  # Nummer der Folge in ``Serie.folgen``; ``None`` bei ``art="folge"``
+    track: int
+    position_s: float  # Sekunden im Track, ohne Rücksprung
     zaehler: int
 
 
 @dataclass(frozen=True, slots=True)
 class Zuordnung:
-    typ: Literal["serie", "aktion"]
+    typ: Literal["serie", "folge", "aktion"]
     serie_id: str | None = None
+    folge: str | None = None  # Name der Folge bei ``typ="folge"``
     aktion: Literal["status", "gute_nacht"] | None = None
 
 
@@ -180,7 +202,18 @@ class LeserFehler(Ereignis):
 
 
 @dataclass(frozen=True, slots=True)
+class TrackWechsel(Ereignis):
+    """MPD spielt innerhalb der Folge mit dem nächsten Track weiter (keine Pause)."""
+
+    serie_id: str
+    datei: str
+    track: int
+
+
+@dataclass(frozen=True, slots=True)
 class FolgeZuEnde(Ereignis):
+    """MPD hat den letzten Track der Folge zu Ende gespielt und gestoppt."""
+
     serie_id: str
     datei: str
 
@@ -189,6 +222,7 @@ class FolgeZuEnde(Ereignis):
 class PlayerPosition(Ereignis):
     serie_id: str
     datei: str
+    track: int
     position_s: float
     spielt: bool
 
@@ -459,8 +493,10 @@ class AusgangWaehlen(Befehl):
 class Abspielen(Befehl):
     serie_id: str
     ordner: str
-    datei: str
-    position_s: float
+    datei: str  # Name der Folge
+    tracks: tuple[str, ...]  # Pfade der Tracks relativ zu ``ordner``, in Reihenfolge
+    track: int
+    position_s: float  # im Track, mit Rücksprung
     vorgang: str | None = None
 
 
@@ -480,11 +516,15 @@ class Pausieren(Befehl):
 
 @dataclass(frozen=True, slots=True)
 class ZeigerSpeichern(Befehl):
+    art: Literal["serie", "folge"]
     serie_id: str
     datei: str
-    index: int
+    index: int | None
+    track: int
     position_s: float
-    grund: Literal["pause", "folgenende", "figurwechsel", "periodisch", "herunterfahren"]
+    grund: Literal[
+        "pause", "folgenende", "trackwechsel", "zurueck", "figurwechsel", "periodisch", "herunterfahren"
+    ]
 
 
 @dataclass(frozen=True, slots=True)
@@ -529,6 +569,8 @@ class ZustandMelden(Befehl):
     ruhe: Literal["normal", "leiser", "stumm"]
     gute_nacht: Literal["aus", "laeuft", "ausblenden"]
     figur_liegt: bool
+    folge: str | None = None  # Name der aktuellen Folge (Statusfeld ``folge``, optional)
+    track: int | None = None
 
 
 @dataclass(frozen=True, slots=True)

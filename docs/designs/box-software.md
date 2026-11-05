@@ -972,16 +972,22 @@ wegen „stumm“ nicht gespielt), `unbekannt` (Leser-Zustand unbekannt).
 | `leer`, `pausiert` | `PLACED`, Kennung unbekannt | Kennung in `unknown.json`, Überraschungs-Serie abspielen, Ton | `spielt` |
 | `leer`, `pausiert` | `LOCKED` | Überraschungs-Serie abspielen | `spielt` |
 | `leer`, `pausiert` | `PLACED`, Ziel `aktion` | Aktion auslösen (Status: Tonfolge; Gute Nacht: an Ruhe-Regeln) | unverändert |
-| `leer`, `pausiert` | `PLACED`, stumm aktiv | leiser Hinweiston, nichts abspielen | `gehalten` |
+| `leer`, `pausiert` | `PLACED`, Ziel `serie` oder `folge` zeigt auf eine fehlende Serie oder Folge (Entscheidung F, 05.11.) | Überraschungs-Serie abspielen, Protokoll `serie_fehlt` bzw. `folge_fehlt`, **kein** Melden (der Tobie ist ja zugeordnet) | `spielt` |
+| `leer`, `pausiert` | `PLACED`, stumm aktiv (Serie oder Folge) (Entscheidung F, 05.11.) | leiser Hinweiston, nichts abspielen | `gehalten` |
+| `pausiert`, `beendet`, `gehalten` | Hauptknopf kurz, `Vor` oder `Zurück`, solange stumm gilt (Entscheidung F, 05.11.) | nur Hinweiston, nichts startet, Zeiger unverändert (Zeilen „Im stumm-Fenster“ in `core-interface.md`, 9.12) | unverändert |
 | `spielt` | `REMOVED` | Pause, Zeiger speichern | `pausiert` |
 | `spielt` | `PLACED` andere Kennung | Zeiger der alten Serie speichern, neue Serie wie in den Zeilen oben | `spielt` |
 | `spielt` | `TrackWechsel` (MPD spielt den nächsten Track derselben Folge) (Entscheidung F, 05.11.) | Zeiger auf den neuen Track, Position 0, speichern; keine Pause | `spielt` |
 | `spielt` | Folge zu Ende (nach dem letzten Track, auch die letzte Folge) (Entscheidung F, 05.11.) | `serie`: Zeiger auf die nächste Folge, Track 0, Position 0 (nach der letzten auf Folge 1); `folge`: Zeiger dieser Folge auf Track 0, Position 0; speichern, Pause, auch wenn der Tobie liegt | `beendet` |
+| `spielt` (auch beim Ausblenden wegen stumm und in der MPD-Frist), `unbekannt` | `TrackWechsel` (Entscheidung F, 05.11.) | Zeiger je Ziel auf den neuen Track nachführen und speichern; keine Pause, Ausblenden und Fristen laufen weiter | unverändert |
+| `unbekannt`, `spielt` (MPD-Frist) | Folge zu Ende (Entscheidung F, 05.11.) | wie in `spielt`: Zeiger je Ziel setzen und speichern, Pause; Fristen werden verworfen | `beendet` |
+| `spielt` (Ausblenden wegen stumm) | Folge zu Ende (Entscheidung F, 05.11.) | Ausblenden beenden, Zeiger je Ziel setzen und speichern, Pause | `gehalten` |
+| `spielt`, `unbekannt` | `PlayerPosition` (Entscheidung F, 05.11.) | Position nur übernehmen, wenn Serie, Folge **und** Track zum Zeiger passen, sonst ignorieren; in allen anderen Zuständen wird sie ignoriert, damit eine veraltete Position nie den Zeiger überschreibt | unverändert |
 | `spielt`, `pausiert` | `Vor` (Entscheidung F, 05.11.) | nächster Track derselben Folge; beim letzten Track: `serie` → erster Track der nächsten Folge, `folge` → Hinweiston, nichts ändert sich; sonst Zeiger speichern, am neuen Track abspielen | `spielt` (bei Hinweiston unverändert) |
 | `spielt`, `pausiert` | `Zurück` (Entscheidung F, 05.11.) | Position im Track < 3 s und es gibt einen vorigen Track → voriger Track; sonst aktuellen Track von vorn; Zeiger speichern, abspielen | `spielt` |
 | `beendet` | `REMOVED` | — (die nächste Folge spielt nach erneutem Auflegen) | `pausiert` |
 | `beendet` (Tobie liegt) | Hauptknopf kurz oder `Vor` | Lautstärke setzen, ab Zeiger abspielen (Entscheidung E): `serie` → nächste Folge, `folge` → dieselbe Folge von vorn (Entscheidung F, 05.11.) | `spielt` |
-| `beendet` (Tobie liegt) | `Zurück` (Entscheidung F, 05.11.) | Lautstärke setzen, die eben beendete Folge von vorn abspielen (beide Typen); Zeiger auf diese Folge, Track 0, Position 0 | `spielt` |
+| `beendet` (Tobie liegt) | `Zurück` (Entscheidung F, 05.11.) | Lautstärke setzen, die eben beendete Folge von vorn abspielen (beide Typen); einzige Quelle ist die gemerkte, eben beendete Folge; `index` per Nachschlagen in `Serie.folgen`; Zeiger auf diese Folge, Track 0, Position 0, speichern mit Grund `zurueck`. `beendet` wird nicht gespeichert: nach einem Neustart des Dienstes beginnt die Sitzung ohne Wiedergabe mit dem gespeicherten Zeiger | `spielt` |
 | `spielt` | Hauptknopf kurz | Pause, Zeiger speichern | `pausiert` |
 | `pausiert` (Tobie liegt) | Hauptknopf kurz | Abspielen | `spielt` |
 | `spielt` | Wächter-Alarm (kein `HB`) | Frist 1,5 s starten | `unbekannt` |
@@ -1155,15 +1161,27 @@ möglichst abwärtskompatibel sein.
   Überraschungs-Serie und protokolliert den Grund; kommt die Folge später, gilt
   die Zuordnung beim nächsten Auflegen. **Fehlender Track** (die Folge hat jetzt
   weniger Tracks als der Zeiger meint): Track 0, Position 0, Protokolleintrag.
+  **Fehlender oder unlesbarer Track innerhalb einer Folge mit mehreren Tracks**
+  (Festlegung, bestätigt 05.11.): Die Box überspringt ihn und spielt den
+  nächsten Track derselben Folge (Protokoll `datei_fehlt`); erst nach dem
+  letzten Track gilt das als Ende der Folge (Entscheidung F, 05.11.).
 - **Migration:** `resume.json` (`schema_version` 1 → 2): Jeder Eintrag in
   `serien` bekommt `track` 0; `folgen` (Folgen-Zeiger) ist leer. Alte Einträge
   gelten also als „Track 0 mit der gespeicherten Position“. `config.json`
   (`schema_version` 1 → 2): Jeder Eintrag `{typ, …}` wird zu `{ziel: {typ, …}}`.
   Beide Migrationen laufen im Speicher beim Lesen (`data-model.md`, 1.5).
+  Auch eine Liste der Version 1, die per MQTT ankommt, nimmt die Box an und
+  migriert sie im Speicher; die Prüfung von `ziel` läuft **nach** der
+  Migration (`data-model.md`, Abschnitt 2) (Entscheidung F, 05.11.).
+  Reihenfolge der Einführung: zuerst alle Boxen aktualisieren, danach verteilt
+  HA Version 2 (es stehen noch keine Boxen im Feld).
 - Der Zeiger wird nur gespeichert, wenn er sich geändert hat — bei Pause,
   Folgen- und Track-Wechsel, Tobie-Wechsel und höchstens alle 30 s während der Wiedergabe.
-- **Schreibbudget:** Bei 2 h Wiedergabe am Tag sind das etwa 240 Schreibvorgänge
-  pro Tag und Box für den Zeiger. Das Ereignisprotokoll hat eine feste
+- **Schreibbudget:** Bei 2 h Wiedergabe am Tag sind das 240 periodische
+  Schreibvorgänge pro Box, dazu je einer für jede Pause, jeden Tobie-Wechsel und
+  jeden Track-Wechsel (Entscheidung F, 05.11., neu gerechnet): bei 40 Pausen oder
+  Wechseln und 40 Track-Wechseln höchstens 320 Schreibvorgänge pro Tag und Box
+  für den Zeiger. Das Ereignisprotokoll hat eine feste
   Obergrenze (Pi: journald mit begrenztem Platz; Mac: rotierende Datei,
   Vorschlag 5 Dateien zu je 1 MB). Beide Werte werden im Pi-Probelauf
   geprüft.
@@ -1806,7 +1824,10 @@ ganzen Folge. Zeiger mit Track, Folgen-Zeiger, Vor / Zurück nach Track,
 Ausnahme von der Grundregel zu `session.py` und `app.py`: Diese Änderung gehört
 inhaltlich zu den Teilen und wird vor AP 1.6 gemacht; AP 1.6 führt zusammen.
 Die Verträge (`docs/protocol/core-interface.md`, `docs/data-model.md`,
-`docs/protocol/mqtt-v1.md`) sind schon nachgezogen; das AP ändert sie nicht.
+`docs/protocol/mqtt-v1.md`) sind schon nachgezogen (zuletzt mit den Festlegungen
+25 bis 28 in `core-interface.md`: Position, Player-Ereignisse in allen Zuständen
+mit laufendem MPD, Zurück in `beendet`, fehlender Track, Statusfeld `folge`);
+das AP ändert sie nicht.
 
 | Datei | Neu/Änd. | Inhalt und Grund |
 |---|---|---|
@@ -1814,15 +1835,19 @@ Die Verträge (`docs/protocol/core-interface.md`, `docs/data-model.md`,
 | `box/src/tobibox/library.py` | änd. | Folge = Datei oder Unterordner; Tracks eines Folgen-Ordners nach natürlicher Sortierung, ohne Dotfiles, gleiche Endungsliste; leerer Folgen-Ordner zählt nicht (Protokoll); `serie.json.folgen` nennt Namen. |
 | `box/src/tobibox/pointer.py` | änd. | Serien-Zeiger und Folgen-Zeiger; Folgenende je Ziel (Serie: nächste Folge, Track 0; Folge: zurück auf Track 0, 0 s); Track-Sprünge für Vor / Zurück (3-s-Regel); fehlende Folge und fehlender Track. |
 | `box/src/tobibox/session.py` | änd. | Ziel `serie` / `folge` merken; `TrackWechsel` (Zeiger, keine Pause); `FolgeZuEnde` (Pause erst jetzt, Zeiger je Ziel); Vor / Zurück nach Track; Hauptknopf kurz und Zurück in `beendet`; Folgen-Tobie mit fehlender Folge → Überraschungs-Serie. |
-| `box/src/tobibox/store.py` | änd. | `resume.json` Version 2 (Track, Folgen-Zeiger) und `config.json` Version 2 (`ziel`) lesen und schreiben; Migration im Speicher (alte Einträge = Track 0 bzw. `ziel` aus `typ`). |
-| `box/src/tobibox/player.py` | änd. | Warteschlange mit den Tracks der aktuellen Folge; `seek` auf Track und Position; `TrackWechsel` bei Wechsel zum nächsten Track; `FolgeZuEnde` erst, wenn MPD nach dem letzten Track stoppt; `PlayerPosition` mit Track. |
+| `box/src/tobibox/store.py` | änd. | `resume.json` Version 2 (Track, Folgen-Zeiger) und `config.json` Version 2 (`ziel`) lesen und schreiben; Migration im Speicher (alte Einträge = Track 0 bzw. `ziel` aus `typ`). **Stellt die eine Funktion für Migration und Prüfung einer Konfiguration bereit** (`validiere_konfig`: erst migrieren, dann prüfen); `ha.py` (AP 3.x) ruft sie auf und schreibt keine eigene Prüfung. |
+| `box/src/tobibox/player.py` | änd. | Warteschlange mit den Tracks der aktuellen Folge; `seek` auf Track und Position; `TrackWechsel` bei Wechsel zum nächsten Track; `FolgeZuEnde` erst, wenn MPD nach dem letzten Track stoppt; `PlayerPosition` mit Track. Ein fehlender oder unlesbarer Track einer Folge mit mehreren Tracks wird übersprungen (`datei_fehlt` im Protokoll), `PlayerFehler` nur, wenn kein Track spielbar ist. |
 | `box/src/tobibox/app.py` | änd. | Verdrahtung: `Abspielen` mit Tracks an den Player, neue Player-Ereignisse in den Kern, Zeiger-Speichern mit Art und Track. |
+| `box/src/tobibox/core.py` | änd. | `ZustandMelden` trägt `folge` und `track` (optionales Statusfeld `folge`). |
 | `box/tests/fixtures/audio.py` | änd. | Erzeugt zusätzlich Folgen-Ordner mit mehreren kurzen Tracks (und Dotfiles zum Ignorieren). |
+| `box/tests/conftest.py` | änd. | Hilfen für die neuen Typen (`abspielen`, `zeiger`, `zeiger_speichern`, `ppos`), Folgen-Tobies in den Beispieldaten und der CUJ-Harnisch `CujBox` (Kern, Bibliothek, `resume.json`, simulierter Player). |
+| `box/tests/unit/test_store.py`, `box/tests/unit/test_core.py` | änd. | Erwartungen an die neuen Typen angepasst (Zeiger-Schlüssel, Schema 2, `ZustandMelden`); `test_core.py` zusätzlich Tracks im Kern. |
+| `box/tests/integration/test_app_e2e.py` | änd. | Kettentest mit echtem MPD: Folgen-Tobie mit drei Tracks. |
 | `box/tests/unit/test_library.py` | änd. | Folge als Datei und als Ordner, Track-Reihenfolge, Dotfiles, leerer Folgen-Ordner, Serie „Einzelfolgen“. |
 | `box/tests/unit/test_pointer.py` | änd. | Folgenende für `serie` und `folge`, Vor / Zurück nach Track (3-s-Grenze, erster und letzter Track), fehlender Track. |
-| `box/tests/unit/test_session.py` | änd. | Neue Zeilen der Tabelle „Wiedergabe-Sitzung“: `TrackWechsel`, Folgenende je Ziel, Vor, Zurück, `beendet` mit Hauptknopf und Zurück. |
+| `box/tests/unit/test_session.py` | änd. | Neue Zeilen der Tabelle „Wiedergabe-Sitzung“: `TrackWechsel`, Folgenende je Ziel, Vor, Zurück, `beendet` mit Hauptknopf und Zurück, `PlayerPosition` nur bei passendem Zeiger, `TrackWechsel` und Folgenende in allen Zuständen mit laufendem MPD, Zuordnung auf fehlende Serie oder Folge (`serie_fehlt`, `folge_fehlt`). **Enthält auch die Tests „Hauptknopf kurz je Zustand“** (früher als eigene Datei `test_session_hauptknopf.py` in AP 4.2 vorgesehen; zusammengeführt). |
 | `box/tests/unit/test_store_migration.py` | neu | Migrationstest: `resume.json` Version 1 wird im Speicher zu Version 2 (alle Einträge Track 0, keine Folgen-Zeiger), `config.json` Version 1 wird zu `ziel`; neuere Version wird abgelehnt. |
-| `box/tests/integration/test_player_mpd.py` | änd. | Gegen echtes MPD: Folge mit mehreren Tracks spielt durch, `TrackWechsel` je Wechsel, `FolgeZuEnde` nur nach dem letzten Track, Resume per `seek` in Track 2. |
+| `box/tests/integration/test_player_mpd.py` | änd. | Gegen echtes MPD: Folge mit mehreren Tracks spielt durch, `TrackWechsel` je Wechsel, `FolgeZuEnde` nur nach dem letzten Track, Resume per `seek` in Track 2, fehlender oder unlesbarer Track (Mitte, Ende, Start, alle) wird übersprungen. |
 | `box/tests/cuj/test_cuj01_folgen_tobie.py` | neu | CUJ 1 und 3 für einen Tobie auf eine einzelne Folge: spielt diese Folge; am Ende Pause, Zeiger zurück auf den Anfang; erneutes Auflegen spielt von vorn; Serien-Zeiger derselben Serie bleibt unberührt. |
 | `box/tests/cuj/test_cuj01_folge_mit_tracks.py` | neu | Folge mit mehreren Tracks: Tracks nacheinander ohne Pause, Pause erst am Ende der Folge, Resume mitten im zweiten Track, Vor / Zurück nach Track (Serien-Tobie: letzter Track → nächste Folge; Folgen-Tobie: Hinweiston). |
 
@@ -1832,6 +1857,15 @@ Abnahme AP 1.7:
 - Eine Folge mit drei Tracks spielt ohne Pause durch; die Pause und der Zeiger-Sprung kommen erst am Ende der ganzen Folge.
 - Ein Folgen-Tobie spielt nach dem Ende beim nächsten Auflegen von vorn; ein Serien-Tobie derselben Serie macht an seinem eigenen Zeiger weiter.
 - Der Migrationstest für `resume.json` (und `config.json`) ist grün.
+- Hauptknopf kurz und Zurück in `beendet` sind je Ziel (`serie`, `folge`) getestet; Zurück nimmt die gemerkte, eben beendete Folge (Index per Nachschlagen, Grund `zurueck`).
+- Ein Folgen-Tobie auf eine fehlende Folge und eine Zuordnung auf eine fehlende Serie spielen die Überraschungs-Serie, ohne `Melden` (Protokoll `folge_fehlt` bzw. `serie_fehlt`).
+- `KonfigGeladen` mit Ziel `folge` wechselt bei liegendem Tobie wie bei `serie` (Punkt 14 im Vertrag).
+- Fortsetzen nach MPD-Verlust spielt mit Track und Position des Zeigers.
+- Unter „stumm“ startet weder Vor noch Zurück noch der Hauptknopf eine Wiedergabe, auch nicht in `beendet` (nur Hinweiston).
+- Ein Neustart des Lesers (`LeserHallo`, Wiedermeldung) startet nie eine Wiedergabe, auch nicht bei einem Folgen-Zeiger.
+- Das neu gerechnete Schreibbudget (höchstens 320 Zeiger-Schreibungen pro Tag bei 2 h Wiedergabe, 40 Pausen oder Wechseln und 40 Track-Wechseln) ist als Test mit simulierter Uhr belegt.
+- `PlayerPosition` wird nur in `spielt` und `unbekannt` und nur bei passender Serie, Folge und Track übernommen; `TrackWechsel` und Folgenende führen den Zeiger in `unbekannt`, beim Ausblenden wegen „stumm“ und in der MPD-Frist nach (Folgenende dort: `beendet` bzw. `gehalten`).
+- Ein fehlender oder unlesbarer Track in einer Folge mit mehreren Tracks wird übersprungen; nur nach dem letzten Track gilt die Folge als zu Ende.
 - `session.py` und `core.py` importieren weiter kein Ein-/Ausgabe-Modul.
 
 #### AP 1.6 Integration Stufe 1 und Messung (Sonnet)
@@ -1939,7 +1973,7 @@ die CUJ-Tests der Stufe laufen.
 | `box/src/tobibox/core.py` | änd. | `learn` in die Liste der Teilautomaten eintragen. |
 | `box/src/tobibox/session.py` | änd. | Karte mit Ziel `aktion` löst die Aktion aus statt einer Serie (Status: Tonfolge); Fehler beheben, die die Tests aus AP 2.1 zeigen. |
 | `box/src/tobibox/app.py` | änd. | `outbox` und `sim` verdrahten. |
-| `box/src/tobibox/cli.py` | änd. | `tobibox status` ausführlich; `tobibox sim learn`, `tobibox sim ack` und `tobibox sim card` (Karte als Aktion in `config.json` zuordnen, bis HA das in Stufe 3a übernimmt). |
+| `box/src/tobibox/cli.py` | änd. | `tobibox status` ausführlich; `tobibox sim learn`, `tobibox sim ack` und `tobibox sim card` (Karte als Aktion in `config.json` zuordnen, bis HA das in Stufe 3a übernimmt; schreibt das Feld `ziel` der Version 2, `data-model.md`, Abschnitt 2, Entscheidung F, 05.11.). |
 | `box/tests/cuj/test_cuj07a_unbekannte_figur.py` | neu | CUJ 7a: Überraschungs-Serie, Eintrag in `unknown.json`, Löschen erst nach `ack`, Wechsel auf die Serie nach der Zuordnung. |
 | `box/tests/cuj/test_cuj07b_lernmodus.py` | neu | CUJ 7b ohne HA: Lernmodus per `tobibox sim learn`, Frist 2 min, Abbruch, abgelaufener Befehl. |
 | `box/tests/cuj/test_cuj11_status.py` | neu | CUJ 11: Status-Admin-Karte als pytest-Tabelle. |
@@ -2124,7 +2158,7 @@ Strom-Schnittstelle. Die Eingänge in `sim.py` und `cli.py` trägt AP 3.7 ein.
 
 | Datei | Neu/Änd. | Inhalt und Grund |
 |---|---|---|
-| `box/src/tobibox/ha.py` | neu | MQTT mit eigenem Konto (QoS 1, dauerhafte Sitzung), Discovery, Konfiguration nach der Revisionsregel (Listen-ID) übernehmen, abgelehnte Listen melden, unbekannte Kennungen dauerhaft je Kennung veröffentlichen und `…/ack` als Ereignis `bestätigt` weitergeben, Befehle mit Ablaufzeit prüfen, HA-Sensoren inkl. Status und freiem Speicherplatz. |
+| `box/src/tobibox/ha.py` | neu | MQTT mit eigenem Konto (QoS 1, dauerhafte Sitzung), Discovery, Konfiguration nach der Revisionsregel (Listen-ID) übernehmen (Migration und Prüfung ruft `ha.py` aus `store.py` auf, die eine Funktion aus AP 1.7 `validiere_konfig`, keine eigene Prüfung; Entscheidung F, 05.11.), abgelehnte Listen melden, unbekannte Kennungen dauerhaft je Kennung veröffentlichen und `…/ack` als Ereignis `bestätigt` weitergeben, Befehle mit Ablaufzeit prüfen, HA-Sensoren inkl. Status und freiem Speicherplatz. |
 | `box/src/tobibox/net.py` | neu | Netz-Klasse (NetworkManager-SSID; im Test simuliert); Zeitquelle (NTP). |
 | `box/src/tobibox/power.py` | neu | Strom-Schnittstelle **komplett** (Akkustand, Lader, Tastenereignis, Tiefstand, RTC beim Start lesen, Zeitquelle melden) und eine Simulations-Fassung für `sim`. |
 | `box/tests/unit/test_ha_config_rules.py` | neu | Revisionsregel: neue Listen-ID gewinnt, höhere Revision gewinnt, alles andere wird abgelehnt und gemeldet. |
@@ -2313,7 +2347,7 @@ Ergebnis: Tobias kann eine Box ohne Hilfe wiederherstellen.
 
 | Datei | Neu/Änd. | Inhalt und Grund |
 |---|---|---|
-| `docs/betrieb/handbuch.md` | neu | Neuinstallation, SD-Image, „was ist wo konfiguriert“, Fehlerbilder, HA-Wiederherstellung (HA-Sicherung oder NAS-Export, danach „Liste neu ausrollen“), Signierschlüssel und Pakete bauen. |
+| `docs/betrieb/handbuch.md` | neu | Neuinstallation, SD-Image, „was ist wo konfiguriert“, Fehlerbilder, HA-Wiederherstellung (HA-Sicherung oder NAS-Export, danach „Liste neu ausrollen“), Signierschlüssel und Pakete bauen; Reihenfolge bei Schema-Sprüngen der Konfiguration: **zuerst alle Boxen aktualisieren, danach verteilt HA die neue Version** (für Version 2 gilt das schon, es stehen keine Boxen im Feld; Entscheidung F, 05.11.). |
 
 Abnahme AP 3.12:
 
@@ -2363,12 +2397,12 @@ Ergebnis: Bedien-Ereignisse und der Hauptknopf nach Entscheidung E.
 |---|---|---|
 | `box/src/tobibox/controls.py` | neu | Vor, Zurück, Lautstärke, Hauptknopf kurz/lang als Ereignisse für den Kern. |
 | `box/tests/unit/test_controls.py` | neu | Tasten-Zuordnung, kurz/lang, Lautstärke bleibt unter der wirksamen Grenze. |
-| `box/tests/unit/test_session_hauptknopf.py` | neu | Hauptknopf kurz je Zustand: `spielt` → Pause; `pausiert` mit Tobie → Abspielen; `beendet` mit Tobie → `serie`: nächste Folge ab Zeiger, `folge`: dieselbe Folge von vorn (Entscheidung F, 05.11.); ohne Tobie → normale Funktion (Play / Pause). |
 
 Abnahme AP 4.2:
 
 - Vor / Zurück springt nach Track innerhalb der Folge (Zurück in den ersten 3 s: voriger Track); beim letzten Track geht Vor bei `serie` zur nächsten Folge, bei `folge` gibt es den Hinweiston (Entscheidung F, 05.11.).
 - Der Drehregler ändert die Lautstärke nie über die wirksame Grenze.
+- Die Tests „Hauptknopf kurz je Zustand“ stehen schon in `test_session.py` (AP 1.7, zusammengeführt, keine eigene Datei `test_session_hauptknopf.py`); `controls.py` liefert nur das Ereignis.
 - Hauptknopf kurz: Play / Pause; ist eine Folge zu Ende und liegt der Tobie noch auf der Box, spielt er die nächste Folge (Entscheidung E); ohne Tobie gilt Play / Pause.
 - Hauptknopf lang: Zeiger speichern und herunterfahren.
 

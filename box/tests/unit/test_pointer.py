@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import pytest
-from conftest import UID_S1, SitzungsHarnisch, in_zustand
+from conftest import zeiger, UID_S1, SitzungsHarnisch, in_zustand
 
 from tobibox import events as ev
 from tobibox import pointer
@@ -12,15 +12,15 @@ SERIE = ev.Serie("s", "S", "normal", "s", ("a.mp3", "b.mp3", "c.mp3"))
 
 
 def zg(datei="b.mp3", index=1, pos=100.0, zaehler=4) -> ev.Zeiger:
-    return ev.Zeiger("s", datei, index, pos, zaehler)
+    return zeiger("s", datei, index, pos, zaehler)
 
 
 def test_kein_zeiger_folge_1_position_0():
-    assert pointer.ort_am_zeiger(SERIE, None) == pointer.Ort("a.mp3", 0, 0.0, False)
+    assert pointer.ort_am_zeiger(SERIE, None) == pointer.Ort("a.mp3", 0, 0, 0.0, False)
 
 
 def test_ruecksprung_3_s():
-    assert pointer.ort_am_zeiger(SERIE, zg(pos=100.0)) == pointer.Ort("b.mp3", 1, 97.0, False)
+    assert pointer.ort_am_zeiger(SERIE, zg(pos=100.0)) == pointer.Ort("b.mp3", 1, 0, 97.0, False)
 
 
 def test_ruecksprung_nie_unter_null():
@@ -73,16 +73,18 @@ def test_abrunden(x, erwartet):
 
 def test_unveraendert_vergleicht_abgerundete_position():
     alt = zg(pos=100.5)
-    assert pointer.unveraendert(alt, "b.mp3", 1, 100.59)
-    assert not pointer.unveraendert(alt, "b.mp3", 1, 100.6)
-    assert not pointer.unveraendert(alt, "c.mp3", 1, 100.5)
-    assert not pointer.unveraendert(alt, "b.mp3", 2, 100.5)
-    assert not pointer.unveraendert(None, "b.mp3", 1, 100.5)
+    assert pointer.unveraendert(alt, "serie", "b.mp3", 1, 0, 100.59)
+    assert not pointer.unveraendert(alt, "serie", "b.mp3", 1, 0, 100.6)
+    assert not pointer.unveraendert(alt, "serie", "c.mp3", 1, 0, 100.5)
+    assert not pointer.unveraendert(alt, "serie", "b.mp3", 2, 0, 100.5)
+    assert not pointer.unveraendert(alt, "serie", "b.mp3", 1, 1, 100.5)  # anderer Track
+    assert not pointer.unveraendert(alt, "folge", "b.mp3", None, 0, 100.5)  # andere Art
+    assert not pointer.unveraendert(None, "serie", "b.mp3", 1, 0, 100.5)
 
 
 def test_neuer_zeiger_erhoeht_zaehler():
-    assert pointer.neuer_zeiger(None, "s", "a.mp3", 0, 5.55).zaehler == 1
-    assert pointer.neuer_zeiger(zg(zaehler=4), "s", "b.mp3", 1, 5.55) == ev.Zeiger("s", "b.mp3", 1, 5.5, 5)
+    assert pointer.neuer_zeiger(None, "serie", "s", "a.mp3", 0, 0, 5.55).zaehler == 1
+    assert pointer.neuer_zeiger(zg(zaehler=4), "serie", "s", "b.mp3", 1, 0, 5.55) == zeiger("s", "b.mp3", 1, 5.5, 5)
 
 
 def test_periodisch_faellig_ab_30_s():
@@ -94,13 +96,13 @@ def test_periodisch_faellig_ab_30_s():
 
 
 def test_sitzung_legt_auf_und_spielt_mit_3_s_ruecksprung():
-    h = SitzungsHarnisch(zeiger=[ev.Zeiger("s1", "b.mp3", 1, 100.0, 2)])
+    h = SitzungsHarnisch(zeiger=[zeiger("s1", "b.mp3", 1, 100.0, 2)])
     ab = [b for b in h.auflegen(UID_S1) if isinstance(b, ev.Abspielen)]
     assert [(a.datei, a.position_s) for a in ab] == [("b.mp3", 97.0)]
 
 
 def test_sitzung_zeiger_auf_geloeschte_folge_spielt_platz_des_index_und_protokolliert():
-    h = SitzungsHarnisch(zeiger=[ev.Zeiger("s1", "alt.mp3", 2, 100.0, 2)])
+    h = SitzungsHarnisch(zeiger=[zeiger("s1", "alt.mp3", 2, 100.0, 2)])
     h.auflegen(UID_S1)
     abspielen = [b for b in h.alle if isinstance(b, ev.Abspielen)]
     assert [(a.datei, a.position_s) for a in abspielen] == [("c.mp3", 0.0)]
@@ -171,3 +173,76 @@ def test_sitzung_unveraenderter_zeiger_wird_nicht_erneut_gespeichert():
     h.position(sek=5.0)  # gleiche Stelle (nach Rücksprung 2.0 -> wieder 5.0)
     out = h.sende(ev.Hauptknopf("kurz"))
     assert not [b for b in out if isinstance(b, ev.ZeigerSpeichern)]
+
+
+# --- Tracks, Folgen-Zeiger, Vor / Zurück nach Track (Entscheidung F, 05.11.) ------------
+
+CD = ev.Serie(
+    "cd", "CD", "normal", "cd", ("x.mp3", "rip", "z.mp3"),
+    {"rip": ("rip/01.mp3", "rip/02.mp3", "rip/03.mp3")},
+)
+
+
+def test_serie_ergaenzt_tracks_fuer_dateien():
+    assert SERIE.tracks == {"a.mp3": ("a.mp3",), "b.mp3": ("b.mp3",), "c.mp3": ("c.mp3",)}
+    assert pointer.tracks_von(CD, "rip") == ("rip/01.mp3", "rip/02.mp3", "rip/03.mp3")
+    assert pointer.tracks_von(CD, "x.mp3") == ("x.mp3",)
+
+
+def test_serien_zeiger_mit_track_und_ruecksprung_im_track():
+    z = zeiger("cd", "rip", 1, 50.0, 3, track=2)
+    assert pointer.ort_am_zeiger(CD, z) == pointer.Ort("rip", 1, 2, 47.0, False, False)
+
+
+def test_fehlender_track_wird_track_0_position_0():
+    z = zeiger("cd", "rip", 1, 50.0, 3, track=7)
+    ort = pointer.ort_am_zeiger(CD, z)
+    assert (ort.datei, ort.track, ort.position_s, ort.track_fehlte) == ("rip", 0, 0.0, True)
+    zf = zeiger("cd", "rip", None, 50.0, 3, track=3, art="folge")
+    ortf = pointer.ort_der_folge(CD, "rip", zf)
+    assert (ortf.track, ortf.position_s, ortf.track_fehlte) == (0, 0.0, True)
+
+
+def test_folgen_zeiger_ohne_zeiger_track_0_und_mit_zeiger_wie_serie():
+    assert pointer.ort_der_folge(CD, "rip", None) == pointer.Ort("rip", 1, 0, 0.0)
+    zf = zeiger("cd", "rip", None, 20.0, 2, track=1, art="folge")
+    assert pointer.ort_der_folge(CD, "rip", zf) == pointer.Ort("rip", 1, 1, 17.0)
+    assert pointer.ort_der_folge(CD, "fehlt", None) is None
+
+
+def test_zeiger_schluessel_trennt_serien_und_folgen_zeiger():
+    assert pointer.schluessel("serie", "cd", "rip") == ("serie", "cd", "")
+    assert pointer.schluessel("folge", "cd", "rip") == ("folge", "cd", "rip")
+    assert pointer.schluessel_von(zeiger("cd", "rip", None, 0.0, 1, art="folge")) == ("folge", "cd", "rip")
+
+
+@pytest.mark.parametrize(
+    "art,datei,index,track,erwartet",
+    [
+        ("serie", "rip", 1, 0, ("rip", 1, 1, "trackwechsel")),
+        ("serie", "rip", 1, 1, ("rip", 1, 2, "trackwechsel")),
+        ("serie", "rip", 1, 2, ("z.mp3", 2, 0, "folgenende")),  # letzter Track: nächste Folge
+        ("serie", "z.mp3", 2, 0, ("x.mp3", 0, 0, "folgenende")),  # zyklisch
+        ("folge", "rip", 1, 1, ("rip", 1, 2, "trackwechsel")),
+        ("folge", "rip", 1, 2, None),  # Folgen-Tobie am letzten Track: nur Hinweiston
+        ("folge", "x.mp3", 0, 0, None),
+    ],
+)
+def test_weiter_nach_track(art, datei, index, track, erwartet):
+    s = pointer.weiter(CD, art, datei, index, track)
+    assert (None if s is None else (s.datei, s.index, s.track, s.grund)) == erwartet
+
+
+@pytest.mark.parametrize(
+    "track,position,erwartet_track",
+    [
+        (2, 1.0, 1),  # unter 3 s und es gibt einen vorigen Track
+        (2, 3.0, 2),  # ab 3 s: aktueller Track von vorn
+        (2, 120.0, 2),
+        (0, 1.0, 0),  # erster Track: von vorn, kein Sprung in die vorige Folge
+        (0, 50.0, 0),
+    ],
+)
+def test_zurueck_nach_track_mit_3_s_grenze(track, position, erwartet_track):
+    s = pointer.zurueck("rip", 1, track, position)
+    assert (s.datei, s.index, s.track, s.grund) == ("rip", 1, erwartet_track, "trackwechsel")

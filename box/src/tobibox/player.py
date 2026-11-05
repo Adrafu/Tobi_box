@@ -2,14 +2,20 @@
 
 Aufgaben:
 
-* Die Warteschlange enthält **nur die aktuelle Folge**; MPD stoppt am Ende und
-  spielt nie von selbst weiter (``repeat``, ``single``, ``consume`` aus).
-* ``Abspielen`` baut die Warteschlange neu auf und springt per ``seek`` auf die
-  Position (kein Anspielen bei 0:00 bei Wiederaufnahme).
+* Die Warteschlange enthält **alle Tracks der aktuellen Folge und nur diese**
+  (Entscheidung F, 05.11.); MPD stoppt nach dem letzten Track und spielt nie von
+  selbst weiter (``repeat``, ``single``, ``consume`` aus).
+* ``Abspielen`` baut die Warteschlange neu auf und springt per ``seek`` auf Track
+  und Position (kein Anspielen bei 0:00 bei Wiederaufnahme). Ein fehlender oder
+  unlesbarer Track einer Folge mit mehreren Tracks wird übersprungen
+  (``datei_fehlt`` im Protokoll); nur wenn kein Track spielbar ist, gibt es
+  ``PlayerFehler``.
 * ``Pausieren``, ``LautstaerkeSetzen`` (klemmt auf ``grenze``), ``AusgangWaehlen``.
-* Ereignisse: ``PlayerPosition`` (jede Sekunde, solange etwas spielt, und sofort
-  nach Abspielen/Pausieren/Folgenende), ``FolgeZuEnde``, ``PlayerFehler``,
-  ``PlayerVerbindung``. Der Player verbindet sich selbst neu.
+* Ereignisse: ``PlayerPosition`` (mit Track, jede Sekunde, solange etwas spielt, und
+  sofort nach Abspielen/Pausieren/Track-Wechsel/Folgenende), ``TrackWechsel``
+  (MPD spielt mit dem nächsten Track weiter), ``FolgeZuEnde`` (erst nach dem
+  letzten Track), ``PlayerFehler``, ``PlayerVerbindung``. Der Player verbindet
+  sich selbst neu.
 * Vor dem ersten ``Abspielen`` muss eine Lautstärke gesetzt sein; sonst wird
   nichts gespielt. Eine Lautstärke über der Grenze wird auch im Betrieb
   (Abfrage alle 0,2 s) zurückgesetzt.
@@ -91,7 +97,12 @@ class Player:
         self._grenze: int = 100
         # aktuelle Folge
         self._serie: str | None = None
-        self._datei: str | None = None
+        self._datei: str | None = None  # Name der Folge
+        self._qtracks: list[int] = []  # Warteschlangenplatz -> Nummer des Tracks in der Folge
+        self._qpos = 0  # zuletzt gesehener Warteschlangenplatz
+        self._track = 0  # Nummer des laufenden Tracks in der Folge
+        self._gespielt = False  # es lief mindestens ein Track seit dem letzten Abspielen
+        self._nichts_zu_spielen = False  # Start hinter dem letzten spielbaren Track
         self._phase = "aus"  # "aus" | "spielt" | "pause"
         self._elapsed = 0.0
         self._dauer = 0.0
@@ -146,14 +157,25 @@ class Player:
         async with self._lock:
             await self._schutz(self._waehle_ausgang(ausgang), None, None)
 
+    def _vorhandene_tracks(self, b: ev.Abspielen) -> list[int]:
+        """Nummern der Tracks, die im Medienordner liegen (ohne Medienordner: alle)."""
+        if self._medien is None:
+            return list(range(len(b.tracks)))
+        return [i for i, pfad in enumerate(b.tracks) if (self._medien / b.ordner / pfad).is_file()]
+
     async def abspielen(self, b: ev.Abspielen) -> None:
-        """Warteschlange nur mit dieser Folge, per ``seek`` auf ``position_s``."""
+        """Warteschlange mit allen Tracks der Folge, per ``seek`` auf Track und ``position_s``."""
         if self._prozent is None:
             self._fehler(b.serie_id, b.datei, "mpd_fehler", "Lautstaerke vor dem Abspielen nicht gesetzt")
             return
-        if self._medien is not None and not (self._medien / b.ordner / b.datei).is_file():
+        vorhanden = self._vorhandene_tracks(b)
+        if not vorhanden:
             self._fehler(b.serie_id, b.datei, "datei_fehlt", f"{b.ordner}/{b.datei} nicht im Medienordner")
             return
+        for i, pfad in enumerate(b.tracks):
+            if i not in vorhanden:
+                logge("player", "WARNING", "datei_fehlt", "track_uebersprungen",
+                      daten={"serie": b.serie_id, "folge": b.datei, "track": i, "pfad": pfad})
         if not self._verbunden:
             self._fehler(b.serie_id, b.datei, "mpd_fehler", "nicht mit MPD verbunden")
             return
@@ -162,8 +184,16 @@ class Player:
             self._phase = "aus"
             self._elapsed = max(0.0, b.position_s)
             self._dauer = 0.0
-            ok = await self._schutz(self._abspielen(b), b.serie_id, b.datei)
-            if ok:
+            self._track = b.track
+            self._qpos = 0
+            self._qtracks = []
+            self._gespielt = False
+            self._nichts_zu_spielen = False
+            ok = await self._schutz(self._abspielen(b, vorhanden), b.serie_id, b.datei)
+            if ok and self._nichts_zu_spielen:
+                # alle Tracks ab dem gewünschten fehlen: das ist das Ende der Folge
+                self._folge_ende({})
+            elif ok:
                 self._phase = "spielt"
                 self._letzte_pos_mono = self._mono()
                 await self._schutz(self._melde_position(), b.serie_id, b.datei)
@@ -259,25 +289,51 @@ class Player:
         await self._mpd(c.single(0))
         await self._mpd(c.consume(0))
 
-    async def _abspielen(self, b: ev.Abspielen) -> None:
+    async def _abspielen(self, b: ev.Abspielen, vorhanden: list[int]) -> None:
         assert self._client is not None
         c = self._client
-        uri = f"{b.ordner}/{b.datei}"
         await self._setze_lautstaerke()  # Klemmung auch kurz vor dem Start
         with contextlib.suppress(CommandError):
             await self._mpd(c.clearerror())
         await self._mpd(c.clear())
-        await self._add(uri)
-        if b.position_s > 0.05:
+        mehrere = len(b.tracks) > 1
+        aktualisiert = False
+        for i in vorhanden:
+            uri = f"{b.ordner}/{b.tracks[i]}"
             try:
-                await self._mpd(c.seek(0, f"{b.position_s:.3f}"))
+                aktualisiert = await self._add(uri, aktualisiert)
             except CommandError as e:
-                logge("player", "WARNING", "seek", "fehler", daten={"detail": str(e), "position_s": b.position_s})
-                await self._mpd(c.play(0))
+                if mehrere and "No such" in str(e):
+                    # nicht im MPD-Bestand (oder unlesbar): Track überspringen, nächster derselben Folge
+                    logge("player", "WARNING", "datei_fehlt", "track_uebersprungen",
+                          daten={"serie": b.serie_id, "folge": b.datei, "track": i, "pfad": b.tracks[i]})
+                    continue
+                raise
+            self._qtracks.append(i)
+        if not self._qtracks:
+            raise CommandError("No such directory (kein Track der Folge im MPD-Bestand)")
+        # erster spielbarer Track ab dem gewünschten
+        start = next((q for q, i in enumerate(self._qtracks) if i >= b.track), None)
+        if start is None:
+            self._nichts_zu_spielen = True
+            with contextlib.suppress(CommandError):
+                await self._mpd(c.clear())
+            return
+        self._qpos = start
+        self._track = self._qtracks[start]
+        position = b.position_s if self._track == b.track else 0.0
+        self._elapsed = max(0.0, position)
+        if position > 0.05:
+            try:
+                await self._mpd(c.seek(start, f"{position:.3f}"))
+            except CommandError as e:
+                logge("player", "WARNING", "seek", "fehler", daten={"detail": str(e), "position_s": position})
+                await self._mpd(c.play(start))
         else:
-            await self._mpd(c.play(0))
+            await self._mpd(c.play(start))
 
-    async def _add(self, uri: str) -> None:
+    async def _add(self, uri: str, schon_aktualisiert: bool = False) -> bool:
+        """``uri`` in die Warteschlange; gibt zurück, ob schon aktualisiert wurde (einmal je Abspielen)."""
         assert self._client is not None
         try:
             await self._mpd(self._client.add(uri))
@@ -285,8 +341,11 @@ class Player:
             if "No such" not in str(e):
                 raise
             # nicht im MPD-Bestand: einmal aktualisieren und kurz warten
-            await self._aktualisiere(uri)
+            if not schon_aktualisiert:
+                await self._aktualisiere(uri)
             await self._mpd(self._client.add(uri))
+            return True
+        return schon_aktualisiert
 
     async def _aktualisiere(self, uri: str) -> None:
         assert self._client is not None
@@ -323,7 +382,9 @@ class Player:
             # gestoppt: ist das Folgenende noch nicht gemeldet, meldet es die Abfrage
             if self._phase != "spielt":
                 self._phase = "aus"
-        self._merke(await self._status())
+        st_nach = await self._status()
+        self._merke(st_nach)
+        self._pruefe_trackwechsel(st_nach)
         self._sende_position(spielt=False)
 
     async def _melde_position(self) -> None:
@@ -339,7 +400,28 @@ class Player:
         if self._serie is None or self._datei is None:
             return
         pos = self._elapsed if position_s is None else position_s
-        self._ausgabe(ev.PlayerPosition(self._serie, self._datei, round(pos, 3), spielt))
+        self._ausgabe(ev.PlayerPosition(self._serie, self._datei, self._track, round(pos, 3), spielt))
+
+    def _pruefe_trackwechsel(self, st: Mapping[str, Any]) -> None:
+        """MPD ist zu einem anderen Titel der Warteschlange gewechselt: ``TrackWechsel``,
+        danach sofort die Position des neuen Tracks. Springt MPD über einen unlesbaren
+        Titel, ist das ein einziger Wechsel auf den Track dahinter."""
+        if self._serie is None or self._datei is None or st.get("state") not in ("play", "pause"):
+            return
+        try:
+            song = int(st["song"])
+        except (KeyError, TypeError, ValueError):
+            return
+        if song == self._qpos or not 0 <= song < len(self._qtracks):
+            return
+        self._qpos = song
+        self._track = self._qtracks[song]
+        self._elapsed = _zahl(st, "elapsed", 0.0)
+        self._dauer = _zahl(st, "duration", 0.0)
+        self._letzte_pos_mono = self._mono()
+        logge("player", "INFO", "track_wechsel", "ok", daten={"serie": self._serie, "folge": self._datei, "track": self._track})
+        self._ausgabe(ev.TrackWechsel(self._serie, self._datei, self._track))
+        self._sende_position(spielt=st.get("state") == "play")
 
     # ------------------------------------------------------------------
     # Fehlerbehandlung
@@ -493,7 +575,9 @@ class Player:
         if self._phase != "spielt" or self._serie is None or self._datei is None:
             return
         if zustand == "play":
+            self._gespielt = True
             self._merke(st)
+            self._pruefe_trackwechsel(st)
             jetzt = self._mono()
             if jetzt - self._letzte_pos_mono >= self._pos_intervall:
                 self._letzte_pos_mono = jetzt
@@ -501,14 +585,21 @@ class Player:
         elif zustand == "pause":
             self._phase = "pause"  # von außen angehalten
             self._merke(st)
+            self._pruefe_trackwechsel(st)
             self._sende_position(spielt=False)
         else:  # stop: Folge zu Ende oder Fehler
             serie, datei = self._serie, self._datei
             fehler = st.get("error")
             if fehler:
-                self._phase = "aus"
                 with contextlib.suppress(CommandError):
                     await self._mpd(self._client.clearerror())
+                if len(self._qtracks) > 1 and self._gespielt:
+                    # der letzte Track einer Folge mit mehreren Tracks ist unlesbar: Ende der Folge
+                    logge("player", "WARNING", "datei_unlesbar", "track_uebersprungen",
+                          daten={"serie": serie, "folge": datei, "detail": str(fehler)})
+                    self._folge_ende(st)
+                    return
+                self._phase = "aus"
                 self._fehler(serie, datei, "datei_unlesbar", str(fehler))
                 return
             self._folge_ende(st)
@@ -518,6 +609,8 @@ class Player:
         assert self._serie is not None and self._datei is not None
         serie, datei = self._serie, self._datei
         self._phase = "aus"
+        if self._qtracks:
+            self._track = self._qtracks[-1]  # die Endposition gehört zum letzten Track
         ende = self._dauer if self._dauer > 0 else self._elapsed
         self._sende_position(spielt=False, position_s=max(ende, self._elapsed))
         logge("player", "INFO", "folge_zu_ende", "ok", daten={"serie": serie, "datei": datei})

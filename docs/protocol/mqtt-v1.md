@@ -65,8 +65,9 @@ einschließlich `schema_version`, `revision` und `liste_id`. Es gibt kein
 zusätzliches `v`; `schema_version` übernimmt diese Rolle. Seit Entscheidung F
 (05.11.) ist `schema_version` **2**: Jede Zuordnung trägt ein Feld `ziel`
 (`serie`, `folge` oder `aktion`). Eine Box, die nur Version 1 kennt, lehnt die
-Liste mit `schema_zu_neu` ab (5.2); HA und Boxen werden deshalb gemeinsam
-aktualisiert (Update zuerst auf allen Boxen).
+Liste mit `schema_zu_neu` ab (5.2). **Reihenfolge der Einführung (Entscheidung F,
+05.11.): zuerst alle Boxen aktualisieren, danach verteilt HA Version 2.** Eine
+Box mit Entscheidung F nimmt auch Listen der Version 1 an (5.2).
 
 *   HA veröffentlicht nach **jeder** Änderung der Konfiguration (Revision + 1)
     und bei „Liste neu ausrollen“ (neue `liste_id`).
@@ -116,6 +117,7 @@ und woher jedes Feld stammt (einschließlich der Abbildung von `leser`), steht i
 | `zustand` | string | Zustand der Wiedergabe-Sitzung: `leer`, `spielt`, `pausiert`, `beendet`, `gehalten`, `unbekannt`; während des Herunterfahrens `herunterfahren` |
 | `lernmodus` | bool | Lernmodus aktiv |
 | `serie` | object oder `null` | aktuelle Serie `{"id": …, "name": …}`; `null`, wenn keine |
+| `folge` (optional) | object | aktuelle Folge `{"name": <Name der Folge>, "track": <int ab 0>}` (Entscheidung F, 05.11.); fehlt oder `null`, wenn keine Folge gewählt ist. Optionales Feld, `v` bleibt `1` |
 | `akku_prozent` | int 0–100 oder `null` | `null`, wenn unbekannt (z. B. am Mac ohne Simulation) |
 | `lader` | bool oder `null` | Lader angeschlossen |
 | `netz` | string | `home`, `hotspot` oder `offline` |
@@ -140,6 +142,7 @@ Beispiel:
   "zustand": "spielt",
   "lernmodus": false,
   "serie": { "id": "3f9a1c07b2d4", "name": "Der kleine Rabe" },
+  "folge": { "name": "folge-02.mp3", "track": 0 },
   "akku_prozent": 76,
   "lader": false,
   "netz": "hotspot",
@@ -466,6 +469,10 @@ Die Box vergleicht die eingehende Liste (`L_neu`, `R_neu`) mit der gespeicherten
 | Schema ungültig (`data-model.md`) | **abgelehnt**, Grund `schema_ungueltig` |
 | `schema_version` neuer als bekannt | **abgelehnt**, Grund `schema_zu_neu` |
 
+Eine Liste der Version 1 (ohne `ziel`) nimmt die Box an und **migriert sie im
+Speicher nach Version 2**, bevor sie geprüft wird (`data-model.md`, Abschnitt 2);
+gespeichert wird danach Version 2 (Entscheidung F, 05.11.).
+
 ### 5.3 Folgerungen
 
 *   Eine **HA-Wiederherstellung** mit neuer Listen-ID wird von allen Boxen
@@ -697,6 +704,8 @@ Projektleitung (P) entschieden oder aus dem Goldfisch-Review übernommen
     `schema_version` 2** (Zuordnung mit `ziel`: `serie`, `folge` oder `aktion`,
     `data-model.md`, Abschnitt 2). Das ist eine inkompatible Änderung; eine Box mit
     Software von vor Entscheidung F lehnt die Liste mit `schema_zu_neu` ab (5.2).
-    **Offen:** Reihenfolge der Einführung (Boxen zuerst aktualisieren, dann HA die
-    Version 2 verteilen lassen) legt der Umsetzer in AP 3.1 und AP 3.7 fest; die
-    Box migriert eine gespeicherte Version-1-Datei beim Lesen.
+    **Entschieden (05.11., Entscheidung F):** Zuerst werden alle Boxen aktualisiert,
+    dann verteilt HA Version 2 (Auflösung des Widerspruchs zu 3.1). Es stehen noch
+    keine Boxen im Feld; das Betriebshandbuch (AP 3.12) nennt die Reihenfolge. Die
+    Box migriert Version-1-Listen von MQTT und die gespeicherte Datei im Speicher
+    (5.2).
