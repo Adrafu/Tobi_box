@@ -249,16 +249,32 @@ Abläufe 1, 2, 5, 6, 8 als Tests und mit echtem Leser vorführbar.
 
 **Stufe 3 — HA, Sync, Netz, Update.** Vorher Go/No-Go mit Tobias.
 
-## Offene Fragen an Tobias
+## Entscheidungen von Tobias (05.11.2026, Runde 1)
 
-1. **Pi früh:** Ist der Pi 3A+ (Charge 1) bestellt oder da? Ohne ihn bleibt
-   „unverändert auf dem Pi“ bis zum Schluss unbewiesen.
-2. **Zeitgrenzen Ablauf 8:** Vorschlag: Pause spätestens 1,5 s nach dem
-   Abheben; Lese-Lücken bis 1 s werden überbrückt; Ton spätestens 1 s nach
-   dem Auflegen. Passt das?
-3. **Serie durchgehört:** wieder bei Folge 1 beginnen, oder Stille mit Hinweis-Ton?
-4. **Hotspot:** Soll die Box über den Handy-Hotspot mit HA abgleichen (geringe
-   Datenmenge, über Nabu Casa) oder dort nur offline spielen?
-5. **Sammlung:** Wie groß ist sie ungefähr (GB), und welche SD-Karten-Größe
-   ist geplant? (Plan: 64 GB)
-6. **ESPuino** als Alternative endgültig verworfen?
+- Mac beweist die Logik, ein echter Pi die Umgebung. Maßstab: Es
+  funktioniert genau so, wie Tobias es sich vorstellt.
+- HA ist einziger Schreiber der Zuordnungen; Resume und Fortschritt pro Box.
+- Verträge (Protokoll, Kennung, Zeitgrenzen) vor jedem Code.
+- Pi 3A+: noch nicht bestellt → Bestellung empfohlen.
+- Zeitgrenzen Ablauf 8 wie vorgeschlagen: Pause ≤ 1,5 s nach Abheben,
+  Lücken bis 1 s überbrückt, Ton ≤ 1 s nach Auflegen.
+- Serie durchgehört → wieder bei Folge 1.
+- Handy-Hotspot: **voller Abgleich**, auch neue Folgen (ändert Thema 9:
+  Medien-Sync nicht mehr nur im Heimnetz; Weg zum NAS von unterwegs und
+  Datenvolumen offen).
+- Speicher: 64 GB reichen.
+- ESPuino verworfen: Der ESP32 könnte mp3 abspielen, aber Medien-Sync über
+  WLAN auf SD, Update mit Rückfall, HA-Abgleich und die Serienlogik wären
+  dort deutlich mühsamer und schlechter testbar.
+- Der Sketch `tonie_test` war nur ein Machbarkeitstest; die Firmware wird
+  neu und sauber aufgebaut, der Sketch dient als Referenz.
+
+## Offene Fragen (Runde 2)
+
+1. **Brauchen wir Phoniebox V3 noch?** (Frage von Tobias.) Nach den
+   Entscheidungen oben bleibt von V3 wenig übrig, siehe Antwort im Chat
+   und folgendes Abwägen. Entscheidung offen.
+2. **Hotspot-Abgleich:** Nabu Casa leitet nur zu Home Assistant weiter,
+   nicht zum NAS. Für neue Folgen unterwegs braucht die Box einen
+   gesicherten Weg zum NAS (z. B. VPN wie Tailscale/WireGuard). Gibt es den
+   schon? Gibt es eine Obergrenze fürs Datenvolumen?
