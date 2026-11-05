@@ -361,8 +361,9 @@ fsync → umbenennen), beim Start geprüft; bei Fehler Rückfall auf `.bak`.
   gerade, Akku, Lader, Netz, Sync-Stand, Version, letzter Fehler), Knöpfe
   (Sync jetzt, Update, Lernmodus abbrechen), Auswahl (Serie für Lernmodus).
 - Box meldet unbekannte und gelernte Kennungen als Ereignis.
-- HA ist **einziger Schreiber** der Zuordnungen — siehe Entscheidung D1,
-  wo sie in HA liegen.
+- HA ist **einziger Schreiber** der Zuordnungen. Sie liegen in der eigenen
+  HA-Integration `tobibox` (D1); diese veröffentlicht die Liste als
+  dauerhafte MQTT-Nachricht mit Revisionsnummer, die Boxen übernehmen sie.
 - Die HA-Konfiguration (Dashboard, Skripte, Automationen) liegt als Dateien
   im Repo unter `homeassistant/`.
 
@@ -427,7 +428,13 @@ es keine Abfrage „bin ich am Mac?“.
 
 ### Offene Architektur-Entscheidungen (für Tobias)
 
-*   **D1 — Wo liegen die Zuordnungen in Home Assistant?**
+*   **D1 — Wo liegen die Zuordnungen in Home Assistant?** Entschieden
+    (05.11.): **eigene kleine HA-Integration** `tobibox` (Python,
+    `custom_components/tobibox/`). Sie speichert die Zuordnungen im
+    HA-Speicher (Teil der HA-Sicherung), bietet Aktionen (zuordnen, lösen,
+    Lernmodus starten/abbrechen) und veröffentlicht die Liste per MQTT an
+    die Boxen. Risiko: HA-Updates; Gegenmittel: wenig HA-API, Tests gegen
+    die HA-Version, Liste zusätzlich als Export-Datei.
 *   **D2 — Woran erkennt man eine Serie dauerhaft?** (Ordnername oder eigene ID)
 *   **D3 — Broker:** Läuft bei dir schon ein MQTT-Broker (z. B. Mosquitto-Add-on)
     und das Tailscale-Add-on in HA?
