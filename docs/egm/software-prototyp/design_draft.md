@@ -80,7 +80,9 @@ der am Mac mit echtem Leser vollständig testbar ist, bevor die Box steht.
 *   Betriebssystem- und Kernel-Updates über die Update-Funktion (dafür gibt
     es ein neues SD-Image).
 *   Automatisches Erkennen, welche Figur ein Tonie ist (Zuordnung einmal pro
-    Exemplar).
+    Exemplar). Geprüft in `research_tonie_erkennung.md`: Auf dem Chip steht
+    nur eine Seriennummer; die echte Toniebox fragt die Tonie-Cloud, und eine
+    öffentliche Liste „Kennung → Figur“ gibt es nicht.
 *   Streaming-Dienste, Mikrofon, Aufnahme.
 *   Nachbau von Phoniebox-Funktionen auf Vorrat (nur was eine Stufe braucht).
 
