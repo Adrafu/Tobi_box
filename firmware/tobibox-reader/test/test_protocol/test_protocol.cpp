@@ -495,6 +495,154 @@ void test_every_line_within_limit() {
   TEST_ASSERT_TRUE(formatHb(buf, sizeof buf, hb) <= MAX_LINE_CHARS);
 }
 
+// ------------------------------------------------------------ Nachtraege (Review)
+
+static const uint8_t NTAG_A[4] = {0x04, 0xa1, 0xb2, 0xc3};
+
+static void placeA(Protocol& proto, uint32_t t) {
+  proto.onCycle(Reading::tag(UidType::Ntag, NTAG_A, 4), t, 10);
+  proto.onCycle(Reading::tag(UidType::Ntag, NTAG_A, 4), t + 200, 10);
+}
+
+void test_err_detail_trim() {
+  char buf[LINE_BUF_SIZE];
+  formatErr(buf, sizeof buf, "internal", "   ");
+  TEST_ASSERT_EQUAL_STRING("ERR code=internal detail=n/a", buf);
+  formatErr(buf, sizeof buf, "internal", "  ab c  ");
+  TEST_ASSERT_EQUAL_STRING("ERR code=internal detail=ab c", buf);
+  // 79 Zeichen, dann ein Leerzeichen an Stelle 80 und Text danach: nach dem
+  // Kuerzen auf 80 bleibt am Ende ein Leerzeichen, das entfernt wird.
+  string d = string(79, 'x') + " tail";
+  formatErr(buf, sizeof buf, "internal", d.c_str());
+  TEST_ASSERT_EQUAL_STRING(("ERR code=internal detail=" + string(79, 'x')).c_str(), buf);
+  // 80 Leerzeichen und danach Text: nach dem Kuerzen nur Leerzeichen -> n/a
+  d = string(80, ' ') + "text";
+  formatErr(buf, sizeof buf, "internal", d.c_str());
+  TEST_ASSERT_EQUAL_STRING("ERR code=internal detail=n/a", buf);
+  formatErr(buf, sizeof buf, "internal", nullptr);
+  TEST_ASSERT_EQUAL_STRING("ERR code=internal detail=n/a", buf);
+}
+
+void test_heartbeat_catch_up_after_missed_intervals() {
+  VecSink sink;
+  Protocol proto(sink, testHello());
+  proto.start(0);
+  // 21 s ohne tick(): genau ein HB, kein Stau von zehn Zeilen
+  proto.tick(21000, 21000);
+  TEST_ASSERT_EQUAL_UINT32(2, sink.lines.size());
+  proto.tick(22999, 22999);  // 2000 ms nach dem verspaeteten HB noch nicht
+  TEST_ASSERT_EQUAL_UINT32(2, sink.lines.size());
+  proto.tick(23000, 23000);
+  TEST_ASSERT_EQUAL_UINT32(3, sink.lines.size());
+  // knapp ueber zwei Intervalle verspaetet: ein HB, danach wieder im Takt
+  VecSink s2;
+  Protocol p2(s2, testHello());
+  p2.start(0);
+  p2.tick(4500, 4500);
+  TEST_ASSERT_EQUAL_UINT32(2, s2.lines.size());
+  p2.tick(6499, 6499);
+  TEST_ASSERT_EQUAL_UINT32(2, s2.lines.size());
+  p2.tick(6500, 6500);
+  TEST_ASSERT_EQUAL_UINT32(3, s2.lines.size());
+}
+
+void test_up_from_64bit_base() {
+  VecSink sink;
+  Protocol proto(sink, testHello());
+  proto.start(0);
+  proto.tick(2000, 100000000000ULL);  // 1e11 ms, laeuft als 32-Bit-ms laengst ueber
+  TEST_ASSERT_TRUE(sink.lines[1].rfind("HB up=100000000 ", 0) == 0);
+  proto.tick(4000, 4294967295000ULL);
+  TEST_ASSERT_TRUE(sink.lines[2].rfind("HB up=4294967295 ", 0) == 0);
+}
+
+void test_err_rate_limit_near_wrap() {
+  VecSink sink;
+  Protocol proto(sink, testHello());
+  proto.start(0);
+  const Reading e = Reading::failure(CycleError::Pn5180Timeout, "x");
+  const uint32_t t0 = 4294967000U;
+  proto.onCycle(e, t0, 5);
+  TEST_ASSERT_EQUAL_UINT32(2, sink.lines.size());
+  proto.onCycle(e, t0 + 1999U, 5);  // = 1702 nach dem Ueberlauf: unterdrueckt
+  TEST_ASSERT_EQUAL_UINT32(2, sink.lines.size());
+  TEST_ASSERT_EQUAL_UINT32(2, proto.counters().errors);  // zaehlt trotzdem
+  proto.onCycle(e, t0 + 2000U, 5);  // genau 2000: wird geschrieben
+  TEST_ASSERT_EQUAL_UINT32(3, sink.lines.size());
+  proto.onCycle(e, t0 + 3999U, 5);
+  TEST_ASSERT_EQUAL_UINT32(3, sink.lines.size());
+  // anderer Code hat eigene Grenze
+  proto.onCycle(Reading::failure(CycleError::BadResponse, "y"), t0 + 4000U, 5);
+  TEST_ASSERT_EQUAL_UINT32(4, sink.lines.size());
+}
+
+void test_seq_overflow() {
+  VecSink sink;
+  Protocol proto(sink, testHello());
+  proto.start(0);
+  proto.setSeqForTest(4294967295U);
+  sink.lines.clear();
+  placeA(proto, 0);
+  TEST_ASSERT_EQUAL_UINT32(1, sink.lines.size());
+  TEST_ASSERT_TRUE(sink.lines[0].rfind("PLACED uid=04a1b2c3 type=ntag tonie=0 seq=4294967295", 0) == 0);
+  TEST_ASSERT_EQUAL_UINT32(0, proto.nextSeq());
+  proto.onCycle(Reading::nothing(), 400, 5);
+  proto.onCycle(Reading::nothing(), 1400, 5);  // 1200 ms seit der letzten Lesung
+  TEST_ASSERT_EQUAL_UINT32(2, sink.lines.size());
+  TEST_ASSERT_EQUAL_STRING("REMOVED seq=0", sink.lines[1].c_str());
+  ParsedLine pl;
+  TEST_ASSERT_TRUE(parseReaderLine(sink.lines[1], &pl) == ParseReason::Ok);
+}
+
+void test_removed_and_err_same_step() {
+  VecSink sink;
+  Protocol proto(sink, testHello());
+  proto.start(0);
+  placeA(proto, 0);  // PLACED seq=0, letzte Lesung bei 200
+  proto.onCycle(Reading::nothing(), 400, 5);
+  sink.lines.clear();
+  // 1300 ms Luecke und ein Fehlerzyklus: REMOVED (Entpreller) vor ERR (Regel 6)
+  proto.onCycle(Reading::failure(CycleError::Pn5180Timeout, "rf field did not start"), 1500, 5);
+  TEST_ASSERT_EQUAL_UINT32(2, sink.lines.size());
+  TEST_ASSERT_EQUAL_STRING("REMOVED seq=1", sink.lines[0].c_str());
+  TEST_ASSERT_EQUAL_STRING("ERR code=pn5180_timeout detail=rf field did not start",
+                           sink.lines[1].c_str());
+  TEST_ASSERT_EQUAL_UINT32(1, proto.counters().errors);
+}
+
+void test_line_assembler_200_plus_cr() {
+  LineAssembler a;
+  LineAssembler::Event e = LineAssembler::Event::None;
+  for (char c : string(200, 'A') + "\r\n") e = a.feed(c);
+  TEST_ASSERT_TRUE(e == LineAssembler::Event::Line);
+  TEST_ASSERT_EQUAL_UINT32(201, a.length());
+  // CR wird entfernt, 200 Zeichen sind erlaubt: unbekannter Befehl, nicht zu lang
+  TEST_ASSERT_TRUE(parseCommand(a.line(), a.length()) == CommandResult::BadCommand);
+  // 201 Zeichen plus CR sind zu lang
+  for (char c : string(201, 'A') + "\r\n") e = a.feed(c);
+  TEST_ASSERT_TRUE(e == LineAssembler::Event::TooLong);
+}
+
+void test_hello_after_start_retry() {
+  char version[16] = "unknown";
+  HelloInfo h = testHello();
+  h.pn5180 = version;  // wie in main.cpp: zeigt auf den Puffer, den probe() fuellt
+  VecSink sink;
+  Protocol proto(sink, h);
+  proto.start(0);
+  TEST_ASSERT_EQUAL_STRING("HELLO proto=1 fw=1.0.0 build=a1b2c3d pn5180=unknown",
+                           sink.lines[0].c_str());
+  proto.onInitFailure(0);
+  proto.onInitFailure(5000);
+  snprintf(version, sizeof version, "4.2");  // erfolgreicher Wiederholversuch
+  sink.lines.clear();
+  proto.onCommandLine("PING", 4);
+  TEST_ASSERT_EQUAL_UINT32(1, sink.lines.size());
+  TEST_ASSERT_EQUAL_STRING("HELLO proto=1 fw=1.0.0 build=a1b2c3d pn5180=4.2", sink.lines[0].c_str());
+  TEST_ASSERT_EQUAL_UINT32(2, proto.counters().errors);
+  TEST_ASSERT_EQUAL_UINT32(0, proto.counters().polls);
+}
+
 int main(int, char**) {
   UNITY_BEGIN();
   RUN_TEST(test_section1_ok_parse_and_format);
@@ -507,5 +655,13 @@ int main(int, char**) {
   RUN_TEST(test_init_failure_counts_and_rate_limit);
   RUN_TEST(test_err_detail_sanitized);
   RUN_TEST(test_every_line_within_limit);
+  RUN_TEST(test_err_detail_trim);
+  RUN_TEST(test_heartbeat_catch_up_after_missed_intervals);
+  RUN_TEST(test_up_from_64bit_base);
+  RUN_TEST(test_err_rate_limit_near_wrap);
+  RUN_TEST(test_seq_overflow);
+  RUN_TEST(test_removed_and_err_same_step);
+  RUN_TEST(test_line_assembler_200_plus_cr);
+  RUN_TEST(test_hello_after_start_retry);
   return UNITY_END();
 }

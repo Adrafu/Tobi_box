@@ -134,14 +134,13 @@ class Protocol {
   void onCommandLine(const char* line, size_t len);
   void onLineTooLong();
 
-  // Interner Fehler der Firmware (ERR internal, ratenbegrenzt wie die Zyklusfehler).
-  void onInternalError(uint32_t t, const char* detail);
-
   // Herzschlag: ruft main regelmäßig auf. up_ms: Zeit seit Start (64 Bit).
   void tick(uint32_t now_ms, uint64_t up_ms);
 
   bool present() const { return deb_.present(); }
   uint32_t nextSeq() const { return seq_; }
+  // Nur fuer Tests: seq nahe am Ueberlauf beginnen lassen.
+  void setSeqForTest(uint32_t seq) { seq_ = seq; }
   const Counters& counters() const { return c_; }
 
  private:
@@ -158,7 +157,7 @@ class Protocol {
   Counters c_;
   uint32_t last_hb_ = 0;
   bool started_ = false;
-  static constexpr size_t ERR_SLOTS = CYCLE_ERROR_COUNT + 1;  // + internal
+  static constexpr size_t ERR_SLOTS = CYCLE_ERROR_COUNT;
   bool err_seen_[ERR_SLOTS] = {false};
   uint32_t err_last_[ERR_SLOTS] = {0};
 };

@@ -71,7 +71,12 @@ pio test -e native
 ```
 
 Braucht weder `config.h` noch Hardware. Die Umgebung `native` baut nur
-`debounce.cpp` und `protocol.cpp`.
+`classify.cpp`, `debounce.cpp` und `protocol.cpp`.
+
+* `test/test_classify/`: Einordnung der Chip-/Tag-Antworten (`classify.h`):
+  Fehlerflag des Tags = `nichts`, nur Uebertragungsfehler = `fehler`,
+  Entsperren (keine Karte = `nichts`, Passwort abgelehnt = `LOCKED`),
+  Gesundheitsprobe (Platzhalter unveraendert = Timeout, `0xFFFFFFFF` = keine Antwort).
 
 * `test/test_debounce/`: Entpreller mit den Standardwerten aus `timing.h`
   (2-gleich-Regel, 1,0-s-Lücke, 1,1-s-Abheben, Figurwechsel, verfälschte
@@ -87,3 +92,32 @@ Braucht weder `config.h` noch Hardware. Die Umgebung `native` baut nur
   * Abschnitt 2: Befehls-Parser und Antwort der Firmware.
   * Abschnitt 3: alle Zeitabläufe durch `Protocol` (Zeilen, Zähler, `present`).
     Jede erzeugte Zeile muss außerdem vom Parser angenommen werden.
+
+## Zykluszeit im Fehlerfall
+
+Der Vertrag nennt im Fehlerfall bis 500 ms je Zyklus. Die Firmware haelt das so
+weit wie moeglich ein: scheitert `setupRF()` (HF-Feld startet nicht), endet der
+Zyklus sofort mit `pn5180_timeout`; nach einem Chip-Fehler entfaellt `setRF_off()`
+(der naechste Zyklus beginnt mit `reset()`); hat das erste Protokoll schon
+450 ms gebraucht, wird das zweite nicht mehr begonnen; scheitert
+`readCardSerial()` nach >= 450 ms, ist es `pn5180_timeout` statt `nichts`.
+
+Nicht vermeidbar (Bibliothek): `setRF_on()` wartet bis zu 500 ms auf das
+Feld-Signal, und `activateTypeA()` wertet dessen Fehlschlag nicht aus. Der
+schlimmste Fall eines Zyklus ist daher etwa 500 ms (RF_ON-Wartezeit) plus
+Befehls-Zeitgrenzen (je 30 ms) und die 10-ms-Pausen der Bibliothek, also
+rund 600 ms. Das ist selten (nur bei totem oder falsch verdrahtetem Chip) und
+`cycle_ms` zeigt es an.
+
+## Bekannte Eigenheiten
+
+* Nach einem Wiederverbinden der USB-Serielle (HWCDC) koennen noch alte Zeilen
+  im Sendepuffer stehen und zuerst ankommen. Das behandelt die Box-Seite; die
+  Firmware ergaenzt nichts.
+* Ein ICODE-SLIX2 (Tonie im Privacy-Modus) antwortet auf ein falsches Passwort
+  gar nicht. Die Firmware fragt dann erneut die Zufallszahl ab: antwortet das
+  Tag noch, ist es `LOCKED`, sonst `nichts` (Figur ist weg).
+* Ein Fehlerflag des Tags (z. B. "nicht unterstuetzt") gilt wie in `tonie_test`
+  als `nichts`; nur Uebertragungs-/Chip-Fehler werden `fehler`.
+* Es gibt in der Firmware keinen Pfad fuer `ERR code=internal` (keine
+  Warteschlange); `onInternalError` wurde entfernt.

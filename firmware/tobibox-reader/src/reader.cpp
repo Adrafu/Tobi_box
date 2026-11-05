@@ -4,9 +4,14 @@
 
 #include <string.h>
 
+#include "classify.h"
 #include "timing.h"
 
 namespace tobibox {
+
+static_assert(RC_OK == ISO15693_EC_OK && RC_NO_CARD == EC_NO_CARD &&
+                  RC_UNKNOWN_ERROR == ISO15693_EC_UNKNOWN_ERROR,
+              "classify.h passt nicht zu ISO15693ErrorCode");
 
 namespace {
 const uint8_t privacyPassword[4] = TONIE_PRIVACY_PASSWORD;
@@ -28,7 +33,7 @@ bool Reader::probe(char* version, size_t cap) {
   nfc14443_.reset();
   uint8_t v[2] = {0xFF, 0xFF};
   nfc14443_.readEEprom(PRODUCT_VERSION, v, 2);
-  if (v[1] == 0xFF) return false;
+  if (v[1] == 0xFF || v[1] == 0x00) return false;
   uint8_t fw[2] = {0xFF, 0xFF};
   if (nfc14443_.readEEprom(FIRMWARE_VERSION, fw, 2) && fw[1] != 0xFF)
     snprintf(version, cap, "%u.%u", fw[1], fw[0]);
@@ -41,7 +46,13 @@ Reading Reader::readIso14443() {
   // Feld selbst ein (ein zweites RF_ON wartet fest 500 ms, siehe tonie_test).
   uint8_t buf[10] = {0};
   int8_t n = nfc14443_.readCardSerial(buf);
-  if (n <= 0) return Reading::nothing();
+  if (n <= 0) {
+    // Die Bibliothek meldet Zeitgrenzen (setRF_on, BUSY) nicht getrennt von
+    // "keine Karte"; ein so langer Zyklus war aber keine leere Antwort.
+    if (cycleLooksTimedOut(millis() - cycleStart_))
+      return Reading::failure(CycleError::Pn5180Timeout, "iso14443a read exceeded time limit");
+    return Reading::nothing();
+  }
   if (n == 4 || n == 7 || n == 10) return Reading::tag(UidType::Ntag, buf, static_cast<size_t>(n));
   snprintf(errDetail, sizeof errDetail, "iso14443a uid length %d", n);
   return Reading::failure(CycleError::UidInvalid, errDetail);
@@ -50,62 +61,106 @@ Reading Reader::readIso14443() {
 Reading Reader::readIso15693() {
   uint8_t uid[8] = {0};
   nfc15693_.reset();
-  nfc15693_.setupRF();
+  if (!nfc15693_.setupRF())
+    return Reading::failure(CycleError::Pn5180Timeout, "rf field did not start");
 
   nfc15693_.clearIRQStatus(0xffffffff);  // alte IRQ-Flags wuerden Phantomkarten melden
-  if (nfc15693_.getInventory(uid) == ISO15693_EC_OK) {
+  ISO15693ErrorCode rc = nfc15693_.getInventory(uid);
+  if (rc == ISO15693_EC_OK) {
     uint8_t msb[8];
     for (uint8_t i = 0; i < 8; i++) msb[i] = uid[7 - i];  // ISO 15693: LSB zuerst -> umdrehen
     return Reading::tag(UidType::Iso15693, msb, 8);
   }
+  if (classifyResponse(rc) == RespClass::Error)
+    return Reading::failure(CycleError::BadResponse, "inventory transfer error");
 
   // Keine Antwort auf Inventory: liegt ein Tag im Privacy-Modus auf?
   uint8_t rnd[2] = {0};
-  ISO15693ErrorCode rc = nfc15693_.getRandomNumber(rnd);
-  if (rc == EC_NO_CARD) return Reading::nothing();
-  if (rc != ISO15693_EC_OK)
-    return Reading::failure(CycleError::BadResponse, "random number request failed");
+  rc = nfc15693_.getRandomNumber(rnd);
+  switch (classifyResponse(rc)) {
+    case RespClass::Nothing: return Reading::nothing();
+    case RespClass::Error:
+      return Reading::failure(CycleError::BadResponse, "random number transfer error");
+    case RespClass::Ok: break;
+  }
 
   rc = nfc15693_.disablePrivacyMode(privacyPassword);
   nfc15693_.clearIRQStatus(0xffffffff);
-  if (rc == ISO15693_EC_OK && nfc15693_.getInventory(uid) == ISO15693_EC_OK) {
-    uint8_t msb[8];
-    for (uint8_t i = 0; i < 8; i++) msb[i] = uid[7 - i];
-    return Reading::tag(UidType::Iso15693, msb, 8);
+  // Ein SLIX2 schweigt bei falschem Passwort: erst eine erneute Zufallszahl
+  // entscheidet, ob "keine Karte" heisst "Tag weg" oder "Passwort abgelehnt".
+  bool stillAnswers = false;
+  if (rc == EC_NO_CARD) {
+    uint8_t rnd2[2] = {0};
+    stillAnswers = nfc15693_.getRandomNumber(rnd2) == ISO15693_EC_OK;
+  }
+  switch (classifyUnlock(rc, stillAnswers)) {
+    case UnlockClass::Nothing: return Reading::nothing();
+    case UnlockClass::Error:
+      return Reading::failure(CycleError::BadResponse, "unlock transfer error");
+    case UnlockClass::Locked: return Reading::locked();
+    case UnlockClass::Proceed: break;
+  }
+
+  rc = nfc15693_.getInventory(uid);
+  switch (classifyReinventory(rc)) {
+    case UnlockClass::Proceed: {
+      uint8_t msb[8];
+      for (uint8_t i = 0; i < 8; i++) msb[i] = uid[7 - i];
+      return Reading::tag(UidType::Iso15693, msb, 8);
+    }
+    case UnlockClass::Nothing: return Reading::nothing();
+    case UnlockClass::Error:
+      return Reading::failure(CycleError::BadResponse, "inventory transfer error");
+    case UnlockClass::Locked: break;
   }
   return Reading::locked();  // Figur erkannt, Kennung unbekannt
 }
 
 Reading Reader::pollProtocols() {
   // Zuletzt gelesenes Protokoll zuerst (spart Zeit, Zeitbudget im Design).
+  Reading r;
   if (lastWasNtag_) {
-    Reading r = readIso14443();
-    if (r.kind != Reading::Kind::Nothing) return r;
-    return readIso15693();
+    r = readIso14443();
+  } else {
+    r = readIso15693();
   }
-  Reading r = readIso15693();
   if (r.kind != Reading::Kind::Nothing) return r;
-  return readIso14443();
+  // Hat schon das erste Protokoll an eine Zeitgrenze gestossen, kein zweites
+  // anfangen (der Zyklus bliebe sonst weit ueber der Hoechstdauer des Vertrags).
+  if (cycleLooksTimedOut(millis() - cycleStart_))
+    return Reading::failure(CycleError::Pn5180Timeout, "first protocol exceeded time limit");
+  return lastWasNtag_ ? readIso15693() : readIso14443();
 }
 
 Reading Reader::poll() {
+  cycleStart_ = millis();
   Reading r = pollProtocols();
   if (r.kind == Reading::Kind::Uid) lastWasNtag_ = (r.type == UidType::Ntag);
 
   // Gesundheitsprobe: Bei "nichts" pruefen, ob der Chip ueberhaupt antwortet.
-  // Sonst waere ein toter PN5180 von einem leeren Feld nicht zu unterscheiden.
+  // readRegister() meldet immer true; deshalb ein Platzhalter vorab: bleibt er
+  // stehen, lief der Befehl in die Zeitgrenze, kommen nur Einsen, ist der SPI tot.
   if (r.kind == Reading::Kind::Nothing) {
-    uint32_t irq = 0;
-    if (!nfc15693_.readRegister(IRQ_STATUS, &irq)) {
-      r = Reading::failure(CycleError::Pn5180Timeout, "busy timeout reading irq status");
-    } else if (irq == 0xFFFFFFFFUL) {
-      r = Reading::failure(CycleError::Pn5180NoResponse, "spi returned 0xFFFFFFFF");
+    uint32_t irq = HEALTH_SENTINEL;
+    nfc15693_.readRegister(IRQ_STATUS, &irq);
+    switch (classifyHealth(irq)) {
+      case Health::Timeout:
+        r = Reading::failure(CycleError::Pn5180Timeout, "busy timeout reading irq status");
+        break;
+      case Health::NoResponse:
+        r = Reading::failure(CycleError::Pn5180NoResponse, "spi returned 0xFFFFFFFF");
+        break;
+      case Health::Ok: break;
     }
   }
 
-  // HF-Feld aus bis zum naechsten Zyklus. Scheitert das, ist es ein Timeout.
-  if (!nfc15693_.setRF_off() && r.kind != Reading::Kind::Error && r.kind != Reading::Kind::Uid &&
-      r.kind != Reading::Kind::Locked) {
+  // HF-Feld aus bis zum naechsten Zyklus. Nach einem Chip-Fehler entfaellt das:
+  // setRF_off() wartete bis zu 500 ms weiter, der naechste Zyklus beginnt ohnehin
+  // mit reset(). Scheitert es sonst, ist es ein Timeout.
+  const bool chipFailed = r.kind == Reading::Kind::Error &&
+                          (r.error == CycleError::Pn5180Timeout ||
+                           r.error == CycleError::Pn5180NoResponse);
+  if (!chipFailed && !nfc15693_.setRF_off() && r.kind == Reading::Kind::Nothing) {
     r = Reading::failure(CycleError::Pn5180Timeout, "setRF_off failed");
   }
   return r;

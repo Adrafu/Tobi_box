@@ -33,6 +33,7 @@ class Reader {
 
   PN5180ISO14443 nfc14443_;
   PN5180ISO15693 nfc15693_;
+  uint32_t cycleStart_ = 0;   // millis() zu Beginn des Zyklus
   bool lastWasNtag_ = false;  // zuletzt gelesenes Protokoll zuerst abfragen
 };
 

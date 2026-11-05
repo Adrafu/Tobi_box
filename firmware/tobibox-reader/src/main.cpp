@@ -1,6 +1,7 @@
 // Tobi Box – tobibox-reader: Leser -> Entpreller -> Protokoll (reader-v1).
 // Auf die USB-Serielle gehen nur Protokollzeilen (docs/protocol/reader-v1.md).
 #include <Arduino.h>
+#include <esp_timer.h>
 
 #include "protocol.h"
 #include "reader.h"
@@ -40,8 +41,8 @@ bool readerReady = false;
 uint32_t nextInitTry = 0;
 uint32_t nextPoll = 0;
 
-uint32_t lastMs = 0;
-uint64_t upMs = 0;
+// Millisekunden seit dem Start, 64 Bit (laeuft praktisch nie ueber).
+inline uint64_t uptimeMs() { return static_cast<uint64_t>(esp_timer_get_time()) / 1000ULL; }
 
 inline bool due(uint32_t now, uint32_t when) { return static_cast<int32_t>(now - when) >= 0; }
 
@@ -74,7 +75,6 @@ void setup() {
   protocol = &proto;
 
   const uint32_t now = millis();
-  lastMs = now;
   proto.start(now);
   if (!readerReady) {
     proto.onInitFailure(now, "product version unreadable or 0xFF");
@@ -85,16 +85,14 @@ void setup() {
 
 void loop() {
   const uint32_t now = millis();
-  upMs += static_cast<uint32_t>(now - lastMs);
-  lastMs = now;
-
   serviceInput();
 
   if (!readerReady) {
     // Startversuch wiederholen; Herzschlaege laufen weiter (present=0).
     if (due(now, nextInitTry)) {
-      char v[16];
-      if (reader.probe(v, sizeof v)) {
+      // Schreibt die Version in pnVersion, auf die HelloInfo zeigt: spaetere
+      // HELLO-Zeilen (PING) tragen die echte Version.
+      if (reader.probe(pnVersion, sizeof pnVersion)) {
         readerReady = true;
         nextPoll = now;
       } else {
@@ -110,6 +108,6 @@ void loop() {
     nextPoll = t0 + POLL_PERIOD_MS;  // Beginn zu Beginn; war die Arbeit laenger, sofort weiter
   }
 
-  protocol->tick(millis(), upMs);
+  protocol->tick(millis(), uptimeMs());
   delay(1);
 }

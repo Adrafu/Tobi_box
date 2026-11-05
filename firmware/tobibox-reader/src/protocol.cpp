@@ -81,10 +81,15 @@ size_t formatErr(char* buf, size_t cap, const char* code, const char* detail) {
       d[n] = (c < 0x20 || c > 0x7e || c == '|' || c == ';') ? '_' : static_cast<char>(c);
     }
   }
-  if (n == 0) {
+  // Nach dem Kuerzen Leerzeichen an beiden Enden entfernen; leer wird "n/a".
+  size_t b = 0;
+  while (b < n && d[b] == ' ') b++;
+  while (n > b && d[n - 1] == ' ') n--;
+  if (n == b) {
     std::strcpy(d, "n/a");
   } else {
-    d[n] = '\0';
+    std::memmove(d, d + b, n - b);
+    d[n - b] = '\0';
   }
   return finish(std::snprintf(buf, cap, "ERR code=%s detail=%s", code, d), cap);
 }
@@ -437,10 +442,6 @@ void Protocol::onInitFailure(uint32_t t, const char* detail) {
   c_.errors++;
   emitErrRateLimited(static_cast<size_t>(CycleError::Pn5180NoResponse), "pn5180_no_response",
                      detail ? detail : "pn5180 init failed", t);
-}
-
-void Protocol::onInternalError(uint32_t t, const char* detail) {
-  emitErrRateLimited(CYCLE_ERROR_COUNT, "internal", detail, t);
 }
 
 void Protocol::onPing() {
