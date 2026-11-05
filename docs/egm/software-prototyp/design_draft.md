@@ -96,9 +96,15 @@ der am Mac mit echtem Leser vollständig testbar ist, bevor die Box steht.
     Technical Plan; eigene Tonaufnahmen von Tobias möglich.
 *   **Q3 — Gute-Nacht-Karte und Lautstärke-Grenze:** in welcher Stufe?
 *   **Q4 — Pi-Probelauf:** Termin hängt an der Bestellung des Pi 3A+.
-*   **Q5 — Medienverwaltung in HA:** Was genau muss in HA gehen (Serien
-    anlegen/umbenennen, Folgen sortieren/löschen, mp3 vom Handy hochladen,
-    Bilder, Überraschungs-Ordner pflegen)? Woher kommen neue Hörspiele heute?
+*   **Q5 — Medienverwaltung in HA:** Geklärt (05.11.): Serien anlegen und
+    umbenennen, Folgen sortieren und löschen, mp3 vom Handy hochladen,
+    Überraschungs-Ordner befüllen, Zuordnungen je Serie sehen — **keine
+    Bilder**. Es gibt noch keine Hörspiele; die Sammlung wächst aus vielen
+    Quellen. Folge: Dateien kommen auch am HA vorbei aufs NAS (z. B. vom PC);
+    die Integration erkennt neue Ordner und Dateien selbst. Folgen-Reihenfolge
+    steht in `serie.json` (nicht nur Dateiname). Offen: andere Formate als mp3
+    (m4a, flac …) umwandeln oder nur warnen; Lautheitsangleich (Plan 7.2).
+*   **Q6 — Oberfläche der Medienverwaltung:** siehe Entscheidung D4.
 
 ## Critical User Journeys (CUJs)
 
