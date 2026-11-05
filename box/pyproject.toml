@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tobibox"
+version = "0.1.0"
+description = "Box-Dienst der Tobi Box (NFC-Audiobox auf MPD)"
+requires-python = ">=3.11"
+dependencies = [
+    "pyserial==3.5",
+    "python-mpd2==3.1.1",
+    "paho-mqtt==2.2.0",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest==9.2.0",
+    "pytest-asyncio==1.4.1.post1",
+]
+
+[project.scripts]
+tobiboxd = "tobibox.app:main"
+tobibox = "tobibox.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
