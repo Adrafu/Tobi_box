@@ -1,0 +1,212 @@
+"""Bibliothek aus dem Medienordner: Reihenfolge, Ordner ohne serie.json, doppelte IDs, Überraschungs-Serie."""
+
+from __future__ import annotations
+
+import json
+import logging
+
+import pytest
+from fixtures.audio import erzeuge_medien, erzeuge_serie, schreibe_serie_json, schreibe_wav
+
+from tobibox import library
+from tobibox.library import lade_bibliothek, natuerlicher_schluessel, sortiere_natuerlich
+
+
+@pytest.fixture
+def protokoll():
+    zeilen: list[logging.LogRecord] = []
+
+    class H(logging.Handler):
+        def emit(self, record):
+            zeilen.append(record)
+
+    log = logging.getLogger("tobibox")
+    alt, level = log.handlers[:], log.level
+    log.handlers = [H()]
+    log.setLevel(logging.DEBUG)
+    yield zeilen
+    log.handlers = alt
+    log.setLevel(level)
+
+
+def ereignisse(z):
+    return [r.ereignis for r in z]
+
+
+# --- natürliche Sortierung (Beispiele aus data-model.md) ------------------------
+
+
+@pytest.mark.parametrize(
+    "aufsteigend",
+    [
+        ["folge-2.mp3", "folge-10.mp3"],
+        ["a1.mp3", "a1b.mp3"],
+        ["01.mp3", "1.mp3", "2.mp3", "10.mp3"],
+        ["Folge.mp3", "folge.mp3"],
+        ["Folge-01.mp3", "folge-01.mp3"],
+        ["1.mp3", "a.mp3"],  # Ziffernblock vor Textblock
+        ["a.mp3", "a.mp3x"],
+        ["x9.mp3", "x010.mp3", "x10.mp3"],
+        ["99999999999999999999.mp3", "100000000000000000000.mp3"],  # beliebige Länge
+    ],
+)
+def test_natuerliche_sortierung(aufsteigend):
+    assert sortiere_natuerlich(list(reversed(aufsteigend))) == aufsteigend
+
+
+def test_sortierung_ist_total_und_unabhaengig_von_der_eingabe():
+    namen = ["b2", "B2", "b02", "b10", "a", "A", "10", "9", "ä", "é"]
+    import itertools
+
+    erwartet = sortiere_natuerlich(namen)
+    for perm in itertools.islice(itertools.permutations(namen), 200):
+        assert sortiere_natuerlich(list(perm)) == erwartet
+    assert len({natuerlicher_schluessel(n) for n in namen}) == len(namen)
+
+
+# --- Laden ----------------------------------------------------------------------
+
+
+def test_beispielbibliothek(tmp_path):
+    bib = lade_bibliothek(erzeuge_medien(tmp_path))
+    assert [s.id for s in bib.serien] == ["8c21d5e9a0b7", "3f9a1c07b2d4", "c07d2e91a45b"]  # nach Ordner baer, rabe, ueb.
+    rabe = bib.serie("3f9a1c07b2d4")
+    assert rabe.name == "Der kleine Rabe" and rabe.ordner == "rabe"
+    assert rabe.folgen == ("folge-01.wav", "folge-02.wav", "folge-03.wav")
+    assert bib.ueberraschung_status == "ok"
+    assert library.finde_ueberraschung(bib.serien).id == "c07d2e91a45b"
+    assert bib.ereignis().serien == bib.serien
+
+
+def test_reihenfolge_der_liste_ist_massgeblich(tmp_path):
+    erzeuge_serie(tmp_path, "s", ["z.wav", "a.wav", "m.wav"], serie_id="s1")
+    assert lade_bibliothek(tmp_path).serie("s1").folgen == ("z.wav", "a.wav", "m.wav")
+
+
+def test_dateien_ausserhalb_der_liste_werden_nicht_gespielt(tmp_path):
+    ordner = erzeuge_serie(tmp_path, "s", ["a.wav", "b.wav"], serie_id="s1")
+    schreibe_wav(ordner / "neu.wav")
+    bib = lade_bibliothek(tmp_path)
+    s = bib.serie("s1")
+    assert s.folgen == ("a.wav", "b.wav")
+    assert library.abspielpfad(tmp_path, s, "neu.wav") is None
+    assert library.abspielpfad(tmp_path, s, "../s/a.wav") is None
+    assert library.abspielpfad(tmp_path, s, "a.wav") == tmp_path / "s" / "a.wav"
+
+
+def test_namen_ohne_datei_werden_uebersprungen_und_doppelte_zaehlen_einmal(tmp_path, protokoll):
+    ordner = erzeuge_serie(tmp_path, "s", ["a.wav", "b.wav"], serie_id="s1")
+    schreibe_serie_json(ordner, "s1", "S", ["a.wav", "fehlt.wav", "b.wav", "a.wav"])
+    assert lade_bibliothek(tmp_path).serie("s1").folgen == ("a.wav", "b.wav")
+    assert "folge_fehlt" in ereignisse(protokoll)
+
+
+def test_ordner_ohne_serie_json_nimmt_ordnernamen_und_natuerliche_sortierung(tmp_path):
+    erzeuge_serie(tmp_path, "Gute Nacht", ["folge-10.wav", "folge-2.wav", "Folge-1.wav"], mit_serie_json=False)
+    ordner = tmp_path / "Gute Nacht"
+    (ordner / "cover.jpg").write_bytes(b"x")
+    (ordner / "notizen.txt").write_text("x")
+    s = lade_bibliothek(tmp_path).serie("Gute Nacht")
+    assert (s.id, s.name, s.typ, s.ordner) == ("Gute Nacht", "Gute Nacht", "normal", "Gute Nacht")
+    assert s.folgen == ("Folge-1.wav", "folge-2.wav", "folge-10.wav")
+
+
+def test_ungueltige_serie_json_wie_fehlende_und_protokolliert(tmp_path, protokoll):
+    ordner = erzeuge_serie(tmp_path, "kaputt", ["b.wav", "a.wav"], mit_serie_json=False)
+    (ordner / "serie.json").write_text("{nicht json")
+    bib = lade_bibliothek(tmp_path)
+    assert bib.serie("kaputt").folgen == ("a.wav", "b.wav")
+    assert "serie_json_ungueltig" in ereignisse(protokoll)
+    assert (ordner / "serie.json").read_text() == "{nicht json"  # nicht repariert
+
+
+@pytest.mark.parametrize(
+    "aenderung",
+    [
+        {"schema_version": 2},
+        {"id": "a/b"},
+        {"id": ""},
+        {"name": ""},
+        {"typ": "sonstwas"},
+        {"folgen": "a.wav"},
+        {"folgen": ["../a.wav"]},
+        {"angelegt_am": None},
+    ],
+)
+def test_serie_json_pruefung(tmp_path, aenderung):
+    ordner = erzeuge_serie(tmp_path, "o", ["a.wav"], serie_id="gut")
+    d = json.loads((ordner / "serie.json").read_text())
+    d.update(aenderung)
+    (ordner / "serie.json").write_text(json.dumps(d))
+    assert lade_bibliothek(tmp_path).serie("gut") is None  # fällt auf Ordnername "o" zurück
+    assert lade_bibliothek(tmp_path).serie("o") is not None
+
+
+def test_serie_json_unbekannte_felder_werden_ignoriert(tmp_path):
+    erzeuge_serie(tmp_path, "o", ["a.wav"], serie_id="x1", zukunft={"a": 1})
+    assert lade_bibliothek(tmp_path).serie("x1") is not None
+
+
+def test_ordnername_als_id_ungueltig_wird_nicht_gespielt(tmp_path, protokoll):
+    erzeuge_serie(tmp_path, "x" * 65, ["a.wav"], mit_serie_json=False)
+    assert lade_bibliothek(tmp_path).serien == ()
+    assert "ordner_name_ungueltig" in ereignisse(protokoll)
+
+
+def test_doppelte_ids_die_aeltere_behaelt_die_id(tmp_path, protokoll):
+    erzeuge_serie(tmp_path, "kopie", ["b.wav"], serie_id="dup", angelegt_am="2026-11-06T09:00:00Z")
+    erzeuge_serie(tmp_path, "original", ["a.wav"], serie_id="dup", angelegt_am="2026-11-05T09:00:00Z")
+    bib = lade_bibliothek(tmp_path)
+    assert [(s.id, s.ordner) for s in bib.serien] == [("dup", "original")]
+    assert "serie_id_doppelt" in ereignisse(protokoll)
+
+
+def test_versteckte_ordner_und_dateien_im_medienordner_werden_ignoriert(tmp_path):
+    erzeuge_serie(tmp_path, ".rsync-partial", ["a.wav"], mit_serie_json=False)
+    (tmp_path / "lose.wav").write_bytes(b"x")
+    assert lade_bibliothek(tmp_path).serien == ()
+
+
+def test_medienordner_fehlt(tmp_path, protokoll):
+    bib = lade_bibliothek(tmp_path / "gibt-es-nicht")
+    assert bib.serien == ()
+    assert "medienordner_fehlt" in ereignisse(protokoll)
+
+
+# --- Überraschungs-Serie --------------------------------------------------------
+
+
+def test_ueberraschung_nur_ueber_typ_nicht_ueber_id_oder_namen(tmp_path):
+    erzeuge_serie(tmp_path, "ueberraschung", ["a.wav"], serie_id="ueberraschung", name="Überraschung")
+    bib = lade_bibliothek(tmp_path)
+    assert bib.ueberraschung_status == "keine"
+    assert library.finde_ueberraschung(bib.serien) is None
+
+
+def test_keine_ueberraschung(tmp_path, protokoll):
+    erzeuge_serie(tmp_path, "s", ["a.wav"])
+    bib = lade_bibliothek(tmp_path)
+    assert bib.ueberraschung_status == "keine"
+    assert "ueberraschung_ungueltig" in ereignisse(protokoll)
+
+
+def test_mehr_als_eine_ueberraschung(tmp_path, protokoll):
+    erzeuge_serie(tmp_path, "u1", ["a.wav"], serie_id="u1", typ="ueberraschung")
+    erzeuge_serie(tmp_path, "u2", ["a.wav"], serie_id="u2", typ="ueberraschung")
+    bib = lade_bibliothek(tmp_path)
+    assert bib.ueberraschung_status == "mehrere"
+    assert library.finde_ueberraschung(bib.serien) is None
+    assert len(bib.serien) == 2  # beide bleiben normal ladbar
+
+
+def test_leere_ueberraschung(tmp_path):
+    erzeuge_serie(tmp_path, "u", [], serie_id="u", typ="ueberraschung")
+    bib = lade_bibliothek(tmp_path)
+    assert bib.ueberraschung_status == "leer"
+    assert library.finde_ueberraschung(bib.serien) is None
+
+
+def test_ueberraschung_ohne_dateien_im_ordner_ist_leer(tmp_path):
+    ordner = erzeuge_serie(tmp_path, "u", ["a.wav"], serie_id="u", typ="ueberraschung")
+    (ordner / "a.wav").unlink()
+    assert lade_bibliothek(tmp_path).ueberraschung_status == "leer"

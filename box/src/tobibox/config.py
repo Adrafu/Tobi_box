@@ -1,0 +1,181 @@
+"""``tobibox.toml`` laden und prüfen (``tomllib``).
+
+Eine Konfigurationsdatei je Gerät (Design, „Mac und Pi“). Es gibt keine Abfrage
+„bin ich am Mac?“: Unterschiede stehen nur in den Werten. Zugangsdaten
+(MQTT-Passwort) kommen erst in Stufe 3 und liegen nur in dieser Datei, nie im Repo.
+"""
+
+from __future__ import annotations
+
+import tomllib
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
+
+from . import events as ev
+from .eventlog import EBENEN
+
+
+class KonfigFehler(ValueError):
+    """``tobibox.toml`` fehlt, ist kein gültiges TOML oder hat ungültige Werte."""
+
+
+@dataclass(frozen=True, slots=True)
+class Pfade:
+    zustand: Path
+    medien: Path
+
+
+@dataclass(frozen=True, slots=True)
+class LeserKonfig:
+    geraet: str = "/dev/cu.usbmodem*"
+
+
+@dataclass(frozen=True, slots=True)
+class MpdKonfig:
+    host: str = "localhost"
+    port: int = 6600
+
+
+@dataclass(frozen=True, slots=True)
+class LautstaerkeKonfig:
+    max: int = 50  # globale Obergrenze
+    start: int = 20
+    kopfhoerer: int = 30
+
+
+@dataclass(frozen=True, slots=True)
+class ProtokollKonfig:
+    ziel: str = "stdout"  # "stdout" (Pi) oder "datei" (Mac)
+    datei: Path | None = None
+    ebene: str = "INFO"
+    max_bytes: int = 1_000_000
+    anzahl: int = 5
+
+
+@dataclass(frozen=True, slots=True)
+class BoxKonfig:
+    pfade: Pfade
+    leser: LeserKonfig = field(default_factory=LeserKonfig)
+    mpd: MpdKonfig = field(default_factory=MpdKonfig)
+    lautstaerke: LautstaerkeKonfig = field(default_factory=LautstaerkeKonfig)
+    protokoll: ProtokollKonfig = field(default_factory=ProtokollKonfig)
+
+    def geraete_einstellungen(self) -> ev.GeraeteEinstellungen:
+        """Das erste Ereignis des Kerns (``core-interface.md``, 3.3)."""
+        v = self.lautstaerke
+        return ev.GeraeteEinstellungen(v.max, v.start, v.kopfhoerer)
+
+
+_BEKANNT = {
+    "pfade": {"zustand", "medien"},
+    "leser": {"geraet"},
+    "mpd": {"host", "port"},
+    "lautstaerke": {"max", "start", "kopfhoerer"},
+    "protokoll": {"ziel", "datei", "ebene", "max_bytes", "anzahl"},
+}
+
+
+def _abschnitt(roh: dict[str, Any], name: str, pflicht: bool = False) -> dict[str, Any]:
+    wert = roh.get(name)
+    if wert is None:
+        if pflicht:
+            raise KonfigFehler(f"Abschnitt [{name}] fehlt")
+        return {}
+    if not isinstance(wert, dict):
+        raise KonfigFehler(f"[{name}] muss ein Abschnitt sein")
+    unbekannt = set(wert) - _BEKANNT[name]
+    if unbekannt:
+        raise KonfigFehler(f"[{name}]: unbekannte Schlüssel {sorted(unbekannt)}")
+    return wert
+
+
+def _ganz(a: dict[str, Any], name: str, schluessel: str, vorgabe: int, lo: int, hi: int) -> int:
+    wert = a.get(schluessel, vorgabe)
+    if isinstance(wert, bool) or not isinstance(wert, int) or not lo <= wert <= hi:
+        raise KonfigFehler(f"[{name}] {schluessel} muss eine ganze Zahl von {lo} bis {hi} sein")
+    return wert
+
+
+def _text(a: dict[str, Any], name: str, schluessel: str, vorgabe: str | None) -> str | None:
+    wert = a.get(schluessel, vorgabe)
+    if wert is None:
+        return None
+    if not isinstance(wert, str) or not wert.strip():
+        raise KonfigFehler(f"[{name}] {schluessel} muss ein nicht leerer Text sein")
+    return wert
+
+
+def _pfad(text: str, basis: Path) -> Path:
+    p = Path(text).expanduser()
+    return p if p.is_absolute() else basis / p
+
+
+def pruefe(roh: dict[str, Any], basis: Path | None = None) -> BoxKonfig:
+    """Rohe TOML-Daten prüfen; relative Pfade gelten ab ``basis`` (Ordner der Datei)."""
+    basis = basis or Path.cwd()
+    unbekannt = set(roh) - set(_BEKANNT)
+    if unbekannt:
+        raise KonfigFehler(f"unbekannte Abschnitte {sorted(unbekannt)}")
+
+    p = _abschnitt(roh, "pfade", pflicht=True)
+    zustand = _text(p, "pfade", "zustand", None)
+    medien = _text(p, "pfade", "medien", None)
+    if zustand is None or medien is None:
+        raise KonfigFehler("[pfade] braucht 'zustand' und 'medien'")
+
+    leser = _abschnitt(roh, "leser")
+    mpd = _abschnitt(roh, "mpd")
+    vol = _abschnitt(roh, "lautstaerke")
+    prot = _abschnitt(roh, "protokoll")
+
+    v = LautstaerkeKonfig(
+        max=_ganz(vol, "lautstaerke", "max", 50, 0, 100),
+        start=_ganz(vol, "lautstaerke", "start", 20, 0, 100),
+        kopfhoerer=_ganz(vol, "lautstaerke", "kopfhoerer", 30, 0, 100),
+    )
+    # Die Startlautstärke über der Obergrenze ist ein Fehler im Eintrag, kein stilles Kappen.
+    if v.start > v.max:
+        raise KonfigFehler("[lautstaerke] start darf nicht über max liegen")
+
+    ziel = _text(prot, "protokoll", "ziel", "stdout")
+    if ziel not in ("stdout", "datei"):
+        raise KonfigFehler("[protokoll] ziel muss 'stdout' oder 'datei' sein")
+    datei = _text(prot, "protokoll", "datei", None)
+    if ziel == "datei" and datei is None:
+        raise KonfigFehler("[protokoll] ziel='datei' braucht 'datei'")
+    ebene = _text(prot, "protokoll", "ebene", "INFO")
+    if ebene not in EBENEN:
+        raise KonfigFehler("[protokoll] ebene muss DEBUG, INFO, WARNING oder ERROR sein")
+
+    return BoxKonfig(
+        pfade=Pfade(_pfad(zustand, basis), _pfad(medien, basis)),
+        leser=LeserKonfig(_text(leser, "leser", "geraet", "/dev/cu.usbmodem*") or ""),
+        mpd=MpdKonfig(
+            _text(mpd, "mpd", "host", "localhost") or "localhost",
+            _ganz(mpd, "mpd", "port", 6600, 1, 65535),
+        ),
+        lautstaerke=v,
+        protokoll=ProtokollKonfig(
+            ziel=ziel or "stdout",
+            datei=_pfad(datei, basis) if datei else None,
+            ebene=ebene or "INFO",
+            max_bytes=_ganz(prot, "protokoll", "max_bytes", 1_000_000, 10_000, 100_000_000),
+            anzahl=_ganz(prot, "protokoll", "anzahl", 5, 1, 50),
+        ),
+    )
+
+
+def lade(pfad: str | Path) -> BoxKonfig:
+    """``tobibox.toml`` lesen und prüfen; wirft ``KonfigFehler``."""
+    pfad = Path(pfad)
+    try:
+        with open(pfad, "rb") as f:
+            roh = tomllib.load(f)
+    except FileNotFoundError as e:
+        raise KonfigFehler(f"Konfigurationsdatei fehlt: {pfad}") from e
+    except tomllib.TOMLDecodeError as e:
+        raise KonfigFehler(f"{pfad}: kein gültiges TOML: {e}") from e
+    except OSError as e:
+        raise KonfigFehler(f"{pfad}: nicht lesbar: {e}") from e
+    return pruefe(roh, pfad.resolve().parent)

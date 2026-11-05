@@ -4,26 +4,25 @@ Reine Funktionen: kein Zugriff auf Dateien, Netz, Uhr oder Zufall. Der
 Zustand ist unveränderlich; ``step`` gibt einen neuen Zustand und die Befehle
 (und internen Ereignisse) zurück.
 
-Die Zeigerregeln (nächste Folge, Rücksprung, fehlende Folge) stehen hier als
-private Hilfen, weil ``pointer.py`` erst zu AP 1.2b gehört; sie folgen
-Abschnitt 6.3 des Vertrags.
+Die Zeigerregeln (nächste Folge, Rücksprung, fehlende Folge) stehen in
+``pointer.py`` (Abschnitt 6.3 des Vertrags).
 """
 
 from __future__ import annotations
 
-import math
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field, replace
 from typing import Literal
 
 from . import events as ev
+from . import pointer
 from .events import Jetzt
 from .volume import GRENZE_AUSBLENDEN, GRENZE_KOPFHOERER, rampe
 
 LESER_FRIST_S = 3.0
 MPD_FRIST_S = 5.0
-RUECKSPRUNG_S = 3.0
-SPEICHERN_PERIODISCH_S = 30.0
+RUECKSPRUNG_S = pointer.RUECKSPRUNG_S
+SPEICHERN_PERIODISCH_S = pointer.SPEICHERN_PERIODISCH_S
 STUMM_AUSBLENDEN_S = 3.0
 
 _EPS = 1e-9
@@ -96,10 +95,6 @@ def _prot(
     return ev.Protokoll("session", ebene, ereignis, ergebnis, vorgang, daten)
 
 
-def _abrunden(x: float) -> float:
-    return math.floor(x * 10) / 10
-
-
 def _serie(z: Zustand, serie_id: str | None) -> ev.Serie | None:
     for s in z.serien:
         if s.id == serie_id:
@@ -119,26 +114,21 @@ def _ort_am_zeiger(
     serie: ev.Serie, zeiger: ev.Zeiger | None
 ) -> tuple[str, int, float, bool] | None:
     """(datei, index, position, folge_fehlte) für den Start, ``None`` bei leerer Serie."""
-    folgen = serie.folgen
-    if not folgen:
+    ort = pointer.ort_am_zeiger(serie, zeiger)
+    if ort is None:
         return None
-    if zeiger is None:
-        return folgen[0], 0, 0.0, False
-    if zeiger.datei in folgen:
-        return zeiger.datei, folgen.index(zeiger.datei), max(0.0, zeiger.position_s - RUECKSPRUNG_S), False
-    i = zeiger.index if 0 <= zeiger.index < len(folgen) else 0
-    return folgen[i], i, 0.0, True
+    return ort.datei, ort.index, ort.position_s, ort.folge_fehlte
 
 
 def _speichern(z: Zustand, grund: str, jetzt: Jetzt) -> tuple[Zustand, Ausgabe]:
     """``ZeigerSpeichern`` für die aktuelle Folge, nur wenn der Zeiger sich ändert."""
     if z.serie_id is None or z.datei is None:
         return z, []
-    pos = _abrunden(z.position_s)
     alt = z.zeiger.get(z.serie_id)
-    if alt is not None and alt.datei == z.datei and alt.index == z.index and alt.position_s == pos:
+    if pointer.unveraendert(alt, z.datei, z.index, z.position_s):
         return z, []
-    neu = ev.Zeiger(z.serie_id, z.datei, z.index, pos, (alt.zaehler if alt else 0) + 1)
+    neu = pointer.neuer_zeiger(alt, z.serie_id, z.datei, z.index, z.position_s)
+    pos = neu.position_s
     zeiger = dict(z.zeiger)
     zeiger[z.serie_id] = neu
     cmd = ev.ZeigerSpeichern(z.serie_id, z.datei, z.index, pos, grund)  # type: ignore[arg-type]
@@ -353,10 +343,8 @@ def _folge_zu_ende(z: Zustand, e: ev.FolgeZuEnde, jetzt: Jetzt) -> tuple[Zustand
     serie = _serie(z, z.serie_id)
     z = _ruhe(z, modus="beendet")
     if serie is not None and serie.folgen:
-        n = len(serie.folgen)
-        aktuell = serie.folgen.index(e.datei) if e.datei in serie.folgen else min(z.index, n - 1)
-        nxt = (aktuell + 1) % n
-        z = replace(z, datei=serie.folgen[nxt], index=nxt, position_s=0.0)
+        datei, nxt = pointer.naechste_folge(serie, e.datei, z.index)
+        z = replace(z, datei=datei, index=nxt, position_s=0.0)
         z, sp = _speichern(z, "folgenende", jetzt)
         out += sp
     out.append(ev.Pausieren("folgenende"))
@@ -378,9 +366,8 @@ def _player_fehler(z: Zustand, e: ev.PlayerFehler, jetzt: Jetzt) -> tuple[Zustan
     out.append(ev.Protokoll("session", "ERROR", "player_fehler", "pausiert", vorgang, daten))
     serie = _serie(z, z.serie_id)
     if e.art in ("datei_fehlt", "datei_unlesbar") and serie is not None and serie.folgen:
-        n = len(serie.folgen)
-        nxt = ((serie.folgen.index(z.datei) if z.datei in serie.folgen else z.index) + 1) % n
-        z = replace(z, datei=serie.folgen[nxt], index=nxt, position_s=0.0)
+        datei, nxt = pointer.naechste_folge(serie, z.datei or "", z.index)
+        z = replace(z, datei=datei, index=nxt, position_s=0.0)
         z, sp = _speichern(z, "pause", jetzt)
         out += sp
     return _ruhe(z, modus="pausiert"), out
@@ -451,16 +438,6 @@ def _hauptknopf(z: Zustand, e: ev.Hauptknopf, jetzt: Jetzt) -> tuple[Zustand, Au
     return z, []
 
 
-def _zeiger_index(serie: ev.Serie, zeiger: ev.Zeiger | None) -> int:
-    """Index der Folge, auf die der gespeicherte Zeiger der Serie zeigt."""
-    n = len(serie.folgen)
-    if zeiger is None:
-        return 0
-    if zeiger.datei in serie.folgen:
-        return serie.folgen.index(zeiger.datei)
-    return zeiger.index if 0 <= zeiger.index < n else 0
-
-
 def _springen(z: Zustand, delta: int, jetzt: Jetzt) -> tuple[Zustand, Ausgabe]:
     """``Weiter`` (+1) und ``Zurueck`` (-1)."""
     vorgang = z.figur.vorgang if z.figur else None
@@ -476,20 +453,19 @@ def _springen(z: Zustand, delta: int, jetzt: Jetzt) -> tuple[Zustand, Ausgabe]:
     serie = _serie(z, z.serie_id)
     if serie is None or not serie.folgen:
         return z, []
-    n = len(serie.folgen)
     if z.modus == "beendet" and delta > 0:
         # Weiter = Hauptknopf kurz: die Folge, auf die der Zeiger steht (9.12)
         return _start(z, serie, vorgang, jetzt)
     if z.modus == "spielt":
-        aktuell = serie.folgen.index(z.datei) if z.datei in serie.folgen else min(z.index, n - 1)
+        aktuell = pointer.aktueller_index(serie, z.datei, z.index)
     else:
         # pausiert/beendet: immer vom gespeicherten Zeiger dieser Serie rechnen
-        aktuell = _zeiger_index(serie, z.zeiger.get(serie.id))
-    ziel = (aktuell + delta) % n
-    z = replace(z, datei=serie.folgen[ziel], index=ziel, position_s=0.0)
+        aktuell = pointer.index_am_zeiger(serie, z.zeiger.get(serie.id))
+    datei, ziel = pointer.springe(serie, aktuell, delta)
+    z = replace(z, datei=datei, index=ziel, position_s=0.0)
     z, sp = _speichern(z, "folgenende", jetzt)
     z = _ruhe(z, modus="spielt", letzte_speicherung=jetzt.mono)
-    return z, sp + [ev.Abspielen(serie.id, serie.ordner, serie.folgen[ziel], 0.0, vorgang)]
+    return z, sp + [ev.Abspielen(serie.id, serie.ordner, datei, 0.0, vorgang)]
 
 
 def _weiter(z: Zustand, e: ev.Weiter, jetzt: Jetzt) -> tuple[Zustand, Ausgabe]:
@@ -624,7 +600,7 @@ def _takt(z: Zustand, e: ev.Takt, jetzt: Jetzt) -> tuple[Zustand, Ausgabe]:
         if jetzt.mono >= z.mpd_bis - _EPS:
             return _mpd_frist_ende(z)
         return z, []
-    if jetzt.mono - z.letzte_speicherung >= SPEICHERN_PERIODISCH_S - _EPS:
+    if pointer.periodisch_faellig(z.letzte_speicherung, jetzt.mono):
         return _speichern(z, "periodisch", jetzt)
     return z, []
 
