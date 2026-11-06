@@ -1,6 +1,6 @@
 # Tobi Box — Stückliste & Projektstrukturplan
 
-Rev. 3.8 · 05.11.2026 · Pi 3 Model A+ · eigene Box-Software auf MPD · zwei baugleiche, mobile Boxen
+Rev. 3.9 · 06.11.2026 · Pi 3 Model A+ · eigene Box-Software auf MPD · zwei baugleiche, mobile Boxen
 
 **Änderungen gegenüber Rev. 2**
 - Software-Basis: Phoniebox V3 + eigene Plugins statt Eigenbau
@@ -15,6 +15,7 @@ Rev. 3.8 · 05.11.2026 · Pi 3 Model A+ · eigene Box-Software auf MPD · zwei b
 - **3.6:** Entscheidung 04.11.: Echte Tonies sind Pflicht, deshalb ist der **PN5180 gesetzt**. Der RC522 entfällt als Rückfallebene (kann kein ISO 15693). Der Deckel-Test entscheidet nur noch die Deckelstärke, nicht mehr den Leser. Stückliste, Pinplan und kritischer Pfad entsprechend bereinigt
 - **3.7:** Deckel-Test Teil 1 (05.11.): **Test 5 bestanden** — durch 2 mm liest der PN5180 zentriert 100 % (58 ms, Feld nur 15,9 % an). MagSafe-Hülle als Gegenprobe liest ebenfalls 100 %, weil der Magnetring ein freies Zentrum hat. Drei Design-Regeln abgeleitet (Zentrierung über der Antenne, kein Vollmetall/Magnet über der Antennenmitte, UID-Entprellung in der Firmware). Offen bleiben Test 5b (Stahlscheibe mittig) und Test 6 (max. Distanz)
 - **3.8:** Entscheidung 05.11.: Phoniebox V3 entfällt. Eigene schlanke Box-Software in Python direkt auf MPD (python-mpd2, pyserial, paho-mqtt), endgültige Bestätigung nach dem ersten Lauf am Pi. Der Leser spricht ein serielles Textprotokoll, die Firmware entscheidet „aufgelegt“ / „abgehoben“, keine USB-Tastatur mehr. Home Assistant ist die einzige Oberfläche und einziger Schreiber der Zuordnungen, Resume bleibt pro Box. Kein eigener Hotspot, NAS von unterwegs nur über Tailscale, Updates manuell als Paket mit Selbsttest und Rückfall. Grundlage: `docs/egm/software-prototyp/concepts_brief.md`.
+- **3.9:** Entscheidungen F (05.11.) und G (06.11.) aus `docs/designs/box-software.md`: Tonies und NFC-Karten heißen **Tobie** (Mehrzahl Tobies). Ein Tobie spielt eine einzelne Folge oder eine ganze Serie. Eine Folge ist eine Datei oder ein Ordner mit Tracks; die Pause kommt erst am Ende der ganzen Folge, ein Folgen-Tobie startet nach dem Ende von vorn. Nach einem Neustart des Dienstes startet ein liegender Tobie nie von selbst. Stufe 0 (Verträge) freigegeben. Stufe 1 (Software: Firmware `tobibox-reader`, Box-Dienst auf MPD, Mac-Anleitung, CI) gebaut und bereit für Tobias' Abnahme am Mac. Maßgeblich: `docs/designs/box-software.md` und `docs/betrieb/mac-prototyp.md`.
 
 ---
 
@@ -441,7 +442,7 @@ Stand 3.8: Aufteilung neu. V3 entfällt, die Firmware macht den Leser, Home Assi
 
 # Teil 4 — Projektstrukturplan
 
-▲ = kritischer Pfad · **NEU** = seit Rev. 2 hinzugekommen · **NEU 3.8** = in Rev. 3.8 geändert
+▲ = kritischer Pfad · **NEU** = seit Rev. 2 hinzugekommen · **NEU 3.8** = in Rev. 3.8 geändert · **NEU 3.9** = in Rev. 3.9 geändert
 
 ## 1 Projektsteuerung
 
@@ -515,7 +516,7 @@ Stand 3.8: Aufteilung neu. V3 entfällt, die Firmware macht den Leser, Home Assi
   - 4.2.6 Trennwand Audio- / Elektronikkammer
   - 4.2.7 USB-C-Durchführung mit TPU-Lasche **NEU**
   - 4.2.8 Klinkenbuchse versenkt, geschützt vor Krümeln **NEU**
-  - 4.2.9 Bei Tonie-Unterstützung: Magnet oder Stahlscheibe für die Figuren **NEU**
+  - 4.2.9 Bei Tonie-Unterstützung: Magnet oder Stahlscheibe für die Tobies **NEU**
 - **4.3 Druck & Iterationen**
   - 4.3.1 Passung Gewindeeinsätze
   - 4.3.2 Sturztest mit TPU-Ecken
@@ -553,8 +554,8 @@ Stand 3.8: Aufteilung neu. V3 entfällt, die Firmware macht den Leser, Home Assi
   - 5.3.3 Admin-Karten (Status, Akkustand; kein Hotspot) **NEU 3.8**
   - 5.3.4 Tonie-Kennungen über HA zuordnen (5.10) **NEU 3.8**
   - 5.3.5 Protokoll-Vertrag: Zeilenformat, Versionszeile, Herzschlag, Fehlerzeilen, gemeinsame Testdatei **NEU 3.8**
-- **5.4 Resume (eigener Kern)** ▲ **NEU 3.8**
-  - 5.4.1 Eine Position, gebunden an die zuletzt gespielte Karte
+- **5.4 Resume (eigener Kern)** ▲ **NEU 3.8** **NEU 3.9**
+  - 5.4.1 Zeiger je Ziel (Serie bzw. Folge): Folge, Track, Sekunden **NEU 3.9**
   - 5.4.2 Verwerfen bei Kartenwechsel
   - 5.4.3 Karenzzeit ~10 s beim Abheben
   - 5.4.4 Atomar schreiben, übersteht Neustart
@@ -575,13 +576,13 @@ Stand 3.8: Aufteilung neu. V3 entfällt, die Firmware macht den Leser, Home Assi
 - **5.9 HA-Anbindung**
   - 5.9.1 MQTT vom eigenen Dienst (paho-mqtt) **NEU 3.8**
   - 5.9.2 Status und Protokoll offline puffern **NEU**
-- **5.10 Figuren-Zuordnung über Home Assistant** **NEU 3.5** · **NEU 3.8** (HA einziger Schreiber)
-  - 5.10.1 Unbekannte Kennung → Überraschungs-Ordner + Meldung „neue Figur"
-  - 5.10.2 HA-Oberfläche: Serienliste, Zuordnen mit einem Tipp (Weg A) **NEU 3.8**
-  - 5.10.3 Lernmodus „Jetzt kommt ein neuer Tonie", 2 min, auch Umbelegen (Weg B)
-  - 5.10.4 Serie → nächste ungehörte Folge, Zusammenspiel mit Resume
-  - 5.10.5 LED-Zustände „neue Figur" und „Lernmodus"
-  - 5.10.6 Zuordnungen in HA gespeichert, Boxen holen sie (6.3) **NEU 3.8**
+- **5.10 Tobie-Zuordnung über Home Assistant** **NEU 3.5** · **NEU 3.8** · **NEU 3.9** (HA einziger Schreiber)
+  - 5.10.1 Unbekannte Kennung → Überraschungs-Ordner + Meldung „neuer Tobie"
+  - 5.10.2 HA-Oberfläche: Serienliste, Zuordnen mit einem Tipp (Weg A), Ziel Serie oder Folge **NEU 3.8** **NEU 3.9**
+  - 5.10.3 Lernmodus „Jetzt kommt ein neuer Tonie", 2 min, auch Umbelegen (Weg B), mit Ziel **NEU 3.9**
+  - 5.10.4 Ziel Serie → nächste ungehörte Folge, Ziel Folge → diese Folge; Zusammenspiel mit Resume **NEU 3.9**
+  - 5.10.5 LED-Zustände „neuer Tobie" und „Lernmodus"
+  - 5.10.6 Zuordnungen mit Ziel in HA gespeichert, Boxen holen sie (6.3) **NEU 3.8** **NEU 3.9**
 
 ## 6 Verwaltung & Sync
 
@@ -590,7 +591,7 @@ Stand 3.8: Aufteilung neu. V3 entfällt, die Firmware macht den Leser, Home Assi
   - 6.2.1 rsync im Heim-WLAN; über Handy-Hotspot voller Abgleich, Medien nur am Lader oder Akku über ~50 % **NEU 3.8**
   - 6.2.2 Bibliotheks-Scan nach dem Sync statt bei jedem Boot
   - 6.2.3 Zugriff aufs NAS von unterwegs: Tailscale, ACL nur Medienordner, NAS-Konto nur lesend, Schlüssel pro Box widerrufbar **NEU 3.8**
-- **6.3 Zuordnungen zwischen beiden Boxen abgleichen** — HA einziger Schreiber, Boxen holen; inkl. Figuren aus 5.10. Resume und Hörstand bleiben pro Box **NEU 3.8**
+- **6.3 Zuordnungen zwischen beiden Boxen abgleichen** — HA einziger Schreiber, Boxen holen; inkl. Tobies aus 5.10. Resume und Hörstand bleiben pro Box **NEU 3.8**
 - **6.4 Hörprotokoll & Statistik** — in HA
 - **6.5 Backup** — SD-Image + Konfiguration
 - **6.6 Zugriffsschutz** — HA über Nabu Casa, NAS über Tailscale, keine offenen Ports, kein myQNAPcloud **NEU 3.8**
@@ -630,7 +631,7 @@ Stand 3.8: Aufteilung neu. V3 entfällt, die Firmware macht den Leser, Home Assi
   - 8.4.3 Unbekannte oder defekte Karte
   - 8.4.4 LED-Flackern bei NFC-Abfrage
   - 8.4.5 Laden über USB-C und Pogo gleichzeitig **NEU**
-  - 8.4.6 Lernmodus: Kind legt währenddessen eigene Figur auf, Zeitablauf, Abbruch **NEU 3.5**
+  - 8.4.6 Lernmodus: Kind legt währenddessen eigenen Tobie auf, Zeitablauf, Abbruch **NEU 3.5**
 - **8.5 Abnahme Box 1**
 
 ## 9 Serie & Betrieb
@@ -657,10 +658,11 @@ Stand 3.8: Aufteilung neu. V3 entfällt, die Firmware macht den Leser, Home Assi
 4. **3.1.4 Pinbelegung** — vor dem Löten kollisionsfrei festlegen.
 5. **2.3 / 5.4 Resume-Datenmodell** — das größte eigene Software-Stück. Seit 3.8 Kern des eigenen Dienstes, nicht eines V3-Plugins. **NEU 3.8**
 6. **Software-Prototyp am Mac, dann Pi-Probelauf** — Logik (Abläufe 1–8, Szenario-Tests) am Mac beweisen, Umgebung (Serielle, Audio, WLAN, RAM) am Pi. Pi 3A+ jetzt bestellen (Charge 1). **NEU 3.8**
+7. **Abnahme Stufe 1 am Mac (Tobias), dann Pi 3A+ bestellen und Pi-Probelauf.** **NEU 3.9**
 
 CAD (4.2) startet erst, wenn 3.2 auf dem Breadboard läuft.
 
-## Entscheidungen (12.10.2026, ergänzt 17.10., 04.11. und 05.11. für Rev. 3.8)
+## Entscheidungen (12.10.2026, ergänzt 17.10., 04.11., 05.11. für Rev. 3.8 und 06.11. für Rev. 3.9)
 
 | Frage | Entscheidung |
 |---|---|
@@ -683,6 +685,9 @@ CAD (4.2) startet erst, wenn 3.2 auf dem Breadboard läuft.
 | **Serie durchgehört (3.8)** | Start wieder bei Folge 1 |
 | **Prototyp (3.8)** | Zuerst am Mac (nativ, kein Docker, keine Brücke), dann am Pi. Der Mac beweist die Logik, der Pi die Umgebung. Pi 3A+ jetzt bestellen |
 | **ESPuino (3.8)** | Verworfen: Medien-Sync, Update mit Rückfall und HA-Abgleich wären auf dem ESP32 zu mühsam und schlechter testbar |
+| **Tobie → Folge oder Serie (3.9, F, 05.11.)** | Tonies und NFC-Karten heißen Tobie. Ein Tobie spielt eine einzelne Folge oder eine ganze Serie. Eine Folge ist eine Datei oder ein Ordner mit Tracks |
+| **Pause erst am Ende der ganzen Folge (3.9)** | Die Tracks einer Folge laufen ohne Pause durch. Die Pause kommt nach dem letzten Track. Ein Folgen-Tobie startet nach dem Ende von vorn |
+| **Dienst-Neustart (3.9, G, 06.11.)** | Nach einem Neustart des Dienstes (ohne Ausschalten) startet ein liegender Tobie nie von selbst. Hauptknopf kurz oder Abheben und Auflegen spielt am Zeiger. Nach Ein- oder Ausschalten der Box wirkt er wie ein frisches Auflegen |
 
 ## Bewusst nicht enthalten
 

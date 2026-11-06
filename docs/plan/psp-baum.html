@@ -144,7 +144,7 @@
 
 <header class="top">
   <h1>Tobi Box — Projektstrukturplan</h1>
-  <p>Zwei baugleiche, mobile NFC-Audioboxen. Raspberry Pi 3 Model A+, eigene Box-Software auf MPD, eigene Module für Resume, LED-Ring, Akku, Leise-Zeiten und Figuren-Zuordnung.</p>
+  <p>Zwei baugleiche, mobile NFC-Audioboxen. Raspberry Pi 3 Model A+, eigene Box-Software auf MPD, eigene Module für Resume, LED-Ring, Akku, Leise-Zeiten und Tobie-Zuordnung.</p>
   <p class="hint">Seitlich scrollen für alle neun Phasen · Drucken ergibt A3 quer</p>
 </header>
 
@@ -155,6 +155,7 @@
   <span><i class="swatch" style="background:var(--g-schluss)"></i>Test &amp; Betrieb</span>
   <span class="kritmark">▲ kritischer Pfad</span>
   <span><i class="neu" style="margin:0">NEU</i>seit Rev. 2</span>
+  <span><i class="neu" style="margin:0">NEU 3.9</i>in Rev. 3.9 geändert</span>
 </div>
 
 <div class="scroll">
@@ -162,7 +163,7 @@
 
   <div class="root">
     <strong>Tobi Box</strong>
-    <em>2 Geräte · ca. 575 € · Rev. 3.8</em>
+    <em>2 Geräte · ca. 575 € · Rev. 3.9 · 06.11.2026</em>
   </div>
   <div class="stem"></div>
   <div class="bus"></div>
@@ -282,7 +283,7 @@
             <li><span class="code">4.2.6</span>Trennwand Audio / Elektronik</li>
             <li><span class="code">4.2.7</span>USB-C mit TPU-Lasche<span class="neu">NEU</span></li>
             <li><span class="code">4.2.8</span>Klinkenbuchse versenkt<span class="neu">NEU</span></li>
-            <li><span class="code">4.2.9</span>Halt für Tonie-Figuren<span class="neu">NEU</span></li>
+            <li><span class="code">4.2.9</span>Halt für Tobies<span class="neu">NEU</span></li>
           </ul>
         </li>
         <li><span class="code">4.3</span>Druck &amp; Iterationen
@@ -346,9 +347,9 @@
             <li><span class="code">5.3.5</span>Protokoll-Vertrag (Zeilen, Version)<span class="neu">NEU</span></li>
           </ul>
         </li>
-        <li class="krit"><span class="code">5.4</span>Resume, eigener Kern<span class="neu">NEU</span>
+        <li class="krit"><span class="code">5.4</span>Resume, eigener Kern<span class="neu">NEU</span><span class="neu">NEU 3.9</span>
           <ul class="l3">
-            <li><span class="code">5.4.1</span>Eine Position, letzte Karte</li>
+            <li><span class="code">5.4.1</span>Zeiger je Ziel: Folge, Track, Sekunden<span class="neu">NEU 3.9</span></li>
             <li><span class="code">5.4.2</span>Verwerfen bei Kartenwechsel</li>
             <li><span class="code">5.4.3</span>Karenzzeit 10 s</li>
             <li><span class="code">5.4.4</span>Atomar schreiben</li>
@@ -380,14 +381,14 @@
             <li><span class="code">5.9.2</span>Offline puffern<span class="neu">NEU</span></li>
           </ul>
         </li>
-        <li><span class="code">5.10</span>Figuren-Zuordnung über HA<span class="neu">NEU</span>
+        <li><span class="code">5.10</span>Tobie-Zuordnung über HA<span class="neu">NEU</span><span class="neu">NEU 3.9</span>
           <ul class="l3">
             <li><span class="code">5.10.1</span>Unbekannt → Überraschung</li>
-            <li><span class="code">5.10.2</span>HA: Serie antippen<span class="neu">NEU</span></li>
-            <li><span class="code">5.10.3</span>Lernmodus „neuer Tonie“</li>
-            <li><span class="code">5.10.4</span>Nächste ungehörte Folge</li>
+            <li><span class="code">5.10.2</span>HA: Serie antippen, Ziel wählen<span class="neu">NEU</span><span class="neu">NEU 3.9</span></li>
+            <li><span class="code">5.10.3</span>Lernmodus „neuer Tonie“, mit Ziel<span class="neu">NEU 3.9</span></li>
+            <li><span class="code">5.10.4</span>Ziel Serie: nächste Folge; Ziel Folge: diese<span class="neu">NEU 3.9</span></li>
             <li><span class="code">5.10.5</span>LED „neu“ / „Lernen“</li>
-            <li><span class="code">5.10.6</span>Zuordnung über HA, Boxen holen<span class="neu">NEU</span></li>
+            <li><span class="code">5.10.6</span>Zuordnung über HA, Boxen holen<span class="neu">NEU</span><span class="neu">NEU 3.9</span></li>
           </ul>
         </li>
       </ul>
@@ -494,16 +495,17 @@
 <footer>
   <h3>Kritischer Pfad</h3>
   <ol>
-    <li><strong>3.1.5 Tonie-Test</strong> — Leser entschieden (PN5180). <strong>Test 5 bestanden (05.11.):</strong> durch 2 mm zentriert 100 %, auch durch MagSafe-Hülle. Offen: Test 5b (Stahlscheibe mittig), Test 6 (max. Distanz) und Strom (Test 7); sie bestimmen Deckelstärke und Laufzeit. Design-Regeln: Figur mittig über der Antenne, kein Vollmetall/Magnet über der Mitte, UID-Entprellung in der Firmware.</li>
+    <li><strong>3.1.5 Tonie-Test</strong> — Leser entschieden (PN5180). <strong>Test 5 bestanden (05.11.):</strong> durch 2 mm zentriert 100 %, auch durch MagSafe-Hülle. Offen: Test 5b (Stahlscheibe mittig), Test 6 (max. Distanz) und Strom (Test 7); sie bestimmen Deckelstärke und Laufzeit. Design-Regeln: Tobie mittig über der Antenne, kein Vollmetall/Magnet über der Mitte, UID-Entprellung in der Firmware.</li>
     <li><strong>3.1.3 Laufzeit</strong> — mit dem Pi 3A+ wird das 8-h-Ziel knapp. Reicht es nicht: heruntertakten, sonst für Box 2 auf die Zero 2 W warten.</li>
     <li><strong>3.1.2 PN5180-Reichweite</strong> — bestimmt die Wandstärke im Kartenfeld und damit das CAD.</li>
     <li><strong>3.1.4 Pinbelegung</strong> — I²S, SPI0, APA102 und UART kollisionsfrei, bevor gelötet wird.</li>
     <li><strong>2.3 / 5.4 Resume</strong> — Kern des eigenen Dienstes, das größte eigene Software-Stück. <span class="neu">NEU</span></li>
     <li><strong>Software-Prototyp am Mac, dann Pi-Probelauf</strong> — Logik am Mac beweisen, Umgebung am Pi. Pi 3A+ jetzt bestellen. <span class="neu">NEU</span></li>
+    <li><strong>Abnahme Stufe 1 am Mac (Tobias), dann Pi 3A+ bestellen und Pi-Probelauf.</strong> <span class="neu">NEU 3.9</span></li>
   </ol>
   <p>Phase 4 (CAD) startet erst, wenn 3.2 auf dem Breadboard läuft.</p>
 
-  <h3>Entscheidungen (12.10.2026, ergänzt 17.10., 04.11. und 05.11.)</h3>
+  <h3>Entscheidungen (12.10.2026, ergänzt 17.10., 04.11., 05.11. und 06.11.)</h3>
   <ol>
     <li><strong>Kopfhörer</strong> — Klinkenbuchse mit zweitem DAC, Hardware-Deckel plus Software-Limit.</li>
     <li><strong>Einschalten</strong> — ein Druck, Anti-Mistouch aus.</li>
@@ -522,5 +524,8 @@
     <li><strong>Serie durchgehört (3.8)</strong> — Start wieder bei Folge 1.</li>
     <li><strong>Prototyp (3.8)</strong> — Zuerst am Mac (nativ, kein Docker, keine Brücke), dann am Pi. Pi 3A+ jetzt bestellen.</li>
     <li><strong>ESPuino (3.8)</strong> — Verworfen: Medien-Sync, Update mit Rückfall und HA-Abgleich wären auf dem ESP32 zu mühsam.</li>
+    <li><strong>Tobie → Folge oder Serie (3.9, F, 05.11.)</strong> — Tonies und NFC-Karten heißen Tobie. Ein Tobie spielt eine einzelne Folge oder eine ganze Serie. Eine Folge ist eine Datei oder ein Ordner mit Tracks.</li>
+    <li><strong>Pause erst am Ende der ganzen Folge (3.9)</strong> — Die Tracks einer Folge laufen ohne Pause durch. Ein Folgen-Tobie startet nach dem Ende von vorn.</li>
+    <li><strong>Dienst-Neustart (3.9, G, 06.11.)</strong> — Nach einem Neustart des Dienstes startet ein liegender Tobie nie von selbst. Hauptknopf kurz oder Abheben und Auflegen spielt am Zeiger.</li>
   </ol>
 </footer>
