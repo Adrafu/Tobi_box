@@ -268,8 +268,8 @@ So prüfst du es:
       dann Wiederverbindung.
 - [ ] Die Figur liegt noch, die Folge läuft weiter, ohne Neustart.
 - [ ] Zweiter Versuch: Während das Kabel gezogen ist, Figur abheben. Nach dem
-      Wiedereinstecken pausiert die Box spätestens 1,5 s nach dem Alarm, den
-      der Wächter im Protokoll meldet.
+      Wiedereinstecken pausiert die Box spätestens 3,1 s nach dem Alarm, den
+      der Wächter im Protokoll meldet (Karenz 3,0 s laut Vertrag).
 
 ## 9. Vorführung ohne Hardware: Fake-Leser
 
@@ -350,3 +350,157 @@ Der Serial-Monitor (`pio device monitor`) hat den Port noch offen. Mit
 
    Hörst du den Piepton nicht, liegt es an Mac oder MPD, nicht an der Box.
    Ist es zu leise, prüfe `start` und `max` in `box/config/tobibox.toml`.
+
+## 11. Abnahme Stufe 1
+
+Diese Liste führt jeden Punkt von „Abnahme Stufe 1“ aus `docs/designs/box-software.md`
+(Umsetzungsplan, Stufe 1) in konkrete Schritte über. Du brauchst den laufenden Dienst
+(Schritt 7), den echten Leser und die Tobies aus der Liste oben. Die Prüfungen aus
+Abschnitt 8 bleiben unverändert; hier steht, was dazukommt und was sich nach den
+Verträgen geändert hat. Vermerke Datum und Ergebnis neben jedem Haken.
+
+**Zum Protokoll.** Seit AP 1.6 schreibt der Dienst die Kette vollständig: `aufgelegt`,
+`entprellt`, `zugeordnet`, `spielt`, `abspielen`, `abspielen_fertig` beim Auflegen und
+`abgehoben`, `pausieren`, `pausieren_fertig`, `zeiger_gespeichert` beim Abheben, alle
+mit derselben `vorgang`-Kennung. Praktisch zum Mitlesen:
+
+```
+tail -f ~/Tobi_box/box/var/log/tobibox.log | grep -E '"(aufgelegt|entprellt|zugeordnet|spielt|abspielen|abgehoben|pausieren|zeiger_gespeichert)"'
+```
+
+### 11.1 Alle Tests grün
+
+- [ ] Im Repo, Python-Umgebung aktiv: `cd ~/Tobi_box/box && pytest -q`. Alles grün,
+      auch die CUJ-Tests unter `box/tests/cuj/` (Dateien `test_cuj01` bis `test_cuj20`).
+      Ohne MPD im Pfad werden die MPD-Tests übersprungen; `mpd --version` muss laufen.
+- [ ] Firmware: `cd ~/Tobi_box/firmware/tobibox-reader && pio test -e native`. Alles grün.
+- [ ] Die CI auf GitHub für den Stand ist grün.
+
+### 11.2 CUJ 1, 2, 5, 6, 8 und 13 mit echtem Leser
+
+- [ ] Führe die Prüfungen aus Abschnitt 8 der Reihe nach vor (CUJ 1, 2, 5, 6, 8, 13).
+- [ ] Zusätzlich bei CUJ 1: Die Zeilen `aufgelegt`, `entprellt`, `zugeordnet`, `spielt`
+      haben dieselbe `vorgang`-Kennung, und `aufgelegt` steht vor `abspielen`.
+- [ ] Zusätzlich bei CUJ 6: Die Zeile `zugeordnet` hat `ergebnis` `ueberraschung`.
+      Es entsteht keine Zeile mit „unbekannt“ und kein Eintrag in `box/var/unknown.json`.
+- [ ] Zusätzlich bei CUJ 8: Auch ein Tobie, der nur am Rand aufliegt oder ein wenig
+      gedreht wird, erzeugt keine Pause. Eine kurze Lücke (Tobie 0,8 s und 1,0 s
+      anheben und wieder hinlegen, je 10 Mal) darf keine Zeile `abgehoben` erzeugen
+      (`grep -c '"ereignis":"abgehoben"' ~/Tobi_box/box/var/log/tobibox.log`
+      vor und nach den 20 Versuchen vergleichen).
+
+**Frist bei CUJ 13.** Es gilt
+der Vertrag (`core-interface.md`, 9.1): Die Karenzzeit ist **3,0 s**, die Pause kommt
+**spätestens 3,1 s** nach dem Alarm oder dem `HELLO` (bewusste Ausnahme von der 1,5-s-Regel).
+Der Dienst hört den Ausfall nur am fehlenden Herzschlag (Alarm nach bis zu 5 s) oder an der
+getrennten Verbindung (Alarm sofort).
+
+### 11.3 Leser-Neustart (USB-Kabel ziehen und stecken)
+
+Eine Folge spielt, der Tobie liegt. Terminal mit `tail -f` offen lassen.
+
+- [ ] **Kurze Unterbrechung (etwa 1 bis 2 s):** Kabel ziehen, nach 1 bis 2 s stecken.
+      Das Protokoll zeigt den Verlust und die Wiederverbindung des Lesers (`baustein`
+      `reader`). Die Wiedergabe läuft ohne Neustart weiter. Es erscheint kein zweites
+      `abspielen` und die `vorgang`-Kennung des Tobies bleibt dieselbe, auch wenn die Firmware
+      wieder bei `seq=0` beginnt.
+- [ ] **Lange Unterbrechung (etwa 5 s):** Kabel ziehen, nach 5 s stecken. Die Box pausiert
+      bei Ablauf der Frist (etwa 3 s nach dem Ziehen, `pausieren` mit Grund `leser_unbekannt`),
+      der Zeiger ist gespeichert (`zeiger_gespeichert`). Nach dem Stecken startet **nichts
+      von selbst**, auch wenn der Tobie noch liegt. Zum Weiterspielen den Tobie abheben und
+      wieder auflegen.
+- [ ] **Zweites Mal mit Abheben während der Unterbrechung:** Folge spielt, Kabel ziehen,
+      Tobie abheben, Kabel nach etwa 2 s stecken. Die Box pausiert spätestens 3,1 s nach dem
+      Ziehen (Frist, `pausieren` mit Grund `leser_unbekannt`) oder, wenn die Firmware
+      vorher ihren ersten Herzschlag mit `present=0` sendet, sofort dabei (Grund `abgehoben`).
+      Der Zeiger ist gespeichert, es spielt nichts weiter. Tobie wieder auflegen: Die Folge
+      läuft 3 s vor der gespeicherten Stelle weiter.
+
+### 11.4 Abheben, Dienst neu starten, wieder auflegen (Zeigerlogik)
+
+- [ ] Folge spielt etwa 20 s. Tobie abheben. `zeiger_gespeichert` steht im Protokoll.
+- [ ] Dienst mit `Ctrl+C` beenden und neu starten (Schritt 7). Tobie auflegen. Die Folge
+      läuft an der gespeicherten Stelle weiter, mit 3 s Rücksprung (`spielt` mit
+      `position_s` etwa 3 s unter dem gespeicherten Wert).
+- [ ] **Dienst-Neustart bei liegendem Tobie** (Entscheidung G, 06.11.): Folge spielt, der
+      Tobie bleibt liegen. Dienst mit `Ctrl+C` beenden und neu starten. Im Protokoll steht
+      `start` mit Ergebnis `dienst_neustart` und später `dienst_neustart` mit
+      `pausiert`. Es startet **keine Wiedergabe** von selbst (nur das Startgeräusch des Dienstes), auch nach 10 s nicht. Zum Weiterspielen
+      den Tobie abheben und wieder auflegen. Dann läuft er an der gespeicherten Stelle weiter.
+      (Der Hauptknopf, der am Pi dasselbe tut, fehlt am Mac.)
+- [ ] Gegenprobe „echtes Einschalten“: Dienst beenden, den Mac neu starten (oder
+      `rm ~/Tobi_box/box/var/lauf.json`), Tobie liegen lassen, Dienst starten, Tobie
+      abheben und auflegen. Der Tobie spielt sofort.
+
+### 11.5 Tobie auf eine einzelne Folge und Tobie mit mehreren Tracks
+
+Dazu zwei Zuordnungen in `box/var/config.json` (Version 2, Eintrag `ziel`; die alten
+Einträge ohne `ziel` bleiben gültig) und ein Ordner mit Tracks:
+
+```
+mkdir -p ~/Tobi_box/box/medien-beispiel/meine-testserie/cd-test
+cp ~/Tobi_box/box/medien-beispiel/serie-a/folge-0*.wav ~/Tobi_box/box/medien-beispiel/meine-testserie/cd-test/
+mv ~/Tobi_box/box/medien-beispiel/meine-testserie/cd-test/folge-01.wav ~/Tobi_box/box/medien-beispiel/meine-testserie/cd-test/01.wav
+mv ~/Tobi_box/box/medien-beispiel/meine-testserie/cd-test/folge-02.wav ~/Tobi_box/box/medien-beispiel/meine-testserie/cd-test/02.wav
+mv ~/Tobi_box/box/medien-beispiel/meine-testserie/cd-test/folge-03.wav ~/Tobi_box/box/medien-beispiel/meine-testserie/cd-test/03.wav
+printf 'update\nclose\n' | nc localhost 6600
+```
+
+`config.json` (`schema_version` 2; „TOBIE_EINZELN“ und „TOBIE_CD“ durch zwei Kennungen
+ersetzen, dazu die vorhandenen Einträge übernehmen):
+
+```
+"TOBIE_EINZELN": { "ziel": { "typ": "folge", "serie": "meine-testserie", "folge": "folge-02.wav" } },
+"TOBIE_CD":      { "ziel": { "typ": "folge", "serie": "meine-testserie", "folge": "cd-test" } }
+```
+
+Danach den Dienst neu starten.
+
+- [ ] **Einzelne Folge:** Tobie auflegen. Genau diese Folge spielt (`spielt` mit
+      `folge` `folge-02.wav`, `art` `folge`). Am Ende der Folge pausiert die Box (Protokoll:
+      `pausieren` mit Grund `folgenende`), obwohl der Tobie noch liegt. Tobie abheben und wieder
+      auflegen: Die Folge spielt **von vorn**. Die Serie `meine-testserie` startet dabei nicht
+      bei der nächsten Folge.
+- [ ] **Mehrere Tracks:** Tobie `TOBIE_CD` auflegen. Die drei Tracks spielen nacheinander
+      **ohne Pause** (die Piepsfolgen mit einem, zwei und drei Tönen; im Protokoll `track_wechsel`).
+      Erst nach dem dritten Track pausiert die Box (`folgenende`). Wieder auflegen: von vorn
+      beim ersten Track.
+- [ ] Während Track 2 den Tobie abheben und wieder auflegen: weiter in Track 2 an
+      der gespeicherten Stelle.
+
+### 11.6 Die Klemmung der Lautstärke im Dienst, auch beim Start
+
+- [ ] Die Tests sind grün: `cd ~/Tobi_box/box && pytest -q -k "grenze or klemmen or startlaut"`.
+- [ ] Am Mac: In `box/config/tobibox.toml` `max = 20` und `start = 20` setzen, Dienst neu starten,
+      Tobie auflegen. `printf 'status\nclose\n' | nc localhost 6600 | grep volume` zeigt
+      `volume: 20` oder weniger, nie mehr. (Die harte Kappe auf ALSA-Ebene gehört zum
+      Pi-Probelauf.) Danach die Werte wieder zurücksetzen.
+
+### 11.7 Messung für `docs/timing.md`
+
+Die Messung braucht die Aufnahme am Ausgang. Methode und Befehle: `docs/timing.md`, Abschnitt 2.
+
+- [ ] Dauerton anlegen und der Serie `messung` zuordnen (Abschnitt 2, „Vorbereitung“).
+- [ ] Altes Protokoll wegräumen: `mv ~/Tobi_box/box/var/log/tobibox.log* /tmp/`.
+- [ ] Aufnahme starten und still sein: `rec -r 44100 -c 1 ~/aufnahme.wav`
+      (oder QuickTime, dann `afconvert -f WAVE -d LEI16 aufnahme.m4a aufnahme.wav`).
+- [ ] Danach den Dienst starten. Das Startgeräusch ist die Marke für den Abgleich.
+- [ ] Je Tobie (NTAG-Karte, offener Tonie, gesperrter Tonie) mindestens 20 Mal mit hörbarem Klack
+      aufsetzen, etwa 3 s spielen lassen, abheben, 3 s warten. Dazu die 20 Lücken aus 11.2.
+- [ ] Aufnahme und Dienst beenden. Auswerten:
+      `python ~/Tobi_box/box/tools/measure_audio_latency.py ~/Tobi_box/box/var/log/tobibox.log* --wav ~/aufnahme.wav --sync-start --klick`
+- [ ] Die Werte in die Tabelle in `docs/timing.md`, Abschnitt 5, eintragen: je einen Messwert
+      für Warten auf den Zyklus, erste Lesung, Entprellen, Entsperren (Tonie), Übertragung,
+      Dienst und MPD-Start bis zum Ton am Ausgang. Dazu die Firmware-Zeiten aus der `HB`-Zeile
+      (`cycle_ms`, Serial-Monitor, Dienst vorher beenden).
+
+### 11.8 Grenzen eingehalten
+
+- [ ] **Auflegen:** Spalte `Gesamt` (Klack bis erster Ton) unter 1000 ms, für Karte, offenen
+      und gesperrten Tonie. Das Werkzeug meldet „ÜBER GRENZE“ und beendet sich mit Status 3,
+      wenn nicht.
+- [ ] **Abheben:** 1100 ms + Zyklus (bis 200 ms) + Messwert `abgehoben` → Ton aus unter 1500 ms.
+- [ ] **Lücken** bis 1,0 s: keine Pause (11.2).
+- [ ] Wird eine Grenze überschritten, gilt die Rückfallregel (`docs/timing.md`, Abschnitt 6):
+      erst die Arbeit pro Zyklus senken, dann Rückfrage an Tobias wegen 1,2 s. Keine stille Änderung
+      von Ziel 2.

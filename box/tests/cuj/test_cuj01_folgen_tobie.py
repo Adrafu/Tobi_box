@@ -125,8 +125,9 @@ def test_folge_nach_dem_ende_und_neustart_beginnt_der_folgen_tobie_von_vorn(box)
     box.laufe(6.5)
     box.neustart_nach_einschalten()  # Gerät war aus (CUJ 20: liegender Tobie startet); „beendet“ wird nicht gespeichert
     assert box.modus == "leer"
+    n = len(box.log)
     box.auflege(UID_FOLGE, "v2")
-    (a,) = abspielen_ab(box, len(box.log) - 2)
+    (a,) = abspielen_ab(box, n)
     assert (a.datei, a.position_s) == ("b.wav", 0.0)
 
 

@@ -1890,7 +1890,7 @@ berührt haben (Grundregel). **Abhängig von AP 1.7** (läuft danach, Entscheidu
 | `box/tests/cuj/test_cuj05_nfc_karte.py` | neu | CUJ 5: Karte verhält sich wie CUJ 1 bis 4. |
 | `box/tests/cuj/test_cuj06_gesperrter_tonie.py` | neu | CUJ 6: Überraschungs-Serie, kurze Aussetzer starten sie nicht neu. |
 | `box/tests/cuj/test_cuj08_figur_verrutscht.py` | neu | CUJ 8 aus Sicht des Dienstes: Lese-Lücken (keine Zeile der Firmware) und gleiche Kennung nach der Lücke führen zu keiner Pause und keinem Neustart. Die verfälschte Kennung prüfen die nativen Firmware-Tests (AP 1.1). |
-| `box/tests/cuj/test_cuj13_leser_ausfall.py` | neu | CUJ 13: `seq`-Rücksetzen, Abheben während der Unterbrechung, Wächter-Alarm mit 1,5-s-Frist. |
+| `box/tests/cuj/test_cuj13_leser_ausfall.py` | neu | CUJ 13: `seq`-Rücksetzen, Abheben während der Unterbrechung, Wächter-Alarm mit 3,0-s-Karenz (Vertrag 9.1). |
 | `box/tools/measure_audio_latency.py` | neu | Misst die Zeit vom Auflegen (Zeitstempel im Ereignisprotokoll) bis zum ersten Ton in einer Aufnahme am Ausgang. |
 | `docs/timing.md` | neu | Messung je Schritt, mit Methode und Ergebnis (siehe Abnahme Stufe 1). |
 

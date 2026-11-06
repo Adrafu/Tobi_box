@@ -15,6 +15,7 @@ import logging
 import os
 import signal
 import sys
+import time
 from collections.abc import Sequence
 from dataclasses import replace
 from pathlib import Path
@@ -38,6 +39,29 @@ STANDARD_TOENE = Path(__file__).resolve().parents[2] / "sounds"
 log = logging.getLogger("tobibox.app")
 
 
+def _ms(seit: float) -> int:
+    return round((time.monotonic() - seit) * 1000)
+
+
+def _protokolliere_leser(e: ev.Ereignis) -> None:
+    """Die Kette des Auflegens und Abhebens ins Ereignisprotokoll (``data-model.md``, 8).
+
+    ``PLACED`` und ``LOCKED`` kommen von der Firmware schon entprellt (``reader-v1.md``); der Dienst
+    schreibt deshalb ``aufgelegt`` und ``entprellt`` im selben Augenblick. ``zugeordnet`` und
+    ``spielt`` schreibt die Sitzung. Der Zeitstempel von ``aufgelegt`` ist der Startpunkt der
+    Messung (``tools/measure_audio_latency.py``).
+    """
+    if isinstance(e, ev.Aufgelegt):
+        eventlog.logge("reader", "INFO", "aufgelegt", "ok", e.vorgang,
+                       daten={"uid": e.uid, "typ": e.typ, "tonie": e.tonie, "seq": e.seq})
+        eventlog.logge("reader", "INFO", "entprellt", "ok", e.vorgang, daten={"seq": e.seq})
+    elif isinstance(e, ev.Gesperrt):
+        eventlog.logge("reader", "INFO", "aufgelegt", "ok", e.vorgang, daten={"uid": None, "gesperrt": True, "seq": e.seq})
+        eventlog.logge("reader", "INFO", "entprellt", "ok", e.vorgang, daten={"seq": e.seq})
+    elif isinstance(e, ev.Abgehoben):
+        eventlog.logge("reader", "INFO", "abgehoben", "ok", e.vorgang, daten={"seq": e.seq})
+
+
 class App:
     def __init__(
         self,
@@ -52,6 +76,7 @@ class App:
         self._melde_bereit = melde_bereit
         self._boot_id = boot_id
         self._marker_uid: str | None = None  # zuletzt in ``lauf.json`` festgehaltener Tobie
+        self._letzter_vorgang: str | None = None
         self._herunterfahren = False  # nach Herunterfahren kein Marker mehr
         zustand = konfig.pfade.zustand
         self.resume = ResumeStore(zustand)
@@ -77,9 +102,17 @@ class App:
     def verarbeite(self, e: ev.Ereignis) -> tuple[ev.Befehl, ...]:
         """Ein Ereignis durch den Kern; die Befehle gehen an den Ausführer."""
         jetzt = self.uhr.jetzt()
+        _protokolliere_leser(e)
+        if isinstance(e, (ev.Aufgelegt, ev.Gesperrt)) or (isinstance(e, ev.Abgehoben) and e.vorgang):
+            self._letzter_vorgang = e.vorgang
         self.kern, befehle = core.step(self.kern, e, jetzt)
         for b in befehle:
-            self.befehle.put_nowait((b, jetzt.mono))
+            if isinstance(b, ev.Protokoll):
+                # Protokollzeilen sofort schreiben: Sie halten die Entscheidung fest (zugeordnet, spielt) und
+                # gehören vor die Ausführung der Befehle derselben Verarbeitung (Kette von CUJ 1, Messung).
+                eventlog.logge_befehl(b)
+            else:
+                self.befehle.put_nowait((b, jetzt.mono))
         self._marker_nachfuehren()
         return befehle
 
@@ -132,16 +165,26 @@ class App:
         elif isinstance(b, ev.AusgangWaehlen):
             await self.player.ausgang_waehlen(b.ausgang)
         elif isinstance(b, ev.Pausieren):
+            vorgang = self._vorgang()
+            eventlog.logge("app", "INFO", "pausieren", "gesendet", vorgang, daten={"grund": b.grund})
+            t0 = time.monotonic()
             await self.player.pausieren(b)
+            eventlog.logge("app", "INFO", "pausieren_fertig", "ok", vorgang, daten={"dauer_ms": _ms(t0)})
         elif isinstance(b, ev.Abspielen):
+            eventlog.logge(
+                "app", "INFO", "abspielen", "gesendet", b.vorgang,
+                daten={"serie": b.serie_id, "folge": b.datei, "track": b.track, "position_s": b.position_s},
+            )
+            t0 = time.monotonic()
             await self.player.abspielen(b)
+            eventlog.logge("app", "INFO", "abspielen_fertig", "ok", b.vorgang, daten={"dauer_ms": _ms(t0)})
         elif isinstance(b, ev.ZeigerSpeichern):
             await asyncio.to_thread(self.resume.speichern, b, mono)
         elif isinstance(b, ev.TonSpielen):
             ton, hinweis = self._tonpegel()
             self.toene.spiele(b.ton, self.grenze, ton, hinweis)
         elif isinstance(b, ev.Protokoll):
-            eventlog.logge_befehl(b)
+            eventlog.logge_befehl(b)  # normalerweise schon in ``verarbeite`` geschrieben
         elif isinstance(b, ev.LeserPing):
             self.leser.ping()
         elif isinstance(b, ev.Herunterfahren):
@@ -152,6 +195,10 @@ class App:
             pass  # Anzeige und Statussammler folgen in Stufe 2
         else:  # Melden, EreignisSenden, StatusPruefen, Sync, Update: Stufe 2 bis 3
             eventlog.logge("app", "DEBUG", "befehl_nicht_umgesetzt", "ignoriert", daten={"befehl": type(b).__name__})
+
+    def _vorgang(self) -> str | None:
+        """Vorgangs-ID des letzten Auflegens oder Abhebens (für Zeilen von Befehlen ohne eigene ID)."""
+        return self._letzter_vorgang
 
     async def _ausfuehrer(self) -> None:
         while True:

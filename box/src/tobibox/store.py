@@ -363,7 +363,7 @@ class ResumeStore:
         self.schreibungen += 1
         logge(
             "store",
-            "DEBUG",
+            "INFO",
             "zeiger_gespeichert",
             "ok",
             daten={

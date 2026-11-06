@@ -826,7 +826,7 @@ def test_zeiger_beim_auflegen(zeiger, erwartet):
 def test_fehlende_folge_wird_protokolliert():
     h = SitzungsHarnisch(zeiger=(zeiger("s1", "weg.mp3", 1, 50.0, 4),))
     h.sende(A())
-    log = [o for o in h.voll if isinstance(o, ev.Protokoll)]
+    log = [o for o in h.voll if isinstance(o, ev.Protokoll) and o.ebene == "WARNING"]  # INFO-Kette: CUJ 1
     assert [(p.ebene, p.ereignis) for p in log] == [("WARNING", "zeiger_folge_fehlt")]
 
 
@@ -854,7 +854,7 @@ def test_zuordnung_auf_unbekannte_serie_spielt_ueberraschung_ohne_melden():
     h = SitzungsHarnisch()
     out = h.sende(A(UID_FEHLT))
     assert out == [ABSPIELEN_UEB]
-    log = [o for o in h.voll if isinstance(o, ev.Protokoll)]
+    log = [o for o in h.voll if isinstance(o, ev.Protokoll) and o.ebene == "WARNING"]  # INFO-Kette: CUJ 1
     assert [(p.ebene, p.ereignis) for p in log] == [("WARNING", "serie_fehlt")]
     assert dict(log[0].daten) == {"uid": UID_FEHLT, "serie": "unbekannte-serie"}
 

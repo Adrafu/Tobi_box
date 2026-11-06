@@ -191,6 +191,12 @@ def _start(
     if ort.track_fehlte:
         out.append(_prot("WARNING", "zeiger_track_fehlt", "track_0", vorgang, serie=serie.id, datei=ort.datei))
     out.append(_abspielen(serie, ort.datei, ort.track, ort.position_s, vorgang, z.gen + 1))
+    out.append(
+        _prot(
+            "INFO", "spielt", "ok", vorgang, uid=z.figur.uid if z.figur else None, art=art, serie=serie.id,
+            folge=ort.datei, track=ort.track, position_s=ort.position_s,
+        )
+    )
     z = _ruhe(
         z,
         gen=z.gen + 1,
@@ -258,6 +264,13 @@ def _auflegen(z: Zustand, uid: str | None, vorgang: str, jetzt: Jetzt) -> tuple[
                 )
                 serie = _ueberraschung(z)
     z = replace(z, figur=Figur(vorgang, uid, art))
+    eigenes_ziel = art == "serie" and zuo is not None and serie is not None and serie.id == zuo.serie_id
+    out.append(
+        _prot(
+            "INFO", "zugeordnet", "ok" if eigenes_ziel else "ueberraschung", vorgang, uid=uid, art=art,
+            ziel=ziel_art, serie=serie.id if serie else None, folge=folge,
+        )
+    )
 
     if z.stumm or (neustart and serie is not None):
         # „stumm“: gehalten, Hinweiston. Dienst-Neustart: pausiert, still (Zeiger bleibt, Hauptknopf spielt)

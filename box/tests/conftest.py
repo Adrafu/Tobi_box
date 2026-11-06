@@ -2,9 +2,14 @@
 
 from __future__ import annotations
 
-import pytest
+import io
+import json
+import logging
 
-from tobibox import core, session
+import pytest
+from integration.conftest import mpd  # noqa: F401  (Fixture ``mpd``: echtes MPD, übersprungen ohne ``mpd``)
+
+from tobibox import core, eventlog, session
 from tobibox import events as ev
 from tobibox.clock import SimUhr
 
@@ -259,6 +264,68 @@ class SimPlayer:
             self._position(True)
 
 
+class LeserSim:
+    """Die echte Zeilenverarbeitung von ``reader.Leser`` (``_parse``, ``_verarbeite``: ``seq``-Prüfung,
+    Vorgangs-ID, Wiedermeldung) ohne Schnittstelle und Uhr: Textzeilen der Firmware hinein, Ereignisse
+    heraus. ``HELLO`` und ``HB`` verarbeitet sonst die Verbindungsschleife des ``Leser``; ihre wenigen
+    Zeilen (``_verbindung``) sind hier gespiegelt, ``integration/test_reader_pty.py`` prüft sie am Original.
+
+    Die Firmware-Seite (``seq`` zählt ab ``HELLO`` von 0) steckt in den Hilfen ``placed`` bis ``hello``."""
+
+    def __init__(self, ausgabe) -> None:
+        from tobibox import reader
+
+        self._reader = reader
+        self._ausgabe = ausgabe
+        self._n = 0
+        self.leser = reader.Leser(ausgabe, "unbenutzt", vorgang_id=self._neue_id)
+        self.seq = 0
+        self.zeilen: list[str] = []  # alles, was die „Firmware“ gesendet hat
+
+    def _neue_id(self) -> str:
+        self._n += 1
+        return f"{self._n:08x}"
+
+    def zeile(self, text: str) -> None:
+        """Eine Zeile der Firmware an den Dienst (wie ``Leser._verbindung``)."""
+        from tobibox import events as ev
+
+        self.zeilen.append(text)
+        z = self.leser._parse(text.encode("ascii"))
+        assert z is not None, f"Zeile vom Dienst verworfen: {text!r}"
+        if z.typ == "HELLO":
+            self.leser._seq_erwartet = 0
+            self.leser._wiedermeldung = True
+            f = z.felder
+            self._ausgabe(ev.LeserHallo(int(f["proto"]), f["fw"], f["build"], f["pn5180"]))
+        elif z.typ == "HB":
+            self._ausgabe(self._reader._herzschlag(z))
+        else:
+            self.leser._verarbeite(z)
+
+    def _naechste_seq(self) -> int:
+        n = self.seq
+        self.seq += 1
+        return n
+
+    def hello(self) -> None:
+        """Leser (neu) gestartet: ``HELLO``, ``seq`` beginnt wieder bei 0."""
+        self.seq = 0
+        self.zeile("HELLO proto=1 fw=1.0.0 build=fa4e0000 pn5180=4.2")
+
+    def placed(self, uid: str, typ: str = "ntag", tonie: bool = False) -> None:
+        self.zeile(f"PLACED uid={uid} type={typ} tonie={int(tonie)} seq={self._naechste_seq()}")
+
+    def locked(self) -> None:
+        self.zeile(f"LOCKED seq={self._naechste_seq()}")
+
+    def removed(self) -> None:
+        self.zeile(f"REMOVED seq={self._naechste_seq()}")
+
+    def hb(self, present: bool, up: int = 10) -> None:
+        self.zeile(f"HB up={up} present={int(present)} polls=50 hits=10 rejected=0 errors=0 cycle_ms=200")
+
+
 class CujBox:
     """Der Dienst ohne Ein-/Ausgabe: Kern + Speicher + SimPlayer + simulierte Uhr.
 
@@ -288,6 +355,7 @@ class CujBox:
 
     def start(self) -> None:
         self.kern = core.neuer_zustand()
+        self.leser = LeserSim(self.sende)  # neue Verbindung zum Leser: ``seq`` beginnt bei 0
         self.resume = self._ResumeStore(self.zustand)
         self.player.b = None
         self.player.spielt = False
@@ -354,3 +422,63 @@ class CujBox:
         import json
 
         return json.loads((self.zustand / "resume.json").read_text(encoding="utf-8"))
+
+
+# --- Fang für das Ereignisprotokoll (CUJ-Tests mit echter App) ---------------------------------
+
+
+class Protokollfang:
+    """Fängt die JSON-Zeilen des Ereignisprotokolls (so wie sie in die Datei gehen)."""
+
+    def __init__(self) -> None:
+        self.strom = io.StringIO()
+
+    def zeilen(self) -> list[dict]:
+        return [json.loads(z) for z in self.strom.getvalue().splitlines() if z.startswith("{")]
+
+    def finde(self, ereignis: str, vorgang: str | None = None, baustein: str | None = None) -> list[dict]:
+        return [
+            z for z in self.zeilen()
+            if z["ereignis"] == ereignis
+            and (vorgang is None or z.get("vorgang") == vorgang)
+            and (baustein is None or z["baustein"] == baustein)
+        ]
+
+
+@pytest.fixture
+def protokoll():
+    fang = Protokollfang()
+    eventlog.einrichten(ziel="stdout", ebene="DEBUG", strom=fang.strom)
+    yield fang
+    log = eventlog.logger()
+    for h in list(log.handlers):
+        log.removeHandler(h)
+        h.close()
+    log.setLevel(logging.NOTSET)
+
+
+def app_welt(mpd, tmp_path, zuordnungen: dict, serien: dict | None = None) -> dict:
+    """Medien im MPD-Ordner, Zustandsordner, ``config.json`` und ``tobibox.toml`` für eine echte ``App``.
+
+    ``serien``: Name -> (serie_id, Folgen, Dauer); Vorgabe: Serie ``rabe`` (zwei Folgen zu 30 s) und eine
+    Überraschungs-Serie (ein Ton zu 2 s)."""
+    from fixtures import audio
+
+    from tobibox import store
+
+    for name, (serie_id, folgen, dauer_s) in (serien or {"rabe": ("3f9a1c07b2d4", ["folge-01.wav", "folge-02.wav"], 30.0)}).items():
+        audio.erzeuge_serie(mpd.medien, name, folgen, serie_id=serie_id, name=name, dauer_s=dauer_s)
+    audio.erzeuge_serie(mpd.medien, "ueberraschung", ["ton.wav"], serie_id="c07d2e91a45b", typ="ueberraschung", dauer_s=2.0)
+    mpd.aktualisiere()
+    zustand = tmp_path / "var"
+    zustand.mkdir()
+    k = ev.Konfig(1, "a3f9c1e07b2d4856", dict(zuordnungen), ev.LeiseZeiten("Europe/Berlin", ()), ev.GuteNacht(30, 60))
+    store.schreibe_atomar(zustand / "config.json", {**store.konfig_zu_json(k), "ton_pegel": 40, "hinweis_pegel": 15})
+    link = tmp_path / "leser" / "ttyACM0"
+    toml = tmp_path / "tobibox.toml"
+    toml.write_text(
+        f'[pfade]\nzustand = "{zustand}"\nmedien = "{mpd.medien}"\n[leser]\ngeraet = "{link}"\n'
+        f'[mpd]\nhost = "127.0.0.1"\nport = {mpd.port}\n[lautstaerke]\nmax = 50\nstart = 20\nkopfhoerer = 30\n'
+        '[toene]\nkommando = ["true", "{datei}"]\n'
+    )
+    return {"zustand": zustand, "link": link, "toml": toml, "mpd": mpd}
