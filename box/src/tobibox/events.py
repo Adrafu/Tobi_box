@@ -208,6 +208,7 @@ class TrackWechsel(Ereignis):
     serie_id: str
     datei: str
     track: int
+    gen: int | None = field(default=None, compare=False)  # Generation des letzten ``Abspielen`` (``None``: nicht geprüft)
 
 
 @dataclass(frozen=True, slots=True)
@@ -216,6 +217,7 @@ class FolgeZuEnde(Ereignis):
 
     serie_id: str
     datei: str
+    gen: int | None = field(default=None, compare=False)  # Generation des letzten ``Abspielen``
 
 
 @dataclass(frozen=True, slots=True)
@@ -225,6 +227,7 @@ class PlayerPosition(Ereignis):
     track: int
     position_s: float
     spielt: bool
+    gen: int | None = field(default=None, compare=False)  # Generation des letzten ``Abspielen``
 
 
 @dataclass(frozen=True, slots=True)
@@ -250,6 +253,9 @@ class GeraeteEinstellungen(Ereignis):
     lautstaerke_max: int
     lautstaerke_start: int
     lautstaerke_kopfhoerer: int
+    #: Kennung des Tobies, der beim Dienst-Neustart (ohne Ausschalten) auflag, sonst ``None``
+    #: (Entscheidung G, 06.11.): Er startet nicht von selbst.
+    neustart_uid: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -498,6 +504,10 @@ class Abspielen(Befehl):
     track: int
     position_s: float  # im Track, mit Rücksprung
     vorgang: str | None = None
+    #: Wiedergabe-Generation, von der Sitzung bei jedem ``Abspielen`` um 1 erhöht; der Player
+    #: trägt sie in ``PlayerPosition``, ``TrackWechsel`` und ``FolgeZuEnde`` ein. Gehört nicht
+    #: zum Vergleich (Tests prüfen sie gezielt).
+    gen: int = field(default=0, compare=False)
 
 
 @dataclass(frozen=True, slots=True)

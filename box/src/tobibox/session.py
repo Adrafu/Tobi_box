@@ -70,6 +70,9 @@ class Zustand:
     letzte_speicherung: float = 0.0
     hb_abweichungen: int = 0
     nach_hallo: bool = False
+    gen: int = 0  # Wiedergabe-Generation: wächst mit jedem ``Abspielen``
+    # Tobie, der beim Dienst-Neustart auflag: startet nicht von selbst (Entscheidung G, 06.11.)
+    neustart_uid: str | None = None
 
 
 def neuer_zustand() -> Zustand:
@@ -124,9 +127,16 @@ def _ort(z: Zustand, serie: ev.Serie, art: str, folge: str | None) -> pointer.Or
 
 
 def _abspielen(
-    serie: ev.Serie, datei: str, track: int, position_s: float, vorgang: str | None
+    serie: ev.Serie, datei: str, track: int, position_s: float, vorgang: str | None, gen: int
 ) -> ev.Abspielen:
-    return ev.Abspielen(serie.id, serie.ordner, datei, pointer.tracks_von(serie, datei), track, position_s, vorgang)
+    return ev.Abspielen(
+        serie.id, serie.ordner, datei, pointer.tracks_von(serie, datei), track, position_s, vorgang, gen
+    )
+
+
+def _veraltet(z: Zustand, e: ev.TrackWechsel | ev.FolgeZuEnde | ev.PlayerPosition) -> bool:
+    """Ereignis einer früheren Wiedergabe (``gen`` weicht ab): ignorieren."""
+    return e.gen is not None and e.gen != z.gen
 
 
 def _speichern(z: Zustand, grund: str, jetzt: Jetzt) -> tuple[Zustand, Ausgabe]:
@@ -180,9 +190,10 @@ def _start(
         out.append(_prot("WARNING", "zeiger_folge_fehlt", "naechste_folge", vorgang, serie=serie.id, datei=ort.datei))
     if ort.track_fehlte:
         out.append(_prot("WARNING", "zeiger_track_fehlt", "track_0", vorgang, serie=serie.id, datei=ort.datei))
-    out.append(_abspielen(serie, ort.datei, ort.track, ort.position_s, vorgang))
+    out.append(_abspielen(serie, ort.datei, ort.track, ort.position_s, vorgang, z.gen + 1))
     z = _ruhe(
         z,
+        gen=z.gen + 1,
         modus="spielt",
         ziel=art,
         serie_id=serie.id,
@@ -215,6 +226,9 @@ def _stumm_hinweis(z: Zustand, modus: str) -> tuple[Zustand, Ausgabe]:
 def _auflegen(z: Zustand, uid: str | None, vorgang: str, jetzt: Jetzt) -> tuple[Zustand, Ausgabe]:
     """Neue Figur in einem Zustand ohne laufende Wiedergabe behandeln."""
     zuo = z.konfig.zuordnungen.get(uid) if (uid is not None and z.konfig is not None) else None
+    # Dienst-Neustart (Entscheidung G, 06.11.): der Tobie, der schon vorher lag, startet nicht
+    neustart = uid is not None and uid == z.neustart_uid and z.modus == "leer"
+    z = replace(z, neustart_uid=None)
     if zuo is not None and zuo.typ == "aktion" and zuo.aktion is not None:
         return replace(z, figur=Figur(vorgang, uid, "aktion")), [ev.AktionAusgeloest(zuo.aktion, vorgang)]
 
@@ -245,8 +259,12 @@ def _auflegen(z: Zustand, uid: str | None, vorgang: str, jetzt: Jetzt) -> tuple[
                 serie = _ueberraschung(z)
     z = replace(z, figur=Figur(vorgang, uid, art))
 
-    if z.stumm:
-        modus = z.modus if z.modus in ("beendet", "gehalten") else "gehalten"
+    if z.stumm or (neustart and serie is not None):
+        # „stumm“: gehalten, Hinweiston. Dienst-Neustart: pausiert, still (Zeiger bleibt, Hauptknopf spielt)
+        if neustart:
+            modus = "pausiert"
+        else:
+            modus = z.modus if z.modus in ("beendet", "gehalten") else "gehalten"
         z = replace(z, modus=modus)
         if serie is not None:
             # Felder folgen dem gespeicherten Zeiger des neuen Ziels (nie Reste eines anderen)
@@ -258,7 +276,10 @@ def _auflegen(z: Zustand, uid: str | None, vorgang: str, jetzt: Jetzt) -> tuple[
                 )
             else:
                 z = replace(z, ziel=ziel_art, serie_id=serie.id, datei=None, index=0, track=0, position_s=0.0)  # type: ignore[arg-type]
-        out.append(ev.TonSpielen("hinweis"))
+        if not neustart:
+            out.append(ev.TonSpielen("hinweis"))
+        else:
+            out.append(_prot("INFO", "dienst_neustart", "pausiert", vorgang, uid=uid))
         return z, out
 
     if serie is None:
@@ -326,7 +347,7 @@ def _abgehoben(z: Zustand, jetzt: Jetzt) -> tuple[Zustand, Ausgabe]:
     if z.figur is None:
         return z, []
     out: Ausgabe = []
-    z = replace(z, figur=None, hb_abweichungen=0)
+    z = replace(z, figur=None, hb_abweichungen=0, neustart_uid=None)
     if z.modus in ("spielt", "unbekannt"):
         out += _grenze_weg(z)
         out.append(ev.Pausieren("abgehoben"))
@@ -356,6 +377,8 @@ def _leser_ausfall(z: Zustand, e: ev.Ereignis, jetzt: Jetzt) -> tuple[Zustand, A
 
 def _herzschlag(z: Zustand, e: ev.LeserHerzschlag, jetzt: Jetzt) -> tuple[Zustand, Ausgabe]:
     liegt = z.figur is not None
+    if not liegt and not e.present and z.neustart_uid is not None:
+        z = replace(z, neustart_uid=None)  # der Tobie vom Neustart liegt nicht mehr da
     if z.nach_hallo:
         z = replace(z, nach_hallo=False)
         if not e.present and liegt:
@@ -379,6 +402,7 @@ def _position(z: Zustand, e: ev.PlayerPosition, jetzt: Jetzt) -> tuple[Zustand, 
     Folge und Track zum Zeiger passen; sonst ignorieren (6.3, Entscheidung F)."""
     if (
         z.modus in ("spielt", "unbekannt")
+        and not _veraltet(z, e)
         and e.serie_id == z.serie_id
         and e.datei == z.datei
         and e.track == z.track
@@ -394,6 +418,8 @@ def _track_wechsel(z: Zustand, e: ev.TrackWechsel, jetzt: Jetzt) -> tuple[Zustan
     MPD-Frist, ``unbekannt``); sonst ignoriert."""
     if z.modus not in ("spielt", "unbekannt"):
         return z, []
+    if _veraltet(z, e):
+        return z, [_prot("DEBUG", "track_wechsel_veraltet", "ignoriert", z.figur.vorgang if z.figur else None, gen=e.gen, aktuell=z.gen)]
     vorgang = z.figur.vorgang if z.figur else None
     serie = _serie(z, z.serie_id)
     n = len(pointer.tracks_von(serie, z.datei)) if serie is not None and z.datei is not None else 0
@@ -410,6 +436,8 @@ def _folge_zu_ende(z: Zustand, e: ev.FolgeZuEnde, jetzt: Jetzt) -> tuple[Zustand
     ``unbekannt`` folgt ``beendet``; beim Ausblenden wegen „stumm“ folgt ``gehalten``."""
     if z.modus not in ("spielt", "unbekannt"):
         return z, []
+    if _veraltet(z, e):
+        return z, [_prot("DEBUG", "folge_zu_ende_veraltet", "ignoriert", z.figur.vorgang if z.figur else None, gen=e.gen, aktuell=z.gen)]
     if e.serie_id != z.serie_id or e.datei != z.datei:
         return z, [_prot("WARNING", "folge_zu_ende_fremd", "ignoriert", z.figur.vorgang if z.figur else None, serie=e.serie_id, datei=e.datei)]
     out: Ausgabe = _grenze_weg(z)
@@ -480,9 +508,9 @@ def _verbindung(z: Zustand, e: ev.PlayerVerbindung, jetzt: Jetzt) -> tuple[Zusta
         ausgang = "kopfhoerer" if z.kopfhoerer_steckt else "lautsprecher"
         out = [
             ev.AusgangWaehlen(ausgang),
-            _abspielen(serie, z.datei, z.track, pos, z.figur.vorgang),
+            _abspielen(serie, z.datei, z.track, pos, z.figur.vorgang, z.gen + 1),
         ]
-        return replace(z, mpd_verloren=False, mpd_bis=None, position_s=pos, letzte_speicherung=jetzt.mono), out
+        return replace(z, mpd_verloren=False, mpd_bis=None, position_s=pos, letzte_speicherung=jetzt.mono, gen=z.gen + 1), out
     return _mpd_frist_ende(z)
 
 
@@ -544,8 +572,8 @@ def _springen(z: Zustand, delta: int, jetzt: Jetzt) -> tuple[Zustand, Ausgabe]:
         sprung = pointer.zurueck(z.datei, z.index, z.track, z.position_s)
     z = replace(z, datei=sprung.datei, index=sprung.index, track=sprung.track, position_s=0.0)
     z, sp = _speichern(z, sprung.grund, jetzt)
-    z = _ruhe(z, modus="spielt", letzte_speicherung=jetzt.mono)
-    return z, sp + [_abspielen(serie, sprung.datei, sprung.track, 0.0, vorgang)]
+    z = _ruhe(z, modus="spielt", letzte_speicherung=jetzt.mono, gen=z.gen + 1)
+    return z, sp + [_abspielen(serie, sprung.datei, sprung.track, 0.0, vorgang, z.gen)]
 
 
 def _zurueck_nach_ende(z: Zustand, vorgang: str | None, jetzt: Jetzt) -> tuple[Zustand, Ausgabe]:
@@ -556,8 +584,8 @@ def _zurueck_nach_ende(z: Zustand, vorgang: str | None, jetzt: Jetzt) -> tuple[Z
     name = z.ende[1]
     z = replace(z, serie_id=serie.id, datei=name, index=serie.folgen.index(name), track=0, position_s=0.0)
     z, sp = _speichern(z, "zurueck", jetzt)
-    z = _ruhe(z, modus="spielt", letzte_speicherung=jetzt.mono)
-    return z, sp + [_abspielen(serie, name, 0, 0.0, vorgang)]
+    z = _ruhe(z, modus="spielt", letzte_speicherung=jetzt.mono, gen=z.gen + 1)
+    return z, sp + [_abspielen(serie, name, 0, 0.0, vorgang, z.gen)]
 
 
 def _weiter(z: Zustand, e: ev.Weiter, jetzt: Jetzt) -> tuple[Zustand, Ausgabe]:
@@ -583,7 +611,7 @@ def _kopfhoerer(z: Zustand, e: ev.Kopfhoerer, jetzt: Jetzt) -> tuple[Zustand, Au
 
 
 def _einstellungen(z: Zustand, e: ev.GeraeteEinstellungen, jetzt: Jetzt) -> tuple[Zustand, Ausgabe]:
-    z = replace(z, kopfhoerer_grenze=e.lautstaerke_kopfhoerer)
+    z = replace(z, kopfhoerer_grenze=e.lautstaerke_kopfhoerer, neustart_uid=e.neustart_uid)
     if z.kopfhoerer_steckt:
         return z, [ev.GrenzeGesetzt(GRENZE_KOPFHOERER, e.lautstaerke_kopfhoerer)]
     return z, []

@@ -28,6 +28,7 @@ from conftest import (
     kern,
     mk_konfig,
     ZUORDNUNGEN,
+    typen,
 )
 
 from tobibox import events as ev
@@ -1898,3 +1899,146 @@ def test_schreibbudget_zwei_stunden_wiedergabe_hoechstens_320_zeiger_schreibunge
             pausen += 1
     assert h.modus == "spielt" and track == 40 and pausen == 40
     assert 200 <= schreibungen <= 240 + 40 + 40, schreibungen
+
+
+# --------------------------------------------------------------------------
+# Dienst-Neustart mit liegendem Tobie (Entscheidung G, 06.11.)
+# --------------------------------------------------------------------------
+
+_ZEIGER_S1_B = zeiger("s1", "b.mp3", 1, 100.0, 3)
+
+
+def _neustart_harnisch(uid=UID_S1, **kw) -> SitzungsHarnisch:
+    return SitzungsHarnisch(zeiger=(_ZEIGER_S1_B,), neustart_uid=uid, **kw)
+
+
+def test_neustart_liegender_tobie_bleibt_pausiert_still_und_zeigt_auf_den_zeiger():
+    h = _neustart_harnisch()
+    out = h.auflegen()
+    assert out == []  # kein Ton, kein Abspielen
+    z = h.z
+    assert h.modus == "pausiert" and z.figur is not None and z.figur.uid == UID_S1
+    assert (z.ziel, z.serie_id, z.datei, z.index, z.track, z.position_s) == ("serie", "s1", "b.mp3", 1, 0, 97.0)  # wie im Zweig „stumm“: Position mit Rücksprung
+    assert z.neustart_uid is None
+
+
+def test_neustart_hauptknopf_kurz_spielt_am_zeiger_mit_ruecksprung():
+    h = _neustart_harnisch()
+    h.auflegen()
+    out = h.sende(ev.Hauptknopf("kurz"))
+    assert out == [abspielen("s1", "s1", "b.mp3", 97.0, "v1")]
+    assert h.modus == "spielt"
+
+
+def test_neustart_abheben_und_wieder_auflegen_spielt():
+    h = _neustart_harnisch()
+    h.auflegen()
+    h.sende(ev.Abgehoben(1, "v1"))
+    out = h.auflegen(vorgang="v2")
+    assert out == [abspielen("s1", "s1", "b.mp3", 97.0, "v2")]
+
+
+def test_neustart_anderer_tobie_spielt_sofort_und_loescht_die_merkung():
+    h = _neustart_harnisch(uid=UID_S1)
+    out = h.auflegen(UID_S2)
+    assert ev.Abspielen in typen(out) and h.modus == "spielt"
+    assert h.z.neustart_uid is None
+
+
+def test_neustart_tobie_gleich_aber_nicht_in_leer_spielt_normal():
+    h = _neustart_harnisch()
+    h.auflegen(UID_S2)  # anderer Tobie startet, die Merkung ist weg
+    h.sende(ev.Abgehoben(1, "v1"))
+    out = h.auflegen(UID_S1, vorgang="v2")
+    assert ev.Abspielen in typen(out)
+
+
+def test_neustart_herzschlag_ohne_tobie_loescht_die_merkung():
+    h = _neustart_harnisch()
+    h.sende(ev.LeserHerzschlag(False, 1, 1, 0, 0, 0, 50))
+    assert h.z.neustart_uid is None
+    assert ev.Abspielen in typen(h.auflegen())
+
+
+def test_neustart_unter_stumm_bleibt_still_und_pausiert():
+    h = _neustart_harnisch()
+    h.sende(ev.StummBeginnt())
+    assert h.auflegen() == []
+    assert h.modus == "pausiert" and h.z.datei == "b.mp3"
+
+
+def test_ohne_neustart_uid_startet_der_tobie_wie_in_cuj20():
+    h = SitzungsHarnisch(zeiger=(_ZEIGER_S1_B,))
+    assert ev.Abspielen in typen(h.auflegen())
+
+
+def test_neustart_unbekannter_tobie_meldet_aber_spielt_nicht():
+    h = _neustart_harnisch(uid=UID_UNBEKANNT)
+    out = h.auflegen(UID_UNBEKANNT)
+    assert ev.Abspielen not in typen(out) and ev.TonSpielen not in typen(out)
+    assert out == [ev.Melden("unbekannt", UID_UNBEKANNT, None)] and h.modus == "pausiert"
+
+
+# --------------------------------------------------------------------------
+# Wiedergabe-Generation (gen)
+# --------------------------------------------------------------------------
+
+
+def _gens(out) -> list[int]:
+    return [b.gen for b in out if isinstance(b, ev.Abspielen)]
+
+
+def test_gen_waechst_mit_jedem_abspielen():
+    h = SitzungsHarnisch()
+    assert _gens(h.auflegen()) == [1]
+    assert _gens(h.sende(ev.Weiter())) == [2]
+    assert _gens(h.sende(ev.Zurueck())) == [3]
+    assert h.z.gen == 3
+
+
+def test_veraltete_position_nach_zurueck_im_selben_track_wird_ignoriert():
+    h = SitzungsHarnisch()
+    h.auflegen()
+    h.sende(ev.PlayerPosition("s1", "a.mp3", 0, 50.0, True, 1))
+    assert h.z.position_s == 50.0
+    (a,) = [b for b in h.sende(ev.Zurueck()) if isinstance(b, ev.Abspielen)]  # Zurück in a.mp3: dieselbe Folge, Track
+    assert (a.datei, a.track, a.gen) == ("a.mp3", 0, 2)
+    # Nachzügler des alten Abspielens: gleiche Folge und Track, aber Generation 1
+    h.sende(ev.PlayerPosition("s1", "a.mp3", 0, 52.0, True, 1))
+    assert h.z.position_s == 0.0
+    h.sende(ev.PlayerPosition("s1", "a.mp3", 0, 1.0, True, 2))
+    assert h.z.position_s == 1.0
+
+
+def test_veraltetes_folge_zu_ende_nach_weiter_auf_dieselbe_folge_wird_ignoriert():
+    h = SitzungsHarnisch(serien=(S3,))
+    h.auflegen(UID_CD)  # Folge „cd“ mit drei Tracks, Folgen-Tobie
+    h.sende(ev.TrackWechsel("s3", "cd", 1, 1))
+    h.sende(ev.TrackWechsel("s3", "cd", 2, 1))
+    h.sende(ev.Zurueck())  # Zurück im Track (Position > 3 s) oder vorheriger Track, jedenfalls neues Abspielen, gen 2
+    assert h.z.gen == 2 and h.modus == "spielt"
+    out = h.sende(ev.FolgeZuEnde("s3", "cd", 1))  # Ende der alten Wiedergabe kommt zu spät
+    assert out == [] and h.modus == "spielt"
+    out = h.sende(ev.FolgeZuEnde("s3", "cd", 2))
+    assert ev.Pausieren("folgenende") in out and h.modus == "beendet"
+
+
+def test_veraltetes_track_wechsel_wird_ignoriert():
+    h = SitzungsHarnisch(serien=(S3,))
+    h.auflegen(UID_CD)
+    h.sende(ev.Hauptknopf("kurz"))  # pausiert
+    h.sende(ev.Hauptknopf("kurz"))  # spielt wieder, gen 2
+    assert h.z.gen == 2
+    assert h.sende(ev.TrackWechsel("s3", "cd", 1, 1)) == [] and h.z.track == 0
+    h.sende(ev.TrackWechsel("s3", "cd", 1, 2))
+    assert h.z.track == 1
+
+
+def test_erster_track_fehlt_der_player_meldet_track_wechsel_die_sitzung_nimmt_ihn_an():
+    h = SitzungsHarnisch(serien=(S3,))
+    h.auflegen(UID_CD)
+    assert h.z.track == 0
+    h.sende(ev.TrackWechsel("s3", "cd", 1, 1))
+    assert (h.z.track, h.z.position_s) == (1, 0.0) and h.modus == "spielt"
+    h.sende(ev.PlayerPosition("s3", "cd", 1, 2.0, True, 1))
+    assert h.z.position_s == 2.0

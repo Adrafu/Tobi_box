@@ -626,11 +626,19 @@ Zustände, Übergänge und Konflikte: siehe „Kern-Zustände“.
 ### CUJ 20: Tobie liegt schon beim Start
 
 *   **Given**: Die Box ist aus (Akku leer, Strom weg oder ausgeschaltet), ein Tobie liegt auf dem Leser.
+    Gilt nur nach einem echten Einschalten (Entscheidung G, 06.11.).
 *   **When**: Die Box startet.
 *   **Then**: Sobald Leser, Kern und MPD bereit sind, wird der Tobie wie ein
     frisches Auflegen behandelt (CUJ 1 bis 3): bekanntes Ziel spielt am
     Zeiger weiter, unbekannter Tobie startet die Überraschungs-Serie. Die Zeit
     bis „bereit“ hat einen Soll-Wert (Pi-Probelauf).
+*   **Ausnahme: Dienst-Neustart (Entscheidung G, 06.11.)**: Nach einem Neustart des
+    Box-Dienstes, ohne dass die Box ausgeschaltet war (Update, Absturz,
+    `systemctl restart`), startet ein liegender Tobie **nie** von selbst. Die
+    Sitzung bleibt `pausiert` (kein Ton) mit dem Zeiger seines Ziels; Hauptknopf kurz
+    (oder Abheben und erneutes Auflegen) spielt am gespeicherten Zeiger. Erkannt
+    wird das am Marker `lauf.json` (gleiche Kennung des Starts, siehe Datenmodell).
+    Leerer Akku und Stromausfall zählen als Einschalten.
 
 ## Technischer Plan
 
@@ -996,7 +1004,7 @@ wegen „stumm“ nicht gespielt), `unbekannt` (Leser-Zustand unbekannt).
 | `spielt` | stumm beginnt | sanft ausblenden, Pause, Zeiger speichern | `gehalten` |
 | `gehalten` | `REMOVED` | — | `pausiert` |
 | `gehalten` | stumm endet | nichts; Wiedergabe startet nicht von selbst, erst Abheben und erneutes Auflegen startet sie | `pausiert` |
-| `leer` | Start mit liegendem Tobie (CUJ 20) | wie `PLACED`, sobald alles bereit ist | `spielt` |
+| `leer` | Start mit liegendem Tobie (CUJ 20) | wie `PLACED`, sobald alles bereit ist; nach Dienst-Neustart ohne Ausschalten nichts (Entscheidung G, 06.11.) | `spielt`; nach Dienst-Neustart `pausiert` |
 | beliebig | Kopfhörer rein/raus | erst Grenze setzen, dann Ausgang umschalten | unverändert |
 
 Kommt nach der Frist dieselbe Kennung wieder, ist das ein normales Auflegen
@@ -1919,7 +1927,7 @@ wird in AP 2.4 behoben.
 |---|---|---|
 | `box/tests/cuj/test_cuj03_resume.py` | neu | CUJ 3: Resume mit 3-s-Rücksprung, auch nach Neustart; Folge zu Ende bei liegendem Tobie (Pause, Zeiger auf die nächste Folge, nichts passiert bis Abheben und Auflegen; nach der letzten Folge Zeiger auf Folge 1); Resume mitten im zweiten Track einer Folge; Folgen-Tobie spielt nach dem Ende von vorn (Entscheidung F, 05.11.). |
 | `box/tests/cuj/test_cuj04_andere_figur.py` | neu | CUJ 4: Zeiger der alten Serie bleibt, neue Serie läuft an ihrem Zeiger oder bei Folge 1. |
-| `box/tests/cuj/test_cuj20_figur_beim_start.py` | neu | CUJ 20: Tobie liegt beim Start (bekannt: Zeiger; unbekannt: Überraschungs-Serie). |
+| `box/tests/cuj/test_cuj20_figur_beim_start.py` | neu | CUJ 20: Tobie liegt beim Start (bekannt: Zeiger; unbekannt: Überraschungs-Serie); Dienst-Neustart mit liegendem Tobie bleibt `pausiert`, Hauptknopf spielt am Zeiger (Entscheidung G, 06.11.). |
 | `box/tests/integration/test_resume_neustart.py` | neu | Dienst hart beenden und neu starten; Zeiger ist da, höchstens 30 s Wiedergabe verloren. |
 
 Abnahme AP 2.1:
@@ -2045,7 +2053,7 @@ bestätigt oder ändert sie):
 | Auflegen eines Tonies (mit Entsperrzeit), ohne Last | ≤ 1,0 s |
 | Auflegen eines bekannten Tobies, während ein Sync läuft | ≤ 1,0 s; wird erst nach AP 3.4 am Pi gemessen (Abnahme Stufe 3a) |
 | Abheben bis Pause | ≤ 1,5 s |
-| Tobie liegt beim Start (CUJ 20) | spielt, sobald „bereit“ |
+| Tobie liegt beim Start (CUJ 20) | spielt, sobald „bereit“ (nur nach Einschalten; nach Dienst-Neustart bleibt er `pausiert`, Entscheidung G, 06.11.) |
 | Lautstärke-Kappung (`softvol`) | Ausgang bleibt bei Dienst-Absturz und Neustart unter der Grenze |
 | Schreibvorgänge pro Tag (Zeiger, Protokoll) | im Schreibbudget des Datenmodells |
 | Temperatur | nur protokollieren (kein Soll-Wert) |

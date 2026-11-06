@@ -101,6 +101,7 @@ class Player:
         self._qtracks: list[int] = []  # Warteschlangenplatz -> Nummer des Tracks in der Folge
         self._qpos = 0  # zuletzt gesehener Warteschlangenplatz
         self._track = 0  # Nummer des laufenden Tracks in der Folge
+        self._gen = 0  # Generation des letzten ``Abspielen``; trägt jedes Ereignis
         self._gespielt = False  # es lief mindestens ein Track seit dem letzten Abspielen
         self._nichts_zu_spielen = False  # Start hinter dem letzten spielbaren Track
         self._phase = "aus"  # "aus" | "spielt" | "pause"
@@ -181,6 +182,7 @@ class Player:
             return
         async with self._lock:
             self._serie, self._datei = b.serie_id, b.datei
+            self._gen = b.gen
             self._phase = "aus"
             self._elapsed = max(0.0, b.position_s)
             self._dauer = 0.0
@@ -196,6 +198,11 @@ class Player:
             elif ok:
                 self._phase = "spielt"
                 self._letzte_pos_mono = self._mono()
+                if self._track != b.track:
+                    # fehlende Tracks am Anfang übersprungen: der Zeiger folgt dem spielenden Track
+                    logge("player", "INFO", "track_wechsel", "start_uebersprungen",
+                          daten={"serie": b.serie_id, "folge": b.datei, "von": b.track, "track": self._track})
+                    self._ausgabe(ev.TrackWechsel(b.serie_id, b.datei, self._track, self._gen))
                 await self._schutz(self._melde_position(), b.serie_id, b.datei)
 
     async def pausieren(self, b: ev.Pausieren) -> None:
@@ -400,7 +407,7 @@ class Player:
         if self._serie is None or self._datei is None:
             return
         pos = self._elapsed if position_s is None else position_s
-        self._ausgabe(ev.PlayerPosition(self._serie, self._datei, self._track, round(pos, 3), spielt))
+        self._ausgabe(ev.PlayerPosition(self._serie, self._datei, self._track, round(pos, 3), spielt, self._gen))
 
     def _pruefe_trackwechsel(self, st: Mapping[str, Any]) -> None:
         """MPD ist zu einem anderen Titel der Warteschlange gewechselt: ``TrackWechsel``,
@@ -420,7 +427,7 @@ class Player:
         self._dauer = _zahl(st, "duration", 0.0)
         self._letzte_pos_mono = self._mono()
         logge("player", "INFO", "track_wechsel", "ok", daten={"serie": self._serie, "folge": self._datei, "track": self._track})
-        self._ausgabe(ev.TrackWechsel(self._serie, self._datei, self._track))
+        self._ausgabe(ev.TrackWechsel(self._serie, self._datei, self._track, self._gen))
         self._sende_position(spielt=st.get("state") == "play")
 
     # ------------------------------------------------------------------
@@ -614,4 +621,4 @@ class Player:
         ende = self._dauer if self._dauer > 0 else self._elapsed
         self._sende_position(spielt=False, position_s=max(ende, self._elapsed))
         logge("player", "INFO", "folge_zu_ende", "ok", daten={"serie": serie, "datei": datei})
-        self._ausgabe(ev.FolgeZuEnde(serie, datei))
+        self._ausgabe(ev.FolgeZuEnde(serie, datei, self._gen))

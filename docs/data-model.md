@@ -109,6 +109,7 @@ Beim Start (und bei jedem Lesen) in dieser Reihenfolge:
 |---|---|---|---|---|
 | `config.json` | Box, Zustandsverzeichnis | Box: `ha` (über `store`), aus der angenommenen Liste von `tobibox/config`; in Stufe 2 `tobibox sim card` | `app` (lädt beim Start), `ha` | wird von HA verteilt; die Box schreibt nur die übernommene Liste |
 | `resume.json` | Box, Zustandsverzeichnis | Box: `store`, auf Befehl `ZeigerSpeichern` | `app` (beim Start) | nie |
+| `lauf.json` | Box, Zustandsverzeichnis | Box: `app` (einfaches Schreiben) (Entscheidung G, 06.11.) | `app` (beim Start) | nie |
 | `unknown.json` | Box, Zustandsverzeichnis | Box: `outbox` | `outbox`, `ha` | wird an HA gemeldet, nach Bestätigung gelöscht |
 | `serie.json` | NAS, `medien/<ordner>/` | HA-Integration (`media.py`) | Box: `library` (nur lesen), HA | `rsync` NAS → Box |
 | `manifest.json` | im Paket `tobibox-<version>.tar.gz` | `deploy/build_release.sh` | `update.py`, `guard.py` | liegt auf dem NAS (`releases/`) |
@@ -121,6 +122,15 @@ Beim Start (und bei jedem Lesen) in dieser Reihenfolge:
     benutzen das Verfahren aus 1.2 (`guard.py` mit der Standardbibliothek).
 *   `export/config.json` hat dasselbe Schema wie `config.json` plus das Feld
     `exportiert_am` (Zeitstempel). Die Box liest diese Datei nicht.
+
+**`lauf.json` (Entscheidung G, 06.11.):** `{"boot_id": <Kennung des aktuellen Starts des Geräts>, "uid": <Kennung des liegenden Tobies oder null>}`.
+`boot_id` ist unter Linux `/proc/sys/kernel/random/boot_id`, am Mac die Systemstartzeit
+(`sysctl -n kern.boottime`). Die Box schreibt die Datei bei jedem Wechsel des liegenden Tobies
+(Aufgelegt, Abgehoben) und beim Dienst-Ende und löscht sie beim eigenen Herunterfahren. Beim Start
+gilt eine Datei mit **gleicher** `boot_id` als Dienst-Neustart ohne Ausschalten (der Tobie `uid`
+startet nicht von selbst, `GeraeteEinstellungen.neustart_uid`); fehlende, unlesbare oder fremde
+Datei bedeutet Einschalten (CUJ 20). Kein `schema_version`, nicht im Sync, nicht im Schreibbudget
+(höchstens eine Schreibung je Tobie-Wechsel).
 
 ### 1.7 Schreibbudget
 

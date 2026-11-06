@@ -89,12 +89,12 @@ def uhr() -> SimUhr:
 class SitzungsHarnisch:
     """Treibt den Teilautomaten ``session`` mit simulierter Uhr."""
 
-    def __init__(self, serien=(S1, S2, UEB, S3), konfig=True, wirksam=40, zeiger=()) -> None:
+    def __init__(self, serien=(S1, S2, UEB, S3), konfig=True, wirksam=40, zeiger=(), neustart_uid=None) -> None:
         self.uhr = SimUhr()
         self.z = session.neuer_zustand()
         self.voll: tuple = ()
         self.alle: list = []
-        self.sende(ev.GeraeteEinstellungen(60, 40, 25))
+        self.sende(ev.GeraeteEinstellungen(60, 40, 25, neustart_uid))
         self.sende(ev.BibliothekGeladen(tuple(serien)))
         if konfig:
             self.sende(ev.KonfigGeladen(mk_konfig()))
@@ -232,7 +232,7 @@ class SimPlayer:
 
     def _position(self, spielt: bool) -> None:
         assert self.b is not None
-        self.senden(ev.PlayerPosition(self.b.serie_id, self.b.datei, self.track, round(self.elapsed, 3), spielt))
+        self.senden(ev.PlayerPosition(self.b.serie_id, self.b.datei, self.track, round(self.elapsed, 3), spielt, self.b.gen))
 
     def vor(self, dt: float) -> None:
         """Die Zeit läuft ``dt`` Sekunden weiter (höchstens ein Wechsel je Aufruf)."""
@@ -247,7 +247,7 @@ class SimPlayer:
                 self.track += 1
                 self.elapsed = 0.0
                 self._seit_position = 0.0
-                self.senden(ev.TrackWechsel(b.serie_id, b.datei, self.track))
+                self.senden(ev.TrackWechsel(b.serie_id, b.datei, self.track, b.gen))
                 self._position(True)
             else:
                 self.elapsed = dauer
@@ -265,8 +265,8 @@ class CujBox:
     ``neustart()`` baut Kern und Speicher neu auf und lädt die Dateien, als wäre der Dienst
     neu gestartet worden (Zustandsdateien bleiben)."""
 
-    def __init__(self, tmp_path, zuordnungen, serien_aufbau=None) -> None:
-        from tobibox import library
+    def __init__(self, tmp_path, zuordnungen, serien_aufbau=None, boot_id="boot-1") -> None:
+        from tobibox import lauf, library
         from tobibox.store import ResumeStore
 
         self.medien = tmp_path / "medien"
@@ -279,6 +279,9 @@ class CujBox:
         self.log: list = []  # alle Befehle in Reihenfolge
         self.protokoll: list = []
         self._library = library
+        self._lauf = lauf
+        self.boot_id = boot_id  # Kennung des Starts des Geräts; ``None``: nicht lesbar
+        self._marker_uid: str | None = None
         self._ResumeStore = ResumeStore
         self.player = SimPlayer(self.medien, self.sende)
         self.start()
@@ -288,8 +291,10 @@ class CujBox:
         self.resume = self._ResumeStore(self.zustand)
         self.player.b = None
         self.player.spielt = False
+        neustart_uid = self._lauf.lese_neustart_uid(self.zustand, self.boot_id)
+        self._marker_uid = neustart_uid
         for e in (
-            ev.GeraeteEinstellungen(60, 40, 25),
+            ev.GeraeteEinstellungen(60, 40, 25, neustart_uid),
             ev.KonfigGeladen(mk_konfig(self.zuordnungen)),
             self._library.lade_bibliothek(self.medien).ereignis(),
             self.resume.laden(),
@@ -298,6 +303,11 @@ class CujBox:
             self.sende(e)
 
     neustart = start
+
+    def neustart_nach_einschalten(self, boot_id: str | None = "boot-2") -> None:
+        """Wie ``neustart``, aber das Gerät war aus (neue Kennung des Starts)."""
+        self.boot_id = boot_id
+        self.start()
 
     def sende(self, e, dt: float = 0.0) -> list:
         if dt:
@@ -313,6 +323,7 @@ class CujBox:
                 self.resume.speichern(b, self.uhr.mono)
             elif isinstance(b, ev.Protokoll):
                 self.protokoll.append(b)
+        self._marker_uid = self._lauf.nachfuehren(self.zustand, self.boot_id, self.kern.session, self._marker_uid)
         return list(befehle)
 
     def laufe(self, sekunden: float) -> None:

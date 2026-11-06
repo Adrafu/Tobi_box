@@ -123,7 +123,7 @@ def test_resume_im_folgen_tobie_nach_neustart_des_dienstes(box):
 def test_folge_nach_dem_ende_und_neustart_beginnt_der_folgen_tobie_von_vorn(box):
     box.auflege(UID_FOLGE)
     box.laufe(6.5)
-    box.neustart()  # „beendet“ wird nicht gespeichert
+    box.neustart_nach_einschalten()  # Gerät war aus (CUJ 20: liegender Tobie startet); „beendet“ wird nicht gespeichert
     assert box.modus == "leer"
     box.auflege(UID_FOLGE, "v2")
     (a,) = abspielen_ab(box, len(box.log) - 2)

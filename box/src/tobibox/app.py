@@ -16,9 +16,10 @@ import os
 import signal
 import sys
 from collections.abc import Sequence
+from dataclasses import replace
 from pathlib import Path
 
-from . import __version__, core, eventlog, library, notify
+from . import __version__, bootid, core, eventlog, lauf, library, notify
 from . import config as konfig_modul
 from . import events as ev
 from .clock import SystemUhr, Uhr
@@ -44,10 +45,14 @@ class App:
         *,
         uhr: Uhr | None = None,
         melde_bereit: bool = True,
+        boot_id: bootid.BootId = bootid.lese,
     ) -> None:
         self.konfig = konfig
         self.uhr: Uhr = uhr or SystemUhr()
         self._melde_bereit = melde_bereit
+        self._boot_id = boot_id
+        self._marker_uid: str | None = None  # zuletzt in ``lauf.json`` festgehaltener Tobie
+        self._herunterfahren = False  # nach Herunterfahren kein Marker mehr
         zustand = konfig.pfade.zustand
         self.resume = ResumeStore(zustand)
         self.konfig_store = KonfigStore(zustand)
@@ -75,7 +80,15 @@ class App:
         self.kern, befehle = core.step(self.kern, e, jetzt)
         for b in befehle:
             self.befehle.put_nowait((b, jetzt.mono))
+        self._marker_nachfuehren()
         return befehle
+
+    def _marker_nachfuehren(self) -> None:
+        """``lauf.json`` bei jedem Wechsel des liegenden Tobies (Entscheidung G, 06.11.)."""
+        if not self._herunterfahren:
+            self._marker_uid = lauf.nachfuehren(
+                self.konfig.pfade.zustand, self._boot_id(), self.kern.session, self._marker_uid
+            )
 
     async def _ereignisschleife(self) -> None:
         while True:
@@ -132,6 +145,8 @@ class App:
         elif isinstance(b, ev.LeserPing):
             self.leser.ping()
         elif isinstance(b, ev.Herunterfahren):
+            self._herunterfahren = True
+            lauf.loesche(self.konfig.pfade.zustand)
             eventlog.logge("app", "INFO", "herunterfahren", "angefordert", daten={"grund": b.grund})
         elif isinstance(b, ev.ZustandMelden):
             pass  # Anzeige und Statussammler folgen in Stufe 2
@@ -174,8 +189,13 @@ class App:
         self.player.start()
         # Reihenfolge wie im Vertrag (3.3): Einstellungen zuerst (daraus entsteht
         # die erste Lautstärke), Leser-Ereignisse erst nach ``Bereit``.
+        # Marker mit gleicher Kennung des Starts: Neustart ohne Ausschalten (Entscheidung G, 06.11.)
+        neustart_uid = lauf.lese_neustart_uid(self.konfig.pfade.zustand, self._boot_id())
+        self._marker_uid = neustart_uid
+        if neustart_uid is not None:
+            eventlog.logge("app", "INFO", "start", "dienst_neustart", daten={"uid": neustart_uid})
         for e in (
-            self.konfig.geraete_einstellungen(),
+            replace(self.konfig.geraete_einstellungen(), neustart_uid=neustart_uid),
             self.konfig_store.laden(),
             self.bibliothek.ereignis(),
             self.resume.laden(),
@@ -242,9 +262,14 @@ class App:
             # danach die daraus entstandenen Befehle (Zeiger speichern).
             await self._warte(self._leere_ereignisse(), "ereignisse_nach")
             await self._warte(self.befehle.join(), "befehle_nach")
+            self._dienst_ende_marker()
         finally:
             await self._raeume_auf()
             eventlog.logge("app", "INFO", "ende", "ok")
+
+    def _dienst_ende_marker(self) -> None:
+        if not self._herunterfahren:
+            lauf.dienst_ende(self.konfig.pfade.zustand, self._boot_id(), self.kern.session)
 
     async def laufe(self) -> None:
         """Starten, auf SIGTERM/SIGINT warten, sauber beenden."""

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import dataclasses
+import json
 import logging
 
 import pytest
@@ -159,3 +160,109 @@ async def test_beende_schritte_laufen_unabhaengig(app):
     assert "pause_hart" in app.player.aufrufe
     assert "stop" in app.player.aufrufe
     assert app.toene.gestoppt
+
+
+# --- Marker lauf.json und Dienst-Neustart (Entscheidung G, 06.11.) ---------------------------------
+
+
+def neue_app(vorlage: App, boot_id) -> App:
+    a = App(vorlage.konfig, melde_bereit=False, boot_id=lambda: boot_id)
+    a.player = FakePlayer()
+    a.player.app = a
+    a.leser = FakeLeser()
+    a.toene = FakeToene()
+    a.gesehen = []
+    return a
+
+
+def marker_datei(a: App):
+    return a.konfig.pfade.zustand / "lauf.json"
+
+
+async def lege_auf(a: App, uid: str = "04a1b2c3") -> None:
+    a.ereignisse.put_nowait(ev.Aufgelegt(uid, "ntag", False, 0, "v1"))
+    await a._leere_ereignisse()
+
+
+async def test_marker_wird_beim_auflegen_geschrieben_ohne_dienst_ende(app):
+    a = neue_app(app, "boot-A")
+    await a.starte()
+    try:
+        assert not marker_datei(a).exists()  # beim Start ohne Tobie nichts schreiben
+        await lege_auf(a)
+        assert json.loads(marker_datei(a).read_text()) == {"boot_id": "boot-A", "uid": "04a1b2c3"}
+        a.ereignisse.put_nowait(ev.Abgehoben(1, "v1"))
+        await a._leere_ereignisse()
+        assert json.loads(marker_datei(a).read_text()) == {"boot_id": "boot-A", "uid": None}
+    finally:
+        await a.beende()
+
+
+async def test_neustart_mit_gleicher_boot_id_gibt_neustart_uid_an_den_kern(app):
+    a = neue_app(app, "boot-A")
+    await a.starte()
+    await lege_auf(a)
+    # Absturz: kein beende(), der Marker vom Auflegen bleibt
+    b = neue_app(app, "boot-A")
+    await b.starte()
+    try:
+        assert b.kern.session.neustart_uid == "04a1b2c3"
+        assert json.loads(marker_datei(b).read_text())["uid"] == "04a1b2c3"  # Start überschreibt ihn nicht
+    finally:
+        await b.beende()
+        await a._raeume_auf()
+
+
+async def test_neustart_mit_anderer_boot_id_ist_einschalten(app):
+    a = neue_app(app, "boot-A")
+    await a.starte()
+    await lege_auf(a)
+    await a.beende()
+    b = neue_app(app, "boot-B")
+    await b.starte()
+    try:
+        assert b.kern.session.neustart_uid is None
+    finally:
+        await b.beende()
+
+
+async def test_dienst_ende_schreibt_den_marker(app):
+    a = neue_app(app, "boot-A")
+    await a.starte()
+    await lege_auf(a)
+    marker_datei(a).unlink()
+    await a.beende()
+    assert json.loads(marker_datei(a).read_text()) == {"boot_id": "boot-A", "uid": "04a1b2c3"}
+
+
+async def test_unlesbarer_marker_ist_einschalten(app):
+    marker_datei(app).write_text("{kaputt")
+    a = neue_app(app, "boot-A")
+    await a.starte()
+    try:
+        assert a.kern.session.neustart_uid is None
+    finally:
+        await a.beende()
+
+
+async def test_herunterfahren_loescht_den_marker_und_schreibt_ihn_nicht_wieder(app):
+    a = neue_app(app, "boot-A")
+    await a.starte()
+    await lege_auf(a)
+    assert marker_datei(a).exists()
+    await a._fuehre_aus(ev.Herunterfahren("hauptknopf"), 0.0)
+    assert not marker_datei(a).exists()
+    a.ereignisse.put_nowait(ev.Abgehoben(1, "v1"))
+    await a._leere_ereignisse()
+    await a.beende()
+    assert not marker_datei(a).exists()
+
+
+async def test_ohne_lesbare_boot_id_wird_kein_marker_geschrieben(app):
+    a = neue_app(app, None)
+    await a.starte()
+    try:
+        await lege_auf(a)
+        assert not marker_datei(a).exists() and a.kern.session.neustart_uid is None
+    finally:
+        await a.beende()

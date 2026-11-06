@@ -351,8 +351,8 @@ async def test_pausiere_hart_ohne_player_verbindung(mpd):
 CD3 = ("rip/01.wav", "rip/02.wav", "rip/03.wav")
 
 
-def ab_tracks(tracks=CD3, track=0, pos=0.0, serie="cdserie", datei="rip", ordner="cdserie") -> ev.Abspielen:
-    return ev.Abspielen(serie, ordner, datei, tracks, track, pos, "v1")
+def ab_tracks(tracks=CD3, track=0, pos=0.0, serie="cdserie", datei="rip", ordner="cdserie", gen=0) -> ev.Abspielen:
+    return ev.Abspielen(serie, ordner, datei, tracks, track, pos, "v1", gen)
 
 
 @pytest.fixture
@@ -533,3 +533,26 @@ async def test_warteschlange_enthaelt_nur_die_tracks_der_aktuellen_folge(cd_medi
     await probe.player.abspielen(abspielen("lang", "a.wav"))
     st = await probe.status()
     assert st["playlistlength"] == "1" and st["state"] == "play"
+
+
+async def test_fehlt_der_erste_track_meldet_der_player_track_wechsel_auf_den_spielenden_track(cd_medien, probe):
+    await probe.player.lautstaerke_setzen(20, 50)
+    tracks = ("rip/gibt-es-nicht.wav", "rip/02.wav", "rip/03.wav")
+    await probe.player.abspielen(ab_tracks(tracks, track=0, gen=4))
+    assert probe.alle(ev.TrackWechsel) == [ev.TrackWechsel("cdserie", "rip", 1)]  # sofort, vor der ersten Position
+    assert probe.alle(ev.TrackWechsel)[0].gen == 4
+    assert probe.e.index(probe.alle(ev.TrackWechsel)[0]) < probe.e.index(probe.alle(ev.PlayerPosition)[0])
+    assert probe.alle(ev.PlayerPosition)[0].track == 1
+    await warte(lambda: probe.alle(ev.FolgeZuEnde), 10.0, "(FolgeZuEnde)")
+    assert [w.track for w in probe.alle(ev.TrackWechsel)] == [1, 2]  # kein zweiter Wechsel auf Track 1
+    assert not probe.alle(ev.PlayerFehler)
+
+
+async def test_alle_ereignisse_tragen_die_generation_des_letzten_abspielen(cd_medien, probe):
+    await probe.player.lautstaerke_setzen(20, 50)
+    await probe.player.abspielen(ab_tracks(gen=7))
+    await warte(lambda: probe.alle(ev.FolgeZuEnde), 10.0, "(FolgeZuEnde)")
+    spiel = probe.alle(ev.PlayerPosition) + probe.alle(ev.TrackWechsel) + probe.alle(ev.FolgeZuEnde)
+    assert spiel and {e.gen for e in spiel} == {7}
+    await probe.player.abspielen(ab_tracks(gen=8))
+    assert probe.alle(ev.PlayerPosition)[-1].gen == 8

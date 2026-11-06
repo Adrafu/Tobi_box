@@ -104,9 +104,9 @@ die Felder und die Quelle (das Modul, das den Wert in die Ereignisschleife gibt)
 
 | Ereignis | Felder | Bedeutung |
 |---|---|---|
-| `TrackWechsel` | `serie_id: str`, `datei: str`, `track: int` | MPD ist innerhalb der Folge zum nächsten Track übergegangen und **spielt weiter** (keine Pause) (Entscheidung F, 05.11.). `track` ist die Nummer des neuen Tracks (ab 0). `serie_id` und `datei` sind die Werte des letzten `Abspielen`. |
-| `FolgeZuEnde` | `serie_id: str`, `datei: str` | MPD hat den **letzten Track** der Folge zu Ende gespielt und **gestoppt**: Die ganze Folge ist zu Ende (Entscheidung F, 05.11.). MPD startet nie von selbst die nächste Folge (die Warteschlange enthält nur die Tracks der aktuellen Folge). `serie_id` und `datei` (Name der Folge) sind die Werte des letzten `Abspielen`. |
-| `PlayerPosition` | `serie_id: str`, `datei: str`, `track: int`, `position_s: float`, `spielt: bool` | Abspielposition in Sekunden **im Track** (ohne Rücksprung). Der Player sendet sie alle `POSITION_INTERVAL_S` = 1,0 s, solange etwas spielt, und **einmal sofort** nach jedem `Pausieren`, jedem `Abspielen`, jedem `TrackWechsel` und jedem Folgenende (dann mit der Endposition des letzten Tracks). |
+| `TrackWechsel` | `serie_id: str`, `datei: str`, `track: int`, `gen: int` | MPD ist innerhalb der Folge zum nächsten Track übergegangen und **spielt weiter** (keine Pause) (Entscheidung F, 05.11.). `track` ist die Nummer des neuen Tracks (ab 0). `serie_id` und `datei` sind die Werte des letzten `Abspielen`. **Beginnt `Abspielen` wegen fehlender Tracks nicht beim gewünschten Track, sendet der Player sofort nach dem Start ein `TrackWechsel` auf den Track, der wirklich spielt (vor der ersten `PlayerPosition`); die Sitzung nimmt es an (6.3) (06.11.).** |
+| `FolgeZuEnde` | `serie_id: str`, `datei: str`, `gen: int` | MPD hat den **letzten Track** der Folge zu Ende gespielt und **gestoppt**: Die ganze Folge ist zu Ende (Entscheidung F, 05.11.). MPD startet nie von selbst die nächste Folge (die Warteschlange enthält nur die Tracks der aktuellen Folge). `serie_id` und `datei` (Name der Folge) sind die Werte des letzten `Abspielen`. |
+| `PlayerPosition` | `serie_id: str`, `datei: str`, `track: int`, `position_s: float`, `spielt: bool`, `gen: int` | Abspielposition in Sekunden **im Track** (ohne Rücksprung). Der Player sendet sie alle `POSITION_INTERVAL_S` = 1,0 s, solange etwas spielt, und **einmal sofort** nach jedem `Pausieren`, jedem `Abspielen`, jedem `TrackWechsel` und jedem Folgenende (dann mit der Endposition des letzten Tracks). |
 | `PlayerFehler` | `serie_id: str \| None`, `datei: str \| None`, `art: Literal["datei_fehlt","datei_unlesbar","mpd_fehler"]`, `detail: str` | Wiedergabefehler. `datei_fehlt`: Datei nicht im MPD-Bestand. `datei_unlesbar`: MPD kann sie nicht dekodieren. `mpd_fehler`: sonstiger Fehler eines MPD-Befehls. |
 | `PlayerVerbindung` | `ok: bool` | Verbindung zu MPD verloren (`False`) oder wiederhergestellt (`True`). `player` verbindet sich selbst neu. |
 
@@ -118,11 +118,20 @@ Zuständen mit laufendem MPD (`spielt`, `unbekannt`) und nur, wenn `serie_id`,
 `datei` und `track` zum aktuellen Zeiger der Sitzung passen; sonst wird sie
 ignoriert (6.3) (Entscheidung F, 05.11.).**
 
+**Wiedergabe-Generation `gen` (06.11.):** `Abspielen` trägt `gen: int`. Die Sitzung
+erhöht die Zahl bei jedem `Abspielen` um 1 (Start, Hauptknopf, Weiter, Zurück,
+Wiederaufnahme nach MPD-Ausfall). Der Player merkt sich die `gen` des letzten
+`Abspielen` und trägt sie in jedes `PlayerPosition`, `TrackWechsel` und
+`FolgeZuEnde` ein. **Die Sitzung ignoriert diese Ereignisse, wenn `gen` nicht der
+aktuellen Generation entspricht** (Nachzügler einer früheren Wiedergabe, etwa eine
+alte Position nach Zurück im selben Track oder ein altes `FolgeZuEnde` nach Weiter
+auf dieselbe Folge). `gen` gehört nicht zur Gleichheit der Typen (Tests prüfen es gezielt).
+
 ### 3.3 Start und Daten (Quelle `app`, `store`, `library`, `ha`)
 
 | Ereignis | Felder | Quelle | Bedeutung |
 |---|---|---|---|
-| `GeraeteEinstellungen` | `lautstaerke_max: int`, `lautstaerke_start: int`, `lautstaerke_kopfhoerer: int` | `app` aus `tobibox.toml` | je 0 bis 100. Der Kern setzt die Grenze `global` und die Startlautstärke daraus (Abschnitt 8). Kommt als **erstes** Ereignis. |
+| `GeraeteEinstellungen` | `lautstaerke_max: int`, `lautstaerke_start: int`, `lautstaerke_kopfhoerer: int`, `neustart_uid: str \| None = None` | `app` aus `tobibox.toml` und `lauf.json` | je 0 bis 100. Der Kern setzt die Grenze `global` und die Startlautstärke daraus (Abschnitt 8). Kommt als **erstes** Ereignis. **`neustart_uid` (Entscheidung G, 06.11.):** Kennung des Tobies, der laut `lauf.json` beim Dienst-Neustart ohne Ausschalten auflag (gleiche Kennung des Starts, siehe `data-model.md`); sonst `None` (Einschalten, CUJ 20). Dieser Tobie startet nicht von selbst (6.3, Punkt 12). |
 | `KonfigGeladen` | `konfig: Konfig` | `app` beim Start (aus `config.json`), `ha` nach angenommener Liste | Zuordnungen, Leise-Zeiten, Gute-Nacht-Einstellungen (Typen in 3.8). Ersetzt die bisherige Konfiguration vollständig. |
 | `BibliothekGeladen` | `serien: tuple[Serie, ...]` | `app` beim Start (aus `library`), `library` nach jedem Sync und nach Änderungen im Medienordner | Alle Serien mit ihren Folgen in der maßgeblichen Reihenfolge. Ersetzt die bisherige Bibliothek. |
 | `ResumeGeladen` | `zeiger: tuple[Zeiger, ...]` | `app` beim Start (aus `resume.json`) | Gespeicherte Zeiger. Kommt einmal. |
@@ -238,7 +247,7 @@ nennt, wer sie ausführt.
 |---|---|---|---|
 | `LautstaerkeSetzen` | `prozent: int`, `grenze: int` | `player` | MPD-Lautstärke setzen. Immer `0 ≤ prozent ≤ grenze ≤ 100`. `player` klemmt zusätzlich selbst auf `grenze`, falls ein Aufrufer sich irrt. |
 | `AusgangWaehlen` | `ausgang: Literal["lautsprecher","kopfhoerer"]` | `player` | Ausgang umschalten (Mac: nur protokolliert). |
-| `Abspielen` | `serie_id: str`, `ordner: str`, `datei: str` (Name der Folge), `tracks: tuple[str, ...]` (Pfade der Tracks relativ zu `ordner`, in Reihenfolge), `track: int`, `position_s: float`, `vorgang: str \| None` | `player` | Warteschlange leeren, **alle Tracks dieser Folge und nur diese** laden, auf Track `track` und `position_s` springen (`seek`), spielen (Entscheidung F, 05.11.). `position_s` ist die Position im Track und enthält schon den Rücksprung (Abschnitt 6.3). Der Pfad für MPD ist `ordner + "/" + tracks[i]`; bei einer Folge aus einer Datei ist `tracks = (datei,)`, bei einem Folgen-Ordner `tracks = (datei + "/" + trackname, …)`. |
+| `Abspielen` | `serie_id: str`, `ordner: str`, `datei: str` (Name der Folge), `tracks: tuple[str, ...]` (Pfade der Tracks relativ zu `ordner`, in Reihenfolge), `track: int`, `position_s: float`, `vorgang: str \| None`, `gen: int` (06.11.) | `player` | Warteschlange leeren, **alle Tracks dieser Folge und nur diese** laden, auf Track `track` und `position_s` springen (`seek`), spielen (Entscheidung F, 05.11.). `position_s` ist die Position im Track und enthält schon den Rücksprung (Abschnitt 6.3). Der Pfad für MPD ist `ordner + "/" + tracks[i]`; bei einer Folge aus einer Datei ist `tracks = (datei,)`, bei einem Folgen-Ordner `tracks = (datei + "/" + trackname, …)`. |
 | `Pausieren` | `grund: Literal["abgehoben","folgenende","knopf","stumm","gute_nacht","leser_unbekannt","fehler","herunterfahren"]` | `player` | Pause. Ist MPD schon gestoppt (Folgenende), ist der Befehl wirkungslos. Danach sendet der Player sofort `PlayerPosition`. |
 | `ZeigerSpeichern` | `art: Literal["serie","folge"]`, `serie_id: str`, `datei: str`, `index: int \| None`, `track: int`, `position_s: float`, `grund: Literal["pause","folgenende","trackwechsel","zurueck","figurwechsel","periodisch","herunterfahren"]` (`zurueck`: Zurück in `beendet`, 9.12) (Entscheidung F, 05.11.) | `store` (`resume.json`) | Zeiger schreiben (`art="serie"` in `serien`, `art="folge"` in `folgen`), `zaehler` dieses Zeigers um 1 erhöhen (Entscheidung F, 05.11.). `position_s` ist abgerundet auf 1 Nachkommastelle (Abschnitt 3.8). `store` schreibt nicht, wenn Art, Folge, Index, Track und Position unverändert sind. |
 | `TonSpielen` | `ton: Literal["start","unbekannt","fehler","hinweis","lernen_beginn","lernen_ende","akku_leer","pruef_ok","pruef_fehler"]` | `sounds` | kurzer Rückmeldeton (Datei `box/sounds/<ton>.wav`, `pruef_*` in AP 2.3). |
@@ -864,7 +873,17 @@ gekennzeichneten sind von Tobias oder der Projektleitung entschieden
         es keine gemerkte Folge und keinen Zustand `beendet`; die Sitzung beginnt
         ohne Wiedergabe (`leer`) mit dem gespeicherten Zeiger (nach einem Folgenende
         steht er schon auf der nächsten Folge bzw. bei einer Folge auf Track 0),
-        und ein liegender Tobie startet dort wie beim Auflegen (CUJ 20).
+        und ein liegender Tobie startet dort wie beim Auflegen (CUJ 20), **außer nach
+        einem Dienst-Neustart ohne Ausschalten (Entscheidung G, 06.11.):** Dann startet
+        ein liegender Tobie **nie** von selbst. Ist `neustart_uid` (aus
+        `GeraeteEinstellungen`) gesetzt und kommt `Aufgelegt` mit derselben Kennung in
+        `leer`, baut die Sitzung den Zielzustand wie im Zweig „stumm“ (Ziel, Serie,
+        Folge, Index, Track und Position aus dem gespeicherten Zeiger) und geht auf
+        `pausiert`: kein Ton, kein `Abspielen`. Hauptknopf kurz (oder Abheben und
+        erneutes Auflegen) spielt am gespeicherten Zeiger. `neustart_uid` wird
+        geleert beim ersten `Aufgelegt`, bei `Abgehoben` und bei einem Herzschlag ohne
+        Tobie. Ein echtes Einschalten (auch leerer Akku, Stromausfall) lässt
+        `neustart_uid` leer: CUJ 20 gilt.
     *   **Im „stumm“-Fenster** (`quiet` im Zustand `stumm`) startet **kein**
         Abspielen-Auslöser eine Wiedergabe. Jeder Auslöser, der ohne „stumm“ ein
         `Abspielen` ergäbe, gibt stattdessen nur `TonSpielen("hinweis")` aus
