@@ -24,7 +24,7 @@ Repo geklont hast. Liegt er woanders, passe die Pfade an.
 Homebrew muss installiert sein (Prüfen: `brew --version`).
 
 ```
-brew install mpd python@3.11 platformio sox
+brew install mpd python@3.11 sox
 ```
 
 `sox` brauchst du nur für die Messung in 11.7 (`rec`, `sox`).
@@ -43,7 +43,13 @@ cd ~/Tobi_box
 python3.11 -m venv .venv
 source .venv/bin/activate
 pip install -e "box[test]"
+pip install platformio==6.1.19
 ```
+
+PlatformIO gehört in diese Python-3.11-Umgebung, **nicht** über Homebrew: Das
+Homebrew-Paket nutzt die neueste Python-Version, und die Firmware-Plattform
+(pioarduino) unterstützt nur Python 3.10 bis 3.14. Prüfen: `which pio` zeigt
+`~/Tobi_box/.venv/bin/pio`.
 
 Prüfen: `tobibox --version` zeigt `tobibox 0.1.0`, `tobiboxd --version` zeigt
 `tobiboxd 0.1.0`.
@@ -57,7 +63,10 @@ Die Schritte stehen in `firmware/tobibox-reader/README.md`. Alle `pio run`- und
 (`cd ~/Tobi_box/firmware/tobibox-reader`). Dort gibt es:
 
 - Abschnitt „Bauen“: `include/config.h` aus der Vorlage anlegen und dein
-  Tonie-Passwort eintragen (`TONIE_PRIVACY_PASSWORD`).
+  Tonie-Passwort eintragen (`TONIE_PRIVACY_PASSWORD`). Am einfachsten im
+  Editor: `open -e include/config.h`. Den Wert findest du in deiner alten
+  Datei `~/Documents/Arduino/tonie_test/config.h`. Tipp für zsh: Zeilen mit
+  `#` nicht ins Terminal kopieren, zsh liest sie nicht als Kommentar.
 - Abschnitt „Flashen am Mac“: den SuperMini mit `pio` flashen.
 
 Prüfen mit dem Serial-Monitor aus dem Abschnitt „Serielle Ausgabe ansehen“:
