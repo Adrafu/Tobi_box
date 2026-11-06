@@ -44,13 +44,13 @@ des nächsten Zyklus (bis 200 ms). Das Werkzeug misst ab `abgehoben`. Die Summe 
 
 ```
 brew install sox
-sox -n -r 44100 -c 1 ~/dauerton.wav synth 60 sine 440 vol 0.5
+mkdir -p ~/Tobi_box/box/medien-beispiel/messung
+sox -n -r 44100 -c 1 ~/Tobi_box/box/medien-beispiel/messung/dauerton.wav synth 60 sine 440 vol 0.5
 ```
 
 Der Dauerton ist die Folge für die Messung: Hörspiele haben Pausen, die das
-Werkzeug sonst als „Ton aus“ liest. Lege eine Serie `messung` mit einer Folge
-`dauerton.wav` an (`serie.json` wie bei `box/medien-beispiel/serie-a`) und
-ordne ihr zwei Tobies zu: eine NTAG-Karte und einen Tonie. Eine zweite Zuordnung
+Werkzeug sonst als „Ton aus“ liest. Die vollständige Serie `messung` (Ordner, `serie.json`, Eintrag in
+`config.json`) steht in `docs/betrieb/mac-prototyp.md`, Abschnitt 11.7. Ordne ihr zwei Tobies zu: eine NTAG-Karte und einen Tonie. Eine zweite Zuordnung
 auf die Überraschungs-Serie ist nicht nötig: Der gesperrte Tonie spielt sie von selbst.
 Die Ebene `ebene = "INFO"` ist in `tobibox.mac.example.toml` schon gesetzt.
 Der Mac soll still sein. Das Mikrofon steht 10 bis 20 cm vor dem Lautsprecher
@@ -148,7 +148,7 @@ Lücken: Aussetzer bis 1,0 s liegen unter der Schwelle von 1,1 s und führen zu 
 `REMOVED`.
 
 MPD-Puffer (feste Startwerte): `audio_buffer_size` 1024 KiB, `buffer_before_play`
-10 %, ALSA-`buffer_time` 100000 µs. Die Messung justiert sie.
+nicht gesetzt (MPD-Vorgabe, die Option ist in MPD 0.23 veraltet), ALSA-`buffer_time` 100000 µs. Die Messung justiert sie.
 
 ## 4. Werte ohne Hardware (Container)
 
@@ -215,6 +215,6 @@ Wo die Zeit stecken kann, wenn die Summe zu groß ist:
 |---|---|---|
 | `Klack` über 600 ms | Firmware: Zyklus, Lesung oder Entprellen | Rückfallregel 1; `CONFIRM_READS` bleibt 2 (3 würde 200 ms zufügen) |
 | `Befehl` über 50 ms | Dienst (Zuordnung, Zeiger laden, Speicherplatte) | Protokoll `abspielen_fertig.dauer_ms` und Platte prüfen |
-| `Ton` minus `Befehl` über 300 ms | MPD-Puffer, Ausgabe | `buffer_before_play` kleiner, `buffer_time` kleiner; wieder messen |
+| `Ton` minus `Befehl` über 300 ms | MPD-Puffer, Ausgabe | `audio_buffer_size` kleiner, `buffer_time` kleiner; wieder messen |
 | Abheben über 1,5 s | `REMOVE_AFTER_MS` plus Zyklus plus Pause | Zyklus kürzer (Rückfallregel 1); `REMOVE_AFTER_MS` nur mit Tobias ändern (Lücken-Grenze 1,0 s) |
 | Lücken lösen eine Pause aus | Lesungen setzen länger als 1,1 s aus | Anlage und Antenne prüfen (Tobie mittig); `ERR`-Zeilen im Protokoll ansehen |

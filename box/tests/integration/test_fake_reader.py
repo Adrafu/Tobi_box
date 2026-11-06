@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import sys
 import time
 from pathlib import Path
@@ -78,3 +79,35 @@ def test_unbekannter_befehl_und_quit(tmp_path, capsys):
         assert fake_reader.befehl(fr, "")
         assert not fake_reader.befehl(fr, "quit")
     assert "unbekannter Befehl" in capsys.readouterr().err
+
+
+async def test_ping_meldet_liegenden_tobie_erneut_mit_seq_null(lauf):
+    fr, e = lauf
+    await warte(lambda: any(isinstance(x, ev.LeserHallo) for x in e))
+    fake_reader.befehl(fr, f"place {UID}")
+    fake_reader.befehl(fr, "remove")
+    fake_reader.befehl(fr, f"place {UID}")  # seq 2
+    await warte(lambda: sum(isinstance(x, ev.Aufgelegt) for x in e) == 2)
+    fr.empfangen.clear()
+    fr.ping()  # wie ein PING des Dienstes nach einem Neustart
+    await warte(lambda: sum(isinstance(x, ev.Aufgelegt) for x in e) == 3)
+    a = [x for x in e if isinstance(x, ev.Aufgelegt)][-1]
+    assert (a.uid, a.seq) == (UID, 0)
+
+
+def test_ping_meldet_gesperrten_und_nichts_nach_remove(tmp_path):
+    with fake_reader.FakeReader(tmp_path / "t", hb_intervall_s=None) as fr:
+        fr.lock()
+        fr.ping()
+        fr.remove()
+        fr.ping()
+        gelesen = b""
+        ende = time.monotonic() + 1.0
+        while time.monotonic() < ende and gelesen.count(b"\n") < 5:
+            try:
+                gelesen += os.read(fr._slave, 4096)
+            except OSError:
+                time.sleep(0.01)
+        zeilen = gelesen.decode().replace("\r", "").split("\n")
+        assert [z.split()[0] for z in zeilen if z] == ["LOCKED", "HELLO", "LOCKED", "REMOVED", "HELLO"]
+        assert "LOCKED seq=0" in zeilen

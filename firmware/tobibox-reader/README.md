@@ -42,7 +42,10 @@ Der Git-Hash für `HELLO build=` kommt beim Bauen aus `git` (mit Zusatz
 
 ## Flashen am Mac
 
+Alle `pio`-Befehle laufen in diesem Ordner:
+
 ```
+cd ~/Tobi_box/firmware/tobibox-reader
 pio run -e esp32s3 -t upload
 ```
 
@@ -67,10 +70,12 @@ Zeilen verworfen statt zu blockieren (eine Lücke in `seq` zeigt das).
 ## Tests auf dem Rechner
 
 ```
+cd ~/Tobi_box/firmware/tobibox-reader
 pio test -e native
 ```
 
-Braucht weder `config.h` noch Hardware. Die Umgebung `native` baut nur
+Braucht weder `config.h` noch Hardware, aber einen C++-Compiler
+(Mac: `xcode-select --install`). Die Umgebung `native` baut nur
 `classify.cpp`, `debounce.cpp` und `protocol.cpp`.
 
 * `test/test_classify/`: Einordnung der Chip-/Tag-Antworten (`classify.h`):

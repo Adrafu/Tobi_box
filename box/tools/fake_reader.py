@@ -16,7 +16,8 @@ Befehle (je eine Zeile auf stdin):
     hello                         HELLO nochmals senden (setzt seq auf 0)
     quit
 
-Auf ``PING`` antwortet der Leser mit ``HELLO``; alle 2 s kommt ``HB``.
+Auf ``PING`` antwortet der Leser wie die Firmware: ``HELLO``, ``seq`` zurück auf 0 und, wenn
+ein Tobie liegt, dessen ``PLACED`` (oder ``LOCKED``) erneut mit ``seq=0``. Alle 2 s kommt ``HB``.
 """
 
 from __future__ import annotations
@@ -45,6 +46,7 @@ class FakeReader:
         self.empfangen: list[str] = []
         self.seq = 0
         self.present = False
+        self._belegung: tuple[str, str, str] | None = None  # ("PLACED" oder "LOCKED", uid, typ)
         self._start = time.monotonic()
         self._zaehler = {"polls": 0, "hits": 0, "rejected": 0, "errors": 0}
         self._lock = threading.Lock()
@@ -78,23 +80,39 @@ class FakeReader:
         self.seq = 0
         self.sende_zeile(self.hallo)
 
+    def ping(self) -> None:
+        """Wie die Firmware: HELLO, seq auf 0 und eine liegende Figur erneut melden."""
+        self.hello()
+        if self.present and self._belegung is not None:
+            art, uid, typ = self._belegung
+            if art == "LOCKED":
+                self.sende_zeile(f"LOCKED seq={self._naechste_seq()}")
+            else:
+                self._sende_placed(uid, typ)
+
     def _naechste_seq(self) -> int:
         s = self.seq
         self.seq = (self.seq + 1) % 4294967296
         return s
 
     def place(self, uid: str, typ: str = "ntag") -> None:
-        tonie = 1 if typ == "iso15693" and uid.startswith("e00403") else 0
         self.present = True
+        self._belegung = ("PLACED", uid, typ)
         self._zaehler["hits"] += 1
+        self._sende_placed(uid, typ)
+
+    def _sende_placed(self, uid: str, typ: str) -> None:
+        tonie = 1 if typ == "iso15693" and uid.startswith("e00403") else 0
         self.sende_zeile(f"PLACED uid={uid} type={typ} tonie={tonie} seq={self._naechste_seq()}")
 
     def lock(self) -> None:
         self.present = True
+        self._belegung = ("LOCKED", "", "")
         self.sende_zeile(f"LOCKED seq={self._naechste_seq()}")
 
     def remove(self) -> None:
         self.present = False
+        self._belegung = None
         self.sende_zeile(f"REMOVED seq={self._naechste_seq()}")
 
     def err(self, code: str, detail: str) -> None:
@@ -140,7 +158,7 @@ class FakeReader:
                 text = zeile.decode("ascii", "replace").rstrip("\r")
                 self.empfangen.append(text)
                 if text == "PING" and self.antwortet_auf_ping:
-                    self.hello()
+                    self.ping()
 
     # -- Ende ---------------------------------------------------------------
 

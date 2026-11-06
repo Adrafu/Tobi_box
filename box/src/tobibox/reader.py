@@ -348,6 +348,11 @@ class Leser:
                 self._backoff_i = 0
                 self._seq_erwartet = 0
                 self._wiedermeldung = True
+                log.info(
+                    "Leser verbunden",
+                    extra={"baustein": "reader", "ereignis": "leser_verbunden", "ergebnis": "ok",
+                           "daten": {"fw": zeile.felder["fw"], "proto": int(zeile.felder["proto"])}},
+                )
                 self._ausgabe(
                     ev.LeserHallo(
                         proto=int(zeile.felder["proto"]),

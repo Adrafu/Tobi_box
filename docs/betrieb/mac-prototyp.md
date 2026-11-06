@@ -24,8 +24,10 @@ Repo geklont hast. Liegt er woanders, passe die Pfade an.
 Homebrew muss installiert sein (Prüfen: `brew --version`).
 
 ```
-brew install mpd python@3.11 platformio
+brew install mpd python@3.11 platformio sox
 ```
+
+`sox` brauchst du nur für die Messung in 11.7 (`rec`, `sox`).
 
 Prüfen:
 
@@ -50,7 +52,9 @@ Bei jedem neuen Terminal zuerst `cd ~/Tobi_box` und `source .venv/bin/activate`.
 
 ## 3. Firmware bauen und flashen
 
-Die Schritte stehen in `firmware/tobibox-reader/README.md`. Dort gibt es:
+Die Schritte stehen in `firmware/tobibox-reader/README.md`. Alle `pio run`- und
+`pio test`-Befehle laufen im Ordner `~/Tobi_box/firmware/tobibox-reader`
+(`cd ~/Tobi_box/firmware/tobibox-reader`). Dort gibt es:
 
 - Abschnitt „Bauen“: `include/config.h` aus der Vorlage anlegen und dein
   Tonie-Passwort eintragen (`TONIE_PRIVACY_PASSWORD`).
@@ -59,7 +63,9 @@ Die Schritte stehen in `firmware/tobibox-reader/README.md`. Dort gibt es:
 Prüfen mit dem Serial-Monitor aus dem Abschnitt „Serielle Ausgabe ansehen“:
 Gib `PING` ein und drücke Enter. Der Leser antwortet mit einer `HELLO`-Zeile.
 Lege eine Figur auf: Es erscheint eine `PLACED`-Zeile mit `uid=`. Diese
-Kennung brauchst du in Schritt 6.2. Beende den Monitor mit `Ctrl+C`, danach
+Kennung brauchst du in Schritt 6.2. Ein gesperrter Tonie liefert nur `LOCKED`,
+ohne `uid`: Dort gibt es keine Kennung zu notieren, und er braucht auch keinen Eintrag
+in `config.json` (er spielt die Überraschungs-Serie von selbst). Beende den Monitor mit `Ctrl+C`, danach
 ist der USB-Port wieder frei. Nur ein Programm kann den Port gleichzeitig nutzen.
 
 ## 4. MPD einrichten und starten
@@ -97,6 +103,10 @@ mpd --no-daemon ~/tobibox-mpd/mpd.conf
 ```
 
 Beenden mit `Ctrl+C`. MPD meldet im Fenster Fehler, wenn ein Pfad fehlt.
+Die Warnung „`buffer_before_play` is deprecated“ ist harmlos. Mit der Vorlage
+erscheint sie nicht mehr (die Zeile ist entfernt, der Standardwert von MPD ist derselbe
+Wert, 10 %). Hast du eine ältere Kopie von `mpd.conf`, kannst du die Zeile
+`buffer_before_play` löschen.
 
 **4.4 Prüfen**
 
@@ -166,11 +176,11 @@ Leerzeichen):
 mkdir -p ~/Tobi_box/box/var
 cat > ~/Tobi_box/box/var/config.json <<'JSON'
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "revision": 1,
   "liste_id": "0000000000000000",
   "zuordnungen": {
-    "DEINE_KENNUNG": { "typ": "serie", "serie": "meine-testserie" }
+    "DEINE_KENNUNG": { "ziel": { "typ": "serie", "serie": "meine-testserie" } }
   },
   "leise_zeiten": { "fenster": [] },
   "gute_nacht": { "timer_min": 30, "ausblenden_s": 60 }
@@ -178,8 +188,10 @@ cat > ~/Tobi_box/box/var/config.json <<'JSON'
 JSON
 ```
 
-Für die NFC-Karte fügst du einen zweiten Eintrag mit der Kennung der Karte
-hinzu. Eine Figur mit Zuordnung zu `ueberraschung` brauchst du nicht: Der
+Seit `schema_version` 2 braucht **jeder** Eintrag die Form
+`"KENNUNG": { "ziel": { … } }`. Die flache Form ohne `ziel` gibt es nur in
+`schema_version` 1. Für die NFC-Karte fügst du einen zweiten Eintrag mit der
+Kennung der Karte hinzu. Eine Figur mit Zuordnung zu `ueberraschung` brauchst du nicht: Der
 gesperrte Tonie spielt die Überraschungs-Serie von selbst.
 
 Nach jeder Änderung an `config.json` den Dienst neu starten.
@@ -245,7 +257,9 @@ Voraussetzung: Ein Tonie, dessen Passwort nicht zu deinem passt.
 So prüfst du es:
 
 - [ ] Gesperrten Tonie auflegen. Der lange Überraschungs-Ton (etwa 2 s) spielt.
-- [ ] Im Protokoll steht ein Eintrag zur Überraschungs-Serie (`ueberraschung`).
+- [ ] Im Protokoll steht eine Zeile `zugeordnet` mit `ergebnis` `ueberraschung`
+      (die Serien-ID im Protokoll ist die zufällige ID der Serie, nicht der Name):
+      `grep '"ereignis":"zugeordnet"' ~/Tobi_box/box/var/log/tobibox.log | tail -1`.
 - [ ] Figur für unter 1 s abheben und sofort wieder auflegen. Der Ton läuft
       weiter und fängt nicht von vorn an.
 
@@ -264,8 +278,10 @@ So prüfst du es:
 
 - [ ] Während eine Folge spielt, das USB-Kabel vom SuperMini ziehen und nach
       etwa 5 s wieder stecken.
-- [ ] Im Protokoll stehen Einträge des Lesers (`baustein` `reader`): Verlust,
-      dann Wiederverbindung.
+- [ ] Im Protokoll steht der Alarm des Wächters als WARNING-Zeile mit
+      `meldung` `Leser-Ausfall: …` (`baustein` `reader`), danach die INFO-Zeile
+      `ereignis` `leser_verbunden`, wenn der Leser sich wieder meldet:
+      `grep -E 'Leser-Ausfall|leser_verbunden' ~/Tobi_box/box/var/log/tobibox.log`.
 - [ ] Die Figur liegt noch, die Folge läuft weiter, ohne Neustart.
 - [ ] Zweiter Versuch: Während das Kabel gezogen ist, Figur abheben. Nach dem
       Wiedereinstecken pausiert die Box spätestens 3,1 s nach dem Alarm, den
@@ -303,10 +319,16 @@ dafür keinen SuperMini.
 
    Beispiel: `place 04a1b2c3d4e5f6 ntag`, dann `remove`.
 
-Die CUJ-Prüfungen oben funktionieren damit gleich. Für CUJ 8 schickst du
-`remove` und direkt danach `place` (innerhalb von 1 s). Für CUJ 13 beendest du
-den Fake-Leser mit `quit` und startest ihn neu. Der Dienst erkennt das wie
-ein Kabelziehen.
+Die CUJ-Prüfungen 1, 2, 5, 6 und 13 funktionieren damit gleich. **CUJ 8 lässt sich
+mit dem Fake-Leser nicht prüfen:** Die Toleranz von 1,1 s steckt in der Firmware
+(Entprellung), der Fake-Leser meldet jedes `remove` sofort. CUJ 8 geht nur mit dem
+echten Leser. Für CUJ 13 beendest du den Fake-Leser mit `quit` und startest ihn
+neu, mit **demselben** `--link`. Der Dienst erkennt das wie ein Kabelziehen:
+WARNING `Leser-Ausfall: …`, später INFO `leser_verbunden`.
+
+Auf `PING` antwortet der Fake-Leser wie die Firmware: `HELLO`, `seq` zurück auf 0
+und, wenn gerade ein Tobie „liegt“ (`place` oder `lock` ohne `remove`), dessen
+`PLACED` (oder `LOCKED`) noch einmal mit `seq=0`.
 
 Nach dem Üben die Zeile `geraet` in `box/config/tobibox.toml` wieder auf
 `/dev/cu.usbmodem*` setzen.
@@ -374,6 +396,8 @@ tail -f ~/Tobi_box/box/var/log/tobibox.log | grep -E '"(aufgelegt|entprellt|zuge
       auch die CUJ-Tests unter `box/tests/cuj/` (Dateien `test_cuj01` bis `test_cuj20`).
       Ohne MPD im Pfad werden die MPD-Tests übersprungen; `mpd --version` muss laufen.
 - [ ] Firmware: `cd ~/Tobi_box/firmware/tobibox-reader && pio test -e native`. Alles grün.
+      (Alle `pio`-Befehle laufen in diesem Ordner. `native` braucht einen C++-Compiler:
+      einmalig `xcode-select --install`.)
 - [ ] Die CI auf GitHub für den Stand ist grün.
 
 ### 11.2 CUJ 1, 2, 5, 6, 8 und 13 mit echtem Leser
@@ -398,10 +422,13 @@ getrennten Verbindung (Alarm sofort).
 ### 11.3 Leser-Neustart (USB-Kabel ziehen und stecken)
 
 Eine Folge spielt, der Tobie liegt. Terminal mit `tail -f` offen lassen.
+Ohne Hardware (Fake-Leser, Abschnitt 9): `quit` und den Fake-Leser mit demselben `--link`
+neu starten ersetzt das Kabelziehen. Der Alarm ist die WARNING-Zeile `Leser-Ausfall: …`,
+die Rückkehr die INFO-Zeile `leser_verbunden`.
 
 - [ ] **Kurze Unterbrechung (etwa 1 bis 2 s):** Kabel ziehen, nach 1 bis 2 s stecken.
-      Das Protokoll zeigt den Verlust und die Wiederverbindung des Lesers (`baustein`
-      `reader`). Die Wiedergabe läuft ohne Neustart weiter. Es erscheint kein zweites
+      Das Protokoll zeigt den Alarm (WARNING, `meldung` `Leser-Ausfall: …`) und die
+      Wiederverbindung (INFO, `ereignis` `leser_verbunden`, jeweils `baustein` `reader`). Die Wiedergabe läuft ohne Neustart weiter. Es erscheint kein zweites
       `abspielen` und die `vorgang`-Kennung des Tobies bleibt dieselbe, auch wenn die Firmware
       wieder bei `seq=0` beginnt.
 - [ ] **Lange Unterbrechung (etwa 5 s):** Kabel ziehen, nach 5 s stecken. Die Box pausiert
@@ -428,14 +455,20 @@ Eine Folge spielt, der Tobie liegt. Terminal mit `tail -f` offen lassen.
       `pausiert`. Es startet **keine Wiedergabe** von selbst (nur das Startgeräusch des Dienstes), auch nach 10 s nicht. Zum Weiterspielen
       den Tobie abheben und wieder auflegen. Dann läuft er an der gespeicherten Stelle weiter.
       (Der Hauptknopf, der am Pi dasselbe tut, fehlt am Mac.)
+      - *Mit dem Fake-Leser:* `place <kennung> ntag` (oder `lock`), Folge spielt, **kein**
+        `remove`. Den Dienst mit `Ctrl+C` beenden und neu starten, den Fake-Leser laufen
+        lassen (gleicher `--link`). Der Dienst sendet `PING`, der Fake-Leser antwortet mit
+        `HELLO` und meldet den liegenden Tobie erneut mit `seq=0`, genau wie die Firmware.
+        Prüfen: `grep -E 'dienst_neustart|pausiert' ~/Tobi_box/box/var/log/tobibox.log | tail`.
+      - *Mit dem echten Leser:* Tobie liegen lassen, Dienst beenden und neu starten, sonst
+        dasselbe. (Der Serial-Monitor muss beendet sein.)
 - [ ] Gegenprobe „echtes Einschalten“: Dienst beenden, den Mac neu starten (oder
       `rm ~/Tobi_box/box/var/lauf.json`), Tobie liegen lassen, Dienst starten, Tobie
       abheben und auflegen. Der Tobie spielt sofort.
 
 ### 11.5 Tobie auf eine einzelne Folge und Tobie mit mehreren Tracks
 
-Dazu zwei Zuordnungen in `box/var/config.json` (Version 2, Eintrag `ziel`; die alten
-Einträge ohne `ziel` bleiben gültig) und ein Ordner mit Tracks:
+Dazu zwei Zuordnungen in `box/var/config.json` und ein Ordner mit Tracks:
 
 ```
 mkdir -p ~/Tobi_box/box/medien-beispiel/meine-testserie/cd-test
@@ -446,22 +479,37 @@ mv ~/Tobi_box/box/medien-beispiel/meine-testserie/cd-test/folge-03.wav ~/Tobi_bo
 printf 'update\nclose\n' | nc localhost 6600
 ```
 
-`config.json` (`schema_version` 2; „TOBIE_EINZELN“ und „TOBIE_CD“ durch zwei Kennungen
-ersetzen, dazu die vorhandenen Einträge übernehmen):
+Die `config.json` hat `schema_version` 2. **Jeder** Eintrag steht in der Form
+`"KENNUNG": { "ziel": { … } }`; die flache Form ohne `ziel` gibt es nur in
+`schema_version` 1. `typ` ist `serie`, `folge` (mit `serie` und `folge`) oder `aktion`.
+Ein vollständiges Beispiel mit einer Serie, einer einzelnen Folge und einer Folge mit
+Tracks („KENNUNG_…“ durch deine drei Kennungen ersetzen):
 
 ```
-"TOBIE_EINZELN": { "ziel": { "typ": "folge", "serie": "meine-testserie", "folge": "folge-02.wav" } },
-"TOBIE_CD":      { "ziel": { "typ": "folge", "serie": "meine-testserie", "folge": "cd-test" } }
+{
+  "schema_version": 2,
+  "revision": 2,
+  "liste_id": "0000000000000000",
+  "zuordnungen": {
+    "KENNUNG_SERIE":   { "ziel": { "typ": "serie", "serie": "meine-testserie" } },
+    "KENNUNG_EINZELN": { "ziel": { "typ": "folge", "serie": "meine-testserie", "folge": "folge-02.wav" } },
+    "KENNUNG_CD":      { "ziel": { "typ": "folge", "serie": "meine-testserie", "folge": "cd-test" } }
+  },
+  "leise_zeiten": { "fenster": [] },
+  "gute_nacht": { "timer_min": 30, "ausblenden_s": 60 }
+}
 ```
 
-Danach den Dienst neu starten.
+Danach den Dienst neu starten. Bei Fehlern im Dienst: Im Protokoll nach `datei_defekt`
+suchen (`grep datei_defekt ~/Tobi_box/box/var/log/tobibox.log`). Die kaputte Datei liegt
+dann als `box/var/config.json.defekt` daneben; das Feld `grund` sagt, was nicht stimmt.
 
 - [ ] **Einzelne Folge:** Tobie auflegen. Genau diese Folge spielt (`spielt` mit
       `folge` `folge-02.wav`, `art` `folge`). Am Ende der Folge pausiert die Box (Protokoll:
       `pausieren` mit Grund `folgenende`), obwohl der Tobie noch liegt. Tobie abheben und wieder
       auflegen: Die Folge spielt **von vorn**. Die Serie `meine-testserie` startet dabei nicht
       bei der nächsten Folge.
-- [ ] **Mehrere Tracks:** Tobie `TOBIE_CD` auflegen. Die drei Tracks spielen nacheinander
+- [ ] **Mehrere Tracks:** Tobie `KENNUNG_CD` auflegen. Die drei Tracks spielen nacheinander
       **ohne Pause** (die Piepsfolgen mit einem, zwei und drei Tönen; im Protokoll `track_wechsel`).
       Erst nach dem dritten Track pausiert die Box (`folgenende`). Wieder auflegen: von vorn
       beim ersten Track.
@@ -481,6 +529,31 @@ Danach den Dienst neu starten.
 Die Messung braucht die Aufnahme am Ausgang. Methode und Befehle: `docs/timing.md`, Abschnitt 2.
 
 - [ ] Dauerton anlegen und der Serie `messung` zuordnen (Abschnitt 2, „Vorbereitung“).
+      Die Serie liegt im Ordner `box/medien-beispiel/messung/` (nicht committen):
+
+      ```
+      mkdir -p ~/Tobi_box/box/medien-beispiel/messung
+      sox -n -r 44100 -c 1 ~/Tobi_box/box/medien-beispiel/messung/dauerton.wav synth 60 sine 440 vol 0.5
+      cat > ~/Tobi_box/box/medien-beispiel/messung/serie.json <<'JSON'
+      {
+        "schema_version": 1,
+        "id": "messung",
+        "name": "Messung",
+        "typ": "normal",
+        "folgen": ["dauerton.wav"],
+        "angelegt_am": "2026-11-06T09:00:00Z"
+      }
+      JSON
+      printf 'update\nclose\n' | nc localhost 6600
+      ```
+
+      In `box/var/config.json` die Einträge für die NTAG-Karte und den Tonie auf diese
+      Serie setzen (Schema 2, Kennungen aus Schritt 3) und den Dienst neu starten:
+
+      ```
+      "KENNUNG_KARTE": { "ziel": { "typ": "serie", "serie": "messung" } },
+      "KENNUNG_TONIE": { "ziel": { "typ": "serie", "serie": "messung" } }
+      ```
 - [ ] Altes Protokoll wegräumen: `mv ~/Tobi_box/box/var/log/tobibox.log* /tmp/`.
 - [ ] Aufnahme starten und still sein: `rec -r 44100 -c 1 ~/aufnahme.wav`
       (oder QuickTime, dann `afconvert -f WAVE -d LEI16 aufnahme.m4a aufnahme.wav`).

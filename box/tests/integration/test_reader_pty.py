@@ -510,3 +510,13 @@ async def test_ausnahme_im_rueckruf_beendet_die_aufgabe_nicht(tmp_path):
     finally:
         await leser.stop()
         leitung.trennen()
+
+
+async def test_leser_verbunden_wird_als_info_protokolliert(lauf, leitung, caplog):
+    leser, e = lauf
+    with caplog.at_level("INFO", logger="tobibox.reader"):
+        leser.start()
+        await warte(lambda: zaehle(e, ev.LeserHallo) == 1)
+    zeilen = [r for r in caplog.records if getattr(r, "ereignis", None) == "leser_verbunden"]
+    assert len(zeilen) == 1
+    assert zeilen[0].levelname == "INFO" and zeilen[0].baustein == "reader"
