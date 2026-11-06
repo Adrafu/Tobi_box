@@ -12,3 +12,8 @@ __pycache__/
 .venv/
 tobibox.toml
 box/var/
+
+# Lokale Testmedien (nie committen, Urheberrecht)
+box/medien-beispiel/*
+!box/medien-beispiel/serie-a/
+!box/medien-beispiel/ueberraschung/
