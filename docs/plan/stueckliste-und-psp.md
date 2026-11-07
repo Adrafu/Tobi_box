@@ -1,6 +1,6 @@
 # Tobi Box — Stückliste & Projektstrukturplan
 
-Rev. 3.9 · 06.11.2026 · Pi 3 Model A+ · eigene Box-Software auf MPD · zwei baugleiche, mobile Boxen
+Rev. 3.10 · 07.11.2026 · Pi 3 Model A+ · eigene Box-Software auf MPD · zwei baugleiche, mobile Boxen
 
 **Änderungen gegenüber Rev. 2**
 - Software-Basis: Phoniebox V3 + eigene Plugins statt Eigenbau
@@ -15,6 +15,7 @@ Rev. 3.9 · 06.11.2026 · Pi 3 Model A+ · eigene Box-Software auf MPD · zwei b
 - **3.6:** Entscheidung 04.11.: Echte Tonies sind Pflicht, deshalb ist der **PN5180 gesetzt**. Der RC522 entfällt als Rückfallebene (kann kein ISO 15693). Der Deckel-Test entscheidet nur noch die Deckelstärke, nicht mehr den Leser. Stückliste, Pinplan und kritischer Pfad entsprechend bereinigt
 - **3.7:** Deckel-Test Teil 1 (05.11.): **Test 5 bestanden** — durch 2 mm liest der PN5180 zentriert 100 % (58 ms, Feld nur 15,9 % an). MagSafe-Hülle als Gegenprobe liest ebenfalls 100 %, weil der Magnetring ein freies Zentrum hat. Drei Design-Regeln abgeleitet (Zentrierung über der Antenne, kein Vollmetall/Magnet über der Antennenmitte, UID-Entprellung in der Firmware). Offen bleiben Test 5b (Stahlscheibe mittig) und Test 6 (max. Distanz)
 - **3.8:** Entscheidung 05.11.: Phoniebox V3 entfällt. Eigene schlanke Box-Software in Python direkt auf MPD (python-mpd2, pyserial, paho-mqtt), endgültige Bestätigung nach dem ersten Lauf am Pi. Der Leser spricht ein serielles Textprotokoll, die Firmware entscheidet „aufgelegt“ / „abgehoben“, keine USB-Tastatur mehr. Home Assistant ist die einzige Oberfläche und einziger Schreiber der Zuordnungen, Resume bleibt pro Box. Kein eigener Hotspot, NAS von unterwegs nur über Tailscale, Updates manuell als Paket mit Selbsttest und Rückfall. Grundlage: `docs/egm/software-prototyp/concepts_brief.md`.
+- **3.10:** Entscheidung H (07.11.) aus `docs/designs/box-software.md`: Der Lernmodus wartet still. Legt Tobias im Lernmodus einen Tobie auf, kommt nur der Lernton; die Box spielt nichts (keine Überraschung, kein Ton „unbekannt“), bis HA die Zuordnung schickt. Lehnt HA ab oder kommt 10 s keine Antwort, verhält sich die Box wie bei einem normalen Auflegen. Verträge `core-interface.md` und `mqtt-v1.md` angepasst.
 - **3.9:** Entscheidungen F (05.11.) und G (06.11.) aus `docs/designs/box-software.md`: Tonies und NFC-Karten heißen **Tobie** (Mehrzahl Tobies). Ein Tobie spielt eine einzelne Folge oder eine ganze Serie. Eine Folge ist eine Datei oder ein Ordner mit Tracks; die Pause kommt erst am Ende der ganzen Folge, ein Folgen-Tobie startet nach dem Ende von vorn. Nach einem Neustart des Dienstes startet ein liegender Tobie nie von selbst. Stufe 0 (Verträge) freigegeben. Stufe 1 (Software: Firmware `tobibox-reader`, Box-Dienst auf MPD, Mac-Anleitung, CI) gebaut und bereit für Tobias' Abnahme am Mac. Maßgeblich: `docs/designs/box-software.md` und `docs/betrieb/mac-prototyp.md`.
 
 ---
@@ -579,7 +580,7 @@ Stand 3.8: Aufteilung neu. V3 entfällt, die Firmware macht den Leser, Home Assi
 - **5.10 Tobie-Zuordnung über Home Assistant** **NEU 3.5** · **NEU 3.8** · **NEU 3.9** (HA einziger Schreiber)
   - 5.10.1 Unbekannte Kennung → Überraschungs-Ordner + Meldung „neuer Tobie"
   - 5.10.2 HA-Oberfläche: Serienliste, Zuordnen mit einem Tipp (Weg A), Ziel Serie oder Folge **NEU 3.8** **NEU 3.9**
-  - 5.10.3 Lernmodus „Jetzt kommt ein neuer Tonie", 2 min, auch Umbelegen (Weg B), mit Ziel **NEU 3.9**
+  - 5.10.3 Lernmodus „Jetzt kommt ein neuer Tonie", 2 min, auch Umbelegen (Weg B), mit Ziel **NEU 3.9**; die Box wartet beim Auflegen still auf HA (10 s) **NEU 3.10**
   - 5.10.4 Ziel Serie → nächste ungehörte Folge, Ziel Folge → diese Folge; Zusammenspiel mit Resume **NEU 3.9**
   - 5.10.5 LED-Zustände „neuer Tobie" und „Lernmodus"
   - 5.10.6 Zuordnungen mit Ziel in HA gespeichert, Boxen holen sie (6.3) **NEU 3.8** **NEU 3.9**
@@ -662,7 +663,7 @@ Stand 3.8: Aufteilung neu. V3 entfällt, die Firmware macht den Leser, Home Assi
 
 CAD (4.2) startet erst, wenn 3.2 auf dem Breadboard läuft.
 
-## Entscheidungen (12.10.2026, ergänzt 17.10., 04.11., 05.11. für Rev. 3.8 und 06.11. für Rev. 3.9)
+## Entscheidungen (12.10.2026, ergänzt 17.10., 04.11., 05.11. für Rev. 3.8, 06.11. für Rev. 3.9 und 07.11. für Rev. 3.10)
 
 | Frage | Entscheidung |
 |---|---|
@@ -688,6 +689,7 @@ CAD (4.2) startet erst, wenn 3.2 auf dem Breadboard läuft.
 | **Tobie → Folge oder Serie (3.9, F, 05.11.)** | Tonies und NFC-Karten heißen Tobie. Ein Tobie spielt eine einzelne Folge oder eine ganze Serie. Eine Folge ist eine Datei oder ein Ordner mit Tracks |
 | **Pause erst am Ende der ganzen Folge (3.9)** | Die Tracks einer Folge laufen ohne Pause durch. Die Pause kommt nach dem letzten Track. Ein Folgen-Tobie startet nach dem Ende von vorn |
 | **Dienst-Neustart (3.9, G, 06.11.)** | Nach einem Neustart des Dienstes (ohne Ausschalten) startet ein liegender Tobie nie von selbst. Hauptknopf kurz oder Abheben und Auflegen spielt am Zeiger. Nach Ein- oder Ausschalten der Box wirkt er wie ein frisches Auflegen |
+| **Lernmodus wartet still (3.10, H, 07.11.)** | Im Lernmodus startet ein aufgelegter Tobie (bekannt oder unbekannt) nichts, es kommt nur der Lernton. Die Zuordnung startet das Ziel sofort. Lehnt HA ab oder kommt 10 s keine Antwort: wie ein normales Auflegen (bekannt → sein Ziel, unbekannt → Überraschung mit Ton). Abheben beendet das Warten. Lautstärke wirkt, Hauptknopf, Vor und Zurück bewirken nichts. Details: `docs/designs/box-software.md` (Entscheidung H) und `docs/protocol/core-interface.md` (9.8) |
 
 ## Bewusst nicht enthalten
 

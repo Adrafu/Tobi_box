@@ -364,6 +364,7 @@ async def test_lernen_ueber_sim_ordnet_zu_bestaetigt_und_loescht_den_eintrag(app
         await a.befehle.join()  # Ausführer: melden, HA-Ersatz schreibt und bestätigt
         await a._leere_ereignisse()
         await a.befehle.join()
+        await a.outbox.warte_gespeichert()  # das Löschen des Eintrags schreibt asynchron
         assert unknown(a) == {}
         k = json.loads((a.konfig.pfade.zustand / "config.json").read_text())
         assert k["zuordnungen"]["04ffeedd"]["ziel"] == {"typ": "serie", "serie": "3f9a1c07b2d4"}

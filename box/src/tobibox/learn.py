@@ -4,6 +4,10 @@ Reine Funktionen: kein Zugriff auf Dateien, Netz, Uhr oder Zufall. Zustände ``a
 Die Frist 2 min läuft auf ``jetzt.mono`` ab Annahme des Befehls (``LERN_FRIST_S``), die Ablaufzeit des
 Befehls ``jetzt.wall > gueltig_bis`` auf der Wanduhr. Bei unsicherer Uhr wird ``HaLernmodus`` abgelehnt;
 ``HaLernmodusAbbruch`` nie (die Ablaufzeit wird dann nicht geprüft).
+
+Entscheidung H (07.11.): Beim ersten aufgelegten Tobie endet der Lernmodus mit dem Endeton und der Meldung
+``gelernt``. Dass die Box dabei nichts spielt und still auf HA wartet, ist Sache der Wiedergabe-Sitzung
+(``session.py``, ``LERN_ANTWORT_FRIST_S``); sie sieht ``Aufgelegt`` vor diesem Teilautomaten, also noch mit ``lernt``.
 """
 
 from __future__ import annotations

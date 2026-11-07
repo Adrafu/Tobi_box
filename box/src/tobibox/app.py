@@ -122,9 +122,11 @@ class App:
         _protokolliere_leser(e)
         self.status.beobachte(e, jetzt)
         if isinstance(e, ev.Bestaetigt):
-            # Geht nicht an den Kern, sondern an die Outbox (``core-interface.md``, Abschnitt 3 und 7)
+            # Zuerst die Outbox (``core-interface.md``, Abschnitt 3 und 7). Den Kern erreicht nur eine
+            # Bestätigung für einen gelernten Tobie: Das Warten im Lernmodus endet bei „abgelehnt“ (Entscheidung H, 07.11.).
             self.ausgang.bestaetigt(e, sim=sim)
-            return ()
+            if e.art != "gelernt":
+                return ()
         if isinstance(e, (ev.Aufgelegt, ev.Gesperrt)) or (isinstance(e, ev.Abgehoben) and e.vorgang):
             self._letzter_vorgang = e.vorgang
         self.kern, befehle = core.step(self.kern, e, jetzt)

@@ -8,6 +8,11 @@ Die Zeigerregeln (nächste Folge, Track, Rücksprung, fehlende Folge) stehen in
 ``pointer.py`` (Abschnitt 6.3 des Vertrags). Ein Tobie zeigt auf eine Serie
 (``ziel="serie"``, Serien-Zeiger) oder auf eine einzelne Folge (``ziel="folge"``,
 Folgen-Zeiger) (Entscheidung F, 05.11.).
+
+Lernmodus wartet still (Entscheidung H, 07.11.): Ein im Lernmodus aufgelegter Tobie (mit Kennung) startet
+nichts. Die Sitzung bleibt ``pausiert`` mit dem Feld ``lern_wartet_bis`` (``mono``) und wartet auf die
+Zuordnung (``KonfigGeladen``), auf ``Bestaetigt`` „abgelehnt“ oder auf ``LERN_ANTWORT_FRIST_S``; danach
+verhält sie sich wie bei einem normalen Auflegen. Hauptknopf, ``Weiter`` und ``Zurueck`` bewirken nichts.
 """
 
 from __future__ import annotations
@@ -22,6 +27,8 @@ from .events import Jetzt
 from .volume import GRENZE_AUSBLENDEN, GRENZE_KOPFHOERER, rampe
 
 LESER_FRIST_S = 3.0
+#: Wartezeit auf die Antwort von HA, wenn im Lernmodus ein Tobie aufgelegt wird (Entscheidung H, 07.11.); läuft auf ``mono``
+LERN_ANTWORT_FRIST_S = 10.0
 MPD_FRIST_S = 5.0
 RUECKSPRUNG_S = pointer.RUECKSPRUNG_S
 SPEICHERN_PERIODISCH_S = pointer.SPEICHERN_PERIODISCH_S
@@ -73,6 +80,9 @@ class Zustand:
     gen: int = 0  # Wiedergabe-Generation: wächst mit jedem ``Abspielen``
     # Tobie, der beim Dienst-Neustart auflag: startet nicht von selbst (Entscheidung G, 06.11.)
     neustart_uid: str | None = None
+    # Lernmodus wartet still (Entscheidung H, 07.11.): Ende der Wartefrist auf ``mono``; ``None``: wir warten nicht.
+    # Der Tobie liegt (``figur``), der Zustand ist ``pausiert``, es spielt nichts.
+    lern_wartet_bis: float | None = None
 
 
 def neuer_zustand() -> Zustand:
@@ -229,9 +239,18 @@ def _stumm_hinweis(z: Zustand, modus: str) -> tuple[Zustand, Ausgabe]:
 # --------------------------------------------------------------------------
 
 
-def _auflegen(z: Zustand, uid: str | None, vorgang: str, jetzt: Jetzt) -> tuple[Zustand, Ausgabe]:
-    """Neue Figur in einem Zustand ohne laufende Wiedergabe behandeln."""
+def _auflegen(
+    z: Zustand, uid: str | None, vorgang: str, jetzt: Jetzt, *, warten: bool = True, melden: bool = True
+) -> tuple[Zustand, Ausgabe]:
+    """Neue Figur in einem Zustand ohne laufende Wiedergabe behandeln.
+
+    ``warten=False`` und ``melden=False`` gelten, wenn das Warten im Lernmodus endet (Entscheidung H, 07.11.):
+    Der Tobie wurde schon gemeldet und wird nicht noch einmal abgewartet.
+    """
     zuo = z.konfig.zuordnungen.get(uid) if (uid is not None and z.konfig is not None) else None
+    z = replace(z, lern_wartet_bis=None)
+    if warten and z.lernt and uid is not None:
+        return _lern_warten(z, uid, vorgang, zuo is not None, zuo.typ == "aktion" if zuo is not None else False, jetzt)
     # Dienst-Neustart (Entscheidung G, 06.11.): der Tobie, der schon vorher lag, startet nicht
     # (ein gesperrter Tobie hat keine Kennung: er steht als ``NEUSTART_GESPERRT`` im Marker)
     kennung = ev.NEUSTART_GESPERRT if uid is None else uid
@@ -249,7 +268,8 @@ def _auflegen(z: Zustand, uid: str | None, vorgang: str, jetzt: Jetzt) -> tuple[
         serie = _ueberraschung(z)
     elif zuo is None:
         art = "unbekannt"
-        out.append(ev.Melden("unbekannt", uid, None))
+        if melden:
+            out.append(ev.Melden("unbekannt", uid, None))
         serie = _ueberraschung(z)
     else:
         art = "serie"
@@ -309,6 +329,44 @@ def _auflegen(z: Zustand, uid: str | None, vorgang: str, jetzt: Jetzt) -> tuple[
     return z, out + start
 
 
+def _lern_warten(
+    z: Zustand, uid: str, vorgang: str, bekannt: bool, aktion: bool, jetzt: Jetzt
+) -> tuple[Zustand, Ausgabe]:
+    """Im Lernmodus aufgelegt (Entscheidung H, 07.11.): nichts spielen, still auf HA warten.
+
+    Es kommt nur der Lernton (``learn``). Der Eintrag in ``unknown.json`` läuft wie bisher
+    (``Melden("unbekannt")``, ``learn`` meldet zusätzlich ``gelernt``). Die Wartefrist läuft auf ``mono``.
+    """
+    art: Literal["serie", "unbekannt", "gesperrt", "aktion"] = "aktion" if aktion else ("serie" if bekannt else "unbekannt")
+    out: Ausgabe = []
+    if not bekannt:
+        out.append(ev.Melden("unbekannt", uid, None))
+    out.append(_prot("INFO", "lern_warten", "beginn", vorgang, uid=uid, bekannt=bekannt, frist_s=LERN_ANTWORT_FRIST_S))
+    z = _ruhe(
+        replace(z, figur=Figur(vorgang, uid, art)),
+        modus="pausiert", ziel=None, serie_id=None, datei=None, index=0, track=0, position_s=0.0,
+        lern_wartet_bis=jetzt.mono + LERN_ANTWORT_FRIST_S,
+    )
+    return z, out
+
+
+def _lern_warten_ende(z: Zustand, grund: str, jetzt: Jetzt) -> tuple[Zustand, Ausgabe]:
+    """Das Warten endet (Zuordnung, abgelehnt, Frist): der Tobie verhält sich wie bei einem normalen Auflegen."""
+    f = z.figur
+    if f is None or f.uid is None or z.lern_wartet_bis is None:
+        return replace(z, lern_wartet_bis=None), []
+    z, out = _auflegen(z, f.uid, f.vorgang, jetzt, warten=False, melden=False)
+    return z, [_prot("INFO", "lern_warten", grund, f.vorgang, uid=f.uid)] + out
+
+
+def _bestaetigt(z: Zustand, e: ev.Bestaetigt, jetzt: Jetzt) -> tuple[Zustand, Ausgabe]:
+    """HA lehnt den gelernten Tobie ab: Das Warten endet sofort (Entscheidung H, 07.11.). Alles andere zählt hier nicht."""
+    f = z.figur
+    if z.lern_wartet_bis is None or f is None or e.art != "gelernt" or e.grund != "abgelehnt" or e.id != f.uid:
+        return z, []
+    return _lern_warten_ende(z, "abgelehnt", jetzt)
+
+
 def _figur_gemeldet(z: Zustand, uid: str | None, vorgang: str, jetzt: Jetzt) -> tuple[Zustand, Ausgabe]:
     f = z.figur
     # Wiedermeldung derselben vorgang-ID (9.1, 9.2)
@@ -316,6 +374,10 @@ def _figur_gemeldet(z: Zustand, uid: str | None, vorgang: str, jetzt: Jetzt) -> 
         if z.modus == "unbekannt":
             return _leser_zurueck(z, jetzt)
         return z, []
+
+    if z.lern_wartet_bis is not None and f is not None and f.uid == uid:
+        # derselbe Tobie nach verlorenem REMOVED: das Warten geht weiter (Entscheidung H, 07.11.)
+        return replace(z, figur=replace(f, vorgang=vorgang)), []
 
     out: Ausgabe = []
     if z.modus == "unbekannt":
@@ -363,7 +425,7 @@ def _abgehoben(z: Zustand, jetzt: Jetzt) -> tuple[Zustand, Ausgabe]:
     if z.figur is None:
         return z, []
     out: Ausgabe = []
-    z = replace(z, figur=None, hb_abweichungen=0, neustart_uid=None)
+    z = replace(z, figur=None, hb_abweichungen=0, neustart_uid=None, lern_wartet_bis=None)
     if z.modus in ("spielt", "unbekannt"):
         out += _grenze_weg(z)
         out.append(ev.Pausieren("abgehoben"))
@@ -549,6 +611,8 @@ def _pausiere(z: Zustand, grund: str, speicher_grund: str, jetzt: Jetzt) -> tupl
 def _hauptknopf(z: Zustand, e: ev.Hauptknopf, jetzt: Jetzt) -> tuple[Zustand, Ausgabe]:
     if e.art != "kurz":
         return z, []  # Hauptknopf lang gehört dem Teilautomat `idle`
+    if z.lern_wartet_bis is not None:
+        return z, [_prot("INFO", "hauptknopf", "ignoriert", z.figur.vorgang if z.figur else None, grund="lern_warten")]
     if z.modus == "spielt":
         return _pausiere(z, "knopf", "pause", jetzt)
     if z.modus in ("pausiert", "beendet", "gehalten"):
@@ -563,6 +627,8 @@ def _hauptknopf(z: Zustand, e: ev.Hauptknopf, jetzt: Jetzt) -> tuple[Zustand, Au
 def _springen(z: Zustand, delta: int, jetzt: Jetzt) -> tuple[Zustand, Ausgabe]:
     """``Weiter`` (+1) und ``Zurueck`` (-1), nach Track innerhalb der Folge (9.12)."""
     vorgang = z.figur.vorgang if z.figur else None
+    if z.lern_wartet_bis is not None:
+        return z, [_prot("INFO", "springen", "ignoriert", vorgang, delta=delta, grund="lern_warten")]
     if z.modus == "spielt" and (z.ausblenden is not None or z.mpd_bis is not None):
         # während des Ausblendens und der MPD-Frist ignoriert (9.10, 9.12)
         return z, [_prot("INFO", "springen", "ignoriert", vorgang, delta=delta)]
@@ -649,6 +715,11 @@ def _konfig(z: Zustand, e: ev.KonfigGeladen, jetzt: Jetzt) -> tuple[Zustand, Aus
     """Neue Konfiguration; bei liegender Figur gilt 9.14 (Ziel ``serie`` oder ``folge``)."""
     z = replace(z, konfig=e.konfig)
     f = z.figur
+    if z.lern_wartet_bis is not None:
+        # Warten im Lernmodus (Entscheidung H, 07.11.): Kommt die Zuordnung dieses Tobies, startet sofort das Ziel
+        if f is not None and f.uid in e.konfig.zuordnungen:
+            return _lern_warten_ende(z, "zugeordnet", jetzt)
+        return z, []
     if f is None or f.uid is None or f.art == "aktion":
         return z, []
     zuo = e.konfig.zuordnungen.get(f.uid)
@@ -732,6 +803,10 @@ def _dienst_endet(z: Zustand, e: ev.DienstEndet, jetzt: Jetzt) -> tuple[Zustand,
 
 
 def _takt(z: Zustand, e: ev.Takt, jetzt: Jetzt) -> tuple[Zustand, Ausgabe]:
+    if z.lern_wartet_bis is not None:
+        if jetzt.mono >= z.lern_wartet_bis - _EPS:
+            return _lern_warten_ende(z, "frist", jetzt)
+        return z, []
     if z.modus == "unbekannt":
         if z.unbekannt_seit is not None and jetzt.mono - z.unbekannt_seit >= LESER_FRIST_S - _EPS:
             return _pausiere(z, "leser_unbekannt", "pause", jetzt)
@@ -788,6 +863,7 @@ _HANDLER: dict[type, _Handler] = {
     ev.StummBeginnt: _stumm_beginnt,
     ev.StummEndet: _stumm_endet,
     ev.LernenGeaendert: _lernen,
+    ev.Bestaetigt: _bestaetigt,
     ev.GuteNachtEnde: _gute_nacht_ende,
     ev.HerunterfahrenAngefordert: _herunterfahren,
     ev.DienstEndet: _dienst_endet,

@@ -803,9 +803,14 @@ den Lernmodus also nicht. Nach 2 Minuten ohne Tobie endet er von selbst
 **Die Töne im Lernmodus.** Es gibt genau zwei: `lernen_beginn` beim Start und `lernen_ende`
 beim Ende. `lernen_ende` kommt bei jedem Ende: Tobie aufgelegt (gelernt oder abgelehnt), Abbruch
 und Fristablauf. Ob gelernt oder abgelehnt wurde, hörst du also nicht am Ende-Ton, sondern nur
-an dem, was der Tobie danach spielt, und im Protokoll. Legst du einen **neuen** Tobie auf, kommt
-zusätzlich der kurze Ton `unbekannt` (fast gleichzeitig mit dem Ende-Ton), weil die Box ihn erst
-als unbekannt behandelt. Dann wechselt sie auf das Lernziel.
+an dem, was der Tobie danach spielt, und im Protokoll. Die Box wartet nach dem Auflegen **still** auf
+den HA-Ersatz (Entscheidung H, 07.11.): Sie spielt weder die Überraschung noch den Ton
+`unbekannt`, auch nicht bei einem neuen Tobie. Sobald die Zuordnung da ist (beim HA-Ersatz
+Bruchteile einer Sekunde), startet das Lernziel sofort. Wird der Tobie abgelehnt, oder kommt
+10 Sekunden lang keine Antwort, verhält sich die Box wie bei einem normalen Auflegen (ein
+bekannter Tobie spielt sein Ziel, ein neuer die Überraschung mit dem Ton `unbekannt`).
+Abheben beendet das Warten. Während des Wartens bewirken Hauptknopf, Vor und Zurück nichts; die
+Lautstärke wirkt.
 
 **a) Serie lernen**
 
@@ -815,8 +820,8 @@ tobibox sim learn --serie a1b2c3d4e5f6
 
 - [ ] Du siehst `{"ok": true}` und hörst einen Ton. `tobibox status` zeigt `Lernmodus: an`.
       Lege `<UID-NEU>` auf (hebe ihn vorher ab, falls er liegt).
-      **Was du hörst:** Zwei kurze Töne fast gleichzeitig (`unbekannt` und `lernen_ende`), dann
-      spielt der Tobie die Serie `serie-a` an dem Zeiger, an dem die Serie steht (nach 12.3
+      **Was du hörst:** Nur ein kurzer Ton (`lernen_ende`), **kein** `unbekannt` und keine
+      Überraschung dazwischen; dann spielt der Tobie sofort die Serie `serie-a` an dem Zeiger, an dem die Serie steht (nach 12.3
       Folge 1 oder 2). Im Protokoll steht eine Zeile mit Baustein `ha_ersatz`, Ereignis
       `zuordnung` und Ergebnis `ok`.
 
@@ -834,7 +839,7 @@ tobibox sim learn --serie a1b2c3d4e5f6 --folge folge-02.wav
 ```
 
 - [ ] Lege `<UID-NEU-2>` auf.
-      **Was du hörst:** Wie in a), dann nur die Folge `folge-02.wav` (zwei Pieptöne). Die Serie spielt
+      **Was du hörst:** Wie in a) (nur `lernen_ende`, keine Überraschung), dann nur die Folge `folge-02.wav` (zwei Pieptöne). Die Serie spielt
       danach nicht weiter.
 - [ ] Prüfe mit `grep -A5 '"<UID-NEU-2>"' ~/Tobi_box/box/var/config.json`: `"typ": "folge"`,
       `"folge": "folge-02.wav"`.
@@ -858,9 +863,9 @@ tobibox sim learn --serie a1b2c3d4e5f6 --folge folge-03.wav
 
 - [ ] Hebe `<UID-NEU>` ab und lege ihn wieder auf (er ist schon zugeordnet). Der Befehl selbst
       ist angenommen; die Ablehnung zeigt sich erst beim Auflegen.
-      **Was du hörst:** Dasselbe wie bei jedem bekannten Tobie: seine Serie spielt weiter, dazu
-      der Ende-Ton `lernen_ende`. Der Ton ist derselbe wie beim erfolgreichen Lernen (ohne den
-      Ton `unbekannt`). Die Ablehnung steht nur im Protokoll.
+      **Was du hörst:** Erst den Ende-Ton `lernen_ende`, dann (sobald der HA-Ersatz abgelehnt hat,
+      also sofort) spielt seine bisherige Serie, ohne den Ton `unbekannt` (Entscheidung H, 07.11.).
+      Die Ablehnung steht nur im Protokoll.
       **Was du siehst:** Im Protokoll eine WARNING-Zeile mit Baustein `ha_ersatz`, Ereignis
       `zuordnung`, Ergebnis `abgelehnt`, Grund `schon_zugeordnet` und dem Hinweis
       „schon zugeordnet und bleibt, wie er ist“. `config.json` bleibt bei `serie-a`.

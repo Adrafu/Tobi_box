@@ -4,6 +4,9 @@
 läuft der Dienst selbst: echte Ereignisschleife, echter Ausführer, echte Dateien, simulierte Uhr, ohne MPD und
 ohne Leser. Geprüft werden die Fälle, in denen die Verdrahtung zählt: Frist, Abbruch, zweiter Befehl,
 Wiedermeldung, bestehende Zuordnung, ``sim=true`` im Protokoll.
+
+Entscheidung H (07.11.): Zwischen Auflegen und Zuordnung spielt die Box nichts (keine Überraschung, kein Ton
+``unbekannt``). „Abgelehnt“ erreicht den Kern über die echte Verdrahtung (``App.verarbeite``).
 """
 
 from __future__ import annotations
@@ -20,6 +23,7 @@ from tobibox import events as ev
 from tobibox.app import App
 from tobibox.clock import SimUhr
 from tobibox.learn import LERN_FRIST_S
+from tobibox.session import LERN_ANTWORT_FRIST_S
 
 SERIE = "3f9a1c07b2d4"
 BAER = "8c21d5e9a0b7"
@@ -55,6 +59,17 @@ class Dienst:
         e = await self.app.sim.zeile_zu_ereignis_async(json.dumps(zeile))
         self.app.sim.ausgabe(e)  # wie ein Client von ``sim.sock``
         await self.sende()
+
+    async def ha_schweigt(self) -> None:
+        """Der HA-Ersatz antwortet nicht (Test des Wartens)."""
+
+        async def nichts(eintrag):
+            pass
+
+        self.app.ausgang.ha_ersatz.gelernt_async = nichts
+
+    def abgelehnt(self, uid: str) -> ev.Bestaetigt:
+        return ev.Bestaetigt(uid, "abgelehnt", self.unknown()[uid]["zuletzt"], "gelernt")
 
     def lerne(self, **kw):
         return self.sim(befehl="learn", typ="serie", serie=SERIE, ttl=60, **kw)
@@ -92,9 +107,11 @@ async def dienst(tmp_path, monkeypatch, protokoll):
     a.player.app = a
     a.leser = FakeLeser()
     a.toene = FakeToene()
-    a.toene.spiele = lambda *args, **kw: True
+    a.toene.gespielt = []
+    a.toene.spiele = lambda ton, *args, **kw: a.toene.gespielt.append(ton) or True
     a.gesehen = []
     await a.starte()
+    a.toene.gespielt.clear()  # ohne den Startton
     yield Dienst(a, uhr, zustand)
     await a.beende()
 
@@ -108,6 +125,64 @@ async def test_lernen_ordnet_zu_bestaetigt_und_spielt_das_ziel(dienst):
     assert dienst.konfig()["zuordnungen"][NEU]["ziel"] == {"typ": "serie", "serie": SERIE}
     assert dienst.unknown() == {}
     assert dienst.app.kern.session.figur.art == "serie" and f"abspielen {SERIE}" in dienst.app.player.aufrufe
+    # Entscheidung H: nie die Überraschung und nie der Ton ``unbekannt`` dazwischen, nur der Lernton
+    assert not any(a.startswith("abspielen") and a != f"abspielen {SERIE}" for a in dienst.app.player.aufrufe)
+    assert dienst.app.toene.gespielt == ["lernen_beginn", "lernen_ende"]
+
+
+async def test_wartet_still_bis_die_zuordnung_kommt(dienst):
+    await dienst.ha_schweigt()
+    await dienst.lerne()
+    await dienst.sende(dienst.melden(NEU, "v1"))
+    assert dienst.app.kern.session.lern_wartet_bis is not None
+    assert not [a for a in dienst.app.player.aufrufe if a.startswith("abspielen")]
+    assert dienst.app.toene.gespielt == ["lernen_beginn", "lernen_ende"]
+    # die Zuordnung trifft ein (wie von HA): das Ziel startet sofort
+    from tobibox.ha_ersatz import schreibe_zuordnung
+
+    geladen = schreibe_zuordnung(dienst.app.konfig_store, NEU, {"typ": "serie", "serie": SERIE})
+    await dienst.sende(geladen)
+    assert f"abspielen {SERIE}" in dienst.app.player.aufrufe and dienst.app.kern.session.lern_wartet_bis is None
+    assert "unbekannt" not in dienst.app.toene.gespielt
+
+
+async def test_abgelehnt_aus_der_verdrahtung_beendet_das_warten_und_die_ueberraschung_spielt(dienst):
+    await dienst.ha_schweigt()
+    await dienst.lerne()
+    await dienst.sende(dienst.melden(NEU, "v1"))
+    assert not [a for a in dienst.app.player.aufrufe if a.startswith("abspielen")]
+    await dienst.sende(dienst.abgelehnt(NEU))  # ``App.verarbeite`` reicht „gelernt“ an den Kern weiter
+    assert dienst.app.kern.session.lern_wartet_bis is None
+    assert f"abspielen {UEBERRASCHUNG}" in dienst.app.player.aufrufe
+    assert dienst.app.toene.gespielt == ["lernen_beginn", "lernen_ende", "unbekannt"]
+    assert dienst.unknown() == {}  # die Bestätigung hat auch die Outbox erreicht
+
+
+async def test_keine_antwort_nach_10_s_wie_abgelehnt(dienst):
+    await dienst.ha_schweigt()
+    await dienst.lerne()
+    await dienst.sende(dienst.melden(NEU, "v1"))
+    dienst.uhr.vor(LERN_ANTWORT_FRIST_S - 1)
+    await dienst.sende(ev.Takt())
+    assert not [a for a in dienst.app.player.aufrufe if a.startswith("abspielen")]
+    dienst.uhr.vor(2)
+    await dienst.sende(ev.Takt())
+    assert f"abspielen {UEBERRASCHUNG}" in dienst.app.player.aufrufe
+    assert dienst.app.toene.gespielt[-1] == "unbekannt"
+    assert dienst.unknown()[NEU]["art"] == "gelernt"  # bleibt offen, bis HA bestätigt
+
+
+async def test_abheben_waehrend_des_wartens_und_tasten(dienst):
+    await dienst.ha_schweigt()
+    await dienst.lerne()
+    await dienst.sende(dienst.melden(NEU, "v1"))
+    await dienst.sende(ev.Hauptknopf("kurz"), ev.Weiter(), ev.Zurueck())
+    assert not [a for a in dienst.app.player.aufrufe if a.startswith("abspielen")]
+    await dienst.sende(ev.Abgehoben(1, "v1"))
+    dienst.uhr.vor(LERN_ANTWORT_FRIST_S + 1)
+    await dienst.sende(ev.Takt())
+    assert not [a for a in dienst.app.player.aufrufe if a.startswith("abspielen")]
+    assert dienst.app.kern.session.figur is None
 
 
 async def test_zweiter_lernbefehl_wird_ignoriert_und_der_erste_lernlauf_gelingt(dienst):
@@ -169,10 +244,17 @@ async def test_protokollzeilen_von_sim_tragen_sim_true_echte_nicht(dienst, proto
     assert "aufgelegt" in ohne and "lernmodus_ende" in ohne  # der Tobie kam vom Leser, nicht von sim
 
 
-async def test_bestaetigung_geht_nicht_an_den_kern(dienst):
+async def test_bestaetigung_fuer_unbekannte_geht_nicht_an_den_kern(dienst):
     vorher = dienst.app.kern
     assert dienst.app.verarbeite(ev.Bestaetigt("04aaaaaa", "neu", "2026-11-07T00:00:00.000Z", "unbekannt")) == ()
     assert dienst.app.kern is vorher
+
+
+async def test_bestaetigung_fuer_gelernte_geht_auch_an_den_kern(dienst):
+    """Entscheidung H: ``art="gelernt"`` erreicht die Sitzung (sie beendet damit das Warten bei „abgelehnt“)."""
+    vorher = dienst.app.kern
+    dienst.app.verarbeite(ev.Bestaetigt("04aaaaaa", "abgelehnt", "2026-11-07T00:00:00.000Z", "gelernt"))
+    assert dienst.app.kern is not vorher
 
 
 async def test_leser_prueffpunkt_zeigt_simulation_ohne_leser_geraet(dienst):

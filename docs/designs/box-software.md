@@ -5,6 +5,7 @@
 
 *   **Datum:** 2026-11-05
 *   **Änderung 05.11.:** Entscheidung F eingearbeitet (Tobies: Folge oder Serie, Folgen mit mehreren Tracks). Alle Änderungen sind mit „(Entscheidung F, 05.11.)“ markiert.
+*   **Änderung 07.11.:** Entscheidung H eingearbeitet (Lernmodus wartet still). Die Änderungen sind mit „(Entscheidung H, 07.11.)“ markiert.
 *   **Grundlage:** `concepts_brief.md` (gleicher Ordner) inkl. Entscheidungen
     Runde 1 und 2
 
@@ -340,6 +341,26 @@ Alternativen“.
         vorn. Zurück in `beendet`: spielt die eben beendete Folge von vorn
         (beide Typen). Die Regeln unter „stumm“ bleiben (nichts startet).
     *   **F7 — Überraschungs-Serie:** verhält sich wie ein Ziel `serie`.
+*   **Entscheidung H — Lernmodus wartet still (07.11.):** Bisher startete ein im
+    Lernmodus aufgelegter unbekannter Tobie sofort die Überraschungs-Serie mit dem
+    Ton `unbekannt`; mit echtem HA wäre das 1 bis 3 s zu hören gewesen. Neu
+    (Entscheidung H, 07.11.):
+    *   **H1 — Nur der Lernton:** Wird im Zustand `lernt` ein Tobie aufgelegt
+        (bekannt oder unbekannt), kommt nur der Ton `lernen_ende`. Die Box spielt
+        nichts, auch keine Überraschung und keinen Ton `unbekannt`, und wartet auf HA.
+    *   **H2 — Ende des Wartens:** Die Zuordnung trifft ein (neue Konfiguration mit
+        diesem Tobie): das neue Ziel startet sofort. HA lehnt ab (`bestaetigt` mit
+        `grund` „abgelehnt“) oder 10 s ohne Antwort: Die Box verhält sich wie bei einem
+        normalen Auflegen (bekannt → sein Ziel, unbekannt → Überraschung mit Ton).
+        Kommt die Zuordnung nach den 10 s doch, gilt das bisherige Verhalten bei einer
+        neuen Konfiguration mit liegendem Tobie. Abheben beendet das Warten, es spielt
+        nichts.
+    *   **H3 — Tasten:** Während des Wartens wirkt die Lautstärke; Hauptknopf, Vor und
+        Zurück bewirken nichts.
+    *   **H4 — Unverändert:** `unknown.json` und Melden laufen wie bisher (nur
+        Wiedergabe und der Ton `unbekannt` warten). Regel „stumm“ und Entscheidung G
+        bleiben; ein Dienst-Neustart während des Wartens lässt den Tobie `pausiert`.
+        Die Wartezeit ist die Konstante `LERN_ANTWORT_FRIST_S` = 10 s auf `mono`.
 
 - **Nachtrag 05.11. (Stufe-0-Verträge):** Ein Leser-Neustart startet nie von selbst eine Wiedergabe; nach einem bestätigten Leserverlust (> 3 s) bleibt die Box pausiert, auch wenn der Tobie danach wieder gemeldet wird – das Kind legt neu auf. Lesefehler gelten bis 5 s als „Tobie liegt“; fehlende Serie → Überraschungs-Serie; „stumm“ sperrt auch Knöpfe; MPD-Verlust bis 5 s wird überbrückt. Maßgeblich sind die Verträge in `docs/protocol/` und `docs/data-model.md`.
 
@@ -364,7 +385,7 @@ Alternativen“.
 Erledigt: Medienformate und Lautheitsangleich (siehe D5 und D6), Ende der
 letzten Folge und Ende eines „stumm“-Fensters (Entscheidungen A und B),
 Datenvolumen im Hotspot (Entscheidung C), Hauptknopf nach Folgenende
-(Entscheidung E), Tobies als Folge oder Serie (Entscheidung F), Schnittstellen und Datenformate (Stufe 0), die Befunde R1 bis
+(Entscheidung E), Tobies als Folge oder Serie (Entscheidung F), Lernmodus wartet still (Entscheidung H), Schnittstellen und Datenformate (Stufe 0), die Befunde R1 bis
 R18 des Reviews Stufe 9.
 
 ## Risiken
@@ -484,7 +505,12 @@ Zustände, Übergänge und Konflikte: siehe „Kern-Zustände“.
 *   **Then**: Box meldet die Kennung an HA, HA schreibt die Zuordnung, das
     gewählte Ziel spielt (Serie oder Folge). Ist der Tobie schon zugeordnet, fragt HA vor dem Überschreiben
     nach; wird der Tobie währenddessen abgehoben, ändert das nichts, denn die
-    Zuordnung hängt an der gemeldeten Kennung. Ohne Tobie endet der Lernmodus
+    Zuordnung hängt an der gemeldeten Kennung. **Wartet still (Entscheidung H, 07.11.):**
+    Beim Auflegen kommt nur der Lernton; die Box spielt nichts (keine Überraschung, kein
+    Ton `unbekannt`), bis die Zuordnung eintrifft (dann startet das Ziel sofort). Lehnt HA
+    ab oder kommt nach 10 s keine Antwort, verhält sich die Box wie bei einem normalen
+    Auflegen. Abheben beendet das Warten. Lautstärke wirkt, Hauptknopf, Vor und Zurück
+    bewirken in dieser Zeit nichts. Ohne Tobie endet der Lernmodus
     nach 2 min (die Frist misst die Box); Abbruch jederzeit in HA. Beginn und
     Ende sind hörbar. Ist die Box gerade stumm geschaltet (CUJ 15), lernt sie
     trotzdem und bestätigt mit dem leisen Ton, spielt aber nicht.
@@ -1004,6 +1030,11 @@ wegen „stumm“ nicht gespielt), `unbekannt` (Leser-Zustand unbekannt).
 | `spielt` | stumm beginnt | sanft ausblenden, Pause, Zeiger speichern | `gehalten` |
 | `gehalten` | `REMOVED` | — | `pausiert` |
 | `gehalten` | stumm endet | nichts; Wiedergabe startet nicht von selbst, erst Abheben und erneutes Auflegen startet sie | `pausiert` |
+| `leer`, `pausiert`, `beendet`, `gehalten`, `spielt` | `PLACED` (Kennung, andere Vorgangs-ID), Lernmodus `lernt` (Entscheidung H, 07.11.) | läuft etwas, wie bei „andere Kennung“ pausieren und Zeiger speichern; Kennung unbekannt: Kennung in `unknown.json`; **nichts abspielen, kein Ton `unbekannt`**, Frist 10 s starten (nur der Lernton von `learn`) | `pausiert` (wartet) |
+| `pausiert` (wartet) | neue Konfiguration mit der Zuordnung dieses Tobies (Entscheidung H, 07.11.) | Ziel sofort starten wie beim Auflegen | `spielt` (unter „stumm“: `gehalten`) |
+| `pausiert` (wartet) | `bestaetigt` „abgelehnt“ für diesen Tobie, oder Frist 10 s ohne Antwort (Entscheidung H, 07.11.) | wie ein normales Auflegen: bekannt → sein Ziel, unbekannt → Überraschung mit Ton `unbekannt` (ohne zweites Melden) | `spielt` (unter „stumm“: `gehalten`) |
+| `pausiert` (wartet) | `REMOVED` (Entscheidung H, 07.11.) | Warten endet, nichts spielt | `pausiert` |
+| `pausiert` (wartet) | Hauptknopf kurz, `Vor`, `Zurück` (Entscheidung H, 07.11.) | nichts (Lautstärke wirkt wie immer) | unverändert |
 | `leer` | Start mit liegendem Tobie (CUJ 20) | wie `PLACED`, sobald alles bereit ist; nach Dienst-Neustart ohne Ausschalten nichts (Entscheidung G, 06.11.) | `spielt`; nach Dienst-Neustart `pausiert` |
 | beliebig | Kopfhörer rein/raus | erst Grenze setzen, dann Ausgang umschalten | unverändert |
 
@@ -1024,12 +1055,15 @@ Zustände: `aus`, `lernt`.
 |---|---|---|---|
 | `aus` | HA-Befehl „Lernmodus“ an diese Box, nicht abgelaufen | Beginnton, Frist 2 min auf der Box starten | `lernt` |
 | `aus` | HA-Befehl abgelaufen | ignorieren, protokollieren | `aus` |
-| `lernt` | `PLACED` (bekannt oder unbekannt) | Kennung an HA melden, Endeton | `aus` |
+| `lernt` | `PLACED` (bekannt oder unbekannt) | Kennung an HA melden, Endeton (die Sitzung spielt nichts und wartet auf HA, Entscheidung H, 07.11.) | `aus` |
 | `lernt` | Frist 2 min ohne Tobie | Endeton | `aus` |
 | `lernt` | HA „abbrechen“ | Endeton | `aus` |
 
-Der Lernmodus ändert die Reaktion der Wiedergabe-Sitzung nicht: Ein unbekannter Tobie startet weiter die Überraschungs-Serie, bis HA die
-Zuordnung schickt. Der Befehl geht an genau eine Box, ist nicht dauerhaft
+**Lernmodus wartet still (Entscheidung H, 07.11.):** Im Zustand `lernt` startet ein aufgelegter
+Tobie, bekannt oder unbekannt, **nichts**. Es kommt nur der Endeton; die Wiedergabe-Sitzung wartet bis zu 10 s
+auf HA (siehe Sitzungstabelle, Zeilen „wartet“, und `core-interface.md`, 9.8). Die Zuordnung startet sofort das
+neue Ziel; „abgelehnt“ und 10 s ohne Antwort verhalten sich wie ein normales Auflegen. `unknown.json` und
+Melden laufen unverändert. Der Befehl geht an genau eine Box, ist nicht dauerhaft
 (nicht „retained“) und hat eine Ablaufzeit (Baustein 4).
 
 **3. Ruhe-Regeln** (`quiet` für Leise-Zeiten, `bedtime` für Gute Nacht)
@@ -1946,7 +1980,7 @@ von `tobibox sim ack`; HA ersetzt sie in Stufe 3a.
 | `box/src/tobibox/learn.py` | neu | Teilautomat Lernmodus (Tabelle „Lernmodus“): 2-min-Frist auf der Box und Ablaufzeit des Befehls nach `mqtt-v1.md`. |
 | `box/src/tobibox/outbox.py` | neu | Ereignis-Ausgang mit Bestätigung: `unknown.json` führen; Eintrag erst löschen, wenn das Ereignis `bestätigt` eintrifft. |
 | `box/src/tobibox/sim.py` | neu | **Gemeinsamer Simulations-Treiber:** lauscht auf dem Unix-Socket `sim.sock` im Zustandsverzeichnis, liest JSON-Zeilen und macht Ereignisse daraus. Befehle in Stufe 2: `learn`, `ack`, `card` sowie (aus AP 2.4) `learn_abort` (Lernmodus abbrechen, CLI: `tobibox sim learn-abort`) und `status` (Antwort mit dem Status des Dienstes für `tobibox status`, erzeugt kein Ereignis). Spätere Stufen erweitern ihn. |
-| `box/tests/unit/test_learn.py` | neu | Alle Zeilen der Tabelle „Lernmodus“, abgelaufener Befehl wird ignoriert. |
+| `box/tests/unit/test_learn.py` | neu | Alle Zeilen der Tabelle „Lernmodus“, abgelaufener Befehl wird ignoriert. Entscheidung H (07.11.): zusätzlich `box/tests/unit/test_session_lernwarten.py` für das stille Warten der Sitzung (Zuordnung, abgelehnt, Frist 10 s, Abheben, Tasten, bekannter Tobie). |
 | `box/tests/unit/test_outbox.py` | neu | Eintrag bleibt ohne Bestätigung, auch nach Neustart; wird mit Bestätigung gelöscht; doppelte Bestätigung schadet nicht. |
 | `box/tests/unit/test_sim.py` | neu | JSON-Zeilen über den Socket werden zu den erwarteten Ereignissen; ungültige Zeilen werden protokolliert und ignoriert. |
 
@@ -1983,13 +2017,13 @@ die CUJ-Tests der Stufe laufen.
 | `box/src/tobibox/app.py` | änd. | `outbox` und `sim` verdrahten. |
 | `box/src/tobibox/cli.py` | änd. | `tobibox status` ausführlich; `tobibox sim learn`, `tobibox sim ack` und `tobibox sim card` (Karte als Aktion in `config.json` zuordnen, bis HA das in Stufe 3a übernimmt; schreibt das Feld `ziel` der Version 2, `data-model.md`, Abschnitt 2, Entscheidung F, 05.11.). |
 | `box/tests/cuj/test_cuj07a_unbekannte_figur.py` | neu | CUJ 7a: Überraschungs-Serie, Eintrag in `unknown.json`, Löschen erst nach `ack`, Wechsel auf die Serie nach der Zuordnung. |
-| `box/tests/cuj/test_cuj07b_lernmodus.py` | neu | CUJ 7b ohne HA: Lernmodus per `tobibox sim learn`, Frist 2 min, Abbruch, abgelaufener Befehl. |
+| `box/tests/cuj/test_cuj07b_lernmodus.py` | neu | CUJ 7b ohne HA: Lernmodus per `tobibox sim learn`, Frist 2 min, Abbruch, abgelaufener Befehl. Entscheidung H (07.11.): kein Ton `unbekannt` und keine Überraschung zwischen Auflegen und Zuordnung; abgelehnt, Frist 10 s, Abheben, Tasten. |
 | `box/tests/cuj/test_cuj11_status.py` | neu | CUJ 11: Status-Admin-Karte als pytest-Tabelle. |
 | `box/tests/integration/test_sim_cli.py` | neu | `tobibox sim …` als eigener Prozess gegen den laufenden Dienst. |
 | `box/src/tobibox/ha_ersatz.py` | neu | HA-Ersatz bis Stufe 3a: schreibt nach dem Lernlauf die Zuordnung in `config.json` (Revision + 1) und bestätigt sie. Spielt die Rolle von HA; Stufe 3a ersetzt ihn durch MQTT. |
 | `box/src/tobibox/status.py` | neu | Statussammler: merkt sich die zuletzt gesehenen Werte (Leser, Netz, Zustand, Konfiguration) für `tobibox status` und die Status-Karte. Kein Teil des Kerns. |
 | `box/src/tobibox/ausgang.py` | neu | Gemeinsame Verdrahtung von Outbox, `sim` und HA-Ersatz. `App` und der Testaufbau nutzen dieselbe Klasse, damit die Tests den echten Code prüfen. |
-| `box/tests/cuj/test_cuj07b_app.py` | neu | CUJ 7b gegen die echte `App`: Lernmodus mit Frist und Abbruch, bestehende Zuordnung, `sim=true` in den Protokollzeilen. |
+| `box/tests/cuj/test_cuj07b_app.py` | neu | CUJ 7b gegen die echte `App`: Lernmodus mit Frist und Abbruch, bestehende Zuordnung, `sim=true` in den Protokollzeilen. Entscheidung H (07.11.): kein Ton `unbekannt` und keine Überraschung zwischen Auflegen und Zuordnung; abgelehnt, Frist 10 s, Abheben, Tasten. |
 
 Abnahme AP 2.4:
 

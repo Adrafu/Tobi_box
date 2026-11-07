@@ -15,6 +15,11 @@
     Im Code heißt ein Tobie aus historischen Gründen `figur`; Namen wie
     `Aufgelegt` und `figur_liegt` bleiben unverändert.
 
+*   **Änderung 07.11. (Entscheidung H, 07.11.):** Im Lernmodus wartet ein aufgelegter
+    Tobie still auf die Antwort von HA (nichts spielt, nur der Lernton, Frist
+    `LERN_ANTWORT_FRIST_S` = 10 s). `Bestaetigt` mit `art="gelernt"` erreicht jetzt
+    auch den Kern (nur `session` beachtet es). Siehe Abschnitt 9, Punkt 8.
+
 Die **Tabellen „Wiedergabe-Sitzung“, „Lernmodus“, „Ruhe-Regeln“ und
 „Strom / Leerlauf“** in „Kern-Zustände“ des Designs sind Teil dieses Vertrags
 und gelten unverändert. Dieses Dokument legt fest, **wie** die Teilautomaten
@@ -40,7 +45,7 @@ Der Kern fragt nie selbst eine Uhr.
 
 | Feld | Typ | Bedeutung |
 |---|---|---|
-| `mono` | `float` | monotone Uhr in Sekunden, beliebiger Nullpunkt, springt nie rückwärts. **Alle Dauern und Fristen** (Leser-Frist 3 s, MPD-Frist 5 s, Lernmodus 2 min, Gute-Nacht-Timer, Leerlauf 20 min, Zeiger alle 30 s) laufen auf `mono`. |
+| `mono` | `float` | monotone Uhr in Sekunden, beliebiger Nullpunkt, springt nie rückwärts. **Alle Dauern und Fristen** (Leser-Frist 3 s, MPD-Frist 5 s, Lernmodus 2 min, Wartezeit auf HA im Lernmodus 10 s (Entscheidung H, 07.11.), Gute-Nacht-Timer, Leerlauf 20 min, Zeiger alle 30 s) laufen auf `mono`. |
 | `wall` | `float` | Wanduhr als UTC-Sekunden seit 1970. Nur für Leise-Zeiten, Ablaufzeit von HA-Befehlen und Zeitstempel im Ereignisprotokoll und in `unknown.json`. |
 | `zeit_quelle` | `Literal["system","rtc","ntp","unbekannt"]` | woher `wall` stammt (`system` = Systemuhr am Mac) |
 | `zeit_ok` | `bool` | `wall` ist vertrauenswürdig (Mac: immer `True`; Pi: RTC beim Start gelesen oder NTP seit dem Start synchron) |
@@ -149,7 +154,7 @@ Alle HA-Befehle tragen eine Ablaufzeit. Der Kern prüft sie mit `jetzt.wall` und
 | `HaSyncAnstossen` | `befehl_id: str`, `gueltig_bis: float` | Sync jetzt. |
 | `HaUpdateAnstossen` | `befehl_id: str`, `version: str`, `gueltig_bis: float` | Update installieren. |
 | `HaVerbindung` | `ok: bool` | Verbindung zum Broker steht (`True`) oder ist weg. **Geht nicht an den Kern** (kein Teilautomat verarbeitet sie), sondern nur an den Statussammler und `selftest` (Abschnitt 6.5 und 12). |
-| `Bestaetigt` | `id: str`, `grund: str`, `zuletzt: str`, `art: Literal["unbekannt","gelernt"]` | Bestätigung von HA für einen gemeldeten Eintrag (Abschnitt 7). `zuletzt` und `art` sind die Werte der veröffentlichten Meldung, die HA bestätigt. **Geht nicht an den Kern**, sondern an `outbox` (`app` verteilt). |
+| `Bestaetigt` | `id: str`, `grund: str`, `zuletzt: str`, `art: Literal["unbekannt","gelernt"]` | Bestätigung von HA für einen gemeldeten Eintrag (Abschnitt 7). `zuletzt` und `art` sind die Werte der veröffentlichten Meldung, die HA bestätigt. `app` gibt sie zuerst an `outbox`. **Mit `art="gelernt"` geht sie danach auch an den Kern** (Entscheidung H, 07.11.): `session` beendet damit das Warten im Lernmodus, wenn `grund="abgelehnt"` und `id` die Kennung des wartenden Tobies ist (Abschnitt 9, Punkt 8). Mit `art="unbekannt"` geht sie nicht an den Kern. |
 
 ### 3.5 Bedienung und Kopfhörer (Quelle `controls`, `headphones`; in der Simulation `sim`)
 
@@ -229,7 +234,7 @@ Unterklassen von `InternesEreignis` und verlassen den Kern nie.
 |---|---|---|---|
 | `SitzungGeaendert` | `zustand: str`, `figur_liegt: bool`, `spielt: bool`, `serie_id: str \| None` | `session` → `idle`, `bedtime` | Zustand der Wiedergabe-Sitzung hat sich geändert. `figur_liegt` gilt auch für Aktionskarten. |
 | `AktionAusgeloest` | `aktion: Literal["status","gute_nacht"]`, `vorgang: str` | `session` → `bedtime` (und `core` für `status`) | Aktionskarte wurde aufgelegt. |
-| `LernenGeaendert` | `aktiv: bool` | `learn` → `idle`, `session` | Lernmodus beginnt oder endet. |
+| `LernenGeaendert` | `aktiv: bool` | `learn` → `idle`, `session` | Lernmodus beginnt oder endet. `session` merkt sich den Wert (Entscheidung H, 07.11.): Ein `Aufgelegt` mit Kennung, das bei `aktiv=True` eintrifft, wird nicht gespielt, sondern abgewartet. Die Sitzung sieht `Aufgelegt` vor `learn` (feste Reihenfolge, 6.1), also noch mit `aktiv=True`. |
 | `StummBeginnt` | – | `quiet` → `session` | ein „stumm“-Fenster beginnt. Bei nicht vertrauenswürdiger Zeit gibt es nie „stumm“ (`data-model.md`, Abschnitt 2). |
 | `StummEndet` | – | `quiet` → `session` | ein „stumm“-Fenster endet. |
 | `GrenzeGesetzt` | `name: str`, `prozent: int \| None` | `quiet`, `bedtime`, `session` → `core` | setzt (`int`) oder löscht (`None`) die benannte Lautstärke-Grenze (Abschnitt 8). `core` behandelt sie selbst, die Teilautomaten sehen sie nicht. |
@@ -290,7 +295,7 @@ kennzeichen(zustand: Zustand) -> str                # kurzer Name des Zustands f
 
 | Modul | Name im Design | Zustände (`kennzeichen`) | Verarbeitet (Ereignisse) | Gibt aus |
 |---|---|---|---|---|
-| `session.py` | Wiedergabe-Sitzung | `leer`, `spielt`, `pausiert`, `beendet`, `gehalten`, `unbekannt` | `GeraeteEinstellungen`, `KonfigGeladen`, `BibliothekGeladen`, `ResumeGeladen`, `Bereit`, `Aufgelegt`, `Gesperrt`, `Abgehoben`, `LeserHallo`, `LeserAlarm`, `LeserHerzschlag`, `LautstaerkeGeaendert`, `TrackWechsel`, `FolgeZuEnde`, `PlayerPosition`, `PlayerFehler`, `PlayerVerbindung`, `Hauptknopf`, `Weiter`, `Zurueck`, `Kopfhoerer`, `Takt`, `StummBeginnt`, `StummEndet`, `LernenGeaendert`, `GuteNachtEnde`, `HerunterfahrenAngefordert`, `DienstEndet` | `Abspielen`, `Pausieren`, `ZeigerSpeichern`, `TonSpielen`, `Melden`, `AusgangWaehlen`, `LeserPing`, `Protokoll`; intern `SitzungGeaendert`, `AktionAusgeloest`, `GrenzeGesetzt` (`kopfhoerer`, `ausblenden`) |
+| `session.py` | Wiedergabe-Sitzung | `leer`, `spielt`, `pausiert`, `beendet`, `gehalten`, `unbekannt` | `GeraeteEinstellungen`, `KonfigGeladen`, `BibliothekGeladen`, `ResumeGeladen`, `Bereit`, `Aufgelegt`, `Gesperrt`, `Abgehoben`, `LeserHallo`, `LeserAlarm`, `LeserHerzschlag`, `LautstaerkeGeaendert`, `TrackWechsel`, `FolgeZuEnde`, `PlayerPosition`, `PlayerFehler`, `PlayerVerbindung`, `Hauptknopf`, `Weiter`, `Zurueck`, `Kopfhoerer`, `Takt`, `StummBeginnt`, `StummEndet`, `LernenGeaendert`, `Bestaetigt` (nur `art="gelernt"`, Entscheidung H, 07.11.), `GuteNachtEnde`, `HerunterfahrenAngefordert`, `DienstEndet` | `Abspielen`, `Pausieren`, `ZeigerSpeichern`, `TonSpielen`, `Melden`, `AusgangWaehlen`, `LeserPing`, `Protokoll`; intern `SitzungGeaendert`, `AktionAusgeloest`, `GrenzeGesetzt` (`kopfhoerer`, `ausblenden`) |
 | `learn.py` | Lernmodus | `aus`, `lernt` | `HaLernmodus`, `HaLernmodusAbbruch`, `Aufgelegt`, `Gesperrt`, `Takt` | `TonSpielen`, `Melden`, `EreignisSenden`, `Protokoll`; intern `LernenGeaendert` |
 | `quiet.py` und `bedtime.py` | Ruhe-Regeln | `quiet`: `normal`, `leiser`, `stumm`; `bedtime`: `aus`, `laeuft`, `ausblenden` | `KonfigGeladen`, `Takt`, `ZeitquelleGeaendert`, `LautstaerkeGeaendert` (`quiet`); `KonfigGeladen`, `Takt`, `AktionAusgeloest`, `Abgehoben`, `LautstaerkeGeaendert` (`bedtime`) | `Protokoll`; intern `StummBeginnt`, `StummEndet`, `GrenzeGesetzt` (`leise_zeit`, `ausblenden` aus `quiet`; `gute_nacht` aus `bedtime`), `GuteNachtEnde` (aus `bedtime`) |
 | `idle.py` | Strom / Leerlauf | `aktiv`, `leerlauf`, `herunterfahren` | `SitzungGeaendert`, `LernenGeaendert`, `Takt`, `Hauptknopf` (lang), `AkkuTiefstand`, `LaderGeaendert`, `NetzKlasse`, `SyncGestartet`, `SyncFertig`, `SyncAbgebrochen`, `UpdateGestartet`, `SelbsttestErgebnis`, `HaSyncAnstossen`, `HaUpdateAnstossen`, `Bereit` | `SyncStarten`, `SyncAbbrechen`, `UpdateStarten`, `EreignisSenden`, `Protokoll`; intern `HerunterfahrenAngefordert` |
@@ -329,6 +334,8 @@ Hinweise:
 | Kopfhörer rein / raus | `Kopfhoerer(steckt=…)` |
 | HA-Befehl Lernmodus / abbrechen | `HaLernmodus` / `HaLernmodusAbbruch` |
 | Frist 2 min | `Takt` mit `jetzt.mono ≥ Frist` |
+| Frist 10 s auf HA im Lernmodus (Entscheidung H, 07.11.) | `Takt` mit `jetzt.mono ≥ Frist` |
+| HA lehnt den gelernten Tobie ab (Entscheidung H, 07.11.) | `Bestaetigt` mit `art="gelernt"`, `grund="abgelehnt"` |
 | Start mit liegendem Tobie | `Aufgelegt` nach `Bereit` (`app` hält Leser-Ereignisse bis `Bereit` zurück) |
 | Akku-Tiefstand | `AkkuTiefstand` |
 | Sync, Update oder Lernmodus läuft | Zustandsfelder in `idle` aus `SyncGestartet`/`SyncFertig`/`SyncAbgebrochen`, `UpdateGestartet`/`SelbsttestErgebnis`, `LernenGeaendert` |
@@ -545,6 +552,10 @@ Reihenfolge nacheinander aus.
 *   Nach dem Schreiben lässt `outbox` den Eintrag durch `ha` veröffentlichen
     (`mqtt-v1.md`). Ohne Verbindung bleibt er in der Datei und wird bei der
     nächsten Verbindung veröffentlicht.
+*   **Ausnahme vom reinen Ausgang (Entscheidung H, 07.11.):** Eine `Bestaetigt` mit
+    `art="gelernt"` geht nach `outbox` **auch an den Kern**. Sie ändert dort nur die
+    Sitzung, die im Lernmodus auf HA wartet (Abschnitt 9, Punkt 8); `outbox` und
+    `unknown.json` bleiben davon unberührt.
 *   Die **Bestätigung** kommt als `Bestaetigt(id, grund, zuletzt, art)` (`id` =
     Kennung): in Stufe 2 von `tobibox sim ack`, ab Stufe 3a von `ha` (HA hat auf
     dem Thema `…/ack` geantwortet). `zuletzt` und `art` nennen die
@@ -752,6 +763,65 @@ gekennzeichneten sind von Tobias oder der Projektleitung entschieden
     der Lernmodus läuft weiter). Bei „stumm“ und Lernmodus gilt Regel 6.2.2:
     Beginn- und Endeton werden zum leisen Hinweiston. Die Frist 2 min beginnt
     bei der Annahme des Befehls auf `jetzt.mono` und heißt `LERN_FRIST_S` = 120.
+
+    **Lernmodus wartet still (Entscheidung H, 07.11.).** Wird im Zustand `lernt` ein
+    Tobie mit Kennung aufgelegt (`Aufgelegt`, neue Vorgangs-ID), bekannt oder
+    unbekannt, spielt die Box **nichts**: keinen Tobie, keine Überraschungs-Serie,
+    keinen Ton `unbekannt`. Es kommt nur der Lernton (`lernen_ende` von `learn`). Die
+    Sitzung wartet auf die Antwort von HA. Umsetzung: `session` kennt `lernt` aus
+    `LernenGeaendert` und führt ein Feld `lern_wartet_bis` (`mono`, sonst `None`).
+    Der Sitzungszustand (`kennzeichen`) ist während des Wartens `pausiert`, der Tobie
+    liegt (`figur_liegt`); es gibt keinen neuen Wert für `ZustandMelden.sitzung`.
+    Läuft bei `Aufgelegt` noch eine Wiedergabe, gilt zuerst die Regel „anderer Tobie“
+    (Zeiger speichern, `Pausieren("abgehoben")`). `Aufgelegt` mit Kennung wartet für
+    jede Art von Tobie, auch für eine Aktionskarte (sie löst dann keine Aktion aus);
+    `Gesperrt` hat keine Kennung und wartet nicht (er ändert den Lernmodus nicht).
+    *   **Melden:** unverändert. `session` meldet einen unbekannten Tobie wie bisher
+        (`Melden("unbekannt")`), `learn` meldet `Melden("gelernt", uid, befehl_id)`;
+        Regel 6.2.4 lässt `gelernt` gewinnen. `unknown.json` und die Veröffentlichung
+        laufen unverändert. Nur Wiedergabe und der Ton `unbekannt` warten.
+    *   **Das Warten endet** mit genau einem dieser Ereignisse (danach läuft es nicht
+        mehr; die Vorgangs-ID des Tobies bleibt):
+        1.  **Zuordnung:** `KonfigGeladen`, deren `zuordnungen` die Kennung des
+            wartenden Tobies enthalten. Die Sitzung startet sofort das Ziel wie beim
+            Auflegen (Zeiger laden, `Abspielen`; bei „stumm“ gilt 9.12; ist das Ziel
+            Serie oder Folge nicht vorhanden, gilt 6.3 „fehlt“). Eine
+            `KonfigGeladen` ohne diese Kennung lässt das Warten weiterlaufen.
+        2.  **Ablehnung:** `Bestaetigt` mit `art="gelernt"`, `grund="abgelehnt"` und
+            `id` = Kennung des wartenden Tobies. Die Sitzung verhält sich wie bei einem
+            normalen Auflegen ohne Lernmodus: bekannt → sein Ziel; unbekannt →
+            Überraschungs-Serie mit Ton `unbekannt` (ohne ein zweites `Melden`; die
+            Meldung ist schon abgesetzt). Jeder andere `grund` (z. B. `zugeordnet`)
+            beendet das Warten nicht; er ändert nur `outbox`.
+        3.  **Frist:** `Takt` mit `jetzt.mono ≥ lern_wartet_bis`, gemessen ab dem
+            `Aufgelegt` auf `mono`, `LERN_ANTWORT_FRIST_S` = 10 (Konstante in
+            `session.py`). Wirkung wie bei der Ablehnung. Kommt die Zuordnung danach
+            doch noch, gilt Punkt 14 (neue Konfiguration bei liegendem Tobie), weil der
+            Tobie dann als gestartetes Ziel seine Überraschung oder sein altes Ziel hat.
+        4.  **Abheben:** `Abgehoben` (oder ein Herzschlag, der das Abheben feststellt)
+            beendet das Warten ohne Wirkung, es spielt nichts: wie ein normales Abheben
+            ohne laufende Wiedergabe (`pausiert`, kein Tobie).
+    *   **Eingaben während des Wartens (festgelegt 07.11.):**
+
+        | Eingabe | Wirkung |
+        |---|---|
+        | Lautstärke drehen (`LautstaerkeDrehen`) | wirkt wie immer (Sache des Kerns, nicht der Sitzung) |
+        | `Hauptknopf` kurz | ignoriert (nur `Protokoll`), kein Ton, die Frist läuft weiter |
+        | `Weiter`, `Zurueck` | ignoriert (nur `Protokoll`), kein Ton, die Frist läuft weiter |
+        | `Hauptknopf` lang | gehört `idle` (Herunterfahren), unberührt |
+        | `Kopfhoerer`, `StummBeginnt`, `StummEndet`, `GuteNachtEnde` | wirken wie immer; es läuft keine Wiedergabe, die sie ändern könnten |
+
+        Der Zweck: Ein Druck soll nicht die Überraschung oder das alte Ziel starten,
+        solange HA noch antworten kann.
+    *   **Ein anderer Tobie während des Wartens:** Der Lernmodus ist nach dem ersten
+        Tobie schon `aus` (`learn` hat ihn beendet). Der zweite Tobie wird deshalb ganz
+        normal behandelt (Auflegen nach 6.3 und 9.12); das Warten des ersten endet
+        damit ohne eigene Wirkung. Dieselbe Kennung mit neuer Vorgangs-ID (verlorenes
+        `REMOVED`, 9.4) lässt das Warten weiterlaufen.
+    *   **Dienst-Neustart während des Wartens (Entscheidung G, 06.11.):** Der Lernmodus
+        überlebt keinen Neustart; der Tobie liegt in `lauf.json` und bleibt nach dem
+        Neustart `pausiert`, wie in Punkt 12 beschrieben.
+    *   **Regel 6.2.2 („stumm“)** gilt unverändert für `lernen_ende`.
 9.  **Befehle von HA: wer prüft was** (bestätigt 05.11. für die unsichere Uhr).
     Die Prüfungen verteilen sich so; `ha` ist das Modul der Box, das MQTT
     spricht, der „Kern“ ist `learn.py`/`idle.py`:
@@ -931,7 +1001,7 @@ gekennzeichneten sind von Tobias oder der Projektleitung entschieden
 | `store` | – | `ZeigerSpeichern` |
 | `library` | `BibliothekGeladen` (nach Änderung) | – |
 | `outbox` | – | `Melden`; nimmt `Bestaetigt` an |
-| `ha` | `KonfigGeladen` (angenommene Liste), `HaLernmodus`, `HaLernmodusAbbruch`, `HaSyncAnstossen`, `HaUpdateAnstossen`, `HaVerbindung` (nur an Statussammler und `selftest`), `Bestaetigt` | `EreignisSenden`, `ZustandMelden` (Statussammler baut daraus den Status, Abschnitt 12), Veröffentlichung für `outbox`; veröffentlicht `liste_abgelehnt`, `v_unbekannt`, `befehl_unbekannt` selbst (Punkt 9.9), ohne Kern-Befehl |
+| `ha` | `KonfigGeladen` (angenommene Liste), `HaLernmodus`, `HaLernmodusAbbruch`, `HaSyncAnstossen`, `HaUpdateAnstossen`, `HaVerbindung` (nur an Statussammler und `selftest`), `Bestaetigt` (an `outbox`; mit `art="gelernt"` auch an den Kern, Entscheidung H, 07.11.) | `EreignisSenden`, `ZustandMelden` (Statussammler baut daraus den Status, Abschnitt 12), Veröffentlichung für `outbox`; veröffentlicht `liste_abgelehnt`, `v_unbekannt`, `befehl_unbekannt` selbst (Punkt 9.9), ohne Kern-Befehl |
 | `sounds` | – | `TonSpielen` (auch für `selftest`) |
 | `controls` | `Hauptknopf`, `Weiter`, `Zurueck`, `LautstaerkeDrehen` | – |
 | `headphones` | `Kopfhoerer` | – |
@@ -960,6 +1030,7 @@ Modulkonstanten mit genau diesen Namen. Es gibt keine eigene Konstanten-Datei.
 | `ZURUECK_NEU_S` | 3,0 | `pointer.py` (Zurück in den ersten 3 s eines Tracks → voriger Track, sonst aktuellen Track neu starten; Entscheidung F, 05.11.) |
 | `SPEICHERN_PERIODISCH_S` | 30 | `session.py` |
 | `LERN_FRIST_S` | 120 | `learn.py` |
+| `LERN_ANTWORT_FRIST_S` | 10 | `session.py` (Wartezeit auf HA, wenn im Lernmodus ein Tobie aufgelegt wird, `mono`, Punkt 9.8) (Entscheidung H, 07.11.) |
 | `LEERLAUF_S` | 1200 (20 min) | `idle.py` |
 | `STUMM_AUSBLENDEN_S` | 3,0 | `session.py` |
 | `LEISER_ABSENKEN_S` | 3,0 | `quiet.py` |
@@ -1154,3 +1225,8 @@ Projektleitung (P) entschieden oder aus dem Goldfisch-Review übernommen
     Protokoll), erst nach dem letzten Track gilt das Ende der Folge (9.10).
 28. **Bestätigt (05.11., Entscheidung F): Statusfeld `folge`** `{name, track}`
     ist optional (12.1).
+29. **Bestätigt (07.11., Entscheidung H, T): Lernmodus wartet still.** Ein im
+    Lernmodus aufgelegter Tobie startet nichts, bis HA die Zuordnung schickt, die
+    Ablehnung meldet oder 10 s vergangen sind (9.8). Hauptknopf und Vor / Zurück
+    bewirken in dieser Zeit nichts, die Lautstärke wirkt (Festlegung der
+    Projektleitung nach Empfehlung; Tobias kann sie ändern).

@@ -564,3 +564,52 @@ def test_folge_zu_ende_im_kern_pausiert_und_speichert_den_folgen_zeiger():
         zeiger_speichern("s3", "cd", None, 0.0, "folgenende", track=0, art="folge"),
     ]
     assert k.modus == "beendet"
+
+
+# --- Lernmodus wartet still (Entscheidung H, 07.11.): echter Kern mit ``session`` und ``learn`` ------------------
+
+
+def _lern_kern():
+    """Echter Kern mit beiden Teilautomaten; der Lernmodus läuft."""
+    from conftest import KernHarnisch
+
+    k = KernHarnisch()
+    assert [n for n, _ in core.TEILAUTOMATEN][:2] == ["session", "learn"]
+    k.sende(ev.HaLernmodus("b1", k.uhr.wall + 60))
+    assert k.z.teil["learn"].modus == "lernt" and k.z.session.lernt
+    return k
+
+
+def test_kern_lernmodus_aufgelegt_nur_endeton_und_melden_dann_zuordnung_startet_das_ziel():
+    from conftest import UID_UNBEKANNT, ZUORDNUNGEN, mk_konfig
+
+    k = _lern_kern()
+    out = k.sende(ev.Aufgelegt(UID_UNBEKANNT, "ntag", False, 0, "v1"))
+    assert [b.ton for b in out if isinstance(b, ev.TonSpielen)] == ["lernen_ende"]
+    assert [b for b in out if isinstance(b, ev.Melden)] == [ev.Melden("gelernt", UID_UNBEKANNT, "b1")]
+    assert not [b for b in out if isinstance(b, ev.Abspielen)] and k.modus == "pausiert"
+    assert k.z.teil["learn"].modus == "aus"
+    out = k.sende(ev.KonfigGeladen(mk_konfig({**ZUORDNUNGEN, UID_UNBEKANNT: ev.Zuordnung("serie", "s2")}, revision=2)))
+    assert [b.serie_id for b in out if isinstance(b, ev.Abspielen)] == ["s2"] and k.modus == "spielt"
+    assert not [b for b in out if isinstance(b, ev.TonSpielen)]
+
+
+def test_kern_bestaetigt_abgelehnt_beendet_das_warten():
+    from conftest import UID_UNBEKANNT
+
+    k = _lern_kern()
+    k.sende(ev.Aufgelegt(UID_UNBEKANNT, "ntag", False, 0, "v1"))
+    out = k.sende(ev.Bestaetigt(UID_UNBEKANNT, "abgelehnt", "z", "gelernt"))
+    assert [b.ton for b in out if isinstance(b, ev.TonSpielen)] == ["unbekannt"]
+    assert [b.serie_id for b in out if isinstance(b, ev.Abspielen)] == ["ueb"] and k.modus == "spielt"
+    assert not [b for b in out if isinstance(b, ev.Melden)]
+
+
+def test_kern_frist_10_s_ohne_antwort():
+    from conftest import UID_UNBEKANNT
+
+    k = _lern_kern()
+    k.sende(ev.Aufgelegt(UID_UNBEKANNT, "ntag", False, 0, "v1"))
+    assert not [b for b in k.sende(ev.Takt(), dt=9.9) if isinstance(b, ev.Abspielen)]
+    out = k.sende(ev.Takt(), dt=0.2)
+    assert [b.serie_id for b in out if isinstance(b, ev.Abspielen)] == ["ueb"]

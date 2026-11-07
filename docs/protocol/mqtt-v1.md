@@ -417,6 +417,24 @@ synchronisierte (dann spielt die Box die Überraschungs-Serie, bis sie da ist,
     mit `grund="zugeordnet"` (oder `abgelehnt`) und `zuletzt`/`art` der Meldung.
 5.  HA veröffentlicht die neue Konfiguration; das Ziel spielt (die Serie an ihrem
     Zeiger, die Folge von vorn oder an ihrem Zeiger).
+    **Ablauf aus Sicht der Box (Entscheidung H, 07.11.):** Von Schritt 3 bis zur Antwort
+    spielt die Box **nichts**: Beim Auflegen kommt nur der Lernton (`lernen_ende`), keine
+    Überraschung und kein Ton `unbekannt`, auch nicht bei einem schon bekannten Tobie.
+    Die Box wartet bis zu **10 s** (`LERN_ANTWORT_FRIST_S`, gemessen auf der
+    Box) auf HA. Es gilt, was zuerst eintrifft:
+    *   Die neue Konfiguration mit der Zuordnung dieses Tobies (Schritt 5): das Ziel
+        startet sofort. HA soll deshalb die Konfiguration **vor** oder gleichzeitig mit
+        dem `ack` veröffentlichen; ein `ack` mit `grund="zugeordnet"` allein beendet das
+        Warten nicht.
+    *   Der `ack` mit `grund="abgelehnt"` (Schritt 4): das Warten endet sofort. Die Box
+        verhält sich wie bei einem normalen Auflegen, ein bekannter Tobie spielt sein
+        Ziel, ein unbekannter die Überraschung mit dem Ton `unbekannt`.
+    *   10 s ohne Antwort: wie bei „abgelehnt“. Kommt die Konfiguration später doch,
+        wechselt die Box darauf (Abschnitt 4.1, Schritt 6).
+    *   Der Tobie wird abgehoben: das Warten endet, nichts spielt.
+    Die Meldung `gelernt` und der Eintrag in `unknown.json` bleiben unverändert; der
+    `ack` löscht den Eintrag wie bisher. Hauptknopf, Vor und Zurück bewirken während des
+    Wartens nichts, die Lautstärke wirkt.
 6.  `lernen_abbrechen` beendet den Lernmodus jederzeit. Nach 2 min ohne Tobie
     endet er von selbst.
 

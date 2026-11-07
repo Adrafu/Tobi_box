@@ -7,6 +7,9 @@
   schreibt nicht die Box, sondern HA (Stufe 2: der HA-Ersatz, ``ha_ersatz.py``): ``config.json`` bekommt
   Revision + 1, die Box bestätigt mit ``zugeordnet``, löscht den Eintrag in ``unknown.json``, und der Tobie
   spielt sein Ziel.
+* Entscheidung H (07.11.): Zwischen Auflegen und Zuordnung spielt die Box **nichts** (keine Überraschung, kein
+  Ton ``unbekannt``, nur ``lernen_ende``). „Abgelehnt“ und 10 s ohne Antwort verhalten sich wie ein normales
+  Auflegen. Abheben beendet das Warten, Hauptknopf und Vor / Zurück bewirken in dieser Zeit nichts.
 
 Dazu: Frist 2 min, Abbruch, abgelaufener Befehl, unsichere Uhr (``core-interface.md``, Tabelle „Lernmodus“,
 Regel 9.9). Echter Kern mit ``learn``, echte ``unknown.json`` und ``config.json`` (``SimBox``).
@@ -19,6 +22,7 @@ from conftest import SimBox
 from fixtures import audio
 
 from tobibox import events as ev
+from tobibox import session
 from tobibox.learn import LERN_FRIST_S
 
 SERIE = "3f9a1c07b2d4"
@@ -70,6 +74,93 @@ def test_ziel_serie_tobie_wird_gelernt_zugeordnet_bestaetigt_und_spielt_die_seri
     # der Tobie spielt jetzt die Serie (nicht die Überraschung)
     assert box.befehle(ev.Abspielen, n)[-1].serie_id == SERIE and box.modus == "spielt"
     assert box.kern.session.figur.art == "serie"
+    # Entscheidung H: nie die Überraschung und nie der Ton ``unbekannt`` auf dem Weg dorthin
+    assert [a.serie_id for a in box.befehle(ev.Abspielen, n)] == [SERIE]
+    assert box.toene(n) == ["lernen_ende"]
+
+
+def test_neuer_tobie_im_lernmodus_wartet_still_bis_ha_antwortet(box):
+    """Entscheidung H: Ohne Antwort von HA spielt nichts, kein Ton ``unbekannt``, nur ``lernen_ende``."""
+    lerne_serie(box)
+    box.ha_ersatz.gelernt = lambda eintrag: None  # HA antwortet noch nicht
+    n = len(box.log)
+    box.auflege(NEU)
+    assert box.befehle(ev.Melden, n) == [ev.Melden("gelernt", NEU, box.sim.lernbefehl_id)]
+    assert box.toene(n) == ["lernen_ende"]
+    assert box.befehle(ev.Abspielen, n) == [] and box.modus == "pausiert"
+    box.laufe(9.5)
+    assert box.befehle(ev.Abspielen, n) == [] and box.toene(n) == ["lernen_ende"]
+    # die Zuordnung trifft ein: sofort das neue Ziel
+    box.sende(_zuordnung(box, NEU))
+    assert [a.serie_id for a in box.befehle(ev.Abspielen, n)] == [SERIE] and box.modus == "spielt"
+    assert box.toene(n) == ["lernen_ende"]
+
+
+def _zuordnung(box, uid, serie=SERIE):
+    from dataclasses import replace
+
+    k = box.kern.session.konfig
+    return ev.KonfigGeladen(replace(k, revision=k.revision + 1, zuordnungen={**k.zuordnungen, uid: ev.Zuordnung("serie", serie)}))
+
+
+def test_ohne_antwort_nach_10_s_unbekannter_tobie_spielt_die_ueberraschung_mit_ton(box):
+    lerne_serie(box)
+    box.ha_ersatz.gelernt = lambda eintrag: None
+    n = len(box.log)
+    box.auflege(NEU)
+    box.laufe(session.LERN_ANTWORT_FRIST_S - 0.5)
+    assert box.befehle(ev.Abspielen, n) == []
+    box.laufe(1.0)
+    assert [a.serie_id for a in box.befehle(ev.Abspielen, n)] == [UEBERRASCHUNG]
+    assert box.toene(n) == ["lernen_ende", "unbekannt"]
+    assert box.befehle(ev.Melden, n) == [ev.Melden("gelernt", NEU, box.sim.lernbefehl_id)]  # nicht noch einmal gemeldet
+    # kommt die Zuordnung doch noch: heutiges Verhalten bei neuer Konfiguration mit liegendem Tobie (9.14)
+    box.sende(_zuordnung(box, NEU))
+    assert box.befehle(ev.Abspielen, n)[-1].serie_id == SERIE and box.modus == "spielt"
+
+
+def test_ohne_antwort_nach_10_s_bekannter_tobie_spielt_sein_ziel(box):
+    lerne_folge(box, "c.wav")
+    box.ha_ersatz.gelernt = lambda eintrag: None
+    n = len(box.log)
+    box.auflege(UID)
+    assert box.befehle(ev.Abspielen, n) == [] and box.toene(n) == ["lernen_ende"]
+    box.laufe(10.5)
+    assert [a.serie_id for a in box.befehle(ev.Abspielen, n)] == [SERIE] and box.toene(n) == ["lernen_ende"]
+
+
+def test_abheben_waehrend_des_wartens_beendet_es_ohne_wiedergabe(box):
+    lerne_serie(box)
+    box.ha_ersatz.gelernt = lambda eintrag: None
+    n = len(box.log)
+    box.auflege(NEU)
+    box.hebe_ab()
+    box.laufe(15.0)
+    assert box.befehle(ev.Abspielen, n) == [] and box.toene(n) == ["lernen_ende"]
+    assert box.modus == "pausiert" and box.kern.session.figur is None
+
+
+def test_tasten_waehrend_des_wartens_bewirken_nichts_die_lautstaerke_wirkt(box):
+    lerne_serie(box)
+    box.ha_ersatz.gelernt = lambda eintrag: None
+    box.auflege(NEU)
+    n = len(box.log)
+    for e in (ev.Hauptknopf("kurz"), ev.Weiter(), ev.Zurueck()):
+        box.sende(e)
+    assert box.befehle(ev.Abspielen, n) == [] and box.toene(n) == [] and box.modus == "pausiert"
+    box.sende(ev.LautstaerkeDrehen(-5))
+    assert box.befehle(ev.LautstaerkeSetzen, n)[-1].prozent == 35  # Startlautstärke 40 - 5
+    assert box.befehle(ev.Abspielen, n) == []
+
+
+def test_abgelehnt_unbekannter_tobie_spielt_sofort_die_ueberraschung_mit_ton(box):
+    lerne_serie(box)
+    box.sim.lernziel = None  # der HA-Ersatz lehnt ab
+    n = len(box.log)
+    box.auflege(NEU)
+    assert box.toene(n) == ["lernen_ende", "unbekannt"]
+    assert [a.serie_id for a in box.befehle(ev.Abspielen, n)] == [UEBERRASCHUNG]
+    assert box.modus == "spielt"
 
 
 def test_ziel_folge_der_tobie_spielt_diese_folge(box):
@@ -117,7 +208,10 @@ def test_bereits_zugeordneter_tobie_wird_nur_mit_ueberschreiben_neu_zugeordnet(b
 def test_bereits_zugeordneter_tobie_bleibt_ohne_ueberschreiben_wie_er_ist(box, protokoll):
     """HA fragt vor dem Überschreiben nach (mqtt-v1.md 4.2); der Ersatz lehnt ohne ``--ueberschreiben`` ab."""
     lerne_folge(box, "c.wav")
+    n = len(box.log)
     box.auflege(UID)
+    # Entscheidung H: „abgelehnt“ beendet das Warten sofort, der bekannte Tobie spielt sein altes Ziel, ohne Ton ``unbekannt``
+    assert [a.serie_id for a in box.befehle(ev.Abspielen, n)] == [SERIE] and box.toene(n) == ["lernen_ende"]
     k = box.konfig_json()
     assert k["revision"] == 1 and k["zuordnungen"][UID]["ziel"] == {"typ": "serie", "serie": SERIE}
     assert box.unknown() == {}  # ``abgelehnt`` bestätigt und löscht den Eintrag wie jeder Grund
@@ -290,7 +384,9 @@ def test_ohne_lernziel_lehnt_der_ha_ersatz_ab_der_eintrag_ist_trotzdem_weg(box):
     """Ein gelernter Tobie ohne Ziel (z. B. der Dienst lief zwischendurch neu): ``abgelehnt``, nichts zugeordnet."""
     lerne_serie(box)
     box.sim.lernziel = None
+    n = len(box.log)
     box.auflege(NEU)
     assert NEU not in box.konfig_json()["zuordnungen"] and box.konfig_json()["revision"] == 1
     assert box.unknown() == {}  # ``abgelehnt`` löscht den Eintrag wie jeder Grund (mqtt-v1, 3.6)
     assert box.befehle(ev.Abspielen)[-1].serie_id == UEBERRASCHUNG
+    assert box.toene(n) == ["lernen_ende", "unbekannt"]  # Entscheidung H: erst nach der Ablehnung

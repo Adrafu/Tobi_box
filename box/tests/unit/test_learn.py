@@ -170,3 +170,18 @@ def test_anderer_tobie_waehrend_ein_anderer_liegt_wird_gelernt(uhr):
     z, _ = learn.step(z, cmd(uhr), uhr.jetzt())
     z, out = learn.step(z, ev.Aufgelegt(UID, "ntag", False, 1, "v2"), uhr.jetzt())
     assert ev.Melden("gelernt", UID, "b1") in out and z.liegt == "v2"
+
+
+def test_bestaetigt_aendert_den_lernmodus_nicht(uhr):
+    """Entscheidung H: Das Warten der Sitzung ist nicht Sache von ``learn``; ``Bestaetigt`` ändert hier nichts."""
+    z = lernt(uhr)
+    z2, out = learn.step(z, ev.Bestaetigt(UID, "abgelehnt", "z", "gelernt"), uhr.jetzt())
+    assert z2 == z and not out
+
+
+def test_aufgelegt_gibt_nur_den_endeton_und_die_meldung_keine_wiedergabe(uhr):
+    """Entscheidung H: ``learn`` selbst gibt nur Ton, Meldung, Ende; ``unbekannt`` und Abspielen warten in ``session``."""
+    z = lernt(uhr)
+    _, out = learn.step(z, ev.Aufgelegt(UID, "ntag", False, 0, "v1"), uhr.jetzt())
+    assert toene(out) == ["lernen_ende"]
+    assert [type(o) for o in out if isinstance(o, (ev.Melden, ev.Abspielen))] == [ev.Melden]
