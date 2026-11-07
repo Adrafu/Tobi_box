@@ -1986,11 +1986,23 @@ die CUJ-Tests der Stufe laufen.
 | `box/tests/cuj/test_cuj07b_lernmodus.py` | neu | CUJ 7b ohne HA: Lernmodus per `tobibox sim learn`, Frist 2 min, Abbruch, abgelaufener Befehl. |
 | `box/tests/cuj/test_cuj11_status.py` | neu | CUJ 11: Status-Admin-Karte als pytest-Tabelle. |
 | `box/tests/integration/test_sim_cli.py` | neu | `tobibox sim …` als eigener Prozess gegen den laufenden Dienst. |
+| `box/src/tobibox/ha_ersatz.py` | neu | HA-Ersatz bis Stufe 3a: schreibt nach dem Lernlauf die Zuordnung in `config.json` (Revision + 1) und bestätigt sie. Spielt die Rolle von HA; Stufe 3a ersetzt ihn durch MQTT. |
+| `box/src/tobibox/status.py` | neu | Statussammler: merkt sich die zuletzt gesehenen Werte (Leser, Netz, Zustand, Konfiguration) für `tobibox status` und die Status-Karte. Kein Teil des Kerns. |
+| `box/src/tobibox/ausgang.py` | neu | Gemeinsame Verdrahtung von Outbox, `sim` und HA-Ersatz. `App` und der Testaufbau nutzen dieselbe Klasse, damit die Tests den echten Code prüfen. |
+| `box/tests/cuj/test_cuj07b_app.py` | neu | CUJ 7b gegen die echte `App`: Lernmodus mit Frist und Abbruch, bestehende Zuordnung, `sim=true` in den Protokollzeilen. |
 
 Abnahme AP 2.4:
 
 - Die CUJ-Tests 7a, 7b und 11 sind grün.
 - Die Tests aus AP 2.1 sind grün.
+
+**Umgesetzt (07.11.):**
+
+- Am Socket `sim.sock` kommen zwei Befehle dazu: `learn_abort` (CLI: `tobibox sim learn-abort`) und `status`. Den Status holt man mit `tobibox status`, nicht mit `tobibox sim`. Er erzeugt kein Ereignis.
+- `tobibox sim learn --ueberschreiben` ersetzt bis Stufe 3a die Rückfrage, die HA vor dem Überschreiben einer bestehenden Zuordnung stellt. Ohne den Schalter bleibt die alte Zuordnung.
+- `leser.geraet = "sim"` heißt: kein Leser. Der Prüfpunkt Leser zeigt dann `simulation`.
+- Der Prüfpunkt Netz ist in Stufe 2 immer ein Fehler, weil es noch keinen Broker (MQTT) gibt. Das entspricht dem Vertrag.
+- Exit-Codes der CLI: `tobibox sim` 0 angenommen, 1 abgelehnt, 2 Eingabe, 3 Dienst nicht erreichbar, 4 keine Berechtigung auf `sim.sock`. `tobibox status` 0 (Medien und Speicher ok, Leser kein Fehler), 1 (sonst), 2 (Konfiguration nicht lesbar).
 
 **Abnahme Stufe 2**
 
