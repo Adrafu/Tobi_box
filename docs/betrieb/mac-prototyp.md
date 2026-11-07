@@ -119,17 +119,21 @@ Wert, 10 %). Hast du eine ältere Kopie von `mpd.conf`, kannst du die Zeile
 
 **4.4 Prüfen**
 
+Hinweis: `nc` unter macOS beendet sich, sobald die Eingabe zu Ende ist, und
+zeigt dann die Antwort von MPD nicht. Deshalb steht in allen Befehlen
+`sleep 1` vor dem Ende.
+
 Im zweiten Terminal:
 
 ```
-printf 'status\nclose\n' | nc localhost 6600
+(printf 'status\n'; sleep 1) | nc localhost 6600
 ```
 
 Die erste Zeile lautet `OK MPD 0.2…`. Danach liest du die Beispielserien in
 die Datenbank von MPD ein:
 
 ```
-printf 'update\nclose\n' | nc localhost 6600
+(printf 'update\n'; sleep 1) | nc localhost 6600
 ```
 
 ## 5. Testserie anlegen
@@ -152,7 +156,7 @@ Testdateien nicht mit `git add` hinzu. Prüfe vor jedem Commit mit `git status`.
 Danach MPD die neue Serie bekannt machen:
 
 ```
-printf 'update\nclose\n' | nc localhost 6600
+(printf 'update\n'; sleep 1) | nc localhost 6600
 ```
 
 ## 6. Konfiguration und Zuordnung
@@ -361,7 +365,7 @@ Der Serial-Monitor (`pio device monitor`) hat den Port noch offen. Mit
 
 **MPD läuft nicht**
 
-- Prüfen: `printf 'status\nclose\n' | nc localhost 6600`.
+- Prüfen: `(printf 'status\n'; sleep 1) | nc localhost 6600`.
   Kommt `Connection refused`, läuft MPD nicht.
 - Schritt 4.3 wiederholen. Im MPD-Fenster stehen Fehlermeldungen.
 - Ein Blick ins Log hilft: `tail ~/tobibox-mpd/mpd.log`.
@@ -376,7 +380,7 @@ Der Serial-Monitor (`pio device monitor`) hat den Port noch offen. Mit
 3. MPD direkt testen, ohne Box:
 
    ```
-   printf 'setvol 30\nadd "serie-a/folge-01.wav"\nplay\nclose\n' | nc localhost 6600
+   (printf 'setvol 30\nadd "serie-a/folge-01.wav"\nplay\n'; sleep 1) | nc localhost 6600
    ```
 
    Hörst du den Piepton nicht, liegt es an Mac oder MPD, nicht an der Box.
@@ -485,7 +489,7 @@ cp ~/Tobi_box/box/medien-beispiel/serie-a/folge-0*.wav ~/Tobi_box/box/medien-bei
 mv ~/Tobi_box/box/medien-beispiel/meine-testserie/cd-test/folge-01.wav ~/Tobi_box/box/medien-beispiel/meine-testserie/cd-test/01.wav
 mv ~/Tobi_box/box/medien-beispiel/meine-testserie/cd-test/folge-02.wav ~/Tobi_box/box/medien-beispiel/meine-testserie/cd-test/02.wav
 mv ~/Tobi_box/box/medien-beispiel/meine-testserie/cd-test/folge-03.wav ~/Tobi_box/box/medien-beispiel/meine-testserie/cd-test/03.wav
-printf 'update\nclose\n' | nc localhost 6600
+(printf 'update\n'; sleep 1) | nc localhost 6600
 ```
 
 Die `config.json` hat `schema_version` 2. **Jeder** Eintrag steht in der Form
@@ -529,7 +533,7 @@ dann als `box/var/config.json.defekt` daneben; das Feld `grund` sagt, was nicht 
 
 - [ ] Die Tests sind grün: `cd ~/Tobi_box/box && pytest -q -k "grenze or klemmen or startlaut"`.
 - [ ] Am Mac: In `box/config/tobibox.toml` `max = 20` und `start = 20` setzen, Dienst neu starten,
-      Tobie auflegen. `printf 'status\nclose\n' | nc localhost 6600 | grep volume` zeigt
+      Tobie auflegen. `(printf 'status\n'; sleep 1) | nc localhost 6600 | grep volume` zeigt
       `volume: 20` oder weniger, nie mehr. (Die harte Kappe auf ALSA-Ebene gehört zum
       Pi-Probelauf.) Danach die Werte wieder zurücksetzen.
 
@@ -553,7 +557,7 @@ Die Messung braucht die Aufnahme am Ausgang. Methode und Befehle: `docs/timing.m
         "angelegt_am": "2026-11-06T09:00:00Z"
       }
       JSON
-      printf 'update\nclose\n' | nc localhost 6600
+      (printf 'update\n'; sleep 1) | nc localhost 6600
       ```
 
       In `box/var/config.json` die Einträge für die NTAG-Karte und den Tonie auf diese
