@@ -20,6 +20,9 @@ from tobibox import lauf
 SERIE = "3f9a1c07b2d4"
 UID = "04a1b2c3"
 UID_ANDERS = "04a1b2c4"
+UID_FOLGE = "04a1b2c5"  # Folge b.wav
+UID_UNBEKANNT = "04ffeedd"
+UEBERRASCHUNG = "c07d2e91a45b"
 
 
 def aufbau(medien):
@@ -29,7 +32,11 @@ def aufbau(medien):
 
 @pytest.fixture
 def box(tmp_path):
-    zuordnungen = {UID: ev.Zuordnung("serie", SERIE), UID_ANDERS: ev.Zuordnung("serie", SERIE)}
+    zuordnungen = {
+        UID: ev.Zuordnung("serie", SERIE),
+        UID_ANDERS: ev.Zuordnung("serie", SERIE),
+        UID_FOLGE: ev.Zuordnung("folge", SERIE, "b.wav"),
+    }
     return CujBox(tmp_path, zuordnungen, aufbau, boot_id="boot-1")
 
 
@@ -147,3 +154,99 @@ def test_herunterfahren_loescht_den_marker_dann_gilt_einschalten(box):
     assert not (box.zustand / "lauf.json").exists()
     box.neustart()
     assert box.kern.session.neustart_uid is None
+
+
+# --- AP 2.1: Tobie liegt beim Start ----------------------------------------------------------
+
+
+def test_einschalten_bekannter_tobie_liegt_schon_spielt_am_gespeicherten_zeiger(box):
+    spiele_und_merke(box)
+    box.hebe_ab()
+    gespeichert = box.resume_json()["serien"][SERIE]["position_s"]
+    box.neustart_nach_einschalten()  # Gerät war aus; der Tobie lag die ganze Zeit
+    n = len(box.log)
+    box.auflege(UID, "v2")  # der Leser meldet ihn nach dem Start
+    (a,) = box.befehle(ev.Abspielen, n)
+    assert (a.datei, a.position_s) == ("a.wav", pytest.approx(max(0.0, gespeichert - 3.0)))
+    assert box.modus == "spielt"
+
+
+def test_einschalten_unbekannter_tobie_liegt_schon_spielt_die_ueberraschung(box):
+    box.neustart_nach_einschalten()
+    n = len(box.log)
+    box.auflege(UID_UNBEKANNT, "v2")
+    (a,) = box.befehle(ev.Abspielen, n)
+    assert a.serie_id == UEBERRASCHUNG and a.datei == "ton.wav"
+    assert box.modus == "spielt"
+
+
+def test_einschalten_ohne_zeiger_beginnt_bei_folge_1(box):
+    box.neustart_nach_einschalten()
+    n = len(box.log)
+    box.auflege(UID, "v2")
+    (a,) = box.befehle(ev.Abspielen, n)
+    assert (a.datei, a.position_s) == ("a.wav", 0.0)
+
+
+def test_dienst_neustart_unbekannter_tobie_bleibt_pausiert_ohne_ueberraschung(box):
+    box.auflege(UID_UNBEKANNT)
+    box.laufe(1.0)
+    assert box.modus == "spielt"
+    box.neustart()
+    n = len(box.log)
+    box.auflege(UID_UNBEKANNT, "v2")
+    ohne_wiedergabe(box, n)
+    assert box.modus == "pausiert"
+    box.sende(ev.Hauptknopf("kurz"))  # Hauptknopf spielt die Überraschung
+    (a,) = box.befehle(ev.Abspielen, n)
+    assert a.serie_id == UEBERRASCHUNG
+
+
+def test_dienst_neustart_folgen_tobie_pausiert_hauptknopf_spielt_am_folgen_zeiger(box):
+    box.auflege(UID_FOLGE)
+    box.laufe(9.0)
+    box.sende(ev.DienstEndet())
+    gespeichert = box.befehle(ev.ZeigerSpeichern)[-1].position_s
+    box.neustart()
+    n = len(box.log)
+    box.auflege(UID_FOLGE, "v2")
+    ohne_wiedergabe(box, n)
+    assert box.modus == "pausiert"
+    box.sende(ev.Hauptknopf("kurz"))
+    (a,) = box.befehle(ev.Abspielen, n)
+    assert (a.datei, a.position_s) == ("b.wav", pytest.approx(gespeichert - 3.0))
+
+
+def test_dienst_neustart_nach_folgenende_hauptknopf_spielt_die_naechste_folge(box):
+    box.auflege(UID)
+    box.laufe(20.5)  # a.wav zu Ende: Zeiger auf b.wav
+    assert box.modus == "beendet"
+    box.neustart()
+    n = len(box.log)
+    box.auflege(UID, "v2")
+    ohne_wiedergabe(box, n)
+    assert box.modus == "pausiert"
+    box.sende(ev.Hauptknopf("kurz"))
+    (a,) = box.befehle(ev.Abspielen, n)
+    assert (a.datei, a.position_s) == ("b.wav", 0.0)
+
+
+def test_dienst_neustart_zweiter_neustart_bleibt_pausiert(box):
+    spiele_und_merke(box)
+    box.neustart()
+    box.auflege(UID, "v2")
+    assert box.modus == "pausiert"
+    box.sende(ev.DienstEndet())
+    box.neustart()  # Tobie liegt weiter, der Marker nennt ihn weiter
+    n = len(box.log)
+    box.auflege(UID, "v3")
+    ohne_wiedergabe(box, n)
+    assert box.modus == "pausiert"
+
+
+def test_dienst_neustart_tobie_war_inzwischen_abgehoben_und_anderer_liegt_startet_sofort(box):
+    spiele_und_merke(box)
+    box.neustart()
+    n = len(box.log)
+    box.auflege(UID_FOLGE, "v2")  # nicht der Tobie aus dem Marker
+    assert len(box.befehle(ev.Abspielen, n)) == 1 and box.modus == "spielt"
