@@ -1945,7 +1945,7 @@ von `tobibox sim ack`; HA ersetzt sie in Stufe 3a.
 |---|---|---|
 | `box/src/tobibox/learn.py` | neu | Teilautomat Lernmodus (Tabelle „Lernmodus“): 2-min-Frist auf der Box und Ablaufzeit des Befehls nach `mqtt-v1.md`. |
 | `box/src/tobibox/outbox.py` | neu | Ereignis-Ausgang mit Bestätigung: `unknown.json` führen; Eintrag erst löschen, wenn das Ereignis `bestätigt` eintrifft. |
-| `box/src/tobibox/sim.py` | neu | **Gemeinsamer Simulations-Treiber:** lauscht auf dem Unix-Socket `sim.sock` im Zustandsverzeichnis, liest JSON-Zeilen und macht Ereignisse daraus. Befehle in Stufe 2: `learn`, `ack`, `card`. Spätere Stufen erweitern ihn. |
+| `box/src/tobibox/sim.py` | neu | **Gemeinsamer Simulations-Treiber:** lauscht auf dem Unix-Socket `sim.sock` im Zustandsverzeichnis, liest JSON-Zeilen und macht Ereignisse daraus. Befehle in Stufe 2: `learn`, `ack`, `card` sowie (aus AP 2.4) `learn_abort` (Lernmodus abbrechen, CLI: `tobibox sim learn-abort`) und `status` (Antwort mit dem Status des Dienstes für `tobibox status`, erzeugt kein Ereignis). Spätere Stufen erweitern ihn. |
 | `box/tests/unit/test_learn.py` | neu | Alle Zeilen der Tabelle „Lernmodus“, abgelaufener Befehl wird ignoriert. |
 | `box/tests/unit/test_outbox.py` | neu | Eintrag bleibt ohne Bestätigung, auch nach Neustart; wird mit Bestätigung gelöscht; doppelte Bestätigung schadet nicht. |
 | `box/tests/unit/test_sim.py` | neu | JSON-Zeilen über den Socket werden zu den erwarteten Ereignissen; ungültige Zeilen werden protokolliert und ignoriert. |

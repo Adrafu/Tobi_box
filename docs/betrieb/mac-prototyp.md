@@ -459,6 +459,8 @@ die Rückkehr die INFO-Zeile `leser_verbunden`.
 ### 11.4 Abheben, Dienst neu starten, wieder auflegen (Zeigerlogik)
 
 - [ ] Folge spielt etwa 20 s. Tobie abheben. `zeiger_gespeichert` steht im Protokoll.
+      (Die Folgen von `serie-a` und `meine-testserie` dauern nur 3 s. Für 20 s Spielzeit legst du
+      die lange Folge aus Schritt 12.1 an und ordnest den Tobie `lange-serie` zu.)
 - [ ] Dienst mit `Ctrl+C` beenden und neu starten (Schritt 7). Tobie auflegen. Die Folge
       läuft an der gespeicherten Stelle weiter, mit 3 s Rücksprung (`spielt` mit
       `position_s` etwa 3 s unter dem gespeicherten Wert).
@@ -468,16 +470,20 @@ die Rückkehr die INFO-Zeile `leser_verbunden`.
       `pausiert`. Es startet **keine Wiedergabe** von selbst (nur das Startgeräusch des Dienstes), auch nach 10 s nicht. Zum Weiterspielen
       den Tobie abheben und wieder auflegen. Dann läuft er an der gespeicherten Stelle weiter.
       (Der Hauptknopf, der am Pi dasselbe tut, fehlt am Mac.)
-      - *Mit dem Fake-Leser:* `place <kennung> ntag` (oder `lock`), Folge spielt, **kein**
-        `remove`. Den Dienst mit `Ctrl+C` beenden und neu starten, den Fake-Leser laufen
+      - *Mit dem Fake-Leser:* `place <kennung> ntag`, Folge spielt, **kein**
+        `remove`. (Ein gesperrter Tonie mit `lock` hat keine Kennung; für ihn gilt dieser Schritt
+        noch nicht, er startet nach dem Neustart die Überraschung.) Den Dienst mit `Ctrl+C` beenden und neu starten, den Fake-Leser laufen
         lassen (gleicher `--link`). Der Dienst sendet `PING`, der Fake-Leser antwortet mit
         `HELLO` und meldet den liegenden Tobie erneut mit `seq=0`, genau wie die Firmware.
-        Prüfen: `grep -E 'dienst_neustart|pausiert' ~/Tobi_box/box/var/log/tobibox.log | tail`.
+        Prüfen: `grep dienst_neustart ~/Tobi_box/box/var/log/tobibox.log | tail -n 2`.
       - *Mit dem echten Leser:* Tobie liegen lassen, Dienst beenden und neu starten, sonst
         dasselbe. (Der Serial-Monitor muss beendet sein.)
-- [ ] Gegenprobe „echtes Einschalten“: Dienst beenden, den Mac neu starten (oder
-      `rm ~/Tobi_box/box/var/lauf.json`), Tobie liegen lassen, Dienst starten, Tobie
-      abheben und auflegen. Der Tobie spielt sofort.
+- [ ] Gegenprobe „echtes Einschalten“ (CUJ 20): Dienst mit `Ctrl+C` beenden, **danach** den Mac
+      neu starten (oder `rm ~/Tobi_box/box/var/lauf.json`; vor dem Beenden würde der Dienst die
+      Datei wieder anlegen). Der Tobie bleibt auf dem Leser liegen. Dienst starten: Der Tobie
+      spielt **sofort von selbst**, ohne Abheben, an der gespeicherten Stelle. Im Protokoll steht
+      `start` mit Ergebnis `ok`, kein `dienst_neustart`. Mit dem Fake-Leser geht nur der Weg
+      über `rm`, denn nach einem Neustart des Macs läuft der Fake-Leser nicht mehr.
 
 ### 11.5 Tobie auf eine einzelne Folge und Tobie mit mehreren Tracks
 
@@ -602,24 +608,60 @@ Die Befehle `tobibox sim …` sprechen mit dem laufenden Dienst über `sim.sock`
 nicht, melden sie „Dienst nicht erreichbar“ (Exit-Code 3). Im zweiten Terminal einmal die
 Konfiguration festlegen, dann gelten die Befehle unten ohne `--config`:
 
-```
+```bash
 export TOBIBOX_CONFIG=~/Tobi_box/box/config/tobibox.toml
 ```
 
 Die Kennung eines Tobies steht im Protokoll. Nach dem Auflegen des Tobies holst du die letzte
 Kennung so (Platzhalter `<UID>`, `<UID-NEU>` usw. durch deine echten Werte ersetzen):
 
-```
+```bash
 grep -o '"uid":"[^"]*"' ~/Tobi_box/box/var/log/tobibox.log | tail -n 1
 ```
 
-Für die Tests brauchst du drei Tobies und eine NTAG-Karte: `<UID>` (wird in 12.2 der Serie
-`serie-a` zugeordnet), `<UID-NEU>` (in 12.5 noch nie zugeordnet), `<UID-NEU-2>` (noch nie
-zugeordnet, für den Folgen-Lernlauf in 12.6) und die Karte `<UID-KARTE>`.
+Für die Tests brauchst du drei Tobies und eine NTAG-Karte: `<UID>` (wird in 12.2 und 12.4
+der Serie `lange-serie`, in 12.3 der Serie `serie-a` zugeordnet), `<UID-NEU>` (in 12.5 noch nie
+zugeordnet), `<UID-NEU-2>` (noch nie zugeordnet, für den Folgen-Lernlauf in 12.6) und die
+Karte `<UID-KARTE>`.
+
+**Serien-ID statt Ordnername.** Bei `--serie` gehört die **ID** aus der Datei `serie.json`
+der Serie, nicht der Ordnername. Die Beispielserie `serie-a` hat die ID `a1b2c3d4e5f6`; die
+Überraschungs-Serie hat `c07d2e91a45b`. Die Serie `lange-serie` aus 12.1 hat keine `serie.json`,
+dort gilt der Ordnername als ID (Schritt 5). Eine unbekannte ID nimmt `tobibox sim` an
+(`{"ok": true}`), aber der Tobie spielt dann die Überraschung, und im Protokoll steht eine
+WARNING-Zeile `serie_fehlt`. Die ID liest du so nach:
+
+```bash
+grep '"id"' ~/Tobi_box/box/medien-beispiel/serie-a/serie.json
+```
+
+**Zu den Tönen.** Die Töne und ihre Dauer: Startgeräusch (`start`, 0,5 s), `lernen_beginn` und `lernen_ende` (je 0,5 s),
+`unbekannt` (0,4 s), `hinweis` (0,1 s), `pruef_ok` (0,1 s, hoch) und `pruef_fehler`
+(0,4 s, tief). Wer sie im Protokoll sehen will: In `box/config/tobibox.toml` die Zeile
+`ebene = "INFO"` auf `ebene = "DEBUG"` setzen und den Dienst neu starten. Dann steht bei
+jedem Ton eine Zeile mit `"ereignis":"ton"` und dem Namen im Feld `ton`.
 
 ### 12.1 Vorbereitung
 
+Für 12.2 und 12.4 braucht es eine **lange** Folge. Die Folgen von `serie-a` dauern nur 3 s,
+und der Rücksprung von 3 s wäre dort nicht zu sehen. Lege eine Serie mit einer Folge von
+60 s an (ein gleichmäßiger Ton) und mache sie MPD bekannt. Python-Umgebung aktiv (Schritt 2):
+
+```bash
+mkdir -p ~/Tobi_box/box/medien-beispiel/lange-serie
+python - <<'PY'
+import math, os, struct, wave
+pfad = os.path.expanduser("~/Tobi_box/box/medien-beispiel/lange-serie/folge-01.wav")
+with wave.open(pfad, "wb") as w:
+    w.setnchannels(1); w.setsampwidth(2); w.setframerate(22050)
+    w.writeframes(b"".join(struct.pack("<h", int(6000 * math.sin(2 * math.pi * 440 * i / 22050))) for i in range(22050 * 60)))
+PY
+(printf 'update\n'; sleep 1) | nc localhost 6600
 ```
+
+Die Datei gehört nicht ins Repo (nicht mit `git add` hinzufügen). Dann Dienst starten:
+
+```bash
 cd ~/Tobi_box && git pull
 tobiboxd --config ~/Tobi_box/box/config/tobibox.toml
 ```
@@ -630,31 +672,41 @@ tobiboxd --config ~/Tobi_box/box/config/tobibox.toml
 
 ### 12.2 Resume über einen Neustart des Dienstes
 
-Ordne den Tobie `<UID>` der Serie `serie-a` zu (drei Folgen mit einem, zwei und drei Pieptönen):
+Ordne den Tobie `<UID>` der langen Serie zu:
 
-```
-tobibox sim card <UID> --serie serie-a
+```bash
+tobibox sim card <UID> --serie lange-serie
 ```
 
-- [ ] Lege `<UID>` auf. Folge 1 spielt. Nach einigen Sekunden hebst du den Tobie ab.
-      **Was du hörst:** Folge 1 (ein Piepton). Beim Abheben wird die Stelle gespeichert; im
-      Protokoll steht `zeiger_gespeichert`.
-- [ ] Beende den Dienst mit `Ctrl+C` und starte ihn neu (Befehl aus Schritt 12.1).
-      Lege `<UID>` danach auf.
+- [ ] Lege `<UID>` auf. Nach etwa 10 s hebst du den Tobie ab.
+      **Was du hörst:** Einen gleichmäßigen Ton (die lange Folge). Beim Abheben wird die Stelle
+      gespeichert; im Protokoll steht `zeiger_gespeichert` mit `position_s` von etwa 10.
+- [ ] Beende den Dienst mit `Ctrl+C` und starte ihn neu (Befehl aus Schritt 12.1, nur die
+      Zeile `tobiboxd …`). Lege `<UID>` danach auf.
       **Was du hörst:** Die Folge läuft weiter, etwa 3 s vor der gespeicherten Stelle. Im Protokoll
-      liegt `position_s` von `spielt` rund 3 s unter dem Wert vom Abheben.
+      liegt `position_s` von `spielt` rund 3 s unter dem Wert vom Abheben (also etwa 7).
 
 ### 12.3 Pause nach jeder Folge
 
-Der Tobie `<UID>` ist eine Serie. Die Folgen sind `folge-01.wav` bis `folge-03.wav`.
+Jetzt die Serie `serie-a` (Folgen `folge-01.wav` bis `folge-03.wav`, je 3 s lang). Ordne `<UID>`
+neu zu. Hebe den Tobie vorher ab, falls er liegt:
 
-- [ ] Lege `<UID>` auf und lass ihn liegen. Folge 1 spielt bis zum Ende.
+```bash
+tobibox sim card <UID> --serie a1b2c3d4e5f6
+```
+
+Eine Serie beginnt bei der Folge, bei der sie zuletzt stand. Hast du `serie-a` früher schon gespielt,
+beginnt sie nicht bei Folge 1; lies die Reihenfolge unten dann ab dieser Folge.
+
+- [ ] Lege `<UID>` auf und lass ihn liegen. Die Folge spielt bis zum Ende.
       **Was du hörst:** Folge 1 (ein Piepton), danach Stille. Im Protokoll steht `pausieren` mit
       Grund `folgenende`. Der Tobie liegt noch, die Box startet nichts von selbst (warte 10 s).
 
+```bash
+grep '"ereignis":"pausieren"' ~/Tobi_box/box/var/log/tobibox.log | tail -n 1
 ```
-grep folgenende ~/Tobi_box/box/var/log/tobibox.log | tail -n 1
-```
+
+      Die Zeile enthält `"grund":"folgenende"`.
 
 - [ ] Hebe `<UID>` ab und lege ihn wieder auf.
       **Was du hörst:** Folge 2 (zwei Pieptöne), von vorn.
@@ -665,27 +717,66 @@ grep folgenende ~/Tobi_box/box/var/log/tobibox.log | tail -n 1
 
 ### 12.4 CUJ 20: Tobie liegt beim Start des Dienstes
 
-- [ ] Lege `<UID>` auf, Folge 1 spielt. Beende den Dienst mit `Ctrl+C`. Der Tobie liegt dabei
-      weiter auf dem Leser. Starte den Dienst neu (Befehl aus Schritt 12.1).
-      **Was du hörst:** Nur das Startgeräusch des Dienstes. Danach bleibt es still, auch nach
-      10 s. Im Protokoll stehen `dienst_neustart` und danach `pausiert`.
+Hier gibt es zwei Fälle, die du auseinanderhalten musst. Der Dienst erkennt sie am Marker
+`~/Tobi_box/box/var/lauf.json` (Entscheidung G, 06.11.). Darin steht die Kennung des letzten
+Starts des Geräts (`boot_id`) und der Tobie, der zuletzt auflag:
 
+- **Dienst-Neustart** (Update, Absturz, `Ctrl+C` und neu starten): Die Kennung des Starts ist
+  gleich. Ein liegender Tobie startet **nicht** von selbst. Die Box bleibt pausiert.
+- **Einschalten** (Mac neu gestartet, Akku leer, Strom weg): Die Kennung ist neu oder der Marker
+  fehlt. Ein liegender Tobie spielt **sofort**, ohne Abheben.
+
+Ordne `<UID>` wieder der langen Serie zu (hebe den Tobie vorher ab):
+
+```bash
+tobibox sim card <UID> --serie lange-serie
 ```
-grep -E 'dienst_neustart|pausiert' ~/Tobi_box/box/var/log/tobibox.log | tail -n 3
+
+- [ ] **Dienst-Neustart:** Lege `<UID>` auf, die lange Folge spielt. Warte etwa 10 s. Beende den
+      Dienst mit `Ctrl+C`. Der Tobie liegt dabei weiter auf dem Leser. Starte den Dienst neu
+      (Zeile `tobiboxd …` aus Schritt 12.1).
+      **Was du hörst:** Nur das Startgeräusch des Dienstes. Danach bleibt es still, auch nach
+      10 s. Im Protokoll stehen `start` mit Ergebnis `dienst_neustart` und danach
+      `dienst_neustart` mit Ergebnis `pausiert`.
+
+```bash
+grep dienst_neustart ~/Tobi_box/box/var/log/tobibox.log | tail -n 2
 ```
 
 - [ ] Den Hauptknopf gibt es am Mac nicht, und `tobibox sim` hat dafür keinen Befehl. Ersatz:
       Hebe `<UID>` ab und lege ihn wieder auf.
-      **Was du hörst:** Die Folge läuft an der gespeicherten Stelle weiter.
+      **Was du hörst:** Die Folge läuft an der gespeicherten Stelle weiter (3 s Rücksprung).
+- [ ] **Einschalten:** Der Tobie liegt weiter auf dem Leser. Beende den Dienst mit `Ctrl+C`. Erst
+      danach löschst du den Marker. (Würdest du ihn vorher löschen, schriebe der Dienst ihn beim
+      Beenden wieder.) Das ersetzt das Ausschalten des Macs:
+
+```bash
+rm ~/Tobi_box/box/var/lauf.json
+```
+
+      Starte den Dienst wieder (Zeile `tobiboxd …` aus Schritt 12.1).
+      **Was du hörst:** Das Startgeräusch, und gleich danach spielt die Folge **von selbst**,
+      ohne dass du den Tobie abhebst, an der gespeicherten Stelle. Im Protokoll steht `start`
+      mit Ergebnis `ok`, **kein** `dienst_neustart`, und `spielt`:
+
+```bash
+grep -E '"ereignis":"(start|dienst_neustart|spielt)"' ~/Tobi_box/box/var/log/tobibox.log | tail -n 3
+```
+
+      Echtes Einschalten (den Mac neu starten und den Dienst danach starten) hat dieselbe Wirkung,
+      weil sich die Kennung des Starts ändert. Dabei muss der Tobie auf dem Leser liegen bleiben.
 
 ### 12.5 Unbekannter Tobie: Überraschung, Meldung, Bestätigung
 
+Hebe vorher einen Tobie ab, falls einer liegt.
+
 - [ ] Lege `<UID-NEU>` auf (ein Tobie, den du noch nie zugeordnet hast).
-      **Was du hörst:** Der lange Ton der Überraschungs-Serie `ueberraschung`. Im Protokoll hat die
-      Zeile `zugeordnet` das Ergebnis `ueberraschung`.
+      **Was du hörst:** Zuerst ein kurzer Ton (`unbekannt`), dann der lange Ton der
+      Überraschungs-Serie `ueberraschung` (2 s). Im Protokoll hat die Zeile `zugeordnet` das
+      Ergebnis `ueberraschung`.
 - [ ] Prüfe den Status:
 
-```
+```bash
 tobibox status
 ```
 
@@ -693,7 +784,7 @@ tobibox status
       Die Datei `~/Tobi_box/box/var/unknown.json` enthält den Eintrag.
 - [ ] Bestätige die Meldung:
 
-```
+```bash
 tobibox sim ack <UID-NEU>
 ```
 
@@ -706,76 +797,100 @@ tobibox sim ack <UID-NEU>
 Der Lernmodus startet mit einem Ton. Die Box nimmt den Befehl an, und ab da hast du 2 Minuten,
 um den Tobie aufzulegen. Ein Tobie, der schon liegt, wird nicht erneut gemeldet: Hebe ihn
 vorher ab. Die Option `--ttl` (Vorgabe 60 s) ist nur die Lebensdauer des Befehls bis zur
-Annahme. Die 2 Minuten beginnen mit der Annahme.
+Annahme: Kommt der Befehl innerhalb dieser Zeit an, nimmt die Box ihn an. Die 2 Minuten
+beginnen mit der Annahme und hängen nicht von `--ttl` ab. Ein kleiner Wert wie `--ttl 5` verkürzt
+den Lernmodus also nicht. Nach 2 Minuten ohne Tobie endet er von selbst
+(Protokoll: `lernmodus_ende` mit Ergebnis `frist`).
+
+**Die Töne im Lernmodus.** Es gibt genau zwei: `lernen_beginn` beim Start und `lernen_ende`
+beim Ende. `lernen_ende` kommt bei jedem Ende: Tobie aufgelegt (gelernt oder abgelehnt), Abbruch
+und Fristablauf. Ob gelernt oder abgelehnt wurde, hörst du also nicht am Ende-Ton, sondern nur
+an dem, was der Tobie danach spielt, und im Protokoll. Legst du einen **neuen** Tobie auf, kommt
+zusätzlich der kurze Ton `unbekannt` (fast gleichzeitig mit dem Ende-Ton), weil die Box ihn erst
+als unbekannt behandelt. Dann wechselt sie auf das Lernziel.
 
 **a) Serie lernen**
 
-```
-tobibox sim learn --serie serie-a
+```bash
+tobibox sim learn --serie a1b2c3d4e5f6
 ```
 
 - [ ] Du siehst `{"ok": true}` und hörst einen Ton. `tobibox status` zeigt `Lernmodus: an`.
       Lege `<UID-NEU>` auf (hebe ihn vorher ab, falls er liegt).
-      **Was du hörst:** Der Tobie spielt die Serie `serie-a` ab Folge 1. Im Protokoll steht eine
-      Zeile mit Baustein `ha_ersatz` und Ergebnis `ok`.
+      **Was du hörst:** Zwei kurze Töne fast gleichzeitig (`unbekannt` und `lernen_ende`), dann
+      spielt der Tobie die Serie `serie-a` an dem Zeiger, an dem die Serie steht (nach 12.3
+      Folge 1 oder 2). Im Protokoll steht eine Zeile mit Baustein `ha_ersatz`, Ereignis
+      `zuordnung` und Ergebnis `ok`.
 
-```
-grep -A2 '"<UID-NEU>"' ~/Tobi_box/box/var/config.json
+```bash
+grep -A5 '"<UID-NEU>"' ~/Tobi_box/box/var/config.json
 ```
 
-- [ ] Die Ausgabe zeigt `"typ": "serie"` und `"serie": "serie-a"`. `tobibox status` zeigt
+- [ ] Die Ausgabe zeigt `"typ": "serie"` und `"serie": "a1b2c3d4e5f6"`. `tobibox status` zeigt
       keine offene Meldung mehr; der HA-Ersatz bestätigt den Lernlauf selbst.
 
 **b) Einzelne Folge lernen**
 
-```
-tobibox sim learn --serie serie-a --folge folge-02.wav
+```bash
+tobibox sim learn --serie a1b2c3d4e5f6 --folge folge-02.wav
 ```
 
 - [ ] Lege `<UID-NEU-2>` auf.
-      **Was du hörst:** Nur die Folge `folge-02.wav` (zwei Pieptöne). Die Serie spielt danach nicht weiter.
-- [ ] Prüfe mit `grep -A2 '"<UID-NEU-2>"' ~/Tobi_box/box/var/config.json`: `"typ": "folge"`,
+      **Was du hörst:** Wie in a), dann nur die Folge `folge-02.wav` (zwei Pieptöne). Die Serie spielt
+      danach nicht weiter.
+- [ ] Prüfe mit `grep -A5 '"<UID-NEU-2>"' ~/Tobi_box/box/var/config.json`: `"typ": "folge"`,
       `"folge": "folge-02.wav"`.
 
 **c) Abbruch**
 
-```
-tobibox sim learn --serie serie-a
+```bash
+tobibox sim learn --serie a1b2c3d4e5f6
 tobibox sim learn-abort
 ```
 
-- [ ] Du siehst zweimal `{"ok": true}` und hörst zwei Töne. `tobibox status` zeigt
-      `Lernmodus: aus`. Ein Tobie, den du danach auflegst, ändert `config.json` nicht.
+- [ ] Du siehst zweimal `{"ok": true}` und hörst zwei Töne (`lernen_beginn`, dann `lernen_ende`).
+      `tobibox status` zeigt `Lernmodus: aus`. Auch ein Tobie, den du danach auflegst, ändert
+      `config.json` nicht.
 
 **d) Bestehende Zuordnung: nur mit `--ueberschreiben`**
 
-```
-tobibox sim learn --serie serie-a --folge folge-03.wav
+```bash
+tobibox sim learn --serie a1b2c3d4e5f6 --folge folge-03.wav
 ```
 
 - [ ] Hebe `<UID-NEU>` ab und lege ihn wieder auf (er ist schon zugeordnet). Der Befehl selbst
       ist angenommen; die Ablehnung zeigt sich erst beim Auflegen.
-      **Was du siehst:** Im Protokoll eine WARNING-Zeile mit Baustein `ha_ersatz` und dem Hinweis
+      **Was du hörst:** Dasselbe wie bei jedem bekannten Tobie: seine Serie spielt weiter, dazu
+      der Ende-Ton `lernen_ende`. Der Ton ist derselbe wie beim erfolgreichen Lernen (ohne den
+      Ton `unbekannt`). Die Ablehnung steht nur im Protokoll.
+      **Was du siehst:** Im Protokoll eine WARNING-Zeile mit Baustein `ha_ersatz`, Ereignis
+      `zuordnung`, Ergebnis `abgelehnt`, Grund `schon_zugeordnet` und dem Hinweis
       „schon zugeordnet und bleibt, wie er ist“. `config.json` bleibt bei `serie-a`.
 
+```bash
+grep '"ereignis":"zuordnung"' ~/Tobi_box/box/var/log/tobibox.log | tail -n 1
 ```
-tobibox sim learn --serie serie-a --folge folge-03.wav --ueberschreiben
+
+```bash
+tobibox sim learn --serie a1b2c3d4e5f6 --folge folge-03.wav --ueberschreiben
 ```
 
 - [ ] Hebe `<UID-NEU>` ab und lege ihn wieder auf.
-      **Was du hörst:** Die Folge `folge-03.wav` (drei Pieptöne). `config.json` zeigt `"folge": "folge-03.wav"`.
+      **Was du hörst:** Den Ende-Ton, dann die Folge `folge-03.wav` (drei Pieptöne).
+      `grep -A5 '"<UID-NEU>"' ~/Tobi_box/box/var/config.json` zeigt `"folge": "folge-03.wav"`.
 
 ### 12.7 Status-Karte
 
-Notiere vorher die Zuordnung der NTAG-Karte, damit du sie in Schritt 12.8 zurücksetzen kannst:
+Notiere vorher die Zuordnung der NTAG-Karte, damit du sie in Schritt 12.8 zurücksetzen kannst.
+Ist die Karte noch nie zugeordnet, gibt der Befehl nichts aus, und es gibt nichts zurückzusetzen:
 
-```
-grep -A2 '"<UID-KARTE>"' ~/Tobi_box/box/var/config.json
+```bash
+grep -A5 '"<UID-KARTE>"' ~/Tobi_box/box/var/config.json
 ```
 
-Ordne die Karte als Aktion zu:
+Ordne die Karte als Aktion zu (hebe die Karte vorher ab, falls sie liegt):
 
-```
+```bash
 tobibox sim card <UID-KARTE> --aktion status
 ```
 
@@ -792,10 +907,10 @@ tobibox sim card <UID-KARTE> --aktion status
 ### 12.8 Karte zurück auf die Folge
 
 Setze die Karte auf die Zuordnung zurück, die du in Schritt 12.7 notiert hast. Das Beispiel
-ist die Folge `folge-02.wav` aus `serie-a`:
+ist die Folge `folge-02.wav` aus `serie-a` (hebe die Karte vorher ab):
 
-```
-tobibox sim card <UID-KARTE> --serie serie-a --folge folge-02.wav
+```bash
+tobibox sim card <UID-KARTE> --serie a1b2c3d4e5f6 --folge folge-02.wav
 ```
 
 - [ ] Lege die Karte auf.
