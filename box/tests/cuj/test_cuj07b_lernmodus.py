@@ -24,6 +24,7 @@ from fixtures import audio
 from tobibox import events as ev
 from tobibox import session
 from tobibox.learn import LERN_FRIST_S
+from tobibox.session import LERN_ANTWORT_FRIST_S
 
 SERIE = "3f9a1c07b2d4"
 UEBERRASCHUNG = "c07d2e91a45b"
@@ -387,6 +388,36 @@ def test_ohne_lernziel_lehnt_der_ha_ersatz_ab_der_eintrag_ist_trotzdem_weg(box):
     n = len(box.log)
     box.auflege(NEU)
     assert NEU not in box.konfig_json()["zuordnungen"] and box.konfig_json()["revision"] == 1
-    assert box.unknown() == {}  # ``abgelehnt`` löscht den Eintrag wie jeder Grund (mqtt-v1, 3.6)
+    # ``abgelehnt`` löscht den Eintrag (mqtt-v1, 3.6); die Sitzung meldet den unbekannten Tobie danach neu (Entscheidung H)
+    assert box.befehle(ev.Melden, n) == [ev.Melden("gelernt", NEU, box.befehle(ev.Melden, n)[0].befehl_id), ev.Melden("unbekannt", NEU, None)]
+    assert box.unknown()[NEU]["art"] == "unbekannt"
     assert box.befehle(ev.Abspielen)[-1].serie_id == UEBERRASCHUNG
     assert box.toene(n) == ["lernen_ende", "unbekannt"]  # Entscheidung H: erst nach der Ablehnung
+
+
+def test_dienst_neustart_im_warten_der_tobie_bleibt_im_marker_und_nichts_startet(box):
+    """Entscheidung G und H: Der Lernmodus überlebt keinen Neustart; der wartende Tobie bleibt ``pausiert``."""
+    import json
+
+    box.ha_ersatz.gelernt = lambda eintrag: None  # HA antwortet nicht: das Warten läuft
+    lerne_serie(box)
+    n = len(box.log)
+    box.auflege(UID, "v1")
+    assert box.kern.session.lern_wartet_bis is not None and box.befehle(ev.Abspielen, n) == []
+    marker = json.loads((box.zustand / "lauf.json").read_text(encoding="utf-8"))
+    assert marker == {"boot_id": "boot-1", "uid": UID}
+    box.sende(ev.DienstEndet())  # SIGTERM mitten im Warten
+    assert box.befehle(ev.Abspielen, n) == []
+    assert json.loads((box.zustand / "lauf.json").read_text(encoding="utf-8"))["uid"] == UID
+
+    box.neustart()
+    n = len(box.log)
+    assert box.kern.session.neustart_uid == UID and box.lernmodus() is False
+    assert box.kern.session.lern_wartet_bis is None
+    box.auflege(UID, "v2")  # derselbe Tobie liegt noch
+    box.laufe(LERN_ANTWORT_FRIST_S + 2)
+    assert box.befehle(ev.Abspielen, n) == [] and box.toene(n) == []
+    assert box.modus == "pausiert" and box.kern.session.figur.uid == UID
+    # der Hauptknopf spielt wie nach jedem Dienst-Neustart (CUJ 20)
+    box.sende(ev.Hauptknopf("kurz"))
+    assert [a.serie_id for a in box.befehle(ev.Abspielen, n)] == [SERIE]

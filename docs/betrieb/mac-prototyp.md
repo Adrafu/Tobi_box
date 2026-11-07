@@ -808,7 +808,8 @@ den HA-Ersatz (Entscheidung H, 07.11.): Sie spielt weder die Überraschung noch 
 `unbekannt`, auch nicht bei einem neuen Tobie. Sobald die Zuordnung da ist (beim HA-Ersatz
 Bruchteile einer Sekunde), startet das Lernziel sofort. Wird der Tobie abgelehnt, oder kommt
 10 Sekunden lang keine Antwort, verhält sich die Box wie bei einem normalen Auflegen (ein
-bekannter Tobie spielt sein Ziel, ein neuer die Überraschung mit dem Ton `unbekannt`).
+bekannter Tobie spielt sein Ziel, ein neuer die Überraschung mit dem Ton `unbekannt` und steht danach wieder
+als „unbekannt“ in `unknown.json`).
 Abheben beendet das Warten. Während des Wartens bewirken Hauptknopf, Vor und Zurück nichts; die
 Lautstärke wirkt.
 

@@ -413,29 +413,42 @@ synchronisierte (dann spielt die Box die Überraschungs-Serie, bis sie da ist,
 3.  Wird in dieser Zeit ein Tobie mit Kennung aufgelegt, meldet die Box ihn als
     `art="gelernt"` mit `befehl_id` auf `tobibox/<box>/unknown/<uid>`.
 4.  HA ordnet die Kennung dem Ziel aus der Aktion zu (`ziel` `serie` oder `folge`). Ist die Kennung schon
-    zugeordnet, fragt HA vor dem Überschreiben nach. HA antwortet auf `…/ack`
-    mit `grund="zugeordnet"` (oder `abgelehnt`) und `zuletzt`/`art` der Meldung.
-5.  HA veröffentlicht die neue Konfiguration; das Ziel spielt (die Serie an ihrem
+    zugeordnet, fragt HA vor dem Überschreiben nach. Lehnt HA ab (oder fragt Tobias und er verneint), gibt es
+    keine neue Konfiguration; weiter mit Schritt 6.
+5.  HA veröffentlicht **zuerst** die neue Konfiguration; das Ziel spielt (die Serie an ihrem
     Zeiger, die Folge von vorn oder an ihrem Zeiger).
+6.  **Danach** antwortet HA auf `…/ack` mit `grund="zugeordnet"` (oder `abgelehnt`) und
+    `zuletzt`/`art` der Meldung. Die Reihenfolge Konfiguration, dann `ack` (Entscheidung H, 07.11.)
+    verhindert, dass der `ack` den Eintrag löscht, bevor die Box das Ziel kennt.
     **Ablauf aus Sicht der Box (Entscheidung H, 07.11.):** Von Schritt 3 bis zur Antwort
     spielt die Box **nichts**: Beim Auflegen kommt nur der Lernton (`lernen_ende`), keine
     Überraschung und kein Ton `unbekannt`, auch nicht bei einem schon bekannten Tobie.
     Die Box wartet bis zu **10 s** (`LERN_ANTWORT_FRIST_S`, gemessen auf der
     Box) auf HA. Es gilt, was zuerst eintrifft:
-    *   Die neue Konfiguration mit der Zuordnung dieses Tobies (Schritt 5): das Ziel
-        startet sofort. HA soll deshalb die Konfiguration **vor** oder gleichzeitig mit
-        dem `ack` veröffentlichen; ein `ack` mit `grund="zugeordnet"` allein beendet das
-        Warten nicht.
-    *   Der `ack` mit `grund="abgelehnt"` (Schritt 4): das Warten endet sofort. Die Box
+    *   Eine neue Konfiguration, die diesem Tobie ein **anderes** Ziel gibt als beim
+        Auflegen (ein unbekannter Tobie: überhaupt eines) (Schritt 5): das Ziel
+        startet sofort. Eine andere Konfiguration (anderer Tobie geändert, gleiches Ziel für
+        diesen Tobie) beendet das Warten nicht. Ein `ack` mit `grund="zugeordnet"` allein
+        beendet das Warten auch nicht; HA schickt deshalb die Konfiguration **vor** dem `ack`.
+    *   Der `ack` mit `grund="abgelehnt"` (Schritt 6): das Warten endet sofort. Die Box
         verhält sich wie bei einem normalen Auflegen, ein bekannter Tobie spielt sein
-        Ziel, ein unbekannter die Überraschung mit dem Ton `unbekannt`.
-    *   10 s ohne Antwort: wie bei „abgelehnt“. Kommt die Konfiguration später doch,
-        wechselt die Box darauf (Abschnitt 4.1, Schritt 6).
+        Ziel, ein unbekannter die Überraschung mit dem Ton `unbekannt`. Der `ack` hat den
+        Eintrag gelöscht; für einen unbekannten Tobie meldet die Box ihn danach **erneut** als
+        `art="unbekannt"` (neuer Eintrag in `unknown.json`), HA sieht ihn wieder als „neuer
+        Tobie“. Der `ack` zählt nur, wenn er einen offenen Eintrag mit passendem
+        `zuletzt` und `art` trifft (Abschnitt 3.6); ein veraltetes oder doppeltes `ack` ändert nichts.
+    *   10 s ohne Antwort: wie bei „abgelehnt“, aber ohne neue Meldung; der Eintrag bleibt als
+        `gelernt` offen. Eine Aktionskarte löst jetzt ihre Aktion aus. Kommt die Konfiguration
+        später doch, wechselt die Box darauf (Abschnitt 4.1, Schritt 6).
     *   Der Tobie wird abgehoben: das Warten endet, nichts spielt.
+    *   **Gewollt (Rückfrage beim Überschreiben):** Muss Tobias in HA die Rückfrage aus Schritt 4
+        beantworten und braucht dafür länger als 10 s, spielt ein bekannter Tobie zuerst sein
+        altes Ziel. Mit der späteren Zuordnung wechselt die Box auf das neue Ziel, wie bei jeder
+        Konfigurationsänderung mit liegendem Tobie. Es gibt keine Verlängerung der Frist.
     Die Meldung `gelernt` und der Eintrag in `unknown.json` bleiben unverändert; der
     `ack` löscht den Eintrag wie bisher. Hauptknopf, Vor und Zurück bewirken während des
     Wartens nichts, die Lautstärke wirkt.
-6.  `lernen_abbrechen` beendet den Lernmodus jederzeit. Nach 2 min ohne Tobie
+7.  `lernen_abbrechen` beendet den Lernmodus jederzeit. Nach 2 min ohne Tobie
     endet er von selbst.
 
 ### 4.3 Konfiguration verteilen

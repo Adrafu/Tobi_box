@@ -177,3 +177,16 @@ einen echten Fehler (Befund 1) und zwei Lücken im Vertrag (Befund 2 und 3).
     stimmt).
 *   **Plan, Mac-Anleitung:** Rev. 3.10 und die Anleitung stimmen mit dem Vertrag überein (keine veralteten
     Sätze wie „startet weiter die Überraschungs-Serie“ mehr im Repo außerhalb der Review-Ordner).
+
+---
+
+## Auflösung (07.11., nach entschiedener Projektleitung)
+
+1.  **Behoben.** Die Sitzung merkt sich beim Beginn des Wartens das Ziel des Tobies (`lern_ziel`, unbekannt: keins). Nur ein anderes Ziel für diesen Tobie beendet das Warten, bei einem unbekannten Tobie jedes. Vertrag 9.8, Punkt 29, Design-Tabelle angepasst. Tests: gleiche Konfiguration, fremder Tobie geändert, Aktionskarte, entferntes Ziel, andere Aktion, über die echte `App`.
+2.  **Als gewollt festgehalten**, kein neuer Mechanismus: 9.8 (Ende 3), Punkt 29, `mqtt-v1.md` 4.2, Design (H2, CUJ 7b), Plan.
+3.  **Behoben.** Nach „abgelehnt“ meldet die Sitzung einen unbekannten Tobie erneut als `unbekannt` (`unknown.json` hat ihn wieder); bei einem bekannten Tobie und beim Fristablauf kein `Melden`. Tests: Unit, Kern, `SimBox` und echte `App` mit `unknown.json`.
+4.  **Behoben.** `app.py` gibt `Bestaetigt(art="gelernt")` nur an den Kern, wenn die Outbox sie angenommen hat (auch im Testaufbau `SimBox`). Tests: veraltetes `zuletzt`, doppeltes Ack im neuen Lernlauf, fremde Kennung ohne Eintrag.
+5.  **Festgehalten und getestet.** Nach der Frist löst eine Aktionskarte ihre Aktion aus (9.8, Punkt 29, Design); Unit-Test für `gute_nacht` und `status` über die Frist.
+6.  **Vertrag nachgezogen.** 9.8 beschreibt `spielt` mit gleicher Kennung (kein Warten, 9.4) und das Warten im Zustand `unbekannt` (Pause `leser_unbekannt`, Zeiger speichern, dann Warten); Sitzungstabelle um zwei Zeilen ergänzt; je ein Test.
+7.  **Behoben.** `mqtt-v1.md` 4.2: Schritt 5 Konfiguration, Schritt 6 `ack`. `ha_ersatz.py` hielt die Reihenfolge schon ein (Test `test_gelernt_schreibt_gibt_konfig_geladen_und_bestaetigt_zugeordnet`); nur der Docstring wurde ergänzt.
+8.  **Tests verbessert.** Der Test in `test_cuj07b_app.py` prüft jetzt `lern_wartet_bis` und den Zustand `spielt`. Der Neustart-Test ist auf CUJ-Ebene (`SimBox`, `lauf.json`, `DienstEndet`, Neustart, Hauptknopf). Neu: Leserausfall (Alarm, Hallo mit Herzschlag da und weg), Warten im Zustand `unbekannt`, „stumm“ (Beginn, Ende, Frist), `Gesperrt`, anderer Tobie (Sitzung und echter Kern), erneuter Lernbefehl im Warten, Fälle 1, 4 und 5.

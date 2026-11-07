@@ -8,7 +8,8 @@ Ziel (``Sim.lernziel``), und meldet die Box danach den gelernten Tobie (``Melden
 
 1. schreibt ``HaErsatz`` die Zuordnung über ``KonfigStore`` in ``config.json`` (Revision + 1),
 2. gibt ``KonfigGeladen`` aus (die Box wechselt wie bei einer Liste von HA auf das Ziel, 9.14) und
-3. bestätigt mit ``Bestaetigt(grund="zugeordnet")``; ohne passendes Ziel mit ``grund="abgelehnt"``
+3. bestätigt danach mit ``Bestaetigt(grund="zugeordnet")`` (erst die Konfiguration, dann das ``ack``: ``mqtt-v1.md``,
+   4.2 Schritt 5 und 6); ohne passendes Ziel mit ``grund="abgelehnt"``
    (z. B. unbekannter Lernbefehl, ungültige Kennung).
 
 Ist die Kennung schon zugeordnet, fragt HA vor dem Überschreiben nach (``mqtt-v1.md``, 4.2 Punkt 4).

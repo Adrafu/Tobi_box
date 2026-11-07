@@ -354,7 +354,17 @@ Alternativen“.
         normalen Auflegen (bekannt → sein Ziel, unbekannt → Überraschung mit Ton).
         Kommt die Zuordnung nach den 10 s doch, gilt das bisherige Verhalten bei einer
         neuen Konfiguration mit liegendem Tobie. Abheben beendet das Warten, es spielt
-        nichts.
+        nichts. Die Sitzung merkt sich beim Beginn das bisherige Ziel des Tobies
+        (unbekannt: keins). Nur eine Konfiguration, die diesem Tobie ein **anderes**
+        Ziel gibt, beendet das Warten; eine andere Konfiguration (anderer Tobie geändert,
+        gleiche Zuordnung) wirkt auf die Sitzung wie sonst, beendet das Warten aber nicht.
+        Endet das Warten durch „abgelehnt“ und ist der Tobie unbekannt, meldet die Box ihn
+        erneut als `unbekannt` (die Outbox hat den Eintrag mit der Bestätigung gelöscht).
+        Nach der Frist verhält sich eine Aktionskarte wie bei einem normalen Auflegen und
+        löst ihre Aktion aus. *Gewollt:* Braucht Tobias in HA für die Rückfrage beim
+        Überschreiben länger als 10 s, spielt ein bekannter Tobie zuerst sein altes Ziel
+        und wechselt mit der späteren Zuordnung auf das neue (wie bei jeder
+        Konfigurationsänderung mit liegendem Tobie). (Entscheidung H, 07.11.)
     *   **H3 — Tasten:** Während des Wartens wirkt die Lautstärke; Hauptknopf, Vor und
         Zurück bewirken nichts.
     *   **H4 — Unverändert:** `unknown.json` und Melden laufen wie bisher (nur
@@ -509,8 +519,9 @@ Zustände, Übergänge und Konflikte: siehe „Kern-Zustände“.
     Beim Auflegen kommt nur der Lernton; die Box spielt nichts (keine Überraschung, kein
     Ton `unbekannt`), bis die Zuordnung eintrifft (dann startet das Ziel sofort). Lehnt HA
     ab oder kommt nach 10 s keine Antwort, verhält sich die Box wie bei einem normalen
-    Auflegen. Abheben beendet das Warten. Lautstärke wirkt, Hauptknopf, Vor und Zurück
-    bewirken in dieser Zeit nichts. Ohne Tobie endet der Lernmodus
+    Auflegen (ein unbekannter Tobie wird nach „abgelehnt“ erneut gemeldet). Abheben beendet das Warten. Lautstärke wirkt, Hauptknopf, Vor und Zurück
+    bewirken in dieser Zeit nichts. Ist die Rückfrage von HA beim Überschreiben länger als 10 s, spielt ein bekannter
+    Tobie zuerst sein altes Ziel und wechselt mit der Zuordnung (gewollt, Entscheidung H, 07.11.). Ohne Tobie endet der Lernmodus
     nach 2 min (die Frist misst die Box); Abbruch jederzeit in HA. Beginn und
     Ende sind hörbar. Ist die Box gerade stumm geschaltet (CUJ 15), lernt sie
     trotzdem und bestätigt mit dem leisen Ton, spielt aber nicht.
@@ -1026,13 +1037,17 @@ wegen „stumm“ nicht gespielt), `unbekannt` (Leser-Zustand unbekannt).
 | `pausiert` (Tobie liegt) | Hauptknopf kurz | Abspielen | `spielt` |
 | `spielt` | Wächter-Alarm (kein `HB`) | Frist 1,5 s starten | `unbekannt` |
 | `unbekannt` | `HELLO` und `PLACED` mit derselben Kennung innerhalb der Frist | nichts, Wiedergabe läuft weiter | `spielt` |
+| `unbekannt` | `PLACED` mit neuer Vorgangs-ID (andere Kennung, oder dieselbe nach verlorenem `REMOVED`), Lernmodus `lernt` (Entscheidung H, 07.11.) | Pause (`leser_unbekannt`), Zeiger speichern, dann wie in der Zeile „wartet“ unten: Frist 10 s starten, nichts abspielen | `pausiert` (wartet) |
+| `spielt` | `PLACED` dieselbe Kennung, neue Vorgangs-ID (verlorenes `REMOVED`, 9.4), Lernmodus `lernt` (Entscheidung H, 07.11.) | nichts; die Sitzung wartet nicht, die Wiedergabe läuft weiter (der Lernmodus endet durch `learn`, die Kennung wird gemeldet) | `spielt` |
 | `unbekannt` | Frist abgelaufen | Pause, Zeiger speichern | `pausiert` |
 | `spielt` | stumm beginnt | sanft ausblenden, Pause, Zeiger speichern | `gehalten` |
 | `gehalten` | `REMOVED` | — | `pausiert` |
 | `gehalten` | stumm endet | nichts; Wiedergabe startet nicht von selbst, erst Abheben und erneutes Auflegen startet sie | `pausiert` |
 | `leer`, `pausiert`, `beendet`, `gehalten`, `spielt` | `PLACED` (Kennung, andere Vorgangs-ID), Lernmodus `lernt` (Entscheidung H, 07.11.) | läuft etwas, wie bei „andere Kennung“ pausieren und Zeiger speichern; Kennung unbekannt: Kennung in `unknown.json`; **nichts abspielen, kein Ton `unbekannt`**, Frist 10 s starten (nur der Lernton von `learn`) | `pausiert` (wartet) |
-| `pausiert` (wartet) | neue Konfiguration mit der Zuordnung dieses Tobies (Entscheidung H, 07.11.) | Ziel sofort starten wie beim Auflegen | `spielt` (unter „stumm“: `gehalten`) |
-| `pausiert` (wartet) | `bestaetigt` „abgelehnt“ für diesen Tobie, oder Frist 10 s ohne Antwort (Entscheidung H, 07.11.) | wie ein normales Auflegen: bekannt → sein Ziel, unbekannt → Überraschung mit Ton `unbekannt` (ohne zweites Melden) | `spielt` (unter „stumm“: `gehalten`) |
+| `pausiert` (wartet) | neue Konfiguration, die diesem Tobie ein **anderes** Ziel gibt als beim Beginn des Wartens (unbekannter Tobie: jedes Ziel) (Entscheidung H, 07.11.) | Ziel sofort starten wie beim Auflegen | `spielt` (unter „stumm“: `gehalten`) |
+| `pausiert` (wartet) | andere neue Konfiguration (gleiches Ziel, anderer Tobie geändert) (Entscheidung H, 07.11.) | Konfiguration übernehmen, das Warten läuft weiter | unverändert |
+| `pausiert` (wartet) | `bestaetigt` „abgelehnt“ für diesen Tobie (nur wenn die Outbox sie angenommen hat) (Entscheidung H, 07.11.) | wie ein normales Auflegen: bekannt → sein Ziel, unbekannt → Überraschung mit Ton `unbekannt` und erneut `Melden("unbekannt")` | `spielt` (unter „stumm“: `gehalten`) |
+| `pausiert` (wartet) | Frist 10 s ohne Antwort (Entscheidung H, 07.11.) | wie ein normales Auflegen (Aktionskarte: Aktion auslösen); kein zweites Melden, der Eintrag bleibt offen | `spielt` (unter „stumm“: `gehalten`) |
 | `pausiert` (wartet) | `REMOVED` (Entscheidung H, 07.11.) | Warten endet, nichts spielt | `pausiert` |
 | `pausiert` (wartet) | Hauptknopf kurz, `Vor`, `Zurück` (Entscheidung H, 07.11.) | nichts (Lautstärke wirkt wie immer) | unverändert |
 | `leer` | Start mit liegendem Tobie (CUJ 20) | wie `PLACED`, sobald alles bereit ist; nach Dienst-Neustart ohne Ausschalten nichts (Entscheidung G, 06.11.) | `spielt`; nach Dienst-Neustart `pausiert` |
@@ -1063,7 +1078,7 @@ Zustände: `aus`, `lernt`.
 Tobie, bekannt oder unbekannt, **nichts**. Es kommt nur der Endeton; die Wiedergabe-Sitzung wartet bis zu 10 s
 auf HA (siehe Sitzungstabelle, Zeilen „wartet“, und `core-interface.md`, 9.8). Die Zuordnung startet sofort das
 neue Ziel; „abgelehnt“ und 10 s ohne Antwort verhalten sich wie ein normales Auflegen. `unknown.json` und
-Melden laufen unverändert. Der Befehl geht an genau eine Box, ist nicht dauerhaft
+Melden laufen unverändert (nur nach „abgelehnt“ wird ein unbekannter Tobie neu gemeldet). Der Befehl geht an genau eine Box, ist nicht dauerhaft
 (nicht „retained“) und hat eine Ablaufzeit (Baustein 4).
 
 **3. Ruhe-Regeln** (`quiet` für Leise-Zeiten, `bedtime` für Gute Nacht)

@@ -4,7 +4,8 @@
 CUJ-Tests 7a und 7b diesen Code und keinen Nachbau.
 
 * ``Melden`` -> ``Outbox`` (``unknown.json``); bei ``gelernt`` spielt der HA-Ersatz Home Assistant.
-* ``Bestaetigt`` -> ``Outbox``, **nicht** an den Kern (``core-interface.md``, Abschnitt 3).
+* ``Bestaetigt`` -> ``Outbox``; nur ``art="gelernt"`` und von der Outbox angenommen geht danach auch an den Kern
+  (``app``, Entscheidung H, 07.11.; ``core-interface.md``, Abschnitt 3).
 * Nimmt der Kern den Lernmodus-Befehl an, sagt ``nach_kern`` es ``sim`` (Ziel und Befehls-ID gelten erst dann).
 * Ereignisse, die ``sim`` oder der HA-Ersatz erzeugen, werden gemerkt (``war_sim``), damit ``app`` ihre
   Protokollzeilen mit ``sim=true`` schreibt (Abschnitt 6.5, Punkt 4).

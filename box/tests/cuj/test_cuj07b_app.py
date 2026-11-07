@@ -155,7 +155,9 @@ async def test_abgelehnt_aus_der_verdrahtung_beendet_das_warten_und_die_ueberras
     assert dienst.app.kern.session.lern_wartet_bis is None
     assert f"abspielen {UEBERRASCHUNG}" in dienst.app.player.aufrufe
     assert dienst.app.toene.gespielt == ["lernen_beginn", "lernen_ende", "unbekannt"]
-    assert dienst.unknown() == {}  # die Bestätigung hat auch die Outbox erreicht
+    # die Bestätigung hat die Outbox erreicht (der „gelernt“-Eintrag ist weg); die Sitzung hat den Tobie danach
+    # erneut als „unbekannt“ gemeldet, HA sieht ihn wieder als neuen Tobie (Entscheidung H, Befund 3)
+    assert dienst.unknown()[NEU]["art"] == "unbekannt"
 
 
 async def test_keine_antwort_nach_10_s_wie_abgelehnt(dienst):
@@ -250,11 +252,64 @@ async def test_bestaetigung_fuer_unbekannte_geht_nicht_an_den_kern(dienst):
     assert dienst.app.kern is vorher
 
 
-async def test_bestaetigung_fuer_gelernte_geht_auch_an_den_kern(dienst):
-    """Entscheidung H: ``art="gelernt"`` erreicht die Sitzung (sie beendet damit das Warten bei „abgelehnt“)."""
+async def test_bestaetigung_fuer_gelernte_geht_an_den_kern_und_beendet_das_warten(dienst):
+    """Entscheidung H: ``art="gelernt"`` erreicht die Sitzung, wenn die Outbox sie annimmt."""
+    await dienst.ha_schweigt()
+    await dienst.lerne()
+    await dienst.sende(dienst.melden(NEU, "v1"))
+    assert dienst.app.kern.session.lern_wartet_bis is not None
+    dienst.app.verarbeite(dienst.abgelehnt(NEU))
+    assert dienst.app.kern.session.lern_wartet_bis is None
+    assert dienst.app.kern.session.modus == "spielt"
+
+
+async def test_veraltete_bestaetigung_erreicht_den_kern_nicht(dienst):
+    """Ein altes „abgelehnt“ (anderes ``zuletzt``) beendet das Warten eines neuen Lernlaufs nicht (Befund 4)."""
+    await dienst.ha_schweigt()
+    await dienst.lerne()
+    await dienst.sende(dienst.melden(NEU, "v1"))
+    alt = dienst.abgelehnt(NEU)  # Bestätigung des ersten Lernlaufs
+    await dienst.sende(alt)  # gültig: das Warten endet, der Tobie ist wieder „unbekannt“ gemeldet
+    assert dienst.app.kern.session.lern_wartet_bis is None
+    await dienst.sende(ev.Abgehoben(1, "v1"))
+    dienst.uhr.vor(5)
+    await dienst.lerne()
+    await dienst.sende(dienst.melden(NEU, "v2"))  # zweiter Lernlauf, neuer Eintrag, neues ``zuletzt``
+    assert dienst.app.kern.session.lern_wartet_bis is not None
+    assert dienst.unknown()[NEU]["zuletzt"] != alt.zuletzt
     vorher = dienst.app.kern
-    dienst.app.verarbeite(ev.Bestaetigt("04aaaaaa", "abgelehnt", "2026-11-07T00:00:00.000Z", "gelernt"))
-    assert dienst.app.kern is not vorher
+    assert dienst.app.verarbeite(alt) == ()  # das späte Duplikat: die Outbox verwirft es
+    assert dienst.app.kern is vorher and dienst.app.kern.session.lern_wartet_bis is not None
+    assert NEU in dienst.unknown()
+
+
+async def test_bestaetigung_ohne_offenen_eintrag_erreicht_den_kern_nicht(dienst):
+    await dienst.ha_schweigt()
+    await dienst.lerne()
+    await dienst.sende(dienst.melden(NEU, "v1"))
+    vorher = dienst.app.kern
+    fremd = ev.Bestaetigt("04aaaaaa", "abgelehnt", "2026-11-07T00:00:00.000Z", "gelernt")
+    assert dienst.app.verarbeite(fremd) == ()
+    assert dienst.app.kern is vorher and dienst.app.kern.session.lern_wartet_bis is not None
+
+
+async def test_fremde_konfiguration_beendet_das_warten_eines_bekannten_tobies_nicht(dienst):
+    """Befund 1 über die echte App: HA fragt beim Überschreiben nach, währenddessen kommt eine andere Konfiguration."""
+    from tobibox.ha_ersatz import schreibe_zuordnung
+
+    await dienst.ha_schweigt()
+    await dienst.lerne()
+    await dienst.sende(dienst.melden(BEKANNT, "v1"))
+    assert dienst.app.kern.session.lern_wartet_bis is not None
+    fremd = schreibe_zuordnung(dienst.app.konfig_store, "04aabbcc", {"typ": "serie", "serie": SERIE})
+    await dienst.sende(fremd)  # ein anderer Tobie bekommt ein Ziel, BEKANNT bleibt wie er ist
+    assert dienst.app.kern.session.lern_wartet_bis is not None
+    assert not [a for a in dienst.app.player.aufrufe if a.startswith("abspielen")]
+    neu = schreibe_zuordnung(dienst.app.konfig_store, BEKANNT, {"typ": "serie", "serie": SERIE})  # jetzt zugeordnet
+    await dienst.sende(neu)
+    assert dienst.app.kern.session.lern_wartet_bis is None
+    assert dienst.app.player.aufrufe[-1] == f"abspielen {SERIE}"
+    assert dienst.app.toene.gespielt == ["lernen_beginn", "lernen_ende"]
 
 
 async def test_leser_prueffpunkt_zeigt_simulation_ohne_leser_geraet(dienst):

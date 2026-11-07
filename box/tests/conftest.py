@@ -477,11 +477,11 @@ class SimBox(CujBox):
     def sende(self, e, dt: float = 0.0) -> list:
         sim = self.ausgang.war_sim(e)
         if isinstance(e, ev.Bestaetigt):
-            # erst die Outbox; den Kern erreicht nur „gelernt“ (core-interface.md, Abschnitt 3; Entscheidung H, 07.11.)
+            # erst die Outbox; den Kern erreicht nur „gelernt“, von der Outbox angenommen (core-interface.md, Abschnitt 3; Entscheidung H, 07.11.)
             if dt:
                 self.uhr.vor(dt)
-            self.ausgang.bestaetigt(e, sim=sim)
-            befehle: list = super().sende(e) if e.art == "gelernt" else []
+            angenommen = self.ausgang.bestaetigt(e, sim=sim)
+            befehle: list = super().sende(e) if (e.art == "gelernt" and angenommen) else []
             self.ausgang.nach_kern(self.kern)
         else:
             befehle = super().sende(e, dt)

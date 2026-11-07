@@ -154,7 +154,7 @@ Alle HA-Befehle tragen eine Ablaufzeit. Der Kern prüft sie mit `jetzt.wall` und
 | `HaSyncAnstossen` | `befehl_id: str`, `gueltig_bis: float` | Sync jetzt. |
 | `HaUpdateAnstossen` | `befehl_id: str`, `version: str`, `gueltig_bis: float` | Update installieren. |
 | `HaVerbindung` | `ok: bool` | Verbindung zum Broker steht (`True`) oder ist weg. **Geht nicht an den Kern** (kein Teilautomat verarbeitet sie), sondern nur an den Statussammler und `selftest` (Abschnitt 6.5 und 12). |
-| `Bestaetigt` | `id: str`, `grund: str`, `zuletzt: str`, `art: Literal["unbekannt","gelernt"]` | Bestätigung von HA für einen gemeldeten Eintrag (Abschnitt 7). `zuletzt` und `art` sind die Werte der veröffentlichten Meldung, die HA bestätigt. `app` gibt sie zuerst an `outbox`. **Mit `art="gelernt"` geht sie danach auch an den Kern** (Entscheidung H, 07.11.): `session` beendet damit das Warten im Lernmodus, wenn `grund="abgelehnt"` und `id` die Kennung des wartenden Tobies ist (Abschnitt 9, Punkt 8). Mit `art="unbekannt"` geht sie nicht an den Kern. |
+| `Bestaetigt` | `id: str`, `grund: str`, `zuletzt: str`, `art: Literal["unbekannt","gelernt"]` | Bestätigung von HA für einen gemeldeten Eintrag (Abschnitt 7). `zuletzt` und `art` sind die Werte der veröffentlichten Meldung, die HA bestätigt. `app` gibt sie zuerst an `outbox`. **Mit `art="gelernt"` geht sie danach auch an den Kern, aber nur wenn `outbox` sie angenommen hat** (offener Eintrag mit passendem `zuletzt` und `art`; eine veraltete oder doppelte Bestätigung erreicht den Kern nicht) (Entscheidung H, 07.11.): `session` beendet damit das Warten im Lernmodus, wenn `grund="abgelehnt"` und `id` die Kennung des wartenden Tobies ist (Abschnitt 9, Punkt 8). Mit `art="unbekannt"` geht sie nicht an den Kern. |
 
 ### 3.5 Bedienung und Kopfhörer (Quelle `controls`, `headphones`; in der Simulation `sim`)
 
@@ -553,7 +553,9 @@ Reihenfolge nacheinander aus.
     (`mqtt-v1.md`). Ohne Verbindung bleibt er in der Datei und wird bei der
     nächsten Verbindung veröffentlicht.
 *   **Ausnahme vom reinen Ausgang (Entscheidung H, 07.11.):** Eine `Bestaetigt` mit
-    `art="gelernt"` geht nach `outbox` **auch an den Kern**. Sie ändert dort nur die
+    `art="gelernt"` geht nach `outbox` **auch an den Kern, wenn `outbox` sie angenommen hat**
+    (`outbox.bestaetigt` liefert `True`; eine veraltete oder doppelte Bestätigung wird
+    verworfen und erreicht den Kern nicht). Sie ändert dort nur die
     Sitzung, die im Lernmodus auf HA wartet (Abschnitt 9, Punkt 8); `outbox` und
     `unknown.json` bleiben davon unberührt.
 *   Die **Bestätigung** kommt als `Bestaetigt(id, grund, zuletzt, art)` (`id` =
@@ -774,30 +776,62 @@ gekennzeichneten sind von Tobias oder der Projektleitung entschieden
     liegt (`figur_liegt`); es gibt keinen neuen Wert für `ZustandMelden.sitzung`.
     Läuft bei `Aufgelegt` noch eine Wiedergabe, gilt zuerst die Regel „anderer Tobie“
     (Zeiger speichern, `Pausieren("abgehoben")`). `Aufgelegt` mit Kennung wartet für
-    jede Art von Tobie, auch für eine Aktionskarte (sie löst dann keine Aktion aus);
+    jede Art von Tobie, auch für eine Aktionskarte (sie löst während des Wartens keine Aktion aus;
+    nach der Frist oder der Ablehnung verhält sie sich wie bei einem normalen Auflegen
+    und löst ihre Aktion aus, auch von selbst nach der Frist);
     `Gesperrt` hat keine Kennung und wartet nicht (er ändert den Lernmodus nicht).
+    Eine **Wiedermeldung derselben Kennung im Zustand `spielt`** (neue Vorgangs-ID nach
+    verlorenem `REMOVED`) wartet nicht: Es gilt 9.4, die Wiedergabe läuft weiter, die
+    Sitzung ändert nur die Vorgangs-ID. Im **Sitzungszustand `unbekannt`** (Leser
+    unterbrochen, 9.2) läuft das Warten so ab: Eine `Aufgelegt` mit neuer Vorgangs-ID
+    (andere Kennung oder dieselbe nach verlorenem `REMOVED`) pausiert mit
+    `Pausieren("leser_unbekannt")`, speichert den Zeiger (Grund `figurwechsel`) und
+    beginnt dann das Warten; der Zustand ist danach `pausiert`, die Leser-Frist ist
+    erledigt. Ein Leserausfall während des Wartens ändert das Warten nicht
+    (`LeserHallo` merkt sich nur das Hallo für 9.3); meldet der Herzschlag
+    danach keinen Tobie mehr, gilt das als Abheben (Ende 4).
     *   **Melden:** unverändert. `session` meldet einen unbekannten Tobie wie bisher
         (`Melden("unbekannt")`), `learn` meldet `Melden("gelernt", uid, befehl_id)`;
         Regel 6.2.4 lässt `gelernt` gewinnen. `unknown.json` und die Veröffentlichung
-        laufen unverändert. Nur Wiedergabe und der Ton `unbekannt` warten.
+        laufen unverändert. Nur Wiedergabe und der Ton `unbekannt` warten. Einzige
+        Ausnahme: das Ende durch „abgelehnt“ bei einem unbekannten Tobie (Ende 2).
+    *   **Merkfeld:** Beim Beginn des Wartens merkt sich die Sitzung das bisherige Ziel
+        des Tobies (`lern_ziel`, die `Zuordnung` aus der damaligen Konfiguration; ein
+        unbekannter Tobie hat keins). Es wird mit dem Ende des Wartens gelöscht.
     *   **Das Warten endet** mit genau einem dieser Ereignisse (danach läuft es nicht
         mehr; die Vorgangs-ID des Tobies bleibt):
-        1.  **Zuordnung:** `KonfigGeladen`, deren `zuordnungen` die Kennung des
-            wartenden Tobies enthalten. Die Sitzung startet sofort das Ziel wie beim
+        1.  **Zuordnung:** `KonfigGeladen`, die dem wartenden Tobie ein **anderes** Ziel
+            gibt als das gemerkte (`lern_ziel`); bei einem unbekannten Tobie zählt
+            jedes Ziel. Die Sitzung startet sofort das Ziel wie beim
             Auflegen (Zeiger laden, `Abspielen`; bei „stumm“ gilt 9.12; ist das Ziel
-            Serie oder Folge nicht vorhanden, gilt 6.3 „fehlt“). Eine
-            `KonfigGeladen` ohne diese Kennung lässt das Warten weiterlaufen.
+            Serie oder Folge nicht vorhanden, gilt 6.3 „fehlt“). Jede andere
+            `KonfigGeladen` (ohne diese Kennung, mit unverändertem Ziel, auch mit neuer
+            Revision) gilt für die Sitzung wie sonst, lässt das Warten aber
+            weiterlaufen. Das gilt auch für eine Aktionskarte (sie löst nur bei einer
+            anderen Aktion aus).
         2.  **Ablehnung:** `Bestaetigt` mit `art="gelernt"`, `grund="abgelehnt"` und
             `id` = Kennung des wartenden Tobies. Die Sitzung verhält sich wie bei einem
             normalen Auflegen ohne Lernmodus: bekannt → sein Ziel; unbekannt →
-            Überraschungs-Serie mit Ton `unbekannt` (ohne ein zweites `Melden`; die
-            Meldung ist schon abgesetzt). Jeder andere `grund` (z. B. `zugeordnet`)
-            beendet das Warten nicht; er ändert nur `outbox`.
+            Überraschungs-Serie mit Ton `unbekannt` und **erneutem `Melden("unbekannt")`**:
+            `outbox` hat den Eintrag mit der Bestätigung gelöscht, der Tobie steht
+            danach wieder in `unknown.json`, und HA sieht ihn als „neuer Tobie“ (Satz
+            „jede Überraschung wegen eines unbekannten Tobies hat einen offenen
+            Eintrag“). Bei einem bekannten Tobie kein `Melden`. Die Bestätigung zählt
+            nur, wenn `outbox` sie angenommen hat (Abschnitt 3). Jeder andere `grund`
+            (z. B. `zugeordnet`) beendet das Warten nicht; er ändert nur `outbox`.
         3.  **Frist:** `Takt` mit `jetzt.mono ≥ lern_wartet_bis`, gemessen ab dem
             `Aufgelegt` auf `mono`, `LERN_ANTWORT_FRIST_S` = 10 (Konstante in
-            `session.py`). Wirkung wie bei der Ablehnung. Kommt die Zuordnung danach
-            doch noch, gilt Punkt 14 (neue Konfiguration bei liegendem Tobie), weil der
-            Tobie dann als gestartetes Ziel seine Überraschung oder sein altes Ziel hat.
+            `session.py`). Wirkung wie bei der Ablehnung, aber **ohne** neues `Melden`
+            (der Eintrag in `unknown.json` bleibt als `gelernt` offen und wird erneut
+            veröffentlicht). Eine Aktionskarte löst jetzt ihre Aktion aus. Kommt die
+            Zuordnung danach doch noch, gilt Punkt 14 (neue Konfiguration bei liegendem
+            Tobie), weil der Tobie dann als gestartetes Ziel seine Überraschung oder sein
+            altes Ziel hat. **Gewollt (Rückfrage beim Überschreiben):** Muss Tobias in HA
+            vor dem Überschreiben eine Rückfrage beantworten (`mqtt-v1.md` 4.2) und
+            braucht dafür länger als 10 s, spielt ein bekannter Tobie zuerst sein altes
+            Ziel. Mit der späteren Zuordnung wechselt die Box auf das neue Ziel, wie bei
+            jeder Konfigurationsänderung mit liegendem Tobie. Es gibt dafür keinen
+            eigenen Mechanismus (keine Verlängerung der Frist).
         4.  **Abheben:** `Abgehoben` (oder ein Herzschlag, der das Abheben feststellt)
             beendet das Warten ohne Wirkung, es spielt nichts: wie ein normales Abheben
             ohne laufende Wiedergabe (`pausiert`, kein Tobie).
@@ -816,7 +850,10 @@ gekennzeichneten sind von Tobias oder der Projektleitung entschieden
     *   **Ein anderer Tobie während des Wartens:** Der Lernmodus ist nach dem ersten
         Tobie schon `aus` (`learn` hat ihn beendet). Der zweite Tobie wird deshalb ganz
         normal behandelt (Auflegen nach 6.3 und 9.12); das Warten des ersten endet
-        damit ohne eigene Wirkung. Dieselbe Kennung mit neuer Vorgangs-ID (verlorenes
+        damit ohne eigene Wirkung. Startet ein neuer Lernbefehl, bevor der zweite
+        Tobie aufgelegt wird, wartet auch dieser (mit eigenem gemerktem Ziel). `Gesperrt`
+        im Warten beendet es ebenfalls und spielt die Überraschungs-Serie (9.12 und 6.3,
+        ohne Ton `unbekannt`). Dieselbe Kennung mit neuer Vorgangs-ID (verlorenes
         `REMOVED`, 9.4) lässt das Warten weiterlaufen.
     *   **Dienst-Neustart während des Wartens (Entscheidung G, 06.11.):** Der Lernmodus
         überlebt keinen Neustart; der Tobie liegt in `lauf.json` und bleibt nach dem
@@ -1227,6 +1264,10 @@ Projektleitung (P) entschieden oder aus dem Goldfisch-Review übernommen
     ist optional (12.1).
 29. **Bestätigt (07.11., Entscheidung H, T): Lernmodus wartet still.** Ein im
     Lernmodus aufgelegter Tobie startet nichts, bis HA die Zuordnung schickt, die
-    Ablehnung meldet oder 10 s vergangen sind (9.8). Hauptknopf und Vor / Zurück
+    Ablehnung meldet oder 10 s vergangen sind (9.8); eine andere Konfiguration
+    (gleiches Ziel für diesen Tobie) beendet das Warten nicht, ein unbekannter Tobie
+    wird nach der Ablehnung erneut gemeldet, und nach der Frist löst eine Aktionskarte
+    ihre Aktion aus. Dauert die Rückfrage von HA länger als 10 s, spielt ein bekannter
+    Tobie zuerst sein altes Ziel und wechselt mit der Zuordnung (gewollt). Hauptknopf und Vor / Zurück
     bewirken in dieser Zeit nichts, die Lautstärke wirkt (Festlegung der
     Projektleitung nach Empfehlung; Tobias kann sie ändern).

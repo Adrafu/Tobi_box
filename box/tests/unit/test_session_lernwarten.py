@@ -14,6 +14,7 @@ from conftest import (
     UID_NACHT,
     UID_S1,
     UID_S2,
+    UID_STATUS,
     UID_UNBEKANNT,
     SitzungsHarnisch,
     abspielen,
@@ -160,11 +161,12 @@ def test_zuordnung_unter_stumm_gibt_nur_den_hinweiston():
 # --- HA lehnt ab -----------------------------------------------------------------------------------
 
 
-def test_abgelehnt_unbekannt_verhaelt_sich_wie_normales_auflegen_ohne_zweites_melden():
+def test_abgelehnt_unbekannt_verhaelt_sich_wie_normales_auflegen_und_meldet_erneut_unbekannt():
     h = wartet(UID_UNBEKANNT)
     out = h.sende(abgelehnt())
     assert hat_ton(out, "unbekannt") and hat_abspielen(out) == [abspielen("ueb", "ueb", "u1.mp3", 0.0, "v2")]
-    assert not any(isinstance(o, ev.Melden) for o in out)
+    # die Outbox hat den Eintrag mit dem ``ack`` gelöscht: ohne neue Meldung wäre der Tobie für HA verschwunden
+    assert [o for o in out if isinstance(o, ev.Melden)] == [ev.Melden("unbekannt", UID_UNBEKANNT, None)]
     assert h.modus == "spielt" and h.z.lern_wartet_bis is None and h.z.figur.art == "unbekannt"
 
 
@@ -297,7 +299,201 @@ def test_anderer_unbekannter_tobie_nach_dem_lernmodus_spielt_die_ueberraschung()
     assert hat_ton(out, "unbekannt") and [a.serie_id for a in hat_abspielen(out)] == ["ueb"]
 
 
-def test_dienst_neustart_marker_bleibt_waehrend_des_wartens_der_tobie():
-    """Entscheidung G: ``lauf.json`` folgt ``session.figur``; die liegt während des Wartens."""
-    h = wartet()
-    assert h.z.figur is not None and h.z.figur.uid == UID_UNBEKANNT
+# --- Konfiguration im Warten: nur ein anderes Ziel beendet es (Befund 1) --------------------------------
+
+
+def konfig_rev(zuordnungen, revision=9):
+    return ev.KonfigGeladen(mk_konfig(zuordnungen, revision=revision))
+
+
+def test_konfig_mit_unveraendertem_ziel_beendet_das_warten_eines_bekannten_tobies_nicht():
+    h = wartet(UID_S1)
+    bis = h.z.lern_wartet_bis
+    assert h.sende(konfig_rev(ZUORDNUNGEN)) == []  # fremde Revision, alles gleich
+    assert h.modus == "pausiert" and h.z.lern_wartet_bis == bis and h.z.lern_ziel == ZUORDNUNGEN[UID_S1]
+
+
+def test_konfig_mit_unveraendertem_ziel_laesst_eine_aktionskarte_warten_ohne_aktion():
+    h = wartet(UID_NACHT)
+    out = h.sende(konfig_rev(ZUORDNUNGEN))
+    assert out == [] and h.z.lern_wartet_bis is not None
+
+
+def test_konfig_mit_anderem_tobie_geaendert_laesst_das_warten_weiterlaufen():
+    h = wartet(UID_S1)
+    assert h.sende(konfig_mit(UID_S2, "s1")) == []  # UID_S2 bekommt ein anderes Ziel, UID_S1 bleibt
+    assert h.modus == "pausiert" and h.z.lern_wartet_bis is not None
+    # die neue Konfiguration gilt trotzdem für die Sitzung
+    assert h.z.konfig.zuordnungen[UID_S2] == ev.Zuordnung("serie", "s1")
+
+
+def test_konfig_nach_gleicher_konfig_mit_neuem_ziel_beendet_das_warten():
+    h = wartet(UID_S1)
+    h.sende(konfig_rev(ZUORDNUNGEN, 9))
+    out = h.sende(konfig_mit(UID_S1, "s2"))
+    assert [a.serie_id for a in hat_abspielen(out)] == ["s2"] and h.modus == "spielt"
+
+
+def test_konfig_ohne_zuordnung_des_wartenden_bekannten_tobies_beendet_das_warten_nicht():
+    h = wartet(UID_S1)
+    rest = {k: v for k, v in ZUORDNUNGEN.items() if k != UID_S1}
+    assert h.sende(konfig_rev(rest)) == [] and h.z.lern_wartet_bis is not None
+
+
+def test_aktionskarte_mit_anderer_aktion_beendet_das_warten_und_loest_die_neue_aus():
+    h = wartet(UID_NACHT)
+    out = h.sende(konfig_rev({**ZUORDNUNGEN, UID_NACHT: ev.Zuordnung("aktion", aktion="status")}))
+    assert out == [ev.AktionAusgeloest("status", "v2")]
+
+
+def test_unbekannter_tobie_jedes_neue_ziel_beendet_das_warten():
+    h = wartet(UID_UNBEKANNT)
+    assert h.z.lern_ziel is None
+    out = h.sende(konfig_rev({**ZUORDNUNGEN, UID_UNBEKANNT: ev.Zuordnung("serie", "s2")}))
+    assert [a.serie_id for a in hat_abspielen(out)] == ["s2"]
+    h = wartet(UID_UNBEKANNT)
+    out = h.sende(konfig_rev({**ZUORDNUNGEN, UID_UNBEKANNT: ev.Zuordnung("aktion", aktion="status")}))
+    assert out == [ev.AktionAusgeloest("status", "v2")]
+
+
+def test_konfig_nach_dem_ende_des_wartens_folgt_punkt_14_wie_immer():
+    h = wartet(UID_S1)
+    h.takt(10.2)  # altes Ziel läuft
+    assert h.z.lern_ziel is None and h.z.lern_wartet_bis is None
+    out = h.sende(konfig_mit(UID_S1, "s2"))
+    assert [a.serie_id for a in hat_abspielen(out)] == ["s2"]
+
+
+# --- Aktionskarte und Frist (Befund 5) ------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("uid,aktion", [(UID_NACHT, "gute_nacht"), (UID_STATUS, "status")])
+def test_aktionskarte_loest_nach_der_frist_ihre_aktion_aus(uid, aktion):
+    h = wartet(uid)
+    assert h.takt(9.8) == []
+    out = h.takt(0.4)
+    assert out == [ev.AktionAusgeloest(aktion, "v2")]
+    assert h.z.lern_wartet_bis is None and h.z.figur.art == "aktion"
+
+
+# --- Wiedermeldung im Zustand spielt, Zustand unbekannt (Befund 6) -------------------------------------
+
+
+def test_gleiche_kennung_mit_neuer_vorgangs_id_im_zustand_spielt_wartet_nicht():
+    h = lernt("spielt")  # UID_S1 spielt
+    out = h.sende(A(UID_S1, "v9"))  # verlorenes REMOVED (9.4)
+    assert out == [] and h.modus == "spielt" and h.z.lern_wartet_bis is None
+    assert h.z.figur.vorgang == "v9"
+
+
+def test_warten_im_zustand_unbekannt_pausiert_speichert_den_zeiger_und_wartet():
+    h = lernt("spielt")
+    h.sende(ev.LeserAlarm("kein_herzschlag"))
+    assert h.modus == "unbekannt"
+    out = h.sende(A(UID_UNBEKANNT, "v2"))
+    assert out == [
+        ev.Pausieren("leser_unbekannt"),
+        zeiger_speichern("s1", "a.mp3", 0, 10.0, "figurwechsel"),
+        ev.Melden("unbekannt", UID_UNBEKANNT, None),
+    ]
+    assert h.modus == "pausiert" and h.z.lern_wartet_bis is not None and h.z.unbekannt_seit is None
+    assert not hat_abspielen(h.takt(9.0))
+    out = h.takt(1.2)  # die Frist endet wie sonst
+    assert hat_ton(out, "unbekannt") and [a.serie_id for a in hat_abspielen(out)] == ["ueb"]
+
+
+def test_warten_im_zustand_unbekannt_bekannter_tobie_mit_neuer_vorgangs_id_wartet_ebenfalls():
+    h = lernt("spielt")
+    h.sende(ev.LeserAlarm("kein_herzschlag"))
+    out = h.sende(A(UID_S1, "v9"))
+    assert ev.Pausieren("leser_unbekannt") in out and not hat_abspielen(out)
+    assert h.modus == "pausiert" and h.z.lern_wartet_bis is not None and h.z.lern_ziel == ZUORDNUNGEN[UID_S1]
+
+
+# --- Leserausfall im Warten (Befund 8) -----------------------------------------------------------------
+
+
+def herzschlag(present):
+    return ev.LeserHerzschlag(present, 10, 100, 1, 0, 0, 100)
+
+
+@pytest.mark.parametrize("alarm", [ev.LeserAlarm("kein_herzschlag"), ev.LeserAlarm("getrennt")])
+def test_leserausfall_im_warten_aendert_nichts_die_frist_laeuft_weiter(alarm):
+    h = wartet(UID_S1)
+    bis = h.z.lern_wartet_bis
+    assert h.sende(alarm) == []
+    assert h.modus == "pausiert" and h.z.lern_wartet_bis == bis and h.z.unbekannt_seit is None
+    out = h.takt(10.2)  # das Warten endet wie sonst durch die Frist
+    assert [a.serie_id for a in hat_abspielen(out)] == ["s1"]
+
+
+def test_nach_dem_ausfall_liegt_der_tobie_noch_das_warten_geht_weiter():
+    h = wartet(UID_S1)
+    h.sende(ev.LeserHallo(1, "1.0", "b", "ok"))
+    assert h.sende(herzschlag(True)) == []
+    assert h.modus == "pausiert" and h.z.lern_wartet_bis is not None and h.z.figur.uid == UID_S1
+
+
+def test_nach_dem_ausfall_ist_der_tobie_weg_das_warten_endet_ohne_wirkung():
+    h = wartet(UID_S1)
+    h.sende(ev.LeserHallo(1, "1.0", "b", "ok"))
+    assert h.sende(herzschlag(False)) == []  # 9.3 „Danach“: wie Abheben
+    assert h.modus == "pausiert" and h.z.figur is None and h.z.lern_wartet_bis is None and h.z.lern_ziel is None
+    assert h.takt(12.0) == []  # auch nach der Frist spielt nichts
+
+
+# --- „stumm“ im Warten (Befund 8) ---------------------------------------------------------------------
+
+
+def test_stumm_beginnt_im_warten_das_warten_geht_weiter_und_endet_mit_hinweiston():
+    h = wartet(UID_S1)
+    assert h.sende(ev.StummBeginnt()) == [] and h.z.lern_wartet_bis is not None
+    out = h.takt(10.2)
+    assert not hat_abspielen(out) and hat_ton(out, "hinweis") and h.modus == "gehalten"
+
+
+def test_stumm_endet_im_warten_aendert_nichts():
+    h = lernt()
+    h.sende(ev.StummBeginnt())
+    h.sende(A(UID_S1))
+    assert h.z.lern_wartet_bis is not None and h.modus == "pausiert"
+    assert h.sende(ev.StummEndet()) == []
+    assert h.modus == "pausiert" and h.z.lern_wartet_bis is not None
+    out = h.takt(10.2)
+    assert [a.serie_id for a in hat_abspielen(out)] == ["s1"] and not hat_ton(out)
+
+
+def test_aufgelegt_unter_stumm_wartet_und_endet_mit_zuordnung_als_hinweiston():
+    h = lernt()
+    h.sende(ev.StummBeginnt())
+    assert h.sende(A(UID_UNBEKANNT)) == [ev.Melden("unbekannt", UID_UNBEKANNT, None)]
+    out = h.sende(konfig_mit(UID_UNBEKANNT, "s2"))
+    assert not hat_abspielen(out) and hat_ton(out, "hinweis") and h.modus == "gehalten"
+
+
+# --- Gesperrt und anderer Tobie im Warten (Befund 8) --------------------------------------------------
+
+
+def test_gesperrt_im_warten_beendet_es_und_spielt_wie_ohne_lernmodus_die_ueberraschung():
+    h = wartet(UID_S1)
+    out = h.sende(ev.Gesperrt(6, "v3"))
+    assert [a.serie_id for a in hat_abspielen(out)] == ["ueb"] and not hat_ton(out, "unbekannt")
+    assert h.modus == "spielt" and h.z.lern_wartet_bis is None and h.z.figur.uid is None and h.z.figur.art == "gesperrt"
+    assert h.z.lern_ziel is None
+
+
+def test_anderer_tobie_im_warten_ohne_lernmodus_wird_normal_behandelt():
+    h = wartet(UID_S1)
+    h.sende(ev.LernenGeaendert(False))
+    out = h.sende(A(UID_S2, "v3"))
+    assert [a.serie_id for a in hat_abspielen(out)] == ["s2"] and not hat_ton(out)
+    assert h.modus == "spielt" and h.z.lern_wartet_bis is None and h.z.lern_ziel is None
+
+
+def test_anderer_tobie_im_warten_mit_laufendem_lernmodus_wartet_neu_mit_eigenem_ziel():
+    h = wartet(UID_UNBEKANNT)
+    assert h.z.lern_ziel is None
+    h.sende(A(UID_S2, "v3"))
+    assert h.z.figur.uid == UID_S2 and h.z.lern_wartet_bis is not None and h.z.lern_ziel == ZUORDNUNGEN[UID_S2]
+    # eine Konfiguration, die nur den ersten Tobie zuordnet, ändert nichts mehr
+    assert h.sende(konfig_mit(UID_UNBEKANNT, "s1")) == [] and h.z.lern_wartet_bis is not None

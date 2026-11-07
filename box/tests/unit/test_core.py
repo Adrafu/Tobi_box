@@ -602,7 +602,41 @@ def test_kern_bestaetigt_abgelehnt_beendet_das_warten():
     out = k.sende(ev.Bestaetigt(UID_UNBEKANNT, "abgelehnt", "z", "gelernt"))
     assert [b.ton for b in out if isinstance(b, ev.TonSpielen)] == ["unbekannt"]
     assert [b.serie_id for b in out if isinstance(b, ev.Abspielen)] == ["ueb"] and k.modus == "spielt"
-    assert not [b for b in out if isinstance(b, ev.Melden)]
+    # unbekannter Tobie: erneut als „unbekannt“ melden (die Outbox hat den Eintrag gelöscht, Entscheidung H)
+    assert [b for b in out if isinstance(b, ev.Melden)] == [ev.Melden("unbekannt", UID_UNBEKANNT, None)]
+
+
+def test_kern_anderer_tobie_im_warten_wird_normal_behandelt_weil_learn_schon_aus_ist():
+    from conftest import UID_S2, UID_UNBEKANNT
+
+    k = _lern_kern()
+    k.sende(ev.Aufgelegt(UID_UNBEKANNT, "ntag", False, 0, "v1"))
+    assert k.z.session.lern_wartet_bis is not None and not k.z.session.lernt
+    out = k.sende(ev.Aufgelegt(UID_S2, "ntag", False, 1, "v2"))
+    assert [b.serie_id for b in out if isinstance(b, ev.Abspielen)] == ["s2"] and k.modus == "spielt"
+    assert k.z.session.lern_wartet_bis is None and not [b for b in out if isinstance(b, ev.TonSpielen)]
+
+
+def test_kern_gesperrt_im_warten_spielt_die_ueberraschung_ohne_ton_unbekannt():
+    from conftest import UID_UNBEKANNT
+
+    k = _lern_kern()
+    k.sende(ev.Aufgelegt(UID_UNBEKANNT, "ntag", False, 0, "v1"))
+    out = k.sende(ev.Gesperrt(1, "v2"))
+    assert [b.serie_id for b in out if isinstance(b, ev.Abspielen)] == ["ueb"]
+    assert not [b for b in out if isinstance(b, ev.TonSpielen)] and k.z.session.lern_wartet_bis is None
+
+
+def test_kern_erneuter_lernbefehl_im_warten_laesst_das_warten_weiterlaufen():
+    from conftest import UID_S1
+
+    k = _lern_kern()
+    k.sende(ev.Aufgelegt(UID_S1, "ntag", False, 0, "v1"))
+    bis = k.z.session.lern_wartet_bis
+    assert bis is not None and k.z.teil["learn"].modus == "aus"
+    k.sende(ev.HaLernmodus("b2", k.uhr.wall + 60))
+    assert k.z.teil["learn"].modus == "lernt" and k.z.session.lernt
+    assert k.z.session.lern_wartet_bis == bis and k.modus == "pausiert"
 
 
 def test_kern_frist_10_s_ohne_antwort():
