@@ -249,6 +249,16 @@ async def test_ungueltige_befehle_werden_abgelehnt_der_dienst_laeuft_weiter(lauf
     assert code == 0
 
 
+async def test_falsche_serien_id_wird_vom_cli_abgelehnt_der_dienst_hoert_nichts(lauf):
+    welt, _ = lauf
+    code, antwort, err = await sim(welt, "card", KARTE, "--serie", "rabe")
+    assert code == 2 and antwort is None
+    assert f"{SERIE} (rabe)" in err and "Ordnername" in err
+    code, antwort, err = await sim(welt, "learn", "--serie", SERIE, "--folge", "gibt-es-nicht.wav")
+    assert code == 2 and antwort is None and "folge-01.wav, folge-02.wav" in err
+    assert KARTE not in konfig(welt).get("zuordnungen", {})
+
+
 async def test_status_karte_wird_zugeordnet_und_aufgelegt_eine_tonfolge_keine_wiedergabe(lauf):
     welt, fr = lauf
     port = welt["mpd"].port

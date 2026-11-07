@@ -248,13 +248,18 @@ class PlayerVerbindung(Ereignis):
 # --------------------------------------------------------------------------
 
 
+#: Platzhalter für „ein gesperrter Tobie lag“ (er hat keine Kennung); keine gültige Kennung eines Tobies
+NEUSTART_GESPERRT = "gesperrt"
+
+
 @dataclass(frozen=True, slots=True)
 class GeraeteEinstellungen(Ereignis):
     lautstaerke_max: int
     lautstaerke_start: int
     lautstaerke_kopfhoerer: int
     #: Kennung des Tobies, der beim Dienst-Neustart (ohne Ausschalten) auflag, sonst ``None``
-    #: (Entscheidung G, 06.11.): Er startet nicht von selbst.
+    #: (Entscheidung G, 06.11.): Er startet nicht von selbst. Lag ein gesperrter Tobie (keine Kennung),
+    #: steht hier ``NEUSTART_GESPERRT``.
     neustart_uid: str | None = None
 
 

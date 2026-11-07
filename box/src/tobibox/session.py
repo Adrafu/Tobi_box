@@ -233,7 +233,9 @@ def _auflegen(z: Zustand, uid: str | None, vorgang: str, jetzt: Jetzt) -> tuple[
     """Neue Figur in einem Zustand ohne laufende Wiedergabe behandeln."""
     zuo = z.konfig.zuordnungen.get(uid) if (uid is not None and z.konfig is not None) else None
     # Dienst-Neustart (Entscheidung G, 06.11.): der Tobie, der schon vorher lag, startet nicht
-    neustart = uid is not None and uid == z.neustart_uid and z.modus == "leer"
+    # (ein gesperrter Tobie hat keine Kennung: er steht als ``NEUSTART_GESPERRT`` im Marker)
+    kennung = ev.NEUSTART_GESPERRT if uid is None else uid
+    neustart = z.neustart_uid is not None and kennung == z.neustart_uid and z.modus == "leer"
     z = replace(z, neustart_uid=None)
     if zuo is not None and zuo.typ == "aktion" and zuo.aktion is not None:
         return replace(z, figur=Figur(vorgang, uid, "aktion")), [ev.AktionAusgeloest(zuo.aktion, vorgang)]

@@ -250,3 +250,43 @@ def test_dienst_neustart_tobie_war_inzwischen_abgehoben_und_anderer_liegt_starte
     n = len(box.log)
     box.auflege(UID_FOLGE, "v2")  # nicht der Tobie aus dem Marker
     assert len(box.befehle(ev.Abspielen, n)) == 1 and box.modus == "spielt"
+
+
+# --- gesperrter Tobie (Befund 1 des Probelaufs) ----------------------------------------------
+
+
+def test_dienst_neustart_gesperrter_tobie_bleibt_pausiert_auf_der_ueberraschung(box):
+    box.sende(ev.Gesperrt(0, "v1"))
+    box.laufe(0.5)
+    assert box.modus == "spielt"
+    assert marker(box) == {"boot_id": "boot-1", "uid": None, "gesperrt": True}
+    box.neustart()
+    n = len(box.log)
+    assert box.kern.session.neustart_uid == ev.NEUSTART_GESPERRT
+    box.sende(ev.Gesperrt(0, "v2"))  # der Leser meldet ihn nach dem Start erneut
+    ohne_wiedergabe(box, n)
+    assert box.modus == "pausiert" and box.kern.session.figur.art == "gesperrt"
+    assert [b for b in box.log[n:] if isinstance(b, ev.TonSpielen)] == []
+    box.laufe(5.0)
+    ohne_wiedergabe(box, n)  # auch nach Wartezeit startet nichts
+    box.sende(ev.Hauptknopf("kurz"))  # der Hauptknopf spielt die Überraschung
+    (a,) = box.befehle(ev.Abspielen, n)
+    assert a.serie_id == UEBERRASCHUNG
+
+
+def test_einschalten_gesperrter_tobie_spielt_die_ueberraschung(box):
+    box.sende(ev.Gesperrt(0, "v1"))
+    box.neustart_nach_einschalten()
+    assert box.kern.session.neustart_uid is None
+    n = len(box.log)
+    box.sende(ev.Gesperrt(0, "v2"))
+    (a,) = box.befehle(ev.Abspielen, n)
+    assert a.serie_id == UEBERRASCHUNG and box.modus == "spielt"
+
+
+def test_dienst_neustart_gesperrt_lag_aber_jetzt_liegt_ein_anderer_startet_sofort(box):
+    box.sende(ev.Gesperrt(0, "v1"))
+    box.neustart()
+    n = len(box.log)
+    box.auflege(UID, "v2")
+    assert len(box.befehle(ev.Abspielen, n)) == 1 and box.modus == "spielt"

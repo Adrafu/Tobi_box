@@ -147,16 +147,16 @@ def test_formatiere_live_zeigt_status_und_pruefpunkte():
 @pytest.mark.parametrize(
     "argv, erwartet",
     [
-        (["learn", "--serie", "s1"], {"befehl": "learn", "typ": "serie", "serie": "s1", "ttl": 60}),
-        (["learn", "--serie", "s1", "--folge", "a.mp3", "--ttl", "30"],
-         {"befehl": "learn", "typ": "folge", "serie": "s1", "folge": "a.mp3", "ttl": 30}),
-        (["learn", "--serie", "s1", "--ueberschreiben"],
-         {"befehl": "learn", "typ": "serie", "serie": "s1", "ttl": 60, "ueberschreiben": True}),
+        (["learn", "--serie", "3f9a1c07b2d4"], {"befehl": "learn", "typ": "serie", "serie": "3f9a1c07b2d4", "ttl": 60}),
+        (["learn", "--serie", "3f9a1c07b2d4", "--folge", "folge-01.wav", "--ttl", "30"],
+         {"befehl": "learn", "typ": "folge", "serie": "3f9a1c07b2d4", "folge": "folge-01.wav", "ttl": 30}),
+        (["learn", "--serie", "3f9a1c07b2d4", "--ueberschreiben"],
+         {"befehl": "learn", "typ": "serie", "serie": "3f9a1c07b2d4", "ttl": 60, "ueberschreiben": True}),
         (["learn-abort"], {"befehl": "learn_abort"}),
-        (["card", "04a1b2c3", "--serie", "s1"],
-         {"befehl": "card", "uid": "04a1b2c3", "ziel": {"typ": "serie", "serie": "s1"}}),
-        (["card", "04a1b2c3", "--serie", "s1", "--folge", "a.mp3"],
-         {"befehl": "card", "uid": "04a1b2c3", "ziel": {"typ": "folge", "serie": "s1", "folge": "a.mp3"}}),
+        (["card", "04a1b2c3", "--serie", "3f9a1c07b2d4"],
+         {"befehl": "card", "uid": "04a1b2c3", "ziel": {"typ": "serie", "serie": "3f9a1c07b2d4"}}),
+        (["card", "04a1b2c3", "--serie", "3f9a1c07b2d4", "--folge", "folge-01.wav"],
+         {"befehl": "card", "uid": "04a1b2c3", "ziel": {"typ": "folge", "serie": "3f9a1c07b2d4", "folge": "folge-01.wav"}}),
         (["card", "04a1b2c3", "--aktion", "status"],
          {"befehl": "card", "uid": "04a1b2c3", "ziel": {"typ": "aktion", "aktion": "status"}}),
         (["ack", "04a1b2c3", "--zuletzt", "z", "--art", "gelernt", "--grund", "zugeordnet"],
@@ -197,14 +197,14 @@ def test_sim_ack_ohne_eintrag_ist_ein_fehler(box, capsys):
 
 def test_sim_ohne_dienst_exitcode_3(box, capsys):
     _, toml = box
-    assert cli.main(["sim", "--config", str(toml), "learn", "--serie", "s1"], io.StringIO()) == 3
+    assert cli.main(["sim", "--config", str(toml), "learn", "--serie", "3f9a1c07b2d4"], io.StringIO()) == 3
     assert "nicht erreichbar" in capsys.readouterr().err
 
 
 def test_sim_abgelehnte_zeile_exitcode_1(box, monkeypatch, capsys):
     _, toml = box
     monkeypatch.setattr(cli, "_frage_socket", lambda pfad, zeile: {"ok": False, "fehler": "typ ungueltig"})
-    assert cli.main(["sim", "--config", str(toml), "learn", "--serie", "s1"], io.StringIO()) == 1
+    assert cli.main(["sim", "--config", str(toml), "learn", "--serie", "3f9a1c07b2d4"], io.StringIO()) == 1
     assert "typ ungueltig" in capsys.readouterr().err
 
 
@@ -222,7 +222,7 @@ def test_sim_ohne_rechte_auf_den_socket_ist_exitcode_4_und_nicht_nicht_erreichba
         raise PermissionError(13, "Permission denied")
 
     monkeypatch.setattr(cli, "_frage_socket", verboten)
-    assert cli.main(["sim", "--config", str(toml), "learn", "--serie", "s1"], io.StringIO()) == 4
+    assert cli.main(["sim", "--config", str(toml), "learn", "--serie", "3f9a1c07b2d4"], io.StringIO()) == 4
     fehler = capsys.readouterr().err
     assert "keine Berechtigung" in fehler and "nicht erreichbar" not in fehler
 
@@ -277,3 +277,57 @@ def test_status_schreibt_beim_lesen_der_bibliothek_keine_protokollzeilen_und_aen
         assert strom.getvalue() == ""
     finally:
         eventlog.logger().handlers.clear()
+
+
+SERIE_RABE = "3f9a1c07b2d4"
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["learn", "--serie", "rabe"],
+        ["learn", "--serie", "gibt-es-nicht", "--folge", "folge-01.wav"],
+        ["card", "04a1b2c3", "--serie", "rabe"],
+        ["card", "04a1b2c3", "--serie", "c07d2e91a45b"],  # die Überraschungs-Serie ist kein Ziel
+    ],
+)
+def test_sim_unbekannte_serie_wird_abgelehnt_mit_den_vorhandenen_ids(box, monkeypatch, capsys, argv):
+    _, toml = box
+    gesendet = []
+    monkeypatch.setattr(cli, "_frage_socket", lambda pfad, zeile: gesendet.append(zeile) or {"ok": True})
+    out = io.StringIO()
+    assert cli.main(["sim", "--config", str(toml), *argv], out) == 2
+    fehler = capsys.readouterr().err
+    assert gesendet == [] and out.getvalue() == ""
+    assert f"{SERIE_RABE} (Der kleine Rabe)" in fehler and "8c21d5e9a0b7 (Bär)" in fehler
+    assert "c07d2e91a45b" not in fehler.split("Vorhandene Serien-IDs:")[1]
+
+
+def test_sim_ordnername_statt_id_nennt_die_richtige_id(box, monkeypatch, capsys):
+    _, toml = box
+    monkeypatch.setattr(cli, "_frage_socket", lambda pfad, zeile: {"ok": True})
+    assert cli.main(["sim", "--config", str(toml), "card", "04a1b2c3", "--serie", "rabe"], io.StringIO()) == 2
+    assert f"Ordnername von \"Der kleine Rabe\", gebraucht wird die ID {SERIE_RABE}" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("befehl", [["learn", "--serie", SERIE_RABE], ["card", "04a1b2c3", "--serie", SERIE_RABE]])
+def test_sim_unbekannte_folge_wird_abgelehnt_mit_den_vorhandenen_folgen(box, monkeypatch, capsys, befehl):
+    _, toml = box
+    gesendet = []
+    monkeypatch.setattr(cli, "_frage_socket", lambda pfad, zeile: gesendet.append(zeile) or {"ok": True})
+    assert cli.main(["sim", "--config", str(toml), *befehl, "--folge", "folge-99.wav"], io.StringIO()) == 2
+    fehler = capsys.readouterr().err
+    assert gesendet == [] and "folge-99.wav" in fehler and "folge-01.wav, folge-02.wav, folge-03.wav" in fehler
+
+
+def test_sim_aktionskarte_braucht_keine_serie(box, monkeypatch):
+    _, toml = box
+    monkeypatch.setattr(cli, "_frage_socket", lambda pfad, zeile: {"ok": True})
+    assert cli.main(["sim", "--config", str(toml), "card", "04a1b2c3", "--aktion", "status"], io.StringIO()) == 0
+
+
+def test_sim_ohne_medienordner_nennt_keine_serien(tmp_path, capsys):
+    toml = tmp_path / "tobibox.toml"
+    toml.write_text(f'[pfade]\nzustand = "{tmp_path / "var"}"\nmedien = "{tmp_path / "fehlt"}"\n', encoding="utf-8")
+    assert cli.main(["sim", "--config", str(toml), "learn", "--serie", "x"], io.StringIO()) == 2
+    assert "Vorhandene Serien-IDs: keine" in capsys.readouterr().err

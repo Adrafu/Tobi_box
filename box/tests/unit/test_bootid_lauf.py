@@ -50,3 +50,23 @@ def test_marker_fehlt_und_loeschen(tmp_path):
 def test_schreiben_ohne_boot_id_tut_nichts(tmp_path):
     assert lauf.schreibe(tmp_path, None, "04aa") is False
     assert not (tmp_path / "lauf.json").exists()
+
+
+def test_marker_gesperrter_tobie_wird_von_nichts_unterschieden(tmp_path):
+    from tobibox import events as ev
+
+    assert lauf.schreibe(tmp_path, "b1", ev.NEUSTART_GESPERRT)
+    assert json.loads((tmp_path / "lauf.json").read_text()) == {"boot_id": "b1", "uid": None, "gesperrt": True}
+    assert lauf.lese_neustart_uid(tmp_path, "b1") == ev.NEUSTART_GESPERRT
+    assert lauf.lese_neustart_uid(tmp_path, "b2") is None  # anderes Einschalten
+    # nichts lag: kein ``gesperrt``-Feld
+    lauf.schreibe(tmp_path, "b1", None)
+    assert json.loads((tmp_path / "lauf.json").read_text()) == {"boot_id": "b1", "uid": None}
+    assert lauf.lese_neustart_uid(tmp_path, "b1") is None
+
+
+def test_marker_alte_datei_und_ungueltiges_gesperrt_gilt_als_nichts(tmp_path):
+    for inhalt in ('{"boot_id": "b1", "uid": null}', '{"boot_id": "b1", "uid": null, "gesperrt": false}',
+                   '{"boot_id": "b1", "uid": null, "gesperrt": "ja"}'):
+        (tmp_path / "lauf.json").write_text(inhalt)
+        assert lauf.lese_neustart_uid(tmp_path, "b1") is None

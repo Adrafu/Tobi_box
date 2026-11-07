@@ -8,7 +8,8 @@ Abschnitt 12; ``mqtt-v1.md``, 3.3) und die Prüfpunkte der Status-Karte.
 
 ``sim`` ist ein Client des Unix-Sockets ``sim.sock`` im Zustandsverzeichnis (Stufe 2, ``sim.py``):
 ``learn``, ``learn-abort``, ``ack`` und ``card``. Exit-Codes von ``sim``: 0 angenommen, 1 abgelehnt, 2 Eingabe,
-3 Dienst nicht erreichbar, 4 keine Berechtigung auf ``sim.sock``.
+3 Dienst nicht erreichbar, 4 keine Berechtigung auf ``sim.sock``. ``learn`` und ``card`` prüfen vorab, ob es
+Serie und Folge in der Bibliothek gibt; sonst Exit-Code 2 mit den vorhandenen Serien-IDs in der Meldung.
 """
 
 from __future__ import annotations
@@ -240,8 +241,32 @@ def status(args: argparse.Namespace, ausgabe: TextIO) -> int:
     return 0 if ok else 1
 
 
-def _sim_zeile(args: argparse.Namespace, zustand: Path) -> dict | str:
+def _pruefe_ziel(medien: Path, serie_id: str | None, folge: str | None) -> str | None:
+    """Fehlertext, wenn es die Serie (oder die Folge) in der geladenen Bibliothek nicht gibt, sonst ``None``."""
+    if serie_id is None:
+        return None
+    bib = library.lade_bibliothek(medien, leise=True)
+    normale = [s for s in bib.serien if s.typ == "normal"]
+    vorhanden = ", ".join(f"{s.id} ({s.name})" for s in normale) or "keine"
+    serie = next((s for s in normale if s.id == serie_id), None)
+    if serie is None:
+        hinweis = ""
+        nach_ordner = next((s for s in normale if Path(s.ordner).name == serie_id), None)
+        if nach_ordner is not None:
+            hinweis = f" Das ist der Ordnername von \"{nach_ordner.name}\", gebraucht wird die ID {nach_ordner.id}."
+        return f"die Serie \"{serie_id}\" gibt es nicht.{hinweis} Vorhandene Serien-IDs: {vorhanden}"
+    if folge is not None and folge not in serie.folgen:
+        folgen = ", ".join(serie.folgen) or "keine"
+        return f"die Folge \"{folge}\" gibt es in der Serie {serie.id} ({serie.name}) nicht. Vorhandene Folgen: {folgen}"
+    return None
+
+
+def _sim_zeile(args: argparse.Namespace, zustand: Path, medien: Path | None = None) -> dict | str:
     """Die JSON-Zeile für ``sim.sock`` aus den Argumenten, oder ein Fehlertext."""
+    if medien is not None and args.sim_befehl in ("learn", "card") and not getattr(args, "aktion", None):
+        fehler = _pruefe_ziel(medien, args.serie, args.folge)
+        if fehler is not None:
+            return fehler
     if args.sim_befehl == "learn":
         zeile: dict = {"befehl": "learn", "typ": "folge" if args.folge else "serie", "serie": args.serie, "ttl": args.ttl}
         if args.ueberschreiben:
@@ -277,7 +302,7 @@ def sim(args: argparse.Namespace, ausgabe: TextIO) -> int:
         print(f"tobibox sim: {e}", file=sys.stderr)
         return 2
     zustand = kfg.pfade.zustand
-    zeile = _sim_zeile(args, zustand)
+    zeile = _sim_zeile(args, zustand, kfg.pfade.medien)
     if isinstance(zeile, str):
         print(f"tobibox sim: {zeile}", file=sys.stderr)
         return 2

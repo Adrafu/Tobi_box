@@ -470,9 +470,8 @@ die Rückkehr die INFO-Zeile `leser_verbunden`.
       `pausiert`. Es startet **keine Wiedergabe** von selbst (nur das Startgeräusch des Dienstes), auch nach 10 s nicht. Zum Weiterspielen
       den Tobie abheben und wieder auflegen. Dann läuft er an der gespeicherten Stelle weiter.
       (Der Hauptknopf, der am Pi dasselbe tut, fehlt am Mac.)
-      - *Mit dem Fake-Leser:* `place <kennung> ntag`, Folge spielt, **kein**
-        `remove`. (Ein gesperrter Tonie mit `lock` hat keine Kennung; für ihn gilt dieser Schritt
-        noch nicht, er startet nach dem Neustart die Überraschung.) Den Dienst mit `Ctrl+C` beenden und neu starten, den Fake-Leser laufen
+      - *Mit dem Fake-Leser:* `place <kennung> ntag` (oder `lock`), Folge spielt, **kein**
+        `remove`. Den Dienst mit `Ctrl+C` beenden und neu starten, den Fake-Leser laufen
         lassen (gleicher `--link`). Der Dienst sendet `PING`, der Fake-Leser antwortet mit
         `HELLO` und meldet den liegenden Tobie erneut mit `seq=0`, genau wie die Firmware.
         Prüfen: `grep dienst_neustart ~/Tobi_box/box/var/log/tobibox.log | tail -n 2`.
@@ -627,9 +626,8 @@ Karte `<UID-KARTE>`.
 **Serien-ID statt Ordnername.** Bei `--serie` gehört die **ID** aus der Datei `serie.json`
 der Serie, nicht der Ordnername. Die Beispielserie `serie-a` hat die ID `a1b2c3d4e5f6`; die
 Überraschungs-Serie hat `c07d2e91a45b`. Die Serie `lange-serie` aus 12.1 hat keine `serie.json`,
-dort gilt der Ordnername als ID (Schritt 5). Eine unbekannte ID nimmt `tobibox sim` an
-(`{"ok": true}`), aber der Tobie spielt dann die Überraschung, und im Protokoll steht eine
-WARNING-Zeile `serie_fehlt`. Die ID liest du so nach:
+dort gilt der Ordnername als ID (Schritt 5). Eine unbekannte ID (oder Folge) lehnt `tobibox sim` ab
+(Exit-Code 2); die Meldung nennt die vorhandenen Serien-IDs mit ihrem Anzeigenamen. Die ID liest du so nach:
 
 ```bash
 grep '"id"' ~/Tobi_box/box/medien-beispiel/serie-a/serie.json
