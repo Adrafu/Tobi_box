@@ -545,3 +545,12 @@ def test_fehler_im_verfahren_laesst_keine_tmp_reste(tmp_path, monkeypatch, fehle
     monkeypatch.undo()
     assert not list(tmp_path.glob("*.tmp"))
     assert json.loads(p.read_text())["v"] == 2
+
+
+def test_laden_raeumt_nicht_auf_fremde_temp_dateien_bleiben_stehen(tmp_path):
+    """Befund 1: Die Temp-Datei kann zu einem laufenden Schreiben in einem Thread gehören."""
+    (tmp_path / "resume.json.tmp").write_text("{}")
+    (tmp_path / "config.json.bak.tmp").write_text("{}")
+    store.KonfigStore(tmp_path).laden()
+    store.ResumeStore(tmp_path).laden()
+    assert sorted(p.name for p in tmp_path.glob("*.tmp")) == ["config.json.bak.tmp", "resume.json.tmp"]

@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+import asyncio
+import logging
+import os
+import time
+
 import pytest
 
 from tobibox import events as ev
@@ -13,9 +18,10 @@ ZUERST = "2026-11-07T09:12:03.412Z"
 
 
 class FakeSim:
-    def __init__(self, ziel=None, befehl_id=None) -> None:
+    def __init__(self, ziel=None, befehl_id=None, ueberschreiben=False) -> None:
         self.lernziel = ziel
         self.lernbefehl_id = befehl_id
+        self.ueberschreiben = ueberschreiben
 
 
 def eintrag(uid=UID, befehl_id="b1", zuletzt=ZUERST):
@@ -101,3 +107,60 @@ def test_ungueltige_kennung_wird_abgelehnt(ks):
     ha, _, aus = baue(ks, ziel={"typ": "serie", "serie": "s1"}, befehl_id="b1")
     ha.gelernt(eintrag(uid="keine-uid"))
     assert aus == [ev.Bestaetigt("keine-uid", "abgelehnt", ZUERST, "gelernt")]
+
+
+# --- schon zugeordnet: nur mit ``--ueberschreiben`` -----------------------------------------------
+
+
+def test_schon_zugeordnete_kennung_wird_ohne_ueberschreiben_abgelehnt_und_bleibt(ks, caplog):
+    schreibe_zuordnung(ks, UID, {"typ": "serie", "serie": "alt"})
+    ha, sim, aus = baue(ks, ziel={"typ": "serie", "serie": "s1"}, befehl_id="b1")
+    with caplog.at_level(logging.WARNING, logger="tobibox"):
+        ha.gelernt(eintrag())
+    assert aus == [ev.Bestaetigt(UID, "abgelehnt", ZUERST, "gelernt")]
+    assert ks.konfig.revision == 1 and ks.konfig.zuordnungen[UID] == ev.Zuordnung("serie", "alt")
+    (r,) = [r for r in caplog.records if getattr(r, "ereignis", "") == "zuordnung"]
+    assert "--ueberschreiben" in r.meldung and UID in r.meldung and r.sim is True
+    assert sim.lernziel is None  # der Lernlauf ist zu Ende
+
+
+def test_schon_zugeordnete_kennung_wird_mit_ueberschreiben_ersetzt(ks):
+    schreibe_zuordnung(ks, UID, {"typ": "serie", "serie": "alt"})
+    ha, _, aus = baue(ks, ziel={"typ": "serie", "serie": "s1"}, befehl_id="b1", ueberschreiben=True)
+    ha.gelernt(eintrag())
+    assert [type(e) for e in aus] == [ev.KonfigGeladen, ev.Bestaetigt] and aus[1].grund == "zugeordnet"
+    assert ks.konfig.zuordnungen[UID] == ev.Zuordnung("serie", "s1") and ks.konfig.revision == 2
+
+
+async def test_gelernt_async_schreibt_und_bestaetigt_wie_gelernt(ks):
+    ha, sim, aus = baue(ks, ziel={"typ": "serie", "serie": "s1"}, befehl_id="b1")
+    await ha.gelernt_async(eintrag())
+    assert [type(e) for e in aus] == [ev.KonfigGeladen, ev.Bestaetigt] and sim.lernziel is None
+
+
+async def test_zwei_zuordnungen_gleichzeitig_in_threads_gehen_nicht_verloren(ks):
+    await asyncio.gather(
+        asyncio.to_thread(schreibe_zuordnung, ks, "04a1b2c3", {"typ": "serie", "serie": "s1"}),
+        asyncio.to_thread(schreibe_zuordnung, ks, "04a1b2c4", {"typ": "serie", "serie": "s2"}),
+    )
+    assert ks.konfig.revision == 2 and set(ks.konfig.zuordnungen) == {"04a1b2c3", "04a1b2c4"}
+
+
+# --- Befund 1: Aufräumen darf kein laufendes Zeiger-Schreiben treffen ------------------------------
+
+
+async def test_zuordnung_waehrend_eines_laufenden_zeiger_schreibens_loescht_dessen_temp_datei_nicht(ks, tmp_path, monkeypatch):
+    """Ein Thread schreibt ``resume.json`` (``fsync`` dauert auf der SD-Karte); ``schreibe_zuordnung`` läuft dazwischen."""
+    orig = os.fsync
+
+    def langsam(fd):
+        time.sleep(0.3)
+        return orig(fd)
+
+    monkeypatch.setattr(store.os, "fsync", langsam)
+    schreiben = asyncio.create_task(asyncio.to_thread(store.schreibe_atomar, tmp_path / "resume.json", {"schema_version": 1}))
+    await asyncio.sleep(0.1)  # der Thread steht im ``fsync``, die Temp-Datei existiert
+    assert (tmp_path / "resume.json.tmp").exists()
+    schreibe_zuordnung(ks, UID, {"typ": "serie", "serie": "s1"})  # ruft ``KonfigStore.laden()``
+    await schreiben  # wirft ``FileNotFoundError``, wenn jemand die Temp-Datei gelöscht hat
+    assert (tmp_path / "resume.json").exists()

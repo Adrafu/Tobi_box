@@ -3,10 +3,16 @@
 Führt ``<zustand>/unknown.json``. Ein Eintrag wird nur gelöscht, wenn ``bestaetigt`` mit passendem
 ``zuletzt`` und ``art`` kommt; der Broker allein bestätigt nichts. Jede Änderung wird sofort atomar
 geschrieben (``store.schreibe_atomar``), so überlebt ein Eintrag einen Neustart.
+
+Im Dienst (``asynchron=True``, Ereignisschleife läuft) ändert sich der Speicher sofort, das Schreiben
+mit ``fsync`` macht eine einzige Hintergrundaufgabe in einem Thread (die Schleife wartet nie auf die
+SD-Karte). Sie schreibt immer den neuesten Stand, so kann keine ältere Fassung eine neuere ersetzen.
+``warte_gespeichert`` wartet beim Beenden darauf.
 """
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Mapping
 from datetime import datetime, timezone
 from pathlib import Path
@@ -14,7 +20,7 @@ from typing import Any
 
 from .eventlog import logge
 from .events import Eintrag, Jetzt
-from .store import Ungueltig, lade_zustandsdatei, raeume_auf, schreibe_atomar
+from .store import Ungueltig, lade_zustandsdatei, schreibe_atomar
 
 NAME = "unknown.json"
 MAX_EINTRAEGE = 200
@@ -70,19 +76,46 @@ def _zu_json(eintraege: Mapping[str, Eintrag]) -> dict[str, Any]:
 
 
 class Outbox:
-    def __init__(self, verzeichnis: str | Path) -> None:
+    def __init__(self, verzeichnis: str | Path, *, asynchron: bool = False) -> None:
         self.pfad = Path(verzeichnis) / NAME
         self._eintraege: dict[str, Eintrag] = {}
         self.quelle = "neu"
+        self._asynchron = asynchron
+        self._schmutzig = False  # es gibt einen Stand, der noch nicht auf der Platte ist
+        self._schreiber: asyncio.Task | None = None
 
     def laden(self) -> None:
-        raeume_auf(self.pfad.parent)
+        """Beim Start (kein Aufräumen: ``store.raeume_auf`` macht nur der Dienststart)."""
         self._eintraege, self.quelle = lade_zustandsdatei(self.pfad, _parse, dict, _zu_json)
 
     def _speichern(self) -> None:
+        if self._asynchron:
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = None
+            if loop is not None:
+                self._schmutzig = True
+                if self._schreiber is None or self._schreiber.done():
+                    self._schreiber = loop.create_task(self._schreibe(), name="tobibox-outbox")
+                return
         schreibe_atomar(self.pfad, _zu_json(self._eintraege))
 
-    def melden(self, art: str, uid: str, befehl_id: str | None, jetzt: Jetzt) -> None:
+    async def _schreibe(self) -> None:
+        while self._schmutzig:
+            self._schmutzig = False
+            daten = _zu_json(self._eintraege)  # Abzug in der Schleife; der Thread sieht nur die Kopie
+            try:
+                await asyncio.to_thread(schreibe_atomar, self.pfad, daten)
+            except OSError as e:
+                logge("outbox", "ERROR", "speichern", "fehler", daten={"detail": repr(e)})  # nächste Änderung versucht es erneut
+
+    async def warte_gespeichert(self) -> None:
+        """Wartet, bis der letzte Stand auf der Platte ist."""
+        while self._schreiber is not None and not self._schreiber.done():
+            await asyncio.shield(self._schreiber)
+
+    def melden(self, art: str, uid: str, befehl_id: str | None, jetzt: Jetzt) -> Eintrag:
         if art not in _ARTEN:
             raise ValueError(f"unbekannte Art {art!r}")
         ts = zeitstempel(jetzt.wall)
@@ -96,23 +129,25 @@ class Outbox:
             neu = Eintrag(uid, art, alt.zuerst, ts, alt.anzahl + 1, jetzt.zeit_ok, bid)  # type: ignore[arg-type]
         self._eintraege[uid] = neu
         while len(self._eintraege) > MAX_EINTRAEGE:
-            aeltester = min(self._eintraege.values(), key=lambda e: e.zuletzt)
+            # Der neue Eintrag wird nie verworfen (bei einer Uhr hinter den alten wäre er sonst der älteste)
+            aeltester = min((e for e in self._eintraege.values() if e.uid != uid), key=lambda e: e.zuletzt)
             del self._eintraege[aeltester.uid]
             logge("outbox", "WARNING", "eintrag_verworfen", "voll", daten={"uid": aeltester.uid})
         self._speichern()
+        return neu
 
     def offen(self) -> list[Eintrag]:
         return list(self._eintraege.values())
 
-    def bestaetigt(self, id: str, grund: str, zuletzt: str, art: str) -> bool:
+    def bestaetigt(self, id: str, grund: str, zuletzt: str, art: str, *, sim: bool = False) -> bool:
         e = self._eintraege.get(id)
         if e is None:
-            logge("outbox", "INFO", "ack", "unbekannt", daten={"uid": id, "grund": grund})
+            logge("outbox", "INFO", "ack", "unbekannt", sim=sim, daten={"uid": id, "grund": grund})
             return False
         if e.zuletzt != zuletzt or e.art != art:
-            logge("outbox", "INFO", "ack_veraltet", "wirkungslos", daten={"uid": id, "grund": grund})
+            logge("outbox", "INFO", "ack_veraltet", "wirkungslos", sim=sim, daten={"uid": id, "grund": grund})
             return False
         del self._eintraege[id]
         self._speichern()
-        logge("outbox", "INFO", "ack", "geloescht", daten={"uid": id, "grund": grund})
+        logge("outbox", "INFO", "ack", "geloescht", sim=sim, daten={"uid": id, "grund": grund})
         return True

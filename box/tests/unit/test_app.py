@@ -284,6 +284,7 @@ async def test_unbekannter_tobie_wird_in_unknown_json_eingetragen_und_bleibt_ueb
     try:
         await lege_auf(a, "04ffeedd")
         await a.befehle.join()
+        await a.outbox.warte_gespeichert()
         assert unknown(a)["04ffeedd"]["art"] == "unbekannt"
     finally:
         await a.beende()
@@ -301,15 +302,45 @@ async def test_bestaetigt_loescht_erst_mit_passendem_zuletzt(app):
     try:
         await lege_auf(a, "04ffeedd")
         await a.befehle.join()
+        await a.outbox.warte_gespeichert()
         zuletzt = unknown(a)["04ffeedd"]["zuletzt"]
         a.ereignisse.put_nowait(ev.Bestaetigt("04ffeedd", "neu", "2000-01-01T00:00:00.000Z", "unbekannt"))
         await a._leere_ereignisse()
+        await a.outbox.warte_gespeichert()
         assert "04ffeedd" in unknown(a)
         a.ereignisse.put_nowait(ev.Bestaetigt("04ffeedd", "neu", zuletzt, "unbekannt"))
         await a._leere_ereignisse()
+        await a.outbox.warte_gespeichert()
         assert unknown(a) == {}
     finally:
         await a.beende()
+
+
+async def test_sim_start_fehler_stoppt_den_dienst_nicht(app, caplog):
+    """Befund 2: Pfad zu lang (``AF_UNIX``) o. ä. -> ERROR im Protokoll, die Box läuft ohne ``sim`` weiter."""
+    app.sim.pfad = app.sim.zustand / ("x" * 150)
+    with caplog.at_level(logging.WARNING, logger="tobibox"):
+        await app.starte()
+    try:
+        assert app.bereit.is_set()
+        (r,) = [r for r in caplog.records if getattr(r, "ereignis", "") == "sim_start"]
+        assert r.levelname == "ERROR" and "ohne Simulations-Treiber" in r.meldung
+        assert app._aufgaben and not app.sim.pfad.exists()
+    finally:
+        await app.beende()
+
+
+async def test_sim_start_permission_error_stoppt_den_dienst_nicht(app, monkeypatch, caplog):
+    async def verboten():
+        raise PermissionError(13, "Permission denied")
+
+    monkeypatch.setattr(app.sim, "start", verboten)
+    with caplog.at_level(logging.ERROR, logger="tobibox"):
+        await app.starte()
+    try:
+        assert app.bereit.is_set() and any(getattr(r, "ereignis", "") == "sim_start" for r in caplog.records)
+    finally:
+        await app.beende()
 
 
 async def test_sim_socket_lebt_waehrend_der_dienst_laeuft_und_ist_danach_weg(app):

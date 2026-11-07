@@ -19,15 +19,13 @@ Abheben im Folgenende-Zustand und andere Zustände decken ``unit/test_session.py
 
 from __future__ import annotations
 
-import asyncio
 import sys
-import time
 from pathlib import Path
 
 import pytest
 from conftest import CujBox, app_welt
 from fixtures import audio
-from integration.test_app_e2e import _zustand_ist, _spielt, mpd_status, warte
+from integration.test_app_e2e import _elapsed_ab, _zustand_ist, _spielt, mpd_status, warte
 
 from tobibox import config as konfig_modul
 from tobibox import events as ev
@@ -125,24 +123,27 @@ async def test_app_abheben_pausiert_mpd_und_protokolliert_die_kette(mpd, tmp_pat
         app = App(konfig_modul.lade(welt["toml"]), melde_bereit=False)
         await app.starte()
         try:
-            await warte(lambda: "PING" in fr.empfangen, 5.0, "(Leser verbunden)")
-            await asyncio.sleep(0.8)
+            # Auf Zustand warten, nicht auf feste Zeiten: erst ist der Leser verbunden (Hallo gesehen) ...
+            await warte(lambda: app.status.hallo is not None, 8.0, "(Leser meldet sich)")
             fr.place(UID)
             await warte(lambda: _spielt(mpd.port), 8.0, "(spielt)")
-            await asyncio.sleep(2.5)
-            t0 = time.monotonic()
+            await warte(lambda: _elapsed_ab(mpd.port, 2.5), 8.0, "(2,5 s gespielt)")
             fr.remove()
-            await warte(lambda: _zustand_ist(mpd.port, "pause"), 5.0, "(MPD pausiert)")
-            bis_pause = time.monotonic() - t0
-            await warte(lambda: (welt["zustand"] / "resume.json").exists(), 5.0, "(Zeiger)")
+            await warte(lambda: _zustand_ist(mpd.port, "pause"), 8.0, "(MPD pausiert)")
+            await warte(lambda: bool(protokoll.finde("zeiger_gespeichert")), 8.0, "(Zeiger gespeichert)")
+            await warte(lambda: (welt["zustand"] / "resume.json").exists(), 8.0, "(Zeiger)")
         finally:
             await app.beende()
-    assert bis_pause < 1.0, bis_pause  # nur Dienst und MPD (Container); die Zeitgrenze misst timing.md am Ausgang
     namen = [z["ereignis"] for z in protokoll.zeilen()]
     i = namen.index("abgehoben")
     assert namen.index("pausieren", i) < namen.index("zeiger_gespeichert", i)
     (ab,) = protokoll.finde("abgehoben")
     (pa,) = [z for z in protokoll.finde("pausieren") if z["daten"]["grund"] == "abgehoben"]
+    (fertig,) = [z for z in protokoll.finde("pausieren_fertig") if z.get("vorgang") == ab["vorgang"]]
+    # Die Grenze (unter 1 s von REMOVED bis MPD pausiert) misst der Dienst selbst an seinen Protokollzeiten
+    # (``mono``), nicht der Test mit Abfragen von außen; die Grenze am Ausgang misst timing.md.
+    bis_pause = fertig["mono"] - ab["mono"]
+    assert bis_pause < 1.0, bis_pause
     assert ab["baustein"] == "reader" and ab["vorgang"] == pa["vorgang"]
     zg = protokoll.finde("zeiger_gespeichert")[0]
     assert zg["daten"]["serie"] == SERIE and zg["daten"]["position_s"] >= 2.0

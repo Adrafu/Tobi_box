@@ -82,3 +82,65 @@ def test_pruefroutine_speicher_grenze(tmp_path):
 def test_wavs_vorhanden(name):
     with wave.open(str(SOUNDS / f"{name}.wav")) as w:
         assert w.getnframes() > 0
+
+
+# --- eine Stelle für Medien und Speicher (Befund 13) -------------------------------------------------
+
+
+def test_messe_liest_den_ordner_leise_und_ohne_die_handler_zu_tauschen(tmp_path):
+    import io
+    import logging
+
+    from fixtures.audio import erzeuge_medien
+
+    from tobibox import eventlog
+
+    medien = erzeuge_medien(tmp_path / "m")
+    strom = io.StringIO()
+    eventlog.einrichten(ziel="stdout", ebene="DEBUG", strom=strom)
+    try:
+        handler = list(logging.getLogger("tobibox").handlers)
+        m = st.messe(medien)
+        assert list(logging.getLogger("tobibox").handlers) == handler
+    finally:
+        eventlog.logger().handlers.clear()
+    assert m.bibliothek is not None and len(m.serien) == 3 and m.frei_mb is not None
+    assert strom.getvalue() == ""
+    assert st.pruefe_medien(m.serien).ok
+
+
+def test_messe_nimmt_die_geladene_bibliothek_ohne_den_ordner_neu_zu_lesen(tmp_path, monkeypatch):
+    from fixtures.audio import erzeuge_medien
+
+    from tobibox import library
+
+    medien = erzeuge_medien(tmp_path / "m")
+    bib = library.lade_bibliothek(medien, leise=True)
+
+    def verboten(*a, **k):
+        raise AssertionError("darf nicht neu lesen")
+
+    monkeypatch.setattr(library, "lade_bibliothek", verboten)
+    assert st.messe(medien, bib).bibliothek is bib
+
+
+def test_messe_ordner_fehlt_ist_nicht_lesbar(tmp_path):
+    m = st.messe(tmp_path / "gibt-es-nicht")
+    assert m.bibliothek is None and m.serien is None and not st.pruefe_medien(m.serien).ok
+
+
+def test_pruefe_und_cli_bewerten_die_medien_gleich(tmp_path):
+    from fixtures.audio import erzeuge_serie
+
+    from tobibox import cli
+    from tobibox import config as konfig_modul
+
+    medien = tmp_path / "m"
+    erzeuge_serie(medien, "rabe", ["a.wav"], serie_id="3f9a1c07b2d4", name="Rabe")  # ohne Überraschungs-Serie
+    zustand = tmp_path / "var"
+    zustand.mkdir()
+    toml = tmp_path / "tobibox.toml"
+    toml.write_text(f'[pfade]\nzustand = "{zustand}"\nmedien = "{medien}"\n', encoding="utf-8")
+    punkt = st.pruefe(medien).punkte[1]
+    assert not punkt.ok
+    assert cli.sammle_status(konfig_modul.lade(toml))["medien"]["zustand"] == "FEHLER"

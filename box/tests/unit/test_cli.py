@@ -150,6 +150,8 @@ def test_formatiere_live_zeigt_status_und_pruefpunkte():
         (["learn", "--serie", "s1"], {"befehl": "learn", "typ": "serie", "serie": "s1", "ttl": 60}),
         (["learn", "--serie", "s1", "--folge", "a.mp3", "--ttl", "30"],
          {"befehl": "learn", "typ": "folge", "serie": "s1", "folge": "a.mp3", "ttl": 30}),
+        (["learn", "--serie", "s1", "--ueberschreiben"],
+         {"befehl": "learn", "typ": "serie", "serie": "s1", "ttl": 60, "ueberschreiben": True}),
         (["learn-abort"], {"befehl": "learn_abort"}),
         (["card", "04a1b2c3", "--serie", "s1"],
          {"befehl": "card", "uid": "04a1b2c3", "ziel": {"typ": "serie", "serie": "s1"}}),
@@ -211,3 +213,67 @@ def test_sim_card_ohne_ziel_ist_ein_aufrufefehler(box):
     with pytest.raises(SystemExit) as e:
         cli.main(["sim", "--config", str(toml), "card", "04a1b2c3"], io.StringIO())
     assert e.value.code == 2
+
+
+def test_sim_ohne_rechte_auf_den_socket_ist_exitcode_4_und_nicht_nicht_erreichbar(box, monkeypatch, capsys):
+    _, toml = box
+
+    def verboten(pfad, zeile):
+        raise PermissionError(13, "Permission denied")
+
+    monkeypatch.setattr(cli, "_frage_socket", verboten)
+    assert cli.main(["sim", "--config", str(toml), "learn", "--serie", "s1"], io.StringIO()) == 4
+    fehler = capsys.readouterr().err
+    assert "keine Berechtigung" in fehler and "nicht erreichbar" not in fehler
+
+
+def test_frage_socket_reicht_permission_error_weiter_und_meldet_sonst_none(tmp_path, monkeypatch):
+    import socket
+
+    class Verboten:
+        def __init__(self, *a):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def settimeout(self, t):
+            pass
+
+        def connect(self, pfad):
+            raise PermissionError(13, "Permission denied")
+
+    monkeypatch.setattr(socket, "socket", Verboten)
+    with pytest.raises(PermissionError):
+        cli._frage_socket(tmp_path / "sim.sock", {"befehl": "status"})
+    monkeypatch.undo()
+    assert cli._frage_socket(tmp_path / "gibt-es-nicht.sock", {"befehl": "status"}) is None
+
+
+def test_status_ohne_rechte_auf_den_socket_sagt_es(box, monkeypatch):
+    _, toml = box
+
+    def verboten(zustand):
+        raise PermissionError(13, "Permission denied")
+
+    monkeypatch.setattr(cli, "frage_dienst", verboten)
+    code, text = lauf("status", "--config", str(toml))
+    assert "keine Berechtigung auf sim.sock" in text and "nicht erreichbar" not in text
+
+
+def test_status_schreibt_beim_lesen_der_bibliothek_keine_protokollzeilen_und_aendert_keine_handler(box):
+    import logging
+
+    _, toml = box
+    strom = io.StringIO()
+    eventlog.einrichten(ziel="stdout", ebene="DEBUG", strom=strom)
+    try:
+        handler = list(logging.getLogger("tobibox").handlers)
+        lauf("status", "--config", str(toml))
+        assert list(logging.getLogger("tobibox").handlers) == handler  # Handler bleiben, wie sie waren
+        assert strom.getvalue() == ""
+    finally:
+        eventlog.logger().handlers.clear()

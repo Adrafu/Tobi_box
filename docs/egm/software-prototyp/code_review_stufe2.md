@@ -250,3 +250,27 @@ Kein Blocker. Drei mittlere Befunde, die ich belegt habe; der Rest ist niedrig.
 - **Beenden/Neustart:** `sim.stop()` vor `leser.stop()` in `_raeume_auf` und in `beende`;
   `DienstEndet` wird weiter verarbeitet; offene Meldungen werden beim Start geladen und protokolliert.
 - **Rechte/Geheimnisse:** kein Tonie-Passwort im Diff; `config.example.h` unberührt.
+
+---
+
+## Auflösung (07.11., Umsetzung durch Agent, Entscheidungen der Projektleitung)
+
+Je Befund eine Zeile. Alle Änderungen mit Tests; die ganze Suite lief zweimal hintereinander grün.
+
+1. **Behoben.** `raeume_auf` läuft nur noch einmal beim Dienststart (`app._starte`), nicht mehr aus `KonfigStore.laden`, `ResumeStore.laden` und `Outbox.laden`. Tests: `laden` lässt fremde `*.tmp` stehen; `schreibe_zuordnung` während eines langsamen Zeiger-Schreibens (`test_ha_ersatz.py`).
+2. **Behoben.** `OSError` beim Öffnen von `sim.sock` (Pfad zu lang, Rechte, Verzeichnis) gibt ERROR `sim_start` im Protokoll, die Box läuft ohne Simulations-Treiber weiter; `Sim.start` räumt halb Angelegtes weg, `Sim.stop` löscht nur ein selbst geöffnetes Socket. Tests in `test_sim.py` und `test_app.py`.
+3. **Behoben.** `sim` merkt Ziel und Befehls-ID vor und übernimmt sie erst, wenn der Kern den Lernmodus begonnen hat (`Ausgang.nach_kern` -> `Sim.angenommen`). Ein ignorierter oder abgelehnter `learn` ändert den laufenden Lernlauf nicht. Der alte Test ist angepasst, neue Tests in `test_sim.py`, `test_cuj07b_lernmodus.py`, `test_cuj07b_app.py`.
+4. **Behoben.** Outbox: Speicher ändert sich sofort, eine einzige Hintergrundaufgabe schreibt den jeweils neuesten Stand in `asyncio.to_thread` (keine Reihenfolgefehler, Beenden wartet darauf). `schreibe_zuordnung` und `sim card` laufen in einem Thread, mit Sperre gegen gleichzeitige Zuordnungen. Tests in `test_outbox.py`, `test_ha_ersatz.py`, `test_sim.py`.
+5. **Behoben.** `letzter_fehler.zeit` ist ein Zeitstempel-String (`zeitstempel(jetzt.wall)`), Test angepasst.
+6. **Behoben.** `leser.geraet = "sim"` (Beispiel-Konfiguration kommentiert) heißt: kein Leser; der Statussammler meldet `simulation`, die Status-Karte wertet das als in Ordnung. Netz bleibt in Stufe 2 vertragsgemäß ein Fehler (keine Änderung). Tests in `test_status.py`, `test_cuj07b_app.py`.
+7. **Behoben.** Alle Zeilen von `sim` und HA-Ersatz tragen `sim=true`; `app` schreibt auch die Kern-Protokollzeilen zu einem Ereignis von `sim` mit `sim=true` (`Ausgang.war_sim`). Test `test_cuj07b_app.py`.
+8. **Behoben.** Der HA-Ersatz überschreibt eine bestehende Zuordnung nur mit `sim learn --ueberschreiben`; sonst `Bestaetigt` mit `grund` „abgelehnt“ und eine WARNING-Zeile mit Hinweis auf den Schalter. CLI-Hilfe angepasst; Tests in `test_ha_ersatz.py`, `test_cli.py`, `test_cuj07b_lernmodus.py`, `test_cuj07b_app.py`.
+9. **Behoben.** Die Tabelle „Lernmodus“ schweigt dazu, aber `core-interface.md` 9.1/3.1 nennt die Wiedermeldung (gleiche Vorgangs-ID) ein No-op „ohne Melden“. `learn` führt dazu die Vorgangs-ID des liegenden Tobies (Feld `liegt`) und ignoriert eine Wiedermeldung; ein erneutes Auflegen nach Abheben (neue ID) zählt. Tests in `test_learn.py`, `test_cuj07b_lernmodus.py`, `test_cuj07b_app.py`.
+10. **Teils behoben, Rest begründet.**
+    - Behoben: 201. Eintrag verwirft nie den neuen (`Outbox.melden` gibt den Eintrag zurück, `app._melde` braucht kein `next`); CLI trennt „keine Berechtigung“ (Exit-Code 4) von „nicht erreichbar“ (3); Socket ohne `umask`: binden, `chmod 0600`, erst dann lauschen.
+    - Behoben, weil Vertragsverstoß: `Bestaetigt` geht nicht mehr an den Kern (`core-interface.md` 3), nur an die Outbox.
+    - Nicht geändert, begründet: `sim card` erhöht die Revision lokal. Das ist Stufe-2-Ersatz für HA und wird mit Stufe 3a ersetzt; kein Vertrag verlangt anderes. Vor 3a klären, ob `sim` im Pi-Betrieb abgeschaltet wird.
+    - Nicht geändert, begründet: Die Bibliothek vom Start im Prüfpunkt Medien. 12.3 verlangt „Ordner lesbar“ (neu geprüft mit `os.access`) und eine Bibliothek mit Serie und Überraschung; die Neu-Ladung kommt mit dem Sync (Stufe 3a).
+11. **Behoben.** `test_ungueltige_zeile_wird_ignoriert` prüft die Protokollzeile. Die Verdrahtung steht in `ausgang.py` und wird von `App` und `SimBox` gemeinsam benutzt. Dazu `tests/cuj/test_cuj07b_app.py`: Lernmodus (Frist, Abbruch, zweiter Befehl, Wiedermeldung, bestehende Zuordnung, `sim=true`, 201. Eintrag) gegen die echte `App`.
+12. **Behoben.** `test_app_abheben_pausiert_mpd_und_protokolliert_die_kette` wartet auf Zustand (Leser gemeldet, 2,5 s gespielt, MPD pausiert, Zeiger gespeichert) statt auf feste Zeiten. Die Grenze „unter 1 s von REMOVED bis MPD pausiert“ bleibt und wird an den `mono`-Zeiten der Protokollzeilen des Dienstes gemessen, nicht an Abfragen des Tests.
+13. **Behoben.** `selftest.messe` sammelt Medien und freien Platz an einer Stelle (ohne Austausch der Log-Handler: `lade_bibliothek(leise=True)`); `selftest.pruefe`, `App.pruefbericht`/`status_auskunft` und `cli.sammle_status` benutzen sie. Tests in `test_selftest.py`, `test_cli.py`.

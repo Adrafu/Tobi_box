@@ -25,14 +25,12 @@ from . import __version__, bootid, core, eventlog, lauf, library, notify, selfte
 from . import config as konfig_modul
 from . import events as ev
 from .clock import SystemUhr, Uhr
-from .ha_ersatz import HaErsatz
-from .outbox import Outbox
+from .ausgang import Ausgang
 from .player import Player
 from .reader import Leser
-from .sim import Sim
 from .sounds import Toene
 from .status import Statussammler
-from .store import KonfigStore, ResumeStore
+from .store import KonfigStore, ResumeStore, raeume_auf
 
 TAKT_S = 0.1
 VERBINDEN_WARTEN_S = 10.0  # so lange wartet ``starte`` auf MPD, bevor ``Bereit`` kommt
@@ -87,10 +85,14 @@ class App:
         self.resume = ResumeStore(zustand)
         self.konfig_store = KonfigStore(zustand)
         self.bibliothek = library.Bibliothek((), "keine")
-        self.outbox = Outbox(zustand)
-        self.status = Statussammler()
-        self.sim = Sim(zustand, self.ereignisse_ein, self.uhr, self.konfig_store, self.status_auskunft)
-        self.ha_ersatz = HaErsatz(self.sim, self.konfig_store, self.ereignisse_ein)
+        # ``leser.geraet = "sim"``: kein Leser, die Leser-Ereignisse kommen aus ``sim`` (12.2: ``simulation``)
+        self.status = Statussammler(leser_simulation=konfig.leser.simulation)
+        self.ausgang = Ausgang(
+            zustand, self.uhr, self.ereignisse_ein, self.konfig_store, self.status_auskunft, asynchron=True
+        )
+        self.outbox = self.ausgang.outbox
+        self.sim = self.ausgang.sim
+        self.ha_ersatz = self.ausgang.ha_ersatz
         self._verloren_basis = len(store.verlorene_dateien)  # ``datei_verloren`` zählt erst seit dem Start
         self.kern = core.neuer_zustand()
         self.ereignisse: asyncio.Queue[ev.Ereignis] = asyncio.Queue()
@@ -116,20 +118,23 @@ class App:
     def verarbeite(self, e: ev.Ereignis) -> tuple[ev.Befehl, ...]:
         """Ein Ereignis durch den Kern; die Befehle gehen an den Ausführer."""
         jetzt = self.uhr.jetzt()
+        sim = self.ausgang.war_sim(e)
         _protokolliere_leser(e)
         self.status.beobachte(e, jetzt)
         if isinstance(e, ev.Bestaetigt):
-            # Der Broker allein bestätigt nichts; erst ``Bestaetigt`` löscht den Eintrag (Abschnitt 7)
-            self.outbox.bestaetigt(e.id, e.grund, e.zuletzt, e.art)
+            # Geht nicht an den Kern, sondern an die Outbox (``core-interface.md``, Abschnitt 3 und 7)
+            self.ausgang.bestaetigt(e, sim=sim)
+            return ()
         if isinstance(e, (ev.Aufgelegt, ev.Gesperrt)) or (isinstance(e, ev.Abgehoben) and e.vorgang):
             self._letzter_vorgang = e.vorgang
         self.kern, befehle = core.step(self.kern, e, jetzt)
+        self.ausgang.nach_kern(self.kern)
         for b in befehle:
             self.status.befehl(b, jetzt)
             if isinstance(b, ev.Protokoll):
                 # Protokollzeilen sofort schreiben: Sie halten die Entscheidung fest (zugeordnet, spielt) und
                 # gehören vor die Ausführung der Befehle derselben Verarbeitung (Kette von CUJ 1, Messung).
-                eventlog.logge_befehl(b)
+                eventlog.logge_befehl(b, sim=sim)
             else:
                 self.befehle.put_nowait((b, jetzt.mono))
         self._marker_nachfuehren()
@@ -213,7 +218,7 @@ class App:
         elif isinstance(b, ev.ZustandMelden):
             pass  # der Statussammler hat sie in ``verarbeite`` schon gesehen
         elif isinstance(b, ev.Melden):
-            self._melde(b)
+            await self._melde(b)
         elif isinstance(b, ev.EreignisSenden):
             # Stufe 3a veröffentlicht auf ``tobibox/<box>/event``; bis dahin nur ins Protokoll
             eventlog.logge("app", "INFO", "ereignis_senden", b.art, daten=dict(b.daten))
@@ -222,27 +227,21 @@ class App:
         else:  # Sync, Update: Stufe 3
             eventlog.logge("app", "DEBUG", "befehl_nicht_umgesetzt", "ignoriert", daten={"befehl": type(b).__name__})
 
-    def _melde(self, b: ev.Melden) -> None:
+    async def _melde(self, b: ev.Melden) -> None:
         """Unbekannten oder gelernten Tobie in ``unknown.json`` eintragen (``outbox``)."""
-        jetzt = self.uhr.jetzt()
-        self.outbox.melden(b.art, b.uid, b.befehl_id, jetzt)
-        eventlog.logge("app", "INFO", "gemeldet", b.art, daten={"uid": b.uid, "befehl_id": b.befehl_id})
-        if b.art == "gelernt":
-            eintrag = next(e for e in self.outbox.offen() if e.uid == b.uid)
-            self.ha_ersatz.gelernt(eintrag)  # Stufe 2: ``sim`` spielt HA; Stufe 3a: Veröffentlichung per MQTT
+        # Stufe 2: ``sim`` spielt HA; Stufe 3a: Veröffentlichung per MQTT
+        await self.ausgang.melde_async(b, self.uhr.jetzt())
 
     def pruefbericht(self, jetzt: ev.Jetzt) -> selftest.Pruefbericht:
         """Die vier Prüfpunkte der Status-Karte (12.3). Netz, Leser und Speicher kennt der Dienst, nicht ``selftest``."""
-        medien = self.konfig.pfade.medien
-        serien = self.bibliothek.serien if medien.is_dir() else None
-        frei = selftest.freier_platz_mb(medien if medien.exists() else medien.parent)
-        verloren = len(store.verlorene_dateien) > self._verloren_basis
-        return selftest.Pruefbericht((
-            selftest.pruefe_leser(self.status.leser(jetzt.mono)),
-            selftest.pruefe_medien(serien),
-            selftest.pruefe_netz(self.status.netz, self.status.ha_verbunden),
-            selftest.pruefe_speicher(frei, verloren),
-        ))
+        return selftest.pruefe(
+            self.konfig.pfade.medien,
+            leser=self.status.leser(jetzt.mono),
+            netz=self.status.netz,
+            ha_verbunden=self.status.ha_verbunden,
+            datei_verloren=len(store.verlorene_dateien) > self._verloren_basis,
+            bibliothek=self.bibliothek,
+        )
 
     def _status_pruefen(self, b: ev.StatusPruefen) -> None:
         """Status-Admin-Karte (CUJ 11): je Prüfpunkt ein Ton, nacheinander."""
@@ -258,8 +257,7 @@ class App:
     def status_auskunft(self) -> dict:
         """Antwort auf ``sim`` ``status`` (für ``tobibox status``): Status-JSON, Prüfpunkte, offene Meldungen."""
         jetzt = self.uhr.jetzt()
-        medien = self.konfig.pfade.medien
-        frei = selftest.freier_platz_mb(medien if medien.exists() else medien.parent)
+        frei = selftest.messe(self.konfig.pfade.medien, self.bibliothek).frei_mb
         return {
             "status": self.status.als_dict(jetzt, self.bibliothek.serien, frei),
             "pruefpunkte": self.pruefbericht(jetzt).als_dict(),
@@ -298,6 +296,7 @@ class App:
 
     async def _starte(self) -> None:
         eventlog.logge("app", "INFO", "start", "ok", daten={"version": __version__})
+        raeume_auf(self.konfig.pfade.zustand)  # Reste halber Schreibvorgänge: nur hier, nie zur Laufzeit
         self.bibliothek = await asyncio.to_thread(library.lade_bibliothek, self.konfig.pfade.medien)
         self.outbox.laden()  # offene Meldungen (unknown.json) bleiben über den Neustart
         if self.outbox.offen():
@@ -327,8 +326,16 @@ class App:
             eventlog.logge("app", "WARNING", "start", "mpd_nicht_verbunden", daten={"timeout_s": VERBINDEN_WARTEN_S})
         self.ereignisse.put_nowait(ev.Bereit())
         await self._leere_ereignisse()
-        self.leser.start()
-        await self.sim.start()
+        if not self.konfig.leser.simulation:
+            self.leser.start()
+        try:
+            await self.sim.start()
+        except OSError as e:  # ein Hilfs-Treiber darf die Box nicht verhindern
+            eventlog.logge(
+                "app", "ERROR", "sim_start", "fehler",
+                meldung="sim.sock konnte nicht geöffnet werden; die Box läuft ohne Simulations-Treiber weiter",
+                daten={"pfad": str(self.sim.pfad), "detail": repr(e)},
+            )
         self._aufgaben.append(asyncio.create_task(self._taktgeber(), name="tobibox-takt"))
         self.bereit.set()
         if self._melde_bereit:
@@ -361,6 +368,7 @@ class App:
         await self._warte(self.toene.stop(), "toene")
         await self._warte(self.sim.stop(), "sim")
         await self._warte(self.leser.stop(), "leser")
+        await self._warte(self.outbox.warte_gespeichert(), "outbox")
 
     async def beende(self) -> None:
         """Sauber beenden: Leser zu, laufende Wiedergabe pausieren und Zeiger sichern.
@@ -385,6 +393,7 @@ class App:
             # danach die daraus entstandenen Befehle (Zeiger speichern).
             await self._warte(self._leere_ereignisse(), "ereignisse_nach")
             await self._warte(self.befehle.join(), "befehle_nach")
+            await self._warte(self.outbox.warte_gespeichert(), "outbox")
             self._dienst_ende_marker()
         finally:
             await self._raeume_auf()

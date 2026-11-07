@@ -2,9 +2,14 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
+import os
+import time
 
 import pytest
+
+from tobibox import store
 
 from tobibox.clock import SimUhr
 from tobibox.outbox import MAX_EINTRAEGE, Outbox, zeitstempel
@@ -130,3 +135,61 @@ def test_defekte_datei_gibt_leeren_ausgang(tmp_path):
 def test_ungueltiger_eintrag_gilt_als_defekt(tmp_path):
     (tmp_path / "unknown.json").write_text(json.dumps({"schema_version": 1, "eintraege": {UID: {"art": "x"}}}))
     assert neu(tmp_path).offen() == []
+
+
+def test_beim_201_eintrag_wird_nie_der_neue_verworfen_auch_bei_einer_uhr_hinter_den_alten(box, uhr, tmp_path):
+    """Pi ohne RTC vor NTP: Die Uhr steht vor den alten Einträgen, der neue hat das kleinste ``zuletzt``."""
+    for i in range(MAX_EINTRAEGE):
+        box.melden("unbekannt", f"04{i:06x}", None, uhr.jetzt())
+    uhr.setze_wall(uhr.wall - 3600)
+    e = box.melden("gelernt", UID, "b1", uhr.jetzt())
+    assert len(box.offen()) == MAX_EINTRAEGE
+    assert e in box.offen() and box.offen()[-1].uid == UID
+    assert UID in json.loads((tmp_path / "unknown.json").read_text())["eintraege"]
+
+
+def test_melden_gibt_den_eintrag_zurueck(box, uhr):
+    e = box.melden("unbekannt", UID, None, uhr.jetzt())
+    assert e == box.offen()[0]
+
+
+def test_laden_laesst_fremde_temp_dateien_stehen(tmp_path):
+    (tmp_path / "resume.json.tmp").write_text("{}")  # gehört vielleicht zu einem laufenden Schreiben
+    neu(tmp_path)
+    assert (tmp_path / "resume.json.tmp").exists()
+
+
+async def test_asynchron_schreibt_in_einem_thread_ohne_die_schleife_zu_blockieren(tmp_path, uhr, monkeypatch):
+    orig = os.fsync
+
+    def langsam(fd):
+        time.sleep(0.2)
+        return orig(fd)
+
+    monkeypatch.setattr(store.os, "fsync", langsam)
+    o = Outbox(tmp_path, asynchron=True)
+    o.laden()
+    t0 = time.monotonic()
+    o.melden("unbekannt", UID, None, uhr.jetzt())
+    assert time.monotonic() - t0 < 0.1  # ``melden`` wartet nicht auf die Platte
+    await o.warte_gespeichert()
+    assert UID in json.loads((tmp_path / "unknown.json").read_text())["eintraege"]
+
+
+async def test_asynchron_aufeinanderfolgende_aenderungen_enden_im_neuesten_stand(tmp_path, uhr):
+    """Melden und Bestätigen kurz hintereinander: Die Datei zeigt am Ende den neuesten Stand, nie einen älteren."""
+    o = Outbox(tmp_path, asynchron=True)
+    o.laden()
+    e = o.melden("unbekannt", UID, None, uhr.jetzt())
+    o.melden("unbekannt", "04a1b2c4", None, uhr.jetzt())
+    assert o.bestaetigt(UID, "neu", e.zuletzt, "unbekannt") is True
+    await asyncio.sleep(0)  # der Schreiber läuft an, während weitere Änderungen kommen
+    o.melden("gelernt", "04a1b2c5", "b1", uhr.jetzt())
+    await o.warte_gespeichert()
+    assert set(json.loads((tmp_path / "unknown.json").read_text())["eintraege"]) == {"04a1b2c4", "04a1b2c5"}
+
+
+async def test_asynchron_ohne_laufende_schleife_schreibt_sofort(tmp_path, uhr):
+    o = Outbox(tmp_path, asynchron=True)
+    await asyncio.to_thread(o.melden, "unbekannt", UID, None, uhr.jetzt())  # im Thread gibt es keine Schleife
+    assert UID in json.loads((tmp_path / "unknown.json").read_text())["eintraege"]

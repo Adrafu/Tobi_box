@@ -9,7 +9,7 @@ Ergebnisse samt Tonfolge (je Punkt ein Ton: ``pruef_ok`` hoch und kurz,
 
 from __future__ import annotations
 
-import logging
+import os
 import shutil
 import sys
 from collections.abc import Iterable
@@ -95,6 +95,37 @@ def freier_platz_mb(pfad: Path) -> int | None:
         return None
 
 
+@dataclass(frozen=True, slots=True)
+class Messwerte:
+    """Was die Prüfpunkte Medien und Speicher brauchen: die einzige Stelle, die sie sammelt (12.3)."""
+
+    bibliothek: library.Bibliothek | None  # ``None``: Medienordner nicht lesbar
+    frei_mb: int | None  # freier Platz auf dem Medien-Dateisystem
+
+    @property
+    def serien(self) -> tuple[ev.Serie, ...] | None:
+        return None if self.bibliothek is None else tuple(self.bibliothek.serien)
+
+
+def messe(medien: str | Path, bibliothek: library.Bibliothek | None = None) -> Messwerte:
+    """Medienordner und freien Platz messen, ohne Protokollzeilen und ohne Änderungen.
+
+    ``bibliothek``: die schon geladene Bibliothek des Dienstes; ohne Angabe wird der Ordner gelesen.
+    """
+    medien = Path(medien)
+    lesbar = medien.is_dir() and os.access(medien, os.R_OK | os.X_OK)
+    if not lesbar:
+        bib = None
+    elif bibliothek is not None:
+        bib = bibliothek
+    else:
+        try:
+            bib = library.lade_bibliothek(medien, leise=True)
+        except OSError:
+            bib = None
+    return Messwerte(bib, freier_platz_mb(medien if medien.exists() else medien.parent))
+
+
 def pruefe(
     medien: str | Path,
     *,
@@ -103,27 +134,19 @@ def pruefe(
     ha_verbunden: bool = False,
     datei_verloren: bool = False,
     min_frei_mb: int = SPEICHER_MIN_FREI_MB,
+    bibliothek: library.Bibliothek | None = None,
 ) -> Pruefbericht:
     """Eingebaute Prüfroutine. ``leser=None`` (kein Leser konfiguriert/verbunden) gilt als ``simulation``.
 
-    Der Dienst reicht ``leser``, ``netz``, ``ha_verbunden`` und ``datei_verloren`` aus seinem
-    Zustand herein; ohne Angabe gilt: Leser Simulation, Netz offline.
+    Der Dienst reicht ``leser``, ``netz``, ``ha_verbunden``, ``datei_verloren`` und seine geladene
+    ``bibliothek`` aus seinem Zustand herein; ohne Angabe gilt: Leser Simulation, Netz offline.
     """
-    medien = Path(medien)
-    log = logging.getLogger("tobibox")
-    alte, log.handlers = log.handlers, [logging.NullHandler()]
-    try:
-        serien = library.lade_bibliothek(medien).serien if medien.is_dir() else None
-    except OSError:
-        serien = None
-    finally:
-        log.handlers = alte
-    frei = freier_platz_mb(medien if medien.exists() else medien.parent)
+    m = messe(medien, bibliothek)
     return Pruefbericht((
         pruefe_leser(leser or "simulation"),
-        pruefe_medien(serien),
+        pruefe_medien(m.serien),
         pruefe_netz(netz, ha_verbunden),
-        pruefe_speicher(frei, datei_verloren, min_frei_mb),
+        pruefe_speicher(m.frei_mb, datei_verloren, min_frei_mb),
     ))
 
 

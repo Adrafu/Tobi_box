@@ -63,7 +63,7 @@ class Statussammler:
         if isinstance(b, ev.ZustandMelden):
             self.zustand = b
         elif isinstance(b, ev.Protokoll) and b.ebene == "ERROR":
-            self.letzter_fehler = {"zeit": jetzt.wall, "text": f"{b.ereignis} {b.ergebnis}".strip()}
+            self.letzter_fehler = {"zeit": zeitstempel(jetzt.wall), "text": f"{b.ereignis} {b.ergebnis}".strip()}
 
     # -- Abbildung --------------------------------------------------------------------
 

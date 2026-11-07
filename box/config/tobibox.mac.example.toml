@@ -11,6 +11,7 @@ medien = "../medien-beispiel"      # Serienordner; hier liegen die Beispielserie
 # Mit dem Fake-Leser (box/tools/fake_reader.py) hier stattdessen den Symlink eintragen,
 # z. B. "/tmp/tobibox-fake/ttyACM0" (siehe docs/betrieb/mac-prototyp.md).
 geraet = "/dev/cu.usbmodem*"
+# Ohne Leser (nur mit "tobibox sim"): geraet = "sim". Die Status-Karte zeigt den Leser dann als "simulation".
 
 [mpd]
 host = "localhost"

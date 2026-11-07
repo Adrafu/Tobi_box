@@ -16,6 +16,7 @@ einem Folgen-Ordner.
 
 from __future__ import annotations
 
+import contextvars
 import json
 import re
 from dataclasses import dataclass
@@ -24,12 +25,20 @@ from pathlib import Path
 from typing import Any
 
 from . import events as ev
-from .eventlog import logge
+from .eventlog import logge as _logge
 
 #: Endungen, die ein Ordner ohne ``serie.json`` als Folgen zählt (``data-model.md``, Abschnitt 5; Namen mit ``.`` am Anfang zählen nicht)
 AUDIO_ENDUNGEN = frozenset({".mp3", ".m4a", ".m4b", ".aac", ".flac", ".ogg", ".opus", ".wav"})
 
 BEKANNTE_VERSIONEN = frozenset({1})
+
+#: Wahr, solange ``lade_bibliothek(leise=True)`` läuft: keine Protokollzeilen (nur im eigenen Kontext, keine Handler-Änderung).
+_LEISE: contextvars.ContextVar[bool] = contextvars.ContextVar("tobibox_bibliothek_leise", default=False)
+
+
+def logge(*args: Any, **kwargs: Any) -> None:
+    if not _LEISE.get():
+        _logge(*args, **kwargs)
 
 _ZIFFERN = re.compile(r"([0-9]+)")
 
@@ -254,8 +263,17 @@ def _anlegezeit(text: str) -> datetime:
     return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt
 
 
-def lade_bibliothek(medien: str | Path) -> Bibliothek:
-    """Alle Serien im Medienordner. Fehler einzelner Ordner stoppen die anderen nicht."""
+def lade_bibliothek(medien: str | Path, *, leise: bool = False) -> Bibliothek:
+    """Alle Serien im Medienordner. Fehler einzelner Ordner stoppen die anderen nicht.
+
+    ``leise``: keine Protokollzeilen (für ``tobibox status`` und die Prüfroutine, die nur lesen).
+    """
+    if leise:
+        marke = _LEISE.set(True)
+        try:
+            return lade_bibliothek(medien)
+        finally:
+            _LEISE.reset(marke)
     medien = Path(medien)
     if not medien.is_dir():
         logge("library", "ERROR", "medienordner_fehlt", "fehler", daten={"pfad": str(medien)})

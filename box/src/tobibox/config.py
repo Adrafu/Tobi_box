@@ -26,9 +26,17 @@ class Pfade:
     medien: Path
 
 
+#: ``leser.geraet = "sim"``: kein Leser, die Leser-Ereignisse kommen aus ``sim`` (Prüfpunkt „Leser“: ``simulation``)
+LESER_SIMULATION = "sim"
+
+
 @dataclass(frozen=True, slots=True)
 class LeserKonfig:
     geraet: str = "/dev/cu.usbmodem*"
+
+    @property
+    def simulation(self) -> bool:
+        return self.geraet == LESER_SIMULATION
 
 
 @dataclass(frozen=True, slots=True)

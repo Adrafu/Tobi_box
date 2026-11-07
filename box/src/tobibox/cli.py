@@ -7,14 +7,14 @@ Ereignisprotokoll) und braucht **keinen laufenden Dienst**. Es verändert nichts
 Abschnitt 12; ``mqtt-v1.md``, 3.3) und die Prüfpunkte der Status-Karte.
 
 ``sim`` ist ein Client des Unix-Sockets ``sim.sock`` im Zustandsverzeichnis (Stufe 2, ``sim.py``):
-``learn``, ``learn-abort``, ``ack`` und ``card``.
+``learn``, ``learn-abort``, ``ack`` und ``card``. Exit-Codes von ``sim``: 0 angenommen, 1 abgelehnt, 2 Eingabe,
+3 Dienst nicht erreichbar, 4 keine Berechtigung auf ``sim.sock``.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
-import logging
 import os
 import platform
 import socket
@@ -25,7 +25,7 @@ from typing import TextIO
 
 from . import __version__
 from . import config as konfig_modul
-from . import library, outbox, store
+from . import library, outbox, selftest, store
 from .protocol import PROTO_UNTERSTUETZT
 from .sim import SOCKET_NAME
 
@@ -70,7 +70,11 @@ def _log_zeilen(pfad: Path) -> list[dict]:
 
 
 def _frage_socket(pfad: Path, zeile: dict) -> dict | None:
-    """Eine JSON-Zeile an ``sim.sock`` senden, die Antwortzeile lesen. ``None``: Dienst nicht erreichbar."""
+    """Eine JSON-Zeile an ``sim.sock`` senden, die Antwortzeile lesen.
+
+    ``None``: Dienst nicht erreichbar. Fehlende Rechte (``PermissionError``) werden weitergereicht:
+    Der Dienst läuft dann, gehört aber einem anderen Benutzer.
+    """
     try:
         with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
             s.settimeout(SOCKET_TIMEOUT_S)
@@ -83,13 +87,18 @@ def _frage_socket(pfad: Path, zeile: dict) -> dict | None:
                     break
                 puffer += teil
         antwort = json.loads(puffer.decode("utf-8"))
+    except PermissionError:
+        raise
     except (OSError, ValueError):
         return None
     return antwort if isinstance(antwort, dict) else None
 
 
 def frage_dienst(zustand: Path) -> dict | None:
-    """Status vom laufenden Dienst (Status-JSON, Prüfpunkte, offene Meldungen) oder ``None``."""
+    """Status vom laufenden Dienst (Status-JSON, Prüfpunkte, offene Meldungen) oder ``None``.
+
+    Wirft ``PermissionError``, wenn ``sim.sock`` dem Benutzer nicht offensteht.
+    """
     a = _frage_socket(zustand / SOCKET_NAME, {"befehl": "status"})
     if a is None or not a.get("ok"):
         return None
@@ -98,13 +107,9 @@ def frage_dienst(zustand: Path) -> dict | None:
 
 def sammle_status(kfg: konfig_modul.BoxKonfig) -> dict:
     """Prüfpunkte als Wörterbuch (auch für Tests)."""
-    # Bibliothek lesen schreibt Protokollzeilen; im Status soll nichts davon erscheinen.
-    log = logging.getLogger("tobibox")
-    alte, log.handlers = log.handlers, [logging.NullHandler()]
-    try:
-        bib = library.lade_bibliothek(kfg.pfade.medien)
-    finally:
-        log.handlers = alte
+    # Medien und Speicher misst ``selftest`` (eine Stelle für 12.3); das Lesen schreibt keine Protokollzeilen.
+    messung = selftest.messe(kfg.pfade.medien)
+    bib = messung.bibliothek or library.Bibliothek((), "keine")
 
     zustand = kfg.pfade.zustand
     resume, r_hinweis = _lese_json(zustand / "resume.json", store.parse_resume)
@@ -129,16 +134,22 @@ def sammle_status(kfg: konfig_modul.BoxKonfig) -> dict:
         leser = {"zustand": UNBEKANNT, "letztes": "kein Leser-Ereignis im Protokoll (Dienst läuft nicht?)"}
 
     offen, o_hinweis = _lese_json(zustand / outbox.NAME, outbox._parse)
-    live = frage_dienst(zustand)
+    try:
+        live = frage_dienst(zustand)
+        keine_rechte = False
+    except PermissionError:
+        live, keine_rechte = None, True
 
     folgen = sum(len(s.folgen) for s in bib.serien)
-    medien_ok = bool(bib.serien) and folgen > 0 and bib.ueberraschung_status == "ok"
+    medien_ok = selftest.pruefe_medien(messung.serien).ok
+    if live is not None:
+        dienst = "läuft (Status vom Dienst über sim.sock)"
+    elif keine_rechte:
+        dienst = "keine Berechtigung auf sim.sock (gehört dem Dienst-Benutzer): Zustand aus Dateien"
+    else:
+        dienst = "nicht erreichbar (sim.sock): Zustand aus Dateien, kein laufender Dienst nötig"
     return {
-        "dienst": (
-            "läuft (Status vom Dienst über sim.sock)"
-            if live is not None
-            else "nicht erreichbar (sim.sock): Zustand aus Dateien, kein laufender Dienst nötig"
-        ),
+        "dienst": dienst,
         "live": live,
         "offene_meldungen": (
             [{"uid": u, "art": e.art, "anzahl": e.anzahl, "zuletzt": e.zuletzt} for u, e in offen.items()]
@@ -233,6 +244,8 @@ def _sim_zeile(args: argparse.Namespace, zustand: Path) -> dict | str:
     """Die JSON-Zeile für ``sim.sock`` aus den Argumenten, oder ein Fehlertext."""
     if args.sim_befehl == "learn":
         zeile: dict = {"befehl": "learn", "typ": "folge" if args.folge else "serie", "serie": args.serie, "ttl": args.ttl}
+        if args.ueberschreiben:
+            zeile["ueberschreiben"] = True
         if args.folge:
             zeile["folge"] = args.folge
         return zeile
@@ -268,7 +281,15 @@ def sim(args: argparse.Namespace, ausgabe: TextIO) -> int:
     if isinstance(zeile, str):
         print(f"tobibox sim: {zeile}", file=sys.stderr)
         return 2
-    antwort = _frage_socket(zustand / SOCKET_NAME, zeile)
+    try:
+        antwort = _frage_socket(zustand / SOCKET_NAME, zeile)
+    except PermissionError:
+        print(
+            f"tobibox sim: keine Berechtigung auf {zustand / SOCKET_NAME} (der Dienst-Benutzer ist Eigentümer, "
+            "Rechte 0600); als dieser Benutzer aufrufen",
+            file=sys.stderr,
+        )
+        return 4
     if antwort is None:
         print(f"tobibox sim: Dienst nicht erreichbar ({zustand / SOCKET_NAME}); läuft tobiboxd?", file=sys.stderr)
         return 3
@@ -295,6 +316,11 @@ def main(argv: Sequence[str] | None = None, ausgabe: TextIO | None = None) -> in
     lern.add_argument("--serie", required=True, help="Serien-ID des Ziels")
     lern.add_argument("--folge", help="Name der Folge (Ziel ist dann eine einzelne Folge)")
     lern.add_argument("--ttl", type=int, default=60, help="Lebensdauer des Befehls in Sekunden (Vorgabe 60)")
+    lern.add_argument(
+        "--ueberschreiben", action="store_true",
+        help="Ist der aufgelegte Tobie schon zugeordnet, ersetzt die neue Zuordnung die alte "
+        "(ersetzt die Rückfrage von HA; ohne diesen Schalter bleibt die alte Zuordnung)",
+    )
     ms.add_parser("learn-abort", help="Lernmodus abbrechen")
     ack = ms.add_parser("ack", help="Meldung aus unknown.json bestätigen (Eintrag wird gelöscht)")
     ack.add_argument("uid")

@@ -428,7 +428,7 @@ class CujBox:
 
 
 class SimBox(CujBox):
-    """``CujBox`` mit Ausgang, ``sim`` und HA-Ersatz, so wie ``app.py`` sie verdrahtet (ohne Socket, ohne MPD).
+    """``CujBox`` mit Ausgang, ``sim`` und HA-Ersatz: dieselbe Klasse ``Ausgang`` wie in ``app.py`` (ohne Socket, ohne MPD).
 
     * ``Melden`` geht in ``unknown.json`` (``Outbox``); ``Bestaetigt`` löscht dort den Eintrag.
     * ``config.json`` ist echt (``KonfigStore``): ``sim_zeile(befehl="card", …)`` schreibt die Zuordnung.
@@ -441,43 +441,52 @@ class SimBox(CujBox):
         from dataclasses import replace
 
         from tobibox import store
-        from tobibox.ha_ersatz import HaErsatz
-        from tobibox.outbox import Outbox
-        from tobibox.sim import Sim
 
         self.nachlauf: list = []
-        self.sim = None
         zustand = tmp_path / "var"
         zustand.mkdir(parents=True, exist_ok=True)
         konfig = replace(mk_konfig(zuordnungen), liste_id="a3f9c1e07b2d4856")
         store.schreibe_atomar(zustand / "config.json", store.konfig_zu_json(konfig))
         self.konfig_store = store.KonfigStore(zustand)
-        self.outbox = Outbox(zustand)
         super().__init__(tmp_path, zuordnungen, serien_aufbau, boot_id)
-        self.sim = Sim(zustand, self.nachlauf.append, self.uhr, self.konfig_store)
-        self.ha_ersatz = HaErsatz(self.sim, self.konfig_store, self.nachlauf.append)
+
+    @property
+    def sim(self):
+        return self.ausgang.sim
+
+    @property
+    def outbox(self):
+        return self.ausgang.outbox
+
+    @property
+    def ha_ersatz(self):
+        return self.ausgang.ha_ersatz
 
     def _lade_konfig(self) -> ev.KonfigGeladen:
         return self.konfig_store.laden()
 
     def start(self) -> None:
-        from tobibox.outbox import Outbox
+        from tobibox.ausgang import Ausgang
 
-        self.outbox = Outbox(self.zustand)
+        self.ausgang = Ausgang(self.zustand, self.uhr, self.nachlauf.append, self.konfig_store)
         self.outbox.laden()
         super().start()
 
     neustart = start
 
     def sende(self, e, dt: float = 0.0) -> list:
-        if isinstance(e, ev.Bestaetigt):
-            self.outbox.bestaetigt(e.id, e.grund, e.zuletzt, e.art)
-        befehle = super().sende(e, dt)
+        sim = self.ausgang.war_sim(e)
+        if isinstance(e, ev.Bestaetigt):  # geht nicht an den Kern (core-interface.md, Abschnitt 3)
+            if dt:
+                self.uhr.vor(dt)
+            self.ausgang.bestaetigt(e, sim=sim)
+            befehle: list = []
+        else:
+            befehle = super().sende(e, dt)
+            self.ausgang.nach_kern(self.kern)
         for b in befehle:
             if isinstance(b, ev.Melden):
-                self.outbox.melden(b.art, b.uid, b.befehl_id, self.uhr.jetzt())
-                if b.art == "gelernt" and self.sim is not None:
-                    self.ha_ersatz.gelernt(next(x for x in self.outbox.offen() if x.uid == b.uid))
+                self.ausgang.melde(b, self.uhr.jetzt())
         while self.nachlauf:
             self.sende(self.nachlauf.pop(0))
         return befehle

@@ -128,7 +128,11 @@ def _loesche(pfad: Path) -> None:
 
 
 def raeume_auf(verzeichnis: str | Path) -> int:
-    """Reste ``*.tmp`` und ``*.bak.tmp`` löschen (beim Start). Gibt die Anzahl zurück."""
+    """Reste ``*.tmp`` und ``*.bak.tmp`` löschen. Gibt die Anzahl zurück.
+
+    Nur beim Start des Dienstes aufrufen, nie zur Laufzeit: Sonst trifft es die Temp-Datei eines
+    laufenden Schreibens (Zeiger in einem Thread) und das Schreiben scheitert.
+    """
     n = 0
     verzeichnis = Path(verzeichnis)
     if not verzeichnis.is_dir():
@@ -341,8 +345,7 @@ class ResumeStore:
         return dict(self._zeiger)
 
     def laden(self) -> ev.ResumeGeladen:
-        """Beim Start; ohne Datei oder bei Verlust: keine Zeiger."""
-        raeume_auf(self.pfad.parent)
+        """Beim Start; ohne Datei oder bei Verlust: keine Zeiger. Räumt nicht auf (``raeume_auf`` macht nur der Start)."""
         wert, self.quelle = lade_zustandsdatei(self.pfad, parse_resume, dict, resume_zu_json)
         self._zeiger = dict(wert)
         return ev.ResumeGeladen(tuple(self._zeiger.values()))
@@ -597,7 +600,7 @@ class KonfigStore:
         self.quelle = "neu"
 
     def laden(self) -> ev.KonfigGeladen:
-        raeume_auf(self.pfad.parent)
+        """Von der Platte lesen. Räumt nicht auf: ``*.tmp`` kann zu einem laufenden Schreiben gehören."""
         (self.konfig, self.roh), self.quelle = lade_zustandsdatei(
             self.pfad,
             _parse_mit_roh,

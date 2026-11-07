@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 import pytest
 
 from tobibox import events as ev
@@ -119,7 +121,7 @@ def test_abbruch_bei_unsicherer_uhr_wird_ausgefuehrt(uhr):
 def test_gesperrt_aendert_nichts(uhr):
     z = lernt(uhr)
     z2, out = learn.step(z, ev.Gesperrt(1, "v1"), uhr.jetzt())
-    assert z2 == z and not out
+    assert replace(z2, liegt=None) == z and z2.liegt == "v1" and not out  # nur die liegende Vorgangs-ID wird geführt
 
 
 def test_zweiter_befehl_in_lernt_ignoriert(uhr):
@@ -138,3 +140,33 @@ def test_unbekannte_ereignisse_in_aus_und_lernt(uhr):
 def test_aufgelegt_in_aus_aendert_nichts(uhr):
     z, out = learn.step(learn.neuer_zustand(), ev.Aufgelegt(UID, "ntag", False, 1, "v1"), uhr.jetzt())
     assert learn.kennzeichen(z) == "aus" and not out
+
+
+def test_wiedermeldung_des_liegenden_tobies_beendet_den_lernmodus_nicht(uhr):
+    """Gleiche Vorgangs-ID wie der liegende Tobie (3.1, 9.1): kein ``Melden``, kein Ende, keine Zustandsänderung."""
+    z, _ = learn.step(learn.neuer_zustand(), ev.Aufgelegt(UID, "ntag", False, 0, "v1"), uhr.jetzt())  # liegt schon
+    z, _ = learn.step(z, cmd(uhr), uhr.jetzt())
+    z2, out = learn.step(z, ev.Aufgelegt(UID, "ntag", False, 1, "v1"), uhr.jetzt())
+    assert z2 == z and not out and learn.kennzeichen(z2) == "lernt"
+
+
+def test_wiedermeldung_eines_gesperrten_tobies_aendert_nichts(uhr):
+    z, _ = learn.step(learn.neuer_zustand(), ev.Gesperrt(0, "v1"), uhr.jetzt())
+    z, _ = learn.step(z, cmd(uhr), uhr.jetzt())
+    z2, out = learn.step(z, ev.Gesperrt(1, "v1"), uhr.jetzt())
+    assert z2 == z and not out
+
+
+def test_nach_dem_abheben_ist_dieselbe_kennung_mit_neuer_vorgangs_id_ein_neues_auflegen(uhr):
+    z, _ = learn.step(learn.neuer_zustand(), ev.Aufgelegt(UID, "ntag", False, 0, "v1"), uhr.jetzt())
+    z, _ = learn.step(z, cmd(uhr), uhr.jetzt())
+    z, _ = learn.step(z, ev.Abgehoben(1, "v1"), uhr.jetzt())
+    z, out = learn.step(z, ev.Aufgelegt(UID, "ntag", False, 2, "v2"), uhr.jetzt())
+    assert ev.Melden("gelernt", UID, "b1") in out and learn.kennzeichen(z) == "aus"
+
+
+def test_anderer_tobie_waehrend_ein_anderer_liegt_wird_gelernt(uhr):
+    z, _ = learn.step(learn.neuer_zustand(), ev.Aufgelegt("04aaaaaa", "ntag", False, 0, "v1"), uhr.jetzt())
+    z, _ = learn.step(z, cmd(uhr), uhr.jetzt())
+    z, out = learn.step(z, ev.Aufgelegt(UID, "ntag", False, 1, "v2"), uhr.jetzt())
+    assert ev.Melden("gelernt", UID, "b1") in out and z.liegt == "v2"

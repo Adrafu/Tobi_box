@@ -23,6 +23,7 @@ class Zustand:
     modus: str = "aus"  # "aus" | "lernt"
     frist_bis: float = 0.0  # mono; nur in ``lernt``
     befehl_id: str | None = None
+    liegt: str | None = None  # Vorgangs-ID des Tobies, der gerade liegt (Auflegen ohne Abheben); in jedem Zustand geführt
 
 
 def neuer_zustand() -> Zustand:
@@ -38,7 +39,7 @@ def _prot(ebene: str, ereignis: str, ergebnis: str, **daten: str | int | float |
 
 
 def _ende(z: Zustand, grund: str) -> tuple[Zustand, Ausgabe]:
-    return Zustand(), (
+    return Zustand(liegt=z.liegt), (
         ev.TonSpielen("lernen_ende"),
         ev.LernenGeaendert(False),
         _prot("INFO", "lernmodus_ende", grund, befehl_id=z.befehl_id),
@@ -47,6 +48,14 @@ def _ende(z: Zustand, grund: str) -> tuple[Zustand, Ausgabe]:
 
 def step(zustand: Zustand, ereignis: ev.Ereignis | ev.InternesEreignis, jetzt: Jetzt) -> tuple[Zustand, Ausgabe]:
     z = zustand
+
+    # Wiedermeldung (gleiche Vorgangs-ID wie der liegende Tobie, 3.1 und 9.1) ist kein neues Auflegen:
+    # Sie beendet den Lernmodus nicht und wird nicht gemeldet.
+    wiedermeldung = isinstance(ereignis, (ev.Aufgelegt, ev.Gesperrt)) and ereignis.vorgang == z.liegt
+    if isinstance(ereignis, (ev.Aufgelegt, ev.Gesperrt)):
+        z = replace(z, liegt=ereignis.vorgang)
+    elif isinstance(ereignis, ev.Abgehoben):
+        z = replace(z, liegt=None)
 
     if isinstance(ereignis, ev.HaLernmodus):
         if z.modus == "lernt":
@@ -61,7 +70,7 @@ def step(zustand: Zustand, ereignis: ev.Ereignis | ev.InternesEreignis, jetzt: J
                     {"befehl": "lernen", "befehl_id": ereignis.befehl_id, "grund": "zeit_unsicher"},
                 ),
             )
-        neu = Zustand("lernt", jetzt.mono + LERN_FRIST_S, ereignis.befehl_id)
+        neu = Zustand("lernt", jetzt.mono + LERN_FRIST_S, ereignis.befehl_id, z.liegt)
         return neu, (
             ev.TonSpielen("lernen_beginn"),
             ev.LernenGeaendert(True),
@@ -78,7 +87,7 @@ def step(zustand: Zustand, ereignis: ev.Ereignis | ev.InternesEreignis, jetzt: J
     if z.modus != "lernt":
         return z, ()
 
-    if isinstance(ereignis, ev.Aufgelegt):
+    if isinstance(ereignis, ev.Aufgelegt) and not wiedermeldung:
         neu, aus = _ende(z, "aufgelegt")
         return neu, (ev.Melden("gelernt", ereignis.uid, z.befehl_id),) + aus
     if isinstance(ereignis, ev.Takt):

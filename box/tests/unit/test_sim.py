@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import os
 import stat
 
@@ -48,12 +49,15 @@ async def test_learn_serie(sim):
     (e,) = sim.got
     assert isinstance(e, ev.HaLernmodus) and e.befehl_id
     assert e.gueltig_bis == SimUhr().wall + 60
+    assert sim.lernziel is None  # gilt erst, wenn die Box den Befehl angenommen hat
+    sim.angenommen(e.befehl_id)
     assert sim.lernziel == {"typ": "serie", "serie": "s1"}
 
 
 async def test_learn_folge(sim):
     await sende(sim, {"befehl": "learn", "typ": "folge", "serie": "s1", "folge": "a.mp3"})
     assert isinstance(sim.got[0], ev.HaLernmodus)
+    sim.angenommen(sim.got[0].befehl_id)
     assert sim.lernziel == {"typ": "folge", "serie": "s1", "folge": "a.mp3"}
 
 
@@ -93,9 +97,14 @@ async def test_card_schreibt_config_und_meldet(sim, tmp_path):
     ],
 )
 async def test_ungueltige_zeile_wird_ignoriert(sim, zeile, caplog):
-    (a,) = await sende(sim, zeile)
+    with caplog.at_level(logging.WARNING, logger="tobibox"):
+        (a,) = await sende(sim, zeile)
     assert a["ok"] is False
     assert sim.got == []
+    # protokolliert (AP 2.2): Warnung "zeile ungueltig" von sim, mit sim=true
+    treffer = [r for r in caplog.records if getattr(r, "ereignis", "") == "zeile" and getattr(r, "ergebnis", "") == "ungueltig"]
+    assert len(treffer) == 1 and treffer[0].levelname == "WARNING"
+    assert getattr(treffer[0], "baustein", "") == "sim" and getattr(treffer[0], "sim", False) is True
     # Verbindung und Server leben weiter
     (b,) = await sende(sim, {"befehl": "ack", "uid": "u", "zuletzt": "z", "art": "gelernt"})
     assert b == {"ok": True} and len(sim.got) == 1
@@ -127,12 +136,34 @@ async def test_async_ausgabe_und_alter_socket(tmp_path):
     assert not s.pfad.exists()
 
 
-async def test_learn_merkt_die_befehls_id_fuer_den_ha_ersatz(sim):
+async def test_learn_merkt_ziel_und_befehls_id_erst_wenn_die_box_angenommen_hat(sim):
     await sende(sim, {"befehl": "learn", "typ": "serie", "serie": "s1"})
+    assert sim.lernbefehl_id is None and sim.lernziel is None
+    sim.angenommen(sim.got[0].befehl_id)
     assert sim.lernbefehl_id == sim.got[0].befehl_id
-    await sende(sim, {"befehl": "learn", "typ": "serie", "serie": "s2"})
-    assert sim.lernbefehl_id == sim.got[1].befehl_id != sim.got[0].befehl_id
-    assert sim.lernziel == {"typ": "serie", "serie": "s2"}
+    assert sim.lernziel == {"typ": "serie", "serie": "s1"}
+
+
+async def test_zweiter_learn_den_die_box_ignoriert_laesst_den_ersten_lernlauf_unveraendert(sim):
+    await sende(sim, {"befehl": "learn", "typ": "serie", "serie": "s1"})
+    sim.angenommen(sim.got[0].befehl_id)
+    await sende(sim, {"befehl": "learn", "typ": "serie", "serie": "s2"})  # die Box ignoriert ihn: nie angenommen
+    assert sim.lernbefehl_id == sim.got[0].befehl_id != sim.got[1].befehl_id
+    assert sim.lernziel == {"typ": "serie", "serie": "s1"}
+
+
+async def test_nicht_angenommene_befehle_wachsen_nicht_unbegrenzt(sim):
+    for _ in range(20):
+        await sende(sim, {"befehl": "learn", "typ": "serie", "serie": "s1"})
+    assert len(sim._vorgemerkt) <= 8
+
+
+async def test_learn_ueberschreiben_wird_gemerkt_und_muss_ein_bool_sein(sim):
+    await sende(sim, {"befehl": "learn", "typ": "serie", "serie": "s1", "ueberschreiben": True})
+    sim.angenommen(sim.got[0].befehl_id)
+    assert sim.ueberschreiben is True
+    (a,) = await sende(sim, {"befehl": "learn", "typ": "serie", "serie": "s1", "ueberschreiben": "ja"})
+    assert a["ok"] is False
 
 
 async def test_learn_abort(sim):
@@ -167,3 +198,35 @@ async def test_card_nutzt_den_gemeinsamen_konfig_store(tmp_path):
     finally:
         await s.stop()
     assert k.konfig.zuordnungen["04a1b2c3"] == ev.Zuordnung("folge", "s1", "a.mp3")  # derselbe Store sieht es sofort
+
+
+async def test_socket_wird_ohne_umask_aenderung_mit_0600_angelegt(tmp_path):
+    vorher = os.umask(0o022)
+    try:
+        s = Sim(tmp_path, lambda e: None, SimUhr())
+        await s.start()
+        try:
+            assert stat.S_IMODE(os.stat(s.pfad).st_mode) == 0o600
+            assert os.umask(0o022) == 0o022  # die Prozess-umask blieb, wie sie war
+        finally:
+            await s.stop()
+    finally:
+        os.umask(vorher)
+
+
+async def test_zu_langer_pfad_wirft_oserror_und_hinterlaesst_nichts(tmp_path):
+    s = Sim(tmp_path / ("x" * 100), lambda e: None, SimUhr())
+    with pytest.raises(OSError):
+        await s.start()
+    await s.stop()  # darf nichts werfen
+
+
+async def test_stop_ohne_start_laesst_ein_fremdes_sock_in_ruhe(tmp_path):
+    (tmp_path / "sim.sock").write_text("fremd")
+    await Sim(tmp_path, lambda e: None, SimUhr()).stop()
+    assert (tmp_path / "sim.sock").exists()
+
+
+async def test_card_laeuft_in_einem_thread_und_schreibt_trotzdem_die_zuordnung(sim, tmp_path):
+    await sende(sim, {"befehl": "card", "uid": "04a1b2c3", "ziel": {"typ": "serie", "serie": "s1"}})
+    assert isinstance(sim.got[0], ev.KonfigGeladen)

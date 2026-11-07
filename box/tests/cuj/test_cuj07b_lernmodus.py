@@ -107,11 +107,47 @@ def test_nach_der_zuordnung_ist_der_lernmodus_vorbei_der_naechste_tobie_ist_unbe
     assert box.befehle(ev.Abspielen, n)[-1].serie_id == UEBERRASCHUNG
 
 
-def test_bereits_zugeordneter_tobie_wird_neu_zugeordnet(box):
-    lerne_folge(box, "c.wav")
+def test_bereits_zugeordneter_tobie_wird_nur_mit_ueberschreiben_neu_zugeordnet(box):
+    box.sim_zeile(befehl="learn", typ="folge", serie=SERIE, folge="c.wav", ttl=60, ueberschreiben=True)
     box.auflege(UID)  # war auf die Serie zugeordnet
     assert box.konfig_json()["zuordnungen"][UID]["ziel"] == {"typ": "folge", "serie": SERIE, "folge": "c.wav"}
     assert box.unknown() == {}
+
+
+def test_bereits_zugeordneter_tobie_bleibt_ohne_ueberschreiben_wie_er_ist(box, protokoll):
+    """HA fragt vor dem Überschreiben nach (mqtt-v1.md 4.2); der Ersatz lehnt ohne ``--ueberschreiben`` ab."""
+    lerne_folge(box, "c.wav")
+    box.auflege(UID)
+    k = box.konfig_json()
+    assert k["revision"] == 1 and k["zuordnungen"][UID]["ziel"] == {"typ": "serie", "serie": SERIE}
+    assert box.unknown() == {}  # ``abgelehnt`` bestätigt und löscht den Eintrag wie jeder Grund
+    zeilen = [z for z in protokoll.zeilen() if z["baustein"] == "ha_ersatz"]
+    assert [(z["ereignis"], z["ergebnis"], z["ebene"]) for z in zeilen] == [("zuordnung", "abgelehnt", "WARNING")]
+    assert "--ueberschreiben" in zeilen[0]["meldung"] and UID in zeilen[0]["meldung"]
+    assert zeilen[0]["sim"] is True
+
+
+def test_ueberschreiben_gilt_nur_fuer_den_einen_lernlauf(box):
+    box.sim_zeile(befehl="learn", typ="serie", serie=SERIE, ttl=60, ueberschreiben=True)
+    box.auflege(NEU)
+    box.hebe_ab()
+    lerne_folge(box, "c.wav")  # ohne Schalter
+    box.auflege(UID, "v3")
+    assert box.konfig_json()["zuordnungen"][UID]["ziel"] == {"typ": "serie", "serie": SERIE}
+
+
+def test_wiedermeldung_des_liegenden_tobies_beendet_den_lernmodus_nicht(box):
+    """Gleiche Vorgangs-ID ist kein neues Auflegen (core-interface.md 3.1 und 9.1): kein ``Melden``, kein Ende."""
+    box.auflege(UID, "v1")
+    lerne_serie(box)
+    n = len(box.log)
+    box.auflege(UID, "v1")  # Wiedermeldung, z. B. auf PING
+    assert box.lernmodus() is True and box.befehle(ev.Melden, n) == []
+    assert box.konfig_json()["revision"] == 1
+    box.hebe_ab("v1")
+    box.auflege(NEU, "v2")  # der nächste Tobie wird gelernt
+    assert box.befehle(ev.Melden, n)[-1] == ev.Melden("gelernt", NEU, box.sim.lernbefehl_id)
+    assert box.konfig_json()["zuordnungen"][NEU]["ziel"] == {"typ": "serie", "serie": SERIE}
 
 
 # --- Frist, Abbruch ---------------------------------------------------------------------------
@@ -175,6 +211,25 @@ def test_zweiter_lernbefehl_im_lernmodus_wird_ignoriert(box):
     assert any(p.ereignis == "lernmodus_befehl" and p.ergebnis == "ignoriert" for p in box.protokoll)
 
 
+def test_ignorierter_zweiter_lernbefehl_laesst_den_ersten_lernlauf_gelingen(box):
+    """Befund 3: Der erste Lernlauf (Serie) bleibt gültig, auch wenn ein zweiter ``learn`` (andere Folge) ignoriert wird."""
+    lerne_serie(box)
+    erste = box.sim.lernbefehl_id
+    lerne_folge(box, "c.wav")
+    assert box.sim.lernbefehl_id == erste
+    box.auflege(NEU)
+    assert box.konfig_json()["zuordnungen"][NEU]["ziel"] == {"typ": "serie", "serie": SERIE}
+    assert box.unknown() == {}
+
+
+def test_abgelehnter_lernbefehl_ueberschreibt_ein_altes_gueltiges_ziel_nicht(box):
+    lerne_serie(box)
+    erste = box.sim.lernbefehl_id
+    box.uhr.setze_zeit("unbekannt", False)  # ein weiterer Befehl wird abgelehnt (oder ignoriert)
+    lerne_folge(box, "c.wav")
+    assert box.sim.lernbefehl_id == erste
+
+
 def test_gesperrter_tobie_im_lernmodus_aendert_nichts(box):
     lerne_serie(box)
     n = len(box.log)
@@ -206,7 +261,8 @@ def test_unsichere_uhr_lehnt_den_lernbefehl_ab_und_meldet_den_grund(box):
     assert box.lernmodus() is False
     (m,) = box.befehle(ev.EreignisSenden, n)
     assert m.art == "befehl_abgelehnt"
-    assert m.daten == {"befehl": "lernen", "befehl_id": box.sim.lernbefehl_id, "grund": "zeit_unsicher"}
+    assert m.daten["grund"] == "zeit_unsicher" and m.daten["befehl"] == "lernen" and m.daten["befehl_id"]
+    assert box.sim.lernbefehl_id is None and box.sim.lernziel is None  # nie angenommen
     assert box.toene(n) == []
 
 

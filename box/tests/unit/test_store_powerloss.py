@@ -80,9 +80,10 @@ def test_prozessabbruch_waehrend_des_schreibens_laesst_nie_eine_unlesbare_datei(
         bak = tmp_path / "resume.json.bak"
         if bak.exists():
             assert lese_zaehler(bak) <= zaehler
-        # 3. Beim Start räumt der Speicher Reste weg und lädt ohne Rückfall.
+        # 3. Beim Start räumt der Dienst Reste weg und lädt ohne Rückfall.
         if any(p.name.endswith(".tmp") for p in tmp_path.iterdir()):
             kills_mit_resten += 1
+        store.raeume_auf(tmp_path)  # das macht der Dienststart (App._starte), laden räumt nicht auf
         s = store.ResumeStore(tmp_path)
         geladen = s.laden()
         assert s.quelle == "datei"
