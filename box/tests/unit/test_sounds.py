@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import array
+import asyncio
 import wave
+from pathlib import Path
 
 import pytest
 
@@ -151,3 +153,32 @@ async def test_fehlendes_programm_wirft_nicht(tmp_path):
     t = Toene(tmp_path, ["gibt-es-nicht-xyz", "{datei}"])
     assert t.spiele("start", 50)
     await t.warte()  # kein Fehler
+
+
+async def test_spiele_folge_spielt_nacheinander_in_der_gegebenen_reihenfolge(tmp_path):
+    g: list = []
+    laufend = {"n": 0, "max": 0}
+
+    async def starter(k):
+        laufend["n"] += 1
+        laufend["max"] = max(laufend["max"], laufend["n"])
+        g.append(k[-1])
+        await asyncio.sleep(0.01)
+        laufend["n"] -= 1
+
+    schreibe_wav(tmp_path / "pruef_ok.wav")
+    schreibe_wav(tmp_path / "pruef_fehler.wav")
+    t = Toene(tmp_path, STANDARD_TON_KOMMANDO, starter=starter)
+    assert t.spiele_folge(["pruef_ok", "pruef_fehler", "pruef_ok", "pruef_fehler"], 50)
+    await t.warte()
+    assert len(g) == 4 and laufend["max"] == 1  # nie zwei Töne gleichzeitig
+    assert [Path(x).name.split("-")[2] for x in g] == ["pruef_ok", "pruef_fehler", "pruef_ok", "pruef_fehler"]
+
+
+async def test_spiele_folge_leer_und_mit_fehlender_datei(tmp_path):
+    g: list = []
+    t = mk(tmp_path, g)
+    assert not t.spiele_folge([], 50)
+    assert t.spiele_folge(["gibt_es_nicht", "start"], 50)  # die fehlende Datei stoppt die Folge nicht
+    await t.warte()
+    assert len(g) == 1

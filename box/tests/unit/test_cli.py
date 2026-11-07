@@ -100,3 +100,114 @@ def test_konfig_aus_umgebungsvariable(box, monkeypatch):
     _, toml = box
     monkeypatch.setenv("TOBIBOX_CONFIG", str(toml))
     assert lauf("status")[0] == 0
+
+
+# --------------------------------------------------------------------------
+# Stufe 2: offene Meldungen im Status, tobibox sim
+# --------------------------------------------------------------------------
+
+
+def test_status_zeigt_offene_meldungen_und_dass_der_dienst_nicht_laeuft(box):
+    from tobibox.clock import SimUhr
+    from tobibox.outbox import Outbox
+
+    tmp, toml = box
+    o = Outbox(tmp / "var")
+    o.laden()
+    o.melden("unbekannt", "04ffeedd", None, SimUhr().jetzt())
+    code, text = lauf("status", "--config", str(toml))
+    assert "Meldungen: 04ffeedd (unbekannt, 1x) warten auf Bestätigung" in text
+    assert "nicht erreichbar" in text and "kein laufender Dienst nötig" in text
+    d = json.loads(lauf("status", "--config", str(toml), "--json")[1])
+    assert d["live"] is None and d["offene_meldungen"][0]["uid"] == "04ffeedd"
+
+
+def test_status_ohne_meldungen(box):
+    _, toml = box
+    assert "Meldungen: keine offen" in lauf("status", "--config", str(toml))[1]
+
+
+def test_formatiere_live_zeigt_status_und_pruefpunkte():
+    live = {
+        "status": {
+            "zustand": "spielt", "serie": {"id": "s1", "name": "Rabe"}, "folge": {"name": "a.mp3", "track": 1},
+            "lernmodus": True, "leser": "ok", "firmware": "1.0.0", "netz": "offline", "zeitquelle": "system",
+            "zeit_ok": True, "konfig": {"revision": 3, "liste_id": "a3f9c1e07b2d4856"}, "speicher_frei_mb": 900,
+            "letzter_fehler": None,
+        },
+        "pruefpunkte": {"punkte": [
+            {"name": "leser", "ok": True, "detail": "ok"}, {"name": "netz", "ok": False, "detail": "offline, Broker nicht verbunden"},
+        ]},
+    }
+    text = "\n".join(cli._live_zeilen(live))
+    assert "Sitzung: spielt, Serie: Rabe, Folge a.mp3 (Track 1), Lernmodus: an" in text
+    assert "Revision 3" in text and "leser ok, netz FEHLER" in text and "netz: offline, Broker nicht verbunden" in text
+
+
+@pytest.mark.parametrize(
+    "argv, erwartet",
+    [
+        (["learn", "--serie", "s1"], {"befehl": "learn", "typ": "serie", "serie": "s1", "ttl": 60}),
+        (["learn", "--serie", "s1", "--folge", "a.mp3", "--ttl", "30"],
+         {"befehl": "learn", "typ": "folge", "serie": "s1", "folge": "a.mp3", "ttl": 30}),
+        (["learn-abort"], {"befehl": "learn_abort"}),
+        (["card", "04a1b2c3", "--serie", "s1"],
+         {"befehl": "card", "uid": "04a1b2c3", "ziel": {"typ": "serie", "serie": "s1"}}),
+        (["card", "04a1b2c3", "--serie", "s1", "--folge", "a.mp3"],
+         {"befehl": "card", "uid": "04a1b2c3", "ziel": {"typ": "folge", "serie": "s1", "folge": "a.mp3"}}),
+        (["card", "04a1b2c3", "--aktion", "status"],
+         {"befehl": "card", "uid": "04a1b2c3", "ziel": {"typ": "aktion", "aktion": "status"}}),
+        (["ack", "04a1b2c3", "--zuletzt", "z", "--art", "gelernt", "--grund", "zugeordnet"],
+         {"befehl": "ack", "uid": "04a1b2c3", "zuletzt": "z", "art": "gelernt", "grund": "zugeordnet"}),
+    ],
+)
+def test_sim_baut_die_json_zeile(box, monkeypatch, argv, erwartet):
+    _, toml = box
+    gesendet = []
+    monkeypatch.setattr(cli, "_frage_socket", lambda pfad, zeile: gesendet.append((pfad, zeile)) or {"ok": True})
+    out = io.StringIO()
+    assert cli.main(["sim", "--config", str(toml), *argv], out) == 0
+    (pfad, zeile), = gesendet
+    assert zeile == erwartet and pfad.name == "sim.sock"
+    assert json.loads(out.getvalue()) == {"ok": True}
+
+
+def test_sim_ack_nimmt_zuletzt_und_art_aus_unknown_json(box, monkeypatch):
+    from tobibox.clock import SimUhr
+    from tobibox.outbox import Outbox
+
+    tmp, toml = box
+    o = Outbox(tmp / "var")
+    o.laden()
+    o.melden("gelernt", "04ffeedd", "b1", SimUhr().jetzt())
+    e = o.offen()[0]
+    gesendet = []
+    monkeypatch.setattr(cli, "_frage_socket", lambda pfad, zeile: gesendet.append(zeile) or {"ok": True})
+    assert cli.main(["sim", "--config", str(toml), "ack", "04ffeedd"], io.StringIO()) == 0
+    assert gesendet == [{"befehl": "ack", "uid": "04ffeedd", "zuletzt": e.zuletzt, "art": "gelernt", "grund": "sim"}]
+
+
+def test_sim_ack_ohne_eintrag_ist_ein_fehler(box, capsys):
+    _, toml = box
+    assert cli.main(["sim", "--config", str(toml), "ack", "04ffeedd"], io.StringIO()) == 2
+    assert "kein offener Eintrag" in capsys.readouterr().err
+
+
+def test_sim_ohne_dienst_exitcode_3(box, capsys):
+    _, toml = box
+    assert cli.main(["sim", "--config", str(toml), "learn", "--serie", "s1"], io.StringIO()) == 3
+    assert "nicht erreichbar" in capsys.readouterr().err
+
+
+def test_sim_abgelehnte_zeile_exitcode_1(box, monkeypatch, capsys):
+    _, toml = box
+    monkeypatch.setattr(cli, "_frage_socket", lambda pfad, zeile: {"ok": False, "fehler": "typ ungueltig"})
+    assert cli.main(["sim", "--config", str(toml), "learn", "--serie", "s1"], io.StringIO()) == 1
+    assert "typ ungueltig" in capsys.readouterr().err
+
+
+def test_sim_card_ohne_ziel_ist_ein_aufrufefehler(box):
+    _, toml = box
+    with pytest.raises(SystemExit) as e:
+        cli.main(["sim", "--config", str(toml), "card", "04a1b2c3"], io.StringIO())
+    assert e.value.code == 2

@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import contextlib
+import dataclasses
 import logging
 import os
 import signal
@@ -20,13 +21,17 @@ from collections.abc import Sequence
 from dataclasses import replace
 from pathlib import Path
 
-from . import __version__, bootid, core, eventlog, lauf, library, notify
+from . import __version__, bootid, core, eventlog, lauf, library, notify, selftest, store
 from . import config as konfig_modul
 from . import events as ev
 from .clock import SystemUhr, Uhr
+from .ha_ersatz import HaErsatz
+from .outbox import Outbox
 from .player import Player
 from .reader import Leser
+from .sim import Sim
 from .sounds import Toene
+from .status import Statussammler
 from .store import KonfigStore, ResumeStore
 
 TAKT_S = 0.1
@@ -82,6 +87,11 @@ class App:
         self.resume = ResumeStore(zustand)
         self.konfig_store = KonfigStore(zustand)
         self.bibliothek = library.Bibliothek((), "keine")
+        self.outbox = Outbox(zustand)
+        self.status = Statussammler()
+        self.sim = Sim(zustand, self.ereignisse_ein, self.uhr, self.konfig_store, self.status_auskunft)
+        self.ha_ersatz = HaErsatz(self.sim, self.konfig_store, self.ereignisse_ein)
+        self._verloren_basis = len(store.verlorene_dateien)  # ``datei_verloren`` zählt erst seit dem Start
         self.kern = core.neuer_zustand()
         self.ereignisse: asyncio.Queue[ev.Ereignis] = asyncio.Queue()
         self.befehle: asyncio.Queue[tuple[ev.Befehl, float]] = asyncio.Queue()
@@ -99,14 +109,23 @@ class App:
     # Kern
     # ------------------------------------------------------------------
 
+    def ereignisse_ein(self, e: ev.Ereignis) -> None:
+        """Eingang für ``sim`` und den HA-Ersatz (später: MQTT)."""
+        self.ereignisse.put_nowait(e)
+
     def verarbeite(self, e: ev.Ereignis) -> tuple[ev.Befehl, ...]:
         """Ein Ereignis durch den Kern; die Befehle gehen an den Ausführer."""
         jetzt = self.uhr.jetzt()
         _protokolliere_leser(e)
+        self.status.beobachte(e, jetzt)
+        if isinstance(e, ev.Bestaetigt):
+            # Der Broker allein bestätigt nichts; erst ``Bestaetigt`` löscht den Eintrag (Abschnitt 7)
+            self.outbox.bestaetigt(e.id, e.grund, e.zuletzt, e.art)
         if isinstance(e, (ev.Aufgelegt, ev.Gesperrt)) or (isinstance(e, ev.Abgehoben) and e.vorgang):
             self._letzter_vorgang = e.vorgang
         self.kern, befehle = core.step(self.kern, e, jetzt)
         for b in befehle:
+            self.status.befehl(b, jetzt)
             if isinstance(b, ev.Protokoll):
                 # Protokollzeilen sofort schreiben: Sie halten die Entscheidung fest (zugeordnet, spielt) und
                 # gehören vor die Ausführung der Befehle derselben Verarbeitung (Kette von CUJ 1, Messung).
@@ -192,9 +211,60 @@ class App:
             lauf.loesche(self.konfig.pfade.zustand)
             eventlog.logge("app", "INFO", "herunterfahren", "angefordert", daten={"grund": b.grund})
         elif isinstance(b, ev.ZustandMelden):
-            pass  # Anzeige und Statussammler folgen in Stufe 2
-        else:  # Melden, EreignisSenden, StatusPruefen, Sync, Update: Stufe 2 bis 3
+            pass  # der Statussammler hat sie in ``verarbeite`` schon gesehen
+        elif isinstance(b, ev.Melden):
+            self._melde(b)
+        elif isinstance(b, ev.EreignisSenden):
+            # Stufe 3a veröffentlicht auf ``tobibox/<box>/event``; bis dahin nur ins Protokoll
+            eventlog.logge("app", "INFO", "ereignis_senden", b.art, daten=dict(b.daten))
+        elif isinstance(b, ev.StatusPruefen):
+            self._status_pruefen(b)
+        else:  # Sync, Update: Stufe 3
             eventlog.logge("app", "DEBUG", "befehl_nicht_umgesetzt", "ignoriert", daten={"befehl": type(b).__name__})
+
+    def _melde(self, b: ev.Melden) -> None:
+        """Unbekannten oder gelernten Tobie in ``unknown.json`` eintragen (``outbox``)."""
+        jetzt = self.uhr.jetzt()
+        self.outbox.melden(b.art, b.uid, b.befehl_id, jetzt)
+        eventlog.logge("app", "INFO", "gemeldet", b.art, daten={"uid": b.uid, "befehl_id": b.befehl_id})
+        if b.art == "gelernt":
+            eintrag = next(e for e in self.outbox.offen() if e.uid == b.uid)
+            self.ha_ersatz.gelernt(eintrag)  # Stufe 2: ``sim`` spielt HA; Stufe 3a: Veröffentlichung per MQTT
+
+    def pruefbericht(self, jetzt: ev.Jetzt) -> selftest.Pruefbericht:
+        """Die vier Prüfpunkte der Status-Karte (12.3). Netz, Leser und Speicher kennt der Dienst, nicht ``selftest``."""
+        medien = self.konfig.pfade.medien
+        serien = self.bibliothek.serien if medien.is_dir() else None
+        frei = selftest.freier_platz_mb(medien if medien.exists() else medien.parent)
+        verloren = len(store.verlorene_dateien) > self._verloren_basis
+        return selftest.Pruefbericht((
+            selftest.pruefe_leser(self.status.leser(jetzt.mono)),
+            selftest.pruefe_medien(serien),
+            selftest.pruefe_netz(self.status.netz, self.status.ha_verbunden),
+            selftest.pruefe_speicher(frei, verloren),
+        ))
+
+    def _status_pruefen(self, b: ev.StatusPruefen) -> None:
+        """Status-Admin-Karte (CUJ 11): je Prüfpunkt ein Ton, nacheinander."""
+        bericht = self.pruefbericht(self.uhr.jetzt())
+        eventlog.logge(
+            "selftest", "INFO" if bericht.alles_ok else "WARNING", "status_geprueft",
+            "ok" if bericht.alles_ok else "fehler", b.vorgang,
+            daten={p.name: ("ok" if p.ok else f"FEHLER {p.detail}") for p in bericht.punkte},
+        )
+        ton, hinweis = self._tonpegel()
+        self.toene.spiele_folge(bericht.toene, self.grenze, ton, hinweis)
+
+    def status_auskunft(self) -> dict:
+        """Antwort auf ``sim`` ``status`` (für ``tobibox status``): Status-JSON, Prüfpunkte, offene Meldungen."""
+        jetzt = self.uhr.jetzt()
+        medien = self.konfig.pfade.medien
+        frei = selftest.freier_platz_mb(medien if medien.exists() else medien.parent)
+        return {
+            "status": self.status.als_dict(jetzt, self.bibliothek.serien, frei),
+            "pruefpunkte": self.pruefbericht(jetzt).als_dict(),
+            "offen": [dataclasses.asdict(e) for e in self.outbox.offen()],
+        }
 
     def _vorgang(self) -> str | None:
         """Vorgangs-ID des letzten Auflegens oder Abhebens (für Zeilen von Befehlen ohne eigene ID)."""
@@ -229,6 +299,9 @@ class App:
     async def _starte(self) -> None:
         eventlog.logge("app", "INFO", "start", "ok", daten={"version": __version__})
         self.bibliothek = await asyncio.to_thread(library.lade_bibliothek, self.konfig.pfade.medien)
+        self.outbox.laden()  # offene Meldungen (unknown.json) bleiben über den Neustart
+        if self.outbox.offen():
+            eventlog.logge("app", "INFO", "start", "offene_meldungen", daten={"anzahl": len(self.outbox.offen())})
         self._aufgaben = [
             asyncio.create_task(self._ausfuehrer(), name="tobibox-ausfuehrer"),
             asyncio.create_task(self._ereignisschleife(), name="tobibox-ereignisse"),
@@ -255,6 +328,7 @@ class App:
         self.ereignisse.put_nowait(ev.Bereit())
         await self._leere_ereignisse()
         self.leser.start()
+        await self.sim.start()
         self._aufgaben.append(asyncio.create_task(self._taktgeber(), name="tobibox-takt"))
         self.bereit.set()
         if self._melde_bereit:
@@ -285,6 +359,7 @@ class App:
         await self._warte(self.player.pausiere_hart(), "pause_hart")
         await self._warte(self.player.stop(), "player")
         await self._warte(self.toene.stop(), "toene")
+        await self._warte(self.sim.stop(), "sim")
         await self._warte(self.leser.stop(), "leser")
 
     async def beende(self) -> None:
@@ -297,6 +372,7 @@ class App:
         notify.stoppt()
         try:
             await self._warte(self.leser.stop(), "leser")
+            await self._warte(self.sim.stop(), "sim")
             for t in self._aufgaben:
                 if t.get_name() == "tobibox-takt":
                     t.cancel()

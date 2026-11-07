@@ -125,3 +125,45 @@ async def test_async_ausgabe_und_alter_socket(tmp_path):
     finally:
         await s.stop()
     assert not s.pfad.exists()
+
+
+async def test_learn_merkt_die_befehls_id_fuer_den_ha_ersatz(sim):
+    await sende(sim, {"befehl": "learn", "typ": "serie", "serie": "s1"})
+    assert sim.lernbefehl_id == sim.got[0].befehl_id
+    await sende(sim, {"befehl": "learn", "typ": "serie", "serie": "s2"})
+    assert sim.lernbefehl_id == sim.got[1].befehl_id != sim.got[0].befehl_id
+    assert sim.lernziel == {"typ": "serie", "serie": "s2"}
+
+
+async def test_learn_abort(sim):
+    (a,) = await sende(sim, {"befehl": "learn_abort"})
+    assert a == {"ok": True}
+    (e,) = sim.got
+    assert isinstance(e, ev.HaLernmodusAbbruch) and e.befehl_id and e.gueltig_bis == SimUhr().wall + 30
+
+
+async def test_status_antwortet_mit_der_auskunft_des_dienstes_und_macht_kein_ereignis(tmp_path):
+    got: list = []
+    s = Sim(tmp_path, got.append, SimUhr(), auskunft=lambda: {"status": {"zustand": "leer"}, "offen": []})
+    await s.start()
+    try:
+        (a,) = await sende(s, {"befehl": "status"})
+    finally:
+        await s.stop()
+    assert a == {"ok": True, "status": {"zustand": "leer"}, "offen": []} and got == []
+
+
+async def test_status_ohne_auskunft_ist_ungueltig(sim):
+    (a,) = await sende(sim, {"befehl": "status"})
+    assert a["ok"] is False and sim.got == []
+
+
+async def test_card_nutzt_den_gemeinsamen_konfig_store(tmp_path):
+    k = KonfigStore(tmp_path)
+    s = Sim(tmp_path, lambda e: None, SimUhr(), k)
+    await s.start()
+    try:
+        await sende(s, {"befehl": "card", "uid": "04a1b2c3", "ziel": {"typ": "folge", "serie": "s1", "folge": "a.mp3"}})
+    finally:
+        await s.stop()
+    assert k.konfig.zuordnungen["04a1b2c3"] == ev.Zuordnung("folge", "s1", "a.mp3")  # derselbe Store sieht es sofort

@@ -266,3 +266,91 @@ async def test_ohne_lesbare_boot_id_wird_kein_marker_geschrieben(app):
         assert not marker_datei(a).exists() and a.kern.session.neustart_uid is None
     finally:
         await a.beende()
+
+
+# --------------------------------------------------------------------------
+# Stufe 2: Ausgang (unknown.json), sim, HA-Ersatz, Status
+# --------------------------------------------------------------------------
+
+
+def unknown(a: App) -> dict:
+    p = a.konfig.pfade.zustand / "unknown.json"
+    return json.loads(p.read_text())["eintraege"] if p.exists() else {}
+
+
+async def test_unbekannter_tobie_wird_in_unknown_json_eingetragen_und_bleibt_ueber_den_neustart(app):
+    a = neue_app(app, "boot-A")
+    await a.starte()
+    try:
+        await lege_auf(a, "04ffeedd")
+        await a.befehle.join()
+        assert unknown(a)["04ffeedd"]["art"] == "unbekannt"
+    finally:
+        await a.beende()
+    b = neue_app(app, "boot-B")
+    await b.starte()
+    try:
+        assert [e.uid for e in b.outbox.offen()] == ["04ffeedd"]
+    finally:
+        await b.beende()
+
+
+async def test_bestaetigt_loescht_erst_mit_passendem_zuletzt(app):
+    a = neue_app(app, "boot-A")
+    await a.starte()
+    try:
+        await lege_auf(a, "04ffeedd")
+        await a.befehle.join()
+        zuletzt = unknown(a)["04ffeedd"]["zuletzt"]
+        a.ereignisse.put_nowait(ev.Bestaetigt("04ffeedd", "neu", "2000-01-01T00:00:00.000Z", "unbekannt"))
+        await a._leere_ereignisse()
+        assert "04ffeedd" in unknown(a)
+        a.ereignisse.put_nowait(ev.Bestaetigt("04ffeedd", "neu", zuletzt, "unbekannt"))
+        await a._leere_ereignisse()
+        assert unknown(a) == {}
+    finally:
+        await a.beende()
+
+
+async def test_sim_socket_lebt_waehrend_der_dienst_laeuft_und_ist_danach_weg(app):
+    a = neue_app(app, "boot-A")
+    await a.starte()
+    pfad = a.sim.pfad
+    assert pfad.exists()
+    await a.beende()
+    assert not pfad.exists()
+
+
+async def test_lernen_ueber_sim_ordnet_zu_bestaetigt_und_loescht_den_eintrag(app):
+    a = neue_app(app, "boot-A")
+    await a.starte()
+    try:
+        e = a.sim.zeile_zu_ereignis(json.dumps({"befehl": "learn", "typ": "serie", "serie": "3f9a1c07b2d4"}))
+        a.ereignisse.put_nowait(e)
+        await a._leere_ereignisse()
+        assert a.kern.teil["learn"].modus == "lernt"
+        await lege_auf(a, "04ffeedd")
+        await a.befehle.join()  # Ausführer: melden, HA-Ersatz schreibt und bestätigt
+        await a._leere_ereignisse()
+        await a.befehle.join()
+        assert unknown(a) == {}
+        k = json.loads((a.konfig.pfade.zustand / "config.json").read_text())
+        assert k["zuordnungen"]["04ffeedd"]["ziel"] == {"typ": "serie", "serie": "3f9a1c07b2d4"}
+        assert a.kern.teil["learn"].modus == "aus"
+    finally:
+        await a.beende()
+
+
+async def test_status_auskunft_enthaelt_status_pruefpunkte_und_offene_meldungen(app):
+    a = neue_app(app, "boot-A")
+    await a.starte()
+    try:
+        await lege_auf(a, "04ffeedd")
+        await a.befehle.join()
+        r = a.status_auskunft()
+        assert r["status"]["zustand"] in ("spielt", "pausiert") and r["status"]["serie"]["id"] == "c07d2e91a45b"
+        assert [p["name"] for p in r["pruefpunkte"]["punkte"]] == ["leser", "medien", "netz", "speicher"]
+        assert [o["uid"] for o in r["offen"]] == ["04ffeedd"]
+        json.dumps(r)  # muss über den Socket gehen können
+    finally:
+        await a.beende()

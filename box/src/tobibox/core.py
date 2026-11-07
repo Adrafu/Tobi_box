@@ -19,7 +19,7 @@ from types import ModuleType
 from typing import Any
 
 from . import events as ev
-from . import session
+from . import learn, session
 from .events import Jetzt
 from .volume import (
     GRENZE_AUSBLENDEN,
@@ -30,9 +30,9 @@ from .volume import (
 )
 
 #: Teilautomaten in fester Reihenfolge. Das Integrations-AP der Stufe trägt
-#: ``learn``, ``quiet``, ``bedtime`` und ``idle`` hier ein (Reihenfolge laut
-#: Vertrag: session, learn, quiet, bedtime, idle).
-TEILAUTOMATEN: tuple[tuple[str, ModuleType], ...] = (("session", session),)
+#: ``quiet``, ``bedtime`` und ``idle`` hier ein (Reihenfolge laut Vertrag:
+#: session, learn, quiet, bedtime, idle). ``learn`` seit Stufe 2.
+TEILAUTOMATEN: tuple[tuple[str, ModuleType], ...] = (("session", session), ("learn", learn))
 
 MAX_EREIGNISSE = 32
 

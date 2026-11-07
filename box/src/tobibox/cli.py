@@ -1,9 +1,13 @@
-"""Kommandozeile ``tobibox`` (erste Fassung): ``tobibox status``.
+"""Kommandozeile ``tobibox``: ``tobibox status`` und ``tobibox sim``.
 
-``status`` liest nur Dateien (Konfiguration, Zustandsverzeichnis, Medienordner,
+``status`` liest Dateien (Konfiguration, Zustandsverzeichnis, Medienordner,
 Ereignisprotokoll) und braucht **keinen laufenden Dienst**. Es verändert nichts
-(keine Umbenennung defekter Dateien, kein Aufräumen). Das sagt die Ausgabe in
-der ersten Zeile. Ein Statusweg zum laufenden Dienst folgt in Stufe 2.
+(keine Umbenennung defekter Dateien, kein Aufräumen). Läuft der Dienst, fragt
+``status`` ihn zusätzlich über ``sim.sock`` und zeigt den Status-JSON (``core-interface.md``,
+Abschnitt 12; ``mqtt-v1.md``, 3.3) und die Prüfpunkte der Status-Karte.
+
+``sim`` ist ein Client des Unix-Sockets ``sim.sock`` im Zustandsverzeichnis (Stufe 2, ``sim.py``):
+``learn``, ``learn-abort``, ``ack`` und ``card``.
 """
 
 from __future__ import annotations
@@ -13,6 +17,7 @@ import json
 import logging
 import os
 import platform
+import socket
 import sys
 from collections.abc import Sequence
 from pathlib import Path
@@ -20,13 +25,15 @@ from typing import TextIO
 
 from . import __version__
 from . import config as konfig_modul
-from . import library, store
+from . import library, outbox, store
 from .protocol import PROTO_UNTERSTUETZT
+from .sim import SOCKET_NAME
 
 ENV_KONFIG = "TOBIBOX_CONFIG"
 STANDARD_KONFIG = "tobibox.toml"
 LOG_LESE_BYTES = 256_000
 LETZTE_FEHLER = 5
+SOCKET_TIMEOUT_S = 3.0
 
 OK, FEHLER, UNBEKANNT = "ok", "FEHLER", "unbekannt"
 
@@ -62,6 +69,33 @@ def _log_zeilen(pfad: Path) -> list[dict]:
     return zeilen
 
 
+def _frage_socket(pfad: Path, zeile: dict) -> dict | None:
+    """Eine JSON-Zeile an ``sim.sock`` senden, die Antwortzeile lesen. ``None``: Dienst nicht erreichbar."""
+    try:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
+            s.settimeout(SOCKET_TIMEOUT_S)
+            s.connect(str(pfad))
+            s.sendall((json.dumps(zeile) + "\n").encode())
+            puffer = b""
+            while not puffer.endswith(b"\n"):
+                teil = s.recv(65536)
+                if not teil:
+                    break
+                puffer += teil
+        antwort = json.loads(puffer.decode("utf-8"))
+    except (OSError, ValueError):
+        return None
+    return antwort if isinstance(antwort, dict) else None
+
+
+def frage_dienst(zustand: Path) -> dict | None:
+    """Status vom laufenden Dienst (Status-JSON, Prüfpunkte, offene Meldungen) oder ``None``."""
+    a = _frage_socket(zustand / SOCKET_NAME, {"befehl": "status"})
+    if a is None or not a.get("ok"):
+        return None
+    return {k: v for k, v in a.items() if k != "ok"}
+
+
 def sammle_status(kfg: konfig_modul.BoxKonfig) -> dict:
     """Prüfpunkte als Wörterbuch (auch für Tests)."""
     # Bibliothek lesen schreibt Protokollzeilen; im Status soll nichts davon erscheinen.
@@ -94,10 +128,23 @@ def sammle_status(kfg: konfig_modul.BoxKonfig) -> dict:
     else:
         leser = {"zustand": UNBEKANNT, "letztes": "kein Leser-Ereignis im Protokoll (Dienst läuft nicht?)"}
 
+    offen, o_hinweis = _lese_json(zustand / outbox.NAME, outbox._parse)
+    live = frage_dienst(zustand)
+
     folgen = sum(len(s.folgen) for s in bib.serien)
     medien_ok = bool(bib.serien) and folgen > 0 and bib.ueberraschung_status == "ok"
     return {
-        "dienst": "nicht abgefragt: Zustand aus Dateien, kein laufender Dienst nötig",
+        "dienst": (
+            "läuft (Status vom Dienst über sim.sock)"
+            if live is not None
+            else "nicht erreichbar (sim.sock): Zustand aus Dateien, kein laufender Dienst nötig"
+        ),
+        "live": live,
+        "offene_meldungen": (
+            [{"uid": u, "art": e.art, "anzahl": e.anzahl, "zuletzt": e.zuletzt} for u, e in offen.items()]
+            if offen is not None
+            else ([] if o_hinweis == "fehlt" else o_hinweis)
+        ),
         "leser": leser,
         "medien": {
             "zustand": OK if medien_ok else FEHLER,
@@ -120,13 +167,44 @@ def sammle_status(kfg: konfig_modul.BoxKonfig) -> dict:
     }
 
 
+def _offen_zeile(offen: list | str) -> str:
+    if isinstance(offen, str):
+        return f"Meldungen: {offen}"
+    if not offen:
+        return "Meldungen: keine offen (unknown.json)"
+    return "Meldungen: " + ", ".join(f"{m['uid']} ({m['art']}, {m['anzahl']}x)" for m in offen) + " warten auf Bestätigung"
+
+
+def _live_zeilen(live: dict | None) -> list[str]:
+    if not live:
+        return []
+    s = live["status"]
+    serie = s["serie"]["name"] if s["serie"] else "-"
+    folge = f", Folge {s['folge']['name']} (Track {s['folge']['track']})" if s.get("folge") else ""
+    fehler = s["letzter_fehler"]["text"] if s["letzter_fehler"] else "keiner"
+    z = [
+        f"  Sitzung: {s['zustand']}, Serie: {serie}{folge}, Lernmodus: {'an' if s['lernmodus'] else 'aus'}",
+        f"  Leser: {s['leser']} (Firmware {s['firmware'] or '-'}), Netz: {s['netz']}, Zeit: {s['zeitquelle']}"
+        f" ({'ok' if s['zeit_ok'] else 'unsicher'})",
+        f"  Konfiguration: Revision {s['konfig']['revision']}, Liste {s['konfig']['liste_id'] or '-'}; "
+        f"frei: {s['speicher_frei_mb']} MB; letzter Fehler: {fehler}",
+        "  Status-Karte: " + ", ".join(f"{p['name']} {'ok' if p['ok'] else 'FEHLER'}" for p in live["pruefpunkte"]["punkte"]),
+    ]
+    for p in live["pruefpunkte"]["punkte"]:
+        if not p["ok"]:
+            z.append(f"    {p['name']}: {p['detail']}")
+    return z
+
+
 def formatiere(st: dict) -> str:
     z = [
-        "tobibox status (erste Fassung)",
+        "tobibox status",
         f"Dienst:    {st['dienst']}",
+        *_live_zeilen(st.get("live")),
         f"Leser:     {st['leser']['zustand']}  {st['leser']['letztes']}",
         "Medien:    {zustand}  {serien} Serien, {folgen} Folgen, Überraschung: {ueberraschung} ({pfad})".format(**st["medien"]),
         "Speicher:  {zustand}  Zeiger: {resume}; Konfiguration: {config} ({pfad})".format(**st["speicher"]),
+        _offen_zeile(st["offene_meldungen"]),
         f"Protokoll: {st['protokoll']}",
         "Letzte Fehler:" + ("" if st["letzte_fehler"] else " keine im Protokoll"),
         *[f"  {t}" for t in st["letzte_fehler"]],
@@ -151,6 +229,56 @@ def status(args: argparse.Namespace, ausgabe: TextIO) -> int:
     return 0 if ok else 1
 
 
+def _sim_zeile(args: argparse.Namespace, zustand: Path) -> dict | str:
+    """Die JSON-Zeile für ``sim.sock`` aus den Argumenten, oder ein Fehlertext."""
+    if args.sim_befehl == "learn":
+        zeile: dict = {"befehl": "learn", "typ": "folge" if args.folge else "serie", "serie": args.serie, "ttl": args.ttl}
+        if args.folge:
+            zeile["folge"] = args.folge
+        return zeile
+    if args.sim_befehl == "learn-abort":
+        return {"befehl": "learn_abort"}
+    if args.sim_befehl == "card":
+        if args.aktion:
+            ziel: dict = {"typ": "aktion", "aktion": args.aktion}
+        elif args.folge:
+            ziel = {"typ": "folge", "serie": args.serie, "folge": args.folge}
+        else:
+            ziel = {"typ": "serie", "serie": args.serie}
+        return {"befehl": "card", "uid": args.uid, "ziel": ziel}
+    # ack: ``zuletzt`` und ``art`` stehen im Eintrag von unknown.json, wenn man sie nicht angibt
+    zuletzt, art = args.zuletzt, args.art
+    if zuletzt is None or art is None:
+        offen, _ = _lese_json(zustand / outbox.NAME, outbox._parse)
+        e = (offen or {}).get(args.uid)
+        if e is None:
+            return f"kein offener Eintrag für {args.uid} in unknown.json (--zuletzt und --art angeben)"
+        zuletzt, art = zuletzt or e.zuletzt, art or e.art
+    return {"befehl": "ack", "uid": args.uid, "zuletzt": zuletzt, "art": art, "grund": args.grund}
+
+
+def sim(args: argparse.Namespace, ausgabe: TextIO) -> int:
+    try:
+        kfg = konfig_modul.lade(_konfig_pfad(args.config))
+    except konfig_modul.KonfigFehler as e:
+        print(f"tobibox sim: {e}", file=sys.stderr)
+        return 2
+    zustand = kfg.pfade.zustand
+    zeile = _sim_zeile(args, zustand)
+    if isinstance(zeile, str):
+        print(f"tobibox sim: {zeile}", file=sys.stderr)
+        return 2
+    antwort = _frage_socket(zustand / SOCKET_NAME, zeile)
+    if antwort is None:
+        print(f"tobibox sim: Dienst nicht erreichbar ({zustand / SOCKET_NAME}); läuft tobiboxd?", file=sys.stderr)
+        return 3
+    print(json.dumps(antwort, ensure_ascii=False), file=ausgabe)
+    if not antwort.get("ok"):
+        print(f"tobibox sim: abgelehnt: {antwort.get('fehler')}", file=sys.stderr)
+        return 1
+    return 0
+
+
 def main(argv: Sequence[str] | None = None, ausgabe: TextIO | None = None) -> int:
     p = argparse.ArgumentParser(prog="tobibox")
     p.add_argument("--version", action="version", version=f"tobibox {__version__}")
@@ -159,7 +287,28 @@ def main(argv: Sequence[str] | None = None, ausgabe: TextIO | None = None) -> in
     s.add_argument("--config", help=f"tobibox.toml (sonst ${ENV_KONFIG} oder ./{STANDARD_KONFIG})")
     s.add_argument("--json", action="store_true", help="maschinenlesbar")
     s.set_defaults(func=status)
+    m = sub.add_parser("sim", help="Befehle an den laufenden Dienst über sim.sock (Stufe 2, ersetzt HA)")
+    m.add_argument("--config", help=f"tobibox.toml (sonst ${ENV_KONFIG} oder ./{STANDARD_KONFIG})")
+    m.set_defaults(func=sim)
+    ms = m.add_subparsers(dest="sim_befehl", required=True)
+    lern = ms.add_parser("learn", help="Lernmodus starten (Ziel: Serie oder, mit --folge, eine Folge)")
+    lern.add_argument("--serie", required=True, help="Serien-ID des Ziels")
+    lern.add_argument("--folge", help="Name der Folge (Ziel ist dann eine einzelne Folge)")
+    lern.add_argument("--ttl", type=int, default=60, help="Lebensdauer des Befehls in Sekunden (Vorgabe 60)")
+    ms.add_parser("learn-abort", help="Lernmodus abbrechen")
+    ack = ms.add_parser("ack", help="Meldung aus unknown.json bestätigen (Eintrag wird gelöscht)")
+    ack.add_argument("uid")
+    ack.add_argument("--zuletzt", help="Zeitstempel der Meldung (sonst aus unknown.json)")
+    ack.add_argument("--art", choices=("unbekannt", "gelernt"), help="Art der Meldung (sonst aus unknown.json)")
+    ack.add_argument("--grund", default="sim", help="Grund der Bestätigung (neu, bekannt, zugeordnet, abgelehnt)")
+    karte = ms.add_parser("card", help="Karte oder Tobie einem Ziel zuordnen (schreibt config.json)")
+    karte.add_argument("uid")
+    karte.add_argument("--serie", help="Serien-ID (Ziel Serie, mit --folge Ziel Folge)")
+    karte.add_argument("--folge", help="Name der Folge")
+    karte.add_argument("--aktion", choices=("status", "gute_nacht"), help="Aktionskarte")
     args = p.parse_args(argv)
+    if getattr(args, "sim_befehl", None) == "card" and not (args.aktion or args.serie):
+        p.error("card: --serie oder --aktion angeben")
     return args.func(args, ausgabe or sys.stdout)
 
 

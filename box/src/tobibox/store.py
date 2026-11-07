@@ -35,6 +35,10 @@ from .eventlog import logge
 
 T = TypeVar("T")
 
+#: Namen der Zustandsdateien, die seit dem Start des Prozesses verloren gingen (``datei_verloren``);
+#: der Prüfpunkt „Speicher“ der Status-Karte liest sie (``core-interface.md``, 12.3).
+verlorene_dateien: list[str] = []
+
 SCHEMA_VERSION = 2
 BEKANNTE_VERSIONEN = frozenset({1, 2})
 
@@ -208,6 +212,7 @@ def lade_zustandsdatei(
         logge(baustein, "WARNING", "datei_aus_bak", "ok", daten={"datei": pfad.name})
         return wert, "bak"  # type: ignore[return-value]
     logge(baustein, "ERROR", "datei_verloren", "fehler", daten={"datei": pfad.name})
+    verlorene_dateien.append(pfad.name)
     return standard(), "standard"
 
 

@@ -10,6 +10,10 @@ Ereignisse daraus, die er an ``ausgabe`` übergibt. Befehle in Stufe 2 (Schlüss
 * ``ack``: ``{"befehl":"ack","uid":…,"zuletzt":…,"art":"unbekannt"|"gelernt"}`` -> ``Bestaetigt``.
 * ``card``: ``{"befehl":"card","uid":…,"ziel":{"typ":"serie","serie":…}}`` (auch ``folge``, ``aktion``)
   trägt die Zuordnung in ``config.json`` ein (``store``) -> ``KonfigGeladen``.
+* ``learn_abort``: ``{"befehl":"learn_abort"}`` -> ``HaLernmodusAbbruch`` (Ablaufzeit 30 s).
+* ``status``: ``{"befehl":"status"}`` -> Antwort mit dem Status des Dienstes (``auskunft``), kein Ereignis.
+
+Wer nach dem Lernen die Zuordnung schreibt und bestätigt, steht in ``ha_ersatz.py``.
 
 Ungültige Zeilen werden protokolliert und ignoriert. Jede Zeile wird mit einer JSON-Zeile beantwortet
 (``{"ok": true}`` oder ``{"ok": false, "fehler": …}``).
@@ -29,11 +33,11 @@ from typing import Any
 from . import events as ev
 from .clock import Uhr
 from .eventlog import logge
+from .ha_ersatz import Abgelehnt, schreibe_zuordnung
 from .store import KonfigStore
 
 SOCKET_NAME = "sim.sock"
 MAX_ZEILE = 64 * 1024
-LISTE_ID_STUFE_2 = "0000000000000000"
 
 
 class Ungueltig(ValueError):
@@ -48,13 +52,22 @@ def _text(d: dict[str, Any], schluessel: str) -> str:
 
 
 class Sim:
-    def __init__(self, zustand: str | Path, ausgabe: Callable[[ev.Ereignis], Any], uhr: Uhr) -> None:
+    def __init__(
+        self,
+        zustand: str | Path,
+        ausgabe: Callable[[ev.Ereignis], Any],
+        uhr: Uhr,
+        konfig_store: KonfigStore | None = None,
+        auskunft: Callable[[], dict[str, Any]] | None = None,
+    ) -> None:
         self.zustand = Path(zustand)
         self.pfad = self.zustand / SOCKET_NAME
         self.ausgabe = ausgabe
         self.uhr = uhr
         self.lernziel: dict[str, str] | None = None
-        self._konfig = KonfigStore(self.zustand)
+        self.lernbefehl_id: str | None = None  # ID des letzten ``learn``; der HA-Ersatz prüft sie
+        self.auskunft = auskunft  # Antwort auf ``status`` (der Dienst gibt sie herein)
+        self._konfig = konfig_store or KonfigStore(self.zustand)
         self._server: asyncio.AbstractServer | None = None
 
     # -- Zeile -> Ereignis ---------------------------------------------------
@@ -78,6 +91,8 @@ class Sim:
             return ev.Bestaetigt(_text(d, "uid"), str(d.get("grund") or "sim"), _text(d, "zuletzt"), art)
         if befehl == "card":
             return self._card(d)
+        if befehl == "learn_abort":
+            return ev.HaLernmodusAbbruch(str(uuid.uuid4()), self.uhr.jetzt().wall + 30)
         raise Ungueltig(f"befehl unbekannt: {befehl!r}")
 
     def _learn(self, d: dict[str, Any]) -> ev.Ereignis:
@@ -90,8 +105,9 @@ class Sim:
         ttl = d.get("ttl", 60)
         if isinstance(ttl, bool) or not isinstance(ttl, int) or not 1 <= ttl <= 3600:
             raise Ungueltig("ttl ungueltig")
-        self.lernziel = ziel
         befehl_id = str(uuid.uuid4())
+        self.lernziel = ziel
+        self.lernbefehl_id = befehl_id
         logge("sim", "INFO", "lernen", "ok", daten={"befehl_id": befehl_id, **ziel})
         return ev.HaLernmodus(befehl_id, self.uhr.jetzt().wall + ttl)
 
@@ -100,17 +116,10 @@ class Sim:
         ziel = d.get("ziel")
         if not isinstance(ziel, dict):
             raise Ungueltig("ziel fehlt")
-        self._konfig.laden()
-        roh = dict(self._konfig.roh)
-        roh["zuordnungen"] = dict(roh["zuordnungen"])
-        alt = self._konfig.konfig
-        roh["liste_id"] = alt.liste_id or LISTE_ID_STUFE_2
-        roh["revision"] = alt.revision + 1
-        roh["zuordnungen"][uid] = {"ziel": ziel}
-        a = self._konfig.annehmen(roh)
-        if not a.angenommen:
-            raise Ungueltig(f"card abgelehnt: {a.grund}")
-        return ev.KonfigGeladen(self._konfig.konfig)
+        try:
+            return schreibe_zuordnung(self._konfig, uid, ziel)
+        except Abgelehnt as e:
+            raise Ungueltig(f"card abgelehnt: {e}") from e
 
     # -- Server --------------------------------------------------------------
 
@@ -118,6 +127,18 @@ class Sim:
         r = self.ausgabe(e)
         if inspect.isawaitable(r):
             await r
+
+    def _auskunft(self, zeile: bytes) -> dict[str, Any] | None:
+        """``status``: der Dienst antwortet mit seinem Status; es entsteht kein Ereignis."""
+        try:
+            d = json.loads(zeile)
+        except ValueError:
+            return None
+        if not isinstance(d, dict) or d.get("befehl") != "status":
+            return None
+        if self.auskunft is None:
+            raise Ungueltig("status nicht verfuegbar")
+        return {"ok": True, **self.auskunft()}
 
     async def _client(self, leser: asyncio.StreamReader, schreiber: asyncio.StreamWriter) -> None:
         try:
@@ -132,9 +153,10 @@ class Sim:
                 if not zeile.strip():
                     continue
                 try:
-                    e = self.zeile_zu_ereignis(zeile)
-                    await self._abliefern(e)
-                    antwort: dict[str, Any] = {"ok": True}
+                    antwort = self._auskunft(zeile)
+                    if antwort is None:
+                        await self._abliefern(self.zeile_zu_ereignis(zeile))
+                        antwort = {"ok": True}
                 except Ungueltig as ex:
                     logge("sim", "WARNING", "zeile", "ungueltig", daten={"grund": str(ex)})
                     antwort = {"ok": False, "fehler": str(ex)}

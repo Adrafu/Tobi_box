@@ -2042,3 +2042,36 @@ def test_erster_track_fehlt_der_player_meldet_track_wechsel_die_sitzung_nimmt_ih
     assert (h.z.track, h.z.position_s) == (1, 0.0) and h.modus == "spielt"
     h.sende(ev.PlayerPosition("s3", "cd", 1, 2.0, True, 1))
     assert h.z.position_s == 2.0
+
+
+# --------------------------------------------------------------------------
+# Protokollzeile „zugeordnet“: art nennt das Ziel (Fehler aus AP 2.2: „serie“ auch bei Folgen-Zielen)
+# --------------------------------------------------------------------------
+
+
+def _zugeordnet(h):
+    (z,) = [p for p in h.alle if isinstance(p, ev.Protokoll) and p.ereignis == "zugeordnet"]
+    return z
+
+
+@pytest.mark.parametrize(
+    "uid, art, ziel, ergebnis",
+    [
+        (UID_S1, "serie", "serie", "ok"),
+        (UID_FOLGE, "folge", "folge", "ok"),
+        (UID_CD, "folge", "folge", "ok"),
+        (UID_UNBEKANNT, "unbekannt", "serie", "ueberraschung"),
+        (UID_FOLGE_FEHLT, "serie", "serie", "ueberraschung"),  # Folge fehlt: Überraschungs-Serie
+    ],
+)
+def test_zugeordnet_art_nennt_serie_oder_folge(uid, art, ziel, ergebnis):
+    h = SitzungsHarnisch()
+    h.auflegen(uid)
+    z = _zugeordnet(h)
+    assert (z.daten["art"], z.daten["ziel"], z.ergebnis) == (art, ziel, ergebnis)
+
+
+def test_zugeordnet_art_gesperrt():
+    h = SitzungsHarnisch()
+    h.sende(ev.Gesperrt(0, "v1"))
+    assert _zugeordnet(h).daten["art"] == "gesperrt"

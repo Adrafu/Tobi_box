@@ -18,6 +18,7 @@ from pathlib import Path
 import pytest
 from fixtures import audio
 from mpd.asyncio import MPDClient
+from mpd.base import ConnectionError as MPDConnectionError
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools"))
 import fake_reader  # noqa: E402
@@ -46,14 +47,15 @@ async def warte(bedingung, timeout: float = 10.0, text: str = "") -> None:
 
 async def mpd_status(port: int) -> dict:
     # MPD (Null-Ausgabe) antwortet nach dem Pausieren selten einmal nicht rechtzeitig
-    # (auch ohne Änderung der Box-Software beobachtet): einmal wiederholen.
-    for versuch in (1, 2):
+    # (auch ohne Änderung der Box-Software beobachtet): bis zu dreimal versuchen. Die Bibliothek wirft
+    # ``mpd.base.ConnectionError`` (kein ``ConnectionError`` der Standardbibliothek).
+    for versuch in (1, 2, 3):
         c = MPDClient()
         try:
             await c.connect("127.0.0.1", port)
             return dict(await c.status())
-        except ConnectionError:
-            if versuch == 2:
+        except (ConnectionError, MPDConnectionError):
+            if versuch == 3:
                 raise
         finally:
             c.disconnect()

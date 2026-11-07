@@ -363,12 +363,15 @@ class CujBox:
         self._marker_uid = neustart_uid
         for e in (
             ev.GeraeteEinstellungen(60, 40, 25, neustart_uid),
-            ev.KonfigGeladen(mk_konfig(self.zuordnungen)),
+            self._lade_konfig(),
             self._library.lade_bibliothek(self.medien).ereignis(),
             self.resume.laden(),
             ev.Bereit(),
         ):
             self.sende(e)
+
+    def _lade_konfig(self) -> ev.KonfigGeladen:
+        return ev.KonfigGeladen(mk_konfig(self.zuordnungen))
 
     neustart = start
 
@@ -422,6 +425,86 @@ class CujBox:
         import json
 
         return json.loads((self.zustand / "resume.json").read_text(encoding="utf-8"))
+
+
+class SimBox(CujBox):
+    """``CujBox`` mit Ausgang, ``sim`` und HA-Ersatz, so wie ``app.py`` sie verdrahtet (ohne Socket, ohne MPD).
+
+    * ``Melden`` geht in ``unknown.json`` (``Outbox``); ``Bestaetigt`` löscht dort den Eintrag.
+    * ``config.json`` ist echt (``KonfigStore``): ``sim_zeile(befehl="card", …)`` schreibt die Zuordnung.
+    * ``sim_zeile(befehl="learn", …)`` startet den Lernmodus; der HA-Ersatz schreibt danach die Zuordnung
+      und bestätigt, sobald die Box den gelernten Tobie meldet.
+    * Nachlauf: Ereignisse des HA-Ersatzes werden nach dem Befehl, der sie auslöste, verarbeitet.
+    """
+
+    def __init__(self, tmp_path, zuordnungen, serien_aufbau=None, boot_id="boot-1") -> None:
+        from dataclasses import replace
+
+        from tobibox import store
+        from tobibox.ha_ersatz import HaErsatz
+        from tobibox.outbox import Outbox
+        from tobibox.sim import Sim
+
+        self.nachlauf: list = []
+        self.sim = None
+        zustand = tmp_path / "var"
+        zustand.mkdir(parents=True, exist_ok=True)
+        konfig = replace(mk_konfig(zuordnungen), liste_id="a3f9c1e07b2d4856")
+        store.schreibe_atomar(zustand / "config.json", store.konfig_zu_json(konfig))
+        self.konfig_store = store.KonfigStore(zustand)
+        self.outbox = Outbox(zustand)
+        super().__init__(tmp_path, zuordnungen, serien_aufbau, boot_id)
+        self.sim = Sim(zustand, self.nachlauf.append, self.uhr, self.konfig_store)
+        self.ha_ersatz = HaErsatz(self.sim, self.konfig_store, self.nachlauf.append)
+
+    def _lade_konfig(self) -> ev.KonfigGeladen:
+        return self.konfig_store.laden()
+
+    def start(self) -> None:
+        from tobibox.outbox import Outbox
+
+        self.outbox = Outbox(self.zustand)
+        self.outbox.laden()
+        super().start()
+
+    neustart = start
+
+    def sende(self, e, dt: float = 0.0) -> list:
+        if isinstance(e, ev.Bestaetigt):
+            self.outbox.bestaetigt(e.id, e.grund, e.zuletzt, e.art)
+        befehle = super().sende(e, dt)
+        for b in befehle:
+            if isinstance(b, ev.Melden):
+                self.outbox.melden(b.art, b.uid, b.befehl_id, self.uhr.jetzt())
+                if b.art == "gelernt" and self.sim is not None:
+                    self.ha_ersatz.gelernt(next(x for x in self.outbox.offen() if x.uid == b.uid))
+        while self.nachlauf:
+            self.sende(self.nachlauf.pop(0))
+        return befehle
+
+    def sim_zeile(self, **zeile) -> list:
+        """Eine Zeile an ``sim`` (wie über ``sim.sock``): das Ereignis geht in den Kern."""
+        import json
+
+        return self.sende(self.sim.zeile_zu_ereignis(json.dumps(zeile)))
+
+    def unknown(self) -> dict:
+        import json
+
+        pfad = self.zustand / "unknown.json"
+        return json.loads(pfad.read_text(encoding="utf-8"))["eintraege"] if pfad.exists() else {}
+
+    def konfig_json(self) -> dict:
+        import json
+
+        return json.loads((self.zustand / "config.json").read_text(encoding="utf-8"))
+
+    def lernmodus(self) -> bool:
+        """``lernmodus`` der letzten ``ZustandMelden``."""
+        return self.befehle(ev.ZustandMelden)[-1].lernmodus
+
+    def toene(self, ab: int = 0) -> list[str]:
+        return [b.ton for b in self.befehle(ev.TonSpielen, ab)]
 
 
 # --- Fang für das Ereignisprotokoll (CUJ-Tests mit echter App) ---------------------------------

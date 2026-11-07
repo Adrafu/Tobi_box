@@ -32,9 +32,6 @@ HINWEIS_PEGEL_VORGABE = 15
 HINWEIS_MINDEST = 5
 TON_MAX_S = 10.0  # ein hängendes Abspielprogramm wird danach beendet
 
-#: Töne, für die es bewusst (noch) keine Datei gibt.
-_OHNE_DATEI = frozenset({"pruef_ok", "pruef_fehler"})
-
 
 def pegel(ton: str, grenze: int, ton_pegel: int | None = None, hinweis_pegel: int | None = None) -> int:
     """Pegel in Prozent (0 bis 100)."""
@@ -121,7 +118,7 @@ class Toene:
         """Das fertige Kommando, oder ``None`` ohne Datei."""
         d = self.datei(ton)
         if not d.is_file():
-            logge("sounds", "DEBUG" if ton in _OHNE_DATEI else "WARNING", "ton", "datei_fehlt", daten={"ton": ton, "datei": str(d)})
+            logge("sounds", "WARNING", "ton", "datei_fehlt", daten={"ton": ton, "datei": str(d)})
             return None
         p = pegel(ton, grenze, ton_pegel, hinweis_pegel)
         fd, name = tempfile.mkstemp(prefix=f"tobibox-ton-{ton}-", suffix=".wav")
@@ -151,6 +148,25 @@ class Toene:
         self._aufgaben.add(t)
         t.add_done_callback(self._aufgaben.discard)
         return True
+
+    def spiele_folge(
+        self, toene: Sequence[str], grenze: int, ton_pegel: int | None = None, hinweis_pegel: int | None = None
+    ) -> bool:
+        """Töne nacheinander spielen (Status-Karte: ein Ton je Prüfpunkt). ``False`` bei leerer Folge."""
+        if not toene:
+            return False
+        t = asyncio.get_running_loop().create_task(
+            self._folge(tuple(toene), grenze, ton_pegel, hinweis_pegel), name="tobibox-ton-folge"
+        )
+        self._aufgaben.add(t)
+        t.add_done_callback(self._aufgaben.discard)
+        return True
+
+    async def _folge(self, toene: Sequence[str], grenze: int, ton_pegel: int | None, hinweis_pegel: int | None) -> None:
+        for ton in toene:
+            k = self.kommando_fuer(ton, grenze, ton_pegel, hinweis_pegel)
+            if k is not None:
+                await self._lauf(ton, k)
 
     async def _lauf(self, ton: str, kommando: list[str]) -> None:
         try:

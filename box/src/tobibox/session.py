@@ -267,7 +267,8 @@ def _auflegen(z: Zustand, uid: str | None, vorgang: str, jetzt: Jetzt) -> tuple[
     eigenes_ziel = art == "serie" and zuo is not None and serie is not None and serie.id == zuo.serie_id
     out.append(
         _prot(
-            "INFO", "zugeordnet", "ok" if eigenes_ziel else "ueberraschung", vorgang, uid=uid, art=art,
+            "INFO", "zugeordnet", "ok" if eigenes_ziel else "ueberraschung", vorgang, uid=uid,
+            art=ziel_art if art == "serie" else art,  # bei einem Folgen-Ziel „folge“, nicht „serie“
             ziel=ziel_art, serie=serie.id if serie else None, folge=folge,
         )
     )
