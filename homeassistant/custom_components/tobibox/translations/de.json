@@ -1,0 +1,579 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Tobi Box einrichten",
+        "description": "Die Integration verwaltet Zuordnungen und Medien der Tobi Boxen.",
+        "data": {
+          "medien_pfad": "Pfad zum Ordner „medien“",
+          "boxen": "Boxen (Namen, durch Komma getrennt)",
+          "upload_max_mib": "Größte Datei beim Upload (MiB)"
+        },
+        "data_description": {
+          "medien_pfad": "Der Ordner „medien“ der NAS-Freigabe, wie er in Home Assistant eingebunden ist. „eingang“, „export“ und „releases“ liegen daneben.",
+          "boxen": "Die Box-Namen wie in tobibox.toml, z. B. box1, box2.",
+          "upload_max_mib": "Größere Dateien lehnt der Upload ab (Vorgabe 500)."
+        }
+      }
+    },
+    "error": {
+      "medien_pfad_fehlt": "Diesen Ordner gibt es nicht.",
+      "boxen_ungueltig": "Box-Namen: Kleinbuchstaben, Ziffern, _ und -, 2 bis 24 Zeichen, ohne Doppelte.",
+      "upload_ungueltig": "Bitte eine Zahl von 1 bis 100000 eingeben."
+    },
+    "abort": {
+      "single_instance_allowed": "Die Tobi Box ist schon eingerichtet."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Tobi Box ändern",
+        "description": "Änderungen gelten nach dem Neuladen der Integration.",
+        "data": {
+          "medien_pfad": "Pfad zum Ordner „medien“",
+          "boxen": "Boxen (Namen, durch Komma getrennt)",
+          "upload_max_mib": "Größte Datei beim Upload (MiB)"
+        },
+        "data_description": {
+          "medien_pfad": "Der Ordner „medien“ der NAS-Freigabe, wie er in Home Assistant eingebunden ist. „eingang“, „export“ und „releases“ liegen daneben.",
+          "boxen": "Die Box-Namen wie in tobibox.toml, z. B. box1, box2.",
+          "upload_max_mib": "Größere Dateien lehnt der Upload ab (Vorgabe 500)."
+        }
+      }
+    },
+    "error": {
+      "medien_pfad_fehlt": "Diesen Ordner gibt es nicht.",
+      "boxen_ungueltig": "Box-Namen: Kleinbuchstaben, Ziffern, _ und -, 2 bis 24 Zeichen, ohne Doppelte.",
+      "upload_ungueltig": "Bitte eine Zahl von 1 bis 100000 eingeben."
+    }
+  },
+  "exceptions": {
+    "invalid_format": {
+      "message": "Die Eingabe passt nicht."
+    },
+    "unauthorized": {
+      "message": "Dafür braucht es ein Administrator-Konto."
+    },
+    "unknown_command": {
+      "message": "Diesen Befehl kennt das Backend nicht. Bitte die Seite neu laden (Strg+F5)."
+    },
+    "unknown_error": {
+      "message": "Das hat nicht geklappt. Die Einzelheiten stehen im Protokoll von Home Assistant."
+    },
+    "anfrage_id_konflikt": {
+      "message": "Diese Anfrage-Kennung wurde schon für etwas anderes benutzt."
+    },
+    "medien_nicht_erreichbar": {
+      "message": "Die Medienfreigabe des NAS ist nicht erreichbar."
+    },
+    "medien_schreibfehler": {
+      "message": "Schreiben auf die Medienfreigabe ist fehlgeschlagen."
+    },
+    "kein_speicher": {
+      "message": "Auf der Medienfreigabe ist nicht genug Platz."
+    },
+    "mqtt_nicht_verbunden": {
+      "message": "Der MQTT-Broker ist nicht erreichbar. Der Befehl wurde nicht gesendet."
+    },
+    "serie_nicht_gefunden": {
+      "message": "Diese Serie gibt es nicht."
+    },
+    "folge_nicht_gefunden": {
+      "message": "Diese Folge gibt es in der Serie nicht."
+    },
+    "eintrag_nicht_gefunden": {
+      "message": "Diesen Eintrag gibt es nicht."
+    },
+    "export_nicht_gefunden": {
+      "message": "Auf dem NAS gibt es keine Exportdatei."
+    },
+    "export_ungueltig": {
+      "message": "Die Exportdatei ist nicht lesbar oder ungültig. Es wurde nichts übernommen."
+    },
+    "box_unbekannt": {
+      "message": "Diese Box ist nicht eingerichtet."
+    },
+    "box_offline": {
+      "message": "Die Box ist gerade nicht erreichbar."
+    },
+    "kennung_ungueltig": {
+      "message": "Diese Kennung ist ungültig."
+    },
+    "ziel_ungueltig": {
+      "message": "Dieses Ziel ist nicht erlaubt."
+    },
+    "zuordnung_existiert": {
+      "message": "Dieser Tobie ist schon einem anderen Ziel zugeordnet."
+    },
+    "zuordnung_geaendert": {
+      "message": "Die Zuordnung wurde inzwischen geändert. Bitte neu laden."
+    },
+    "konfig_zu_gross": {
+      "message": "Die Konfiguration würde zu groß (256 KiB)."
+    },
+    "konfig_nicht_bereit": {
+      "message": "Die Konfiguration ist noch nicht bereit: Bitte zuerst die Warnung oben auf der Seite beantworten."
+    },
+    "name_ungueltig": {
+      "message": "Dieser Name ist leer, zu lang oder ungültig."
+    },
+    "reihenfolge_ungueltig": {
+      "message": "Die Reihenfolge passt nicht zu den vorhandenen Folgen."
+    },
+    "stand_veraltet": {
+      "message": "Jemand hat das inzwischen geändert. Bitte neu laden."
+    },
+    "tobies_betroffen": {
+      "message": "Tobies zeigen darauf. Bitte erst bestätigen."
+    },
+    "ueberraschung_existiert": {
+      "message": "Es gibt schon eine Überraschungs-Serie."
+    },
+    "lernmodus_laeuft": {
+      "message": "Für diese Box läuft schon ein Lernmodus mit einem anderen Ziel. Bitte zuerst abbrechen."
+    },
+    "kein_lernmodus": {
+      "message": "Dafür läuft kein Lernmodus."
+    },
+    "rueckfrage_abgelaufen": {
+      "message": "Die Rückfrage ist abgelaufen. Der Tobie wurde nicht geändert."
+    },
+    "datei_existiert": {
+      "message": "In der Serie gibt es schon eine Folge mit diesem Namen."
+    },
+    "serie_existiert": {
+      "message": "Diese Serie gibt es schon."
+    },
+    "upload_laeuft": {
+      "message": "Dieser Upload läuft schon."
+    },
+    "zu_viele_uploads": {
+      "message": "Es laufen schon zu viele Uploads. Bitte kurz warten."
+    },
+    "datei_zu_gross": {
+      "message": "Die Datei ist zu groß."
+    },
+    "format_nicht_erlaubt": {
+      "message": "Dieses Dateiformat spielt die Box nicht."
+    },
+    "keine_version": {
+      "message": "Auf dem NAS liegt keine Version zum Aktualisieren."
+    },
+    "hinweis_datei_fehlt": {
+      "message": "Die Datei „{folge}“ fehlt und wurde aus der Reihenfolge genommen."
+    },
+    "hinweis_kopierschutz": {
+      "message": "„{datei}“ ist kopiergeschützt und lässt sich nicht abspielen."
+    },
+    "hinweis_nicht_lesbar": {
+      "message": "„{datei}“ lässt sich nicht lesen."
+    },
+    "hinweis_probedekodierung_fehlgeschlagen": {
+      "message": "„{datei}“ lässt sich nicht abspielen (Probedekodierung fehlgeschlagen)."
+    },
+    "hinweis_pruefung_nicht_moeglich": {
+      "message": "„{datei}“ konnte nicht geprüft werden (ffprobe fehlt)."
+    },
+    "hinweis_ffprobe_fehlt": {
+      "message": "Ohne ffprobe gibt es keine Tags. Der Eingang bleibt liegen."
+    },
+    "hinweis_doppelte_id_korrigiert": {
+      "message": "Zwei Serien hatten dieselbe Kennung. Die jüngere hat eine neue bekommen."
+    },
+    "hinweis_serie_json_ungueltig_repariert": {
+      "message": "Die Datei serie.json war ungültig und wurde repariert."
+    },
+    "hinweis_reservierter_ordner": {
+      "message": "Der Ordner „{folge}“ hat einen reservierten Namen und ist keine Serie."
+    },
+    "hinweis_keine_audiodateien": {
+      "message": "In diesem Eintrag liegt keine Audiodatei."
+    },
+    "hinweis_verschieben_fehlgeschlagen": {
+      "message": "„{datei}“ konnte nicht in die Medien verschoben werden."
+    },
+    "hinweis_doppelt": {
+      "message": "„{datei}“ war schon vorhanden und liegt jetzt im Papierkorb."
+    },
+    "hinweis_vorgabe_serie_fehlt": {
+      "message": "Die vorgegebene Serie gibt es nicht mehr. Die Serie wurde aus den Tags bestimmt."
+    },
+    "ereignis_liste_abgelehnt": {
+      "message": "Die Box {box} hat die Liste (Revision {revision}) abgelehnt: {grund}."
+    },
+    "ereignis_fehler": {
+      "message": "Fehler auf der Box {box} ({baustein}): {text}"
+    },
+    "ereignis_unbekannt": {
+      "message": "Meldung der Box {box}: {art}"
+    },
+    "ereignis_befehl_zeit_unsicher": {
+      "message": "Die Box {box} hat {befehl} abgelehnt: ihre Uhr ist nicht vertrauenswürdig (Zeitquelle: {zeitquelle}). Lernmodus, Sync und Update gehen wieder, sobald die Box die Uhrzeit sicher kennt."
+    },
+    "ereignis_befehl_bedingung": {
+      "message": "Die Box {box} hat {befehl} abgelehnt. {detail}"
+    },
+    "grund_revision_zu_niedrig": {
+      "message": "Die Revision ist niedriger als der Stand der Box"
+    },
+    "grund_schema_ungueltig": {
+      "message": "Die Liste ist ungültig"
+    },
+    "grund_schema_zu_neu": {
+      "message": "Die Liste ist neuer, als die Box sie kennt"
+    },
+    "lernmodus_abgelaufen": {
+      "message": "Der Lernmodus ist abgelaufen."
+    },
+    "lernmodus_abgebrochen": {
+      "message": "Der Lernmodus wurde abgebrochen."
+    },
+    "lernmodus_abgelehnt_abgelaufen": {
+      "message": "Zu spät: Die Zuordnung wurde nicht übernommen."
+    },
+    "lernmodus_abgelehnt_nutzer": {
+      "message": "Der Tobie bleibt bei seinem bisherigen Ziel."
+    },
+    "lernmodus_box_lehnt_ab": {
+      "message": "Die Box hat den Lernmodus abgelehnt."
+    },
+    "lernmodus_box_lehnt_ab_zeit": {
+      "message": "Die Box hat den Lernmodus abgelehnt: ihre Uhr ist nicht vertrauenswürdig."
+    },
+    "lernmodus_konfig_nicht_bereit": {
+      "message": "Die Konfiguration ist nicht bereit. Es wurde nichts geändert."
+    },
+    "lernmodus_konfig_zu_gross": {
+      "message": "Die Konfiguration wäre zu groß. Es wurde nichts geändert."
+    },
+    "lernmodus_rueckfrage": {
+      "message": "Der Tobie ist schon zugeordnet. Soll das neue Ziel gelten?"
+    },
+    "lernmodus_rueckfrage_abgelaufen": {
+      "message": "Die Rückfrage ist abgelaufen. Der Tobie bleibt bei seinem bisherigen Ziel."
+    },
+    "lernmodus_speicherfehler": {
+      "message": "Die Zuordnung konnte nicht gespeichert werden."
+    },
+    "lernmodus_unveraendert": {
+      "message": "Der Tobie hat dieses Ziel schon."
+    },
+    "lernmodus_wartet_auf_broker": {
+      "message": "Gespeichert. Die Box bekommt die Liste, sobald der Broker wieder erreichbar ist."
+    },
+    "lernmodus_ziel_fehlt": {
+      "message": "Die Serie oder Folge gibt es inzwischen nicht mehr."
+    },
+    "lernmodus_zugeordnet": {
+      "message": "Der Tobie ist zugeordnet."
+    },
+    "export_fehler": {
+      "message": "Der Export auf das NAS ist fehlgeschlagen: {fehler}"
+    },
+    "ziel_serie": {
+      "message": "Serie „{serie}“"
+    },
+    "ziel_folge": {
+      "message": "Folge „{folge}“ der Serie „{serie}“"
+    },
+    "ziel_aktion_status": {
+      "message": "Aktion „Status“"
+    },
+    "ziel_aktion_gute_nacht": {
+      "message": "Aktion „Gute Nacht“"
+    },
+    "benachrichtigung_rueckfrage_titel": {
+      "message": "Tobi Box: Tobie schon zugeordnet"
+    },
+    "benachrichtigung_rueckfrage": {
+      "message": "Der Tobie „{name}“ ({uid}) spielt bisher: {bisher}. Soll er künftig spielen: {neu}? Bitte auf der Seite „Tobi Box“ antworten."
+    },
+    "benachrichtigung_eingang_blockiert_titel": {
+      "message": "Tobi Box: Eingang bleibt liegen"
+    },
+    "benachrichtigung_eingang_blockiert": {
+      "message": "„{name}“ im Eingang konnte nicht ganz einsortiert werden ({gruende}). Das Kopiergeschützte oder Defekte bleibt im Eingang liegen."
+    },
+    "benachrichtigung_befehl_abgelehnt_titel": {
+      "message": "Tobi Box: Befehl abgelehnt"
+    },
+    "benachrichtigung_export_fehler_titel": {
+      "message": "Tobi Box: Export fehlgeschlagen"
+    },
+    "benachrichtigung_export_fehler": {
+      "message": "Die Konfiguration konnte nicht auf das NAS exportiert werden: {fehler}. Die Integration versucht es weiter. Solange fehlt das Sicherungsnetz."
+    },
+    "benachrichtigung_ui_titel": {
+      "message": "Tobi Box"
+    }
+  },
+  "services": {
+    "zuordnen": {
+      "name": "Tobie zuordnen",
+      "description": "Ordnet einen Tobie einer Serie, einer Folge oder einer Aktion zu.",
+      "fields": {
+        "uid": {
+          "name": "Kennung",
+          "description": "Kennung des Tobies (Kleinbuchstaben, ohne Trenner)."
+        },
+        "typ": {
+          "name": "Art",
+          "description": "serie, folge oder aktion."
+        },
+        "serie_id": {
+          "name": "Serie",
+          "description": "Kennung der Serie."
+        },
+        "folge": {
+          "name": "Folge",
+          "description": "Name der Folge (bei Art folge)."
+        },
+        "aktion": {
+          "name": "Aktion",
+          "description": "status oder gute_nacht (bei Art aktion)."
+        },
+        "name": {
+          "name": "Name",
+          "description": "Name des Tobies, z. B. Rabe aus Holz."
+        },
+        "ueberschreiben": {
+          "name": "Überschreiben",
+          "description": "Ein anderes Ziel des Tobies ersetzen."
+        }
+      }
+    },
+    "loesen": {
+      "name": "Tobie lösen",
+      "description": "Löst die Zuordnung eines Tobies.",
+      "fields": {
+        "uid": {
+          "name": "Kennung",
+          "description": "Kennung des Tobies."
+        }
+      }
+    },
+    "lernmodus_starten": {
+      "name": "Lernmodus starten",
+      "description": "Die Box lernt den nächsten aufgelegten Tobie für das Ziel.",
+      "fields": {
+        "box": {
+          "name": "Box",
+          "description": "Name der Box, z. B. box1."
+        },
+        "typ": {
+          "name": "Art",
+          "description": "serie oder folge."
+        },
+        "serie_id": {
+          "name": "Serie",
+          "description": "Kennung der Serie; ohne Angabe gilt die Auswahl „Serie für Lernmodus“ der Box."
+        },
+        "folge": {
+          "name": "Folge",
+          "description": "Name der Folge (bei Art folge)."
+        },
+        "name": {
+          "name": "Name",
+          "description": "Name des Tobies."
+        },
+        "ueberschreiben": {
+          "name": "Überschreiben",
+          "description": "Hat der Tobie schon ein Ziel, ohne Rückfrage ersetzen."
+        }
+      }
+    },
+    "lernmodus_abbrechen": {
+      "name": "Lernmodus abbrechen",
+      "description": "Beendet den Lernmodus der Box.",
+      "fields": {
+        "box": {
+          "name": "Box",
+          "description": "Name der Box, z. B. box1."
+        }
+      }
+    },
+    "serie_anlegen": {
+      "name": "Serie anlegen",
+      "description": "Legt eine neue Serie an.",
+      "fields": {
+        "name": {
+          "name": "Name",
+          "description": "Anzeigename."
+        },
+        "typ": {
+          "name": "Art",
+          "description": "normal oder ueberraschung."
+        }
+      }
+    },
+    "serie_umbenennen": {
+      "name": "Serie umbenennen",
+      "description": "Ändert den Anzeigenamen einer Serie.",
+      "fields": {
+        "serie_id": {
+          "name": "Serie",
+          "description": "Kennung der Serie."
+        },
+        "name": {
+          "name": "Name",
+          "description": "Neuer Anzeigename."
+        }
+      }
+    },
+    "serie_loeschen": {
+      "name": "Serie löschen",
+      "description": "Verschiebt eine Serie in den Papierkorb.",
+      "fields": {
+        "serie_id": {
+          "name": "Serie",
+          "description": "Kennung der Serie."
+        },
+        "tobies_bestaetigt": {
+          "name": "Tobies bestätigt",
+          "description": "Wenn Tobies darauf zeigen: trotzdem ausführen."
+        }
+      }
+    },
+    "folge_umbenennen": {
+      "name": "Folge umbenennen",
+      "description": "Ändert den Anzeigenamen einer Folge.",
+      "fields": {
+        "serie_id": {
+          "name": "Serie",
+          "description": "Kennung der Serie."
+        },
+        "folge": {
+          "name": "Folge",
+          "description": "Name der Folge."
+        },
+        "name": {
+          "name": "Name",
+          "description": "Neuer Anzeigename."
+        }
+      }
+    },
+    "folge_verschieben": {
+      "name": "Folge verschieben",
+      "description": "Verschiebt eine Folge in eine andere Serie.",
+      "fields": {
+        "serie_id": {
+          "name": "Serie",
+          "description": "Kennung der Serie."
+        },
+        "folge": {
+          "name": "Folge",
+          "description": "Name der Folge."
+        },
+        "ziel_serie_id": {
+          "name": "Zielserie",
+          "description": "Kennung der Zielserie."
+        },
+        "tobies_bestaetigt": {
+          "name": "Tobies bestätigt",
+          "description": "Wenn Tobies darauf zeigen: trotzdem ausführen."
+        }
+      }
+    },
+    "serien_zusammenfuehren": {
+      "name": "Serien zusammenführen",
+      "description": "Führt zwei Serien zusammen.",
+      "fields": {
+        "quelle_id": {
+          "name": "Quelle",
+          "description": "Diese Serie geht auf."
+        },
+        "ziel_id": {
+          "name": "Ziel",
+          "description": "Diese Serie bleibt."
+        },
+        "tobies_bestaetigt": {
+          "name": "Tobies bestätigt",
+          "description": "Wenn Tobies darauf zeigen: trotzdem ausführen."
+        }
+      }
+    },
+    "eingang_einsortieren": {
+      "name": "Eingang einsortieren",
+      "description": "Sortiert den Eingang nach den Tags in die Medien ein.",
+      "fields": {
+        "sofort": {
+          "name": "Sofort",
+          "description": "Die Ruhezeit von 120 s übergehen."
+        }
+      }
+    },
+    "folgen_sortieren": {
+      "name": "Folgen sortieren",
+      "description": "Setzt die Reihenfolge der Folgen einer Serie.",
+      "fields": {
+        "serie_id": {
+          "name": "Serie",
+          "description": "Kennung der Serie."
+        },
+        "folgen": {
+          "name": "Folgen",
+          "description": "Alle Namen in der neuen Reihenfolge."
+        }
+      }
+    },
+    "folge_loeschen": {
+      "name": "Folge löschen",
+      "description": "Verschiebt eine Folge in den Papierkorb.",
+      "fields": {
+        "serie_id": {
+          "name": "Serie",
+          "description": "Kennung der Serie."
+        },
+        "folge": {
+          "name": "Folge",
+          "description": "Name der Folge."
+        },
+        "tobies_bestaetigt": {
+          "name": "Tobies bestätigt",
+          "description": "Wenn Tobies darauf zeigen: trotzdem ausführen."
+        }
+      }
+    },
+    "papierkorb_leeren": {
+      "name": "Papierkorb leeren",
+      "description": "Löscht den Papierkorb endgültig.",
+      "fields": {
+        "bestaetigt": {
+          "name": "Bestätigt",
+          "description": "Muss true sein."
+        }
+      }
+    },
+    "sync_anstossen": {
+      "name": "Sync anstoßen",
+      "description": "Die Box holt die Medien vom NAS.",
+      "fields": {
+        "box": {
+          "name": "Box",
+          "description": "Name der Box, z. B. box1."
+        }
+      }
+    },
+    "update_anstossen": {
+      "name": "Update anstoßen",
+      "description": "Die Box installiert die neueste Version vom NAS.",
+      "fields": {
+        "box": {
+          "name": "Box",
+          "description": "Name der Box, z. B. box1."
+        }
+      }
+    },
+    "liste_neu_ausrollen": {
+      "name": "Liste neu ausrollen",
+      "description": "Verteilt die Konfiguration mit neuer Listen-ID an alle Boxen.",
+      "fields": {
+        "bestaetigt": {
+          "name": "Bestätigt",
+          "description": "Muss true sein."
+        }
+      }
+    }
+  }
+}

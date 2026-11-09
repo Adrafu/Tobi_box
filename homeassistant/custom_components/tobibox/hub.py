@@ -142,9 +142,10 @@ class Hub:
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
         self.hass = hass
         self.entry = entry
-        self.pfade = Pfade(Path(entry.data[CONF_MEDIEN_PFAD]))
-        self.boxen: list[str] = list(entry.data.get(CONF_BOXEN, []))
-        mib = entry.options.get(CONF_UPLOAD_MAX_MIB, entry.data.get(CONF_UPLOAD_MAX_MIB, UPLOAD_MAX_MIB_VORGABE))
+        einstellung = {**entry.data, **entry.options}
+        self.pfade = Pfade(Path(einstellung[CONF_MEDIEN_PFAD]))
+        self.boxen: list[str] = list(einstellung.get(CONF_BOXEN, []))
+        mib = einstellung.get(CONF_UPLOAD_MAX_MIB, UPLOAD_MAX_MIB_VORGABE)
         self.upload_max_bytes = int(mib) * 1024 * 1024
         self.version = "0"
         self.texte: dict[str, str] = {}
@@ -169,6 +170,7 @@ class Hub:
         self.upload_zaehler = 0
         self.upload_ergebnisse: OrderedDict[str, tuple[float, dict[str, Any]]] = OrderedDict()
         self._nachholen_sperre = asyncio.Lock()
+        self._timer: set[Callable[[], None]] = set()
 
     # --- Start und Ende --------------------------------------------------------------------
 
@@ -183,10 +185,26 @@ class Hub:
             async_track_time_interval(self.hass, self._timer_pruefung, timedelta(seconds=PRUEF_INTERVALL_S))
         )
 
+    def plane(self, sekunden: float, fn: Callable[[Any], Awaitable[None]]) -> Callable[[], None]:
+        """Ein Zeitgeber, der beim Beenden der Integration sicher abgemeldet wird. Gibt die Abmeldefunktion zurück."""
+
+        async def lauf(jetzt_: Any) -> None:
+            self._timer.discard(abbruch)
+            await fn(jetzt_)
+
+        abbruch = async_call_later(self.hass, sekunden, lauf)
+        self._timer.add(abbruch)
+        return abbruch
+
     async def async_stop(self) -> None:
         for fn in self._abmelden:
             fn()
         self._abmelden.clear()
+        for fn in list(self._timer):
+            fn()
+        self._timer.clear()
+        for v in list(self.lernmodus.vorgaenge.values()):
+            self.lernmodus._timer_loeschen(v)
         self.mqtt.async_stop()
         self.eingang.abbrechen()
         for t in (self._start_task, self._export_task):
@@ -265,12 +283,12 @@ class Hub:
             self._buendel[schluessel] = {"wartet": False}
             self.emit(thema, art, daten_fn())
 
-            def frei(_now: Any) -> None:
+            async def frei(_now: Any) -> None:
                 z2 = self._buendel.pop(schluessel, None)
                 if z2 and z2["wartet"]:
                     self.emit_gebuendelt(schluessel, thema, art, daten_fn)
 
-            async_call_later(self.hass, EREIGNIS_BUENDEL_S, frei)
+            self.plane(EREIGNIS_BUENDEL_S, frei)
         else:
             z["wartet"] = True
 

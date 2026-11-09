@@ -13,7 +13,6 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
-from homeassistant.helpers.event import async_call_later
 
 from .const import (
     LERN_BEFEHL_TTL_S,
@@ -56,6 +55,8 @@ class Vorgang:
     ack_offen: bool = False
     ack_grund: str | None = None
     verworfen: bool = False
+    #: Aktion ohne Seite: ``True`` überschreibt ohne Rückfrage, ``False`` lehnt ab; ``None`` = die Seite fragt
+    auto_ueberschreiben: bool | None = None
     timer: list[Any] = field(default_factory=list)
 
     @property
@@ -112,7 +113,7 @@ class Lernmodus:
         async def lauf(_now: Any) -> None:
             await fn(v)
 
-        v.timer.append(async_call_later(self.hub.hass, delay, lauf))
+        v.timer.append(self.hub.plane(delay, lauf))
 
     def _timer_loeschen(self, v: Vorgang) -> None:
         for abbruch in v.timer:
@@ -174,7 +175,9 @@ class Lernmodus:
             return {"typ": "folge", "serie": ziel["serie"], "folge": ziel["folge"]}
         return {"typ": "serie", "serie": ziel["serie"]}
 
-    async def start(self, box: str, ziel: dict[str, Any], name: Any = None) -> dict[str, Any]:
+    async def start(
+        self, box: str, ziel: dict[str, Any], name: Any = None, auto_ueberschreiben: bool | None = None
+    ) -> dict[str, Any]:
         mqtt = self.hub.mqtt
         z = mqtt.boxen.get(box)
         if z is None:
@@ -195,7 +198,10 @@ class Lernmodus:
             raise TobiboxFehler("box_offline")
         befehl_id = await mqtt.sende_befehl(box, "lernen", LERN_BEFEHL_TTL_S)
         beginn = jetzt()
-        v = Vorgang(befehl_id, box, ziel, name_neu, beginn, beginn + timedelta(seconds=LERN_FRIST_S))
+        v = Vorgang(
+            befehl_id, box, ziel, name_neu, beginn, beginn + timedelta(seconds=LERN_FRIST_S),
+            auto_ueberschreiben=auto_ueberschreiben,
+        )
         self.vorgaenge[box] = v
         self._timer(v, beginn + timedelta(seconds=LERN_KEIN_STATUS_S), self._timer_kein_status)
         self._timer(v, v.frist_bis, self._timer_frist)
@@ -311,8 +317,15 @@ class Lernmodus:
             await self._ack(v, "abgelehnt")  # die Box spielt das bestehende (gleiche) Ziel ohne 10 s Stille
             self._ende(v, "zugeordnet", "unveraendert", self.hub.t("lernmodus_unveraendert"))
             return
-        v.zustand = "rueckfrage"
         v.bisher = bestehend["ziel"]
+        if v.auto_ueberschreiben is not None:  # Aktion ohne Seite (Vertrag W, Abschnitt 1)
+            if v.auto_ueberschreiben:
+                await self._zuordnen(v)
+            else:
+                await self._ack(v, "abgelehnt")
+                self._ende(v, "abgelehnt", "nutzer", self.hub.t("lernmodus_abgelehnt_nutzer"))
+            return
+        v.zustand = "rueckfrage"
         v.rueckfrage_bis = max(v.frist_bis, jetzt_ + timedelta(seconds=LERN_RUECKFRAGE_MIN_S))
         v.text = self.hub.t("lernmodus_rueckfrage")
         self._timer_loeschen(v)

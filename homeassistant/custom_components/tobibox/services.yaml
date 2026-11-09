@@ -1,0 +1,217 @@
+# Aktionen der Integration "tobibox". Sie rufen dieselben Funktionen wie die Seite (Vertrag W, Abschnitt 1).
+# Eine Aktion hat keine Seite: bei einer Rückfrage gilt Ablehnung, außer "ueberschreiben" bzw. "tobies_bestaetigt" ist true.
+
+zuordnen:
+  fields:
+    uid:
+      required: true
+      example: "e0040312345678ab"
+      selector:
+        text:
+    typ:
+      required: true
+      selector:
+        select:
+          options: [serie, folge, aktion]
+    serie_id:
+      selector:
+        text:
+    folge:
+      selector:
+        text:
+    aktion:
+      selector:
+        select:
+          options: [status, gute_nacht]
+    name:
+      example: "Rabe aus Holz"
+      selector:
+        text:
+    ueberschreiben:
+      default: false
+      selector:
+        boolean:
+
+loesen:
+  fields:
+    uid:
+      required: true
+      selector:
+        text:
+
+lernmodus_starten:
+  fields:
+    box:
+      required: true
+      example: "box1"
+      selector:
+        text:
+    typ:
+      required: true
+      selector:
+        select:
+          options: [serie, folge]
+    serie_id:
+      selector:
+        text:
+    folge:
+      selector:
+        text:
+    name:
+      selector:
+        text:
+    ueberschreiben:
+      default: false
+      selector:
+        boolean:
+
+lernmodus_abbrechen:
+  fields:
+    box:
+      required: true
+      selector:
+        text:
+
+serie_anlegen:
+  fields:
+    name:
+      required: true
+      selector:
+        text:
+    typ:
+      selector:
+        select:
+          options: [normal, ueberraschung]
+
+serie_umbenennen:
+  fields:
+    serie_id:
+      required: true
+      selector:
+        text:
+    name:
+      required: true
+      selector:
+        text:
+
+serie_loeschen:
+  fields:
+    serie_id:
+      required: true
+      selector:
+        text:
+    tobies_bestaetigt:
+      default: false
+      selector:
+        boolean:
+
+folge_umbenennen:
+  fields:
+    serie_id:
+      required: true
+      selector:
+        text:
+    folge:
+      required: true
+      selector:
+        text:
+    name:
+      required: true
+      selector:
+        text:
+
+folge_verschieben:
+  fields:
+    serie_id:
+      required: true
+      selector:
+        text:
+    folge:
+      required: true
+      selector:
+        text:
+    ziel_serie_id:
+      required: true
+      selector:
+        text:
+    tobies_bestaetigt:
+      default: false
+      selector:
+        boolean:
+
+serien_zusammenfuehren:
+  fields:
+    quelle_id:
+      required: true
+      selector:
+        text:
+    ziel_id:
+      required: true
+      selector:
+        text:
+    tobies_bestaetigt:
+      default: false
+      selector:
+        boolean:
+
+eingang_einsortieren:
+  fields:
+    sofort:
+      default: false
+      selector:
+        boolean:
+
+folgen_sortieren:
+  fields:
+    serie_id:
+      required: true
+      selector:
+        text:
+    folgen:
+      required: true
+      example: '["folge-01.mp3", "folge-02.mp3"]'
+      selector:
+        object:
+
+folge_loeschen:
+  fields:
+    serie_id:
+      required: true
+      selector:
+        text:
+    folge:
+      required: true
+      selector:
+        text:
+    tobies_bestaetigt:
+      default: false
+      selector:
+        boolean:
+
+papierkorb_leeren:
+  fields:
+    bestaetigt:
+      required: true
+      selector:
+        boolean:
+
+sync_anstossen:
+  fields:
+    box:
+      required: true
+      selector:
+        text:
+
+update_anstossen:
+  fields:
+    box:
+      required: true
+      selector:
+        text:
+
+liste_neu_ausrollen:
+  fields:
+    bestaetigt:
+      required: true
+      selector:
+        boolean:

@@ -23,7 +23,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.core import callback
-from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.storage import Store
 
 from . import dateien, ffprobe
@@ -704,7 +703,7 @@ class Eingang:
             with contextlib.suppress(TobiboxFehler):
                 await self.starte_durchlauf()
 
-        self._upload_abbruch = async_call_later(self.hub.hass, UPLOAD_SAMMELZEIT_S, los)
+        self._upload_abbruch = self.hub.plane(UPLOAD_SAMMELZEIT_S, los)
 
     def _plane_nachlauf(self) -> None:
         if self._nachplan_abbruch is not None:
@@ -718,7 +717,7 @@ class Eingang:
             with contextlib.suppress(TobiboxFehler):
                 await self.starte_durchlauf()
 
-        self._nachplan_abbruch = async_call_later(self.hub.hass, EINGANG_NACHPLAN_S, los)
+        self._nachplan_abbruch = self.hub.plane(EINGANG_NACHPLAN_S, los)
 
     def abbrechen(self) -> None:
         for fn in (self._nachplan_abbruch, self._upload_abbruch):
