@@ -9,6 +9,13 @@ Ergebnis (wird committet, nur freie Stimme, keine fremden Inhalte):
   plus die Prüfpunkt-Töne ``pruef_<punkt>_ok|fehler`` und ``pruef_leser_simulation``.
 * ``box/medien-sprache/``  vier Serien als MP3 (mono, 48 kbit/s) mit ``serie.json``.
 
+Lautheit (Entscheidung J, 09.11.): Alle Dateien liegen bei -18 LUFS (``lautheit.ZIEL_LUFS``), dem
+Zielwert von ReplayGain 2.0 und ``rsgain``. Jede Ansage wird einzeln darauf gebracht; jede fertige
+MP3 wird nach dem Kodieren gemessen und nachgeregelt (höchstens drei Läufe). Die MP3s bekommen
+die Tags ``REPLAYGAIN_TRACK_GAIN`` (Rest gegen -18 LUFS, nahe 0 dB) und ``REPLAYGAIN_TRACK_PEAK``,
+wie sie ``rsgain`` schreiben würde. Ohne Tags dämpft MPD eine Datei um ``replaygain_missing_preamp``
+(-6 dB) und der Test wäre leiser als die Töne. Gemessen wird mit ``tools/lautheit.py`` (``ffmpeg``).
+
 Stimme (Vorgabe): Piper mit ``de_DE-thorsten-medium`` (Thorsten-Voice, CC0). Fehlt die Modelldatei,
 lädt das Skript sie von Hugging Face (``rhasspy/piper-voices``) in ``--cache``. Ersatz: ``--engine espeak``
 (Programm ``espeak-ng``, Stimme ``de``). Mit Piper (Rauschen auf 0) und ``ffmpeg -bitexact`` ergibt
@@ -31,11 +38,14 @@ import urllib.request
 import wave
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import lautheit  # noqa: E402  (liegt neben diesem Skript)
+
 RATE = 22050
 WURZEL = Path(__file__).resolve().parents[1]
 STIMME = "de_DE-thorsten-medium"
 STIMME_URL = "https://huggingface.co/rhasspy/piper-voices/resolve/main/de/de_DE/thorsten/medium/"
-SPITZE = 0.7  # Spitzenpegel der Sprache (Anteil der Vollaussteuerung); die Box skaliert beim Abspielen herunter
+MAX_SPITZE = 0.98  # größter erlaubter Abtastwert nach dem Angleichen auf -18 LUFS (sonst Fehler, kein stilles Übersteuern)
 ANGELEGT_AM = "2026-11-09T09:00:00Z"
 
 # --------------------------------------------------------------------------
@@ -126,7 +136,7 @@ class Stimme:
             subprocess.run(["espeak-ng", "-v", "de", "-s", "150", "-w", str(ziel), text], check=True)
 
     def sprich(self, text: str) -> array.array:
-        """Text -> Samples (mono, 16 Bit, RATE), vorn und hinten von Stille befreit, auf SPITZE normiert."""
+        """Text -> Samples (mono, 16 Bit, RATE), vorn und hinten von Stille befreit, auf -18 LUFS gebracht."""
         if text in self._cache:
             return self._cache[text]
         with tempfile.TemporaryDirectory() as t:
@@ -155,11 +165,23 @@ def _trimme(s: array.array, schwelle: int = 300) -> array.array:
 
 
 def _normiere(s: array.array) -> array.array:
-    spitze = max((abs(x) for x in s), default=0)
-    if spitze == 0:
+    """Auf ``lautheit.ZIEL_LUFS`` bringen (eine Verstärkung auf 0,01 dB gerundet)."""
+    if max((abs(x) for x in s), default=0) == 0:
         return s
-    f = SPITZE * 32767 / spitze
-    return array.array("h", (int(round(x * f)) for x in s))
+    with tempfile.TemporaryDirectory() as t:
+        d = Path(t) / "n.wav"
+        schreibe_wav(d, s)
+        gemessen = lautheit.messe(d)
+    return verstaerke(s, round(lautheit.ZIEL_LUFS - gemessen, 2))
+
+
+def verstaerke(s: array.array, db: float) -> array.array:
+    f = 10 ** (db / 20)
+    neu = array.array("h", (max(-32768, min(32767, int(round(x * f)))) for x in s))
+    spitze = max((abs(x) for x in neu), default=0) / 32768
+    if spitze > MAX_SPITZE:
+        raise ValueError(f"Spitze {spitze:.3f} nach {db:+.2f} dB über {MAX_SPITZE}: -18 LUFS ohne Übersteuern nicht erreichbar")
+    return neu
 
 
 def stille(sekunden: float) -> array.array:
@@ -175,14 +197,34 @@ def schreibe_wav(pfad: Path, samples: array.array) -> None:
         w.writeframes(samples.tobytes())
 
 
+def _kodiere_mp3(wav: Path, pfad: Path) -> None:
+    subprocess.run(
+        ["ffmpeg", "-v", "error", "-y", "-i", str(wav), "-map_metadata", "-1", "-fflags", "+bitexact",
+         "-flags:a", "+bitexact", "-c:a", "libmp3lame", "-b:a", "48k", "-ac", "1", "-ar", str(RATE), str(pfad)],
+        check=True,
+    )
+
+
 def schreibe_mp3(pfad: Path, samples: array.array) -> None:
+    """MP3 schreiben, auf -18 LUFS nachregeln und mit ReplayGain-Tags versehen (wie ``rsgain``)."""
     pfad.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory() as t:
-        wav = Path(t) / "x.wav"
-        schreibe_wav(wav, samples)
+        wav, roh = Path(t) / "x.wav", Path(t) / "roh.mp3"
+        s = samples
+        for _ in range(3):  # Kodieren verschiebt die Lautheit leicht: messen und nachregeln
+            schreibe_wav(wav, s)
+            _kodiere_mp3(wav, roh)
+            rest = lautheit.ZIEL_LUFS - lautheit.messe(roh)
+            if abs(rest) <= 0.05:
+                break
+            s = verstaerke(s, round(rest, 2))
+        gain = lautheit.ZIEL_LUFS - lautheit.messe(roh)
+        spitze = lautheit.spitze(roh)
         subprocess.run(
-            ["ffmpeg", "-v", "error", "-y", "-i", str(wav), "-map_metadata", "-1", "-fflags", "+bitexact",
-             "-flags:a", "+bitexact", "-c:a", "libmp3lame", "-b:a", "48k", "-ac", "1", "-ar", str(RATE), str(pfad)],
+            ["ffmpeg", "-v", "error", "-y", "-i", str(roh), "-c", "copy", "-map_metadata", "-1",
+             "-fflags", "+bitexact", "-flags:a", "+bitexact", "-id3v2_version", "3",
+             "-metadata", f"REPLAYGAIN_TRACK_GAIN={gain:+.2f} dB",
+             "-metadata", f"REPLAYGAIN_TRACK_PEAK={spitze:.6f}", str(pfad)],
             check=True,
         )
 
