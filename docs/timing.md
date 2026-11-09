@@ -44,8 +44,8 @@ des nächsten Zyklus (bis 200 ms). Das Werkzeug misst ab `abgehoben`. Die Summe 
 
 ```
 brew install sox
-mkdir -p ~/Tobi_box/box/medien-beispiel/messung
-sox -n -r 44100 -c 1 ~/Tobi_box/box/medien-beispiel/messung/dauerton.wav synth 60 sine 440 vol 0.5
+mkdir -p ~/Tobi_box/box/medien-sprache/messung
+sox -n -r 44100 -c 1 ~/Tobi_box/box/medien-sprache/messung/dauerton.wav synth 60 sine 440 vol 0.5
 ```
 
 Der Dauerton ist die Folge für die Messung: Hörspiele haben Pausen, die das

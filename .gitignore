@@ -17,3 +17,11 @@ box/var/
 box/medien-beispiel/*
 !box/medien-beispiel/serie-a/
 !box/medien-beispiel/ueberraschung/
+
+# Gesprochene Testmedien: nur die erzeugten Serien sind versioniert, eigene Ordner bleiben lokal
+box/medien-sprache/*
+!box/medien-sprache/README.md
+!box/medien-sprache/test-serie/
+!box/medien-sprache/lange-serie/
+!box/medien-sprache/track-test/
+!box/medien-sprache/ueberraschung/

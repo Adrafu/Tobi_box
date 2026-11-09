@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "id": "7b3f2a6e8c14",
+  "name": "Lange Serie",
+  "typ": "normal",
+  "folgen": [
+    "folge-01.mp3",
+    "folge-02.mp3"
+  ],
+  "angelegt_am": "2026-11-09T09:00:00Z"
+}

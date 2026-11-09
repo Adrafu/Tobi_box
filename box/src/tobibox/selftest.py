@@ -3,8 +3,9 @@
 Vier Punkte in fester Reihenfolge: Leser, Medien, Netz, Speicher. Die
 Bewertung ist reine Logik (``pruefe_*``) und braucht weder pytest noch einen
 Leser. Die Prüfroutine ``pruefe`` sammelt die Messwerte und liefert die
-Ergebnisse samt Tonfolge (je Punkt ein Ton: ``pruef_ok`` hoch und kurz,
-``pruef_fehler`` tief). ``python -m tobibox.selftest MEDIENORDNER`` führt sie aus.
+Ergebnisse samt Tonfolge (je Punkt ein Ton: ``pruef_<punkt>_ok`` oder
+``pruef_<punkt>_fehler``, beim Leser in der Simulation ``pruef_leser_simulation``; fehlt die Datei,
+spielt ``sounds`` den allgemeinen Ton ``pruef_ok`` hoch und kurz bzw. ``pruef_fehler`` tief). ``python -m tobibox.selftest MEDIENORDNER`` führt sie aus.
 """
 
 from __future__ import annotations
@@ -21,7 +22,8 @@ from . import library
 
 SPEICHER_MIN_FREI_MB = 500
 PUNKTE = ("leser", "medien", "netz", "speicher")
-TON_OK, TON_FEHLER = "pruef_ok", "pruef_fehler"
+TON_OK, TON_FEHLER = "pruef_ok", "pruef_fehler"  # allgemeine Töne, Rückfall in ``sounds``
+TON_LESER_SIMULATION = "pruef_leser_simulation"
 
 
 @dataclass(frozen=True, slots=True)
@@ -32,7 +34,12 @@ class Pruefpunkt:
 
     @property
     def ton(self) -> str:
-        return TON_OK if self.ok else TON_FEHLER
+        """Genauer Ton: ``pruef_<punkt>_ok``, ``pruef_<punkt>_fehler`` oder ``pruef_leser_simulation``.
+
+        Fehlt die Datei im Tonordner, nimmt ``sounds`` den allgemeinen Ton ``pruef_ok``/``pruef_fehler``."""
+        if self.name == "leser" and self.ok and self.detail == "simulation":
+            return TON_LESER_SIMULATION
+        return f"pruef_{self.name}_{'ok' if self.ok else 'fehler'}"
 
 
 def pruefe_leser(leser: str) -> Pruefpunkt:

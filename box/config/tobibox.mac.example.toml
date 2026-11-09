@@ -4,7 +4,9 @@
 
 [pfade]
 zustand = "../var"                 # Laufzeitdaten (resume.json, config.json, Protokoll), in box/var
-medien = "../medien-beispiel"      # Serienordner; hier liegen die Beispielserien
+medien = "../medien-sprache"       # Serienordner; gesprochene Testserien (Stimme "Thorsten", CC0)
+# Zurück zu den Beispielserien mit Piepsern: medien = "../medien-beispiel"
+# (dann auch music_directory in mpd.conf umstellen)
 
 [leser]
 # Der SuperMini am Mac heißt meist /dev/cu.usbmodemXXXX. Das Muster fängt das ab.
@@ -12,6 +14,11 @@ medien = "../medien-beispiel"      # Serienordner; hier liegen die Beispielserie
 # z. B. "/tmp/tobibox-fake/ttyACM0" (siehe docs/betrieb/mac-prototyp.md).
 geraet = "/dev/cu.usbmodem*"
 # Ohne Leser (nur mit "tobibox sim"): geraet = "sim". Die Status-Karte zeigt den Leser dann als "simulation".
+
+[toene]
+# Gesprochene Töne ("Tobi Box ist bereit." usw.). Zurück zu den Piepsern: die Zeile löschen
+# oder auf "../sounds" setzen. Relative Pfade gelten ab dem Ordner dieser Datei.
+ordner = "../sounds/sprache"
 
 [mpd]
 host = "localhost"

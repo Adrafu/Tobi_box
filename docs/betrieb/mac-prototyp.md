@@ -92,7 +92,8 @@ sed -i '' "s#DEIN_NAME#$(basename "$HOME")#g" ~/tobibox-mpd/mpd.conf
 
 Prüfen: `grep Users ~/tobibox-mpd/mpd.conf` zeigt deinen Benutzernamen in allen
 Pfaden. Liegt das Repo nicht unter `~/Tobi_box`, ändere außerdem die Zeile
-`music_directory` auf den Ordner `box/medien-beispiel` in deinem Repo.
+`music_directory` auf den Ordner `box/medien-sprache` in deinem Repo (die Vorlage zeigt darauf; zum
+Zurückstellen auf die Piepser siehe den Abschnitt „Sprach-Töne und gesprochene Testmedien“).
 
 **4.2 Homebrew-Dienst abschalten**
 
@@ -138,19 +139,21 @@ die Datenbank von MPD ein:
 
 ## 5. Testserie anlegen
 
-Der Ordner `box/medien-beispiel/` enthält schon zwei Serien: `serie-a` (drei
-Folgen mit einem, zwei und drei Pieptönen) und `ueberraschung` (ein langer
-Ton). Für eigene Tests legst du eine neue Serie an:
+Der Ordner `box/medien-sprache/` enthält schon vier gesprochene Serien: `test-serie` (drei
+Folgen), `lange-serie` (zwei Folgen zu 90 s), `track-test` (eine Folge aus drei Tracks) und
+`ueberraschung`. Genaueres steht im Abschnitt „Sprach-Töne und gesprochene Testmedien“ vor Abschnitt 12.
+Für eigene Tests legst du eine neue Serie an:
 
 ```
-mkdir ~/Tobi_box/box/medien-beispiel/meine-testserie
-cp ~/Tobi_box/box/medien-beispiel/serie-a/folge-0*.wav ~/Tobi_box/box/medien-beispiel/meine-testserie/
+mkdir ~/Tobi_box/box/medien-sprache/meine-testserie
+cp ~/Tobi_box/box/medien-sprache/test-serie/folge-0*.mp3 ~/Tobi_box/box/medien-sprache/meine-testserie/
 ```
 
 Ohne `serie.json` gilt der Ordnername als Serien-ID (`meine-testserie`). Die
 Folgen spielen in natürlicher Reihenfolge (`folge-01` vor `folge-02`).
 
-Wichtig: Der Ordner `box/medien-beispiel/` dient nur zum Testen. Füge die
+Wichtig: Der Ordner `box/medien-sprache/` dient nur zum Testen. Eigene Ordner dort bleiben lokal
+(`.gitignore`). Füge die
 Testdateien nicht mit `git add` hinzu. Prüfe vor jedem Commit mit `git status`.
 
 Danach MPD die neue Serie bekannt machen:
@@ -239,7 +242,7 @@ Die Abläufe (CUJs) stehen in `docs/designs/box-software.md`, Abschnitt
 
 So prüfst du es:
 
-- [ ] Figur mittig auflegen. Folge 1 (ein Piepton) startet, innerhalb von etwa 1 s.
+- [ ] Figur mittig auflegen. Folge 1 startet innerhalb von etwa 1 s (bei `meine-testserie`: „Test-Serie, Folge eins.“).
 - [ ] Im Protokoll stehen vier Einträge mit derselben `vorgang`-Kennung:
       `aufgelegt`, `entprellt`, `zugeordnet`, `spielt`.
 - [ ] Beim ersten Auflegen beginnt die Serie bei Folge 1.
@@ -269,7 +272,7 @@ Voraussetzung: Ein Tonie, dessen Passwort nicht zu deinem passt.
 
 So prüfst du es:
 
-- [ ] Gesperrten Tonie auflegen. Der lange Überraschungs-Ton (etwa 2 s) spielt.
+- [ ] Gesperrten Tonie auflegen. Die Überraschung spielt („Überraschung! Das ist die Überraschungs-Serie.“, etwa 4 s).
 - [ ] Im Protokoll steht eine Zeile `zugeordnet` mit `ergebnis` `ueberraschung`
       (die Serien-ID im Protokoll ist die zufällige ID der Serie, nicht der Name):
       `grep '"ereignis":"zugeordnet"' ~/Tobi_box/box/var/log/tobibox.log | tail -1`.
@@ -330,7 +333,7 @@ dafür keinen SuperMini.
    | `remove` | Figur ist weg |
    | `quit` | Fake-Leser beenden |
 
-   Beispiel: `place 04a1b2c3d4e5f6 ntag`, dann `remove`.
+   Beispiel: `place 045e1a0c7d9b31 ntag`, dann `remove`.
 
 Die CUJ-Prüfungen 1, 2, 5, 6 und 13 funktionieren damit gleich. **CUJ 8 lässt sich
 mit dem Fake-Leser nicht prüfen:** Die Toleranz von 1,1 s steckt in der Firmware
@@ -380,10 +383,10 @@ Der Serial-Monitor (`pio device monitor`) hat den Port noch offen. Mit
 3. MPD direkt testen, ohne Box:
 
    ```
-   (printf 'setvol 30\nadd "serie-a/folge-01.wav"\nplay\n'; sleep 1) | nc localhost 6600
+   (printf 'setvol 30\nadd "test-serie/folge-01.mp3"\nplay\n'; sleep 1) | nc localhost 6600
    ```
 
-   Hörst du den Piepton nicht, liegt es an Mac oder MPD, nicht an der Box.
+   Hörst du die Stimme „Test-Serie, Folge eins.“ nicht, liegt es an Mac oder MPD, nicht an der Box.
    Ist es zu leise, prüfe `start` und `max` in `box/config/tobibox.toml`.
 
 ## 11. Abnahme Stufe 1
@@ -459,8 +462,8 @@ die Rückkehr die INFO-Zeile `leser_verbunden`.
 ### 11.4 Abheben, Dienst neu starten, wieder auflegen (Zeigerlogik)
 
 - [ ] Folge spielt etwa 20 s. Tobie abheben. `zeiger_gespeichert` steht im Protokoll.
-      (Die Folgen von `serie-a` und `meine-testserie` dauern nur 3 s. Für 20 s Spielzeit legst du
-      die lange Folge aus Schritt 12.1 an und ordnest den Tobie `lange-serie` zu.)
+      (Die Folgen von `test-serie` und `meine-testserie` dauern nur gut 5 s. Für 20 s Spielzeit ordnest du
+      den Tobie der Serie `lange-serie` zu, Serien-ID `7b3f2a6e8c14`; du hörst „Folge eins, Sekunde zwanzig“.)
 - [ ] Dienst mit `Ctrl+C` beenden und neu starten (Schritt 7). Tobie auflegen. Die Folge
       läuft an der gespeicherten Stelle weiter, mit 3 s Rücksprung (`spielt` mit
       `position_s` etwa 3 s unter dem gespeicherten Wert).
@@ -489,11 +492,11 @@ die Rückkehr die INFO-Zeile `leser_verbunden`.
 Dazu zwei Zuordnungen in `box/var/config.json` und ein Ordner mit Tracks:
 
 ```
-mkdir -p ~/Tobi_box/box/medien-beispiel/meine-testserie/cd-test
-cp ~/Tobi_box/box/medien-beispiel/serie-a/folge-0*.wav ~/Tobi_box/box/medien-beispiel/meine-testserie/cd-test/
-mv ~/Tobi_box/box/medien-beispiel/meine-testserie/cd-test/folge-01.wav ~/Tobi_box/box/medien-beispiel/meine-testserie/cd-test/01.wav
-mv ~/Tobi_box/box/medien-beispiel/meine-testserie/cd-test/folge-02.wav ~/Tobi_box/box/medien-beispiel/meine-testserie/cd-test/02.wav
-mv ~/Tobi_box/box/medien-beispiel/meine-testserie/cd-test/folge-03.wav ~/Tobi_box/box/medien-beispiel/meine-testserie/cd-test/03.wav
+mkdir -p ~/Tobi_box/box/medien-sprache/meine-testserie/cd-test
+cp ~/Tobi_box/box/medien-sprache/test-serie/folge-0*.mp3 ~/Tobi_box/box/medien-sprache/meine-testserie/cd-test/
+mv ~/Tobi_box/box/medien-sprache/meine-testserie/cd-test/folge-01.mp3 ~/Tobi_box/box/medien-sprache/meine-testserie/cd-test/01.mp3
+mv ~/Tobi_box/box/medien-sprache/meine-testserie/cd-test/folge-02.mp3 ~/Tobi_box/box/medien-sprache/meine-testserie/cd-test/02.mp3
+mv ~/Tobi_box/box/medien-sprache/meine-testserie/cd-test/folge-03.mp3 ~/Tobi_box/box/medien-sprache/meine-testserie/cd-test/03.mp3
 (printf 'update\n'; sleep 1) | nc localhost 6600
 ```
 
@@ -510,7 +513,7 @@ Tracks („KENNUNG_…“ durch deine drei Kennungen ersetzen):
   "liste_id": "0000000000000000",
   "zuordnungen": {
     "KENNUNG_SERIE":   { "ziel": { "typ": "serie", "serie": "meine-testserie" } },
-    "KENNUNG_EINZELN": { "ziel": { "typ": "folge", "serie": "meine-testserie", "folge": "folge-02.wav" } },
+    "KENNUNG_EINZELN": { "ziel": { "typ": "folge", "serie": "meine-testserie", "folge": "folge-02.mp3" } },
     "KENNUNG_CD":      { "ziel": { "typ": "folge", "serie": "meine-testserie", "folge": "cd-test" } }
   },
   "leise_zeiten": { "fenster": [] },
@@ -523,12 +526,12 @@ suchen (`grep datei_defekt ~/Tobi_box/box/var/log/tobibox.log`). Die kaputte Dat
 dann als `box/var/config.json.defekt` daneben; das Feld `grund` sagt, was nicht stimmt.
 
 - [ ] **Einzelne Folge:** Tobie auflegen. Genau diese Folge spielt (`spielt` mit
-      `folge` `folge-02.wav`, `art` `folge`). Am Ende der Folge pausiert die Box (Protokoll:
+      `folge` `folge-02.mp3`, `art` `folge`). Am Ende der Folge pausiert die Box (Protokoll:
       `pausieren` mit Grund `folgenende`), obwohl der Tobie noch liegt. Tobie abheben und wieder
       auflegen: Die Folge spielt **von vorn**. Die Serie `meine-testserie` startet dabei nicht
       bei der nächsten Folge.
 - [ ] **Mehrere Tracks:** Tobie `KENNUNG_CD` auflegen. Die drei Tracks spielen nacheinander
-      **ohne Pause** (die Piepsfolgen mit einem, zwei und drei Tönen; im Protokoll `track_wechsel`).
+      **ohne Pause** (die gesprochenen Folgen „Test-Serie, Folge eins“, „…zwei“, „…drei“; im Protokoll `track_wechsel`).
       Erst nach dem dritten Track pausiert die Box (`folgenende`). Wieder auflegen: von vorn
       beim ersten Track.
 - [ ] Während Track 2 den Tobie abheben und wieder auflegen: weiter in Track 2 an
@@ -547,12 +550,12 @@ dann als `box/var/config.json.defekt` daneben; das Feld `grund` sagt, was nicht 
 Die Messung braucht die Aufnahme am Ausgang. Methode und Befehle: `docs/timing.md`, Abschnitt 2.
 
 - [ ] Dauerton anlegen und der Serie `messung` zuordnen (Abschnitt 2, „Vorbereitung“).
-      Die Serie liegt im Ordner `box/medien-beispiel/messung/` (nicht committen):
+      Die Serie liegt im Ordner `box/medien-sprache/messung/` (nicht committen):
 
       ```
-      mkdir -p ~/Tobi_box/box/medien-beispiel/messung
-      sox -n -r 44100 -c 1 ~/Tobi_box/box/medien-beispiel/messung/dauerton.wav synth 60 sine 440 vol 0.5
-      cat > ~/Tobi_box/box/medien-beispiel/messung/serie.json <<'JSON'
+      mkdir -p ~/Tobi_box/box/medien-sprache/messung
+      sox -n -r 44100 -c 1 ~/Tobi_box/box/medien-sprache/messung/dauerton.wav synth 60 sine 440 vol 0.5
+      cat > ~/Tobi_box/box/medien-sprache/messung/serie.json <<'JSON'
       {
         "schema_version": 1,
         "id": "messung",
@@ -596,6 +599,49 @@ Die Messung braucht die Aufnahme am Ausgang. Methode und Befehle: `docs/timing.m
       erst die Arbeit pro Zyklus senken, dann Rückfrage an Tobias wegen 1,2 s. Keine stille Änderung
       von Ziel 2.
 
+## Sprach-Töne und gesprochene Testmedien
+
+Damit du jederzeit hörst, was die Box tut, gibt es einen zweiten Satz Töne und Testmedien mit
+Stimme. Die Piepser in `box/sounds/` bleiben unverändert; die endgültigen Töne entscheidest du später.
+Alles ist mit der freien Stimme „Thorsten“ (CC0) erzeugt, siehe `box/sounds/sprache/README.md`.
+
+**Die Serien** in `box/medien-sprache/`:
+
+| Ordner | Serien-ID | Inhalt |
+|---|---|---|
+| `test-serie` | `5e1a0c7d9b31` | 3 Folgen, je „Test-Serie, Folge eins.“ (zwei, drei), danach 4 s Stille |
+| `lange-serie` | `7b3f2a6e8c14` | 2 Folgen zu je 90 s: „Lange Serie, Folge eins.“, dann alle 5 s „Folge eins, Sekunde fünf“, „…zehn“ bis „…fünfundachtzig“, dazu ein leiser Ton. Für den Rücksprung (3 s) und die 15-s-Regel (Entscheidung I) |
+| `track-test` | `9d4c1e5a2f68` | 1 Folge (`folge-01`) aus 3 Tracks, je 8 s: „Track eins von drei.“, „…zwei…“, „…drei…“ |
+| `ueberraschung` | `e2a8b6d0c397` | „Überraschung! Das ist die Überraschungs-Serie.“ (4 s), Typ `ueberraschung` |
+
+**Umstellen** in deiner eigenen `box/config/tobibox.toml` (zwei Zeilen):
+
+```toml
+medien = "../medien-sprache"          # im Abschnitt [pfade]
+ordner = "../sounds/sprache"          # im Abschnitt [toene]
+```
+
+Die Vorlage `tobibox.mac.example.toml` hat das schon. Ändere zusätzlich `music_directory` in
+`~/tobibox-mpd/mpd.conf` auf `.../Tobi_box/box/medien-sprache` (die Vorlage `mpd.mac.example.conf` zeigt darauf),
+starte MPD neu und lass die Datenbank neu einlesen: `(printf 'update\n'; sleep 1) | nc localhost 6600`.
+Zurück zu Piepsern und Beispielmedien: `medien = "../medien-beispiel"`, die Zeile `ordner` in `[toene]`
+löschen (oder auf `../sounds` setzen) und `music_directory` wieder auf `medien-beispiel`.
+
+**Was mit deinen Zuordnungen passiert.** Die Serien-IDs sind neu. Deine `config.json` zeigt auf
+`meine-testserie` und auf eine Serie `lang` mit deiner eigenen Datei `zaehlen.mp3` in `box/medien-beispiel/lang`.
+Die gibt es im neuen Ordner nicht; solche Tobies spielen dann die Überraschung. Zwei Wege:
+
+- Ordne mit `tobibox sim card <UID> --serie <ID>` neu zu (IDs in der Tabelle), oder
+- kopiere deine Serien in den neuen Ordner, z. B. `cp -R ~/Tobi_box/box/medien-beispiel/lang ~/Tobi_box/box/medien-sprache/`
+  (und `meine-testserie` ebenso), dann `update` an MPD. Eigene Ordner in `box/medien-sprache/` bleiben
+  durch `.gitignore` lokal; versioniert sind nur die vier erzeugten Serien.
+
+**Die Status-Karte** nennt jeden Prüfpunkt: „Leser in Ordnung.“ (in der Simulation „Leser: Simulation.“),
+„Medien in Ordnung.“, „Netz: Fehler.“, „Speicher in Ordnung.“. Fehlt in einem Tonordner die Datei eines
+Prüfpunkts, spielt die Box den allgemeinen Ton `pruef_ok` oder `pruef_fehler`.
+
+Die Töne kommen aus `box/tools/make_sprache.py`; neu erzeugen geht nur im Container, nicht am Mac.
+
 ## 12. Abnahme Stufe 2
 
 Diese Liste führt jeden Punkt von „Abnahme Stufe 2“ aus `docs/designs/box-software.md`
@@ -619,45 +665,42 @@ grep -o '"uid":"[^"]*"' ~/Tobi_box/box/var/log/tobibox.log | tail -n 1
 ```
 
 Für die Tests brauchst du drei Tobies und eine NTAG-Karte: `<UID>` (wird in 12.2 und 12.4
-der Serie `lange-serie`, in 12.3 der Serie `serie-a` zugeordnet), `<UID-NEU>` (in 12.5 noch nie
+der Serie `lange-serie`, in 12.3 der Serie `test-serie` zugeordnet), `<UID-NEU>` (in 12.5 noch nie
 zugeordnet), `<UID-NEU-2>` (noch nie zugeordnet, für den Folgen-Lernlauf in 12.6) und die
 Karte `<UID-KARTE>`.
 
 **Serien-ID statt Ordnername.** Bei `--serie` gehört die **ID** aus der Datei `serie.json`
-der Serie, nicht der Ordnername. Die Beispielserie `serie-a` hat die ID `a1b2c3d4e5f6`; die
-Überraschungs-Serie hat `c07d2e91a45b`. Die Serie `lange-serie` aus 12.1 hat keine `serie.json`,
-dort gilt der Ordnername als ID (Schritt 5). Eine unbekannte ID (oder Folge) lehnt `tobibox sim` ab
+der Serie, nicht der Ordnername. Die IDs der gesprochenen Serien stehen im Abschnitt „Sprach-Töne und gesprochene Testmedien“:
+`test-serie` hat `5e1a0c7d9b31`, `lange-serie` `7b3f2a6e8c14`, `track-test` `9d4c1e5a2f68` und die
+Überraschungs-Serie `e2a8b6d0c397`. Eine unbekannte ID (oder Folge) lehnt `tobibox sim` ab
 (Exit-Code 2); die Meldung nennt die vorhandenen Serien-IDs mit ihrem Anzeigenamen. Die ID liest du so nach:
 
 ```bash
-grep '"id"' ~/Tobi_box/box/medien-beispiel/serie-a/serie.json
+grep '"id"' ~/Tobi_box/box/medien-sprache/test-serie/serie.json
 ```
 
-**Zu den Tönen.** Die Töne und ihre Dauer: Startgeräusch (`start`, 0,5 s), `lernen_beginn` und `lernen_ende` (je 0,5 s),
-`unbekannt` (0,4 s), `hinweis` (0,1 s), `pruef_ok` (0,1 s, hoch) und `pruef_fehler`
-(0,4 s, tief). Wer sie im Protokoll sehen will: In `box/config/tobibox.toml` die Zeile
+**Zu den Tönen.** Mit `[toene] ordner = "../sounds/sprache"` sagt die Box, was sie tut:
+`start` „Tobi Box ist bereit.“, `unbekannt` „Diesen Tobie kenne ich noch nicht. Hier ist eine
+Überraschung.“, `lernen_beginn` „Lernmodus an. Leg den neuen Tobie auf.“, `lernen_ende`
+„Lernmodus beendet.“, `fehler` „Da ist etwas schiefgegangen.“, `hinweis` „Hinweis.“ (leise).
+Mit den Piepsern (`box/sounds/`) gilt: `start` (0,5 s), `lernen_beginn` und `lernen_ende` (je 0,5 s),
+`unbekannt` (0,4 s), `hinweis` (0,1 s), `pruef_ok` (0,1 s, hoch) und `pruef_fehler` (0,4 s, tief).
+Wer die Töne im Protokoll sehen will: In `box/config/tobibox.toml` die Zeile
 `ebene = "INFO"` auf `ebene = "DEBUG"` setzen und den Dienst neu starten. Dann steht bei
 jedem Ton eine Zeile mit `"ereignis":"ton"` und dem Namen im Feld `ton`.
 
 ### 12.1 Vorbereitung
 
-Für 12.2 und 12.4 braucht es eine **lange** Folge. Die Folgen von `serie-a` dauern nur 3 s,
-und der Rücksprung von 3 s wäre dort nicht zu sehen. Lege eine Serie mit einer Folge von
-60 s an (ein gleichmäßiger Ton) und mache sie MPD bekannt. Python-Umgebung aktiv (Schritt 2):
+Die lange Folge, die du für 12.2 und 12.4 brauchst, liegt fertig im Repo: die Serie `lange-serie`
+(ID `7b3f2a6e8c14`, zwei Folgen zu je 90 s). Du musst nichts anlegen. Stelle nur sicher, dass
+`music_directory` in `mpd.conf` und `medien` in `tobibox.toml` auf `box/medien-sprache` zeigen
+(Abschnitt „Sprach-Töne und gesprochene Testmedien“) und dass MPD die Dateien kennt:
 
 ```bash
-mkdir -p ~/Tobi_box/box/medien-beispiel/lange-serie
-python - <<'PY'
-import math, os, struct, wave
-pfad = os.path.expanduser("~/Tobi_box/box/medien-beispiel/lange-serie/folge-01.wav")
-with wave.open(pfad, "wb") as w:
-    w.setnchannels(1); w.setsampwidth(2); w.setframerate(22050)
-    w.writeframes(b"".join(struct.pack("<h", int(6000 * math.sin(2 * math.pi * 440 * i / 22050))) for i in range(22050 * 60)))
-PY
 (printf 'update\n'; sleep 1) | nc localhost 6600
 ```
 
-Die Datei gehört nicht ins Repo (nicht mit `git add` hinzufügen). Dann Dienst starten:
+Dann Dienst starten:
 
 ```bash
 cd ~/Tobi_box && git pull
@@ -673,37 +716,41 @@ tobiboxd --config ~/Tobi_box/box/config/tobibox.toml
 Ordne den Tobie `<UID>` der langen Serie zu:
 
 ```bash
-tobibox sim card <UID> --serie lange-serie
+tobibox sim card <UID> --serie 7b3f2a6e8c14
 ```
 
 - [ ] Lege `<UID>` auf. Nach etwa 10 s hebst du den Tobie ab.
-      **Was du hörst:** Einen gleichmäßigen Ton (die lange Folge). Beim Abheben wird die Stelle
+      **Was du hörst:** „Lange Serie, Folge eins.“, dann alle 5 s „Folge eins, Sekunde fünf“,
+      „Folge eins, Sekunde zehn“ und dazu einen leisen, gleichmäßigen Ton. Beim Abheben wird die Stelle
       gespeichert; im Protokoll steht `zeiger_gespeichert` mit `position_s` von etwa 10.
 - [ ] Beende den Dienst mit `Ctrl+C` und starte ihn neu (Befehl aus Schritt 12.1, nur die
       Zeile `tobiboxd …`). Lege `<UID>` danach auf.
-      **Was du hörst:** Die Folge läuft weiter, etwa 3 s vor der gespeicherten Stelle. Im Protokoll
-      liegt `position_s` von `spielt` rund 3 s unter dem Wert vom Abheben (also etwa 7).
+      **Was du hörst:** Die Folge läuft weiter, etwa 3 s vor der gespeicherten Stelle: Du hörst
+      nach etwa 3 s „Folge eins, Sekunde zehn“ noch einmal (du hattest sie beim Abheben gerade gehört).
+      Im Protokoll liegt `position_s` von `spielt` rund 3 s unter dem Wert vom Abheben (also etwa 7).
 
       **Hinweis (Entscheidung I, 09.11.):** Hebe nicht in den letzten 15 s der Folge ab. Fehlen
       beim Auflegen weniger als 15 s bis zum Ende, gilt die Folge als fertig gehört: Ein Tobie für
       eine einzelne Folge beginnt von vorn, ein Tobie für eine Serie spielt die nächste Folge. Im
-      Protokoll steht dann eine Zeile `rest_regel` mit `rest_s`. Folgen unter 60 s sind
-      ausgenommen; die Folgen von `serie-a` in 12.3 (3 s) sind davon nicht berührt.
+      Protokoll steht dann eine Zeile `rest_regel` mit `rest_s`. Die lange Folge dauert 90 s: Hebst du
+      nach „Folge eins, Sekunde achtzig“ ab, beginnt ein Tobie für diese Folge beim Auflegen von vorn
+      („Lange Serie, Folge eins.“), eine Serie spielt „Lange Serie, Folge zwei.“. Folgen unter 60 s sind
+      ausgenommen; die Folgen von `test-serie` in 12.3 (gut 5 s) sind davon nicht berührt.
 
 ### 12.3 Pause nach jeder Folge
 
-Jetzt die Serie `serie-a` (Folgen `folge-01.wav` bis `folge-03.wav`, je 3 s lang). Ordne `<UID>`
+Jetzt die Serie `test-serie` (Folgen `folge-01.mp3` bis `folge-03.mp3`, je gut 5 s lang). Ordne `<UID>`
 neu zu. Hebe den Tobie vorher ab, falls er liegt:
 
 ```bash
-tobibox sim card <UID> --serie a1b2c3d4e5f6
+tobibox sim card <UID> --serie 5e1a0c7d9b31
 ```
 
-Eine Serie beginnt bei der Folge, bei der sie zuletzt stand. Hast du `serie-a` früher schon gespielt,
+Eine Serie beginnt bei der Folge, bei der sie zuletzt stand. Hast du `test-serie` früher schon gespielt,
 beginnt sie nicht bei Folge 1; lies die Reihenfolge unten dann ab dieser Folge.
 
 - [ ] Lege `<UID>` auf und lass ihn liegen. Die Folge spielt bis zum Ende.
-      **Was du hörst:** Folge 1 (ein Piepton), danach Stille. Im Protokoll steht `pausieren` mit
+      **Was du hörst:** „Test-Serie, Folge eins.“, danach etwa 4 s Stille. Im Protokoll steht `pausieren` mit
       Grund `folgenende`. Der Tobie liegt noch, die Box startet nichts von selbst (warte 10 s).
 
 ```bash
@@ -713,11 +760,11 @@ grep '"ereignis":"pausieren"' ~/Tobi_box/box/var/log/tobibox.log | tail -n 1
       Die Zeile enthält `"grund":"folgenende"`.
 
 - [ ] Hebe `<UID>` ab und lege ihn wieder auf.
-      **Was du hörst:** Folge 2 (zwei Pieptöne), von vorn.
+      **Was du hörst:** „Test-Serie, Folge zwei.“, von vorn.
 - [ ] Lass Folge 2 zu Ende laufen. Die Box pausiert. Hebe `<UID>` ab und lege ihn wieder auf.
-      **Was du hörst:** Folge 3 (drei Pieptöne).
+      **Was du hörst:** „Test-Serie, Folge drei.“
 - [ ] Lass Folge 3 zu Ende laufen. Die Box pausiert. Hebe `<UID>` ab und lege ihn wieder auf.
-      **Was du hörst:** Folge 1 wieder. Nach der letzten Folge steht der Zeiger auf Folge 1.
+      **Was du hörst:** „Test-Serie, Folge eins.“ wieder. Nach der letzten Folge steht der Zeiger auf Folge 1.
 
 ### 12.4 CUJ 20: Tobie liegt beim Start des Dienstes
 
@@ -733,7 +780,7 @@ Starts des Geräts (`boot_id`) und der Tobie, der zuletzt auflag:
 Ordne `<UID>` wieder der langen Serie zu (hebe den Tobie vorher ab):
 
 ```bash
-tobibox sim card <UID> --serie lange-serie
+tobibox sim card <UID> --serie 7b3f2a6e8c14
 ```
 
 - [ ] **Dienst-Neustart:** Lege `<UID>` auf, die lange Folge spielt. Warte etwa 10 s. Beende den
@@ -749,7 +796,8 @@ grep dienst_neustart ~/Tobi_box/box/var/log/tobibox.log | tail -n 2
 
 - [ ] Den Hauptknopf gibt es am Mac nicht, und `tobibox sim` hat dafür keinen Befehl. Ersatz:
       Hebe `<UID>` ab und lege ihn wieder auf.
-      **Was du hörst:** Die Folge läuft an der gespeicherten Stelle weiter (3 s Rücksprung).
+      **Was du hörst:** Die Folge läuft an der gespeicherten Stelle weiter (3 s Rücksprung): Die zuletzt
+      gehörte Sekundenansage kommt bald noch einmal (die Box springt 3 s zurück).
 - [ ] **Einschalten:** Der Tobie liegt weiter auf dem Leser. Beende den Dienst mit `Ctrl+C`. Erst
       danach löschst du den Marker. (Würdest du ihn vorher löschen, schriebe der Dienst ihn beim
       Beenden wieder.) Das ersetzt das Ausschalten des Macs:
@@ -775,8 +823,8 @@ grep -E '"ereignis":"(start|dienst_neustart|spielt)"' ~/Tobi_box/box/var/log/tob
 Hebe vorher einen Tobie ab, falls einer liegt.
 
 - [ ] Lege `<UID-NEU>` auf (ein Tobie, den du noch nie zugeordnet hast).
-      **Was du hörst:** Zuerst ein kurzer Ton (`unbekannt`), dann der lange Ton der
-      Überraschungs-Serie `ueberraschung` (2 s). Im Protokoll hat die Zeile `zugeordnet` das
+      **Was du hörst:** Zuerst „Diesen Tobie kenne ich noch nicht. Hier ist eine Überraschung.“ (`unbekannt`), dann „Überraschung! Das ist die
+      Überraschungs-Serie.“ (`ueberraschung`, 4 s). Im Protokoll hat die Zeile `zugeordnet` das
       Ergebnis `ueberraschung`.
 - [ ] Prüfe den Status:
 
@@ -822,13 +870,13 @@ Lautstärke wirkt.
 **a) Serie lernen**
 
 ```bash
-tobibox sim learn --serie a1b2c3d4e5f6
+tobibox sim learn --serie 5e1a0c7d9b31
 ```
 
 - [ ] Du siehst `{"ok": true}` und hörst einen Ton. `tobibox status` zeigt `Lernmodus: an`.
       Lege `<UID-NEU>` auf (hebe ihn vorher ab, falls er liegt).
       **Was du hörst:** Nur ein kurzer Ton (`lernen_ende`), **kein** `unbekannt` und keine
-      Überraschung dazwischen; dann spielt der Tobie sofort die Serie `serie-a` an dem Zeiger, an dem die Serie steht (nach 12.3
+      Überraschung dazwischen; dann spielt der Tobie sofort die Serie `test-serie` an dem Zeiger, an dem die Serie steht (nach 12.3
       Folge 1 oder 2). Im Protokoll steht eine Zeile mit Baustein `ha_ersatz`, Ereignis
       `zuordnung` und Ergebnis `ok`.
 
@@ -836,25 +884,25 @@ tobibox sim learn --serie a1b2c3d4e5f6
 grep -A5 '"<UID-NEU>"' ~/Tobi_box/box/var/config.json
 ```
 
-- [ ] Die Ausgabe zeigt `"typ": "serie"` und `"serie": "a1b2c3d4e5f6"`. `tobibox status` zeigt
+- [ ] Die Ausgabe zeigt `"typ": "serie"` und `"serie": "5e1a0c7d9b31"`. `tobibox status` zeigt
       keine offene Meldung mehr; der HA-Ersatz bestätigt den Lernlauf selbst.
 
 **b) Einzelne Folge lernen**
 
 ```bash
-tobibox sim learn --serie a1b2c3d4e5f6 --folge folge-02.wav
+tobibox sim learn --serie 5e1a0c7d9b31 --folge folge-02.mp3
 ```
 
 - [ ] Lege `<UID-NEU-2>` auf.
-      **Was du hörst:** Wie in a) (nur `lernen_ende`, keine Überraschung), dann nur die Folge `folge-02.wav` (zwei Pieptöne). Die Serie spielt
+      **Was du hörst:** Wie in a) (nur `lernen_ende`, keine Überraschung), dann nur die Folge `folge-02.mp3` („Test-Serie, Folge zwei.“). Die Serie spielt
       danach nicht weiter.
 - [ ] Prüfe mit `grep -A5 '"<UID-NEU-2>"' ~/Tobi_box/box/var/config.json`: `"typ": "folge"`,
-      `"folge": "folge-02.wav"`.
+      `"folge": "folge-02.mp3"`.
 
 **c) Abbruch**
 
 ```bash
-tobibox sim learn --serie a1b2c3d4e5f6
+tobibox sim learn --serie 5e1a0c7d9b31
 tobibox sim learn-abort
 ```
 
@@ -865,7 +913,7 @@ tobibox sim learn-abort
 **d) Bestehende Zuordnung: nur mit `--ueberschreiben`**
 
 ```bash
-tobibox sim learn --serie a1b2c3d4e5f6 --folge folge-03.wav
+tobibox sim learn --serie 5e1a0c7d9b31 --folge folge-03.mp3
 ```
 
 - [ ] Hebe `<UID-NEU>` ab und lege ihn wieder auf (er ist schon zugeordnet). Der Befehl selbst
@@ -875,19 +923,19 @@ tobibox sim learn --serie a1b2c3d4e5f6 --folge folge-03.wav
       Die Ablehnung steht nur im Protokoll.
       **Was du siehst:** Im Protokoll eine WARNING-Zeile mit Baustein `ha_ersatz`, Ereignis
       `zuordnung`, Ergebnis `abgelehnt`, Grund `schon_zugeordnet` und dem Hinweis
-      „schon zugeordnet und bleibt, wie er ist“. `config.json` bleibt bei `serie-a`.
+      „schon zugeordnet und bleibt, wie er ist“. `config.json` bleibt bei `test-serie`.
 
 ```bash
 grep '"ereignis":"zuordnung"' ~/Tobi_box/box/var/log/tobibox.log | tail -n 1
 ```
 
 ```bash
-tobibox sim learn --serie a1b2c3d4e5f6 --folge folge-03.wav --ueberschreiben
+tobibox sim learn --serie 5e1a0c7d9b31 --folge folge-03.mp3 --ueberschreiben
 ```
 
 - [ ] Hebe `<UID-NEU>` ab und lege ihn wieder auf.
-      **Was du hörst:** Den Ende-Ton, dann die Folge `folge-03.wav` (drei Pieptöne).
-      `grep -A5 '"<UID-NEU>"' ~/Tobi_box/box/var/config.json` zeigt `"folge": "folge-03.wav"`.
+      **Was du hörst:** Den Ende-Ton, dann die Folge `folge-03.mp3` („Test-Serie, Folge drei.“).
+      `grep -A5 '"<UID-NEU>"' ~/Tobi_box/box/var/config.json` zeigt `"folge": "folge-03.mp3"`.
 
 ### 12.7 Status-Karte
 
@@ -905,23 +953,24 @@ tobibox sim card <UID-KARTE> --aktion status
 ```
 
 - [ ] Du siehst `{"ok": true}`, Exit-Code 0. Lege die Karte auf.
-      **Was du hörst:** Vier Töne in dieser Reihenfolge: Leser, Medien, Netz, Speicher. Jeder Ton ist
-      kurz und hoch (in Ordnung) oder tief (Fehler). Erwartet: hoch, hoch, **tief**, hoch.
-      Es startet keine Wiedergabe.
+      **Was du hörst:** Vier Sätze in dieser Reihenfolge: „Leser: Simulation.“ (am echten Leser:
+      „Leser in Ordnung.“), „Medien in Ordnung.“, „Netz: Fehler.“, „Speicher in Ordnung.“
+      Es startet keine Wiedergabe. Mit den Piepsern hörst du stattdessen hoch (in Ordnung) oder
+      tief (Fehler): hoch, hoch, **tief**, hoch.
 - [ ] **Netz ist in Stufe 2 immer tief.** Der Prüfpunkt Netz verlangt ein Netz (Heim oder Hotspot)
-      und einen verbundenen Broker. Den Broker gibt es erst mit MQTT (Stufe 3a). Der tiefe Ton ist
-      also richtig.
+      und einen verbundenen Broker. Den Broker gibt es erst mit MQTT (Stufe 3a). „Netz: Fehler.“ (mit Piepsern der
+      tiefe Ton) ist also richtig.
 - [ ] Prüfe mit `tobibox status`: Die Zeile `Status-Karte:` zeigt `leser ok, medien ok, netz FEHLER,
       speicher ok`. Darunter steht `netz: offline, Broker nicht verbunden`.
 
 ### 12.8 Karte zurück auf die Folge
 
 Setze die Karte auf die Zuordnung zurück, die du in Schritt 12.7 notiert hast. Das Beispiel
-ist die Folge `folge-02.wav` aus `serie-a` (hebe die Karte vorher ab):
+ist die Folge `folge-02.mp3` aus `test-serie` (hebe die Karte vorher ab):
 
 ```bash
-tobibox sim card <UID-KARTE> --serie a1b2c3d4e5f6 --folge folge-02.wav
+tobibox sim card <UID-KARTE> --serie 5e1a0c7d9b31 --folge folge-02.mp3
 ```
 
 - [ ] Lege die Karte auf.
-      **Was du hörst:** Folge 2 (zwei Pieptöne) von vorn.
+      **Was du hörst:** „Test-Serie, Folge zwei.“ von vorn.

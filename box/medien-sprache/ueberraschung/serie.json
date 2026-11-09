@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "id": "e2a8b6d0c397",
+  "name": "Überraschung",
+  "typ": "ueberraschung",
+  "folgen": [
+    "ton-01.mp3"
+  ],
+  "angelegt_am": "2026-11-09T09:00:00Z"
+}

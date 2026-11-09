@@ -182,3 +182,56 @@ async def test_spiele_folge_leer_und_mit_fehlender_datei(tmp_path):
     assert t.spiele_folge(["gibt_es_nicht", "start"], 50)  # die fehlende Datei stoppt die Folge nicht
     await t.warte()
     assert len(g) == 1
+
+
+# --- Rückfall der Prüfpunkt-Töne (Sprach-Töne, 09.11.) -------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("ton", "allgemein"),
+    [
+        ("pruef_leser_ok", "pruef_ok"),
+        ("pruef_leser_simulation", "pruef_ok"),
+        ("pruef_medien_ok", "pruef_ok"),
+        ("pruef_netz_fehler", "pruef_fehler"),
+        ("pruef_speicher_fehler", "pruef_fehler"),
+    ],
+)
+def test_pruefpunkt_ton_ohne_datei_faellt_auf_den_allgemeinen_ton_zurueck(tmp_path, ton, allgemein):
+    schreibe_wav(tmp_path / "pruef_ok.wav")
+    schreibe_wav(tmp_path / "pruef_fehler.wav")
+    t = Toene(tmp_path, STANDARD_TON_KOMMANDO)
+    assert t.datei(ton) == tmp_path / f"{allgemein}.wav"
+    k = t.kommando_fuer(ton, 50)
+    assert k is not None  # die Datei des allgemeinen Tons wurde gefunden und skaliert
+
+
+def test_pruefpunkt_ton_mit_eigener_datei_wird_bevorzugt(tmp_path):
+    for n in ("pruef_ok", "pruef_netz_ok"):
+        schreibe_wav(tmp_path / f"{n}.wav")
+    t = Toene(tmp_path, STANDARD_TON_KOMMANDO)
+    assert t.datei("pruef_netz_ok") == tmp_path / "pruef_netz_ok.wav"
+    assert t.datei("pruef_medien_ok") == tmp_path / "pruef_ok.wav"
+
+
+def test_rueckfall_nur_fuer_pruefpunkt_toene(tmp_path):
+    schreibe_wav(tmp_path / "pruef_ok.wav")
+    t = Toene(tmp_path, STANDARD_TON_KOMMANDO)
+    assert t.datei("fehler") == tmp_path / "fehler.wav"
+    assert t.kommando_fuer("fehler", 50) is None
+    assert t.kommando_fuer("pruef_unsinn", 50) is None
+    assert t.kommando_fuer("pruef_leser_ok", 50) is not None
+
+
+async def test_spiele_folge_mit_rueckfall_spielt_jeden_punkt(tmp_path):
+    g: list = []
+
+    async def starter(k):
+        g.append(Path(k[-1]).name.split("-")[2])
+
+    schreibe_wav(tmp_path / "pruef_ok.wav")
+    schreibe_wav(tmp_path / "pruef_fehler.wav")
+    t = Toene(tmp_path, STANDARD_TON_KOMMANDO, starter=starter)
+    assert t.spiele_folge(["pruef_leser_ok", "pruef_medien_fehler", "pruef_netz_ok", "pruef_speicher_fehler"], 50)
+    await t.warte()
+    assert g == ["pruef_leser_ok", "pruef_medien_fehler", "pruef_netz_ok", "pruef_speicher_fehler"]  # alle vier gespielt

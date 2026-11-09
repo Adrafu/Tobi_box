@@ -11,6 +11,10 @@ Pegeloption nie lauter als die Grenze.
 Pegel: alle Töne außer ``hinweis``: ``min(ton_pegel, grenze)``; ``hinweis``:
 ``max(5, min(hinweis_pegel, grenze))``. Vorgaben 40 und 15. Ohne Tondatei, oder
 wenn die Datei kein 16-Bit-PCM ist (nicht sicher skalierbar), wird nichts gestartet.
+
+Rückfall der Status-Karte: Fehlt ``pruef_<punkt>_ok``, ``pruef_<punkt>_fehler`` oder
+``pruef_leser_simulation`` im Tonordner, spielt die Box den allgemeinen Ton ``pruef_ok``
+(bei ``_fehler`` ``pruef_fehler``). So bleibt ein Ordner nur mit den allgemeinen Tönen gültig.
 """
 
 from __future__ import annotations
@@ -19,6 +23,7 @@ import array
 import asyncio
 import contextlib
 import os
+import re
 import sys
 import tempfile
 import wave
@@ -30,7 +35,8 @@ from .eventlog import logge
 TON_PEGEL_VORGABE = 40
 HINWEIS_PEGEL_VORGABE = 15
 HINWEIS_MINDEST = 5
-TON_MAX_S = 10.0  # ein hängendes Abspielprogramm wird danach beendet
+TON_MAX_S = 10.0
+_PRUEF_PUNKT = re.compile(r"^pruef_[a-z]+_(ok|simulation|fehler)$")  # ein hängendes Abspielprogramm wird danach beendet
 
 
 def pegel(ton: str, grenze: int, ton_pegel: int | None = None, hinweis_pegel: int | None = None) -> int:
@@ -110,7 +116,12 @@ class Toene:
         self._temp: set[Path] = set()
 
     def datei(self, ton: str) -> Path:
-        return self.ordner / f"{ton}.wav"
+        """Tondatei; fehlt ein Prüfpunkt-Ton, die Datei des allgemeinen Tons (``pruef_ok``/``pruef_fehler``)."""
+        d = self.ordner / f"{ton}.wav"
+        m = _PRUEF_PUNKT.match(ton)
+        if m and not d.is_file():
+            return self.ordner / f"{'pruef_fehler' if m.group(1) == 'fehler' else 'pruef_ok'}.wav"
+        return d
 
     def kommando_fuer(
         self, ton: str, grenze: int, ton_pegel: int | None = None, hinweis_pegel: int | None = None

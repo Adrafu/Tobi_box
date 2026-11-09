@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "id": "5e1a0c7d9b31",
+  "name": "Test-Serie",
+  "typ": "normal",
+  "folgen": [
+    "folge-01.mp3",
+    "folge-02.mp3",
+    "folge-03.mp3"
+  ],
+  "angelegt_am": "2026-11-09T09:00:00Z"
+}

@@ -140,9 +140,14 @@ class Welt:
     def frei(self, mb: int | None) -> None:
         self.monkeypatch.setattr(selftest, "freier_platz_mb", lambda pfad: mb)
 
-    def karte(self) -> list[str]:
+    def karte_genau(self) -> list[str]:
+        """Die Tonfolge mit den genauen Namen (``pruef_<punkt>_ok`` usw.)."""
         self.app._status_pruefen(ev.StatusPruefen("v1"))
         return self.app.toene.folgen[-1]
+
+    def karte(self) -> list[str]:
+        """Dasselbe als allgemeine Töne: ``pruef_ok`` oder ``pruef_fehler`` (so klingt die Karte im Melodie-Satz)."""
+        return [OK if t.endswith(("_ok", "_simulation")) else FEHLER for t in self.karte_genau()]
 
 
 @pytest.fixture
@@ -252,4 +257,11 @@ def test_pruefung_schreibt_eine_protokollzeile_mit_dem_ergebnis(welt, protokoll)
 
 async def test_die_karte_ist_im_dienst_verdrahtet_statuspruefen_wird_ausgefuehrt(welt):
     await welt.app._fuehre_aus(ev.StatusPruefen("v1"), 0.0)
-    assert welt.app.toene.folgen == [[OK, OK, OK, OK]]
+    assert welt.app.toene.folgen == [["pruef_leser_ok", "pruef_medien_ok", "pruef_netz_ok", "pruef_speicher_ok"]]
+
+
+def test_status_karte_nennt_jeden_punkt_beim_namen(welt):
+    netz_offline(welt)
+    speicher_knapp(welt)
+    assert welt.karte_genau() == ["pruef_leser_ok", "pruef_medien_ok", "pruef_netz_fehler", "pruef_speicher_fehler"]
+

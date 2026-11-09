@@ -2051,6 +2051,7 @@ Ergebnis: Die Prüfpunkte und die Tonfolge für die Status-Karte.
 | `box/src/tobibox/selftest.py` | neu | Prüfpunkte (Leser, Medien, Netz, Speicher) und die eingebaute Prüfroutine; läuft ohne pytest. |
 | `box/sounds/pruef_ok.wav` | neu | Kurz-hoher Ton: Prüfpunkt in Ordnung. |
 | `box/sounds/pruef_fehler.wav` | neu | Tiefer Ton: Prüfpunkt hat einen Fehler. |
+| `box/sounds/sprache/*.wav` | neu | (09.11., Sprach-Töne für Tests) Gesprochener Satz mit denselben Namen, dazu `pruef_<punkt>_ok`, `pruef_<punkt>_fehler` und `pruef_leser_simulation`; Auswahl über `[toene] ordner`. Fehlt ein Prüfpunkt-Ton, gilt `pruef_ok`/`pruef_fehler`. |
 | `box/tests/unit/test_selftest.py` | neu | Jeder Prüfpunkt in Ordnung und mit Fehler; Reihenfolge der Tonfolge. |
 
 Abnahme AP 2.3:

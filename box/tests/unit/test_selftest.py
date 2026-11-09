@@ -55,7 +55,15 @@ def test_speicher(frei, verloren, ok):
 def test_tonfolge_reihenfolge_und_toene():
     ps = [st.Pruefpunkt("leser", True, ""), st.Pruefpunkt("medien", False, ""),
           st.Pruefpunkt("netz", True, ""), st.Pruefpunkt("speicher", False, "")]
-    assert st.tonfolge(ps) == ["pruef_ok", "pruef_fehler", "pruef_ok", "pruef_fehler"]
+    assert st.tonfolge(ps) == ["pruef_leser_ok", "pruef_medien_fehler", "pruef_netz_ok", "pruef_speicher_fehler"]
+
+
+def test_tonfolge_leser_simulation_hat_einen_eigenen_ton():
+    assert st.pruefe_leser("simulation").ton == "pruef_leser_simulation"
+    assert st.pruefe_leser("ok").ton == "pruef_leser_ok"
+    assert st.pruefe_leser("getrennt").ton == "pruef_leser_fehler"
+    assert st.tonfolge([st.pruefe_leser("simulation"), st.pruefe_netz("offline", False)]) == [
+        "pruef_leser_simulation", "pruef_netz_fehler"]
 
 
 def test_pruefroutine_ohne_leser_ist_simulation(tmp_path):
@@ -64,13 +72,13 @@ def test_pruefroutine_ohne_leser_ist_simulation(tmp_path):
     assert [p.name for p in b.punkte] == list(st.PUNKTE)
     assert b.punkte[0].ok and b.punkte[0].detail == "simulation"
     assert not b.punkte[1].ok and not b.punkte[2].ok  # leere Medien, offline
-    assert b.toene[:3] == ["pruef_ok", "pruef_fehler", "pruef_fehler"]
+    assert b.toene[:3] == ["pruef_leser_simulation", "pruef_medien_fehler", "pruef_netz_fehler"]
     assert b.als_dict()["ok"] is False
 
 
 def test_pruefroutine_medienordner_fehlt(tmp_path):
     b = st.pruefe(tmp_path / "nix", leser="getrennt", netz="home", ha_verbunden=True)
-    assert b.toene[:3] == ["pruef_fehler", "pruef_fehler", "pruef_ok"]
+    assert b.toene[:3] == ["pruef_leser_fehler", "pruef_medien_fehler", "pruef_netz_ok"]
 
 
 def test_pruefroutine_speicher_grenze(tmp_path):
