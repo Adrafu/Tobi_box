@@ -296,3 +296,28 @@ def test_alle_zustaende_haben_ein_bild_und_halten_den_deckel():
 def test_farben_und_muster_sind_benannte_konstanten():
     for name in ("FARBE_LERNEN", "FARBE_GUTE_NACHT", "LERNEN_ATMEN_S", "GUTE_NACHT_GLIMMEN_S", "STUMM_DIMMUNG", "PAUSE_HELLIGKEIT"):
         assert hasattr(led, name)
+
+
+def test_unbekannter_tobie_blinkt_kurz_und_dann_gilt_der_normale_zustand():
+    lg = logik_mit("spielt")
+    lg.unbekannter_tobie(10.0)
+    an, aus = lg.ring(10.1), lg.ring(10.3)
+    assert an.zustand == aus.zustand == led.UNBEKANNTE_KARTE
+    assert an.helligkeit == DECKEL_PROZENT and aus.helligkeit == 0
+    assert all(c == led.MAGENTA for c in an.leds)
+    assert lg.ring(10.6).helligkeit == DECKEL_PROZENT  # zweiter Blinker innerhalb der Sekunde
+    assert lg.ring(10.0 + led.BLINK_UNBEKANNT_ANZEIGE_S + 0.01).zustand == led.LAEUFT
+
+
+def test_blinken_wartet_das_lauflicht_beim_aufwachen_ab():
+    lg = logik_mit("spielt")
+    lg.aufwachen(10.0)
+    lg.unbekannter_tobie(10.0)
+    assert lg.zustand(10.5) == led.AUFWACHEN
+    assert lg.zustand(10.0 + led.AUFWACHEN_S + 0.1) == led.UNBEKANNTE_KARTE
+    assert lg.zustand(10.0 + led.AUFWACHEN_S + led.BLINK_UNBEKANNT_ANZEIGE_S + 0.1) == led.LAEUFT
+
+
+def test_leser_unterbrechung_zeigt_weiter_magenta():
+    """Offene Frage (Bericht AP Mac-Abnahme): Für die Leser-Unterbrechung legt das Design keine eigene Anzeige fest."""
+    assert logik_mit("unbekannt").zustand(0.0) == led.UNBEKANNTE_KARTE

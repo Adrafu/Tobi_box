@@ -35,6 +35,8 @@ def stufe_4(
     for b in befehle:
         if isinstance(b, ev.ZustandMelden):
             led.beobachte(b, mono)
+    if any(isinstance(b, ev.Melden) and b.art == "unbekannt" for b in befehle):
+        led.unbekannter_tobie(mono)  # ein unbekannter Tobie wurde aufgelegt (auch unter „stumm“); nach dem ``ZustandMelden``: Aufwachen geht vor
     nachfuehren_lautstaerke(bedienung, kern)
     led_ausblenden(led, kern)
 

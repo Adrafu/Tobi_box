@@ -47,7 +47,9 @@ AUFWACHEN_S = 2.0  # Lauflicht beim Aufwachen
 AKKU_ANZEIGE_S = 5.0  # Akku-Anzeige nach Anforderung oder Laderwechsel
 ATMEN_S = 6.0  # Periode beim Atmen (läuft)
 PAUSE_HELLIGKEIT = 10  # Prozent, Pause
-BLINK_UNBEKANNT_S = 1.0  # Periode Blinken (unbekannte Karte)
+BLINK_UNBEKANNT_S = 1.0  # Periode Blinken (Sitzung „unbekannt“: Leser unterbrochen)
+BLINK_UNBEKANNT_ANZEIGE_S = 1.0  # so lange blinkt der Ring, wenn ein unbekannter Tobie aufgelegt wird (CUJ 18)
+BLINK_UNBEKANNT_NEU_S = 0.5  # Periode dieses Blinkens: zwei Blinker in einer Sekunde
 BLINK_TIEFSTAND_S = 0.5  # Periode Blinken (Akku-Tiefstand)
 KOMET_LAENGE = 10  # LEDs im Schweif des Lauflichts
 KOMET_RUNDEN = 2
@@ -147,8 +149,8 @@ def _gute_nacht(t: float, faktor: float) -> Ring:
     return _einfarbig(GUTE_NACHT, FARBE_GUTE_NACHT, hell * max(0.0, min(1.0, faktor)))
 
 
-def _unbekannt(t: float) -> Ring:
-    an = (t % BLINK_UNBEKANNT_S) < BLINK_UNBEKANNT_S / 2
+def _unbekannt(t: float, periode: float = BLINK_UNBEKANNT_S) -> Ring:
+    an = (t % periode) < periode / 2
     return _einfarbig(UNBEKANNTE_KARTE, MAGENTA, DECKEL_PROZENT if an else 0)
 
 
@@ -180,8 +182,9 @@ def _aufwachen(t_seit: float) -> Ring:
 class LedLogik:
     """Hält die Eingaben des Rings und liefert das Bild zu einer Zeit.
 
-    Rangfolge (oben gewinnt): Aufwachen, Akku (Tiefstand oder Anzeige), unbekannte Karte,
-    Lernmodus, Gute Nacht (nur während die Wiedergabe läuft), läuft, Pause, aus.
+    Rangfolge (oben gewinnt): Aufwachen, Akku (Tiefstand oder Anzeige), unbekannte Karte
+    (Blinken beim Auflegen eines unbekannten Tobies, ``BLINK_UNBEKANNT_ANZEIGE_S`` lang; und die Sitzung „unbekannt“, also
+    die Leser-Unterbrechung), Lernmodus, Gute Nacht (nur während die Wiedergabe läuft), läuft, Pause, aus.
     Unter „stumm“ (``ruhe``) bleibt der Zustand, die Helligkeit sinkt auf ``STUMM_DIMMUNG``.
     """
 
@@ -192,6 +195,7 @@ class LedLogik:
         self.tiefstand = False
         self._aufwachen_ab: float | None = None
         self._akku_bis: float | None = None
+        self._unbekannt_ab: float | None = None  # ein unbekannter Tobie wurde aufgelegt: Magenta blinkt ab diesem Zeitpunkt
         self.ausblenden_faktor: float | None = None  # Gute Nacht: 1 bis 0 während des Ausblendens, sonst ``None``
 
     # -- Eingaben ---------------------------------------------------------------------
@@ -203,6 +207,13 @@ class LedLogik:
     def akku_zeigen(self, jetzt_mono: float) -> None:
         """Akkustand ``AKKU_ANZEIGE_S`` lang zeigen."""
         self._akku_bis = jetzt_mono + AKKU_ANZEIGE_S
+
+    def unbekannter_tobie(self, jetzt_mono: float) -> None:
+        """Ein unbekannter Tobie wurde aufgelegt: ``BLINK_UNBEKANNT_ANZEIGE_S`` lang magenta blinken, danach der normale Zustand."""
+        ab = jetzt_mono
+        if self._aufwachen_ab is not None:
+            ab = max(ab, self._aufwachen_ab + AUFWACHEN_S)  # erst das Lauflicht des Aufwachens, dann das Blinken
+        self._unbekannt_ab = ab
 
     def setze_ausblenden(self, faktor: float | None) -> None:
         """Stand des Ausblendens von „Gute Nacht“ (1 = Anfang, 0 = Ende), ``None`` außerhalb des Ausblendens."""
@@ -248,6 +259,10 @@ class LedLogik:
         z = self.zustand_melden
         if z is None or z.strom == "herunterfahren":
             return AUS
+        if self._unbekannt_ab is not None:
+            if jetzt_mono - self._unbekannt_ab < BLINK_UNBEKANNT_ANZEIGE_S:
+                return UNBEKANNTE_KARTE
+            self._unbekannt_ab = None
         if z.sitzung == "unbekannt":
             return UNBEKANNTE_KARTE
         if z.lernmodus:
@@ -282,6 +297,8 @@ def ring_fuer(zustand: str, t: float, logik: LedLogik | None = None) -> Ring:
     if zustand == PAUSE:
         return _pause()
     if zustand == UNBEKANNTE_KARTE:
+        if logik is not None and logik._unbekannt_ab is not None:
+            return _unbekannt(t - logik._unbekannt_ab, BLINK_UNBEKANNT_NEU_S)
         return _unbekannt(t)
     if zustand == LERNEN:
         return _lernen(t)

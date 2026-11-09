@@ -91,6 +91,32 @@ def test_unbekannte_karte_bei_unterbrechung_des_lesers(box):
     assert led.MAGENTA in zustaende or led.SCHWARZ in zustaende  # blinkt
 
 
+UID_UNBEKANNT = "04ffeedd"  # nicht in der Zuordnung
+
+
+def test_unbekannter_tobie_blinkt_eine_sekunde_magenta_danach_normaler_zustand(box):
+    box.auflege(UID)
+    box.laufe(led.AUFWACHEN_S + 0.5)  # die Box ist wach, ein bekannter Tobie spielt
+    box.auflege(UID_UNBEKANNT, "v2")  # Wechsel auf einen unbekannten Tobie
+    assert box.modus == "spielt"  # die Überraschung spielt, kein Leser-Ausfall
+    farben, zustaende = [], []  # farben: Helligkeit je Schritt
+    for _ in range(9):  # 0,9 s in Schritten von 100 ms
+        zustaende.append(box.ring_zustand())
+        farben.append(box.ring().helligkeit)
+        box.laufe(0.1)
+    assert set(zustaende) == {led.UNBEKANNTE_KARTE}
+    assert led.DECKEL_PROZENT in farben and 0 in farben  # es blinkt (magenta an und aus)
+    assert box.ring().leds[0] == led.MAGENTA
+    box.laufe(led.BLINK_UNBEKANNT_ANZEIGE_S - 0.9 + 0.2)
+    assert box.ring_zustand() == led.LAEUFT  # danach der normale Zustand: grünes Atmen
+    assert box.ring().leds[0] == led.GRUEN
+
+
+def test_bekannter_tobie_blinkt_nicht_magenta(box):
+    box.auflege(UID)
+    assert box.ring_zustand() != led.UNBEKANNTE_KARTE
+
+
 def test_akku_anzeige_beim_laderwechsel_und_tiefstand(box):
     box.sende(ev.AkkuStand(80))
     box.sende(ev.LaderGeaendert(True))

@@ -483,3 +483,100 @@ def test_app_baut_die_kennlinie_aus_der_konfiguration(app):
     )
     a = App(k, melde_bereit=False)
     assert (a.toene.kennlinie.art, a.toene.kennlinie.softvol_bereich_db) == ("alsa_softvol", 40.0)
+
+
+# --- Simulierter Tobie neben dem echten Leser (mac-prototyp.md, „Der Leser darf parallel zur Simulation laufen“) ---
+
+
+def _herzschlag(present: bool) -> ev.LeserHerzschlag:
+    return ev.LeserHerzschlag(present, 10, 100, 0, 0, 0, 50)
+
+
+async def _sim_auflegen(a: App, uid: str = "04a1b2c3") -> None:
+    antwort = await a.sim.verarbeite(json.dumps({"befehl": "tobie_auflegen", "uid": uid}))
+    assert antwort["ok"] is True
+    await a._leere_ereignisse()
+
+
+async def _echte(a: App, *ereignisse: ev.Ereignis) -> None:
+    for e in ereignisse:
+        a.ereignisse.put_nowait(e)  # nicht über ``sim``: wie vom echten Leser
+    await a._leere_ereignisse()
+
+
+def _sammle_befehle(a: App) -> list[ev.Befehl]:
+    befehle: list[ev.Befehl] = []
+    orig = a.verarbeite
+
+    def sammle(e):
+        b = orig(e)
+        befehle.extend(b)
+        return b
+
+    a.verarbeite = sammle
+    return befehle
+
+
+async def test_simulierter_tobie_bleibt_trotz_leermeldungen_des_echten_lesers_liegen(app):
+    a = neue_app(app, "boot-A")
+    await a.starte()
+    try:
+        await _sim_auflegen(a)
+        assert a.kern.session.figur is not None
+        modus = a.kern.session.modus
+        vorgang = a.kern.session.figur.vorgang
+        befehle = _sammle_befehle(a)
+        # Der Leser sagt „nichts da“: Herzschlag, Neuverbindung (HELLO), Ausfall, noch ein Herzschlag
+        await _echte(a, _herzschlag(False), _herzschlag(False), _herzschlag(False))
+        await _echte(a, ev.LeserHallo(1, "fw", "b", "pn"), _herzschlag(False), _herzschlag(False), _herzschlag(False))
+        await _echte(a, ev.LeserAlarm("kein_herzschlag"), ev.LeserHallo(1, "fw", "b", "pn"), _herzschlag(False))
+        assert a.kern.session.figur is not None and a.kern.session.figur.vorgang == vorgang
+        assert a.kern.session.modus == modus
+        assert not any(isinstance(b, ev.LeserPing) for b in befehle)
+        assert not any(isinstance(b, ev.Pausieren) for b in befehle)
+    finally:
+        await a.beende()
+
+
+async def test_simulierter_tobie_wird_nur_per_simulation_abgehoben(app):
+    a = neue_app(app, "boot-A")
+    await a.starte()
+    try:
+        await _sim_auflegen(a)
+        await _echte(a, ev.Abgehoben(7, "irgendwas"))  # ein verirrtes REMOVED des echten Lesers
+        assert a.kern.session.figur is not None
+        antwort = await a.sim.verarbeite(json.dumps({"befehl": "tobie_abheben"}))
+        assert antwort["ok"] is True
+        await a._leere_ereignisse()
+        assert a.kern.session.figur is None
+        assert a.kern.session.modus == "pausiert"
+    finally:
+        await a.beende()
+
+
+async def test_echter_tobie_loest_den_simulierten_ab_und_danach_gilt_der_leser_wieder(app):
+    a = neue_app(app, "boot-A")
+    await a.starte()
+    try:
+        await _sim_auflegen(a)
+        sim_vorgang = a.kern.session.figur.vorgang
+        await _echte(a, ev.Aufgelegt("04ffeedd", "ntag", False, 5, "echt1"))
+        assert a.kern.session.figur.uid == "04ffeedd"
+        assert a.kern.session.figur.vorgang == "echt1" != sim_vorgang
+        assert a.sim.liegt is None  # die Simulation hat nichts mehr aufgelegt
+        await _echte(a, ev.Abgehoben(6, "echt1"))  # der echte Tobie wird abgehoben: es zählt
+        assert a.kern.session.figur is None
+    finally:
+        await a.beende()
+
+
+async def test_ohne_simulation_gilt_der_leser_wie_bisher(app):
+    a = neue_app(app, "boot-A")
+    await a.starte()
+    try:
+        await lege_auf(a)  # echter Tobie
+        befehle = _sammle_befehle(a)
+        await _echte(a, _herzschlag(False), _herzschlag(False))
+        assert any(isinstance(b, ev.LeserPing) for b in befehle)  # Abweichung -> PING (Design 9.3)
+    finally:
+        await a.beende()

@@ -75,21 +75,21 @@ anzahl = 5
 # passwort = "<Passwort der Box>"     # nur in der lokalen Datei
 # anzeigename = "Küche"               # Name in Home Assistant ("Tobi Box Küche"); Vorgabe: box_id
 
-# [netz]
+[netz]
 # Netz-Klasse home / hotspot / offline. Die WLAN-Namen gehören nur in die lokale Datei, nie ins Repo.
-# Am Mac: quelle = "sim" (Vorgabe), das Netz wird mit "tobibox sim" vorgegeben, die Systemuhr gilt.
+# Am Mac eingeschaltet mit quelle = "sim" (ohne den Abschnitt gäbe es im Dienst keine Netz-Klasse); das Netz wird mit "tobibox sim" vorgegeben, die Systemuhr gilt.
 # Auf dem Pi: quelle = "networkmanager" (Zeitquelle dann NTP und die RTC des PiSugar).
-# quelle = "sim"
+quelle = "sim"
 # heim_ssid = "<Name des Heim-WLAN>"
 # hotspot_ssid = "<Name des Handy-Hotspots>"
 # nas_host = "qnap.example.ts.net"    # home gilt nur, wenn der NAS (rsync-Port) erreichbar ist; ohne Eintrag genügt die SSID
 # nas_port = 873
 # intervall_s = 10
 
-# [strom]
-# Akku, Lader, Taste und RTC. Am Mac: quelle = "sim" (Vorgabe), die Werte kommen von "tobibox sim power".
+[strom]
+# Akku, Lader, Taste und RTC. Am Mac eingeschaltet mit quelle = "sim" (ohne den Abschnitt gäbe es nie einen Akku-Tiefstand); die Werte kommen von "tobibox sim power".
 # Auf dem Pi: quelle = "pisugar" (pisugar-server auf 127.0.0.1:8423).
-# quelle = "sim"
+quelle = "sim"
 # tiefstand_prozent = 5               # darunter, nicht am Lader: Sync abbrechen und herunterfahren
 # intervall_s = 10
 # abschalt_kommando = ["systemctl", "poweroff"]   # Pi; am Mac wird nur protokolliert. Endet es mit einem Fehler, läuft die Box weiter und meldet es HA.

@@ -1120,6 +1120,12 @@ Die Seite spielt den Leser. Ihre Ereignisse sind genau die des echten Lesers (`c
   (`kein_simulierter_tobie`): Die Seite hebt nie einen Tobie ab, der auf dem echten Leser liegt.
 - Liegt ein echter Tobie und du legst einen simulierten auf, ist das ein Tobie-Wechsel wie am echten Leser. Der Leser
   merkt davon nichts und meldet erst bei seinem nächsten Auflegen wieder.
+- **Der Leser darf parallel zur Simulation laufen.** Solange ein simulierter Tobie liegt, ignoriert der Dienst alles, was der
+  echte Leser über „nichts da“ sagt: Herzschlag ohne Tobie, `HELLO` nach einer Neuverbindung, Leser-Ausfall und ein
+  `Abgehoben`. Der simulierte Tobie bleibt liegen, bis du ihn abhebst. Legst du einen **echten** Tobie auf den Leser,
+  gilt der echte (wie ein Wechsel), und die Simulation hat danach nichts mehr aufgelegt. Hebst du ihn wieder ab, gilt der
+  Leser wie ohne Simulation. Ohne simulierten Tobie ändert sich nichts: Dann zählt der Leser allein (CUJ 13, Entscheidung K).
+  Das filtert die Schale (`app.py`); der Kern bleibt rein und kennt die Herkunft eines Ereignisses nicht.
 
 ### Die Socket-Befehle (Format seit AP 4.9)
 
@@ -1209,11 +1215,11 @@ deine echten Tobies nicht:
 | Track-Tobie | `04130002` | Folge `folge-01` der Serie `track-test` (ID `9d4c1e5a2f68`), drei Tracks zu je 8 s |
 | Gute-Nacht-Karte | `04130003` | Aktion `gute_nacht` |
 
-**Der echte Leser bleibt in diesem Abschnitt aus.** Das ist wichtig: Läuft der echte Leser mit und es liegt nichts auf
-ihm, meldet er „nichts liegt“. Der Dienst hebt den simulierten Tobie dann nach etwa 6 s selbst wieder ab (nach etwa 4 s
-blinkt der Ring kurz magenta, danach Pause). Darum stellst du in 13.1 `geraet = "sim"` ein. Willst du mit dem echten Leser
-prüfen, legst du statt „auflegen“ einen echten Tobie auf, den du vorher mit `tobibox sim card <UID> --serie <ID>` zugeordnet
-hast, und lässt die Zeile `geraet` unverändert.
+**Der echte Leser darf mitlaufen.** Liegt nichts auf ihm, meldet er „nichts liegt“. Das hebt einen simulierten Tobie
+**nicht** ab: Er bleibt liegen, bis du ihn in der Oberfläche abhebst oder ein echter Tobie auf dem Leser erkannt wird (dann
+gilt der echte). Du lässt die Zeile `geraet` also unverändert. Ist **kein** Leser angeschlossen, stellst du `geraet = "sim"` ein
+(13.1); dann zeigt die Status-Karte den Leser als „simulation“. Willst du mit einem echten Tobie prüfen, legst du ihn statt
+„auflegen“ auf den Leser, nachdem du ihn mit `tobibox sim card <UID> --serie <ID>` zugeordnet hast.
 
 **Nach einem Neustart des Dienstes** gilt Entscheidung G (wie 12.4): Lag beim Beenden ein Tobie auf, startet derselbe Tobie beim
 ersten Auflegen **nicht** von selbst (Protokoll `dienst_neustart`, Sitzung „pausiert“). Dann Hauptknopf kurz drücken.
@@ -1231,19 +1237,23 @@ tobibox --version
 
 - [ ] `tobibox --version` zeigt `tobibox 0.1.0`. `tobibox sim -h` nennt unter anderem `power`, `net`, `key`, `knob`, `headphones` und `time`.
 
-**Konfiguration.** Drei Änderungen an `~/Tobi_box/box/config/tobibox.toml`. Der erste Befehl legt eine Sicherung
-`tobibox.toml.vor-13` an (zum Zurückkehren, 13.11) und ändert den Leser auf `sim` und die Protokollstufe auf `DEBUG`
-(damit die Töne und der Leerlauf-Zähler im Protokoll stehen):
+**Konfiguration.** Änderungen an `~/Tobi_box/box/config/tobibox.toml`. Der erste Befehl legt eine Sicherung
+`tobibox.toml.vor-13` an (zum Zurückkehren, 13.11) und stellt die Protokollstufe auf `DEBUG`
+(damit die Töne und der Leerlauf-Zähler im Protokoll stehen). Der echte Leser darf angeschlossen bleiben, die Zeile `geraet`
+bleibt, wie sie ist:
 
 ```bash
 cd ~/Tobi_box/box/config
-sed -i.vor-13 -e 's|^geraet = .*|geraet = "sim"|' -e 's|^ebene = "INFO"|ebene = "DEBUG"|' tobibox.toml
+sed -i.vor-13 -e 's|^ebene = "INFO"|ebene = "DEBUG"|' tobibox.toml
 grep -n '^\[' tobibox.toml
 ```
 
-Die letzte Zeile listet die Abschnitte, die schon aktiv sind. Stehen `[strom]` und `[netz]` **noch nicht** dabei, hänge sie an
-(beide mit `quelle = "sim"`, das ist ohnehin die Vorgabe, aber ohne den Abschnitt gäbe es weder einen Tiefstand-Alarm noch eine
-Netz-Klasse im Dienst):
+Ist **kein** Leser angeschlossen, stelle zusätzlich `geraet = "sim"` ein
+(`sed -i -e 's|^geraet = .*|geraet = "sim"|' tobibox.toml`); sonst meldet der Dienst dauernd einen Leser-Ausfall.
+
+Die letzte Zeile listet die Abschnitte, die schon aktiv sind. `[strom]` und `[netz]` (beide mit `quelle = "sim"`) stehen in der
+Beispieldatei `tobibox.mac.example.toml` schon drin; ohne sie gäbe es weder einen Tiefstand-Alarm noch eine Netz-Klasse im Dienst.
+Stehen sie in **deiner** `tobibox.toml` (angelegt aus einer älteren Beispieldatei) **noch nicht** dabei, hänge sie an:
 
 ```bash
 cat >> ~/Tobi_box/box/config/tobibox.toml <<'EOF'
@@ -1633,16 +1643,19 @@ selbst; „ändern zu …“ geht als Auftrag an die Projektleitung.
 - [ ] **Lernmodus** (blaues Atmen, 3 s, 8 bis 25 %): `tobibox sim learn --serie 5e1a0c7d9b31` bei leerer Box, danach `tobibox sim learn-abort`.
 - [ ] **Gute Nacht** (warmes Orange, Glimmen, 4 s, 3 bis 8 %): wie in 13.4. Beim Ausblenden wird es schwächer.
 - [ ] **Stumm** (derselbe Zustand, aber nur 40 % der Helligkeit): wie in 13.5, Zeit auf 22:00 stellen. Vergleiche die Pause mit 10 % und mit 4 %.
-- [ ] **Unbekannte Karte** (magenta blinkend, 1 s): Hier ist ein Befund wichtig. Der Ring zeigt Magenta heute nur, wenn die Sitzung „Leser unterbrochen“
-      ist, also bis zu 3 s nach einem Leser-Ausfall, während ein Tobie spielt (Abschnitt 11.3, USB-Kabel ziehen). Ein **unbekannter Tobie** (Knopf „Unbekannter Tobie“
-      in der Oberfläche) zeigt **nicht** Magenta: Er spielt die Überraschung, der Ring ist grün. Ob das so gewollt ist, entscheidest du; trage es in die Tabelle ein.
+- [ ] **Unbekannte Karte** (magenta blinkend, 1 s): Knopf „Unbekannter Tobie“ in der Oberfläche. Der Ring blinkt 1 s magenta (zwei Blinker),
+      danach zeigt er den normalen Zustand: grünes Atmen, denn die Überraschung spielt. Liegt vorher nichts auf der Box, läuft erst das
+      Lauflicht des Aufwachens (2 s) und danach blinkt der Ring. Magenta zeigt der Ring außerdem bei einer **Leser-Unterbrechung** (bis zu 3 s nach einem
+      Leser-Ausfall, während ein Tobie spielt; Abschnitt 11.3, USB-Kabel ziehen). Dafür legt das Design keine eigene Anzeige fest; das Blinken ist dort langsamer
+      (1-s-Periode, solange die Unterbrechung dauert). Ob dafür eine eigene Anzeige nötig ist, entscheidest du; trage es in die Tabelle ein.
 - [ ] **Aus** (schwarz): leere Box oder Herunterfahren.
 
 | Zustand | Vorschlag heute | gefällt | ändern zu … |
 |---|---|---|---|
 | Läuft | grün, Atmen 12 bis 25 %, 6 s | | |
 | Pause | bernstein, 10 % | | |
-| Unbekannte Karte | magenta, Blinken 1 s (nur bei Leser-Ausfall) | | |
+| Unbekannte Karte (unbekannter Tobie aufgelegt) | magenta, 1 s blinkend (zwei Blinker), danach normaler Zustand | | |
+| Leser-Unterbrechung | magenta, Blinken in 1-s-Periode, bis zu 3 s (das Design legt dafür nichts fest) | | |
 | Aufwachen | weißes Lauflicht, 2 s | | |
 | Akku (Füllstand) | grün über 50 %, gelb über 20 %, sonst rot; am Lader blau; 15 % | | |
 | Akku-Tiefstand | rot blinkend, 0,5 s | | |
@@ -1698,8 +1711,9 @@ mv ~/Tobi_box/box/config/tobibox.toml.vor-13 ~/Tobi_box/box/config/tobibox.toml
 ```
 
 - [ ] Die Zeile `config.json: normal - Gute Nacht {...}` zeigt wieder deine alten Werte (Vorgabe 30 min, 60 s).
-- [ ] `tobibox.toml` hat wieder `geraet = "/dev/cu.usbmodem*"` (oder was vorher stand). Willst du `[strom]`, `[netz]` und `DEBUG` behalten, lass die Datei so und
-      stelle nur die Zeile `geraet` zurück. Die drei erfundenen Tobies bleiben in `config.json`; sie stören nicht.
+- [ ] `tobibox.toml` ist wieder der Stand vor 13 (`mv` oben). Willst du `DEBUG` behalten, lass die Datei so. Hast du in 13.1 `geraet = "sim"`
+      eingestellt (kein Leser angeschlossen), stelle die Zeile `geraet` zurück auf `/dev/cu.usbmodem*` (oder was vorher stand); sonst ist nichts zu tun.
+      `[strom]` und `[netz]` mit `quelle = "sim"` dürfen bleiben. Die drei erfundenen Tobies bleiben in `config.json`; sie stören nicht.
 
 ### 13.12 Was erst am Pi geprüft wird
 

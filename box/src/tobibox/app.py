@@ -396,6 +396,15 @@ class App:
         sim = self.ausgang.war_sim(e)
         self._sicher(lambda: _protokolliere_leser(e), "protokoll_leser")
         self._sicher(lambda: self.status.beobachte(e, jetzt), "status")
+        if not sim and self.sim.liegt is not None:
+            # Ein Tobie liegt nur in der Simulation. Der echte Leser darf parallel laufen (``mac-prototyp.md``): Er meldet
+            # „nichts da“, was für den simulierten Tobie nichts heißt. Der Kern kennt die Herkunft nicht, deshalb filtert
+            # die Schale: Ein echter Tobie löst den simulierten ab, sonst erreicht den Kern nichts vom Leser.
+            if isinstance(e, (ev.Aufgelegt, ev.Gesperrt)):
+                self.sim.liegt = None
+            elif isinstance(e, (ev.LeserHallo, ev.LeserHerzschlag, ev.LeserAlarm, ev.Abgehoben)):
+                eventlog.logge("app", "DEBUG", "leser", "ignoriert_sim_tobie_liegt", daten={"ereignis": type(e).__name__})
+                return ()
         if isinstance(e, SyncFortschritt):
             return ()  # nur Anzeige (Statussammler); der Kern kennt das Ereignis nicht
         self._sicher(lambda: self._melde_an_sync(e), "sync_eingabe")
