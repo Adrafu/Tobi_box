@@ -61,6 +61,8 @@ ist nur lesend.
 4.  Ein **Konto je Box** anlegen (z. B. `tobibox-box1`, `tobibox-box2`). Ein Konto je Box lässt sich einzeln sperren (Abschnitt 9). Die Passwörter stehen nur auf der Box (Abschnitt 10).
 5.  Die Rechte prüfen: Ein Box-Konto darf lesen, nicht schreiben und nicht löschen.
 6.  Die Freigaben selbst: `tobibox/` mit den Unterordnern `medien/`, `export/`, `releases/` und `medien/_papierkorb/` anlegen. Bitte am Gerät prüfen, ob der rsync-Server die Freigabe mit Unterordnern so anbieten kann.
+7.  Den Eingang anlegen: `tobibox/eingang/`, **neben** `medien/` (nicht darin). Dort legt Tobias Downloads ab (Hörbücher, Hörspiele). HA sortiert sie nach den Metadaten in `medien/` ein (Entscheidung M). Rechte: HA darf schreiben (Abschnitt 5, Schritt 4). Die Boxen haben keinen Zugriff: Der Ordner ist kein rsync-Modul, und das Box-Konto kennt ihn nicht.
+8.  Ausnahmen im Sync (Vorlage `deploy/nas/rsyncd.example.conf`, Modul `medien`): `exclude` für `_upload/`, `_papierkorb/`, alle Ordner mit `_` am Anfang und `eingang/` (ohne Rücksicht auf Groß-/Kleinschreibung). Diese Ordner gelten als reserviert (Vertrag W, Abschnitt 12) und erreichen die Box nie. Liegt der Eingang neben `medien/`, ist er ohnehin nicht im Modul; die Regel ist nur für den Fall da, dass jemand einen solchen Ordner in `medien/` anlegt. In der QNAP-Oberfläche bitte am Gerät prüfen, ob sich solche Ausnahmen eintragen lassen.
 
 Gegenprobe: Von einer Box aus (Abschnitt 8) muss der rsync-Daemon antworten. Ein Schreibversuch über rsync muss scheitern.
 
@@ -69,7 +71,7 @@ Gegenprobe: Von einer Box aus (Abschnitt 8) muss der rsync-Daemon antworten. Ein
 1.  Das Tailscale-Add-on in HA installieren (bitte am Gerät prüfen: Add-on-Name und Anmeldeweg).
 2.  Das HA-Gerät mit `tag:ha` versehen (Admin-Konsole).
 3.  Die NAS-Freigabe in HA als Netzwerkspeicher einbinden (SMB). Unter Einstellungen > System > Speicher (bitte am Gerät prüfen).
-4.  **HA-Rechte auf dem NAS:** HA hat **volles Schreibrecht** auf `tobibox/medien/`, `tobibox/export/` und `tobibox/releases/`. Das ist Entscheidung D: Tobias ist der einzige Benutzer, der Schutz für die Boxen ist die Signatur der Update-Pakete (Stufe 3b). Ein Box-Konto darf dort nichts schreiben.
+4.  **HA-Rechte auf dem NAS:** HA hat **volles Schreibrecht** auf `tobibox/medien/`, `tobibox/export/`, `tobibox/releases/` und `tobibox/eingang/`. Das ist Entscheidung D: Tobias ist der einzige Benutzer, der Schutz für die Boxen ist die Signatur der Update-Pakete (Stufe 3b). Ein Box-Konto darf dort nichts schreiben.
 5.  Tobias legt die Update-Pakete in `releases/` selbst ab (oder über den Export aus HA). Die Box prüft jede Signatur.
 6.  Papierkorb: `medien/_papierkorb/` wird von HA beschrieben. Die Boxen übernehmen den Papierkorb nicht.
 

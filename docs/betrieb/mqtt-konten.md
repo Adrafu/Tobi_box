@@ -43,6 +43,8 @@ Die Box darf **nicht**: `tobibox/config` schreiben, `…/cmd`, `…/ack` oder `�
 
 Alternative in einer Regel (mit `%u` = Benutzername): Die Vorlage in `mqtt-v1.md`, Abschnitt 7, zeigt sie. Eine Form genügt. **Bitte am Gerät prüfen**, ob das Add-on die Form `pattern` in seiner Mosquitto-Version annimmt. Im Zweifel die Form mit einer Zeile je Thema nehmen.
 
+**Achtung bei der `pattern`-Form:** Die Zeilen `pattern read tobibox/config` und `pattern read homeassistant/status` müssen **`pattern`** heißen. Eine Zeile `topic read …` ohne eigenes `user` gehört zum zuletzt genannten Konto (oder vor dem ersten `user` zu allen anonymen Verbindungen). Dann bekommt die Box weder die Konfiguration noch den HA-Status. Bei der `topic`-Form steht jede Zeile unter `user box1`, also im richtigen Block.
+
 ## 4. Einstellung im Mosquitto-Add-on (HA)
 
 HA: Einstellungen > Add-ons > Mosquitto broker > Konfiguration. Als YAML (bitte am Gerät prüfen, ob die Oberfläche YAML oder Felder zeigt):
@@ -59,7 +61,7 @@ customize:
 ```
 
 *   `customize.active: true` ist nötig, sonst liest das Add-on keine eigene ACL-Datei.
-*   Die ACL-Datei liegt unter `/share/mosquitto/`. Die Datei `acl.conf` verweist auf die Regeln (laut Add-on-Dokumentation: `acl_file /share/mosquitto/accesscontrollist`). Die Regeln stehen in `/share/mosquitto/accesscontrollist`, die Form steht in Abschnitt 3. Die Vorlagendatei kommt in AP 3.3 unter `homeassistant/mosquitto/`. Bis dahin von Hand anlegen. **Bitte am Gerät prüfen**, ob die Dateien unter `/share/mosquitto/` mit dem Dateimanager oder über SMB ankommen.
+*   Die ACL-Datei heißt `/share/mosquitto/acl.conf` (Vertrag `mqtt-v1.md`, Abschnitt 7). Die Rechte aus Abschnitt 3 stehen dort, je Konto ein `user`-Block. Das Add-on muss die Datei über `acl_file` finden (laut Add-on-Dokumentation). Die Vorlagendatei kommt in AP 3.3 unter `homeassistant/mosquitto/`. Bis dahin von Hand anlegen. **Bitte am Gerät prüfen**, ob die Dateien unter `/share/mosquitto/` mit dem Dateimanager oder über SMB ankommen.
 *   Passwort als Hash statt Klartext: Das Add-on kann Hash-Einträge verarbeiten (`password_pre_hashed: true`). Die Erzeugung des Hashs ist bitte am Gerät zu prüfen. Der Hash ist trotzdem geheim, wenn er in Abschnitt 5 nicht steht.
 *   Nach jeder Änderung das Add-on **neu starten** und das Protokoll des Add-ons ansehen. Dort stehen Anmeldefehler.
 
