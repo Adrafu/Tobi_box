@@ -21,7 +21,7 @@ def sd_notify(nachricht: str, *, socket_pfad: str | None = None) -> bool:
     elif not pfad.startswith("/"):
         return False
     try:
-        with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM | socket.SOCK_CLOEXEC) as s:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM | getattr(socket, "SOCK_CLOEXEC", 0)) as s:
             s.connect(pfad)
             s.sendall(nachricht.encode("utf-8"))
     except OSError:
