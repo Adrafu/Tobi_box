@@ -721,6 +721,7 @@ CAD (4.2) startet erst, wenn 3.2 auf dem Breadboard läuft.
 | **Ladestation: Kurzschlussschutz (3.16, R1)** | Eigene Sockel-Platine mit eFuse (Stromgrenze ~2,7 A, Übertemperatur, Softstart), vom Hersteller bestückt, Pins direkt auf der Platine. Zwei Reeds in Reihe an gegenüberliegenden Ecken. Ersetzt die fertigen Module (D7) |
 | **Ladestation: Kontakte (3.16, R2)** | Kontaktscheibe als Leiterplatte mit Hartgold, Zyklentest |
 | **Ladestation: Netzteile (3.16, R3)** | Zwei neue Markennetzteile USB-C 5 V/3 A, CE, Schutzklasse II, C-auf-C-Kabel. Kurzschlusstest mit genau diesen |
+| **Ladestation billiger (3.16, R5/R6, 09.11.)** | Feste Einsteckrichtung mit fertigen Magnet-Pogo-Steckern, 2 Magnete in der Box. Fertige Module (Pololu #2810, PTC) statt eFuse-Platine, zwei Reeds in Reihe bleiben. Restrisiko „zwei Fremdmagnete plus Metallteil“ bewusst akzeptiert. Ersetzt D2, R1, R2. Qi verworfen (Wärme am Akku, Aufwachen; Berichte in `research_qi.md`) |
 | **Ladestation: Tests (3.16, R4)** | Tobias testet allein, mit den verschärften Vorgaben aus dem Review. Kein Kindertest vor der Abnahme |
 | **Mosquitto-ACL (3.14)** | In der `pattern`-Form müssen auch `tobibox/config` und `homeassistant/status` `pattern read` heißen (Test gegen Mosquitto 2.0.18); `mqtt-v1.md`, Abschnitt 7 korrigiert |
 

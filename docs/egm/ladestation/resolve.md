@@ -63,3 +63,16 @@ nah am Akku) und nur USB-C-Kabel (~0 €, nicht blind bedienbar).
 **Entscheidung Tobias:** Rev. 2 des Kontakt-Designs angehalten. Erst Qi prüfen
 (Recherche, dann Billigtest am PiSugar-Muster). Hält Qi, entsteht ein neuer,
 kurzer Draft. Fällt Qi durch, gilt der Resolve oben weiter.
+
+## Rev. 3: billiger (09.11., Tobias)
+
+Nach den Erfahrungsberichten zu PiSugar + Qi (Wärme am Akku, Aufwachen beim
+Laden, siehe `research_qi.md`) bleibt es bei Kontakten, aber billiger.
+
+| # | Entscheidung | Ersetzt |
+|---|---|---|
+| R5 | **Feste Einsteckrichtung.** Ein Steg im Sockel und eine Nut in der Box lassen die Box nur in einer Lage ganz absinken. Falsch herum lädt sie nicht, sonst passiert nichts. Fertige **Magnet-Pogo-Stecker** (Federhälfte im Sockel, flache Hälfte in der Box) statt Kontaktscheibe, Zapfen und Hartgold. Zwei Magnete in der Box statt vier. | D2, R2 |
+| R6 | **Fertige Module statt eFuse-Platine:** Pololu #2810, PTC, USB-C-Breakout, zwei Reeds in Reihe. **Bewusstes Restrisiko:** Zwei fremde Magnete im richtigen Abstand und gleichzeitig ein Metallteil auf den Pins werden nicht begrenzt. T6 zeigt, was dann passiert. | R1 (teilweise: die zwei Reeds bleiben) |
+
+Ziel: ~75 € für beide Boxen statt ~125 €. Die Netzteile (R3) und Tests durch
+Tobias (R4) bleiben.
