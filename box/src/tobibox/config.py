@@ -7,6 +7,7 @@ Eine Konfigurationsdatei je Gerät (Design, „Mac und Pi“). Es gibt keine Abf
 
 from __future__ import annotations
 
+import re
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -86,6 +87,81 @@ class ProtokollKonfig:
     anzahl: int = 5
 
 
+# --- [sync] (AP 3.4): Medien-Sync per rsync-Daemon des QNAP ------------------------------------------
+@dataclass(frozen=True, slots=True)
+class SyncKonfig:
+    """``[sync]``: Ort und Zugang des rsync-Daemons (Modul ``medien``, nur lesend). Ohne den Abschnitt: kein Sync.
+
+    Das Passwort steht nie in der Datei: entweder ``passwort_datei`` (Pfad, Rechte 600) oder
+    ``passwort_umgebung`` (Name einer Umgebungsvariable).
+    """
+
+    host: str
+    port: int = 873
+    modul: str = "medien"
+    benutzer: str | None = None
+    passwort_datei: Path | None = None
+    passwort_umgebung: str | None = None
+    partial_dir: Path | None = None  # None: ``<Medienordner>/../.rsync-partial`` (gleiches Dateisystem)
+    intervall_s: int = 3600
+    reserve_mb: int = 200  # so viel bleibt nach dem Sync mindestens frei
+
+
+_SYNC_SCHLUESSEL = {
+    "host", "port", "modul", "benutzer", "passwort_datei", "passwort_umgebung", "partial_dir", "intervall_s", "reserve_mb",
+}
+_SYNC_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+
+
+def _pruefe_sync(roh: dict[str, Any], basis: Path, medien: Path) -> SyncKonfig | None:
+    a = roh.get("sync")
+    if a is None:
+        return None
+    if not isinstance(a, dict):
+        raise KonfigFehler("[sync] muss ein Abschnitt sein")
+    if "passwort" in a:
+        raise KonfigFehler("[sync] kein Passwort in der Datei: 'passwort_datei' (Pfad) oder 'passwort_umgebung' nutzen")
+    unbekannt = set(a) - _SYNC_SCHLUESSEL
+    if unbekannt:
+        logge("config", "WARNING", "unbekannte_schluessel", "ignoriert", daten={"abschnitt": "sync", "schluessel": sorted(unbekannt)})
+    namen = {}
+    for schluessel, vorgabe in (("host", None), ("modul", "medien"), ("benutzer", None)):
+        wert = _text(a, "sync", schluessel, vorgabe)
+        if wert is not None and not _SYNC_NAME.match(wert):
+            raise KonfigFehler(f"[sync] {schluessel} darf nur Buchstaben, Ziffern, Punkt, Minus und Unterstrich enthalten")
+        namen[schluessel] = wert
+    if namen["host"] is None:
+        raise KonfigFehler("[sync] braucht 'host' (Name oder Tailscale-Adresse des QNAP)")
+    datei = _text(a, "sync", "passwort_datei", None)
+    umgebung = _text(a, "sync", "passwort_umgebung", None)
+    if umgebung is not None and not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", umgebung):
+        raise KonfigFehler("[sync] passwort_umgebung muss ein Name einer Umgebungsvariable sein")
+    if datei is not None and umgebung is not None:
+        raise KonfigFehler("[sync] 'passwort_datei' und 'passwort_umgebung' nicht zusammen")
+    if namen["benutzer"] is None and (datei is not None or umgebung is not None):
+        raise KonfigFehler("[sync] ein Passwort braucht auch 'benutzer'")
+    if namen["benutzer"] is not None and datei is None and umgebung is None:
+        raise KonfigFehler("[sync] 'benutzer' braucht 'passwort_datei' oder 'passwort_umgebung'")
+    partial = _text(a, "sync", "partial_dir", None)
+    partial_pfad = _pfad(partial, basis) if partial else None
+    pruef = partial_pfad if partial_pfad is not None else medien.parent / ".rsync-partial"
+    ist_medien = pruef.resolve() == medien.resolve()
+    if ist_medien or medien.resolve() in pruef.resolve().parents:
+        raise KonfigFehler("[sync] partial_dir muss außerhalb des Medienordners liegen")
+    return SyncKonfig(
+        host=namen["host"],
+        port=_ganz(a, "sync", "port", 873, 1, 65535),
+        modul=namen["modul"] or "medien",
+        benutzer=namen["benutzer"],
+        passwort_datei=_pfad(datei, basis) if datei else None,
+        passwort_umgebung=umgebung,
+        partial_dir=partial_pfad,
+        intervall_s=_ganz(a, "sync", "intervall_s", 3600, 60, 86400),
+        reserve_mb=_ganz(a, "sync", "reserve_mb", 200, 0, 1_000_000),
+    )
+# --- Ende [sync] -------------------------------------------------------------------------------------
+
+
 @dataclass(frozen=True, slots=True)
 class BoxKonfig:
     pfade: Pfade
@@ -94,6 +170,7 @@ class BoxKonfig:
     lautstaerke: LautstaerkeKonfig = field(default_factory=LautstaerkeKonfig)
     protokoll: ProtokollKonfig = field(default_factory=ProtokollKonfig)
     toene: TonKonfig = field(default_factory=TonKonfig)
+    sync: SyncKonfig | None = None  # [sync]; None: kein Medien-Sync
 
     def geraete_einstellungen(self) -> ev.GeraeteEinstellungen:
         """Das erste Ereignis des Kerns (``core-interface.md``, 3.3)."""
@@ -108,6 +185,7 @@ _BEKANNT = {
     "lautstaerke": {"max", "start", "kopfhoerer"},
     "protokoll": {"ziel", "datei", "ebene", "max_bytes", "anzahl"},
     "toene": {"kommando", "ordner", "kennlinie", "softvol_bereich_db"},
+    "sync": _SYNC_SCHLUESSEL,
 }
 
 
@@ -221,6 +299,7 @@ def pruefe(roh: dict[str, Any], basis: Path | None = None) -> BoxKonfig:
         toene=TonKonfig(
             tuple(kommando), _pfad(ton_ordner, basis) if ton_ordner else None, kennlinie, float(bereich)
         ),
+        sync=_pruefe_sync(roh, basis, _pfad(medien, basis)),
     )
 
 
