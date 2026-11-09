@@ -1,6 +1,6 @@
 # Tobi Box — Stückliste & Projektstrukturplan
 
-Rev. 3.15 · 09.11.2026 · Pi 3 Model A+ · eigene Box-Software auf MPD · zwei baugleiche, mobile Boxen
+Rev. 3.16 · 09.11.2026 · Pi 3 Model A+ · eigene Box-Software auf MPD · zwei baugleiche, mobile Boxen
 
 **Änderungen gegenüber Rev. 2**
 - Software-Basis: Phoniebox V3 + eigene Plugins statt Eigenbau
@@ -22,6 +22,7 @@ Rev. 3.15 · 09.11.2026 · Pi 3 Model A+ · eigene Box-Software auf MPD · zwei 
 - **3.13:** Entscheidung L (09.11.) aus `docs/designs/box-software.md`: Es spielen nie zwei Sachen gleichzeitig. Anlass am Mac mit den Sprach-Tönen: „Lernmodus beendet.“ überlappte sich mit „Test-Serie, Folge drei.“, und „Diesen Tobie kenne ich noch nicht …“ mit der Überraschungs-Serie. Neu: Töne laufen einzeln über eine Spur; enthält eine Ausgabe Töne und einen Wiedergabestart, spielen erst die Töne bis zum Ende, dann startet das Hörspiel. Ein Ton während das Hörspiel läuft hält es kurz an und setzt es an derselben Stelle fort (kein Zeiger, kein Rücksprung, Status bleibt „spielt“). Abheben oder Pause während eines Tons verwirft den wartenden Start; der Ton läuft zu Ende. Ein Ton ist auf 10 s begrenzt. Beim normalen Auflegen eines bekannten Tobies ändert sich nichts (kein Ton, kein Verzug). Der Kern bleibt unverändert. Verträge `core-interface.md` (Abschnitt 6.5 Punkt 6, 8.1, Punkt 32), Design und `mac-prototyp.md` angepasst. `data-model.md` ist nachgezogen: `ton_pegel` ohne Wirkung (J), `hinweis_pegel` mit Untergrenze 10 statt 5.
 - **3.14:** Entscheidung M (09.11.) aus `docs/designs/box-software.md`: **Einsortieren nach Metadaten, vollautomatisch mit Korrektur.** Tobias legt Hörbücher und Hörspiele in einen Eingangsordner auf dem NAS (`tobibox/eingang/`); die HA-Integration liest die Tags (Album, Album-Interpret, Serien-Tags, Track/Disc, Titel, Folgen-Nummer im Albumnamen), macht aus einem Album eine Folge (mehrere Dateien: Folgen-Ordner), bestimmt die Serie, führt Alben derselben Serie zusammen, ordnet nach Folgen-Nummer, Erscheinungsdatum oder Eingangsreihenfolge und legt `serie.json` samt Anzeigenamen an. Die Seite zeigt das Erkannte, Tobias korrigiert (Serie wechseln, Namen ändern, Reihenfolge, Serien zusammenführen); fehlende Tags heißen „bitte prüfen“. Kopiergeschütztes und Defektes bleibt im Eingang, Doppelte (Prüfsumme) kommen in den Papierkorb. Upload über die Seite geht ebenfalls in den Eingang. Die Box bleibt unverändert; `eingang/`, `_upload/` und `_papierkorb/` werden nicht gesynct. Dazu die **Vorgaben der Projektleitung zu Vertrag W** (Tabelle unten und `docs/protocol/ha-websocket-v1.md`, Überarbeitung nach Goldfisch-Report W-01 bis W-28): Seite nur für Administratoren, Tobie-Namen, Serie löschen mit Rückfrage, Upload-Grenze zunächst 500 MiB, Schutz gegen das Ausrollen einer leeren Liste und Rückholen aus dem Export. **Festgelegte Versionen:** Home Assistant **2026.11.x** (Tobias aktualisiert darauf; die genaue Patch-Version kommt beim Start von AP 3.1), Mosquitto-Add-on **7.1.3**, NAS **QNAP TS-464eU-8G** (Celeron N5095, **amd64**). Verträge `ha-websocket-v1.md` (Befehle 24 bis 32, Abschnitte 11 bis 13), `data-model.md` (Tobie-Name, `folgen_info`, `meta.json`, Eingang) und `mqtt-v1.md` (`name` im Beispiel; ACL-Korrektur `pattern read`) sowie das Design (AP 3.1, 3.2, 3.4, 3.5) angepasst.
 - **3.15:** Entscheidung N (09.11.) aus `docs/designs/box-software.md`: **Lesezeichen je Tobie mit Ablauf.** Jeder Tobie (jeder Zeiger) behält seine eigene Stelle, auch wenn zwischendurch andere Tobies gespielt haben (wie bisher). Neu: Wurde ein Zeiger länger als `lesezeichen_tage` nicht benutzt (Vorgabe 14 Tage, in HA einstellbar, `0` = nie), beginnt beim Fortsetzen die Folge von vorn (Position 0, erster Track); bei einer Serie bleibt die Folge dieselbe, bei einem Folgen-Tobie beginnt dieselbe Folge von vorn. Die Regel gilt nur bei sicherer Uhr, nur für Zeiger mit Zeitstempel (`resume.json`: neues optionales Feld `benutzt_am`, ein alter Zeiger ohne Stempel läuft nie ab), an denselben Stellen wie die Restregel (Auflegen, Einschalten, Hauptknopf, nach Dienst-Neustart) und vor ihr. Protokoll `lesezeichen_abgelaufen` mit `alter_tage`. Das Feld `lesezeichen_tage` ist in `config.json` additiv (Version 2 bleibt) und im Vertrag W reserviert; die Seitenbedienung kommt mit den Einstellungen in Stufe 4. Dazu der Abgleich von `mqtt-v1.md` 5.1 mit Vertrag W, Abschnitt 13 (Zustände `ok`, `leer_neu`, `export_neuer`). Verträge: `core-interface.md` 6.3 und 9 Punkt 33, `data-model.md` Abschnitte 2 und 3, `mqtt-v1.md` 3.1 und 5.1, `ha-websocket-v1.md` Abschnitt 10.
+- **3.16:** Ladestation (09.11., EGM `docs/egm/ladestation/`, Brief, Draft, zwei Goldfisch-Reviews, Resolve): **zwei Einzelsockel statt Dual-Dock**, je Sockel ein eigenes Marken-USB-C-Netzteil 5 V/3 A. Die Box passt in **jeder Drehlage**: Kontaktscheibe unten (Plus Mitte, Masse Ring, Hartgold-Leiterplatte), gefederte Pins im Sockel, Verpolung durch die Form ausgeschlossen. Zentrierung über Fangmulde und konischen Zapfen. Schutz: **zwei Reeds in Reihe** und eine **eigene Sockel-Platine mit eFuse** (Stromgrenze, Übertemperatur, Softstart, vom Hersteller bestückt). Keine LED am Sockel. Design noch im Draft (Rev. 2 folgt), Stückliste wird danach neu gerechnet.
 - **Nachtrag zu Rev. 3.15 (09.11., Befund AP 3.1; keine neue Revisionsnummer):** Test-Pin von Home Assistant. Die HA-Tests laufen vorerst gegen **2026.10.4**, weil `pytest-homeassistant-custom-component` für 2026.11 noch nicht erschienen ist. Die Integration ist statisch gegen 2026.11.0 geprüft. Die Pins (`homeassistant/requirements-test.txt`, CI) werden nachgezogen, sobald das Plugin da ist.
 
 ---
@@ -76,7 +77,9 @@ Antenne. Ob eine Stahlscheibe in der Feldmitte das Lesen stört, klärt Test 5b
 des Tonie-Tests. Stört sie, hält die Figur nur über die Mulde im Deckel.
 
 **11. Dock-Erkennung ohne dritten Pin.** Reed-Kontakt im Dock, ausgelöst vom
-Zentriermagnet der Box. Spart einen Pogo-Pin.
+Zentriermagnet der Box. Spart einen Pogo-Pin. **Stand 3.16:** zwei Reeds in
+Reihe im Sockel; zentriert wird über Mulde und Zapfen, die Magnete der Box
+lösen nur noch die Reeds aus.
 
 **12. UART freihalten.** GPIO 14/15 als serielle Konsole — bei einem Gerät ohne
 Bildschirm der einzige Weg, Bootprobleme zu sehen.
@@ -308,7 +311,7 @@ Preise sind Richtwerte (AT/DE) und vor dem Bestellen zu prüfen.
 | Posten | ca. € |
 |---|---|
 | NTAG215 Karten, 50 Stk. | 20 |
-| Dual-Ladestation (Netzteil 5 V/4 A, Buchse, Druckteil) | 22 |
+| Dual-Ladestation (Netzteil 5 V/4 A, Buchse, Druckteil) — **3.16: wird zwei Einzelsockel, neu gerechnet nach Rev. 2 des Designs** | 22 |
 | Load-Switch + Reed-Kontakt je Ladeplatz | 8 |
 | NFC-Leser beide Boxen: 2× PN5180 + 2× ESP32-S3 SuperMini (bestellt 12.10.) | 26 |
 | Reserveteile (Pi 3A+, SD, PN5180, ESP32-S3, MAX98357A) | 55 |
@@ -503,7 +506,7 @@ Stand 3.8: Aufteilung neu. V3 entfällt, die Firmware macht den Leser, Home Assi
 - **3.3 Verdrahtungsplan & Kabelbaum** — inkl. Pufferelko am Verstärker
 - **3.4 Löten & Endmontage**
 - **3.5 Ladekontakte & Dock**
-  - 3.5.1 Verpolschutz
+  - 3.5.1 Verpolschutz — **3.16:** durch die Form (Plus Mitte, Masse Ring)
   - 3.5.2 Load-Switch mit Reed-Erkennung
   - 3.5.3 Kontakte 3–4 mm versenkt
   - 3.5.4 Kurzschlusstest mit Münze und Löffel — an Dock **und** Box
@@ -527,7 +530,7 @@ Stand 3.8: Aufteilung neu. V3 entfällt, die Firmware macht den Leser, Home Assi
 - **4.3 Druck & Iterationen**
   - 4.3.1 Passung Gewindeeinsätze
   - 4.3.2 Sturztest mit TPU-Ecken
-- **4.4 Dual-Ladestation**
+- **4.4 Ladesockel (2×)** — **3.16:** zwei Einzelsockel statt Dual-Station, Design `docs/egm/ladestation/`
 - **4.5 Audiokammer abdichten**
   - 4.5.1 Volumen 0,5–0,8 l festlegen
   - 4.5.2 Treiber mit Dichtband
@@ -670,7 +673,7 @@ Stand 3.8: Aufteilung neu. V3 entfällt, die Firmware macht den Leser, Home Assi
 
 CAD (4.2) startet erst, wenn 3.2 auf dem Breadboard läuft.
 
-## Entscheidungen (12.10.2026, ergänzt 17.10., 04.11., 05.11. für Rev. 3.8, 06.11. für Rev. 3.9, 07.11. für Rev. 3.10, 09.11. für Rev. 3.11, 3.12, 3.13, 3.14 und 3.15)
+## Entscheidungen (12.10.2026, ergänzt 17.10., 04.11., 05.11. für Rev. 3.8, 06.11. für Rev. 3.9, 07.11. für Rev. 3.10, 09.11. für Rev. 3.11, 3.12, 3.13, 3.14, 3.15 und 3.16)
 
 | Frage | Entscheidung |
 |---|---|
@@ -714,6 +717,11 @@ CAD (4.2) startet erst, wenn 3.2 auf dem Breadboard läuft.
 | **Papierkorb-Metadaten, Listen, Box-Meldungen, Leise-Zeiten (3.14)** | Ordner `_papierkorb/<id>/` mit `meta.json`; `limit`/`offset` schon in v1; die letzten 20 Box-Meldungen je Box im HA-Speicher; Leise-Zeiten bleiben in Stufe 4 |
 | **Schutz der Konfiguration (3.14, W-01/W-02/W-06)** | Ist der HA-Speicher leer oder der Export neuer, veröffentlicht die Integration nichts, bis Tobias entscheidet (aus dem Export holen oder neu ausrollen); erst veröffentlichen, dann exportieren; Boxen mit neuerem Stand (`voraus`) werden gemeldet, die Revision wird nie von selbst erhöht |
 | **Feste Versionen (3.14)** | Home Assistant **2026.11.x** (Patch-Version beim Start von AP 3.1), Mosquitto-Add-on **7.1.3**, NAS **QNAP TS-464eU-8G** (Celeron N5095, amd64) |
+| **Ladestation: Form (3.16, D1–D6)** | Zwei Einzelsockel, je Sockel ein USB-C-Netzteil. Kinder docken selbst und blind an, in jeder der vier Drehlagen. Gefederte Pins im Sockel, flache Kontaktscheibe in der Box (Plus Mitte, Masse Ring). Keine LED am Sockel. Details: `docs/egm/ladestation/concepts_brief.md` |
+| **Ladestation: Kurzschlussschutz (3.16, R1)** | Eigene Sockel-Platine mit eFuse (Stromgrenze ~2,7 A, Übertemperatur, Softstart), vom Hersteller bestückt, Pins direkt auf der Platine. Zwei Reeds in Reihe an gegenüberliegenden Ecken. Ersetzt die fertigen Module (D7) |
+| **Ladestation: Kontakte (3.16, R2)** | Kontaktscheibe als Leiterplatte mit Hartgold, Zyklentest |
+| **Ladestation: Netzteile (3.16, R3)** | Zwei neue Markennetzteile USB-C 5 V/3 A, CE, Schutzklasse II, C-auf-C-Kabel. Kurzschlusstest mit genau diesen |
+| **Ladestation: Tests (3.16, R4)** | Tobias testet allein, mit den verschärften Vorgaben aus dem Review. Kein Kindertest vor der Abnahme |
 | **Mosquitto-ACL (3.14)** | In der `pattern`-Form müssen auch `tobibox/config` und `homeassistant/status` `pattern read` heißen (Test gegen Mosquitto 2.0.18); `mqtt-v1.md`, Abschnitt 7 korrigiert |
 
 ## Bewusst nicht enthalten
