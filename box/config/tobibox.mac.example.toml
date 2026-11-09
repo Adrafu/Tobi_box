@@ -64,3 +64,32 @@ anzahl = 5
 # partial_dir = "../.rsync-partial"
 # intervall_s = 3600                  # Takt für den zeitgesteuerten Sync
 # reserve_mb = 200                    # so viel Platz bleibt nach dem Sync mindestens frei
+
+# [mqtt]
+# Home Assistant über MQTT (Broker = Mosquitto-Add-on, erreichbar über Tailscale).
+# Ohne diesen Abschnitt läuft der Dienst wie bisher ohne Home Assistant. Zum Einschalten die Zeilen einkommentieren.
+# Das Passwort steht NUR in der lokalen tobibox.toml (gitignored), nie hier und nie im Repo.
+# box_id = "box1"                     # Box-Name und zugleich MQTT-Konto: [a-z0-9][a-z0-9_-]{1,23}
+# host = "broker.example.ts.net"      # Tailscale-Name oder -Adresse des Brokers
+# port = 1883
+# passwort = "<Passwort der Box>"     # nur in der lokalen Datei
+# anzeigename = "Küche"               # Name in Home Assistant ("Tobi Box Küche"); Vorgabe: box_id
+
+# [netz]
+# Netz-Klasse home / hotspot / offline. Die WLAN-Namen gehören nur in die lokale Datei, nie ins Repo.
+# Am Mac: quelle = "sim" (Vorgabe), das Netz wird mit "tobibox sim" vorgegeben, die Systemuhr gilt.
+# Auf dem Pi: quelle = "networkmanager" (Zeitquelle dann NTP und die RTC des PiSugar).
+# quelle = "sim"
+# heim_ssid = "<Name des Heim-WLAN>"
+# hotspot_ssid = "<Name des Handy-Hotspots>"
+# nas_host = "qnap.example.ts.net"    # home gilt nur, wenn der NAS (rsync-Port) erreichbar ist; ohne Eintrag genügt die SSID
+# nas_port = 873
+# intervall_s = 10
+
+# [strom]
+# Akku, Lader, Taste und RTC. Am Mac: quelle = "sim" (Vorgabe), die Werte kommen von "tobibox sim power".
+# Auf dem Pi: quelle = "pisugar" (pisugar-server auf 127.0.0.1:8423).
+# quelle = "sim"
+# tiefstand_prozent = 5               # darunter, nicht am Lader: Sync abbrechen und herunterfahren
+# intervall_s = 10
+# abschalt_kommando = ["systemctl", "poweroff"]   # Pi; am Mac wird nur protokolliert

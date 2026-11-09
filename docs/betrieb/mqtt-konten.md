@@ -70,14 +70,14 @@ customize:
 In `tobibox.toml` auf der Box, **nur dort**. Die Datei steht in `.gitignore`.
 
 ```toml
-[ha]
-mqtt_host = "<HA-Name oder Tailscale-IP>"
-mqtt_port = 1883
-mqtt_benutzer = "box1"        # gleich box_id
-mqtt_passwort = "<Passwort>"  # nur auf dieser Box
+[mqtt]
+box_id = "box1"               # Box-Name und zugleich MQTT-Konto
+host = "<HA-Name oder Tailscale-IP>"
+port = 1883
+passwort = "<Passwort>"       # nur auf dieser Box
 ```
 
-*   Die Schlüsselnamen sind ein Vorschlag. Sie werden in AP 3.3 mit der Konfiguration abgeglichen. Der Dienst meldet Passwort-Schlüssel nie in Protokollen (`eventlog.py` ersetzt sie).
+*   Die Schlüsselnamen sind seit AP 3.3 festgelegt (`box/src/tobibox/config.py`, Abschnitt `[mqtt]`). Ein Schlüssel `benutzer` ist nicht nötig: Der Benutzername ist immer `box_id`. Der Dienst meldet Passwort-Schlüssel nie in Protokollen (`eventlog.py` ersetzt sie).
 *   Dateirechte auf der Box: nur der Dienstbenutzer darf lesen (`chmod 600`, bitte am Gerät prüfen, welcher Benutzer den Dienst startet).
 *   Nie in einen Befehl eintippen, der in der Shell-Historie landet. Lieber mit einem Editor öffnen.
 
