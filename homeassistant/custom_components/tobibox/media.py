@@ -553,7 +553,7 @@ class Medien:
         return info
 
     def _hinweis(self, code: str, folge: str | None = None) -> dict[str, Any]:
-        return {"code": code, "folge": folge, "text": self.hub.t(f"hinweis_{code}", folge=folge or "")}
+        return {"code": code, "folge": folge, "text": self.hub.t(f"hinweis_{code}", folge=folge or "", datei=folge or "")}
 
     # --- Prüfung der Freigabe (Vertrag W, Nr. 9) ---------------------------------------
 
