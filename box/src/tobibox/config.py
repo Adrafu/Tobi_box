@@ -317,6 +317,102 @@ def _pruefe_strom(roh: dict[str, Any]) -> StromKonfig | None:
     )
 # --- Ende [mqtt], [netz], [strom] ----------------------------------------------------------------------
 
+# --- [kopfhoerer], [tasten] (AP 4.8): Buchse, Tasten und Drehregler; Vorgabe ``sim`` (Mac) -----------------
+#: ``sim``: Mac und Test, die Eingänge kommen von ``tobibox sim``; ``gpio``: Pi, echte Pins (BCM-Nummern)
+EINGANG_QUELLEN = ("sim", "gpio")
+GPIO_PIN_MAX = 27  # BCM 0 bis 27 am 40-poligen Pi-Header
+
+
+@dataclass(frozen=True, slots=True)
+class KopfhoererKonfig:
+    """``[kopfhoerer]``: Schaltkontakt der Klinkenbuchse. Die Pin-Nummer ist noch nicht bekannt, deshalb ohne Vorgabe."""
+
+    quelle: str = "sim"
+    gpio_pin: int | None = None  # BCM; bei ``gpio`` Pflicht
+    aktiv_niedrig: bool = True  # Stecker steckt = Pin niedrig (Kontakt nach Masse, Pull-up); auf dem Pi zu prüfen
+    intervall_s: float = 0.2
+
+    @property
+    def simulation(self) -> bool:
+        return self.quelle == "sim"
+
+
+@dataclass(frozen=True, slots=True)
+class TastenKonfig:
+    """``[tasten]``: Vor, Zurück, Drehregler (A/B) und Hauptknopf. Die Pins sind noch nicht bekannt, deshalb ohne Vorgabe.
+
+    ``pin_haupt`` ist optional: Der Hauptknopf kommt auf dem Pi über die Taste des PiSugar (``[strom]``).
+    """
+
+    quelle: str = "sim"
+    pin_vor: int | None = None
+    pin_zurueck: int | None = None
+    pin_dreh_a: int | None = None
+    pin_dreh_b: int | None = None
+    pin_haupt: int | None = None
+    lang_s: float = 1.5  # so lange gehalten = Hauptknopf lang
+
+    @property
+    def simulation(self) -> bool:
+        return self.quelle == "sim"
+
+
+_KOPFHOERER_SCHLUESSEL = {"quelle", "gpio_pin", "aktiv_niedrig", "intervall_s"}
+_TASTEN_SCHLUESSEL = {"quelle", "pin_vor", "pin_zurueck", "pin_dreh_a", "pin_dreh_b", "pin_haupt", "lang_s"}
+_TASTEN_PFLICHT_PINS = ("pin_vor", "pin_zurueck", "pin_dreh_a", "pin_dreh_b")
+
+
+def _kommazahl(a: dict[str, Any], name: str, schluessel: str, vorgabe: float, lo: float, hi: float) -> float:
+    wert = a.get(schluessel, vorgabe)
+    if isinstance(wert, bool) or not isinstance(wert, (int, float)) or not lo <= wert <= hi:
+        raise KonfigFehler(f"[{name}] {schluessel} muss eine Zahl von {lo:g} bis {hi:g} sein")
+    return float(wert)
+
+
+def _pin(a: dict[str, Any], name: str, schluessel: str) -> int | None:
+    if schluessel not in a:
+        return None
+    return _ganz(a, name, schluessel, 0, 0, GPIO_PIN_MAX)
+
+
+def _quelle(a: dict[str, Any], name: str) -> str:
+    quelle = _text(a, name, "quelle", "sim")
+    if quelle not in EINGANG_QUELLEN:
+        raise KonfigFehler(f"[{name}] quelle muss {' oder '.join(repr(q) for q in EINGANG_QUELLEN)} sein")
+    return quelle or "sim"
+
+
+def _pruefe_kopfhoerer(roh: dict[str, Any]) -> KopfhoererKonfig:
+    a = _abschnitt(roh, "kopfhoerer")
+    quelle = _quelle(a, "kopfhoerer")
+    pin = _pin(a, "kopfhoerer", "gpio_pin")
+    if quelle == "gpio" and pin is None:
+        raise KonfigFehler("[kopfhoerer] quelle='gpio' braucht 'gpio_pin' (BCM-Nummer des Schaltkontakts der Buchse)")
+    aktiv = a.get("aktiv_niedrig", True)
+    if not isinstance(aktiv, bool):
+        raise KonfigFehler("[kopfhoerer] aktiv_niedrig muss true oder false sein")
+    return KopfhoererKonfig(quelle, pin, aktiv, _kommazahl(a, "kopfhoerer", "intervall_s", 0.2, 0.05, 10.0))
+
+
+def _pruefe_tasten(roh: dict[str, Any]) -> TastenKonfig:
+    a = _abschnitt(roh, "tasten")
+    quelle = _quelle(a, "tasten")
+    pins = {k: _pin(a, "tasten", k) for k in (*_TASTEN_PFLICHT_PINS, "pin_haupt")}
+    if quelle == "gpio":
+        fehlt = [k for k in _TASTEN_PFLICHT_PINS if pins[k] is None]
+        if fehlt:
+            raise KonfigFehler(f"[tasten] quelle='gpio' braucht {', '.join(fehlt)} (BCM-Nummern)")
+    belegt = [p for p in pins.values() if p is not None]
+    if len(belegt) != len(set(belegt)):
+        raise KonfigFehler("[tasten] jeder Pin darf nur einmal vorkommen")
+    return TastenKonfig(quelle, **pins, lang_s=_kommazahl(a, "tasten", "lang_s", 1.5, 0.3, 10.0))  # type: ignore[arg-type]
+
+
+def _pruefe_pins_gemeinsam(k: KopfhoererKonfig, t: TastenKonfig) -> None:
+    if k.gpio_pin is not None and k.gpio_pin in (t.pin_vor, t.pin_zurueck, t.pin_dreh_a, t.pin_dreh_b, t.pin_haupt):
+        raise KonfigFehler("[kopfhoerer] gpio_pin liegt auf einem Pin von [tasten]")
+# --- Ende [kopfhoerer], [tasten] -------------------------------------------------------------------------
+
 
 @dataclass(frozen=True, slots=True)
 class BoxKonfig:
@@ -330,6 +426,8 @@ class BoxKonfig:
     mqtt: MqttKonfig | None = None  # [mqtt]; None: kein Home Assistant
     netz: NetzKonfig | None = None  # [netz]; None: keine Netz-Klasse
     strom: StromKonfig | None = None  # [strom]; None: keine Strom-Schnittstelle
+    kopfhoerer: KopfhoererKonfig = field(default_factory=KopfhoererKonfig)  # [kopfhoerer]; Vorgabe sim
+    tasten: TastenKonfig = field(default_factory=TastenKonfig)  # [tasten]; Vorgabe sim
 
     def geraete_einstellungen(self) -> ev.GeraeteEinstellungen:
         """Das erste Ereignis des Kerns (``core-interface.md``, 3.3)."""
@@ -348,6 +446,8 @@ _BEKANNT = {
     "mqtt": _MQTT_SCHLUESSEL,
     "netz": _NETZ_SCHLUESSEL,
     "strom": _STROM_SCHLUESSEL,
+    "kopfhoerer": _KOPFHOERER_SCHLUESSEL,
+    "tasten": _TASTEN_SCHLUESSEL,
 }
 
 
@@ -443,6 +543,10 @@ def pruefe(roh: dict[str, Any], basis: Path | None = None) -> BoxKonfig:
     if ebene not in EBENEN:
         raise KonfigFehler("[protokoll] ebene muss DEBUG, INFO, WARNING oder ERROR sein")
 
+    kopfhoerer = _pruefe_kopfhoerer(roh)
+    tasten = _pruefe_tasten(roh)
+    _pruefe_pins_gemeinsam(kopfhoerer, tasten)
+
     return BoxKonfig(
         pfade=Pfade(_pfad(zustand, basis), _pfad(medien, basis)),
         leser=LeserKonfig(_text(leser, "leser", "geraet", "/dev/cu.usbmodem*") or ""),
@@ -465,6 +569,8 @@ def pruefe(roh: dict[str, Any], basis: Path | None = None) -> BoxKonfig:
         mqtt=_pruefe_mqtt(roh),
         netz=_pruefe_netz(roh),
         strom=_pruefe_strom(roh),
+        kopfhoerer=kopfhoerer,
+        tasten=tasten,
     )
 
 

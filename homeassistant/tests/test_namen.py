@@ -64,6 +64,59 @@ def test_serienordner_darf_nicht_mit_unterstrich_beginnen():
     assert not name.startswith("_")
 
 
+@pytest.mark.parametrize("roh", [".", "..", " . ", " .. ", "\t.\t", ". .", "...", "._", "__", "_", "_ _", "/", "\\", "..\\..", "../.."])
+def test_serienordner_ohne_inhalt_wird_leer_statt_reserviert(roh):
+    """Befund AP 3.1 / Fix 09.11. (AP 4.7): ``.`` und ``..`` ergaben ``_ordner``, einen reservierten Ordner (beginnt mit ``_``)."""
+    name, gekuerzt = dateiname_bereinigen(roh, mit_endung=False, fuer_serienordner=True)
+    assert name == "" and gekuerzt is False  # der Aufrufer entscheidet: name_ungueltig bzw. „Unbenannt“
+
+
+def test_punkt_und_punktpunkt_als_datei_oder_folgenordner_bleiben_unterstrich():
+    for roh in (".", "..", " . "):
+        assert dateiname_bereinigen(roh) == ("_", False)
+        assert dateiname_bereinigen(roh, mit_endung=False) == ("_", False)
+
+
+@pytest.mark.parametrize(
+    "roh",
+    [
+        ".", "..", "_", "_ordner", "__x", "._x", ". _ x", "_papierkorb", "_Papierkorb", "_upload", ".hidden", "..x", "  _  x",
+        "CON", "con", "Con.", "CON .", "aux.txt", "NUL.tar.gz", "COM1", "lpt9", "COM\u00b9", "LPT\u00b2.x", "_CON", ".CON", "_.CON",
+        "a/b", "\\x", "x:", ":x", "\u202e_x", "\x00_x", "  ", "", "\u00a0_x", "\u3000.",
+    ],
+)
+def test_serienordner_beginnt_nie_mit_unterstrich_oder_punkt(roh):
+    """Egal was hineingeht: Ein Serien-Ordner ist leer oder beginnt weder mit ``_`` (reserviert) noch mit ``.`` (Dotfile)."""
+    name, _ = dateiname_bereinigen(roh, mit_endung=False, fuer_serienordner=True)
+    assert not name.startswith(("_", ".")), (roh, name)
+    assert name == name.strip() and not name.endswith(".")
+    assert "/" not in name and "\\" not in name
+
+
+@pytest.mark.parametrize(
+    ("roh", "ordner", "datei"),
+    [
+        ("CON", "CON_", "_CON"),
+        ("aux.txt", "aux_.txt", "_aux.txt"),
+        ("NUL.tar.gz", "NUL_.tar.gz", "_NUL.tar.gz"),
+        ("COM\u00b9", "COM\u00b9_", "_COM\u00b9"),
+        ("Con.", "Con_", "_Con"),
+        ("Console", "Console", "Console"),
+        ("Aux Folge", "Aux Folge", "Aux Folge"),
+    ],
+)
+def test_geraetenamen_auch_mit_weiterem_teil_nach_dem_punkt(roh, ordner, datei):
+    """Windows reserviert ``CON.irgendwas`` wie ``CON``; Serien-Ordner bekommen das ``_`` hinten, alles andere davor (Regel 4)."""
+    assert dateiname_bereinigen(roh, mit_endung=False, fuer_serienordner=True)[0] == ordner
+    assert dateiname_bereinigen(roh, mit_endung=False)[0] == datei
+
+
+def test_dateiname_mit_geraetename_und_endung_bleibt_wie_zuvor():
+    assert dateiname_bereinigen("CON.mp3")[0] == "_CON.mp3"
+    assert dateiname_bereinigen("com1.m4b")[0] == "_com1.m4b"
+    assert dateiname_bereinigen("Lpt9")[0] == "_Lpt9"
+
+
 # --- Länge: Bytes und UTF-16-Einheiten, Zeichengrenze, Endung bleibt (Regel 5) ---
 
 

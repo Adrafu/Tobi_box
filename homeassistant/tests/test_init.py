@@ -90,4 +90,5 @@ async def test_dienste_sind_angemeldet(hass, integration):
         "zuordnen", "loesen", "lernmodus_starten", "lernmodus_abbrechen", "serie_anlegen", "serie_umbenennen", "serie_loeschen",
         "folge_umbenennen", "folge_verschieben", "serien_zusammenfuehren", "eingang_einsortieren", "folgen_sortieren",
         "folge_loeschen", "papierkorb_leeren", "sync_anstossen", "update_anstossen", "liste_neu_ausrollen",
+        "leise_zeiten_setzen", "gute_nacht_setzen", "lesezeichen_tage_setzen",  # AP 4.7
     }

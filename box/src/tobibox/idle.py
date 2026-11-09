@@ -5,8 +5,11 @@ Reine Funktionen: kein Zugriff auf Dateien, Netz, Uhr oder Zufall. Zustände ``a
 
 **Was „Leerlauf“ heißt.** Der Vertrag (Tabelle „Strom / Leerlauf“) kennt nur: *keine Wiedergabe und kein Tobie*.
 Das steht hier als ``belegt``: Die Sitzung spielt, ein Tobie liegt (auch eine Aktionskarte) oder die Sitzung ist im
-Zustand ``unbekannt`` (Leser-Unterbrechung, der Tobie kann noch da sein). *Bedienung* (Tasten, Drehregler, HA-Befehle)
-setzt den Zähler **nicht** zurück; der Vertrag nennt sie nicht.
+Zustand ``unbekannt`` (Leser-Unterbrechung, der Tobie kann noch da sein).
+
+**Bedienung setzt den Zähler zurück** (Entscheidung der Projektleitung, AP 4.8): Hauptknopf (kurz), ``Weiter``, ``Zurueck``,
+``LautstaerkeDrehen`` und ``Kopfhoerer``. Wer an der Box spielt, will nicht, dass sie ausgeht. HA-Befehle (Sync, Update) setzen
+den Zähler nicht zurück.
 
 **Abschaltung nach ``LEERLAUF_S``.** Läuft der Zähler ab, ist die Abschaltung ``faellig``. Sie wartet, solange
 
@@ -26,6 +29,12 @@ Lernmodus. Beim Tiefstand wird ein laufender oder offener Sync abgebrochen.
 **Start am Lader.** Sobald ``Bereit`` da ist und der Lader bekannt ist (``LaderGeaendert`` kann vor oder nach
 ``Bereit`` kommen), gibt ``idle`` einmal ``SyncStarten("start_lader")`` aus, wenn die Box am Lader hängt.
 
+**Wiederholung am Lader** (Entscheidung der Projektleitung, AP 4.8). Bricht dieser Start-Sync mit ``netz_weg`` oder ``regel`` ab
+(Heim-WLAN noch nicht da, Regel verbietet den Sync), versucht ``idle`` es erneut, solange die Box am Lader hängt: alle
+``START_WIEDERHOLUNG_S`` (10 min), höchstens ``START_WIEDERHOLUNGEN`` (6) Mal. Während dieser Wartezeit schaltet die Box nicht ab
+(wie bei einem laufenden Sync). Danach, oder wenn der Sync gelingt, aus anderem Grund abbricht oder der Lader fehlt, gilt wieder
+die 20-min-Regel: Ist der Zähler schon abgelaufen, fährt die Box sofort herunter.
+
 **HA-Befehle ``HaSyncAnstossen`` / ``HaUpdateAnstossen``** prüft ``idle`` (Ablaufzeit, Uhr, beim Update die
 Bedingungen) und reicht sie als ``SyncStarten("ha")`` / ``UpdateStarten`` weiter (Punkt 9.9).
 """
@@ -41,6 +50,10 @@ from .events import Jetzt
 LEERLAUF_S = 1200.0
 #: So lange hält ein ausgegebenes ``SyncStarten`` ohne Antwort die Abschaltung höchstens auf.
 SYNC_ANTWORT_FRIST_S = 60.0
+#: Start am Lader: nach ``netz_weg`` oder ``regel`` alle 10 min noch einmal versuchen, höchstens 6-mal.
+START_WIEDERHOLUNG_S = 600.0
+START_WIEDERHOLUNGEN = 6
+_WIEDERHOLEN_BEI = ("netz_weg", "regel")
 
 Ausgabe = tuple[ev.Befehl | ev.InternesEreignis, ...]
 
@@ -64,6 +77,10 @@ class Zustand:
     klasse: str | None = None
     bereit: bool = False
     start_geprueft: bool = False
+    # Wiederholung des Start-Syncs am Lader
+    start_wdh: bool = False  # der Start-Sync ist noch nicht gelungen und wird ggf. wiederholt
+    wdh_n: int = 0  # bisher gemachte Wiederholungen
+    wdh_bei: float | None = None  # mono; nächster Versuch
 
 
 def neuer_zustand() -> Zustand:
@@ -84,8 +101,8 @@ def sync_offen(z: Zustand) -> bool:
 
 
 def blockiert(z: Zustand) -> bool:
-    """Wartet die Abschaltung auf etwas? Lernmodus, Sync, Update oder ein offener Sync."""
-    return z.lernt or z.sync_laeuft or z.update_laeuft or sync_offen(z)
+    """Wartet die Abschaltung auf etwas? Lernmodus, Sync, Update, ein offener Sync oder die Wiederholung des Start-Syncs."""
+    return z.lernt or z.sync_laeuft or z.update_laeuft or sync_offen(z) or z.wdh_bei is not None
 
 
 def _prot(ebene: str, ereignis: str, ergebnis: str, **daten: str | int | float | bool | None) -> ev.Protokoll:
@@ -144,10 +161,22 @@ def _start_pruefung(z: Zustand, jetzt: Jetzt) -> tuple[Zustand, Ausgabe]:
     z = replace(z, start_geprueft=True)
     if z.am_lader is not True:
         return z, ()
-    return replace(z, sync_offen_bis=jetzt.mono + SYNC_ANTWORT_FRIST_S), (
+    return replace(z, sync_offen_bis=jetzt.mono + SYNC_ANTWORT_FRIST_S, start_wdh=True), (
         ev.SyncStarten("start_lader"),
         _prot("INFO", "start_sync", "angefordert", grund="start_lader"),
     )
+
+
+def _wdh_ende(z: Zustand) -> Zustand:
+    """Keine weitere Wiederholung (gelungen, anderer Abbruchgrund, Lader weg, aufgebraucht)."""
+    return replace(z, start_wdh=False, wdh_bei=None)
+
+
+def _bedient(z: Zustand, jetzt: Jetzt) -> Zustand:
+    """Bedienung (Taste, Drehregler, Kopfhörer): der Zähler beginnt neu."""
+    if z.modus == "leerlauf":
+        return replace(z, faellig=False, frist_bis=jetzt.mono + LEERLAUF_S)
+    return z
 
 
 def _auswerten(z: Zustand, jetzt: Jetzt) -> tuple[Zustand, Ausgabe]:
@@ -159,6 +188,16 @@ def _auswerten(z: Zustand, jetzt: Jetzt) -> tuple[Zustand, Ausgabe]:
     if z.sync_offen_bis is not None and jetzt.mono >= z.sync_offen_bis:
         z = replace(z, sync_offen_bis=None)
         out.append(_prot("WARNING", "sync_antwort", "fehlt"))
+
+    if z.wdh_bei is not None and jetzt.mono >= z.wdh_bei:
+        if z.am_lader is not True:
+            z = _wdh_ende(z)
+        elif not z.sync_laeuft and not sync_offen(z):
+            z = replace(z, wdh_bei=None, wdh_n=z.wdh_n + 1, sync_offen_bis=jetzt.mono + SYNC_ANTWORT_FRIST_S)
+            out += [
+                ev.SyncStarten("start_lader"),
+                _prot("INFO", "start_sync", "wiederholt", grund="start_lader", versuch=z.wdh_n),
+            ]
 
     if z.modus == "aktiv" and not belegt(z):
         z = replace(z, modus="leerlauf", frist_bis=jetzt.mono + LEERLAUF_S, faellig=False)
@@ -194,7 +233,10 @@ def _verarbeite(z: Zustand, e: ev.Ereignis | ev.InternesEreignis, jetzt: Jetzt) 
     if isinstance(e, ev.Hauptknopf):
         if e.art == "lang":
             return _herunterfahren(z, "hauptknopf")
-        return z, ()
+        return _bedient(z, jetzt), ()
+
+    if isinstance(e, (ev.Weiter, ev.Zurueck, ev.LautstaerkeDrehen, ev.Kopfhoerer)):
+        return _bedient(z, jetzt), ()
 
     if isinstance(e, ev.AkkuTiefstand):
         if z.am_lader is True:
@@ -202,11 +244,13 @@ def _verarbeite(z: Zustand, e: ev.Ereignis | ev.InternesEreignis, jetzt: Jetzt) 
         abbrechen: tuple[ev.Befehl, ...] = ()
         if z.sync_laeuft or sync_offen(z):
             abbrechen = (ev.SyncAbbrechen("akku_tiefstand"),)
-        z = replace(z, sync_laeuft=False, sync_offen_bis=None)
+        z = _wdh_ende(replace(z, sync_laeuft=False, sync_offen_bis=None))
         return _herunterfahren(z, "akku_tiefstand", *abbrechen)
 
     if isinstance(e, ev.LaderGeaendert):
         z = replace(z, am_lader=e.am_lader)
+        if not e.am_lader:
+            z = _wdh_ende(z)
         return _start_pruefung(z, jetzt)
 
     if isinstance(e, ev.Bereit):
@@ -217,8 +261,19 @@ def _verarbeite(z: Zustand, e: ev.Ereignis | ev.InternesEreignis, jetzt: Jetzt) 
 
     if isinstance(e, ev.SyncGestartet):
         return replace(z, sync_laeuft=True, sync_offen_bis=None), ()
-    if isinstance(e, (ev.SyncFertig, ev.SyncAbgebrochen)):
-        return replace(z, sync_laeuft=False, sync_offen_bis=None), ()
+    if isinstance(e, ev.SyncFertig):
+        return _wdh_ende(replace(z, sync_laeuft=False, sync_offen_bis=None)), ()
+    if isinstance(e, ev.SyncAbgebrochen):
+        z = replace(z, sync_laeuft=False, sync_offen_bis=None)
+        if not z.start_wdh:
+            return z, ()
+        if e.grund not in _WIEDERHOLEN_BEI or z.am_lader is not True or z.wdh_n >= START_WIEDERHOLUNGEN:
+            return _wdh_ende(z), ()
+        if z.wdh_bei is not None:
+            return z, ()  # ein anderer Sync ist abgebrochen, der nächste Versuch steht schon
+        return replace(z, wdh_bei=jetzt.mono + START_WIEDERHOLUNG_S), (
+            _prot("INFO", "start_sync", "wiederholung_geplant", grund=e.grund, versuch=z.wdh_n + 1, in_s=START_WIEDERHOLUNG_S),
+        )
     if isinstance(e, ev.UpdateGestartet):
         return replace(z, update_laeuft=True), ()
     if isinstance(e, ev.SelbsttestErgebnis):

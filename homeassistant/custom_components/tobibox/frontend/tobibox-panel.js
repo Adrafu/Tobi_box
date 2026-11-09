@@ -6,6 +6,10 @@
  * Die Seite wertet nur `code` aus; `message` dient bei unbekanntem Code als Text.
  * Namen werden nur als Text dargestellt (Lit maskiert selbst; es gibt kein rohes HTML).
  *
+ * Seit AP 4.7 (09.11.): Bereich „Einstellungen“ (Leise-Zeiten, Gute Nacht, Lesezeichen-Ablauf) und die
+ * Erweiterungen v1.1 (Eingangseintrag entfernen, Filter `uid`, `konfig/get`, Details im Ereignis „Upload fertig“).
+ * Neue Befehle und Felder nutzt die Seite nur, wenn `hello.faehigkeiten` sie zusagt.
+ *
  * Aufbau: TobiboxStore hält Zustand und Logik (ohne DOM, einzeln testbar),
  * <tobibox-panel> ist nur die Darstellung. Lit kommt aus ./lit-all.min.js (fest eingecheckt).
  */
@@ -52,15 +56,114 @@ export const FEHLERTEXTE = {
   zu_viele_uploads: 'Es laufen schon zwei Uploads. Bitte kurz warten.',
   datei_zu_gross: 'Die Datei ist zu groß.',
   format_nicht_erlaubt: 'Dieses Dateiformat spielt die Box nicht.',
+  einstellung_ungueltig: 'Diese Einstellung ist ungültig. Es wurde nichts geändert.',
+  sortierung_laeuft: 'Das Einsortieren läuft gerade. Bitte gleich noch einmal versuchen.',
 };
 
 const HTTP_CODE = { 401: 'unauthorized', 403: 'unauthorized', 413: 'datei_zu_gross', 415: 'format_nicht_erlaubt',
   429: 'zu_viele_uploads', 507: 'kein_speicher', 503: 'medien_nicht_erreichbar' };
 
+/* Stelle in einer Meldung `einstellung_ungueltig` („…ungültig: fenster[0].von. Es wurde nichts geändert.“) in Worten. */
+const FELD_NAMEN = { id: 'Name', tage: 'Wochentage', von: 'von', bis: 'bis', wirkung: 'Wirkung', grenze: 'Grenze' };
+export function stelleText(pfad) {
+  const f = /^fenster\[(\d+)\](?:\.(\w+))?/.exec(pfad || '');
+  if (f) return `Fenster ${Number(f[1]) + 1}${f[2] ? `, ${FELD_NAMEN[f[2]] || f[2]}` : ''}`;
+  if (/^leise_zeiten\.zeitzone/.test(pfad || '')) return 'Zeitzone';
+  if (/^leise_zeiten/.test(pfad || '')) return 'Leise-Zeiten';
+  if (/^gute_nacht\.timer_min/.test(pfad || '')) return 'Timer';
+  if (/^gute_nacht\.ausblenden_s/.test(pfad || '')) return 'Ausblenden';
+  if (/^gute_nacht/.test(pfad || '')) return 'Gute Nacht';
+  if (/^lesezeichen_tage/.test(pfad || '')) return 'Lesezeichen-Ablauf';
+  return '';
+}
+
 export function fehlerText(code, message) {
+  if (code === 'einstellung_ungueltig') {
+    const stelle = stelleText(/ungültig: (.+?)\. Es wurde/.exec(message || '')?.[1]);
+    return stelle ? `${FEHLERTEXTE[code]} Stelle: ${stelle}.` : FEHLERTEXTE[code];
+  }
   if (code && FEHLERTEXTE[code]) return FEHLERTEXTE[code];
   return message || FEHLERTEXTE.unknown_error;
 }
+
+/* ------------------------------------------------------------------ Einstellungen (AP 4.7) */
+
+/* Dieselben Regeln und Grenzen wie auf der Box (store.py, parse_konfig) und in HA (store.py, pruefe_*).
+ * Das Backend prüft noch einmal und bleibt maßgeblich; die Seite spart nur den Weg und zeigt es in Worten. */
+export const EINSTELLUNG_GRENZEN = {
+  fensterMax: 32, grenze: [0, 100], timerMin: [1, 240], ausblendenS: [5, 600], lesezeichenTage: [0, 365],
+};
+export const LESEZEICHEN_VORGABE = 14;
+export const WOCHENTAGE = [[1, 'Mo', 'Montag'], [2, 'Di', 'Dienstag'], [3, 'Mi', 'Mittwoch'], [4, 'Do', 'Donnerstag'], [5, 'Fr', 'Freitag'], [6, 'Sa', 'Samstag'], [7, 'So', 'Sonntag']];
+const ZEIT_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+const FENSTER_ID_RE = /^[a-z0-9_-]{1,32}$/;
+const ganz = (x) => typeof x === 'number' && Number.isInteger(x);
+const imBereich = (x, [lo, hi]) => ganz(x) && x >= lo && x <= hi;
+
+/* Eine Zahl aus einem Eingabefeld: Zahl bleibt Zahl, „45“ wird 45, alles andere bleibt Text und fällt in der Prüfung durch. */
+export function zuZahl(v) {
+  if (typeof v === 'number') return v;
+  if (typeof v === 'string' && /^\s*-?\d+\s*$/.test(v)) return parseInt(v, 10);
+  return v;
+}
+
+export function zeitzoneBekannt(zone) {
+  if (typeof zone !== 'string' || !zone) return false;
+  try { new Intl.DateTimeFormat('de-DE', { timeZone: zone }); return true; } catch { return false; }
+}
+
+/* Gibt den Text des ersten Fehlers zurück, sonst null. */
+export function pruefeLeiseZeiten(lz) {
+  if (!lz || typeof lz !== 'object') return 'Die Leise-Zeiten fehlen.';
+  if (!zeitzoneBekannt(lz.zeitzone)) return 'Die Zeitzone ist unbekannt. Ein Beispiel: Europe/Berlin.';
+  if (!Array.isArray(lz.fenster)) return 'Die Fenster fehlen.';
+  if (lz.fenster.length > EINSTELLUNG_GRENZEN.fensterMax) return `Es sind höchstens ${EINSTELLUNG_GRENZEN.fensterMax} Fenster möglich.`;
+  const ids = new Set();
+  for (const [i, f] of lz.fenster.entries()) {
+    const w = `Fenster ${i + 1}`;
+    if (!f || typeof f !== 'object') return `${w}: ungültig.`;
+    if (typeof f.id !== 'string' || !FENSTER_ID_RE.test(f.id) || ids.has(f.id)) return `${w}: Der Name ist ungültig oder doppelt.`;
+    ids.add(f.id);
+    if (!Array.isArray(f.tage) || !f.tage.length || !f.tage.every((t) => imBereich(t, [1, 7])) || new Set(f.tage).size !== f.tage.length) {
+      return `${w}: Bitte mindestens einen Wochentag wählen.`;
+    }
+    if (typeof f.von !== 'string' || !ZEIT_RE.test(f.von)) return `${w}: „von“ ist keine Uhrzeit (hh:mm).`;
+    if (typeof f.bis !== 'string' || !ZEIT_RE.test(f.bis)) return `${w}: „bis“ ist keine Uhrzeit (hh:mm).`;
+    if (f.von === f.bis) return `${w}: „von“ und „bis“ dürfen nicht gleich sein.`;
+    if (f.wirkung === 'leiser') {
+      if (!imBereich(f.grenze, EINSTELLUNG_GRENZEN.grenze)) return `${w}: Die Grenze muss eine ganze Zahl von 0 bis 100 sein.`;
+    } else if (f.wirkung !== 'stumm') return `${w}: Bitte „leiser“ oder „stumm“ wählen.`;
+  }
+  return null;
+}
+export function pruefeGuteNacht(gn) {
+  if (!gn || typeof gn !== 'object') return 'Die Gute-Nacht-Einstellungen fehlen.';
+  if (!imBereich(gn.timer_min, EINSTELLUNG_GRENZEN.timerMin)) return 'Der Timer muss eine ganze Zahl von 1 bis 240 Minuten sein.';
+  if (!imBereich(gn.ausblenden_s, EINSTELLUNG_GRENZEN.ausblendenS)) return 'Das Ausblenden muss eine ganze Zahl von 5 bis 600 Sekunden sein.';
+  return null;
+}
+export function pruefeLesezeichenTage(t) {
+  return imBereich(t, EINSTELLUNG_GRENZEN.lesezeichenTage) ? null : 'Die Tage müssen eine ganze Zahl von 0 bis 365 sein (0 = nie).';
+}
+
+/* Was die Seite sendet: nur bekannte Felder, ganze Zahlen, bei „stumm“ ohne Grenze. */
+export function leiseZeitenFuerBackend(lz) {
+  return {
+    zeitzone: typeof lz.zeitzone === 'string' ? lz.zeitzone.trim() : lz.zeitzone,
+    fenster: (lz.fenster || []).map((f) => {
+      const o = { id: f.id, tage: [...(f.tage || [])].sort((a, b) => a - b), von: f.von, bis: f.bis, wirkung: f.wirkung };
+      if (f.wirkung === 'leiser') o.grenze = zuZahl(f.grenze);
+      return o;
+    }),
+  };
+}
+export const ueberMitternacht = (f) => typeof f.von === 'string' && typeof f.bis === 'string' && f.bis < f.von;
+export function neueFensterId(fenster) {
+  const belegt = new Set(fenster.map((f) => f.id));
+  for (let n = 1; n < 1000; n++) if (!belegt.has(`fenster-${n}`)) return `fenster-${n}`;
+  return `fenster-${Date.now().toString(36)}`;
+}
+const klon = (x) => JSON.parse(JSON.stringify(x));
 
 const HINWEIS_TEXTE = {
   datei_fehlt: 'Datei fehlt', kopierschutz: 'Kopierschutz', nicht_lesbar: 'Nicht lesbar',
@@ -138,6 +241,8 @@ export class TobiboxStore {
       neueTobies: { eintraege: [], gesamt: 0 }, zuordnungen: { liste: [], gesamt: 0 },
       boxen: [], lern: {}, uploads: [], abweichung: null, exportFehler: null,
       exportInfo: null, fehler: null, hinweis: null, busy: 0,
+      einstellungen: { geladen: false, leise_zeiten: null, gute_nacht: null, lesezeichen_tage: null },
+      entwurf: { leise: null, gute: null, lesezeichen: null },
     };
   }
 
@@ -169,6 +274,7 @@ export class TobiboxStore {
     this.s.fehler = { code, text: fehlerText(code, message), ts: Date.now() };
     this._changed();
   }
+  setFehlerText(code, text) { this.s.fehler = { code, text, ts: Date.now() }; this._changed(); }
   clearFehler() { this.s.fehler = null; this._changed(); }
   setHinweis(text) { this.s.hinweis = text ? { text, ts: Date.now() } : null; this._changed(); }
 
@@ -185,7 +291,7 @@ export class TobiboxStore {
     try {
       if (code === 'stand_veraltet') { await this.ladeSerien(); if (this.s.serieId) await this.ladeSerie(this.s.serieId); }
       else if (code === 'zuordnung_geaendert' || code === 'zuordnung_existiert') { await this.ladeZuordnungen(); await this.ladeNeueTobies(); }
-      else if (code === 'konfig_nicht_bereit') { await this.hello(); }
+      else if (code === 'konfig_nicht_bereit') { await this.ladeKonfig(); }
       else if (code === 'serie_nicht_gefunden' || code === 'folge_nicht_gefunden') { await this.ladeSerien(); }
       else if (code === 'eintrag_nicht_gefunden') { await this.ladePapierkorb(); await this.ladeEingang(); }
     } catch { /* schon angezeigt */ }
@@ -252,6 +358,7 @@ export class TobiboxStore {
     const f = [this.ladeSerien(), this.ladeBoxen(), this.ladeNeueTobies(), this.ladeZuordnungen()];
     if (this.has('eingang')) f.push(this.ladeEingang());
     if (this.has('papierkorb')) f.push(this.ladePapierkorb());
+    if (this.has('einstellungen')) f.push(this.ladeEinstellungen());
     const r = await Promise.allSettled(f);
     const bad = r.find((x) => x.status === 'rejected');
     if (bad) this.setFehler(bad.reason.code, bad.reason.apiMessage);
@@ -281,6 +388,35 @@ export class TobiboxStore {
     const r = await this._api('tobibox/zuordnung/list', { limit: 100, offset });
     this.s.zuordnungen = { liste: offset ? [...this.s.zuordnungen.liste, ...r.zuordnungen] : r.zuordnungen, gesamt: r.gesamt };
     if (r.konfig) this.s.konfig = { ...this.s.konfig, ...r.konfig };
+    this._changed();
+  }
+  /* Nur der Konfig-Stand (Erweiterung v1.1: konfig/get); ältere Backends: hello. */
+  async ladeKonfig() {
+    if (!this.has('konfig_lesen')) { await this.hello(); return; }
+    const r = await this._api('tobibox/konfig/get');
+    this.s.konfig = r.konfig; this._changed();
+  }
+  /* Eine Zuordnung neu lesen (Erweiterung v1.1: zuordnung/list mit uid); ältere Backends: die ganze Liste. */
+  async ladeZuordnung(uid) {
+    if (!this.has('zuordnung_uid')) { await this.ladeZuordnungen(); return; }
+    const r = await this._api('tobibox/zuordnung/list', { uid, limit: 1 });
+    const alt = this.s.zuordnungen.liste.some((z) => z.uid === uid);
+    const rest = this.s.zuordnungen.liste.filter((z) => z.uid !== uid);
+    const neu = r.zuordnungen[0];
+    const liste = neu ? [...rest, neu].sort((a, b) => (a.uid < b.uid ? -1 : (a.uid > b.uid ? 1 : 0))) : rest;
+    this.s.zuordnungen = { liste, gesamt: Math.max(liste.length, this.s.zuordnungen.gesamt + (neu ? 1 : 0) - (alt ? 1 : 0)) };
+    if (r.konfig) this.s.konfig = { ...this.s.konfig, ...r.konfig };
+    this._changed();
+  }
+  async ladeEinstellungen() {
+    const r = await this._api('tobibox/einstellungen/get');
+    this.s.einstellungen = { geladen: true, leise_zeiten: r.leise_zeiten, gute_nacht: r.gute_nacht, lesezeichen_tage: r.lesezeichen_tage };
+    if (r.konfig) this.s.konfig = { ...this.s.konfig, ...r.konfig };
+    /* ein Entwurf, der dem gespeicherten Stand entspricht, ist keiner mehr */
+    const e = this.s.entwurf;
+    if (e.leise && JSON.stringify(e.leise) === JSON.stringify(r.leise_zeiten)) e.leise = null;
+    if (e.gute && JSON.stringify(e.gute) === JSON.stringify(r.gute_nacht)) e.gute = null;
+    if (e.lesezeichen != null && e.lesezeichen === r.lesezeichen_tage) e.lesezeichen = null;
     this._changed();
   }
   async ladeEingang(filter = this.s.eingang.filter, offset = 0) {
@@ -313,7 +449,11 @@ export class TobiboxStore {
   }
 
   /* -- Navigation */
-  zeige(view) { this.s.view = view; this.s.serieId = view === 'serie' ? this.s.serieId : null; if (view !== 'serie') this.s.serie = null; this._changed(); }
+  zeige(view) {
+    this.s.view = view; this.s.serieId = view === 'serie' ? this.s.serieId : null; if (view !== 'serie') this.s.serie = null; this._changed();
+    if (view === 'einstellungen' && this.has('einstellungen')) return this._tu(() => this.ladeEinstellungen());
+    return undefined;
+  }
   oeffneSerie(id) {
     this.s.view = 'serie'; this.s.serieId = id; this.s.serie = null; this._changed();
     return this._tu(() => this.ladeSerie(id));
@@ -498,11 +638,33 @@ export class TobiboxStore {
   }
 
   /* -- Papierkorb */
-  papierkorbWiederherstellen(eintrag) {
+  /* Eine Folge kommt in ihre alte Serie zurück. Gibt es die nicht mehr, wählt Tobias eine andere Serie
+   * (`serie_id` bei papierkorb/restore, Vertrag W Nr. 11). `andere` fragt immer nach der Serie. */
+  async papierkorbWiederherstellen(eintrag, { andere = false } = {}) {
+    const serieFehlt = eintrag.typ === 'folge' && !!eintrag.serie_id && this.s.serien.length > 0 && !this.s.serien.some((x) => x.id === eintrag.serie_id);
+    let serieId = null;
+    if (eintrag.typ === 'folge' && (andere || serieFehlt)) {
+      serieId = await this._andereSerieWaehlen(eintrag);
+      if (!serieId) return false;
+    }
     return this._tu(async () => {
-      await this._api('tobibox/papierkorb/restore', { eintrag_id: eintrag.id });
+      const p = { eintrag_id: eintrag.id };
+      if (serieId) p.serie_id = serieId;
+      try {
+        await this._api('tobibox/papierkorb/restore', p);
+      } catch (e) {
+        /* Die alte Serie gibt es nicht mehr: nach einer anderen fragen und noch einmal senden */
+        if (e.code !== 'serie_nicht_gefunden' || eintrag.typ !== 'folge' || serieId) throw e;
+        await this._optional(this.ladeSerien());
+        const neu = await this._andereSerieWaehlen(eintrag);
+        if (!neu) return;
+        await this._api('tobibox/papierkorb/restore', { eintrag_id: eintrag.id, serie_id: neu });
+      }
       await this.ladePapierkorb(); await this.ladeSerien();
     });
+  }
+  _andereSerieWaehlen(eintrag) {
+    return this.ui.waehleSerie({ titel: `„${eintrag.anzeige || eintrag.folge}“ zurückholen in …`, nurNormal: true });
   }
   async papierkorbLeeren() {
     const n = this.s.papierkorb.gesamt;
@@ -524,6 +686,21 @@ export class TobiboxStore {
     return this._tu(async () => {
       const p = sofort ? { sofort: true } : {};
       await this._api('tobibox/eingang/sortieren', p);
+    });
+  }
+
+  /* Erweiterung v1.1 (eingang/entfernen): Blockiertes oder Defektes in den Papierkorb, mit Rückfrage. */
+  async eingangEntfernen(eintrag) {
+    if (!this.has('eingang_entfernen')) return false;
+    const ja = await this.ui.confirm({
+      titel: 'Aus dem Eingang entfernen?',
+      text: `„${eintrag.name}“ kommt in den Papierkorb und lässt sich dort wiederherstellen.`,
+      ja: 'In den Papierkorb', gefahr: true,
+    });
+    if (!ja) return false;
+    return this._tu(async () => {
+      await this._api('tobibox/eingang/entfernen', { eintrag_id: eintrag.id, bestaetigt: true });
+      await this.ladeEingang(); await this._optional(this.ladePapierkorb());
     });
   }
 
@@ -550,7 +727,7 @@ export class TobiboxStore {
       const r = await this._api('tobibox/zuordnung/set', p);
       if (r.konfig) this.s.konfig = { ...this.s.konfig, ...r.konfig };
       if (r.veroeffentlicht === false) this.setHinweis('Gespeichert. Die Boxen bekommen die Liste, sobald der Broker wieder erreichbar ist.');
-      await this.ladeZuordnungen(); await this.ladeNeueTobies();
+      await this.ladeZuordnung(uid); await this.ladeNeueTobies();
     });
   }
   async tobieUmbenennen(z) {
@@ -559,7 +736,7 @@ export class TobiboxStore {
     if (name == null) return false;
     return this._tu(async () => {
       await this._api('tobibox/zuordnung/set', { uid: z.uid, ziel: z.ziel, name: name === '' ? null : name, erwartet_ziel: z.ziel });
-      await this.ladeZuordnungen();
+      await this.ladeZuordnung(z.uid);
     });
   }
   async zuordnungLoesen(z) {
@@ -568,7 +745,7 @@ export class TobiboxStore {
     if (!ja) return false;
     return this._tu(async () => {
       await this._api('tobibox/zuordnung/remove', { uid: z.uid, erwartet_ziel: z.ziel });
-      await this.ladeZuordnungen();
+      await this.ladeZuordnung(z.uid);
     });
   }
   async kennungVonHand() {
@@ -651,6 +828,104 @@ export class TobiboxStore {
       this.setHinweis(`${plural(r.uebernommen?.zuordnungen ?? 0, 'Zuordnung', 'Zuordnungen')} aus dem Export übernommen.`);
       await this.ladeZuordnungen(); await this._optional(this.ladeBoxen());
     });
+  }
+
+  /* -- Einstellungen (AP 4.7): Leise-Zeiten, Gute Nacht, Lesezeichen-Ablauf.
+   * Ein Entwurf (s.entwurf.*) hält, was Tobias gerade eingibt; gespeichert wird je Bereich mit einstellungen/set. */
+  get einstellungenGeaendert() {
+    const e = this.s.entwurf;
+    return { leise: !!e.leise, gute: !!e.gute, lesezeichen: e.lesezeichen != null };
+  }
+  /* Die Werte, die die Oberfläche zeigt: der Entwurf, sonst der gespeicherte Stand. */
+  get leiseAnzeige() { return this.s.entwurf.leise || this.s.einstellungen.leise_zeiten; }
+  get guteAnzeige() { return this.s.entwurf.gute || this.s.einstellungen.gute_nacht; }
+  get lesezeichenAnzeige() { return this.s.entwurf.lesezeichen ?? this.s.einstellungen.lesezeichen_tage; }
+
+  _leiseEntwurf(fn) {
+    const d = this.s.entwurf.leise ? this.s.entwurf.leise : klon(this.s.einstellungen.leise_zeiten);
+    if (!d) return false;
+    fn(d);
+    this.s.entwurf.leise = d; this._changed();
+    return true;
+  }
+  zeitzoneSetzen(zone) { return this._leiseEntwurf((d) => { d.zeitzone = zone; }); }
+  fensterNeu() {
+    return this._leiseEntwurf((d) => {
+      if (d.fenster.length >= EINSTELLUNG_GRENZEN.fensterMax) { this.setHinweis(`Es sind höchstens ${EINSTELLUNG_GRENZEN.fensterMax} Fenster möglich.`); return; }
+      d.fenster.push({ id: neueFensterId(d.fenster), tage: [1, 2, 3, 4, 5, 6, 7], von: '21:00', bis: '06:30', wirkung: 'stumm' });
+    });
+  }
+  fensterAendern(i, patch) {
+    return this._leiseEntwurf((d) => {
+      const f = d.fenster[i]; if (!f) return;
+      Object.assign(f, patch);
+      if (f.wirkung === 'stumm') delete f.grenze;
+      else if (f.wirkung === 'leiser' && f.grenze == null) f.grenze = 25;
+    });
+  }
+  fensterLoeschen(i) { return this._leiseEntwurf((d) => { d.fenster.splice(i, 1); }); }
+  tagUmschalten(i, tag) {
+    return this._leiseEntwurf((d) => {
+      const f = d.fenster[i]; if (!f) return;
+      f.tage = f.tage.includes(tag) ? f.tage.filter((t) => t !== tag) : [...f.tage, tag].sort((a, b) => a - b);
+    });
+  }
+  tageSetzen(i, tage) { return this._leiseEntwurf((d) => { if (d.fenster[i]) d.fenster[i].tage = [...tage]; }); }
+  guteNachtSetzen(feld, wert) {
+    const d = this.s.entwurf.gute ? this.s.entwurf.gute : klon(this.s.einstellungen.gute_nacht);
+    if (!d) return false;
+    d[feld] = wert; this.s.entwurf.gute = d; this._changed();
+    return true;
+  }
+  lesezeichenSetzen(wert) { this.s.entwurf.lesezeichen = wert; this._changed(); }
+  entwurfVerwerfen(was) {
+    if (was === 'leise') this.s.entwurf.leise = null;
+    if (was === 'gute') this.s.entwurf.gute = null;
+    if (was === 'lesezeichen') this.s.entwurf.lesezeichen = null;
+    this._changed();
+  }
+
+  /* Prüft in der Seite (gleiche Regeln wie Box und HA), sendet erst dann. Gibt true bei Erfolg. */
+  async _einstellungSpeichern(was, payload, fehlerText_) {
+    if (!this.has('einstellungen')) return false;
+    if (!this._konfigOk()) return false;
+    if (fehlerText_) { this.setFehlerText('einstellung_ungueltig', fehlerText_); return false; }
+    return this._tu(async () => {
+      const r = await this._api('tobibox/einstellungen/set', payload);
+      this._einstellungUebernehmen(r, was);
+    });
+  }
+  _einstellungUebernehmen(r, was) {
+    const e = this.s.einstellungen;
+    this.s.einstellungen = {
+      geladen: true,
+      leise_zeiten: r.leise_zeiten ?? e.leise_zeiten, gute_nacht: r.gute_nacht ?? e.gute_nacht, lesezeichen_tage: r.lesezeichen_tage ?? e.lesezeichen_tage,
+    };
+    if (was === 'leise') this.s.entwurf.leise = null;
+    if (was === 'gute') this.s.entwurf.gute = null;
+    if (was === 'lesezeichen') this.s.entwurf.lesezeichen = null;
+    if (r.konfig) this.s.konfig = { ...this.s.konfig, ...r.konfig };
+    if (r.veroeffentlicht === false) this.setHinweis('Gespeichert. Die Boxen bekommen die Einstellung, sobald der Broker wieder erreichbar ist.');
+    else if (r.geaendert === false) this.setHinweis('Das war schon so eingestellt.');
+    else this.setHinweis('Gespeichert. Die Boxen übernehmen die Einstellung, sobald sie verbunden sind.');
+    this._changed();
+  }
+  leiseSpeichern() {
+    const d = this.s.entwurf.leise;
+    if (!d) return Promise.resolve(true);
+    const lz = leiseZeitenFuerBackend(d);
+    return this._einstellungSpeichern('leise', { leise_zeiten: lz }, pruefeLeiseZeiten(lz));
+  }
+  guteNachtSpeichern() {
+    const d = this.s.entwurf.gute;
+    if (!d) return Promise.resolve(true);
+    const gn = { timer_min: zuZahl(d.timer_min), ausblenden_s: zuZahl(d.ausblenden_s) };
+    return this._einstellungSpeichern('gute', { gute_nacht: gn }, pruefeGuteNacht(gn));
+  }
+  lesezeichenSpeichern() {
+    if (this.s.entwurf.lesezeichen == null) return Promise.resolve(true);
+    const t = zuZahl(this.s.entwurf.lesezeichen);
+    return this._einstellungSpeichern('lesezeichen', { lesezeichen_tage: t }, pruefeLesezeichenTage(t));
   }
 
   /* -- Hochladen */
@@ -769,7 +1044,10 @@ export class TobiboxStore {
       case 'konfig':
         if (art === 'snapshot' || art === 'geaendert') {
           this.s.konfig = d.konfig;
-          if (art === 'geaendert') bg(this._einmal('zuo', () => this.ladeZuordnungen()));
+          if (art === 'geaendert') {
+            bg(this._einmal('zuo', () => this.ladeZuordnungen()));
+            if (this.has('einstellungen')) bg(this._einmal('einst', () => this.ladeEinstellungen()));
+          }
         } else if (art === 'abweichung') this.s.abweichung = d;
         else if (art === 'export_fehler') { this.s.exportFehler = d; if (this.s.konfig) this.s.konfig = { ...this.s.konfig, export_ok: false }; }
         else if (art === 'export_ok') { this.s.exportFehler = null; if (this.s.konfig) this.s.konfig = { ...this.s.konfig, export_ok: true, export_geschrieben_am: d.export_geschrieben_am }; }
@@ -779,6 +1057,12 @@ export class TobiboxStore {
           const u = this.s.uploads.find((x) => x.id === d.upload_id);
           if (u) {
             if (d.zustand === 'pruefe' && u.zustand !== 'fertig') u.zustand = 'pruefe';
+            /* Erweiterung v1.1: „fertig“ trägt Dateiname im Eingang und Ergebnis der Prüfung. Das rettet einen Upload,
+             * dessen Verbindung abbrach (Zustand „unklar“), bevor die Antwort kam. */
+            if (d.zustand === 'fertig' && this.has('upload_fertig_details') && u.zustand !== 'fertig' && u.zustand !== 'fehler') {
+              Object.assign(u, { zustand: 'fertig', gesendet: u.size, text: null, pruefung: d.pruefung ?? u.pruefung, eingangName: d.datei ?? u.eingangName });
+              this._nachUpload();
+            }
             if (d.zustand === 'fehler' && u.zustand !== 'fehler') { u.zustand = 'fehler'; u.code = d.code; u.text = fehlerText(d.code); }
           }
         }
@@ -867,6 +1151,7 @@ if (lit) {
             <h1>Tobi Box</h1>
             <span class="grow"></span>
             ${s.busy > 0 ? html`<span class="spin" aria-label="Lädt"></span>` : nothing}
+            ${this.store.has('einstellungen') ? html`<button class="icon ${s.view === 'einstellungen' ? 'aktiv' : ''}" @click=${() => this.store.zeige('einstellungen')} aria-label="Einstellungen">⚙</button>` : nothing}
             <button class="icon" @click=${() => this.store.neuLaden()} aria-label="Neu laden">↻</button>
           </header>
           <main>
@@ -939,6 +1224,7 @@ if (lit) {
         case 'tobies': return this._viewTobies();
         case 'boxen': return this._viewBoxen();
         case 'papierkorb': return this._viewKorb();
+        case 'einstellungen': return this._viewEinstellungen();
         default: return this._viewSerien();
       }
     }
@@ -994,7 +1280,7 @@ if (lit) {
       const pct = u.size ? Math.min(100, Math.round((u.gesendet / u.size) * 100)) : 0;
       const text = {
         wartet: 'wartet', sendet: `${pct} %`, pruefe: 'wird geprüft …',
-        fertig: u.pruefung === 'warnung' ? `Warnung: ${u.hinweis || ''}. Die Datei bleibt im Eingang.` : 'angekommen',
+        fertig: u.pruefung === 'warnung' ? `Warnung${u.hinweis ? `: ${u.hinweis}` : ''}. Die Datei bleibt im Eingang.` : 'angekommen',
         fehler: u.text, unklar: u.text,
       }[u.zustand];
       return html`<div class="upload ${u.zustand}">
@@ -1077,7 +1363,9 @@ if (lit) {
           <div class="titel">${x.name}</div>
           <div class="meta">${plural(x.dateien, 'Datei', 'Dateien')} · ${groesse(x.groesse_bytes)} · ${({ wartet: 'wartet', bereit: 'bereit', laeuft: 'läuft', blockiert: 'blockiert', teilweise: 'teilweise einsortiert', erledigt: 'einsortiert' })[x.status] || x.status}</div>
           ${(x.hinweise || []).map((h) => html`<div class="marke warnm blockm">${hinweisText(h)}${h.datei ? html` (${h.datei})` : nothing}</div>`)}
-          ${(x.ergebnis || []).map((r) => this._ergebnis(r))}</div>`) : html`<p class="leer">Nichts im Eingang.</p>`}
+          ${(x.ergebnis || []).map((r) => this._ergebnis(r))}
+          ${w && this.store.has('eingang_entfernen') && e.filter === 'offen' && ['blockiert', 'teilweise'].includes(x.status)
+            ? html`<div class="reihe"><button class="gefahr" @click=${() => this.store.eingangEntfernen(x)}>Entfernen</button></div>` : nothing}</div>`) : html`<p class="leer">Nichts im Eingang.</p>`}
         ${e.eintraege.length < e.gesamt ? html`<button class="zweit" @click=${() => this.store.weiter('eingang')}>Mehr laden</button>` : nothing}`;
     }
     _ergebnis(r) {
@@ -1181,9 +1469,94 @@ if (lit) {
         ${p.eintraege.length ? p.eintraege.map((e) => html`<div class="karte">
           <div class="titel">${e.anzeige}</div>
           <div class="meta">${({ folge: 'Folge', serie: 'Serie', eingang: 'Eingang' })[e.typ] || e.typ}${e.serie_name ? ` aus „${e.serie_name}“` : ''} · ${plural(e.tracks, 'Datei', 'Dateien')} · ${groesse(e.groesse_bytes)} · ${zeitKurz(e.geloescht_am)}</div>
-          ${w ? html`<div class="reihe"><button @click=${() => this.store.papierkorbWiederherstellen(e)}>Wiederherstellen</button></div>` : nothing}</div>`)
+          ${w ? html`<div class="reihe"><button @click=${() => this.store.papierkorbWiederherstellen(e)}>Wiederherstellen</button>
+            ${e.typ === 'folge' ? html`<button class="zweit" @click=${() => this.store.papierkorbWiederherstellen(e, { andere: true })}>In andere Serie …</button>` : nothing}</div>` : nothing}</div>`)
           : html`<p class="leer">Der Papierkorb ist leer.</p>`}
         ${p.eintraege.length < p.gesamt ? html`<button class="zweit" @click=${() => this.store.weiter('papierkorb')}>Mehr laden</button>` : nothing}`;
+    }
+
+    /* -- Einstellungen (AP 4.7) */
+    _viewEinstellungen() {
+      const st = this.store; const s = this._s; const w = this._kannSchreiben; const gesperrt = this._gesperrt || !w;
+      const zurueck = html`<button class="zweit" @click=${() => st.zeige('serien')}>‹ Zurück</button>`;
+      if (!s.einstellungen.geladen) return html`${zurueck}<h2>Einstellungen</h2><p class="leer">Lade …</p>`;
+      const lz = st.leiseAnzeige; const gn = st.guteAnzeige; const tage = st.lesezeichenAnzeige;
+      const gea = st.einstellungenGeaendert;
+      return html`
+        ${zurueck}
+        <h2>Einstellungen</h2>
+        ${this._gesperrt ? html`<div class="banner info">Änderungen sind gesperrt, bis die Warnung oben geklärt ist.</div>` : nothing}
+
+        <div class="karte" id="leise">
+          <h2>Leise-Zeiten</h2>
+          <p class="meta">In diesen Zeiten spielt die Box leiser oder gar nicht. Ein Fenster gehört zu dem Tag, an dem es beginnt.</p>
+          <label>Zeitzone
+            <input type="text" id="zeitzone" .value=${lz.zeitzone} ?disabled=${gesperrt} autocapitalize="off" autocomplete="off" spellcheck="false"
+              @input=${(e) => st.zeitzoneSetzen(e.target.value)}></label>
+          ${lz.fenster.length ? lz.fenster.map((f, i) => this._fenster(f, i, gesperrt)) : html`<p class="leer">Keine Leise-Zeiten. Die Box spielt immer in der normalen Lautstärke.</p>`}
+          <div class="reihe">
+            <button class="zweit" id="fenster-neu" ?disabled=${gesperrt || lz.fenster.length >= EINSTELLUNG_GRENZEN.fensterMax} @click=${() => st.fensterNeu()}>Fenster hinzufügen</button>
+          </div>
+          ${this._speichern(gea.leise, gesperrt, () => st.leiseSpeichern(), () => st.entwurfVerwerfen('leise'), 'leise-speichern')}
+        </div>
+
+        <div class="karte" id="gute-nacht">
+          <h2>Gute Nacht</h2>
+          <p class="meta">Mit der Gute-Nacht-Karte läuft ein Timer. Danach wird die Box leiser und hört auf.</p>
+          <label>Timer in Minuten (1 bis 240)
+            <input type="number" inputmode="numeric" id="timer-min" min="1" max="240" step="1" .value=${String(gn.timer_min)} ?disabled=${gesperrt}
+              @input=${(e) => st.guteNachtSetzen('timer_min', e.target.value)}></label>
+          <label>Ausblenden in Sekunden (5 bis 600)
+            <input type="number" inputmode="numeric" id="ausblenden-s" min="5" max="600" step="1" .value=${String(gn.ausblenden_s)} ?disabled=${gesperrt}
+              @input=${(e) => st.guteNachtSetzen('ausblenden_s', e.target.value)}></label>
+          ${this._speichern(gea.gute, gesperrt, () => st.guteNachtSpeichern(), () => st.entwurfVerwerfen('gute'), 'gute-speichern')}
+        </div>
+
+        <div class="karte" id="lesezeichen">
+          <h2>Lesezeichen</h2>
+          <p class="meta">Wurde ein Tobie so viele Tage nicht gespielt, beginnt er die Folge wieder von vorn. 0 heißt: nie.</p>
+          <label>Tage (0 bis 365)
+            <input type="number" inputmode="numeric" id="lesezeichen-tage" min="0" max="365" step="1" .value=${String(tage)} ?disabled=${gesperrt}
+              @input=${(e) => st.lesezeichenSetzen(e.target.value)}></label>
+          ${this._speichern(gea.lesezeichen, gesperrt, () => st.lesezeichenSpeichern(), () => st.entwurfVerwerfen('lesezeichen'), 'lesezeichen-speichern')}
+        </div>`;
+    }
+    _speichern(geaendert, gesperrt, speichern, verwerfen, id) {
+      return html`<div class="reihe">
+        <button id=${id} ?disabled=${gesperrt || !geaendert} @click=${speichern}>Speichern</button>
+        ${geaendert ? html`<button class="zweit" @click=${verwerfen}>Verwerfen</button>` : nothing}
+      </div>`;
+    }
+    _fenster(f, i, gesperrt) {
+      const st = this.store; const leiser = f.wirkung === 'leiser';
+      const alle = [1, 2, 3, 4, 5, 6, 7]; const wochentags = [1, 2, 3, 4, 5]; const wochenende = [6, 7];
+      const gleich = (a, b) => a.length === b.length && a.every((t, k) => t === b[k]);
+      return html`<div class="fenster" data-fenster=${i}>
+        <div class="zeile2"><b class="grow">Fenster ${i + 1}</b>
+          <button class="gefahr klein" ?disabled=${gesperrt} aria-label="Fenster ${i + 1} löschen" @click=${() => st.fensterLoeschen(i)}>Löschen</button></div>
+        <div class="tage" role="group" aria-label="Wochentage">
+          ${WOCHENTAGE.map(([n, kurzName, lang]) => html`<button class="tag ${f.tage.includes(n) ? 'an' : ''}" aria-pressed=${f.tage.includes(n) ? 'true' : 'false'}
+            aria-label=${lang} data-tag=${n} ?disabled=${gesperrt} @click=${() => st.tagUmschalten(i, n)}>${kurzName}</button>`)}
+        </div>
+        <div class="reihe schnell">
+          <button class="zweit klein ${gleich(f.tage, alle) ? 'aktiv' : ''}" ?disabled=${gesperrt} @click=${() => st.tageSetzen(i, alle)}>Alle</button>
+          <button class="zweit klein ${gleich(f.tage, wochentags) ? 'aktiv' : ''}" ?disabled=${gesperrt} @click=${() => st.tageSetzen(i, wochentags)}>Mo–Fr</button>
+          <button class="zweit klein ${gleich(f.tage, wochenende) ? 'aktiv' : ''}" ?disabled=${gesperrt} @click=${() => st.tageSetzen(i, wochenende)}>Sa, So</button>
+        </div>
+        <div class="zeiten">
+          <label>von<input type="time" class="von" step="60" .value=${f.von} ?disabled=${gesperrt} @input=${(e) => st.fensterAendern(i, { von: e.target.value })}></label>
+          <label>bis<input type="time" class="bis" step="60" .value=${f.bis} ?disabled=${gesperrt} @input=${(e) => st.fensterAendern(i, { bis: e.target.value })}></label>
+        </div>
+        ${ueberMitternacht(f) ? html`<p class="meta">Reicht über Mitternacht bis zum nächsten Tag.</p>` : nothing}
+        <div class="reihe" role="group" aria-label="Wirkung">
+          <button class="wirkung-leiser ${leiser ? '' : 'zweit'}" aria-pressed=${leiser ? 'true' : 'false'} ?disabled=${gesperrt} @click=${() => st.fensterAendern(i, { wirkung: 'leiser' })}>Leiser</button>
+          <button class="wirkung-stumm ${leiser ? 'zweit' : ''}" aria-pressed=${leiser ? 'false' : 'true'} ?disabled=${gesperrt} @click=${() => st.fensterAendern(i, { wirkung: 'stumm' })}>Stumm</button>
+        </div>
+        ${leiser ? html`<label>Höchste Lautstärke: ${f.grenze} %
+          <input type="range" class="grenze" min="0" max="100" step="1" .value=${String(f.grenze)} ?disabled=${gesperrt}
+            @input=${(e) => st.fensterAendern(i, { grenze: Number(e.target.value) })}></label>`
+          : html`<p class="meta">Die Box spielt nicht. Ein leiser Ton zeigt, dass der Tobie erkannt wurde.</p>`}
+      </div>`;
     }
 
     /* -- Dialoge */
@@ -1282,7 +1655,7 @@ if (lit) {
       .marke.blockm { display: block; border-radius: 6px; padding: 6px 8px; }
       label { display: block; margin: 10px 0; font-size: 14px; color: var(--secondary-text-color, #727272); }
       label.check { display: flex; gap: 8px; align-items: center; color: var(--primary-text-color, #212121); font-size: 15px; min-height: 44px; }
-      input[type=text], select { width: 100%; min-height: 48px; margin-top: 4px; font: inherit; padding: 0 10px; border-radius: 8px;
+      input[type=text], input[type=number], input[type=time], select { width: 100%; min-height: 48px; margin-top: 4px; font: inherit; padding: 0 10px; border-radius: 8px;
         border: 1px solid var(--divider-color, #bbb); background: var(--card-background-color, #fff); color: var(--primary-text-color, #212121); }
       label.datei input { display: block; margin-top: 8px; width: 100%; }
       progress { width: 100%; height: 10px; }
@@ -1307,6 +1680,16 @@ if (lit) {
       .spin { width: 18px; height: 18px; border: 3px solid rgba(255,255,255,.4); border-top-color: #fff; border-radius: 50%; animation: dreh 1s linear infinite; }
       @keyframes dreh { to { transform: rotate(360deg); } }
       ul { margin: 6px 0; padding-left: 20px; }
+      button.icon.aktiv { background: rgba(255,255,255,.25); }
+      .fenster { border-top: 1px solid var(--divider-color, #e0e0e0); margin-top: 12px; padding-top: 8px; }
+      .tage { display: flex; gap: 4px; margin: 8px 0; }
+      .tage .tag { flex: 1 1 0; min-width: 0; padding: 0; background: transparent; color: var(--primary-text-color, #212121); border: 1px solid var(--divider-color, #bbb); }
+      .tage .tag.an { background: var(--primary-color, #03a9f4); color: var(--text-primary-color, #fff); border-color: var(--primary-color, #03a9f4); }
+      .reihe.schnell { margin-top: 0; }
+      .fenster button.klein { min-height: 44px; }
+      button.klein.aktiv { background: var(--secondary-background-color, #eee); }
+      .zeiten { display: flex; gap: 12px; } .zeiten label { flex: 1 1 0; min-width: 0; }
+      input[type=range] { width: 100%; min-height: 48px; margin-top: 4px; }
     `;
   }
 

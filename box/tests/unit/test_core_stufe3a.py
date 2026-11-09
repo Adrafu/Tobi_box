@@ -1,7 +1,7 @@
 """Kern in Stufe 3a (AP 3.7): Ereignisse aus HA, Netz, Strom und Sync.
 
-Bis ``idle`` in AP 4.8 eingetragen ist, leitet der Kern ``HaSyncAnstossen`` und ``AkkuTiefstand`` an ``sync`` weiter
-(``core._uebergang_3a``). Steht ``idle`` in ``TEILAUTOMATEN``, ist der Übergangsweg stumm (kein doppelter ``SyncStarten``).
+Seit AP 4.8 steht ``idle`` in ``TEILAUTOMATEN``: ``idle`` prüft ``HaSyncAnstossen`` und ``AkkuTiefstand`` (der frühere Übergangsweg
+``core._uebergang_3a`` ist entfernt).
 """
 
 from __future__ import annotations
@@ -9,7 +9,7 @@ from __future__ import annotations
 import pytest
 from conftest import KernHarnisch
 
-from tobibox import core, idle
+from tobibox import core
 from tobibox import events as ev
 
 
@@ -40,24 +40,38 @@ def test_unsichere_uhr_lehnt_den_sync_befehl_ab_und_meldet_es_ha():
     assert m.art == "befehl_abgelehnt" and m.daten == {"befehl": "sync", "befehl_id": "b1", "grund": "zeit_unsicher"}
 
 
-def test_akku_tiefstand_bricht_den_sync_ab():
+def test_akku_tiefstand_bricht_einen_laufenden_sync_ab_und_faehrt_herunter():
     h = KernHarnisch()
+    h.sende(ev.SyncGestartet())
     h.sende(ev.AkkuTiefstand())
     assert befehle(h, ev.SyncAbbrechen) == [ev.SyncAbbrechen("akku_tiefstand")]
+    assert befehle(h, ev.Herunterfahren) == [ev.Herunterfahren("akku_tiefstand")]
 
 
-def test_syncstarten_wird_nicht_von_herunterfahren_gefolgt_in_stufe_3a():
-    """Das Herunterfahren bei Tiefstand und lang gedrücktem Knopf gehört ``idle`` (AP 4.8)."""
+def test_akku_tiefstand_ohne_sync_faehrt_nur_herunter():
     h = KernHarnisch()
     h.sende(ev.AkkuTiefstand())
-    assert befehle(h, ev.Herunterfahren) == []
+    assert befehle(h, ev.SyncAbbrechen) == []
+    assert befehle(h, ev.Herunterfahren) == [ev.Herunterfahren("akku_tiefstand")]
+
+
+def test_start_am_lader_gibt_genau_einen_sync_start():
+    h = KernHarnisch()
+    h.sende(ev.LaderGeaendert(True))
+    assert befehle(h, ev.SyncStarten) == [ev.SyncStarten("start_lader")]
+
+
+def test_ha_sync_befehl_gibt_genau_einen_sync_start():
+    h = KernHarnisch()
+    h.sende(ev.HaSyncAnstossen("b1", h.uhr.wall + 60))
+    assert befehle(h, ev.SyncStarten) == [ev.SyncStarten("ha")]
 
 
 @pytest.mark.parametrize(
     "e",
     [
         ev.NetzKlasse("home"), ev.NetzKlasse("hotspot"), ev.NetzKlasse("offline"),
-        ev.LaderGeaendert(True), ev.LaderGeaendert(False), ev.AkkuStand(40),
+        ev.LaderGeaendert(False), ev.AkkuStand(40),
         ev.SyncGestartet(), ev.SyncFertig(3, 0), ev.SyncAbgebrochen("regel"), ev.SyncAbgebrochen("netz_weg"),
         ev.HaVerbindung(True), ev.HaVerbindung(False), ev.ZeitquelleGeaendert("ntp", True),
         ev.UpdateGestartet("1.2.0"), ev.SelbsttestErgebnis(True),
@@ -79,13 +93,3 @@ def test_netz_und_sync_waehrend_der_wiedergabe_aendern_nichts_am_hoerspiel():
         out = h.sende(e)
         assert not [b for b in out if isinstance(b, (ev.Pausieren, ev.Abspielen))]
     assert h.modus == "spielt"
-
-
-def test_mit_idle_im_kern_ist_der_uebergangsweg_stumm(monkeypatch):
-    monkeypatch.setattr(core, "TEILAUTOMATEN", core.TEILAUTOMATEN + (("idle", idle),))
-    h = KernHarnisch()
-    h.sende(ev.HaSyncAnstossen("b1", h.uhr.wall + 60))
-    assert befehle(h, ev.SyncStarten) == [ev.SyncStarten("ha")]  # genau einer, von ``idle``
-    h.sende(ev.AkkuTiefstand())
-    assert len(befehle(h, ev.SyncAbbrechen)) <= 1
-    assert core._uebergang_3a(ev.HaSyncAnstossen("b2", 1e12), h.uhr.jetzt()) == []

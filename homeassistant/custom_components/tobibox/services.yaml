@@ -215,3 +215,39 @@ liste_neu_ausrollen:
       required: true
       selector:
         boolean:
+
+leise_zeiten_setzen:
+  fields:
+    zeitzone:
+      example: "Europe/Berlin"
+      selector:
+        text:
+    fenster:
+      example: '[{"id": "nacht", "tage": [1, 2, 3, 4, 5, 6, 7], "von": "21:00", "bis": "06:30", "wirkung": "stumm"}]'
+      selector:
+        object:
+
+gute_nacht_setzen:
+  fields:
+    timer_min:
+      selector:
+        number:
+          min: 1
+          max: 240
+          unit_of_measurement: min
+    ausblenden_s:
+      selector:
+        number:
+          min: 5
+          max: 600
+          unit_of_measurement: s
+
+lesezeichen_tage_setzen:
+  fields:
+    tage:
+      required: true
+      selector:
+        number:
+          min: 0
+          max: 365
+          unit_of_measurement: d

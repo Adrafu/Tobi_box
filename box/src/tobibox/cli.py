@@ -7,7 +7,7 @@ Ereignisprotokoll) und braucht **keinen laufenden Dienst**. Es verändert nichts
 Abschnitt 12; ``mqtt-v1.md``, 3.3) und die Prüfpunkte der Status-Karte.
 
 ``sim`` ist ein Client des Unix-Sockets ``sim.sock`` im Zustandsverzeichnis (Stufe 2, ``sim.py``):
-``learn``, ``learn-abort``, ``ack``, ``card`` und seit AP 3.7 ``power`` und ``net``. Exit-Codes von ``sim``: 0 angenommen, 1 abgelehnt, 2 Eingabe,
+``learn``, ``learn-abort``, ``ack``, ``card``, seit AP 3.7 ``power`` und ``net``, seit AP 4.8 ``key``, ``knob``, ``headphones`` und ``time``. Exit-Codes von ``sim``: 0 angenommen, 1 abgelehnt, 2 Eingabe,
 3 Dienst nicht erreichbar, 4 keine Berechtigung auf ``sim.sock``. ``learn`` und ``card`` prüfen vorab, ob es
 Serie und Folge in der Bibliothek gibt; sonst Exit-Code 2 mit den vorhandenen Serien-IDs in der Meldung.
 """
@@ -21,6 +21,7 @@ import platform
 import socket
 import sys
 from collections.abc import Sequence
+from datetime import datetime
 from pathlib import Path
 from typing import TextIO
 
@@ -306,6 +307,39 @@ def _pruefe_ziel(medien: Path, serie_id: str | None, folge: str | None) -> str |
     return None
 
 
+#: ``tobibox sim key``: Name auf der Kommandozeile -> Taste im Socket-Befehl ``taste``
+TASTEN_NAMEN = {
+    "haupt": "hauptknopf_kurz",
+    "haupt-lang": "hauptknopf_lang",
+    "vor": "weiter",
+    "zurueck": "zurueck",
+}
+RASTER_PROZENT = 2  # eine Raste des Drehreglers (wie ``controls.RASTER_PROZENT`` und die Oberfläche)
+RASTER_MAX = 10  # höchstens so viele Rasten je Aufruf (``sim.REGLER_MAX`` = 20 Prozentpunkte)
+
+
+def _knob_zeile(raster: str) -> dict | str:
+    """``+N`` oder ``-N`` Rasten (je 2 Prozentpunkte) als Befehl ``regler``, oder ein Fehlertext."""
+    try:
+        n = int(raster)
+    except ValueError:
+        return f"knob: '{raster}' ist keine ganze Zahl (erwartet +N oder -N, z. B. +3)"
+    if n == 0 or abs(n) > RASTER_MAX:
+        return f"knob: N muss zwischen 1 und {RASTER_MAX} liegen (mit Vorzeichen), ist aber {raster}"
+    return {"befehl": "regler", "delta": n * RASTER_PROZENT}
+
+
+def _time_zeile(zeit: str) -> dict | str:
+    """``now`` stellt die echte Uhr wieder her; sonst ein Zeitpunkt in ISO 8601 (ohne Zone: Ortszeit dieses Rechners)."""
+    if zeit.strip().lower() == "now":
+        return {"befehl": "zeit", "iso": None}
+    try:
+        datetime.fromisoformat(zeit.strip())
+    except ValueError:
+        return f"time: '{zeit}' ist kein Zeitpunkt in ISO 8601 (z. B. 2026-11-09T22:30:00+01:00) und nicht 'now'"
+    return {"befehl": "zeit", "iso": zeit.strip()}
+
+
 def _sim_zeile(args: argparse.Namespace, zustand: Path, medien: Path | None = None) -> dict | str:
     """Die JSON-Zeile für ``sim.sock`` aus den Argumenten, oder ein Fehlertext."""
     if medien is not None and args.sim_befehl in ("learn", "card") and not getattr(args, "aktion", None):
@@ -330,6 +364,14 @@ def _sim_zeile(args: argparse.Namespace, zustand: Path, medien: Path | None = No
         return zeile
     if args.sim_befehl == "net":
         return {"befehl": "netz", "klasse": args.klasse}
+    if args.sim_befehl == "key":
+        return {"befehl": "taste", "taste": TASTEN_NAMEN[args.taste]}
+    if args.sim_befehl == "knob":
+        return _knob_zeile(args.raster)
+    if args.sim_befehl == "headphones":
+        return {"befehl": "kopfhoerer", "steckt": args.zustand == "on"}
+    if args.sim_befehl == "time":
+        return _time_zeile(args.zeit)
     if args.sim_befehl == "card":
         if args.aktion:
             ziel: dict = {"typ": "aktion", "aktion": args.aktion}
@@ -460,6 +502,18 @@ def main(argv: Sequence[str] | None = None, ausgabe: TextIO | None = None) -> in
     strom.add_argument("--battery", type=int, help="Akkustand in Prozent (0 bis 100)")
     netz = ms.add_parser("net", help="Netz-Klasse vorgeben: daheim (home), Handy-Hotspot (hotspot) oder offline")
     netz.add_argument("klasse", choices=("home", "hotspot", "offline"))
+    taste = ms.add_parser("key", help="Taste drücken: haupt (Hauptknopf kurz), haupt-lang, vor, zurueck")
+    taste.add_argument("taste", choices=tuple(TASTEN_NAMEN))
+    knopf = ms.add_parser("knob", help="Drehregler drehen: +N lauter, -N leiser (N Rasten, je 2 Prozentpunkte, höchstens 10)")
+    knopf.add_argument("raster", metavar="+N|-N")
+    kh = ms.add_parser("headphones", help="Kopfhörer-Stecker einstecken (on) oder ziehen (off)")
+    kh.add_argument("zustand", choices=("on", "off"))
+    zeit = ms.add_parser(
+        "time",
+        help="Wanduhr des Dienstes stellen (ISO 8601, z. B. 2026-11-09T22:30:00+01:00; ohne Zone Ortszeit dieses Rechners) "
+        "oder 'now' für die echte Uhr; für Leise-Zeiten",
+    )
+    zeit.add_argument("zeit", metavar="ISO|now")
     karte = ms.add_parser("card", help="Karte oder Tobie einem Ziel zuordnen (schreibt config.json)")
     karte.add_argument("uid")
     karte.add_argument("--serie", help="Serien-ID (Ziel Serie, mit --folge Ziel Folge)")

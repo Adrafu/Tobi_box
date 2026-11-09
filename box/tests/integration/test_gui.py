@@ -65,7 +65,7 @@ async def test_auflegen_ueber_die_api_startet_die_wiedergabe_und_abheben_pausier
     srv, welt_, _ = gui
     port = welt_["mpd"].port
     d = await anzeige(srv)
-    assert d["dienst"] == "laeuft" and d["anzeige"]["ring"] is None
+    assert d["dienst"] == "laeuft" and len(d["anzeige"]["ring"]["farben"]) == 40  # seit AP 4.8 meldet der Dienst den Ring
     assert {t["uid"] for t in d["tobies"]} == {UID} and SERIE in {s["id"] for s in d["serien"]}
 
     a = await befehl(srv, befehl="tobie_auflegen", uid=UID)
@@ -149,12 +149,11 @@ async def _kopfhoerer(srv, steckt) -> bool:
     return (await anzeige(srv))["anzeige"]["kopfhoerer"] is steckt
 
 
-async def test_noch_nicht_verdrahtete_eingaenge_antworten_klar(gui):
+async def test_alle_eingaenge_sind_seit_ap_4_8_verdrahtet(gui):
     srv, _, _ = gui
-    nv = {"ok": False, "fehler": "noch_nicht_verdrahtet"}
-    assert await befehl(srv, befehl="taste", taste="hauptknopf_lang") == nv
     d = (await anzeige(srv))["verdrahtet"]
-    assert d["netz"] is True and d["strom"] is True and d["hauptknopf_lang"] is False  # strom und netz seit AP 3.7
+    assert d and all(d.values()), d
+    assert d["netz"] is True and d["strom"] is True and d["hauptknopf_lang"] is True
 
 
 async def test_strom_und_netz_wirken_auch_ohne_netz_und_strom_abschnitt(gui):

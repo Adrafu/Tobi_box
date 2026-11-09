@@ -44,8 +44,20 @@ export const SCHEMA = {
   'tobibox/konfig/aus_export': { req: ['bestaetigt'], opt: ['anfrage_id'] },
 };
 
+/* AP 4.7 und Erweiterungen v1.1 (Vertrag W, Abschnitt 10): eigener Satz, damit die Abdeckung der alten Befehle unverändert bleibt.
+ * `braucht` ist die Fähigkeit aus hello.faehigkeiten, ohne die ein älteres Backend den Befehl nicht kennt (unknown_command);
+ * FELDER_V11 sind neue optionale Eingabefelder alter Befehle: ohne die Fähigkeit lehnt das Backend sie ab (invalid_format). */
+export const SCHEMA_V11 = {
+  'tobibox/einstellungen/get': { braucht: 'einstellungen' },
+  'tobibox/einstellungen/set': { opt: ['leise_zeiten', 'gute_nacht', 'lesezeichen_tage'], braucht: 'einstellungen' },
+  'tobibox/eingang/entfernen': { req: ['eintrag_id', 'bestaetigt'], braucht: 'eingang_entfernen' },
+  'tobibox/konfig/get': { braucht: 'konfig_lesen' },
+};
+export const FELDER_V11 = { 'tobibox/zuordnung/list': { uid: 'zuordnung_uid' } };
+export const FAEHIGKEITEN_V11 = ['einstellungen', 'eingang_entfernen', 'zuordnung_uid', 'konfig_lesen', 'upload_fertig_details'];
+
 /* Befehle, die nur Administratoren ausführen dürfen (Vertrag 2.1). */
-const LESEN = new Set(['hello', 'subscribe', 'serien/list', 'serie/get', 'papierkorb/list', 'neue_tobies/list', 'zuordnung/list', 'boxen/list', 'eingang/list', 'konfig/export_lesen'].map((x) => `tobibox/${x}`));
+const LESEN = new Set(['hello', 'subscribe', 'serien/list', 'serie/get', 'papierkorb/list', 'neue_tobies/list', 'zuordnung/list', 'boxen/list', 'eingang/list', 'konfig/export_lesen', 'einstellungen/get', 'konfig/get'].map((x) => `tobibox/${x}`));
 
 export const FAEHIGKEITEN = ['medien', 'upload', 'zuordnung', 'tobie_namen', 'neue_tobies', 'lernmodus', 'boxen', 'papierkorb', 'liste_ausrollen', 'konfig_export', 'sync', 'eingang', 'korrektur', 'serie_loeschen'];
 
@@ -53,11 +65,14 @@ const fehler = (code, message = code) => ({ code, message });
 const gleich = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 const hex = (s, n = 16) => createHash('sha256').update(s).digest('hex').slice(0, n);
 
-export function pruefeEingabe(msg) {
-  const sch = SCHEMA[msg.type];
+/* `faehigkeiten`: was das (simulierte) Backend zusagt. Ohne Angabe wird nur die Form geprüft (alles ist erlaubt). */
+export function pruefeEingabe(msg, faehigkeiten = null) {
+  const sch = SCHEMA[msg.type] || SCHEMA_V11[msg.type];
   if (!sch) throw fehler('unknown_command', `Unbekannter Befehl ${msg.type}`);
+  if (faehigkeiten && sch.braucht && !faehigkeiten.includes(sch.braucht)) throw fehler('unknown_command', `Unbekannter Befehl ${msg.type}`);
   const { type, id, ...felder } = msg; // eslint-disable-line no-unused-vars
   const erlaubt = new Set([...(sch.req || []), ...(sch.opt || [])]);
+  for (const [feld, f] of Object.entries(FELDER_V11[msg.type] || {})) if (!faehigkeiten || faehigkeiten.includes(f)) erlaubt.add(feld);
   for (const k of Object.keys(felder)) {
     if (!erlaubt.has(k)) throw fehler('invalid_format', `Unbekanntes Feld ${k}`);
     if (felder[k] === undefined) throw fehler('invalid_format', `Feld ${k} ist undefined`);
@@ -105,6 +120,7 @@ export function createMockHass(opts = {}) {
     lern: null,
     exportDatei: { vorhanden: true, liste_id: 'liste-aaaa', revision: 9, exportiert_am: '2026-11-09T09:00:00Z', anzahl_zuordnungen: 4, anzahl_fenster: 0, neuer_als_ha: true },
     gesehenAnfragen: new Map(),
+    einstellungen: { leise_zeiten: { zeitzone: 'Europe/Berlin', fenster: [] }, gute_nacht: { timer_min: 30, ausblenden_s: 60 }, lesezeichen_tage: 14 },
   };
 
   const stand = (s) => hex(JSON.stringify([s.name, s.folgen.map((f) => [f.name, f.anzeige])]));
@@ -136,6 +152,41 @@ export function createMockHass(opts = {}) {
   };
   const betroffeneFolge = (sid, fname) => Object.values(b.zuordnungen).filter((z) => z.ziel.typ === 'folge' && z.ziel.serie === sid && z.ziel.folge === fname);
   const konfigBereit = () => { if (b.konfig.zustand !== 'ok') throw fehler('konfig_nicht_bereit'); };
+
+  /* Die Prüfung des Backends (Box: parse_konfig; HA: store.pruefe_*), knapp nachgebaut. */
+  const ungueltig = (pfad) => fehler('einstellung_ungueltig', `Diese Einstellung ist ungültig: ${pfad}. Es wurde nichts geändert.`);
+  const ganz = (x) => Number.isInteger(x) && typeof x === 'number';
+  const einstellungPruefen = {
+    leise(lz) {
+      if (!lz || typeof lz !== 'object' || Array.isArray(lz)) throw ungueltig('leise_zeiten');
+      const zone = lz.zeitzone ?? 'Europe/Berlin';
+      try { new Intl.DateTimeFormat('de-DE', { timeZone: zone }); } catch { throw ungueltig('leise_zeiten.zeitzone'); }
+      if (!Array.isArray(lz.fenster) || lz.fenster.length > 32) throw ungueltig('leise_zeiten.fenster');
+      const ids = new Set();
+      const fenster = lz.fenster.map((f, i) => {
+        if (!f || typeof f !== 'object') throw ungueltig(`fenster[${i}]`);
+        if (typeof f.id !== 'string' || !/^[a-z0-9_-]{1,32}$/.test(f.id) || ids.has(f.id)) throw ungueltig(`fenster[${i}].id`);
+        ids.add(f.id);
+        if (!Array.isArray(f.tage) || !f.tage.length || !f.tage.every((t) => ganz(t) && t >= 1 && t <= 7) || new Set(f.tage).size !== f.tage.length) throw ungueltig(`fenster[${i}].tage`);
+        if (typeof f.von !== 'string' || !/^([01]\d|2[0-3]):[0-5]\d$/.test(f.von)) throw ungueltig(`fenster[${i}].von`);
+        if (typeof f.bis !== 'string' || !/^([01]\d|2[0-3]):[0-5]\d$/.test(f.bis) || f.bis === f.von) throw ungueltig(`fenster[${i}].bis`);
+        if (f.wirkung === 'leiser') {
+          if (!ganz(f.grenze) || f.grenze < 0 || f.grenze > 100) throw ungueltig(`fenster[${i}].grenze`);
+          return { id: f.id, tage: f.tage, von: f.von, bis: f.bis, wirkung: 'leiser', grenze: f.grenze };
+        }
+        if (f.wirkung !== 'stumm') throw ungueltig(`fenster[${i}].wirkung`);
+        return { id: f.id, tage: f.tage, von: f.von, bis: f.bis, wirkung: 'stumm' };
+      });
+      return { zeitzone: zone, fenster };
+    },
+    gute(gn) {
+      if (!gn || typeof gn !== 'object') throw ungueltig('gute_nacht');
+      if (!ganz(gn.timer_min) || gn.timer_min < 1 || gn.timer_min > 240) throw ungueltig('gute_nacht.timer_min');
+      if (!ganz(gn.ausblenden_s) || gn.ausblenden_s < 5 || gn.ausblenden_s > 600) throw ungueltig('gute_nacht.ausblenden_s');
+      return { timer_min: gn.timer_min, ausblenden_s: gn.ausblenden_s };
+    },
+    tage(t) { if (!ganz(t) || t < 0 || t > 365) throw ungueltig('lesezeichen_tage'); return t; },
+  };
 
   const H = {
     'tobibox/hello': () => ({ v: 1, version: '0.1.0', darf_schreiben: darf, faehigkeiten: opts.faehigkeiten || FAEHIGKEITEN, boxen: b.boxen.map((x) => x.box), konfig: b.konfig,
@@ -212,6 +263,7 @@ export function createMockHass(opts = {}) {
     'tobibox/papierkorb/list': (m) => ({ eintraege: b.papierkorb.slice(m.offset || 0, (m.offset || 0) + (m.limit || 100)), gesamt: b.papierkorb.length, gesamt_bytes: b.papierkorb.reduce((a, e) => a + e.groesse_bytes, 0) }),
     'tobibox/papierkorb/restore': (m) => {
       const e = b.papierkorb.find((x) => x.id === m.eintrag_id); if (!e) throw fehler('eintrag_nicht_gefunden');
+      if (e.typ === 'folge' && !b.serien[m.serie_id || e.serie_id]) throw fehler('serie_nicht_gefunden');
       b.papierkorb = b.papierkorb.filter((x) => x !== e);
       return { serie: null, folge: e.folge };
     },
@@ -222,7 +274,7 @@ export function createMockHass(opts = {}) {
     'tobibox/neue_tobies/list': (m) => ({ eintraege: b.neueTobies.slice(m.offset || 0, (m.offset || 0) + (m.limit || 100)), gesamt: b.neueTobies.length }),
     'tobibox/neue_tobies/verwerfen': (m) => { const n = b.neueTobies.length; b.neueTobies = b.neueTobies.filter((x) => x.uid !== m.uid); return { entfernt: n !== b.neueTobies.length }; },
     'tobibox/zuordnung/list': (m) => {
-      const alle = Object.values(b.zuordnungen).filter((z) => !m.serie_id || z.ziel.serie === m.serie_id).sort((x, y) => (x.uid < y.uid ? -1 : 1));
+      const alle = Object.values(b.zuordnungen).filter((z) => (!m.serie_id || z.ziel.serie === m.serie_id) && (!m.uid || z.uid === m.uid)).sort((x, y) => (x.uid < y.uid ? -1 : 1));
       const seite = alle.slice(m.offset || 0, (m.offset || 0) + (m.limit || 100));
       return { konfig: b.konfig, gesamt: alle.length, zuordnungen: seite.map((z) => {
         const s = b.serien[z.ziel.serie];
@@ -282,6 +334,24 @@ export function createMockHass(opts = {}) {
     },
     'tobibox/eingang/sortieren': () => ({ gestartet: true, laeuft_bereits: false, eintraege: b.eingang.length }),
     'tobibox/konfig/export_lesen': () => ({ ...b.exportDatei, konfig: b.konfig }),
+    'tobibox/konfig/get': () => ({ konfig: b.konfig }),
+    'tobibox/einstellungen/get': () => ({ ...b.einstellungen, konfig: b.konfig }),
+    'tobibox/einstellungen/set': (m) => {
+      konfigBereit();
+      if (!('leise_zeiten' in m) && !('gute_nacht' in m) && !('lesezeichen_tage' in m)) throw fehler('invalid_format', 'nichts zu ändern');
+      const neu = structuredClone(b.einstellungen);
+      if ('leise_zeiten' in m) neu.leise_zeiten = einstellungPruefen.leise(m.leise_zeiten);
+      if ('gute_nacht' in m) neu.gute_nacht = einstellungPruefen.gute(m.gute_nacht);
+      if ('lesezeichen_tage' in m) neu.lesezeichen_tage = einstellungPruefen.tage(m.lesezeichen_tage);
+      if (gleich(neu, b.einstellungen)) return { geaendert: false, konfig: b.konfig, veroeffentlicht: null, ...b.einstellungen };
+      b.einstellungen = neu;
+      return { geaendert: true, konfig: konfigAendern(), veroeffentlicht: true, ...b.einstellungen };
+    },
+    'tobibox/eingang/entfernen': (m) => {
+      const e = b.eingang.find((x) => x.id === m.eintrag_id); if (!e) throw fehler('eintrag_nicht_gefunden');
+      b.eingang = b.eingang.filter((x) => x !== e);
+      return { eintrag: { id: hex(e.id, 12), typ: 'eingang', serie_id: null, serie_name: null, folge: null, anzeige: e.name, art: e.art, tracks: e.dateien, groesse_bytes: e.groesse_bytes, grund: 'manuell', geloescht_am: '2026-11-09T10:00:00Z' } };
+    },
     'tobibox/konfig/aus_export': () => {
       if (!b.exportDatei.vorhanden) throw fehler('export_nicht_gefunden');
       b.konfig = { ...b.konfig, zustand: 'ok', revision: 1, liste_id: `liste-${Math.random().toString(16).slice(2, 8)}` };
@@ -291,7 +361,7 @@ export function createMockHass(opts = {}) {
 
   async function verarbeite(msg) {
     calls.push({ type: msg.type, msg: structuredClone(msg) });
-    const felder = pruefeEingabe(msg);
+    const felder = pruefeEingabe(msg, opts.faehigkeiten || FAEHIGKEITEN);
     if (!darf && !LESEN.has(msg.type)) throw fehler('unauthorized', 'Nur für Administratoren');
     const f = failures.get(msg.type);
     if (f && f.length) { const c = f.shift(); throw typeof c === 'string' ? fehler(c, `Fehler ${c}`) : c; }

@@ -141,9 +141,12 @@ class Dienst:
         return [i for i, n in enumerate(self.app.gesehen) if n == name]
 
 
-def baue_app(toml: Path, uhr: SimUhr) -> App:
-    """Eine ``App`` aus der Konfigurationsdatei, mit Ersatz für Player, Leser und Töne; nicht gestartet."""
-    a = App(konfig_modul.lade(toml), uhr=uhr, melde_bereit=False)
+def baue_app(toml: Path, uhr: SimUhr, **app_kw: Any) -> App:
+    """Eine ``App`` aus der Konfigurationsdatei, mit Ersatz für Player, Leser und Töne; nicht gestartet.
+
+    Ohne ``ring_ausgabe`` bleibt die Zeile im Terminal aus (Tests haben kein Terminal)."""
+    app_kw.setdefault("ring_ausgabe", lambda text: None)
+    a = App(konfig_modul.lade(toml), uhr=uhr, melde_bereit=False, **app_kw)
     a.player = PlayerOhneMpd()
     a.player.app = a
     a.leser = FakeLeser()
@@ -162,7 +165,8 @@ def baue_app(toml: Path, uhr: SimUhr) -> App:
 
 
 def baue_dienst(
-    tmp_path: Path, kurz: Path, monkeypatch: Any, abschnitte: str = "", zuordnungen: dict | None = None, uhr: SimUhr | None = None
+    tmp_path: Path, kurz: Path, monkeypatch: Any, abschnitte: str = "", zuordnungen: dict | None = None, uhr: SimUhr | None = None,
+    **app_kw: Any,
 ) -> Dienst:
     """Medien, ``config.json`` (Liste ``LISTE``, Revision 1) und ``tobibox.toml``; die ``App`` ist gebaut, aber nicht gestartet."""
     medien = erzeuge_medien(tmp_path / "medien")
@@ -176,4 +180,4 @@ def baue_dienst(
     toml = schreibe_toml(tmp_path / "tobibox.toml", zustand, medien, abschnitte)
     monkeypatch.setattr(app_modul.notify, "stoppt", lambda: None)
     uhr = uhr or SimUhr(wall=time.time())
-    return Dienst(baue_app(toml, uhr), uhr, zustand, toml, medien)
+    return Dienst(baue_app(toml, uhr, **app_kw), uhr, zustand, toml, medien)

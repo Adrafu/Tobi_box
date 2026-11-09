@@ -70,6 +70,11 @@ def _objekt(x: Any) -> dict:
     return x
 
 
+def _beliebig(x: Any) -> Any:
+    """Lässt jeden Wert durch: Die Prüfung der Einstellungen macht ``store.pruefe_*`` (Fehler ``einstellung_ungueltig`` mit Pfad)."""
+    return x
+
+
 ANFRAGE_ID = {vol.Optional("anfrage_id"): vol.All(_text, vol.Match(RE_ANFRAGE_ID.pattern))}
 SERIE_ID = {vol.Required("serie_id"): _text}
 STAND = {vol.Optional("stand"): _text}
@@ -251,10 +256,15 @@ async def ws_neue_tobies_verwerfen(hub: Hub, connection: Any, msg: dict[str, Any
 
 @befehl(
     "zuordnung/list",
-    {vol.Optional("serie_id"): _text, vol.Optional("limit"): _ganz(1, 100), vol.Optional("offset"): _ganz(0, 10_000_000)},
+    {
+        vol.Optional("serie_id"): _text,
+        vol.Optional("uid"): _text,
+        vol.Optional("limit"): _ganz(1, 100),
+        vol.Optional("offset"): _ganz(0, 10_000_000),
+    },
 )
 async def ws_zuordnung_list(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
-    return await hub.zuordnung_liste(msg.get("serie_id"), msg.get("limit", 100), msg.get("offset", 0))
+    return await hub.zuordnung_liste(msg.get("serie_id"), msg.get("limit", 100), msg.get("offset", 0), msg.get("uid"))
 
 
 @befehl(
@@ -396,7 +406,7 @@ async def ws_einsortierung_bestaetigen(hub: Hub, connection: Any, msg: dict[str,
 
 
 # --------------------------------------------------------------------------
-# 29 und 30: Eingang
+# 29, 30 und 33: Eingang
 # --------------------------------------------------------------------------
 
 
@@ -417,6 +427,11 @@ async def ws_eingang_sortieren(hub: Hub, connection: Any, msg: dict[str, Any]) -
     return await hub.eingang.starte_durchlauf(msg.get("eintrag_ids"), msg.get("sofort", False))
 
 
+@befehl("eingang/entfernen", {vol.Required("eintrag_id"): _text, vol.Required("bestaetigt"): _wahr}, admin=True)
+async def ws_eingang_entfernen(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
+    return await hub.eingang.entferne_eintrag(msg["eintrag_id"])
+
+
 # --------------------------------------------------------------------------
 # 31 und 32: Sicherungsnetz der Konfiguration
 # --------------------------------------------------------------------------
@@ -433,6 +448,39 @@ async def ws_konfig_aus_export(hub: Hub, connection: Any, msg: dict[str, Any]) -
         return await hub.konfig_aus_export()
 
     return await hub.mit_anfrage_id(msg.get("anfrage_id"), "konfig/aus_export", _felder(msg), tu)
+
+
+# 34: Lesebefehl für den Konfig-Stand (Erweiterung v1.1, 09.11.)
+@befehl("konfig/get")
+async def ws_konfig_get(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
+    return hub.konfig_lesen()
+
+
+# --------------------------------------------------------------------------
+# 35 und 36: Einstellungen (AP 4.7, 09.11.)
+# --------------------------------------------------------------------------
+
+
+@befehl("einstellungen/get")
+async def ws_einstellungen_get(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
+    return hub.einstellungen_lesen()
+
+
+@befehl(
+    "einstellungen/set",
+    {
+        vol.Optional("leise_zeiten"): _beliebig,
+        vol.Optional("gute_nacht"): _beliebig,
+        vol.Optional("lesezeichen_tage"): _beliebig,
+    },
+    admin=True,
+)
+async def ws_einstellungen_set(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
+    return await hub.einstellungen_setzen(
+        msg["leise_zeiten"] if "leise_zeiten" in msg else FEHLT,
+        msg["gute_nacht"] if "gute_nacht" in msg else FEHLT,
+        msg["lesezeichen_tage"] if "lesezeichen_tage" in msg else FEHLT,
+    )
 
 
 # --------------------------------------------------------------------------

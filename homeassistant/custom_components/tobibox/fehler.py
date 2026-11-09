@@ -42,6 +42,8 @@ HTTP_STATUS: Final = {
     "datei_zu_gross": 413,
     "format_nicht_erlaubt": 415,
     "keine_version": 404,
+    "einstellung_ungueltig": 400,
+    "sortierung_laeuft": 409,
 }
 
 

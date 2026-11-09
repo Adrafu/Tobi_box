@@ -19,7 +19,7 @@ from types import ModuleType
 from typing import Any
 
 from . import events as ev
-from . import learn, session
+from . import bedtime, idle, learn, quiet, session
 from .events import Jetzt
 from .volume import (
     GRENZE_AUSBLENDEN,
@@ -29,16 +29,17 @@ from .volume import (
     wirksame_grenze,
 )
 
-#: Teilautomaten in fester Reihenfolge. Das Integrations-AP der Stufe trägt
-#: ``quiet``, ``bedtime`` und ``idle`` hier ein (Reihenfolge laut Vertrag:
-#: session, learn, quiet, bedtime, idle). ``learn`` seit Stufe 2.
-TEILAUTOMATEN: tuple[tuple[str, ModuleType], ...] = (("session", session), ("learn", learn))
+#: Teilautomaten in fester Reihenfolge (Vertrag, 6.1): session, learn, quiet, bedtime, idle.
+#: ``learn`` seit Stufe 2, ``quiet``, ``bedtime`` und ``idle`` seit AP 4.8.
+TEILAUTOMATEN: tuple[tuple[str, ModuleType], ...] = (
+    ("session", session),
+    ("learn", learn),
+    ("quiet", quiet),
+    ("bedtime", bedtime),
+    ("idle", idle),
+)
 
 MAX_EREIGNISSE = 32
-
-#: Stufe 3a: Wer an ``HaSyncAnstossen`` und ``AkkuTiefstand`` hängt, ist ``idle`` (``core-interface.md``, Abschnitt 5.2 und
-#: 9 Punkt 9). ``idle`` ist erst in AP 4.8 eingetragen. Bis dahin leitet ``_uebergang_3a`` beide an ``sync`` weiter, damit „Sync jetzt“ von
-#: HA und der Abbruch bei Tiefstand schon in Stufe 3a wirken. Steht ``idle`` in ``TEILAUTOMATEN``, tut die Funktion nichts.
 
 _TOENE_UNTER_STUMM = frozenset({"start", "unbekannt", "lernen_beginn", "lernen_ende", "fehler", "akku_leer"})
 
@@ -100,31 +101,6 @@ def _zusammenfassung(teil: Mapping[str, Any]) -> ev.ZustandMelden:
         folge=sz.datei if sz.serie_id is not None else None,
         track=sz.track if sz.serie_id is not None and sz.datei is not None else None,
     )
-
-
-def _uebergang_3a(e: ev.Ereignis | ev.InternesEreignis, jetzt: Jetzt) -> list:
-    """Übergangsweg bis AP 4.8 (siehe oben). Prüfung wie ``idle`` (Punkt 9.9): Ablaufzeit, dann Uhr, dann ``SyncStarten("ha")``.
-
-    ``AkkuTiefstand`` meldet ``power`` nur, wenn die Box sicher nicht am Lader hängt; der laufende Sync wird abgebrochen.
-    Das Herunterfahren folgt erst mit ``idle``. Ein Sync, der schon läuft, bleibt bei ``sync.start`` unberührt."""
-    if any(name == "idle" for name, _ in TEILAUTOMATEN):
-        return []
-
-    def prot(ebene: str, ereignis: str, ergebnis: str, **daten: str | int | float | bool | None) -> ev.Protokoll:
-        return ev.Protokoll("core", ebene, ereignis, ergebnis, None, daten)  # type: ignore[arg-type]
-
-    if isinstance(e, ev.AkkuTiefstand):
-        return [prot("WARNING", "akku_tiefstand", "sync_abbrechen"), ev.SyncAbbrechen("akku_tiefstand")]
-    if isinstance(e, ev.HaSyncAnstossen):
-        if jetzt.wall > e.gueltig_bis:
-            return [prot("WARNING", "sync_befehl", "abgelaufen", befehl_id=e.befehl_id)]
-        if not jetzt.zeit_ok:
-            return [
-                prot("WARNING", "sync_befehl", "abgelehnt", grund="zeit_unsicher", befehl_id=e.befehl_id),
-                ev.EreignisSenden("befehl_abgelehnt", {"befehl": "sync", "befehl_id": e.befehl_id, "grund": "zeit_unsicher"}),
-            ]
-        return [ev.SyncStarten("ha"), prot("INFO", "sync_befehl", "angenommen", befehl_id=e.befehl_id)]
-    return []
 
 
 def _prozent(wert: int) -> int:
@@ -238,7 +214,6 @@ def step(
                         schlange.append(o)
                     else:
                         befehle.append(o)
-            befehle.extend(_uebergang_3a(e, jetzt))
 
         if abgebrochen:
             break

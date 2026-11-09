@@ -65,9 +65,13 @@ from .store import (
     ZUSTAND_LEER_NEU,
     ZUSTAND_OK,
     TobiboxStore,
+    einstellungen_aus,
     export_ist_neuer,
     lese_export,
     neue_konfig,
+    pruefe_gute_nacht,
+    pruefe_leise_zeiten,
+    pruefe_lesezeichen_tage,
     pruefe_ziel,
     schreibe_export,
     Ungueltig,
@@ -725,19 +729,21 @@ class Hub:
 
         return await self.aendere_konfig(entferne)
 
-    async def zuordnung_liste(self, serie_id: str | None, limit: int, offset: int) -> dict[str, Any]:
+    async def zuordnung_liste(self, serie_id: str | None, limit: int, offset: int, uid: str | None = None) -> dict[str, Any]:
         if self.medien.geprueft_am is None:
             with contextlib.suppress(TobiboxFehler):
                 await self.medien._stelle_geprueft_sicher()
         k = self.store.konfig
         eintraege: list[dict[str, Any]] = []
-        for uid, z in sorted((k["zuordnungen"] if k else {}).items()):
+        for z_uid, z in sorted((k["zuordnungen"] if k else {}).items()):
             ziel = z["ziel"]
+            if uid is not None and z_uid != uid:  # Filter ``uid``: genau eine Zuordnung (Erweiterung v1.1, 09.11.)
+                continue
             if serie_id is not None and not (ziel["typ"] in ("serie", "folge") and ziel.get("serie") == serie_id):
                 continue
             info = self.medien.serien.get(ziel.get("serie", "")) if ziel["typ"] in ("serie", "folge") else None
             eintrag = {
-                "uid": uid,
+                "uid": z_uid,
                 "name": z.get("name"),
                 "ziel": ziel,
                 "serie_name": info.serie.name if info else None,
@@ -750,6 +756,53 @@ class Hub:
                 eintrag["folge_anzeige"] = info.serie.anzeige(ziel["folge"]) if vorhanden else None
             eintraege.append(eintrag)
         return {"konfig": self.konfig_stand(), "zuordnungen": eintraege[offset : offset + limit], "gesamt": len(eintraege)}
+
+    # --- Einstellungen (AP 4.7) und Konfig-Stand lesen (Erweiterung v1.1) --------------------------------------------
+
+    def konfig_lesen(self) -> dict[str, Any]:
+        """``tobibox/konfig/get``: nur der Konfig-Stand (Erweiterung v1.1, 09.11.)."""
+        return {"konfig": self.konfig_stand()}
+
+    def einstellungen_lesen(self) -> dict[str, Any]:
+        """``tobibox/einstellungen/get``: Leise-Zeiten, Gute Nacht, ``lesezeichen_tage`` (und ``hinweis_pegel``, wenn gesetzt)."""
+        k = self.store.konfig
+        if k is None:  # leerer Speicher (Zustand ``leer_neu``): es gibt noch nichts zu zeigen
+            raise TobiboxFehler("konfig_nicht_bereit")
+        return {**einstellungen_aus(k), "konfig": self.konfig_stand()}
+
+    async def einstellungen_setzen(
+        self,
+        leise_zeiten: Any = FEHLT,
+        gute_nacht: Any = FEHLT,
+        lesezeichen_tage: Any = FEHLT,
+        *,
+        teilweise: bool = False,
+    ) -> dict[str, Any]:
+        """``tobibox/einstellungen/set``: setzt ganze Objekte und/oder ``lesezeichen_tage``.
+
+        Die Prüfung ist die der Box (``store.pruefe_*``); ist irgendein Teil ungültig, wird **nichts** geändert
+        (``einstellung_ungueltig``, der Pfad steht im Klartext). ``teilweise`` (HA-Aktionen): Felder, die fehlen,
+        bleiben wie sie sind, statt dass die Aktion das ganze Objekt ersetzt. Eine Änderung erhöht die Revision
+        und geht an ``tobibox/config``; dieselben Werte wie schon gespeichert ergeben ``geaendert=false``."""
+        if leise_zeiten is FEHLT and gute_nacht is FEHLT and lesezeichen_tage is FEHLT:
+            raise TobiboxFehler("invalid_format")
+
+        def setze(k: dict[str, Any]) -> None:
+            try:
+                if leise_zeiten is not FEHLT:
+                    neu = {**k["leise_zeiten"], **leise_zeiten} if teilweise and isinstance(leise_zeiten, dict) else leise_zeiten
+                    k["leise_zeiten"] = pruefe_leise_zeiten(neu)
+                if gute_nacht is not FEHLT:
+                    neu = {**k["gute_nacht"], **gute_nacht} if teilweise and isinstance(gute_nacht, dict) else gute_nacht
+                    k["gute_nacht"] = pruefe_gute_nacht(neu)
+                if lesezeichen_tage is not FEHLT:
+                    k["lesezeichen_tage"] = pruefe_lesezeichen_tage(lesezeichen_tage)
+            except Ungueltig as err:
+                raise TobiboxFehler("einstellung_ungueltig", pfad=err.pfad) from err
+
+        erg = await self.aendere_konfig(setze)
+        assert self.store.konfig is not None  # aendere_konfig hat sonst konfig_nicht_bereit geworfen
+        return {**erg, **einstellungen_aus(self.store.konfig)}
 
     # --- hello -------------------------------------------------------------------------------------------------------
 

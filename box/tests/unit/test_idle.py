@@ -7,7 +7,7 @@ import pytest
 from tobibox import events as ev
 from tobibox import idle
 from tobibox.clock import SimUhr
-from tobibox.idle import LEERLAUF_S, SYNC_ANTWORT_FRIST_S
+from tobibox.idle import LEERLAUF_S, START_WIEDERHOLUNG_S, START_WIEDERHOLUNGEN, SYNC_ANTWORT_FRIST_S
 
 
 class Rahmen:
@@ -116,11 +116,36 @@ def test_tobie_verwirft_den_zaehler_und_abheben_startet_ihn_neu():
     assert r.vor(1) == FAHREN
 
 
-def test_bedienung_setzt_den_zaehler_nicht_zurueck():
-    """Der Vertrag kennt nur „keine Wiedergabe und kein Tobie“; Tasten und Regler zählen nicht."""
+@pytest.mark.parametrize(
+    "bedienung",
+    [ev.Hauptknopf("kurz"), ev.Weiter(), ev.Zurueck(), ev.LautstaerkeDrehen(5), ev.Kopfhoerer(True), ev.Kopfhoerer(False)],
+)
+def test_bedienung_setzt_den_zaehler_zurueck(bedienung):
+    """Entscheidung der Projektleitung (AP 4.8): Wer an der Box spielt, will nicht, dass sie ausgeht."""
     r = leer()
     r.vor(LEERLAUF_S - 5)
-    r.sende(ev.Hauptknopf("kurz"), ev.LautstaerkeDrehen(5), ev.Weiter(), ev.Kopfhoerer(True), ev.AkkuStand(80))
+    r.sende(bedienung)
+    assert r.vor(5) == []  # ohne Rücksetzen wäre jetzt Schluss
+    assert r.vor(LEERLAUF_S - 10) == []
+    assert r.vor(5) == FAHREN  # 20 min nach der Bedienung
+
+
+def test_bedienung_nach_faelligkeit_setzt_auch_die_wartezeit_zurueck():
+    r = leer()
+    r.sende(ev.HaSyncAnstossen("b1", r.uhr.wall + 9999), ev.SyncGestartet())
+    r.vor(LEERLAUF_S)  # fällig, der Sync hält
+    assert r.z.faellig
+    r.sende(ev.Weiter())
+    assert not r.z.faellig
+    r.sende(ev.SyncFertig(1, 0))
+    assert r.vor(LEERLAUF_S - 5) == []
+    assert r.vor(5) == FAHREN
+
+
+def test_andere_ereignisse_setzen_den_zaehler_nicht_zurueck():
+    r = leer()
+    r.vor(LEERLAUF_S - 5)
+    r.sende(ev.AkkuStand(80), ev.NetzKlasse("home"), ev.LaderGeaendert(False))
     assert r.vor(5) == FAHREN
 
 
@@ -445,3 +470,90 @@ def test_kennzeichen_ist_der_modus():
     assert idle.kennzeichen(r.z) == "leerlauf"
     r.vor(LEERLAUF_S)
     assert idle.kennzeichen(r.z) == "herunterfahren"
+
+
+# --- Wiederholung des Start-Syncs am Lader (Entscheidung der Projektleitung, AP 4.8) -------------------------
+
+
+def am_lader_gestartet() -> Rahmen:
+    """Box am Lader gestartet, ohne Tobie; der Start-Sync ist ausgegeben und noch ohne Antwort."""
+    r = Rahmen()
+    r.sende(ev.SitzungGeaendert("leer", False, False, None), ev.LaderGeaendert(True))
+    assert r.sende(ev.Bereit()) == [ev.SyncStarten("start_lader")]
+    return r
+
+
+@pytest.mark.parametrize("grund", ["netz_weg", "regel"])
+def test_start_sync_wird_nach_10_min_wiederholt(grund):
+    r = am_lader_gestartet()
+    assert r.sende(ev.SyncAbgebrochen(grund)) == []
+    assert r.vor(START_WIEDERHOLUNG_S - 1) == []
+    assert r.vor(1) == [ev.SyncStarten("start_lader")]
+
+
+def test_wiederholung_nur_6_mal_dann_gilt_die_20_min_regel():
+    r = am_lader_gestartet()
+    r.sende(ev.SyncAbgebrochen("netz_weg"))
+    for n in range(START_WIEDERHOLUNGEN):
+        assert r.vor(START_WIEDERHOLUNG_S) == [ev.SyncStarten("start_lader")], n
+        if n < START_WIEDERHOLUNGEN - 1:
+            assert r.sende(ev.SyncAbgebrochen("regel")) == []
+    # der 6. Versuch scheitert wie die anderen: keine siebte Wiederholung, die Box fährt herunter (Zähler ist längst abgelaufen)
+    assert r.sende(ev.SyncAbgebrochen("regel")) == FAHREN
+    assert r.vor(10 * START_WIEDERHOLUNG_S) == []
+
+
+def test_waehrend_der_wiederholungen_schaltet_die_box_nicht_ab():
+    r = am_lader_gestartet()
+    r.sende(ev.SyncAbgebrochen("netz_weg"))
+    assert r.vor(START_WIEDERHOLUNG_S) == [ev.SyncStarten("start_lader")]
+    r.sende(ev.SyncAbgebrochen("regel"))
+    assert r.vor(START_WIEDERHOLUNG_S - 1) == []
+    assert r.vor(1) == [ev.SyncStarten("start_lader")]  # 20 min um: die Wiederholung kommt, die Abschaltung wartet
+    assert r.modus == "leerlauf" and r.z.faellig
+
+
+def test_gelungene_wiederholung_beendet_sie_und_die_box_faehrt_herunter():
+    r = am_lader_gestartet()
+    r.sende(ev.SyncAbgebrochen("netz_weg"))
+    assert r.vor(START_WIEDERHOLUNG_S) == [ev.SyncStarten("start_lader")]
+    r.sende(ev.SyncGestartet())
+    assert r.vor(LEERLAUF_S) == []  # Sync läuft
+    assert r.sende(ev.SyncFertig(2, 0)) == FAHREN
+
+
+def test_anderer_abbruchgrund_wiederholt_nicht():
+    r = am_lader_gestartet()
+    r.sende(ev.SyncAbgebrochen("quelle_leer"))
+    assert r.vor(10 * START_WIEDERHOLUNG_S) == FAHREN or r.modus == "herunterfahren"
+    assert [b for b in r.alles if b == ev.SyncStarten("start_lader")] == [ev.SyncStarten("start_lader")]
+
+
+def test_ohne_lader_keine_wiederholung():
+    r = am_lader_gestartet()
+    r.sende(ev.SyncAbgebrochen("netz_weg"))
+    r.sende(ev.LaderGeaendert(False))
+    assert r.vor(START_WIEDERHOLUNG_S) == []
+    assert not [b for b in r.alles if b == ev.SyncStarten("start_lader")][1:]
+
+
+def test_nur_der_start_sync_wird_wiederholt_nicht_der_ha_sync():
+    r = leer()
+    r.sende(ev.LaderGeaendert(True), ev.HaSyncAnstossen("b1", r.uhr.wall + 9999))
+    assert r.sende(ev.SyncAbgebrochen("regel")) == []
+    assert r.vor(START_WIEDERHOLUNG_S) == []
+    assert r.z.wdh_bei is None
+
+
+def test_wiederholung_nach_lader_wechsel_waehrend_des_wartens_endet():
+    r = am_lader_gestartet()
+    r.sende(ev.SyncAbgebrochen("regel"))
+    r.sende(ev.LaderGeaendert(False))
+    assert r.z.wdh_bei is None and not r.z.start_wdh
+
+
+def test_ohne_sync_abschnitt_wird_nicht_wiederholt():
+    """``app`` meldet ohne ``[sync]`` ``nicht_eingerichtet``: kein Grund für die Wiederholung."""
+    r = am_lader_gestartet()
+    r.sende(ev.SyncAbgebrochen("nicht_eingerichtet"))
+    assert r.z.wdh_bei is None

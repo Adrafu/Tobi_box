@@ -130,6 +130,7 @@ async def test_tiefstand_vom_simulierten_akku_bricht_den_sync_ab_befehl_geht_an_
         abgebrochen.append(grund)
 
     a.sync.abbrechen = abbrechen
+    await d.sende(ev.SyncGestartet())  # ein Sync läuft; nur dann bricht ``idle`` ihn ab
     await d.sim(befehl="strom", lader=False, akku=80)
     await d.sim(befehl="strom", akku=4)  # unter 5 %, nicht am Lader: ``AkkuTiefstand``
     await d.ruhe()
@@ -145,7 +146,7 @@ async def test_syncstarten_ohne_sync_abschnitt_wird_beantwortet_und_bleibt_nicht
     try:
         await dienst.sende(ev.HaSyncAnstossen("b1", dienst.uhr.jetzt().wall + 60))
         await dienst.ruhe()
-        assert dienst.app.status.sync["grund"] == "regel" and dienst.app.status.sync["zustand"] == "idle"
+        assert dienst.app.status.sync["grund"] == "nicht_eingerichtet" and dienst.app.status.sync["zustand"] == "idle"
     finally:
         await dienst.app.beende()
 

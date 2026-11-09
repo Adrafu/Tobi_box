@@ -87,6 +87,7 @@ async def test_hello(api, api_lesend, integration):
     assert r["faehigkeiten"] == [
         "medien", "upload", "zuordnung", "tobie_namen", "neue_tobies", "lernmodus", "boxen", "papierkorb",
         "liste_ausrollen", "konfig_export", "sync", "eingang", "korrektur", "serie_loeschen",
+        "einstellungen", "eingang_entfernen", "zuordnung_uid", "konfig_lesen", "upload_fertig_details",  # AP 4.7, Erweiterungen v1.1
     ]
     assert r["konfig"]["zustand"] == "ok" and r["konfig"]["revision"] == 1
     g = r["grenzen"]

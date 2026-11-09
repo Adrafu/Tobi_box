@@ -55,6 +55,8 @@ ZUSTAND_EXPORT_NEUER = "export_neuer"
 _FENSTER_ID_RE = re.compile(r"^[a-z0-9_-]{1,32}$")
 _ZEIT_RE = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 _ZIEL_AKTIONEN = ("status", "gute_nacht")
+#: höchstens so viele Fenster der Leise-Zeiten (``data-model.md``, Abschnitt 2; wie die Box)
+FENSTER_MAX = 32
 
 
 class Ungueltig(ValueError):
@@ -125,6 +127,79 @@ def pruefe_ziel(ziel: Any, wo: str) -> dict[str, Any]:
     raise Ungueltig(f"{wo}.typ")
 
 
+def pruefe_leise_zeiten(lz: Any) -> dict[str, Any]:
+    """Prüft ``leise_zeiten`` (``data-model.md``, Abschnitt 2) und gibt die Normalform zurück.
+
+    **Dieselben Regeln und Grenzen wie ``parse_konfig`` der Box** (``box/src/tobibox/store.py``): Zeitzone aus der
+    Zeitzonendatenbank (Vorgabe ``Europe/Berlin``), höchstens 32 Fenster, ``id`` 1 bis 32 Zeichen ``[a-z0-9_-]`` und
+    eindeutig, ``tage`` nicht leer, ohne Doppelte, 1 bis 7, ``von``/``bis`` ``HH:MM`` und nicht gleich, ``wirkung``
+    ``leiser`` (mit ``grenze`` 0 bis 100) oder ``stumm`` (ohne ``grenze``). Wirft ``Ungueltig`` mit dem Pfad der Stelle."""
+    if not isinstance(lz, dict):
+        raise Ungueltig("leise_zeiten")
+    zone = lz.get("zeitzone", STANDARD_ZEITZONE)
+    if not isinstance(zone, str):
+        raise Ungueltig("leise_zeiten.zeitzone")
+    try:
+        ZoneInfo(zone)
+    except Exception as err:
+        raise Ungueltig(f"leise_zeiten.zeitzone {zone!r}") from err
+    fenster_roh = lz.get("fenster")
+    if not isinstance(fenster_roh, list) or len(fenster_roh) > FENSTER_MAX:
+        raise Ungueltig("leise_zeiten.fenster")
+    fenster: list[dict[str, Any]] = []
+    ids: set[str] = set()
+    for i, f in enumerate(fenster_roh):
+        if not isinstance(f, dict):
+            raise Ungueltig(f"fenster[{i}]")
+        fid = f.get("id")
+        if not isinstance(fid, str) or not _FENSTER_ID_RE.match(fid) or fid in ids:
+            raise Ungueltig(f"fenster[{i}].id")
+        ids.add(fid)
+        tage = f.get("tage")
+        if (
+            not isinstance(tage, list)
+            or not tage
+            or not all(_ganz(t) and 1 <= t <= 7 for t in tage)
+            or len(set(tage)) != len(tage)
+        ):
+            raise Ungueltig(f"fenster[{i}].tage")
+        von, bis = f.get("von"), f.get("bis")
+        if not isinstance(von, str) or not _ZEIT_RE.match(von):
+            raise Ungueltig(f"fenster[{i}].von")
+        if not isinstance(bis, str) or not _ZEIT_RE.match(bis) or bis == von:
+            raise Ungueltig(f"fenster[{i}].bis")
+        wirkung = f.get("wirkung")
+        neu: dict[str, Any] = {"id": fid, "tage": list(tage), "von": von, "bis": bis, "wirkung": wirkung}
+        if wirkung == "leiser":
+            grenze = f.get("grenze")
+            if not _ganz(grenze) or not 0 <= grenze <= 100:
+                raise Ungueltig(f"fenster[{i}].grenze")
+            neu["grenze"] = grenze
+        elif wirkung != "stumm":
+            raise Ungueltig(f"fenster[{i}].wirkung")
+        fenster.append(neu)
+    return {"zeitzone": zone, "fenster": fenster}
+
+
+def pruefe_gute_nacht(gn: Any) -> dict[str, Any]:
+    """Prüft ``gute_nacht``: ``timer_min`` ganze Zahl 1 bis 240, ``ausblenden_s`` ganze Zahl 5 bis 600 (wie die Box)."""
+    if not isinstance(gn, dict):
+        raise Ungueltig("gute_nacht")
+    timer, aus = gn.get("timer_min"), gn.get("ausblenden_s")
+    if not _ganz(timer) or not 1 <= timer <= 240:
+        raise Ungueltig("gute_nacht.timer_min")
+    if not _ganz(aus) or not 5 <= aus <= 600:
+        raise Ungueltig("gute_nacht.ausblenden_s")
+    return {"timer_min": timer, "ausblenden_s": aus}
+
+
+def pruefe_lesezeichen_tage(tage: Any) -> int:
+    """Prüft ``lesezeichen_tage``: ganze Zahl 0 bis 365, ``0`` = läuft nie ab (Entscheidung N, 09.11.; wie die Box)."""
+    if not _ganz(tage) or not 0 <= tage <= LESEZEICHEN_TAGE_MAX:
+        raise Ungueltig("lesezeichen_tage")
+    return tage
+
+
 def pruefe_konfig(roh: Any) -> dict[str, Any]:
     """Prüft eine Konfiguration (Export oder Liste) und gibt die Normalform zurück.
 
@@ -164,67 +239,15 @@ def pruefe_konfig(roh: Any) -> dict[str, Any]:
             eintrag["name"] = name
         zuordnungen[uid] = eintrag
 
-    lz = roh.get("leise_zeiten")
-    if not isinstance(lz, dict):
-        raise Ungueltig("leise_zeiten")
-    zone = lz.get("zeitzone", STANDARD_ZEITZONE)
-    if not isinstance(zone, str):
-        raise Ungueltig("leise_zeiten.zeitzone")
-    try:
-        ZoneInfo(zone)
-    except Exception as err:
-        raise Ungueltig(f"leise_zeiten.zeitzone {zone!r}") from err
-    fenster_roh = lz.get("fenster")
-    if not isinstance(fenster_roh, list) or len(fenster_roh) > 32:
-        raise Ungueltig("leise_zeiten.fenster")
-    fenster: list[dict[str, Any]] = []
-    ids: set[str] = set()
-    for i, f in enumerate(fenster_roh):
-        if not isinstance(f, dict):
-            raise Ungueltig(f"fenster[{i}]")
-        fid = f.get("id")
-        if not isinstance(fid, str) or not _FENSTER_ID_RE.match(fid) or fid in ids:
-            raise Ungueltig(f"fenster[{i}].id")
-        ids.add(fid)
-        tage = f.get("tage")
-        if (
-            not isinstance(tage, list)
-            or not tage
-            or not all(_ganz(t) and 1 <= t <= 7 for t in tage)
-            or len(set(tage)) != len(tage)
-        ):
-            raise Ungueltig(f"fenster[{i}].tage")
-        von, bis = f.get("von"), f.get("bis")
-        if not isinstance(von, str) or not _ZEIT_RE.match(von):
-            raise Ungueltig(f"fenster[{i}].von")
-        if not isinstance(bis, str) or not _ZEIT_RE.match(bis) or bis == von:
-            raise Ungueltig(f"fenster[{i}].bis")
-        wirkung = f.get("wirkung")
-        neu: dict[str, Any] = {"id": fid, "tage": list(tage), "von": von, "bis": bis, "wirkung": wirkung}
-        if wirkung == "leiser":
-            grenze = f.get("grenze")
-            if not _ganz(grenze) or not 0 <= grenze <= 100:
-                raise Ungueltig(f"fenster[{i}].grenze")
-            neu["grenze"] = grenze
-        elif wirkung != "stumm":
-            raise Ungueltig(f"fenster[{i}].wirkung")
-        fenster.append(neu)
-
-    gn = roh.get("gute_nacht")
-    if not isinstance(gn, dict):
-        raise Ungueltig("gute_nacht")
-    timer, aus = gn.get("timer_min"), gn.get("ausblenden_s")
-    if not _ganz(timer) or not 1 <= timer <= 240:
-        raise Ungueltig("gute_nacht.timer_min")
-    if not _ganz(aus) or not 5 <= aus <= 600:
-        raise Ungueltig("gute_nacht.ausblenden_s")
+    leise = pruefe_leise_zeiten(roh.get("leise_zeiten"))
+    gute_nacht = pruefe_gute_nacht(roh.get("gute_nacht"))
 
     k: dict[str, Any] = {
         "revision": rev,
         "liste_id": lid,
         "zuordnungen": zuordnungen,
-        "leise_zeiten": {"zeitzone": zone, "fenster": fenster},
-        "gute_nacht": {"timer_min": timer, "ausblenden_s": aus},
+        "leise_zeiten": leise,
+        "gute_nacht": gute_nacht,
     }
     if isinstance(roh.get("erzeugt_am"), str):
         k["erzeugt_am"] = roh["erzeugt_am"]
@@ -233,12 +256,21 @@ def pruefe_konfig(roh: Any) -> dict[str, Any]:
             if not _ganz(roh[opt]) or not 0 <= roh[opt] <= 100:
                 raise Ungueltig(opt)
             k[opt] = roh[opt]
-    # Lesezeichen laufen nach so vielen Tagen ohne Benutzung ab; 0 = nie; fehlt das Feld, gilt 14 (Entscheidung N, 09.11.)
-    tage_ablauf = roh.get("lesezeichen_tage", LESEZEICHEN_TAGE_VORGABE)
-    if not _ganz(tage_ablauf) or not 0 <= tage_ablauf <= LESEZEICHEN_TAGE_MAX:
-        raise Ungueltig("lesezeichen_tage")
-    k["lesezeichen_tage"] = tage_ablauf
+    # fehlt das Feld, gilt 14 (Entscheidung N, 09.11.)
+    k["lesezeichen_tage"] = pruefe_lesezeichen_tage(roh.get("lesezeichen_tage", LESEZEICHEN_TAGE_VORGABE))
     return k
+
+
+def einstellungen_aus(k: dict[str, Any]) -> dict[str, Any]:
+    """Die Einstellungen einer Konfiguration (AP 4.7): Leise-Zeiten, Gute Nacht, ``lesezeichen_tage``; ``hinweis_pegel`` nur, wenn gesetzt."""
+    aus: dict[str, Any] = {
+        "leise_zeiten": copy.deepcopy(k["leise_zeiten"]),
+        "gute_nacht": copy.deepcopy(k["gute_nacht"]),
+        "lesezeichen_tage": k.get("lesezeichen_tage", LESEZEICHEN_TAGE_VORGABE),
+    }
+    if "hinweis_pegel" in k:
+        aus["hinweis_pegel"] = k["hinweis_pegel"]
+    return aus
 
 
 def konfig_zu_mqtt(k: dict[str, Any]) -> dict[str, Any]:

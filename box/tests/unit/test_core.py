@@ -93,7 +93,7 @@ def test_lautstaerke_vor_abspielen_auch_wenn_unveraendert():
 def test_zustand_melden_nur_bei_aenderung_und_mit_standardwerten():
     k = KernHarnisch(start=False)
     erste = [o for o in k.sende(ev.Takt()) if isinstance(o, ev.ZustandMelden)]
-    assert erste == [ev.ZustandMelden("leer", "aktiv", None, False, "normal", "aus", False)]
+    assert erste == [ev.ZustandMelden("leer", "leerlauf", None, False, "normal", "aus", False)]  # idle zählt schon
     assert not [o for o in k.sende(ev.Takt()) if isinstance(o, ev.ZustandMelden)]
     k.sende(ev.GeraeteEinstellungen(60, 40, 25))
     k.sende(ev.KonfigGeladen(__import__("conftest").mk_konfig()))

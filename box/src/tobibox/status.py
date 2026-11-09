@@ -74,8 +74,8 @@ class Statussammler:
             self.sync = {"zustand": "idle", "letzter_ende": zeitstempel(jetzt.wall), "ergebnis": "ok", "grund": None, "neu": e.neu}
         elif isinstance(e, ev.SyncAbgebrochen):
             self.sync_fortschritt = None
-            # ``regel``: die Regel hat den Sync nicht zugelassen, das ist kein Fehler (12.1)
-            zustand = "idle" if e.grund == "regel" else "fehler"
+            # ``regel``: die Regel hat den Sync nicht zugelassen, ``nicht_eingerichtet``: kein ``[sync]``; beides ist kein Fehler (12.1)
+            zustand = "idle" if e.grund in ("regel", "nicht_eingerichtet") else "fehler"
             self.sync = {**self.sync, "zustand": zustand, "letzter_ende": zeitstempel(jetzt.wall), "ergebnis": "abgebrochen", "grund": e.grund}
         elif isinstance(e, ev.UpdateGestartet):
             self.update = {"zustand": "testing", "version": e.version, "grund": None}

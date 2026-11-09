@@ -116,9 +116,9 @@ async def test_tasten_gehen_als_ereignis_in_den_dienst(sim, taste, erwartet):
     assert sim.got == [erwartet]
 
 
-async def test_hauptknopf_lang_ist_noch_nicht_verdrahtet(sim):
-    assert await eins(sim, befehl="taste", taste="hauptknopf_lang") == {"ok": False, "fehler": "noch_nicht_verdrahtet"}
-    assert sim.got == []
+async def test_hauptknopf_lang_ist_seit_ap_4_8_verdrahtet(sim):
+    assert await eins(sim, befehl="taste", taste="hauptknopf_lang") == {"ok": True}
+    assert sim.got == [ev.Hauptknopf("lang")]
 
 
 async def test_taste_ungueltig(sim):
@@ -187,7 +187,7 @@ async def test_hauptknopf_lang_wird_verdrahtet_kommen_die_ereignisse(sim, monkey
 async def test_anzeige_nennt_verdrahtung_und_simulierten_tobie(sim):
     a = await eins(sim, befehl="anzeige")
     assert a["ok"] and a["simuliert"] is None
-    assert a["verdrahtet"]["hauptknopf_kurz"] is True and a["verdrahtet"]["netz"] is True and a["verdrahtet"]["strom"] is True and a["verdrahtet"]["hauptknopf_lang"] is False
+    assert a["verdrahtet"]["hauptknopf_kurz"] is True and a["verdrahtet"]["netz"] is True and a["verdrahtet"]["strom"] is True and a["verdrahtet"]["hauptknopf_lang"] is True
     t = await eins(sim, befehl="tobie_auflegen", uid="04a1b2c3")
     a = await eins(sim, befehl="anzeige")
     assert a["simuliert"] == {"uid": "04a1b2c3", "vorgang": t["vorgang"]}  # innerhalb der Karenz bleibt er

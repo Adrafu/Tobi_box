@@ -7,6 +7,10 @@ Der echte APA102-Treiber und die Browser-Simulation bekommen dasselbe Bild:
 * ``Ring.als_dict()``: JSON-fähig, für Simulation, Terminal und Protokoll.
 * ``Ring.apa102_rahmen()``: die Bytes für den echten Ring.
 
+**Vorschlag, Tobias entscheidet nach Ansicht in der Simulation** (AP 4.8): Lernmodus als blaues Atmen, Gute Nacht als
+Glimmen, das mit dem Ausblenden schwächer wird, „stumm“ dimmt den Ring. Farben, Muster und Zeiten stehen als benannte
+Konstanten unten (Abschnitt „Vorschlag“) und lassen sich dort ohne Änderung der Logik anpassen.
+
 Das Bild ist eine Funktion der Zeit (Atmen, Blinken, Lauflicht). Wer es zeichnet, ruft
 ``LedLogik.ring(jetzt_mono)`` im eigenen Takt auf (z. B. alle 50 ms).
 
@@ -34,16 +38,28 @@ PAUSE = "pause"
 AKKU = "akku"
 UNBEKANNTE_KARTE = "unbekannte_karte"
 AUFWACHEN = "aufwachen"
-ZUSTAENDE = (AUS, LAEUFT, PAUSE, AKKU, UNBEKANNTE_KARTE, AUFWACHEN)
+LERNEN = "lernen"  # Vorschlag (AP 4.8)
+GUTE_NACHT = "gute_nacht"  # Vorschlag (AP 4.8)
+ZUSTAENDE = (AUS, LAEUFT, PAUSE, AKKU, UNBEKANNTE_KARTE, AUFWACHEN, LERNEN, GUTE_NACHT)
 
 # Zeiten in Sekunden
 AUFWACHEN_S = 2.0  # Lauflicht beim Aufwachen
 AKKU_ANZEIGE_S = 5.0  # Akku-Anzeige nach Anforderung oder Laderwechsel
 ATMEN_S = 6.0  # Periode beim Atmen (läuft)
+PAUSE_HELLIGKEIT = 10  # Prozent, Pause
 BLINK_UNBEKANNT_S = 1.0  # Periode Blinken (unbekannte Karte)
 BLINK_TIEFSTAND_S = 0.5  # Periode Blinken (Akku-Tiefstand)
 KOMET_LAENGE = 10  # LEDs im Schweif des Lauflichts
 KOMET_RUNDEN = 2
+
+# --- Vorschlag (AP 4.8): Lernmodus, Gute Nacht, stumm. Tobias entscheidet nach Ansicht in der Simulation. ---
+LERNEN_ATMEN_S = 3.0  # Periode des blauen Atmens im Lernmodus (schneller als „läuft“: die Box wartet auf einen Tobie)
+LERNEN_HELL_MIN = 8  # Prozent, unterer Punkt des Atmens
+LERNEN_HELL_MAX = 25  # Prozent, oberer Punkt (nie über dem Deckel)
+GUTE_NACHT_GLIMMEN_S = 4.0  # Periode des Glimmens
+GUTE_NACHT_HELL_MIN = 3  # Prozent, unterer Punkt des Glimmens
+GUTE_NACHT_HELL_MAX = 8  # Prozent, oberer Punkt; beim Ausblenden wird alles mit dem Ausblenden-Faktor multipliziert
+STUMM_DIMMUNG = 0.4  # unter „stumm“ bleibt der Ring wie er ist, aber mit diesem Anteil der Helligkeit
 
 Farbe = tuple[int, int, int]
 SCHWARZ: Farbe = (0, 0, 0)
@@ -54,6 +70,9 @@ GELB: Farbe = (255, 190, 0)
 ROT: Farbe = (255, 0, 0)
 BLAU: Farbe = (0, 150, 255)
 WARMWEISS: Farbe = (255, 200, 120)
+# Vorschlag (AP 4.8)
+FARBE_LERNEN: Farbe = (0, 70, 255)  # Lernmodus: Blau, deutlich anders als der Akku im Laden (BLAU)
+FARBE_GUTE_NACHT: Farbe = (255, 90, 10)  # Gute Nacht: warmes, dunkles Orange, wie Glut
 
 
 def _byte(x: float) -> int:
@@ -113,7 +132,19 @@ def _laeuft(t: float) -> Ring:
 
 
 def _pause() -> Ring:
-    return _einfarbig(PAUSE, BERNSTEIN, 10)
+    return _einfarbig(PAUSE, BERNSTEIN, PAUSE_HELLIGKEIT)
+
+
+def _lernen(t: float) -> Ring:
+    welle = 0.5 - 0.5 * math.cos(2 * math.pi * t / LERNEN_ATMEN_S)
+    return _einfarbig(LERNEN, FARBE_LERNEN, LERNEN_HELL_MIN + (LERNEN_HELL_MAX - LERNEN_HELL_MIN) * welle)
+
+
+def _gute_nacht(t: float, faktor: float) -> Ring:
+    """Glimmen; ``faktor`` (1 bis 0) ist der Stand des Ausblendens und macht es schwächer."""
+    welle = 0.5 - 0.5 * math.cos(2 * math.pi * t / GUTE_NACHT_GLIMMEN_S)
+    hell = GUTE_NACHT_HELL_MIN + (GUTE_NACHT_HELL_MAX - GUTE_NACHT_HELL_MIN) * welle
+    return _einfarbig(GUTE_NACHT, FARBE_GUTE_NACHT, hell * max(0.0, min(1.0, faktor)))
 
 
 def _unbekannt(t: float) -> Ring:
@@ -150,7 +181,8 @@ class LedLogik:
     """Hält die Eingaben des Rings und liefert das Bild zu einer Zeit.
 
     Rangfolge (oben gewinnt): Aufwachen, Akku (Tiefstand oder Anzeige), unbekannte Karte,
-    läuft, Pause, aus.
+    Lernmodus, Gute Nacht (nur während die Wiedergabe läuft), läuft, Pause, aus.
+    Unter „stumm“ (``ruhe``) bleibt der Zustand, die Helligkeit sinkt auf ``STUMM_DIMMUNG``.
     """
 
     def __init__(self) -> None:
@@ -160,6 +192,7 @@ class LedLogik:
         self.tiefstand = False
         self._aufwachen_ab: float | None = None
         self._akku_bis: float | None = None
+        self.ausblenden_faktor: float | None = None  # Gute Nacht: 1 bis 0 während des Ausblendens, sonst ``None``
 
     # -- Eingaben ---------------------------------------------------------------------
 
@@ -170,6 +203,10 @@ class LedLogik:
     def akku_zeigen(self, jetzt_mono: float) -> None:
         """Akkustand ``AKKU_ANZEIGE_S`` lang zeigen."""
         self._akku_bis = jetzt_mono + AKKU_ANZEIGE_S
+
+    def setze_ausblenden(self, faktor: float | None) -> None:
+        """Stand des Ausblendens von „Gute Nacht“ (1 = Anfang, 0 = Ende), ``None`` außerhalb des Ausblendens."""
+        self.ausblenden_faktor = None if faktor is None else max(0.0, min(1.0, float(faktor)))
 
     def beobachte(self, e: object, jetzt_mono: float) -> None:
         """Nimmt ``ZustandMelden`` und die Strom-Ereignisse an; anderes wird ignoriert."""
@@ -208,18 +245,26 @@ class LedLogik:
             if jetzt_mono >= self._akku_bis:
                 self._akku_bis = None
         z = self.zustand_melden
-        if z is None or z.strom != "aktiv":
+        if z is None or z.strom == "herunterfahren":
             return AUS
         if z.sitzung == "unbekannt":
             return UNBEKANNTE_KARTE
+        if z.lernmodus:
+            return LERNEN  # auch im Leerlauf: Lernen wartet auf einen Tobie, der Ring zeigt es
+        if z.strom != "aktiv":
+            return AUS
         if z.sitzung == "spielt":
-            return LAEUFT
+            return GUTE_NACHT if z.gute_nacht != "aus" else LAEUFT
         if z.sitzung in ("pausiert", "gehalten", "beendet"):
             return PAUSE
         return AUS  # ``leer``
 
     def ring(self, jetzt_mono: float) -> Ring:
-        return ring_fuer(self.zustand(jetzt_mono), jetzt_mono, self)
+        r = ring_fuer(self.zustand(jetzt_mono), jetzt_mono, self)
+        z = self.zustand_melden
+        if z is not None and z.ruhe == "stumm":
+            r = Ring(r.zustand, r.leds, r.helligkeit * STUMM_DIMMUNG)
+        return r
 
     def ring_dict(self, jetzt_mono: float) -> dict[str, Any]:
         """Kurzform für die Simulation: ``ring(...).als_dict()``."""
@@ -237,6 +282,11 @@ def ring_fuer(zustand: str, t: float, logik: LedLogik | None = None) -> Ring:
         return _pause()
     if zustand == UNBEKANNTE_KARTE:
         return _unbekannt(t)
+    if zustand == LERNEN:
+        return _lernen(t)
+    if zustand == GUTE_NACHT:
+        faktor = logik.ausblenden_faktor if logik is not None and logik.ausblenden_faktor is not None else 1.0
+        return _gute_nacht(t, faktor)
     if zustand == AKKU:
         if logik is None:
             return _akku(50, False, False, t)

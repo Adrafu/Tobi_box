@@ -105,14 +105,16 @@ def dateiname_bereinigen(roh: str, *, mit_endung: bool = True, fuer_serienordner
     kommt ``""`` zurück; der Aufrufer entscheidet dann (``name_ungueltig`` oder ``Unbenannt``).
 
     ``fuer_serienordner``: Ein Serien-Ordner darf nicht mit ``_`` beginnen (reserviert, Abschnitt 12,
-    Ende); ein Gerätename erhält deshalb ein ``_`` am Ende statt davor.
+    Ende); ein Gerätename erhält deshalb ein ``_`` am Ende statt davor. ``.`` und ``..`` ergeben als
+    Serien-Ordner ``""`` (wie ``...``: nichts bleibt übrig; ein ``_`` wäre ein reservierter Ordner,
+    09.11., AP 4.7); sonst ``_``.
     """
     if not isinstance(roh, str):
         return "", False
     name = nfc(roh)
     name = ohne_steuerzeichen(name)
     if name.strip() in (".", ".."):
-        return ("_" if not fuer_serienordner else "_ordner"), False
+        return ("" if fuer_serienordner else "_"), False
     name = _DOPPELPUNKT.sub(" - ", name)
     name = name.translate(_VERBOTEN_UNTERSTRICH)
     name = _LEERRAUM.sub(" ", name).strip()
@@ -121,9 +123,11 @@ def dateiname_bereinigen(roh: str, *, mit_endung: bool = True, fuer_serienordner
     if not name:
         return "", False
 
+    # Gerätename (Windows): gilt für den Teil vor dem ersten Punkt, ``CON.tar.gz`` ist so reserviert wie ``CON``
+    kopf, punkt, rest = name.partition(".")
+    if kopf.rstrip().lower() in GERAETENAMEN:
+        name = f"{kopf}_{punkt}{rest}" if fuer_serienordner else f"_{name}"
     stamm, endung = trenne_endung(name) if mit_endung else (name, "")
-    if stamm.lower() in GERAETENAMEN:
-        stamm = f"{stamm}_" if fuer_serienordner else f"_{stamm}"
     gekuerzt = False
     if not _passt(stamm + endung, NAME_LIMIT):
         gekuerzt = True

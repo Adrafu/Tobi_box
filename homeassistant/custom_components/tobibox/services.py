@@ -58,6 +58,13 @@ def serie_aus_vorbelegung(hub: Hub, text: str) -> str | None:
     return None
 
 
+def _zahl(x: Any) -> Any:
+    """Eine ganze Zahl; ``30.0`` (Regler, Vorlage) wird 30. Alles andere bleibt unverändert und fällt in der Prüfung durch."""
+    if isinstance(x, float) and x.is_integer():
+        return int(x)
+    return x
+
+
 def _wrap(func: Callable[[Hub, ServiceCall], Awaitable[Any]]):
     async def handler(call: ServiceCall) -> None:
         hub = _hub(call.hass)
@@ -158,6 +165,22 @@ def async_setup_services(hass: HomeAssistant) -> None:
             raise TobiboxFehler("invalid_format")
         await hub.liste_neu_ausrollen()
 
+    async def leise_zeiten_setzen(hub: Hub, call: ServiceCall) -> None:
+        d = call.data
+        neu: dict[str, Any] = {}
+        if "zeitzone" in d:
+            neu["zeitzone"] = d["zeitzone"]
+        if "fenster" in d:
+            neu["fenster"] = d["fenster"]
+        await hub.einstellungen_setzen(leise_zeiten=neu, teilweise=True)
+
+    async def gute_nacht_setzen(hub: Hub, call: ServiceCall) -> None:
+        d = call.data
+        await hub.einstellungen_setzen(gute_nacht={k: d[k] for k in ("timer_min", "ausblenden_s") if k in d}, teilweise=True)
+
+    async def lesezeichen_tage_setzen(hub: Hub, call: ServiceCall) -> None:
+        await hub.einstellungen_setzen(lesezeichen_tage=call.data["tage"])
+
     bool_ = cv.boolean
     texte: list[tuple[str, Any, Any]] = [
         (
@@ -227,6 +250,18 @@ def async_setup_services(hass: HomeAssistant) -> None:
         ("sync_anstossen", sync_anstossen, vol.Schema({vol.Required("box"): cv.string})),
         ("update_anstossen", update_anstossen, vol.Schema({vol.Required("box"): cv.string})),
         ("liste_neu_ausrollen", liste_neu_ausrollen, vol.Schema({vol.Required("bestaetigt"): bool_})),
+        # AP 4.7: Die Prüfung macht ``store.pruefe_*`` (wie die Box); hier nur Zahlen aus Vorlagen und Reglern (30.0 wird 30)
+        (
+            "leise_zeiten_setzen",
+            leise_zeiten_setzen,
+            vol.Schema({vol.Optional("zeitzone"): cv.string, vol.Optional("fenster"): vol.All(list)}),
+        ),
+        (
+            "gute_nacht_setzen",
+            gute_nacht_setzen,
+            vol.Schema({vol.Optional("timer_min"): _zahl, vol.Optional("ausblenden_s"): _zahl}),
+        ),
+        ("lesezeichen_tage_setzen", lesezeichen_tage_setzen, vol.Schema({vol.Required("tage"): _zahl})),
     ]
     for name, func, schema in texte:
         hass.services.async_register(DOMAIN, name, _wrap(func), schema=schema)

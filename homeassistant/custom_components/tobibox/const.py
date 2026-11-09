@@ -108,7 +108,7 @@ RE_ID12: Final = re.compile(r"^[0-9a-f]{12}$")
 RE_UPLOAD_ID: Final = re.compile(r"^[0-9A-Za-z-]{8,64}$")
 RE_ANFRAGE_ID: Final = RE_UPLOAD_ID
 
-#: Fähigkeiten der Stufe 3a (``hello.faehigkeiten``)
+#: Fähigkeiten (``hello.faehigkeiten``): Stufe 3a, dazu AP 4.7 und die Erweiterungen v1.1
 FAEHIGKEITEN: Final = (
     "medien",
     "upload",
@@ -124,6 +124,12 @@ FAEHIGKEITEN: Final = (
     "eingang",
     "korrektur",
     "serie_loeschen",
+    # AP 4.7 und Erweiterungen v1.1 (09.11., Vertrag W, Abschnitt 10)
+    "einstellungen",
+    "eingang_entfernen",
+    "zuordnung_uid",
+    "konfig_lesen",
+    "upload_fertig_details",
 )
 
 # --- MQTT-Themen (``mqtt-v1.md`` Abschnitt 2) ----------------------------------
@@ -146,4 +152,6 @@ GERAETENAMEN: Final = frozenset(
     {"con", "prn", "aux", "nul"}
     | {f"com{i}" for i in range(1, 10)}
     | {f"lpt{i}" for i in range(1, 10)}
+    | {f"com{c}" for c in "\u00b9\u00b2\u00b3"}  # COM¹ bis COM³ (Windows reserviert auch die hochgestellten Ziffern)
+    | {f"lpt{c}" for c in "\u00b9\u00b2\u00b3"}
 )

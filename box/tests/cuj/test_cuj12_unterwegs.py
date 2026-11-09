@@ -78,7 +78,7 @@ async def unterwegs(tmp_path, kurz, monkeypatch, rsync_daemon):
     await d.abheben("v1")
     await d.auflegen(NEU2, "v2")
     await d.abheben("v2")
-    d.uhr.vor(3 * 86400)  # Tage später
+    d.uhr.setze_wall(d.uhr.wall + 3 * 86400)  # Tage später (nur die Wanduhr: sonst fände idle 20 min Leerlauf und fährt herunter)
     assert set(d.unknown()) == {NEU, NEU2}
     assert d.app.status.netz == "offline"  # beim Start gemessen: kein Netz
     verbunden: list[GegenstelleHa] = []

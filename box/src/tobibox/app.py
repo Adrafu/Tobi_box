@@ -26,6 +26,17 @@ Stufe 3a (AP 3.7): HA, Netz, Strom und Sync hängen hier im Dienst.
 * ``[sync]``: ``Sync`` bekommt Netz-Klasse, Lader und Akku, ``Takt`` für den zeitgesteuerten Start, ``SyncStarten`` und
   ``SyncAbbrechen`` aus dem Kern. Nach einem Sync lädt ``app`` die Bibliothek neu (``BibliothekGeladen``).
 * ``SyncFortschritt`` (Ereignis von ``sync``, nicht im Vertrag) geht nur an den Statussammler und die Anzeige, nie in den Kern.
+
+Stufe 4 (AP 4.8): Hardware-Funktionen, am Mac mit Simulation hinter derselben Schnittstelle.
+
+* **LED-Ring:** ``LedLogik`` bekommt jedes ``ZustandMelden`` und die Strom-Ereignisse (``beobachte``). Alle ``LED_TAKT_S`` rechnet
+  ``_led_lauf`` das Bild: in die Anzeige (``anzeige.ring``, Feld ``farben``), ins Protokoll (nur bei Wechsel des Ring-Zustands)
+  und als eine Zeile ins Terminal (nur wenn ``stderr`` ein Terminal ist oder ``ring_ausgabe`` gesetzt ist).
+* **Tasten und Drehregler:** ``Bedienung`` (``[tasten]``). Am Pi hängt ``GpioTreiber`` daran (``quelle = "gpio"``); am Mac kommen die
+  Eingänge von ``tobibox sim``. ``setze_lautstaerke`` führt Wunsch und Grenze des Kerns nach jedem Schritt nach.
+* **Kopfhörer:** ``Buchse`` (``[kopfhoerer]``) mit ``SimKopfhoerer`` oder ``GpioKopfhoerer``. Die erste Messung kommt nach
+  ``GeraeteEinstellungen`` (die Kopfhörer-Grenze ist dann bekannt) und vor ``Bereit`` (der Startton klingt schon mit der richtigen Grenze).
+* **Leerlauf:** ``HerunterfahrenAngefordert`` bleibt im Kern; der Befehl ``Herunterfahren`` geht wie in AP 3.7 an ``power.fuehre_aus``.
 """
 
 from __future__ import annotations
@@ -39,7 +50,7 @@ import os
 import signal
 import sys
 import time
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
 
@@ -48,7 +59,10 @@ from . import config as konfig_modul
 from . import events as ev
 from .clock import SystemUhr, Uhr
 from .ausgang import Ausgang
+from .controls import Bedienung, GpioTreiber
 from .ha import Ha
+from .headphones import Buchse, GpioKopfhoerer, SimKopfhoerer
+from .led import DECKEL_PROZENT, LedLogik
 from .net import Netz, SimSsid, Zeitquelle
 from .player import Player
 from .power import Power, SimStrom
@@ -60,6 +74,7 @@ from .volume import GRENZE_AUSBLENDEN, GRENZE_GUTE_NACHT, klemmen, wirksame_gren
 from .store import KonfigStore, ResumeStore, raeume_auf
 
 TAKT_S = 0.1
+LED_TAKT_S = 0.1  # Ring neu rechnen und zeigen (Atmen, Blinken, Lauflicht)
 VERBINDEN_WARTEN_S = 10.0  # so lange wartet ``starte`` auf MPD, bevor ``Bereit`` kommt
 ENDE_WARTEN_S = 5.0
 ABBRUCH_SYNC_WARTEN_S = 15.0  # ``sync`` wartet nach SIGTERM bis zu 10 s auf rsync
@@ -80,6 +95,22 @@ class _Start:
     befehl: ev.Abspielen
     task: asyncio.Task | None = None
     wartet: bool = True  # ``False``, sobald der Start wirklich beginnt: dann nicht mehr abbrechen
+
+
+def _ring_zeile(r) -> str:  # type: ignore[no-untyped-def]
+    """Der Ring als eine Zeile: Zustand, Helligkeit und zehn Farbpunkte (ANSI-Truecolor), gerundet auf ganze Prozent."""
+    # Farben auf den Deckel bezogen (volle Farbe bei 25 %), sonst wären die Punkte im Terminal kaum zu sehen
+    f = min(1.0, r.helligkeit / DECKEL_PROZENT)
+    punkte = "".join(
+        f"\x1b[38;2;{round(c[0] * f)};{round(c[1] * f)};{round(c[2] * f)}m\u25cf" for c in r.leds[::4]
+    )
+    return f"Ring: {r.zustand:<16} {round(r.helligkeit):3d} %  {punkte}\x1b[0m"
+
+
+def _terminal_zeile(text: str) -> None:
+    """Eine Zeile im Terminal, die sich selbst überschreibt (``stderr``, nur wenn ein Terminal dranhängt)."""
+    sys.stderr.write("\r\x1b[2K" + text if text else "\r\x1b[2K\n")
+    sys.stderr.flush()
 
 
 def _ms(seit: float) -> int:
@@ -113,6 +144,7 @@ class App:
         uhr: Uhr | None = None,
         melde_bereit: bool = True,
         boot_id: bootid.BootId = bootid.lese,
+        ring_ausgabe: Callable[[str], None] | None = None,
     ) -> None:
         self.konfig = konfig
         self.uhr: Uhr = uhr or SystemUhr()
@@ -135,6 +167,7 @@ class App:
         self.sim = self.ausgang.sim
         self.ha_ersatz = self.ausgang.ha_ersatz
         self._baue_stufe_3a()
+        self._baue_stufe_4(ring_ausgabe)
         self._verloren_basis = len(store.verlorene_dateien)  # ``datei_verloren`` zählt erst seit dem Start
         self.kern = core.neuer_zustand()
         self.ereignisse: asyncio.Queue[ev.Ereignis] = asyncio.Queue()
@@ -202,6 +235,64 @@ class App:
                 aktuelle_datei=haken.aktuelle_datei, einlesen=haken.einlesen,
             )
 
+    def _baue_stufe_4(self, ring_ausgabe: Callable[[str], None] | None) -> None:
+        """LED-Ring, Tasten und Drehregler, Kopfhörer-Buchse (AP 4.8). Ohne Abschnitt in der Konfiguration gilt ``sim``."""
+        k = self.konfig
+        self._loop: asyncio.AbstractEventLoop | None = None
+        self.led = LedLogik()
+        self._ring_zustand: str | None = None
+        self._ring_text = ""
+        self._ring_ausgabe = ring_ausgabe if ring_ausgabe is not None else (_terminal_zeile if sys.stderr.isatty() else None)
+        self._ring_zeile_offen = False
+        self.bedienung = Bedienung(
+            self._bedienung_ein,
+            lang_s=k.tasten.lang_s,
+            stand=min(k.lautstaerke.start, k.lautstaerke.max),
+            grenze=k.lautstaerke.max,
+        )
+        self.gpio_tasten: GpioTreiber | None = None
+        if not k.tasten.simulation:
+            t = k.tasten
+            self.gpio_tasten = GpioTreiber(
+                self.bedienung, pin_vor=t.pin_vor, pin_zurueck=t.pin_zurueck,  # type: ignore[arg-type]
+                pin_dreh_a=t.pin_dreh_a, pin_dreh_b=t.pin_dreh_b, pin_haupt=t.pin_haupt,  # type: ignore[arg-type]
+            )
+        kh = k.kopfhoerer
+        self.kopfhoerer_treiber: SimKopfhoerer | GpioKopfhoerer = (
+            SimKopfhoerer() if kh.simulation else GpioKopfhoerer(kh.gpio_pin, aktiv_niedrig=kh.aktiv_niedrig)  # type: ignore[arg-type]
+        )
+        self.buchse = Buchse(self.kopfhoerer_treiber, self.ereignisse_ein, intervall_s=kh.intervall_s)
+        if kh.simulation:
+            self.sim.kopfhoerer_haken = self._sim_kopfhoerer
+        self.sim.zeit_haken = self._sim_zeit
+
+    def _bedienung_ein(self, e: ev.Ereignis) -> None:
+        """Eingang der ``Bedienung``. gpiozero ruft aus eigenen Threads: dann über die Ereignisschleife."""
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            if self._loop is not None and not self._loop.is_closed():
+                self._loop.call_soon_threadsafe(self.ereignisse.put_nowait, e)
+                return
+        self.ereignisse.put_nowait(e)
+
+    async def _sim_kopfhoerer(self, steckt: bool) -> None:
+        """``tobibox sim headphones``: Stecker am simulierten Schaltkontakt, ``Buchse`` meldet sofort (ohne Entprellen)."""
+        assert isinstance(self.kopfhoerer_treiber, SimKopfhoerer)
+        self.kopfhoerer_treiber.setze(steckt)
+        await self.buchse.melde(steckt)
+
+    def _sim_zeit(self, wall: float | None) -> bool:
+        """``tobibox sim time``: Wanduhr stellen. ``SystemUhr.stelle_wall`` (Mac), im Test ``SimUhr.setze_wall``."""
+        stelle = getattr(self.uhr, "stelle_wall", None)
+        if stelle is not None:
+            stelle(wall)
+            return True
+        if wall is not None and hasattr(self.uhr, "setze_wall"):
+            self.uhr.setze_wall(wall)  # type: ignore[attr-defined]
+            return True
+        return False
+
     def _uebernimm_zeitquelle(self, quelle: ev.ZeitQuelle, vertrauenswuerdig: bool) -> None:
         """``ZeitquelleGeaendert`` stellt die Uhr: ``SystemUhr.setze_quelle`` (im Test ``SimUhr.setze_zeit``)."""
         for name in ("setze_quelle", "setze_zeit"):
@@ -263,6 +354,7 @@ class App:
             self._letzter_vorgang = e.vorgang
         self.kern, befehle = core.step(self.kern, e, jetzt)
         self._ton_pegel_nachfuehren()
+        self._nachfuehren_stufe_4(e, befehle, jetzt)
         self.ausgang.nach_kern(self.kern)
         auszufuehren: list[ev.Befehl] = []
         for b in befehle:
@@ -277,6 +369,14 @@ class App:
             self.befehle.put_nowait((b, jetzt.mono))
         self._marker_nachfuehren()
         return befehle
+
+    def _nachfuehren_stufe_4(self, e: ev.Ereignis, befehle: Sequence[ev.Befehl], jetzt: ev.Jetzt) -> None:
+        """Ring und Bedienung folgen dem Kern: jede ``ZustandMelden`` und die Strom-Ereignisse an ``led``, Lautstärke an ``controls``."""
+        self.led.beobachte(e, jetzt.mono)  # Bereit, AkkuStand, LaderGeaendert, AkkuTiefstand
+        for b in befehle:
+            if isinstance(b, ev.ZustandMelden):
+                self.led.beobachte(b, jetzt.mono)
+        self.bedienung.setze_lautstaerke(self.kern.wunsch, wirksame_grenze(self.kern.grenzen))
 
     def _melde_an_sync(self, e: ev.Ereignis) -> None:
         """Netz-Klasse, Lader und Akku für die Regel des Syncs (``setze_*``); ein Netzverlust bricht einen laufenden Sync ab."""
@@ -427,7 +527,8 @@ class App:
             return
         # ohne ``[sync]`` gibt es nichts zu holen; die Antwort verhindert, dass ein Sync „offen“ bleibt (``idle``)
         eventlog.logge("app", "INFO", "sync", "nicht_eingerichtet", daten={"grund": b.grund})
-        self.ereignisse.put_nowait(ev.SyncAbgebrochen("regel"))
+        # ein eigener Grund, damit ``idle`` den Start-Sync am Lader nicht ständig wiederholt (nur ``netz_weg`` und ``regel``)
+        self.ereignisse.put_nowait(ev.SyncAbgebrochen("nicht_eingerichtet"))
 
     # ------------------------------------------------------------------
     # Wiedergabestart und Töne (Entscheidung L, 09.11.)
@@ -558,7 +659,7 @@ class App:
         """Antwort auf ``sim`` ``anzeige`` (Oberfläche, AP 4.9): leicht genug für eine Abfrage alle 300 ms.
 
         ``status`` wie ``status_auskunft`` (ohne freien Speicher und Prüfpunkte) und ``anzeige`` mit Lautstärke,
-        Grenzen, Position, Kopfhörer und dem liegenden Tobie. ``ring`` ist ``None``, bis ``led`` (AP 4.1) in AP 4.8 verdrahtet ist.
+        Grenzen, Position, Kopfhörer, dem liegenden Tobie und dem Ring (``ring``: ``ring_dict`` von ``led`` plus ``farben``).
         """
         jetzt = self.uhr.jetzt()
         k = self.kern
@@ -584,9 +685,52 @@ class App:
                 "strom": zeile.strom if zeile is not None else "aktiv",
                 "figur": figur,
                 "sync_fortschritt": self.status.sync_fortschritt,
-                "ring": None,
+                "ring": self.ring_anzeige(),
             },
         }
+
+    # ------------------------------------------------------------------
+    # LED-Ring (AP 4.8)
+    # ------------------------------------------------------------------
+
+    def _led_ausblenden(self) -> None:
+        """Stand des Ausblendens von „Gute Nacht“ aus dem Zustand von ``bedtime`` an ``led`` (Glimmen wird schwächer)."""
+        b = self.kern.teil["bedtime"]
+        faktor = None
+        if b.modus == "ausblenden" and b.von > 0:
+            faktor = (b.letzter if b.letzter is not None else b.von) / b.von
+        self.led.setze_ausblenden(faktor)
+
+    def ring_anzeige(self) -> dict:
+        """Das Bild des Rings jetzt: ``led.ring_dict`` und dieselben Farben als ``farben`` (Format der Oberfläche)."""
+        self._led_ausblenden()
+        d = self.led.ring_dict(self.uhr.jetzt().mono)
+        d["farben"] = d["leds"]
+        return d
+
+    def _zeige_ring(self) -> None:
+        """Ein Schritt: Ring rechnen; bei Wechsel des Zustands ins Protokoll, bei geänderter Zeile ins Terminal."""
+        self._led_ausblenden()
+        r = self.led.ring(self.uhr.jetzt().mono)
+        if r.zustand != self._ring_zustand:
+            self._ring_zustand = r.zustand
+            eventlog.logge("led", "INFO", "ring", r.zustand, daten={"helligkeit": round(r.helligkeit, 1)})
+        if self._ring_ausgabe is not None:
+            text = _ring_zeile(r)
+            if text != self._ring_text:
+                self._ring_text = text
+                self._ring_ausgabe(text)
+                self._ring_zeile_offen = True
+
+    async def _led_lauf(self) -> None:
+        while True:
+            try:
+                self._zeige_ring()
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:  # noqa: BLE001 - die Anzeige darf die Box nie anhalten
+                eventlog.logge("led", "ERROR", "ring", "fehler", daten={"detail": repr(e)})
+            await asyncio.sleep(LED_TAKT_S)
 
     def _vorgang(self) -> str | None:
         """Vorgangs-ID des letzten Auflegens oder Abhebens (für Zeilen von Befehlen ohne eigene ID)."""
@@ -648,6 +792,9 @@ class App:
         # ohne MPD startet die Box trotzdem (Wiedergabe meldet dann PlayerFehler).
         if not await self.player.warte_verbunden(VERBINDEN_WARTEN_S):
             eventlog.logge("app", "WARNING", "start", "mpd_nicht_verbunden", daten={"timeout_s": VERBINDEN_WARTEN_S})
+        self._loop = asyncio.get_running_loop()
+        # Kopfhörer: erste Messung nach ``GeraeteEinstellungen`` (sie stehen vorn in der Schlange), vor ``Bereit``
+        await self.buchse.start()
         self.ereignisse.put_nowait(ev.Bereit())
         await self._leere_ereignisse()
         if not self.konfig.leser.simulation:
@@ -662,6 +809,7 @@ class App:
             )
         self._aufgaben.append(asyncio.create_task(self._taktgeber(), name="tobibox-takt"))
         await self._starte_stufe_3a()
+        self._starte_stufe_4()
         self.bereit.set()
         if self._melde_bereit:
             notify.bereit()
@@ -675,6 +823,18 @@ class App:
             self._aufgaben.append(asyncio.create_task(self.netz.lauf(), name="tobibox-netz"))
         if self.power is not None:
             self._aufgaben.append(asyncio.create_task(self._strom_lauf(), name="tobibox-strom"))
+
+    def _starte_stufe_4(self) -> None:
+        """Ring, Kopfhörer-Messung und (am Pi) Tasten starten."""
+        self._aufgaben.append(asyncio.create_task(self._led_lauf(), name="tobibox-led"))
+        self._aufgaben.append(asyncio.create_task(self.buchse.lauf(), name="tobibox-kopfhoerer"))
+        if self.gpio_tasten is not None:
+            try:
+                self.gpio_tasten.start()
+            except Exception as e:  # noqa: BLE001 - ohne Tasten läuft die Box weiter (kein gpiozero, Pin belegt)
+                eventlog.logge("app", "ERROR", "tasten_start", "fehler", daten={"detail": repr(e)})
+            else:
+                eventlog.logge("app", "INFO", "tasten", "gpio")
 
     async def _strom_lauf(self) -> None:
         """RTC lesen und erste Messung (``Power.start``), dann dauernd messen (``Power.lauf``)."""
@@ -719,6 +879,12 @@ class App:
         await self._warte(self.toene.stop(), "toene")
         await self._warte(self.sim.stop(), "sim")
         await self._warte(self.leser.stop(), "leser")
+        if self.gpio_tasten is not None:
+            with contextlib.suppress(Exception):
+                self.gpio_tasten.stop()
+        if self._ring_zeile_offen and self._ring_ausgabe is not None:
+            self._ring_ausgabe("")  # Zeile beenden
+            self._ring_zeile_offen = False
         await self._warte(self.outbox.warte_gespeichert(), "outbox")
         if self.ha is not None:
             await self._warte(self.ha.stop(), "ha")  # zuerst ``offline`` veröffentlichen, dann trennen

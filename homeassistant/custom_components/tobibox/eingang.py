@@ -39,6 +39,7 @@ from .fehler import TobiboxFehler
 from .media import (
     Serie,
     einfuege_index,
+    eintrag_fuer_seite,
     papierkorb_anlegen,
     schreibe_serie,
 )
@@ -1167,6 +1168,50 @@ class Eingang:
             shutil.rmtree(pfad, ignore_errors=True)  # nur Dotfiles (``._*``) oder leer: kein Papierkorb-Eintrag
             return
         papierkorb_anlegen(self.pfade.papierkorb, pfad, typ="eingang", grund="eingang_rest", serie_id=None, serie_name=None, serie_ordner=None)
+
+    # --- Eintrag entfernen (Erweiterung v1.1, 09.11.) ---------------------------------------------------------------
+
+    async def entferne_eintrag(self, eintrag_id: str) -> dict[str, Any]:
+        """``tobibox/eingang/entfernen``: legt einen Eintrag der obersten Ebene in den Papierkorb (``typ="eingang"``, ``grund="manuell"``).
+
+        Gedacht für Blockiertes und Defektes (Kopierschutz, nicht lesbar), das Tobias nicht von Hand löschen will.
+        Während ein Durchlauf läuft, geht es nicht (``sortierung_laeuft``): Der Durchlauf hält Dateien des Eintrags offen."""
+        await self._stelle_gescannt_sicher()
+        if self.laeuft:
+            raise TobiboxFehler("sortierung_laeuft")
+        async with self.sperre:
+            z = next((x for x in self.eintraege.values() if x.id == eintrag_id), None)
+            if z is None:
+                raise TobiboxFehler("eintrag_nicht_gefunden")
+            pfad = self.pfade.eingang / z.name
+            try:
+                eintrag = await self.hub.hass.async_add_executor_job(self._in_den_papierkorb, pfad)
+            except FileNotFoundError:
+                self._eintrag_vergessen(z)
+                self.hub.emit("eingang", "geaendert", {})
+                raise TobiboxFehler("eintrag_nicht_gefunden") from None
+            except OSError as err:
+                _LOGGER.error("Eintrag %s nicht in den Papierkorb gelegt: %s", pfad, err)
+                raise TobiboxFehler("medien_schreibfehler") from err
+            self._eintrag_vergessen(z)
+            self.speichern()
+        self.hub.emit("eingang", "geaendert", {})
+        self.hub.emit("medien", "papierkorb_geaendert", {})
+        return {"eintrag": eintrag_fuer_seite(eintrag)}
+
+    def _in_den_papierkorb(self, pfad: Path) -> dict[str, Any]:
+        if not pfad.exists():
+            raise FileNotFoundError(str(pfad))
+        return papierkorb_anlegen(
+            self.pfade.papierkorb, pfad, typ="eingang", grund="manuell", serie_id=None, serie_name=None, serie_ordner=None
+        )
+
+    def _eintrag_vergessen(self, z: EintragZustand) -> None:
+        self.eintraege.pop(z.name, None)
+        self.vorgaben = {k: v for k, v in self.vorgaben.items() if not k.startswith(z.name + "/") and k != z.name}
+        self.upload_eintraege.discard(z.name)
+        self._benachrichtigt.discard(z.name)
+        self.hub.benachrichtigung_entfernen(f"tobibox_eingang_{z.id}")
 
     # --- Upload (http.py) ----------------------------------------------------------------------------------------
 

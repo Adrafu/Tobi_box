@@ -243,11 +243,11 @@ async def _abschliessen(
     """Prüfen, in den Eingang bringen (ohne Überschreiben), Ergebnis merken, Einsortieren anstoßen (5.2, Phase B)."""
     hass = hub.hass
 
-    def melde(zustand: str, code: str | None = None) -> None:
+    def melde(zustand: str, code: str | None = None, **mehr: Any) -> None:
         hub.emit(
             "upload",
             "fortschritt",
-            {"upload_id": upload_id, "zustand": zustand, "bytes": groesse, "code": code},
+            {"upload_id": upload_id, "zustand": zustand, "bytes": groesse, "code": code, **mehr},
             nutzer_id=nutzer_id,
         )
 
@@ -285,7 +285,8 @@ async def _abschliessen(
             hub.upload_ergebnisse[upload_id] = (hass.loop.time(), antwort)
             while len(hub.upload_ergebnisse) > UPLOAD_ERGEBNIS_ANZAHL:
                 hub.upload_ergebnisse.popitem(last=False)
-        melde("fertig")
+        # „Upload fertig“ trägt Dateiname im Eingang und Ergebnis der Prüfung (Erweiterung v1.1, 09.11.)
+        melde("fertig", datei=zielname, pruefung=ergebnis_pruefung)
         return antwort
     except TobiboxFehler as err:
         melde("fehler", err.code)

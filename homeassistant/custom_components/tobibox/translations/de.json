@@ -306,6 +306,12 @@
     },
     "benachrichtigung_ui_titel": {
       "message": "Tobi Box"
+    },
+    "einstellung_ungueltig": {
+      "message": "Diese Einstellung ist ungültig: {pfad}. Es wurde nichts geändert."
+    },
+    "sortierung_laeuft": {
+      "message": "Das Einsortieren läuft gerade. Bitte gleich noch einmal versuchen."
     }
   },
   "services": {
@@ -572,6 +578,44 @@
         "bestaetigt": {
           "name": "Bestätigt",
           "description": "Muss true sein."
+        }
+      }
+    },
+    "leise_zeiten_setzen": {
+      "name": "Leise-Zeiten setzen",
+      "description": "Ersetzt die Zeitzone und/oder die Fenster der Leise-Zeiten. Was fehlt, bleibt wie es ist. Ist etwas ungültig, ändert sich nichts.",
+      "fields": {
+        "zeitzone": {
+          "name": "Zeitzone",
+          "description": "Zeitzone für „von“ und „bis“, zum Beispiel Europe/Berlin."
+        },
+        "fenster": {
+          "name": "Fenster",
+          "description": "Alle Fenster. Jedes hat id, tage (1 Montag bis 7 Sonntag), von, bis, wirkung (leiser oder stumm) und bei leiser eine grenze von 0 bis 100."
+        }
+      }
+    },
+    "gute_nacht_setzen": {
+      "name": "Gute Nacht einstellen",
+      "description": "Setzt die Dauer von Timer und Ausblenden der Gute-Nacht-Karte. Was fehlt, bleibt wie es ist.",
+      "fields": {
+        "timer_min": {
+          "name": "Timer",
+          "description": "Dauer des Timers in Minuten (1 bis 240)."
+        },
+        "ausblenden_s": {
+          "name": "Ausblenden",
+          "description": "Dauer des Ausblendens in Sekunden (5 bis 600)."
+        }
+      }
+    },
+    "lesezeichen_tage_setzen": {
+      "name": "Lesezeichen-Ablauf setzen",
+      "description": "Nach so vielen Tagen ohne Benutzung beginnt ein Tobie die Folge wieder von vorn. 0 heißt: nie.",
+      "fields": {
+        "tage": {
+          "name": "Tage",
+          "description": "Ganze Zahl von 0 bis 365. Vorgabe 14."
         }
       }
     }

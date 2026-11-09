@@ -11,6 +11,14 @@
     exportiert es; die Einstellungen in Stufe 4 (`tobibox/einstellungen/get` und `set`, Abschnitt 10)
     bekommen es dazu. Eine eigene Seitenbedienung gibt es in Version 1 nicht; kein neuer Befehl,
     kein neuer Fehlercode, Version bleibt 1.
+*   **Änderung 09.11. (AP 4.7, Auftrag der Projektleitung):** Die Einstellungen der Stufe 4 und die
+    „Erweiterungen v1.1“ aus Abschnitt 10 gelten jetzt. Neu sind die Befehle 33 bis 36
+    (`eingang/entfernen`, `konfig/get`, `einstellungen/get`, `einstellungen/set`; Abschnitte 3.9 bis 3.11),
+    der optionale Filter `uid` bei `zuordnung/list`, die Felder `datei` und `pruefung` im Ereignis
+    `upload`/`fortschritt` mit `zustand="fertig"` (4.7), die Fehlercodes `einstellung_ungueltig` und
+    `sortierung_laeuft` (Abschnitt 7), fünf neue Werte in `hello.faehigkeiten` und die Festlegungen 25 bis 27.
+    Alles **nur additiv** nach Abschnitt 9 (Version 1 bleibt, kein neuer Wurzelname). Dazu eine Klarstellung
+    in Abschnitt 12, Regel 4 (Serien-Ordner `.` und `..`).
 *   **Grundlage:** `docs/designs/box-software.md` (Baustein 4 „Speicher und
     Medien“, „Aktionen und Seite“, „MQTT-Schnittstelle Box ↔ HA“; D1, D2, D4,
     D5, D6; Entscheidungen D, F, H, M; CUJ 7a, 7b, 9, 10, 11, 12; AP 3.1, AP 3.2,
@@ -158,7 +166,7 @@ Jeder Befehl nennt in „MQTT“, was er auslöst. Zusammengefasst:
 
 | Wirkung auf MQTT | Befehle |
 |---|---|
-| veröffentlicht `tobibox/config` (retained, Revision + 1) | `zuordnung/set`, `zuordnung/remove`, `lernmodus/antwort`, Lernmodus-Zuordnung (6.2), `folge/verschieben` und `serien/zusammenfuehren` (nur wenn Tobies auf die verschobenen Folgen zeigen), später `einstellungen/set` |
+| veröffentlicht `tobibox/config` (retained, Revision + 1) | `zuordnung/set`, `zuordnung/remove`, `lernmodus/antwort`, Lernmodus-Zuordnung (6.2), `folge/verschieben` und `serien/zusammenfuehren` (nur wenn Tobies auf die verschobenen Folgen zeigen), `einstellungen/set` (nur bei einer Änderung) |
 | veröffentlicht `tobibox/config` mit **neuer Listen-ID** | `liste/neu_ausrollen`, `konfig/aus_export` |
 | sendet `tobibox/<box>/cmd` (mit `id`, `erzeugt`, `ttl_s`) | `lernmodus/start` (`lernen`, 60 s), `lernmodus/abbrechen` (`lernen_abbrechen`, 30 s), `box/sync` (`sync`, 300 s), später `box/update` (`update`, 300 s) |
 | sendet `tobibox/<box>/unknown/<uid>/ack` | der Lernmodus (6.2: `zugeordnet`, `abgelehnt`). Die Bestätigung beim ersten Eintreffen einer Kennung (`neu`, `bekannt`) ist **Sache des Backends allein**, kein Befehl der Seite (`mqtt-v1.md`, 3.6). |
@@ -212,8 +220,13 @@ Pflichtfelder sind fett. Fehlercodes: Tabelle in Abschnitt 7.
 | 30 | `tobibox/eingang/sortieren` | Admin | ja | – |
 | 31 | `tobibox/konfig/export_lesen` | alle | ja | – |
 | 32 | `tobibox/konfig/aus_export` | Admin | mit `anfrage_id` | `tobibox/config` (neue Listen-ID) |
+| 33 | `tobibox/eingang/entfernen` | Admin | ja (Endzustand) | – |
+| 34 | `tobibox/konfig/get` | alle | ja | – |
+| 35 | `tobibox/einstellungen/get` | alle | ja | – |
+| 36 | `tobibox/einstellungen/set` | Admin | ja | `tobibox/config` (nur bei einer Änderung) |
 
 Dazu der HA-eigene Befehl `unsubscribe_events` zum Beenden eines Abos (Abschnitt 4).
+Die Befehle 33 bis 36 sind seit dem 09.11. (AP 4.7) gültig; ihre Fähigkeiten stehen in `hello`.
 **Reserviert** für später (Namen sind vergeben, der Inhalt kommt in der jeweiligen
 Stufe): Abschnitt 10.
 
@@ -290,7 +303,7 @@ Ausgabe:
 | `v` | int | Vertragsversion des Backends |
 | `version` | string | Version der Integration (`manifest.json`) |
 | `darf_schreiben` | bool | der angemeldete Nutzer ist Administrator |
-| `faehigkeiten` | array von string | was das Backend kann; Version 1 (Stufe 3a): `medien`, `upload`, `zuordnung`, `tobie_namen`, `neue_tobies`, `lernmodus`, `boxen`, `papierkorb`, `liste_ausrollen`, `konfig_export`, `sync`, `eingang`, `korrektur`, `serie_loeschen`. Spätere Stufen ergänzen `update` (3b) und `einstellungen` (4). Die Seite zeigt nur, was hier steht. |
+| `faehigkeiten` | array von string | was das Backend kann; Version 1 (Stufe 3a): `medien`, `upload`, `zuordnung`, `tobie_namen`, `neue_tobies`, `lernmodus`, `boxen`, `papierkorb`, `liste_ausrollen`, `konfig_export`, `sync`, `eingang`, `korrektur`, `serie_loeschen`. **(09.11., AP 4.7)** Dazu `einstellungen` (Befehle 35 und 36), `eingang_entfernen` (Nr. 33), `zuordnung_uid` (Eingabe `uid` bei Nr. 15), `konfig_lesen` (Nr. 34) und `upload_fertig_details` (`datei` und `pruefung` im Ereignis „Upload fertig“, 4.7). Spätere Stufen ergänzen `update` (3b). Die Seite zeigt und sendet nur, was hier steht. |
 | `boxen` | array von string | die eingerichteten Box-Namen (aus der Einrichtung der Integration) |
 | `konfig` | object | Konfig-Stand mit `zustand`. Ist `zustand` nicht `ok`, zeigt die Seite zuerst die Warnung aus Abschnitt 13 und sperrt Änderungen der Konfiguration. |
 | `grenzen` | object | `upload_max_bytes` (Vorgabe 524288000 = 500 MiB, einstellbar), `upload_block_bytes`, `upload_parallel` (2), `endungen` (array), `serie_name_max` (100), `folge_anzeige_max` (200), `tobie_name_max` (60), `name_max_bytes` (255), `limit_max` (100 bzw. 200, je Befehl) |
@@ -739,6 +752,7 @@ spielt für diesen Tobie weiter die Überraschungs-Serie.
 | Eingabe | Typ | Pflicht | Bedeutung |
 |---|---|---|---|
 | `serie_id` | string | nein | nur Zuordnungen, die auf diese Serie zeigen (`serie` und `folge`) |
+| `uid` | string | nein | **(09.11., AP 4.7, Erweiterung v1.1)** nur die Zuordnung dieser Kennung: `gesamt` ist 0 oder 1. Die Kennung wird so verglichen, wie sie gesendet wird (kanonisch, `reader-v1.md`, Abschnitt 4); eine unbekannte oder anders geschriebene Kennung ergibt eine leere Liste, keinen Fehler. Zusammen mit `serie_id` gilt „und“. Nur senden, wenn `hello.faehigkeiten` `zuordnung_uid` zusagt (Abschnitt 9). |
 | `limit` | int 1–100 | nein | Vorgabe 100 (Vorgabe der Projektleitung 09.11., W-13) |
 | `offset` | int ≥ 0 | nein | Vorgabe 0 |
 
@@ -1028,6 +1042,26 @@ Befehl `laeuft_bereits=true`; die angegebenen Einträge werden im nächsten Durc
 bearbeitet. Fehler: `medien_nicht_erreichbar`, `eintrag_nicht_gefunden` (eine
 `eintrag_id` unbekannt). Rechte: Admin. Idempotent: ja. MQTT: –.
 
+#### 33. `tobibox/eingang/entfernen`
+
+**(09.11., AP 4.7, Erweiterung v1.1.)** Legt einen Eintrag der obersten Ebene von `eingang/` in den
+Papierkorb (`typ="eingang"`, `grund="manuell"`, Abschnitt 3.3). Gedacht für Blockiertes und Defektes
+(Kopierschutz, nicht lesbar, keine Audiodateien), das Tobias sonst von Hand auf der Freigabe löschen müsste.
+Der Eintrag lässt sich mit `papierkorb/restore` in den Eingang zurückholen.
+
+| Eingabe | Typ | Pflicht | Bedeutung |
+|---|---|---|---|
+| `eintrag_id` | string | **ja** | `id` des Eintrags aus `eingang/list` |
+| `bestaetigt` | bool, muss `true` sein | **ja** | Schutz gegen versehentlichen Aufruf; die Seite fragt vorher nach. `false` oder fehlend: `invalid_format` |
+
+Ausgabe: `{"eintrag": <Papierkorb-Eintrag>}` (3.3). Fehler: `eintrag_nicht_gefunden` (unbekannte `id`, oder der
+Eintrag liegt nicht mehr im Eingang), `sortierung_laeuft` (ein Durchlauf des Einsortierens läuft; er kann Dateien
+des Eintrags gerade bearbeiten, die Seite wiederholt später), `medien_nicht_erreichbar`, `medien_schreibfehler`.
+Rechte: Admin. Idempotent: Endzustand ja; der zweite Aufruf liefert `eintrag_nicht_gefunden`. MQTT: –.
+Nebenwirkungen: Ereignisse `eingang`/`geaendert` und `medien`/`papierkorb_geaendert`; die
+HA-Benachrichtigung zu diesem Eintrag (4.5) wird entfernt. Fähigkeit `eingang_entfernen`. Die Seite zeigt den
+Knopf nur bei `blockiert` und `teilweise`, mit Rückfrage.
+
 ### 3.10 Konfiguration: Sicherungsnetz (W-01, W-02)
 
 Abschnitt 13 beschreibt die Zustände. Hier die beiden Befehle.
@@ -1076,6 +1110,86 @@ Ausgabe: `{"konfig": <Konfig-Stand>, "veroeffentlicht": <bool>, "uebernommen":
 `export_ungueltig`, `medien_nicht_erreichbar`, `anfrage_id_konflikt`. Rechte: Admin.
 Idempotent: **nein** (jeder Aufruf erzeugt eine neue Listen-ID), deshalb `anfrage_id`.
 MQTT: `tobibox/config` mit neuer `liste_id`, `revision` 1.
+
+#### 34. `tobibox/konfig/get`
+
+**(09.11., AP 4.7, Erweiterung v1.1.)** Liest nur den Konfig-Stand, ohne `hello` und ohne eine Liste.
+Keine Eingabe. Ausgabe: `{"konfig": <Konfig-Stand>}`, in jedem Zustand (bei `leer_neu` sind `revision` und
+`liste_id` `null`). Fehler: keine außer den allgemeinen. Rechte: alle. Idempotent: ja. MQTT: –. Fähigkeit
+`konfig_lesen`. Die Seite benutzt ihn, wenn sie nur den Stand neu lesen will (zum Beispiel nach
+`konfig_nicht_bereit`); sonst bleibt es bei `hello`.
+
+### 3.11 Einstellungen (AP 4.7)
+
+Leise-Zeiten, Gute-Nacht-Dauern und der Ablauf der Lesezeichen (Entscheidung N) sind Teile der Konfiguration
+(`config.json`, `data-model.md`, Abschnitt 2). Die Seite stellt sie hier ein; jede Änderung ist eine Änderung der
+Konfiguration (Revision + 1, `tobibox/config`, Export; Abschnitt 1).
+
+#### 35. `tobibox/einstellungen/get`
+
+Keine Eingabe. Ausgabe:
+
+| Feld | Typ | Bedeutung |
+|---|---|---|
+| `leise_zeiten` | object | `{"zeitzone": <IANA-Name>, "fenster": [<Fenster>…]}`; ein Fenster ist `{"id", "tage", "von", "bis", "wirkung", "grenze"}` wie in `data-model.md`, Abschnitt 2 (`grenze` nur bei `wirkung="leiser"`) |
+| `gute_nacht` | object | `{"timer_min": <int 1–240>, "ausblenden_s": <int 5–600>}` |
+| `lesezeichen_tage` | int 0–365 | `0` = nie; Vorgabe 14 (Entscheidung N) |
+| `hinweis_pegel` | int 0–100 | nur, wenn die Konfiguration das Feld hat. Die Seite zeigt es nicht; `einstellungen/set` ändert es nicht. |
+| `konfig` | object | Konfig-Stand |
+
+Fehler: `konfig_nicht_bereit`, wenn der HA-Speicher keine Konfiguration hat (Zustand `leer_neu` nach einem
+verlorenen Speicher; dann gibt es nichts zu zeigen, Abschnitt 13). In den übrigen Zuständen kann gelesen werden.
+Rechte: alle. Idempotent: ja. MQTT: –. Fähigkeit `einstellungen`.
+
+#### 36. `tobibox/einstellungen/set`
+
+Setzt Einstellungen. **Mindestens ein** Feld ist Pflicht; ohne ein Feld und bei unbekannten Feldern (auch
+`hinweis_pegel`) antwortet HA mit `invalid_format`.
+
+| Eingabe | Typ | Pflicht | Bedeutung |
+|---|---|---|---|
+| `leise_zeiten` | object | nein | **ganzes Objekt** (`zeitzone` und `fenster`), ersetzt die bisherigen Leise-Zeiten. Ein Fenster, das fehlt, ist gelöscht. |
+| `gute_nacht` | object | nein | **ganzes Objekt**: `timer_min` und `ausblenden_s` |
+| `lesezeichen_tage` | int | nein | ganze Zahl 0 bis 365, `0` = nie |
+
+**Prüfung: genau die der Box** (`box/src/tobibox/store.py`, `parse_konfig`; in HA `store.pruefe_leise_zeiten`,
+`pruefe_gute_nacht`, `pruefe_lesezeichen_tage`, die auch Export und Import benutzen). Ganze Zahlen sind
+JSON-Zahlen ohne Nachkommastelle (`true` und `30.0` gelten nicht):
+
+| Feld | Gültig |
+|---|---|
+| `leise_zeiten.zeitzone` | Text, den die Zeitzonendatenbank kennt; fehlt das Feld, gilt `Europe/Berlin` |
+| `leise_zeiten.fenster` | Liste mit höchstens **32** Einträgen (leer ist erlaubt) |
+| `fenster[].id` | Text, 1–32 Zeichen `[a-z0-9_-]`, eindeutig in der Liste |
+| `fenster[].tage` | nicht leere Liste ohne Doppelte, ganze Zahlen 1 (Montag) bis 7 (Sonntag) |
+| `fenster[].von`, `bis` | Text `HH:MM`, 24 Stunden; `bis` darf nicht gleich `von` sein; `bis` kleiner als `von` heißt: über Mitternacht |
+| `fenster[].wirkung` | `leiser` oder `stumm` |
+| `fenster[].grenze` | bei `leiser` Pflicht, ganze Zahl 0 bis 100; bei `stumm` entfällt sie (eine mitgesendete wird verworfen) |
+| `gute_nacht.timer_min` | ganze Zahl 1 bis 240 |
+| `gute_nacht.ausblenden_s` | ganze Zahl 5 bis 600 |
+| `lesezeichen_tage` | ganze Zahl 0 bis 365 |
+
+Unbekannte Felder **innerhalb** der Objekte werden wie auf der Box ignoriert und nicht gespeichert. Ist irgendein
+Teil ungültig, wird die **ganze Änderung abgelehnt** (auch die gültigen Teile des Befehls): Fehlercode
+`einstellung_ungueltig`; die `message` nennt die Stelle (`Diese Einstellung ist ungültig: fenster[0].von. Es wurde
+nichts geändert.`; Pfade wie `fenster[2].grenze`, `leise_zeiten.zeitzone`, `gute_nacht.timer_min`,
+`lesezeichen_tage`). Die Typen der drei Felder prüft nicht das WebSocket-Schema, sondern diese Prüfung, damit auch ein
+Wert vom falschen Typ (`"14"`, `true`) den Pfad bekommt. **Hinweis:** HA prüft den Zeitzonen-Namen mit der eigenen,
+die Box mit ihrer Zeitzonendatenbank; ein Name, den nur HA kennt, machte die Liste auf der Box ungültig
+(`schema_ungueltig`, `mqtt-v1.md`).
+
+Ausgabe: `{"geaendert", "konfig", "veroeffentlicht", "leise_zeiten", "gute_nacht", "lesezeichen_tage"}` (und
+`hinweis_pegel`, wenn gesetzt): `geaendert`, `konfig` und `veroeffentlicht` wie bei `zuordnung/set` (Nr. 16), die
+übrigen Felder sind der Stand **nach** dem Befehl (wie bei Nr. 35). Dieselben Werte wie schon gespeichert
+ergeben `geaendert=false`, keine neue Revision und keine MQTT-Nachricht (Idempotenz). Fehler:
+`einstellung_ungueltig`, `konfig_zu_gross`, `konfig_nicht_bereit`. Rechte: Admin. MQTT: veröffentlicht
+`tobibox/config` (retained, Revision + 1, `erzeugt_am` jetzt), danach Export und Ereignis `konfig`/`geaendert`
+(Abschnitt 1). Zuordnungen, `ton_pegel` und `hinweis_pegel` bleiben unverändert. Fähigkeit `einstellungen`.
+
+Die **HA-Aktionen** `leise_zeiten_setzen`, `gute_nacht_setzen` und `lesezeichen_tage_setzen` (`services.yaml`)
+rufen dieselbe Funktion (Abschnitt 1, W-10). Sie setzen Teile: Was in `leise_zeiten_setzen` (`zeitzone`, `fenster`)
+oder `gute_nacht_setzen` (`timer_min`, `ausblenden_s`) fehlt, bleibt wie es ist; die Prüfung gilt für das fertige
+Objekt. Zahlen wie `30.0` aus Reglern oder Vorlagen werden zu `30`.
 
 ## 4. Ereignisse (Abo `tobibox/subscribe`)
 
@@ -1179,7 +1293,7 @@ HA-Benachrichtigung (`persistent_notification`) an, einmal je Eintrag.
 
 | `art` | `daten` |
 |---|---|
-| `snapshot`, `geaendert` | `{"konfig": <Konfig-Stand>}`. `geaendert` kommt nach jeder Änderung durch `zuordnung/*`, `lernmodus/antwort`, `folge/verschieben`, `serien/zusammenfuehren`, `liste/neu_ausrollen`, `konfig/aus_export` (auch von einem anderen Fenster oder einer Aktion aus) und bei jedem Wechsel von `zustand`, `export_ok`. Die Seite lädt dann `zuordnung/list`. |
+| `snapshot`, `geaendert` | `{"konfig": <Konfig-Stand>}`. `geaendert` kommt nach jeder Änderung durch `zuordnung/*`, `lernmodus/antwort`, `folge/verschieben`, `serien/zusammenfuehren`, `liste/neu_ausrollen`, `konfig/aus_export`, `einstellungen/set` (auch von einem anderen Fenster oder einer Aktion aus) und bei jedem Wechsel von `zustand`, `export_ok`. Die Seite lädt dann `zuordnung/list` und, wenn `hello` die Fähigkeit `einstellungen` zusagt, `einstellungen/get`. |
 | `abweichung` | `{"box", "grund": "voraus" \| "revision_zu_niedrig", "box_liste_id", "box_revision", "ha_revision"}` (W-02): eine Box hat einen neueren Stand als HA oder lehnt die Liste von HA wegen zu niedriger Revision ab. Die Seite zeigt „Die Box hat einen neueren Stand als HA. Bitte ‚Liste neu ausrollen‘ (oder aus dem Export holen).“ Die Integration erhöht die Revision **nie** von selbst auf den Stand der Box. |
 | `export_fehler` | `{"seit": <string>, "text": <string>}`: der Export auf das NAS schlug fehl (der Befehl selbst gelang). |
 | `export_ok` | `{"export_geschrieben_am": <string>}`: der Export ist nachgeholt. |
@@ -1195,7 +1309,7 @@ Phase **nach** dem Empfang.
 | `art` | `daten` |
 |---|---|
 | `snapshot` | `{}` |
-| `fortschritt` | `{"upload_id", "zustand": "pruefe" \| "fertig" \| "fehler", "bytes": <int>, "code": <string oder null>}` – `pruefe` einmal (Prüfung nach 5.4), `fertig`/`fehler` einmal am Ende (dann liegt die HTTP-Antwort schon vor, oder der Client ist nicht mehr da, 5.2) |
+| `fortschritt` | `{"upload_id", "zustand": "pruefe" \| "fertig" \| "fehler", "bytes": <int>, "code": <string oder null>}` – `pruefe` einmal (Prüfung nach 5.4), `fertig`/`fehler` einmal am Ende (dann liegt die HTTP-Antwort schon vor, oder der Client ist nicht mehr da, 5.2). **(09.11., AP 4.7, Erweiterung v1.1)** Bei `zustand="fertig"` kommen zwei Felder dazu: `datei` (Name der Datei **im Eingang**, nach der Namensregel von Abschnitt 12, also wie `eingang_name` der HTTP-Antwort; mit Suffix ` (2)`, wenn der Name schon vergeben war) und `pruefung` (`ok`, `warnung` oder `nicht_moeglich`, wie in der HTTP-Antwort, 5.5). Bei `pruefe` und `fehler` fehlen sie. So erfährt die Seite das Ergebnis auch dann, wenn ihre Verbindung vor der Antwort abbrach. Nur auswerten, wenn `hello.faehigkeiten` `upload_fertig_details` zusagt. |
 
 ## 5. Hochladen (HTTP)
 
@@ -1572,6 +1686,8 @@ Die Seite liest bei Bedarf den Zustand neu (z. B. `zuordnung/list` nach
 | `zu_viele_uploads` | 429 | Es laufen schon `upload_parallel` Uploads | Upload |
 | `datei_zu_gross` | 413 | größer als `upload_max_bytes` | Upload |
 | `format_nicht_erlaubt` | 415 | Endung oder erkanntes Format nicht nach D5 | Upload |
+| `einstellung_ungueltig` | 400 | Eine Einstellung ist nach `data-model.md`, Abschnitt 2, ungültig (Wertebereich, Typ, doppelte `id` …); nichts wurde geändert. Die Stelle steht in `message` (3.11) | `einstellungen/set` |
+| `sortierung_laeuft` | 409 | Ein Durchlauf des Einsortierens läuft; der Eintrag lässt sich jetzt nicht entfernen. Später noch einmal versuchen. | `eingang/entfernen` |
 
 Der Körper einer HTTP-Fehlerantwort des Uploads ist in 5.5 beschrieben. Eine
 unbekannte `code`-Zeichenfolge (neueres Backend) zeigt die Seite mit `message`
@@ -1634,28 +1750,28 @@ Start von AP 3.1) und aus dem Design:
 Diese Befehle gehören **nicht** zu Version 1 der Stufe 3a. Ihre Namen sind vergeben;
 die Eingabe, Ausgabe und Fehler stehen fest, sobald die Stufe beginnt. Sie brauchen
 nur Ergänzungen (Abschnitt 9, „Ohne Erhöhung“). (`serie/delete` und `folge/rename`
-sind seit dem 09.11. Teil von Version 1: Nr. 24 und 25.)
+sind seit dem 09.11. Teil von Version 1: Nr. 24 und 25. **`einstellungen/get` und
+`einstellungen/set` sind seit dem 09.11. (AP 4.7) gültig: Nr. 35 und 36, Abschnitt 3.11.**)
 
 | Befehl | Stufe | Skizze (Vorschlag, keine Festlegung) |
 |---|---|---|
-| `tobibox/einstellungen/get` | 4 (AP 4.7) | Liest `leise_zeiten` (`zeitzone`, `fenster`), `gute_nacht` (`timer_min`, `ausblenden_s`) und optional `hinweis_pegel` und `lesezeichen_tage` (Entscheidung N, 09.11.): dieselben Schemas und Wertebereiche wie in `data-model.md`, Abschnitt 2; dazu `konfig`. Rechte: alle. |
-| `tobibox/einstellungen/set` | 4 (AP 4.7) | Setzt `leise_zeiten` und/oder `gute_nacht` als **ganze Objekte** und/oder `lesezeichen_tage` (ganze Zahl 0 bis 365, `0` = nie; Entscheidung N, 09.11.; das Feld ist dafür **reserviert**, die Seitenbedienung kommt in Stufe 4); Prüfung wie die Box (ungültig: ganze Änderung abgelehnt, Fehlercode `einstellung_ungueltig` mit Pfad in `message`). Rechte: Admin. Idempotent. MQTT: `tobibox/config` (Revision + 1). Fähigkeit `einstellungen`. Die **Leise-Zeiten bleiben in Stufe 4** (Vorgabe der Projektleitung 09.11.). |
 | `tobibox/box/update` | 3b (AP 3.8/3.11) | `{"box", "version"?}`; Backend nimmt ohne Angabe die neueste Version aus `releases/`. Rechte: Admin. MQTT: `cmd` `update`, 300 s (`mqtt-v1.md`, 3.7). Ergebnis über `status.update` (Ereignis `boxen`). Fehler wie bei `box/sync`, dazu `keine_version`. Fähigkeit `update`. |
 | `tobibox/releases/list` | 3b | Liest die vorhandenen Pakete auf `releases/` (nur Name und Version). Rechte: alle. |
 | `tobibox/eingang/track_anhaengen` | offen | Nachlieferung einzelner Tracks zu einer schon einsortierten Folge (11.3: in Version 1 nicht vorgesehen) |
 
-**Erweiterungen v1.1, später (09.11., Befund AP 3.2, gegen den Code von AP 3.1 geprüft):** Das Backend hat
-dafür **keine** passenden Befehle. Alle sind additiv (Abschnitt 9, „Ohne Erhöhung“) und gehören nicht zu
-Version 1; die Seite behilft sich bis dahin.
+**Erweiterungen v1.1, gültig seit dem 09.11. (AP 4.7).** Der Befund aus AP 3.2 (gegen den Code von AP 3.1
+geprüft) nannte sechs Lücken. Alle sind **additiv** (Abschnitt 9, „Ohne Erhöhung“): Version 1 bleibt, es gibt keinen
+neuen Wurzelnamen. Die Seite benutzt Neues nur, wenn `hello.faehigkeiten` es zusagt (Abschnitt 9, „Eingaben sind
+strenger“); bei einem älteren Backend behilft sie sich wie bisher.
 
-| Lücke | Stand im Backend | Vorschlag (keine Festlegung) |
+| Lücke (AP 3.2) | Jetzt gültig | Fähigkeit |
 |---|---|---|
-| Blockierten oder defekten Eingangseintrag entfernen | `eingang/list` und `eingang/sortieren` gibt es, einen Befehl zum Entfernen eines Eintrags nicht. Von Hand auf der Freigabe löschen. | `tobibox/eingang/entfernen` mit `eintrag_id` (Admin; Datei in den Papierkorb oder löschen, mit Bestätigung) |
-| `papierkorb/restore` mit `serie_id`: Serie in der Seite wählen | Der Befehl nimmt `serie_id` schon an (Nr. 11); es fehlt nur die Auswahl in der Seite. | Kein neuer Befehl; Seite ergänzt die Serienauswahl aus `serien/list` |
-| Felder des Box-`status` genau benennen | `boxen/list` gibt `status` unverändert weiter (Nr. 21). Die Felder stehen in `mqtt-v1.md`, 3.3; dieser Vertrag wiederholt sie nicht. | Die Seite liest nur Felder aus `mqtt-v1.md`, 3.3 (Verweis); fehlende Felder zeigt sie als „unbekannt“ |
-| `zuordnung/list` mit Filter `uid` | Nur Filter `serie_id`, `limit`, `offset` (Nr. 15). | optionale Eingabe `uid` (genau eine Zuordnung) |
-| Lesebefehl für den Konfig-Stand | Der Stand steht nur in der Ausgabe von `zuordnung/list`, `konfig/export_lesen` und im Ereignis `konfig`; ein eigener Lesebefehl fehlt. | `tobibox/konfig/get` mit dem Konfig-Stand und `zustand` (alle) |
-| Ereignis „Upload fertig“ mit Dateiname und Prüfung | `fortschritt` trägt nur `upload_id`, `zustand`, `bytes`, `code` (4.7). | `fortschritt` mit `zustand="fertig"` bekommt `datei` (Dateiname) und `pruefung` (`ok`, `warnung`, `nicht_moeglich`) |
+| Blockierten oder defekten Eingangseintrag entfernen | Befehl Nr. 33 `tobibox/eingang/entfernen` (`eintrag_id`, `bestaetigt`): Eintrag in den Papierkorb, Abschnitt 3.9 | `eingang_entfernen` |
+| `papierkorb/restore` mit `serie_id`: Serie in der Seite wählen | **Kein neuer Befehl.** Das Eingabefeld `serie_id` gilt seit Nr. 11. Neu ist die Auswahl in der Seite: Für eine Folge, deren Serie es nicht mehr gibt (oder auf Wunsch „in andere Serie …“), wählt Tobias eine Serie aus `serien/list`; erst dann sendet die Seite `serie_id`. Auch wenn das Backend `serie_nicht_gefunden` meldet, fragt die Seite nach einer Serie und sendet noch einmal. | – (schon in Version 1) |
+| Felder des Box-`status` genau benennen | **Kein neuer Befehl.** `boxen/list` gibt `status` unverändert weiter (Nr. 21); die Felder stehen in `mqtt-v1.md`, 3.3, und dieser Vertrag wiederholt sie nicht. Die Seite liest nur Felder aus 3.3; was fehlt, lässt sie weg oder zeigt „–“. | – |
+| `zuordnung/list` mit Filter `uid` | optionale Eingabe `uid` bei Nr. 15 (genau eine Zuordnung oder keine) | `zuordnung_uid` |
+| Lesebefehl für den Konfig-Stand | Befehl Nr. 34 `tobibox/konfig/get` mit `{"konfig": <Konfig-Stand>}` (alle), Abschnitt 3.10 | `konfig_lesen` |
+| Ereignis „Upload fertig“ mit Dateiname und Prüfung | `fortschritt` mit `zustand="fertig"` trägt `datei` und `pruefung`, Abschnitt 4.7 | `upload_fertig_details` |
 
 **Schon in Stufe 3a nötig:** Das Backend legt `leise_zeiten` (`zeitzone`
 `Europe/Berlin`, `fenster` leer) und `gute_nacht` (`timer_min` 30, `ausblenden_s` 60,
@@ -2016,7 +2132,11 @@ schon auf der Freigabe liegen, werden nicht umgeschrieben.
     Rücksicht auf Groß-/Kleinschreibung, mit oder ohne Endung) erhalten ein `_` davor;
     `.` und `..` werden zu `_`. **Ausnahme Serien-Ordner (09.11., Befund AP 3.1):** Ein führendes
     `_` ergäbe einen reservierten Ordner (siehe unten). Darum bekommt ein Gerätename als Serien-Ordner
-    das `_` **hinten**: `CON` wird `CON_`, nicht `_CON`.
+    das `_` **hinten**: `CON` wird `CON_`, nicht `_CON`. **(09.11., AP 4.7, Fehlerbehebung)** Dasselbe Prinzip gilt für
+    `.` und `..`: Als Serien-Ordner ergeben sie **keinen Namen** (Regel 6; vorher fälschlich `_ordner`, ein reservierter
+    Ordner), als Datei oder Folgen-Ordner bleibt es bei `_`. Ein Gerätename gilt für den Teil **vor dem ersten
+    Punkt** (`CON.txt` wird als Datei `_CON.txt`, als Serien-Ordner `CON_.txt`), und auch `COM¹` bis `COM³` und
+    `LPT¹` bis `LPT³` sind Gerätenamen.
 5.  **Länge:** höchstens 255 Bytes (UTF-8) **und** 255 UTF-16-Einheiten, die kürzere Grenze
     gilt, abzüglich Platz für ` (99)`; gekürzt wird an einer **Zeichengrenze** (nie mitten
     in einem UTF-8-Zeichen), die Endung bleibt erhalten. Ein Kürzen um mehr als nur das
@@ -2125,7 +2245,8 @@ Wiederholung; (g) „Liste neu ausrollen“ nach Wiederherstellung mit alter Lis
 
 Das Design lässt diese Einzelheiten offen. Entschieden wurde die einfachste
 stimmige Lösung. Die Punkte 1 bis 14 stammen aus dem Entwurf vom 09.11. (vormittags) und
-gelten mit den Änderungen aus der Überarbeitung; die Punkte 15 bis 24 sind neu. **Alles
+gelten mit den Änderungen aus der Überarbeitung; die Punkte 15 bis 24 sind neu; 25 bis 27 kamen mit Entscheidung N
+und AP 4.7 dazu. **Alles
 geht mit der Freigabe an Tobias**; die Vorgaben der Projektleitung (unten) gelten, bis er
 widerspricht.
 
@@ -2182,8 +2303,15 @@ widerspricht.
     ohne Rücksicht auf Groß-/Kleinschreibung und NFC, unter der Sperre.
 25. **Entscheidung N: Feld `lesezeichen_tage` reserviert** (Abschnitt 10, `data-model.md` Abschnitt 2).
     Das Backend legt es mit der Vorgabe 14 an (Bereich 0 bis 365, `0` = nie), veröffentlicht, exportiert
-    es und holt es mit `konfig/aus_export` zurück (09.11., Befund AP 3.1); eine Seitenbedienung gibt es erst mit den
-    Einstellungen in Stufe 4. Kein neuer Befehl, Version 1 bleibt.
+    es und holt es mit `konfig/aus_export` zurück (09.11., Befund AP 3.1). **(09.11., AP 4.7)** Die Seitenbedienung
+    gibt es jetzt: `einstellungen/get` und `einstellungen/set` (Nr. 35 und 36). Version 1 bleibt.
+26. **Erweiterungen v1.1 (09.11., AP 4.7):** `eingang/entfernen`, Filter `uid`, `konfig/get`, `datei` und
+    `pruefung` im Ereignis „Upload fertig“ und die Serienauswahl bei `papierkorb/restore` gelten (Abschnitt 10). Die
+    Seite nutzt sie nur, wenn `hello.faehigkeiten` sie zusagt. Version 1 bleibt, kein neuer Wurzelname.
+27. **Einstellungen (09.11., AP 4.7):** Die Seite setzt Leise-Zeiten und Gute Nacht als **ganze Objekte**, den
+    Ablauf der Lesezeichen als Zahl. HA prüft mit **derselben Prüfung wie die Box** (Abschnitt 3.11, 36); ungültig
+    heißt: ganze Änderung abgelehnt, `einstellung_ungueltig` mit Pfad. Eine Änderung ist eine Änderung der
+    Konfiguration (Revision + 1, `tobibox/config`). `hinweis_pegel` liest die Seite nicht und ändert sie nicht.
 
 ## Vorgaben der Projektleitung (09.11.)
 
@@ -2210,7 +2338,7 @@ früheren Liste.
 | 15 | Papierkorb-Metadaten | Ordner `_papierkorb/<id>/` mit `meta.json`, in `data-model.md` | 3.3 |
 | 16 | `limit`/`offset` | schon in Version 1 | Nr. 15 |
 | 17 | Box-Meldungen | die letzten 20 je Box im HA-Speicher (überleben einen Neustart) | Nr. 21 |
-| 18 | Leise-Zeiten | bleiben in Stufe 4 (AP 4.7) | 10 |
+| 18 | Leise-Zeiten | bleiben in Stufe 4 (AP 4.7); seit dem 09.11. (AP 4.7) gültig: `einstellungen/get` und `set` | 3.11 |
 | 19 | HA-Version | **2026.11.x**; die genaue Patch-Version nennt Tobias beim Start von AP 3.1. Dazu Mosquitto-Add-on 7.1.3 und QNAP TS-464eU-8G (Celeron N5095, amd64) | 8, Plan Rev. 3.14 |
 | 20 | Nabu Casa | wie 6: Abnahme am Handy mit 20, 150 und 500 MiB | 8 |
 

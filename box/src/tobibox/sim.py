@@ -20,7 +20,11 @@ Seit AP 4.9 (Simulations-Oberfläche im Browser, ``tobibox gui``) kommen dazu: `
 ``strom``, ``netz``, ``tobie_auflegen``, ``tobie_gesperrt``, ``tobie_abheben`` und ``anzeige`` (alles Weitere:
 ``docs/betrieb/mac-prototyp.md``, Abschnitt „Simulations-Oberfläche“). Welche Eingänge wirken, steht in ``VERDRAHTET``:
 Ein Eingang, dessen Modul der Dienst noch nicht kennt, wird geprüft und mit ``{"ok": false, "fehler":
-"noch_nicht_verdrahtet"}`` beantwortet. AP 3.7 hat ``strom`` und ``netz`` auf ``True`` gesetzt, AP 4.8 folgt mit dem Rest; am Format ändert sich nichts.
+"noch_nicht_verdrahtet"}`` beantwortet. AP 3.7 hat ``strom`` und ``netz`` auf ``True`` gesetzt, AP 4.8 den Rest; am Format ändert sich nichts.
+
+Seit AP 4.8 kommt ``zeit`` dazu (``tobibox sim time``): ``{"befehl":"zeit","iso":"2026-11-09T22:30:00+01:00"}`` stellt die Wanduhr
+des Dienstes (sie läuft von dort weiter, Timer und Fristen auf der monotonen Uhr bleiben), ``{"befehl":"zeit","iso":null}`` stellt die
+echte Uhr wieder her. Das ist für die Leise-Zeiten gedacht.
 
 Wer nach dem Lernen die Zuordnung schreibt und bestätigt, steht in ``ha_ersatz.py``.
 
@@ -41,6 +45,7 @@ import socket
 import sys
 import uuid
 from collections.abc import Callable
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -73,7 +78,7 @@ MAX_ZEILE = 64 * 1024
 NOCH_NICHT_VERDRAHTET = "noch_nicht_verdrahtet"
 
 #: Wirkt der Eingang heute im Dienst? ``False``: der Befehl wird geprüft und mit ``noch_nicht_verdrahtet`` beantwortet.
-#: ``taste``: ``hauptknopf_lang`` gehört dem Teilautomat ``idle`` (AP 4.3, eingehängt in AP 4.8).
+#: ``taste``: ``hauptknopf_lang`` gehört dem Teilautomat ``idle``; alle Eingänge wirken seit AP 4.8.
 #: ``strom`` und ``netz``: wirken seit AP 3.7. Im Dienst setzt ``sim`` Akku und Lader am Treiber ``SimStrom`` und das WLAN an
 #: ``SimSsid`` und lässt ``power`` und ``net`` sofort messen; die Ereignisse kommen dann von diesen Modulen. Fehlt das Modul
 #: (kein ``[strom]`` oder ``[netz]`` in der Konfiguration), gibt ``sim`` die Ereignisse selbst aus.
@@ -81,7 +86,7 @@ VERDRAHTET: dict[str, bool] = {
     "hauptknopf_kurz": True,
     "weiter": True,
     "zurueck": True,
-    "hauptknopf_lang": False,
+    "hauptknopf_lang": True,
     "regler": True,
     "kopfhoerer": True,
     "strom": True,
@@ -139,6 +144,11 @@ class Sim:
         #: ``power`` bzw. ``net`` sofort messen. ``None``: ``sim`` gibt ``LaderGeaendert``, ``AkkuStand`` und ``NetzKlasse`` selbst aus.
         self.strom_haken: Callable[[bool | None, int | None], Any] | None = None
         self.netz_haken: Callable[[str], Any] | None = None
+        #: Haken des Dienstes (AP 4.8). ``kopfhoerer_haken(steckt)`` stellt den Treiber der ``Buchse`` ein und lässt sie melden.
+        #: ``zeit_haken(wall)`` stellt die Wanduhr (``None``: echte Uhr zurück) und gibt ``False`` zurück, wenn die Uhr das nicht kann.
+        #: ``None``: ``sim`` gibt ``Kopfhoerer`` selbst aus; ``zeit`` ist dann nicht verfügbar.
+        self.kopfhoerer_haken: Callable[[bool], Any] | None = None
+        self.zeit_haken: Callable[[float | None], Any] | None = None
         self._server: asyncio.AbstractServer | None = None
 
     # -- Zeile -> Ereignis ---------------------------------------------------
@@ -305,7 +315,11 @@ class Sim:
                 raise Ungueltig("steckt ungueltig")
             if not VERDRAHTET["kopfhoerer"]:
                 return {"ok": False, "fehler": NOCH_NICHT_VERDRAHTET}, [], None
+            if self.kopfhoerer_haken is not None:
+                return {"ok": True}, [], lambda: self.kopfhoerer_haken(steckt)  # type: ignore[misc]
             return {"ok": True}, [ev.Kopfhoerer(steckt)], None
+        if befehl == "zeit":
+            return self._zeit(d)
         if befehl == "strom":
             lader, akku = d.get("lader"), d.get("akku")
             if lader is None and akku is None:
@@ -334,6 +348,25 @@ class Sim:
                 return {"ok": True}, [], lambda: self.netz_haken(klasse)  # type: ignore[misc]
             return {"ok": True}, [ev.NetzKlasse(klasse)], None
         return None
+
+    def _zeit(self, d: dict[str, Any]) -> tuple[dict[str, Any], list[ev.Ereignis], Callable[[], Any] | None]:
+        """``zeit``: ``iso`` ist ein Zeitpunkt (ISO 8601; ohne Zone gilt die Ortszeit des Rechners) oder ``null`` (echte Uhr)."""
+        if "iso" not in d:
+            raise Ungueltig("iso fehlt")
+        iso = d["iso"]
+        wall: float | None = None
+        if iso is not None:
+            if not isinstance(iso, str) or not iso.strip():
+                raise Ungueltig("iso ungueltig")
+            try:
+                dt = datetime.fromisoformat(iso.strip())
+            except ValueError as e:
+                raise Ungueltig("iso ungueltig") from e
+            wall = dt.astimezone().timestamp()  # ohne Zone: Ortszeit des Rechners
+        if self.zeit_haken is None or self.zeit_haken(wall) is False:
+            return {"ok": False, "fehler": "zeit_nicht_verfuegbar"}, [], None
+        logge("sim", "INFO", "eingang", "zeit", daten={"wall": wall})
+        return {"ok": True, "wall": wall}, [], None
 
     def _anzeige(self) -> dict[str, Any]:
         quelle = self.anzeige or self.auskunft

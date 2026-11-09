@@ -461,7 +461,7 @@ def test_unbekannte_dauer_regel_gilt_nicht_und_steht_im_protokoll(tmp_path):
 
 # --- Lesezeichen mit Ablauf (Entscheidung N, 09.11.) -------------------------------------------------
 
-TAG = 86400.0
+TAG = 86400.0  # Die Wanduhr springt (setze_wall), die monotone Uhr nicht: sonst schaltete idle die Box im Test nach 20 min Leerlauf ab
 
 
 def abgelaufen(box) -> list:
@@ -473,7 +473,7 @@ def test_lesezeichen_nach_14_tagen_beginnt_die_folge_von_vorn(box):
     box.laufe(6.0)
     box.hebe_ab()
     assert "benutzt_am" in serien_zeiger(box)  # die Benutzung steht in resume.json
-    box.uhr.vor(15 * TAG)
+    box.uhr.setze_wall(box.uhr.wall + 15 * TAG)
     n = len(box.log)
     box.auflege(UID_SERIE, "v2")
     (a,) = box.befehle(ev.Abspielen, n)
@@ -486,7 +486,7 @@ def test_lesezeichen_nach_13_tagen_setzt_mit_ruecksprung_fort(box):
     box.auflege(UID_SERIE)
     box.laufe(6.0)
     box.hebe_ab()
-    box.uhr.vor(13 * TAG)
+    box.uhr.setze_wall(box.uhr.wall + 13 * TAG)
     n = len(box.log)
     box.auflege(UID_SERIE, "v2")
     (a,) = box.befehle(ev.Abspielen, n)
@@ -499,7 +499,7 @@ def test_lesezeichen_serie_bleibt_in_der_folge(box):
     box.sende(ev.Weiter())  # Folge b
     box.laufe(6.0)
     box.hebe_ab()
-    box.uhr.vor(30 * TAG)
+    box.uhr.setze_wall(box.uhr.wall + 30 * TAG)
     n = len(box.log)
     box.auflege(UID_SERIE, "v2")
     (a,) = box.befehle(ev.Abspielen, n)
@@ -510,7 +510,7 @@ def test_lesezeichen_folgen_tobie_beginnt_dieselbe_folge_von_vorn(box):
     box.auflege(UID_FOLGE)
     box.laufe(6.0)
     box.hebe_ab()
-    box.uhr.vor(20 * TAG)
+    box.uhr.setze_wall(box.uhr.wall + 20 * TAG)
     n = len(box.log)
     box.auflege(UID_FOLGE, "v2")
     (a,) = box.befehle(ev.Abspielen, n)
@@ -522,7 +522,7 @@ def test_lesezeichen_nach_einschalten_und_ueber_den_neustart_hinweg(box):
     box.laufe(6.0)
     box.hebe_ab()
     box.neustart_nach_einschalten()  # das Gerät war aus; der Zeitstempel steht in der Datei
-    box.uhr.vor(16 * TAG)
+    box.uhr.setze_wall(box.uhr.wall + 16 * TAG)
     n = len(box.log)
     box.auflege(UID_SERIE, "v2")
     (a,) = box.befehle(ev.Abspielen, n)
@@ -535,7 +535,7 @@ def test_lesezeichen_liegender_tobie_nach_dienst_neustart_erst_der_hauptknopf(bo
     box.laufe(6.0)
     box.sende(ev.DienstEndet())  # Dienst-Neustart ohne Abheben (Entscheidung G)
     box.neustart()
-    box.uhr.vor(16 * TAG)
+    box.uhr.setze_wall(box.uhr.wall + 16 * TAG)
     n = len(box.log)
     box.auflege(UID_SERIE, "v2")
     assert box.modus == "pausiert" and abgelaufen(box) == [] and box.befehle(ev.Abspielen, n) == []
@@ -550,7 +550,7 @@ def test_lesezeichen_hauptknopf_nach_pause(box):
     box.laufe(6.0)
     box.sende(ev.Hauptknopf("kurz"))
     assert box.modus == "pausiert"
-    box.uhr.vor(15 * TAG)
+    box.uhr.setze_wall(box.uhr.wall + 15 * TAG)
     n = len(box.log)
     box.sende(ev.Hauptknopf("kurz"))
     (a,) = box.befehle(ev.Abspielen, n)
@@ -565,7 +565,7 @@ def test_lesezeichen_null_tage_heisst_nie(tmp_path):
     box.auflege(UID_SERIE)
     box.laufe(6.0)
     box.hebe_ab()
-    box.uhr.vor(1000 * TAG)
+    box.uhr.setze_wall(box.uhr.wall + 1000 * TAG)
     n = len(box.log)
     box.auflege(UID_SERIE, "v2")
     (a,) = box.befehle(ev.Abspielen, n)
@@ -577,7 +577,7 @@ def test_lesezeichen_unsichere_uhr_nichts_laeuft_ab(box):
     box.auflege(UID_SERIE)
     box.laufe(6.0)
     box.hebe_ab()
-    box.uhr.vor(30 * TAG)
+    box.uhr.setze_wall(box.uhr.wall + 30 * TAG)
     box.uhr.setze_zeit("system", False)
     n = len(box.log)
     box.auflege(UID_SERIE, "v2")
@@ -597,7 +597,7 @@ def test_lesezeichen_zeiger_ohne_zeitstempel_in_alter_datei_laeuft_nie_ab(box):
     del roh["serien"][SERIE]["benutzt_am"]  # eine Datei von vor Entscheidung N
     pfad.write_text(json.dumps(roh), encoding="utf-8")
     box.neustart_nach_einschalten()
-    box.uhr.vor(1000 * TAG)
+    box.uhr.setze_wall(box.uhr.wall + 1000 * TAG)
     n = len(box.log)
     box.auflege(UID_SERIE, "v2")
     (a,) = box.befehle(ev.Abspielen, n)
@@ -607,7 +607,7 @@ def test_lesezeichen_zeiger_ohne_zeitstempel_in_alter_datei_laeuft_nie_ab(box):
     box.laufe(4.0)
     box.hebe_ab("v2")
     assert "benutzt_am" in serien_zeiger(box)
-    box.uhr.vor(15 * TAG)
+    box.uhr.setze_wall(box.uhr.wall + 15 * TAG)
     n = len(box.log)
     box.auflege(UID_SERIE, "v3")
     assert box.befehle(ev.Abspielen, n)[0].position_s == 0.0
@@ -618,7 +618,7 @@ def test_lesezeichen_geht_der_restregel_voran(lang):
     lang.auflege(UID_LANG)
     lang.laufe(68.0)
     lang.hebe_ab()
-    lang.uhr.vor(20 * TAG)
+    lang.uhr.setze_wall(lang.uhr.wall + 20 * TAG)
     n = len(lang.log)
     lang.auflege(UID_LANG, "v2")
     (a,) = lang.befehle(ev.Abspielen, n)
@@ -631,7 +631,7 @@ def test_lesezeichen_nicht_abgelaufen_gilt_die_restregel_weiter(lang):
     lang.auflege(UID_LANG)
     lang.laufe(68.0)
     lang.hebe_ab()
-    lang.uhr.vor(2 * TAG)
+    lang.uhr.setze_wall(lang.uhr.wall + 2 * TAG)
     n = len(lang.log)
     lang.auflege(UID_LANG, "v2")
     (a,) = lang.befehle(ev.Abspielen, n)

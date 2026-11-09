@@ -35,13 +35,21 @@ class SystemUhr:
         self._ok = zeit_ok
         self._mono = mono
         self._wall = wall
+        self._versatz = 0.0  # Sekunden; ``stelle_wall`` verschiebt die Wanduhr (Simulation der Uhrzeit am Mac)
+
+    def stelle_wall(self, wall: float | None) -> None:
+        """Wanduhr auf ``wall`` stellen (Unix-Sekunden); sie läuft von dort weiter. ``None``: wieder die echte Uhr.
+
+        Nur für die Simulation (``tobibox sim time``): Leise-Zeiten lassen sich so ohne Warten prüfen. Die monotone Uhr
+        bleibt, Fristen und Timer sind nicht betroffen."""
+        self._versatz = 0.0 if wall is None else wall - self._wall()
 
     def setze_quelle(self, quelle: ZeitQuelle, zeit_ok: bool) -> None:
         self._quelle = quelle
         self._ok = zeit_ok
 
     def jetzt(self) -> Jetzt:
-        return Jetzt(self._mono(), self._wall(), self._quelle, self._ok)
+        return Jetzt(self._mono(), self._wall() + self._versatz, self._quelle, self._ok)
 
 
 class SimUhr:
