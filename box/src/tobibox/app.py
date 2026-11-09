@@ -28,7 +28,7 @@ from .clock import SystemUhr, Uhr
 from .ausgang import Ausgang
 from .player import Player
 from .reader import Leser
-from .sounds import Toene
+from .sounds import Kennlinie, Toene
 from .status import Statussammler
 from .store import KonfigStore, ResumeStore, raeume_auf
 
@@ -101,8 +101,14 @@ class App:
             self.ereignisse.put_nowait, konfig.mpd.host, konfig.mpd.port, medien=konfig.pfade.medien
         )
         self.leser = Leser(self.ereignisse.put_nowait, konfig.leser.geraet)
-        self.toene = Toene(konfig.toene.ordner or STANDARD_TOENE, konfig.toene.kommando)
+        self.toene = Toene(
+            konfig.toene.ordner or STANDARD_TOENE,
+            konfig.toene.kommando,
+            kennlinie=Kennlinie(konfig.toene.kennlinie, konfig.toene.softvol_bereich_db),
+        )
         self.grenze = konfig.lautstaerke.max  # zuletzt ausgegebene wirksame Grenze
+        # zuletzt ausgegebene wirksame Lautstärke der Sitzung; ein Ton folgt ihr (Entscheidung J, 09.11.)
+        self.lautstaerke = min(konfig.lautstaerke.start, konfig.lautstaerke.max)
         self.bereit = asyncio.Event()
         self._stopp = asyncio.Event()
         self._aufgaben: list[asyncio.Task] = []
@@ -175,19 +181,18 @@ class App:
     # Befehle ausführen
     # ------------------------------------------------------------------
 
-    def _tonpegel(self) -> tuple[int | None, int | None]:
-        """``ton_pegel``/``hinweis_pegel`` aus der Rohkonfiguration (``Konfig`` hat sie nicht)."""
-        roh = self.konfig_store.roh
+    def _hinweis_pegel(self) -> int | None:
+        """``hinweis_pegel`` aus der Rohkonfiguration (``Konfig`` hat das Feld nicht).
 
-        def zahl(name: str) -> int | None:
-            w = roh.get(name)
-            return w if isinstance(w, int) and not isinstance(w, bool) and 0 <= w <= 100 else None
-
-        return zahl("ton_pegel"), zahl("hinweis_pegel")
+        ``ton_pegel`` wird seit Entscheidung J (09.11.) nicht mehr gelesen: Töne folgen ``self.lautstaerke``.
+        """
+        w = self.konfig_store.roh.get("hinweis_pegel")
+        return w if isinstance(w, int) and not isinstance(w, bool) and 0 <= w <= 100 else None
 
     async def _fuehre_aus(self, b: ev.Befehl, mono: float) -> None:
         if isinstance(b, ev.LautstaerkeSetzen):
             self.grenze = b.grenze
+            self.lautstaerke = max(0, min(b.prozent, b.grenze))
             await self.player.lautstaerke_setzen(b.prozent, b.grenze)
         elif isinstance(b, ev.AusgangWaehlen):
             await self.player.ausgang_waehlen(b.ausgang)
@@ -208,8 +213,7 @@ class App:
         elif isinstance(b, ev.ZeigerSpeichern):
             await asyncio.to_thread(self.resume.speichern, b, mono)
         elif isinstance(b, ev.TonSpielen):
-            ton, hinweis = self._tonpegel()
-            self.toene.spiele(b.ton, self.grenze, ton, hinweis)
+            self.toene.spiele(b.ton, self.grenze, self.lautstaerke, self._hinweis_pegel())
         elif isinstance(b, ev.Protokoll):
             eventlog.logge_befehl(b)  # normalerweise schon in ``verarbeite`` geschrieben
         elif isinstance(b, ev.LeserPing):
@@ -254,8 +258,7 @@ class App:
             "ok" if bericht.alles_ok else "fehler", b.vorgang,
             daten={p.name: ("ok" if p.ok else f"FEHLER {p.detail}") for p in bericht.punkte},
         )
-        ton, hinweis = self._tonpegel()
-        self.toene.spiele_folge(bericht.toene, self.grenze, ton, hinweis)
+        self.toene.spiele_folge(bericht.toene, self.grenze, self.lautstaerke, self._hinweis_pegel())
 
     def status_auskunft(self) -> dict:
         """Antwort auf ``sim`` ``status`` (für ``tobibox status``): Status-JSON, Prüfpunkte, offene Meldungen."""
