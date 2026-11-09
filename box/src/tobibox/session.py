@@ -33,6 +33,10 @@ MPD_FRIST_S = 5.0
 RUECKSPRUNG_S = pointer.RUECKSPRUNG_S
 SPEICHERN_PERIODISCH_S = pointer.SPEICHERN_PERIODISCH_S
 STUMM_AUSBLENDEN_S = 3.0
+#: Fehlt beim Fortsetzen bis zum Ende der ganzen Folge weniger als das, gilt die Folge als fertig gehört (Entscheidung I, 09.11.)
+REST_FERTIG_S = 15.0
+#: Folgen unter dieser Gesamtdauer sind von der Restregel ausgenommen (Entscheidung I, 09.11.)
+REST_REGEL_MIN_FOLGE_S = 60.0
 
 _EPS = 1e-9
 
@@ -138,6 +142,54 @@ def _ort(z: Zustand, serie: ev.Serie, art: str, folge: str | None) -> pointer.Or
     return pointer.ort_am_zeiger(serie, z.zeiger.get(pointer.schluessel("serie", serie.id, "")))
 
 
+def _folge_dauer(serie: ev.Serie, datei: str) -> tuple[float, ...] | None:
+    """Dauer je Track der Folge; ``None``, wenn die Dauer eines Tracks unbekannt ist."""
+    d = serie.dauern.get(datei)
+    if d is None or len(d) != len(pointer.tracks_von(serie, datei)) or any(x is None for x in d):
+        return None
+    return tuple(d)  # type: ignore[arg-type]
+
+
+def _rest_regel(
+    z: Zustand, serie: ev.Serie, art: str, ort: pointer.Ort, vorgang: str | None
+) -> tuple[pointer.Ort, Ausgabe]:
+    """Ein kleiner Rest gilt als fertig gehört (Entscheidung I, 09.11.).
+
+    Gemessen am gespeicherten Zeiger (vor dem Rücksprung) bis zum Ende der ganzen Folge (alle Tracks).
+    Unter ``REST_FERTIG_S``: Folgen-Tobie beginnt die Folge von vorn, Serie spielt die nächste Folge von vorn
+    (wie bei ``folgenende``, nach der letzten Folge Folge 1). Folgen unter ``REST_REGEL_MIN_FOLGE_S`` und
+    Folgen mit unbekannter Dauer sind ausgenommen.
+    """
+    if ort.folge_fehlte or ort.track_fehlte:
+        return ort, []
+    key = pointer.schluessel("folge" if art == "folge" else "serie", serie.id, ort.datei)
+    zeiger = z.zeiger.get(key)
+    if zeiger is None or zeiger.datei != ort.datei:
+        return ort, []
+    uid = z.figur.uid if z.figur else None
+    dauern = _folge_dauer(serie, ort.datei)
+    if dauern is None:
+        return ort, [_prot("INFO", "rest_regel", "dauer_unbekannt", vorgang, uid=uid, art=art, serie=serie.id, folge=ort.datei)]
+    gesamt = sum(dauern)
+    if gesamt < REST_REGEL_MIN_FOLGE_S - _EPS:
+        return ort, []
+    rest = gesamt - (sum(dauern[: zeiger.track]) + zeiger.position_s)
+    if rest >= REST_FERTIG_S - _EPS:
+        return ort, []
+    if art == "folge":
+        neu = pointer.Ort(ort.datei, ort.index, 0, 0.0)
+        ergebnis = "von_vorn"
+    else:
+        datei, nxt = pointer.naechste_folge(serie, ort.datei, ort.index)
+        neu = pointer.Ort(datei, nxt, 0, 0.0)
+        ergebnis = "naechste_folge"
+    zeile = _prot(
+        "INFO", "rest_regel", ergebnis, vorgang, uid=uid, art=art, serie=serie.id, folge=ort.datei,
+        rest_s=round(max(rest, 0.0), 1), naechste=neu.datei,
+    )
+    return neu, [zeile]
+
+
 def _abspielen(
     serie: ev.Serie, datei: str, track: int, position_s: float, vorgang: str | None, gen: int
 ) -> ev.Abspielen:
@@ -198,6 +250,8 @@ def _start(
         ]
         return _ruhe(z, modus="pausiert", ziel=None, serie_id=None, datei=None), out
     out = []
+    ort, regel = _rest_regel(z, serie, art, ort, vorgang)
+    out += regel
     if ort.folge_fehlte:
         out.append(_prot("WARNING", "zeiger_folge_fehlt", "naechste_folge", vorgang, serie=serie.id, datei=ort.datei))
     if ort.track_fehlte:

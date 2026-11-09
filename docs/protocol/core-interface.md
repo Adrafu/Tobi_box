@@ -20,6 +20,12 @@
     `LERN_ANTWORT_FRIST_S` = 10 s). `Bestaetigt` mit `art="gelernt"` erreicht jetzt
     auch den Kern (nur `session` beachtet es). Siehe Abschnitt 9, Punkt 8.
 
+*   **Änderung 09.11. (Entscheidung I, 09.11.):** Ein kleiner Rest gilt als fertig gehört. Wird
+    die Wiedergabe an einem gespeicherten Zeiger fortgesetzt und fehlen bis zum Ende der
+    ganzen Folge weniger als `REST_FERTIG_S` = 15 s, beginnt ein Folgen-Tobie die Folge von
+    vorn und eine Serie spielt die nächste Folge von vorn. `Serie` bekommt das Feld `dauern`,
+    die Bibliothek füllt es aus den Dateien. Siehe Abschnitt 6.3 und Abschnitt 9, Punkt 30.
+
 Die **Tabellen „Wiedergabe-Sitzung“, „Lernmodus“, „Ruhe-Regeln“ und
 „Strom / Leerlauf“** in „Kern-Zustände“ des Designs sind Teil dieses Vertrags
 und gelten unverändert. Dieses Dokument legt fest, **wie** die Teilautomaten
@@ -191,7 +197,7 @@ Alle HA-Befehle tragen eine Ablaufzeit. Der Kern prüft sie mit `jetzt.wall` und
 
 | Typ | Felder |
 |---|---|
-| `Serie` | `id: str`, `name: str`, `typ: Literal["normal","ueberraschung"]`, `ordner: str` (Pfad relativ zum Medienordner), `folgen: tuple[str, ...]` (Namen der Folgen in maßgeblicher Reihenfolge, nur vorhandene: Dateiname oder Ordnername), `tracks: Mapping[str, tuple[str, ...]]` (Name der Folge → Pfade ihrer Tracks **relativ zum Serien-Ordner** in Reihenfolge; eine Folge aus einer Datei hat genau einen Track, nämlich ihren eigenen Namen, ein Folgen-Ordner `Ordnername/Dateiname`; so stehen sie unverändert in `Abspielen.tracks`) (Entscheidung F, 05.11.) |
+| `Serie` | `id: str`, `name: str`, `typ: Literal["normal","ueberraschung"]`, `ordner: str` (Pfad relativ zum Medienordner), `folgen: tuple[str, ...]` (Namen der Folgen in maßgeblicher Reihenfolge, nur vorhandene: Dateiname oder Ordnername), `tracks: Mapping[str, tuple[str, ...]]` (Name der Folge → Pfade ihrer Tracks **relativ zum Serien-Ordner** in Reihenfolge; eine Folge aus einer Datei hat genau einen Track, nämlich ihren eigenen Namen, ein Folgen-Ordner `Ordnername/Dateiname`; so stehen sie unverändert in `Abspielen.tracks`) (Entscheidung F, 05.11.), `dauern: Mapping[str, tuple[float \| None, ...]]` (Name der Folge → Dauer jedes Tracks in Sekunden, parallel zu `tracks`; `None` oder fehlender Eintrag: Dauer unbekannt; Standard leer) (Entscheidung I, 09.11.) |
 | `Zeiger` | `art: Literal["serie","folge"]` (Serien-Zeiger oder Folgen-Zeiger) (Entscheidung F, 05.11.), `serie_id: str`, `datei: str` (Name der Folge), `index: int \| None` (Nummer der Folge in `folgen`, ab 0, Hinweis für den Fall einer fehlenden Folge; `None` bei `art="folge"`), `track: int` (≥ 0, Nummer des Tracks in der Folge), `position_s: float` (≥ 0, Sekunden im Track, ohne Rücksprung), `zaehler: int` |
 | `Zuordnung` | `typ: Literal["serie","folge","aktion"]`, `serie_id: str \| None`, `folge: str \| None` (Name der Folge bei `typ="folge"`), `aktion: Literal["status","gute_nacht"] \| None` (Entscheidung F, 05.11.) |
 | `Fenster` | `id: str`, `tage: tuple[int, ...]` (1 = Montag bis 7 = Sonntag), `von: str`, `bis: str` (`"HH:MM"`, Ortszeit), `wirkung: Literal["leiser","stumm"]`, `grenze: int \| None` |
@@ -451,6 +457,27 @@ Die Funktionen stehen in `pointer.py` (rein). `session` benutzt sie so:
 *   **Fehlender Track (Entscheidung F, 05.11.):** Ist `Zeiger.track` ≥ Anzahl der Tracks der Folge
     (`Serie.tracks`), gilt Track 0, Position 0 und
     `Protokoll(WARNING, ereignis="zeiger_track_fehlt")`.
+*   **Ein kleiner Rest gilt als fertig gehört (Entscheidung I, 09.11.):** Die Regel gilt überall dort, wo die
+    Sitzung ein Ziel am gespeicherten Zeiger startet, also beim Auflegen (auch beim Einschalten mit
+    liegendem Tobie und nach dem Warten im Lernmodus), beim Hauptknopf kurz in `pausiert` (auch nach einem
+    Dienst-Neustart, Entscheidung G). In `beendet` steht der Zeiger nach `FolgeZuEnde` auf Position 0, dort
+    greift sie nie. Sie ändert das Speichern des Zeigers nicht.
+    *   **Messung:** am gespeicherten Zeiger, **vor** dem Rücksprung. Rest = Dauer der ganzen Folge (Summe
+        aller Tracks, `Serie.dauern`) − (Dauer der Tracks vor `Zeiger.track` + `Zeiger.position_s`). Gilt
+        bei `Rest < REST_FERTIG_S` (15 s); genau 15 s gelten noch nicht.
+    *   **Folgen-Zeiger (Ziel `folge`):** Die Folge beginnt von vorn, Track 0, Position 0.
+    *   **Serien-Zeiger (Ziel `serie`, auch die Überraschungs-Serie):** Es spielt sofort die nächste Folge von
+        vorn, Track 0, Position 0, nach der letzten Folge Folge 1. Es gilt dieselbe Zeigerlogik wie bei
+        `FolgeZuEnde` (`naechste_folge`); bei einer Serie mit einer Folge ist es dieselbe Folge. Die neue Folge
+        wird nicht noch einmal gemessen.
+    *   **Ausnahmen:** Folgen mit einer Gesamtdauer unter `REST_REGEL_MIN_FOLGE_S` (60 s) und Folgen, bei denen
+        die Dauer eines Tracks unbekannt ist, werden wie bisher fortgesetzt (mit Rücksprung). Ohne
+        Zeiger, bei fehlender Folge und bei fehlendem Track gibt es keine Messung.
+    *   **Protokoll:** Greift die Regel: `Protokoll(INFO, ereignis="rest_regel", ergebnis="naechste_folge"` bei einer
+        Serie, `"von_vorn"` bei einer Folge, `daten={"uid", "art", "serie", "folge", "rest_s", "naechste"})`; `folge` ist
+        die fast fertig gehörte Folge, `rest_s` der Rest auf 1 Nachkommastelle, `naechste` die Folge, die spielt.
+        Ist die Dauer unbekannt und gibt es einen Zeiger: `Protokoll(INFO, ereignis="rest_regel",
+        ergebnis="dauer_unbekannt", daten={"uid", "art", "serie", "folge"})`. Bei Folgen unter 60 s keine Zeile.
 *   **Track-Wechsel (`TrackWechsel`) (Entscheidung F, 05.11.):** Der Zeiger wird auf den neuen Track,
     Position 0 gesetzt; `ZeigerSpeichern(grund="trackwechsel")`. **Keine Pause**,
     der Zustand bleibt. Die Pause nach jeder Folge (Entscheidung A)
@@ -941,7 +968,7 @@ gekennzeichneten sind von Tobias oder der Projektleitung entschieden
 12. **Abspielen-Auslöser und „stumm“ (bestätigt 05.11., Tobias).**
     *   **Hauptknopf kurz** je Zustand (Tabelle plus): `spielt` → Pause, Zeiger
         speichern, `pausiert`; `pausiert` mit liegendem Tobie → Abspielen am
-        Zeiger (mit Rücksprung); `pausiert` ohne Tobie → Abspielen am Zeiger der
+        Zeiger (mit Rücksprung, oder Restregel nach 6.3); `pausiert` ohne Tobie → Abspielen am Zeiger der
         zuletzt gespielten Serie (normale Play/Pause-Funktion); `beendet` mit
         liegendem Tobie → ab Zeiger abspielen (Entscheidung E): Ziel `serie` die
         nächste Folge, Ziel `folge` dieselbe Folge von vorn (der Zeiger steht auf
@@ -1066,6 +1093,8 @@ Modulkonstanten mit genau diesen Namen. Es gibt keine eigene Konstanten-Datei.
 | `RUECKSPRUNG_S` | 3,0 | `pointer.py` |
 | `ZURUECK_NEU_S` | 3,0 | `pointer.py` (Zurück in den ersten 3 s eines Tracks → voriger Track, sonst aktuellen Track neu starten; Entscheidung F, 05.11.) |
 | `SPEICHERN_PERIODISCH_S` | 30 | `session.py` |
+| `REST_FERTIG_S` | 15 | `session.py` (Rest bis zum Ende der ganzen Folge, unter dem sie beim Fortsetzen als fertig gehört gilt; Entscheidung I, 09.11.) |
+| `REST_REGEL_MIN_FOLGE_S` | 60 | `session.py` (kürzere Folgen sind von der Restregel ausgenommen; Entscheidung I, 09.11.) |
 | `LERN_FRIST_S` | 120 | `learn.py` |
 | `LERN_ANTWORT_FRIST_S` | 10 | `session.py` (Wartezeit auf HA, wenn im Lernmodus ein Tobie aufgelegt wird, `mono`, Punkt 9.8) (Entscheidung H, 07.11.) |
 | `LEERLAUF_S` | 1200 (20 min) | `idle.py` |
@@ -1271,3 +1300,12 @@ Projektleitung (P) entschieden oder aus dem Goldfisch-Review übernommen
     Tobie zuerst sein altes Ziel und wechselt mit der Zuordnung (gewollt). Hauptknopf und Vor / Zurück
     bewirken in dieser Zeit nichts, die Lautstärke wirkt (Festlegung der
     Projektleitung nach Empfehlung; Tobias kann sie ändern).
+30. **Bestätigt (09.11., Entscheidung I, T): Ein kleiner Rest gilt als fertig gehört.**
+    Beim Fortsetzen an einem gespeicherten Zeiger (Auflegen, Einschalten, Hauptknopf in
+    `pausiert`, auch nach einem Dienst-Neustart) gilt die Folge als fertig, wenn bis zum Ende der
+    ganzen Folge weniger als 15 s fehlen (6.3). Anlass: Ein Tobie wurde im Abspann abgehoben
+    (122,0 s von 123,6 s); jedes neue Auflegen spielte wegen des 3-s-Rücksprungs nur die letzten
+    Sekunden, und das Ende der Folge wurde nie erreicht. Folgen unter 60 s und Folgen mit
+    unbekannter Dauer sind ausgenommen. Die Dauer kommt aus der Bibliothek (`Serie.dauern`), die
+    Sitzung bleibt rein. Pause nach jeder Folge (A), Dienst-Neustart bleibt pausiert (G) und
+    Lernmodus (H) gelten unverändert.

@@ -1,6 +1,6 @@
 # Tobi Box — Stückliste & Projektstrukturplan
 
-Rev. 3.10 · 07.11.2026 · Pi 3 Model A+ · eigene Box-Software auf MPD · zwei baugleiche, mobile Boxen
+Rev. 3.11 · 09.11.2026 · Pi 3 Model A+ · eigene Box-Software auf MPD · zwei baugleiche, mobile Boxen
 
 **Änderungen gegenüber Rev. 2**
 - Software-Basis: Phoniebox V3 + eigene Plugins statt Eigenbau
@@ -17,6 +17,7 @@ Rev. 3.10 · 07.11.2026 · Pi 3 Model A+ · eigene Box-Software auf MPD · zwei 
 - **3.8:** Entscheidung 05.11.: Phoniebox V3 entfällt. Eigene schlanke Box-Software in Python direkt auf MPD (python-mpd2, pyserial, paho-mqtt), endgültige Bestätigung nach dem ersten Lauf am Pi. Der Leser spricht ein serielles Textprotokoll, die Firmware entscheidet „aufgelegt“ / „abgehoben“, keine USB-Tastatur mehr. Home Assistant ist die einzige Oberfläche und einziger Schreiber der Zuordnungen, Resume bleibt pro Box. Kein eigener Hotspot, NAS von unterwegs nur über Tailscale, Updates manuell als Paket mit Selbsttest und Rückfall. Grundlage: `docs/egm/software-prototyp/concepts_brief.md`.
 - **3.10:** Entscheidung H (07.11.) aus `docs/designs/box-software.md`: Der Lernmodus wartet still. Legt Tobias im Lernmodus einen Tobie auf, kommt nur der Lernton; die Box spielt nichts (keine Überraschung, kein Ton „unbekannt“), bis HA die Zuordnung schickt. Lehnt HA ab oder kommt 10 s keine Antwort, verhält sich die Box wie bei einem normalen Auflegen. Verträge `core-interface.md` und `mqtt-v1.md` angepasst.
 - **3.9:** Entscheidungen F (05.11.) und G (06.11.) aus `docs/designs/box-software.md`: Tonies und NFC-Karten heißen **Tobie** (Mehrzahl Tobies). Ein Tobie spielt eine einzelne Folge oder eine ganze Serie. Eine Folge ist eine Datei oder ein Ordner mit Tracks; die Pause kommt erst am Ende der ganzen Folge, ein Folgen-Tobie startet nach dem Ende von vorn. Nach einem Neustart des Dienstes startet ein liegender Tobie nie von selbst. Stufe 0 (Verträge) freigegeben. Stufe 1 (Software: Firmware `tobibox-reader`, Box-Dienst auf MPD, Mac-Anleitung, CI) gebaut und bereit für Tobias' Abnahme am Mac. Maßgeblich: `docs/designs/box-software.md` und `docs/betrieb/mac-prototyp.md`.
+- **3.11:** Entscheidung I (09.11.) aus `docs/designs/box-software.md`: Ein kleiner Rest gilt als fertig gehört. Wird ein Tobie an einem gespeicherten Zeiger fortgesetzt (Auflegen, Einschalten, Hauptknopf in „pausiert“, nach Dienst-Neustart) und fehlen bis zum Ende der ganzen Folge weniger als 15 s, beginnt ein Folgen-Tobie die Folge von vorn und ein Serien-Tobie spielt die nächste Folge von vorn (nach der letzten Folge 1). Ausnahmen: Folgen unter 60 s und Folgen mit unbekannter Dauer. Anlass: Ein im Abspann abgehobener Tobie (122,0 s von 123,6 s) spielte wegen des 3-s-Rücksprungs nur Stille und erreichte das Ende nie. Verträge `core-interface.md` (Abschnitt 6.3, Punkt 30) und das Design angepasst; die Bibliothek liest die Dauer aus den Dateien.
 
 ---
 
@@ -663,7 +664,7 @@ Stand 3.8: Aufteilung neu. V3 entfällt, die Firmware macht den Leser, Home Assi
 
 CAD (4.2) startet erst, wenn 3.2 auf dem Breadboard läuft.
 
-## Entscheidungen (12.10.2026, ergänzt 17.10., 04.11., 05.11. für Rev. 3.8, 06.11. für Rev. 3.9 und 07.11. für Rev. 3.10)
+## Entscheidungen (12.10.2026, ergänzt 17.10., 04.11., 05.11. für Rev. 3.8, 06.11. für Rev. 3.9, 07.11. für Rev. 3.10 und 09.11. für Rev. 3.11)
 
 | Frage | Entscheidung |
 |---|---|
@@ -690,6 +691,7 @@ CAD (4.2) startet erst, wenn 3.2 auf dem Breadboard läuft.
 | **Pause erst am Ende der ganzen Folge (3.9)** | Die Tracks einer Folge laufen ohne Pause durch. Die Pause kommt nach dem letzten Track. Ein Folgen-Tobie startet nach dem Ende von vorn |
 | **Dienst-Neustart (3.9, G, 06.11.)** | Nach einem Neustart des Dienstes (ohne Ausschalten) startet ein liegender Tobie nie von selbst. Hauptknopf kurz oder Abheben und Auflegen spielt am Zeiger. Nach Ein- oder Ausschalten der Box wirkt er wie ein frisches Auflegen |
 | **Lernmodus wartet still (3.10, H, 07.11.)** | Im Lernmodus startet ein aufgelegter Tobie (bekannt oder unbekannt) nichts, es kommt nur der Lernton. Die Zuordnung startet das Ziel sofort. Lehnt HA ab oder kommt 10 s keine Antwort: wie ein normales Auflegen (bekannt → sein Ziel, unbekannt → Überraschung mit Ton). Abheben beendet das Warten. Lautstärke wirkt, Hauptknopf, Vor und Zurück bewirken nichts. Nachbesserung nach Review (07.11.): Nur ein **anderes** Ziel für diesen Tobie beendet das Warten (eine fremde oder unveränderte Konfiguration nicht); nach „abgelehnt“ wird ein unbekannter Tobie erneut gemeldet; nach der Frist löst eine Aktionskarte ihre Aktion aus; dauert die Rückfrage von HA beim Überschreiben länger als 10 s, spielt ein bekannter Tobie zuerst sein altes Ziel und wechselt mit der Zuordnung (gewollt, Tobias kann es ändern); HA schickt erst die Konfiguration, dann das `ack`. Details: `docs/designs/box-software.md` (Entscheidung H) und `docs/protocol/core-interface.md` (9.8) |
+| **Kleiner Rest gilt als fertig gehört (3.11, I, 09.11.)** | Fehlen beim Fortsetzen am gespeicherten Zeiger bis zum Ende der ganzen Folge weniger als 15 s, gilt die Folge als fertig gehört: Folgen-Tobie von vorn, Serien-Tobie nächste Folge von vorn (nach der letzten Folge 1). Nicht bei Folgen unter 60 s oder unbekannter Dauer. Zeiger-Speichern, Pause nach jeder Folge (A), Dienst-Neustart (G) und Lernmodus (H) bleiben |
 
 ## Bewusst nicht enthalten
 

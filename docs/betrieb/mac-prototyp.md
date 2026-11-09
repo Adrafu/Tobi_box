@@ -684,6 +684,12 @@ tobibox sim card <UID> --serie lange-serie
       **Was du hörst:** Die Folge läuft weiter, etwa 3 s vor der gespeicherten Stelle. Im Protokoll
       liegt `position_s` von `spielt` rund 3 s unter dem Wert vom Abheben (also etwa 7).
 
+      **Hinweis (Entscheidung I, 09.11.):** Hebe nicht in den letzten 15 s der Folge ab. Fehlen
+      beim Auflegen weniger als 15 s bis zum Ende, gilt die Folge als fertig gehört: Ein Tobie für
+      eine einzelne Folge beginnt von vorn, ein Tobie für eine Serie spielt die nächste Folge. Im
+      Protokoll steht dann eine Zeile `rest_regel` mit `rest_s`. Folgen unter 60 s sind
+      ausgenommen; die Folgen von `serie-a` in 12.3 (3 s) sind davon nicht berührt.
+
 ### 12.3 Pause nach jeder Folge
 
 Jetzt die Serie `serie-a` (Folgen `folge-01.wav` bis `folge-03.wav`, je 3 s lang). Ordne `<UID>`

@@ -285,7 +285,7 @@ Ein Zeiger ist (Folge, Track, Position) (Entscheidung F, 05.11.). Es gibt zwei A
 | `folgen.<id>.<folge>.zaehler` | int ≥ 1 | ja | wie `serien.<id>.zaehler` |
 
 Regeln der Zeiger (Folgenende, fehlende Folge, fehlender Track, Rücksprung,
-Vor / Zurück): siehe `core-interface.md`, Abschnitt 6.3. Die Namen der
+kleiner Rest gilt als fertig gehört (Entscheidung I, 09.11.), Vor / Zurück): siehe `core-interface.md`, Abschnitt 6.3. Die Namen der
 JSON-Felder und die Typen im Kern bilden die Tabelle in `core-interface.md`,
 Abschnitt 3.8, aufeinander ab (`folge` ↔ `Zeiger.datei`, `serien` und `folgen`
 ↔ `tuple[Zeiger]`). Ein Eintrag für eine Serie oder Folge, die es nicht mehr

@@ -24,6 +24,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from . import audiodauer
 from . import events as ev
 from .eventlog import logge as _logge
 
@@ -198,6 +199,11 @@ def _folgen_ordner(ordner: Path) -> dict[str, tuple[str, ...]]:
     return aus
 
 
+def _dauern(ordner: Path, tracks: dict[str, tuple[str, ...]]) -> dict[str, tuple[float | None, ...]]:
+    """Dauer je Track aus den Kopfdaten der Dateien (Entscheidung I, 09.11.); unbekannt ist ``None``."""
+    return {f: tuple(audiodauer.dauer_s(ordner / t) for t in ts) for f, ts in tracks.items()}
+
+
 def _lies_serie_json(pfad: Path, ordner_name: str) -> SerieJson | None:
     try:
         raw = pfad.read_bytes()
@@ -230,7 +236,7 @@ def _serie_aus_ordner(ordner: Path, medien: Path) -> tuple[ev.Serie, str] | None
                 logge("library", "WARNING", "folge_leer", "uebersprungen", daten={"serie": ordner.name, "folge": n})
         folgen = tuple(sortiere_natuerlich(audio + mit_tracks))
         tracks = {f: (ordner_tracks[f] if f in ordner_tracks else (f,)) for f in folgen}
-        return ev.Serie(ordner.name, ordner.name, "normal", rel, folgen, tracks), ""
+        return ev.Serie(ordner.name, ordner.name, "normal", rel, folgen, tracks, _dauern(ordner, tracks)), ""
     gesehen: set[str] = set()
     folgen_l: list[str] = []
     tracks: dict[str, tuple[str, ...]] = {}
@@ -248,7 +254,7 @@ def _serie_aus_ordner(ordner: Path, medien: Path) -> tuple[ev.Serie, str] | None
             logge("library", "WARNING", "folge_leer", "uebersprungen", daten={"serie": sj.id, "folge": f})
         else:
             logge("library", "WARNING", "folge_fehlt", "uebersprungen", daten={"serie": sj.id, "datei": f})
-    return ev.Serie(sj.id, sj.name, sj.typ, rel, tuple(folgen_l), tracks), sj.angelegt_am  # type: ignore[arg-type]
+    return ev.Serie(sj.id, sj.name, sj.typ, rel, tuple(folgen_l), tracks, _dauern(ordner, tracks)), sj.angelegt_am  # type: ignore[arg-type]
 
 
 _JUENGSTE = datetime.max.replace(tzinfo=timezone.utc)

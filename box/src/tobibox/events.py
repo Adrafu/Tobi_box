@@ -46,6 +46,9 @@ class Serie:
     ordner: str
     folgen: tuple[str, ...]
     tracks: Mapping[str, tuple[str, ...]] = field(default_factory=dict)
+    #: Dauer je Track in Sekunden, parallel zu ``tracks`` (Entscheidung I, 09.11.); ``None``: unbekannt.
+    #: Fehlt der Eintrag einer Folge, ist ihre Dauer unbekannt.
+    dauern: Mapping[str, tuple[float | None, ...]] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         fehlend = [f for f in self.folgen if f not in self.tracks]

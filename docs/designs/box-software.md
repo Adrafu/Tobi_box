@@ -6,6 +6,7 @@
 *   **Datum:** 2026-11-05
 *   **Änderung 05.11.:** Entscheidung F eingearbeitet (Tobies: Folge oder Serie, Folgen mit mehreren Tracks). Alle Änderungen sind mit „(Entscheidung F, 05.11.)“ markiert.
 *   **Änderung 07.11.:** Entscheidung H eingearbeitet (Lernmodus wartet still). Die Änderungen sind mit „(Entscheidung H, 07.11.)“ markiert.
+*   **Änderung 09.11.:** Entscheidung I eingearbeitet (ein kleiner Rest gilt als fertig gehört). Die Änderungen sind mit „(Entscheidung I, 09.11.)“ markiert.
 *   **Grundlage:** `concepts_brief.md` (gleicher Ordner) inkl. Entscheidungen
     Runde 1 und 2
 
@@ -371,6 +372,33 @@ Alternativen“.
         Wiedergabe und der Ton `unbekannt` warten). Regel „stumm“ und Entscheidung G
         bleiben; ein Dienst-Neustart während des Wartens lässt den Tobie `pausiert`.
         Die Wartezeit ist die Konstante `LERN_ANTWORT_FRIST_S` = 10 s auf `mono`.
+*   **Entscheidung I — Ein kleiner Rest gilt als fertig gehört (09.11.):** Anlass beim
+    Test am Mac: Ein Tobie wurde im Abspann abgehoben, bei 122,0 s von 123,6 s. Jedes
+    neue Auflegen spielte wegen des 3-s-Rücksprungs ab 119 s nur die letzten Sekunden,
+    also Stille, und wurde wieder abgehoben; das Ende der Folge wurde nie erreicht.
+    Neu (Entscheidung I, 09.11.):
+    *   **I1 — Regel:** Wird die Wiedergabe an einem gespeicherten Zeiger fortgesetzt
+        und fehlen bis zum Ende der **ganzen Folge** (alle Tracks zusammen) weniger als
+        `REST_FERTIG_S` = 15 s, gilt die Folge als fertig gehört. Gemessen wird am
+        gespeicherten Zeiger, vor dem 3-s-Rücksprung. Fortsetzen heißt: Auflegen
+        (auch beim Einschalten mit liegendem Tobie), Hauptknopf kurz im Zustand
+        `pausiert` und Fortsetzen nach einem Dienst-Neustart. Folgen-Tobie: Die Folge
+        beginnt von vorn. Serien-Tobie: Es spielt sofort die nächste Folge von vorn,
+        nach der letzten Folge Folge 1 (dieselbe Zeigerlogik wie bei Folgenende).
+        Überraschungs-Serie: ebenso (sie verhält sich wie ein Ziel `serie`).
+    *   **I2 — Ausnahme:** Folgen, die insgesamt kürzer als `REST_REGEL_MIN_FOLGE_S` =
+        60 s sind, sind ausgenommen. Kennt die Box die Dauer einer Folge nicht, gilt die
+        Regel auch nicht; das steht im Protokoll (`rest_regel`, Ergebnis `dauer_unbekannt`).
+    *   **I3 — Unverändert:** Die Regel ändert nichts am Speichern des Zeigers. Pause nach
+        jeder Folge (Entscheidung A), Dienst-Neustart bleibt pausiert (Entscheidung G, erst
+        der Hauptknopf oder neues Auflegen setzt fort, dann greift die Regel) und
+        Entscheidung H gelten wie bisher.
+    *   **I4 — Protokoll:** Greift die Regel, schreibt die Box eine INFO-Zeile `rest_regel`
+        mit `rest_s` (Rest in Sekunden), der Folge und der Folge, die spielt.
+    *   **I5 — Woher die Dauer kommt:** Die Bibliothek liest die Dauer jedes Tracks beim
+        Laden aus den Kopfdaten der Dateien (WAV, MP3, M4A/M4B, FLAC; Baustein
+        `audiodauer`). Andere Formate: Dauer unbekannt. Die Sitzung bleibt rein: Die Dauern
+        stehen in `Serie.dauern`. MPD wird dafür nicht gefragt.
 
 - **Nachtrag 05.11. (Stufe-0-Verträge):** Ein Leser-Neustart startet nie von selbst eine Wiedergabe; nach einem bestätigten Leserverlust (> 3 s) bleibt die Box pausiert, auch wenn der Tobie danach wieder gemeldet wird – das Kind legt neu auf. Lesefehler gelten bis 5 s als „Tobie liegt“; fehlende Serie → Überraschungs-Serie; „stumm“ sperrt auch Knöpfe; MPD-Verlust bis 5 s wird überbrückt. Maßgeblich sind die Verträge in `docs/protocol/` und `docs/data-model.md`.
 
@@ -395,7 +423,7 @@ Alternativen“.
 Erledigt: Medienformate und Lautheitsangleich (siehe D5 und D6), Ende der
 letzten Folge und Ende eines „stumm“-Fensters (Entscheidungen A und B),
 Datenvolumen im Hotspot (Entscheidung C), Hauptknopf nach Folgenende
-(Entscheidung E), Tobies als Folge oder Serie (Entscheidung F), Lernmodus wartet still (Entscheidung H), Schnittstellen und Datenformate (Stufe 0), die Befunde R1 bis
+(Entscheidung E), Tobies als Folge oder Serie (Entscheidung F), Lernmodus wartet still (Entscheidung H), kleiner Rest gilt als fertig gehört (Entscheidung I), Schnittstellen und Datenformate (Stufe 0), die Befunde R1 bis
 R18 des Reviews Stufe 9.
 
 ## Risiken
@@ -467,6 +495,13 @@ Zustände, Übergänge und Konflikte: siehe „Kern-Zustände“.
     oder der Hauptknopf kurz gedrückt wird (Entscheidung E). Bei einem
     Folgen-Tobie steht der Zeiger auf dem Anfang derselben Folge: Das nächste
     Auflegen (oder der Hauptknopf kurz) spielt sie **von vorn**.
+*   **Kleiner Rest (Entscheidung I, 09.11.)**: Fehlen am gespeicherten Zeiger bis zum Ende
+    der ganzen Folge (alle Tracks) weniger als 15 s, gilt die Folge als fertig gehört
+    (der Tobie wurde im Abspann abgehoben). Ein Folgen-Tobie beginnt die Folge von vorn,
+    ein Serien-Tobie spielt sofort die nächste Folge von vorn (nach der letzten Folge
+    Folge 1). Das gilt beim Auflegen, beim Einschalten, beim Hauptknopf in `pausiert` und
+    nach einem Dienst-Neustart. Folgen unter 60 s und Folgen mit unbekannter Dauer sind
+    ausgenommen.
 
 ### CUJ 4: Anderen Tobie auflegen
 
@@ -866,7 +901,7 @@ Ein Prozess, `asyncio`, ein Paket `tobibox` mit klar getrennten Modulen:
 | `pointer` | Reine Funktionen für die Zeigerregeln: nächste Folge, Folgenende je Ziel (`serie` / `folge`), Track-Sprünge (Vor / Zurück), fehlende Folge, Rücksprung 3 s (siehe „Datenmodell und Dateien“) (Entscheidung F, 05.11.) | **nein** |
 | `protocol` | Zeilen-Parser nach `reader-v1.md`, prüft das Kennungsformat | **nein** |
 | `clock` | Uhr als Eingang des Kerns: Wanduhr und monotone Uhr, Zeitquelle | Systemuhr (im Test: simulierte Uhr) |
-| `library` | Serien, Folgen und die Tracks jeder Folge (Datei oder Unterordner) aus dem Medienordner lesen (Entscheidung F, 05.11.) | Dateisystem (lesen) |
+| `library` | Serien, Folgen und die Tracks jeder Folge (Datei oder Unterordner) aus dem Medienordner lesen (Entscheidung F, 05.11.); die Dauer jedes Tracks aus den Kopfdaten der Dateien (Entscheidung I, 09.11.) | Dateisystem (lesen) |
 | `store` | Zustandsdateien atomar lesen/schreiben | Dateisystem |
 | `reader` | Serielle öffnen (pyserial in eigenem Thread, Zeilen über eine Warteschlange an die Ereignisschleife), Zeilen parsen, Neuverbinden, Herzschlag überwachen (Wächter: 5 s ohne `HB`) | Serielle |
 | `player` | dünne Schicht über MPD (`mpd.asyncio.MPDClient` aus python-mpd2): Abspielen der Tracks einer Folge, Pause, Track und Position, Lautstärke (setzt die wirksame Grenze nur durch); die Player-Ereignisse stehen in `core-interface.md` | MPD |
@@ -1014,6 +1049,7 @@ wegen „stumm“ nicht gespielt), `unbekannt` (Leser-Zustand unbekannt).
 | Zustand | Ereignis | Befehl | neuer Zustand |
 |---|---|---|---|
 | `leer`, `pausiert` | `PLACED`, Ziel `serie` oder `folge` bekannt, nicht stumm (Entscheidung F, 05.11.) | Lautstärke setzen, Zeiger des Ziels laden (Serie: Zeiger der Serie; Folge: Zeiger der Folge), Abspielen ab Track und Position | `spielt` |
+| `leer`, `pausiert` | `PLACED`, Ziel `serie` oder `folge` bekannt, nicht stumm, am Zeiger fehlen bis zum Ende der ganzen Folge weniger als 15 s (Dauer bekannt, Folge mindestens 60 s) (Entscheidung I, 09.11.) | wie die Zeile oben, aber die Folge gilt als fertig: `serie` → nächste Folge von vorn (nach der letzten Folge 1), `folge` → dieselbe Folge von vorn; Zeiger beim Start nicht speichern; Protokoll `rest_regel` mit `rest_s` | `spielt` |
 | `leer`, `pausiert` | `PLACED`, Kennung unbekannt | Kennung in `unknown.json`, Überraschungs-Serie abspielen, Ton | `spielt` |
 | `leer`, `pausiert` | `LOCKED` | Überraschungs-Serie abspielen | `spielt` |
 | `leer`, `pausiert` | `PLACED`, Ziel `aktion` | Aktion auslösen (Status: Tonfolge; Gute Nacht: an Ruhe-Regeln) | unverändert |
@@ -1034,7 +1070,7 @@ wegen „stumm“ nicht gespielt), `unbekannt` (Leser-Zustand unbekannt).
 | `beendet` (Tobie liegt) | Hauptknopf kurz oder `Vor` | Lautstärke setzen, ab Zeiger abspielen (Entscheidung E): `serie` → nächste Folge, `folge` → dieselbe Folge von vorn (Entscheidung F, 05.11.) | `spielt` |
 | `beendet` (Tobie liegt) | `Zurück` (Entscheidung F, 05.11.) | Lautstärke setzen, die eben beendete Folge von vorn abspielen (beide Typen); einzige Quelle ist die gemerkte, eben beendete Folge; `index` per Nachschlagen in `Serie.folgen`; Zeiger auf diese Folge, Track 0, Position 0, speichern mit Grund `zurueck`. `beendet` wird nicht gespeichert: nach einem Neustart des Dienstes beginnt die Sitzung ohne Wiedergabe mit dem gespeicherten Zeiger | `spielt` |
 | `spielt` | Hauptknopf kurz | Pause, Zeiger speichern | `pausiert` |
-| `pausiert` (Tobie liegt) | Hauptknopf kurz | Abspielen | `spielt` |
+| `pausiert` (Tobie liegt) | Hauptknopf kurz | Abspielen am Zeiger; die Restregel (Entscheidung I, 09.11.) gilt wie beim Auflegen, auch nach einem Dienst-Neustart (Entscheidung G) | `spielt` |
 | `spielt` | Wächter-Alarm (kein `HB`) | Frist 1,5 s starten | `unbekannt` |
 | `unbekannt` | `HELLO` und `PLACED` mit derselben Kennung innerhalb der Frist | nichts, Wiedergabe läuft weiter | `spielt` |
 | `unbekannt` | `PLACED` mit neuer Vorgangs-ID (andere Kennung, oder dieselbe nach verlorenem `REMOVED`), Lernmodus `lernt` (Entscheidung H, 07.11.) | Pause (`leser_unbekannt`), Zeiger speichern, dann wie in der Zeile „wartet“ unten: Frist 10 s starten, nichts abspielen | `pausiert` (wartet) |
@@ -1889,6 +1925,7 @@ das AP ändert sie nicht.
 | Datei | Neu/Änd. | Inhalt und Grund |
 |---|---|---|
 | `box/src/tobibox/events.py` | änd. | Typen nach `core-interface.md` (Entscheidung F): `TrackWechsel`, `FolgeZuEnde` (Folge nach dem letzten Track zu Ende), `PlayerPosition.track`, `Abspielen` mit `tracks` und `track`, `Zeiger` und `ZeigerSpeichern` mit `art` und `track`, `Zuordnung` mit Typ `folge`, `Serie.tracks`. |
+| `box/src/tobibox/audiodauer.py` | neu (Entscheidung I, 09.11.) | Dauer einer Audiodatei aus den Kopfdaten (WAV, MP3, M4A/M4B, FLAC), sonst `None`; nur Standardbibliothek. `library.py` füllt damit `Serie.dauern`. |
 | `box/src/tobibox/library.py` | änd. | Folge = Datei oder Unterordner; Tracks eines Folgen-Ordners nach natürlicher Sortierung, ohne Dotfiles, gleiche Endungsliste; leerer Folgen-Ordner zählt nicht (Protokoll); `serie.json.folgen` nennt Namen. |
 | `box/src/tobibox/pointer.py` | änd. | Serien-Zeiger und Folgen-Zeiger; Folgenende je Ziel (Serie: nächste Folge, Track 0; Folge: zurück auf Track 0, 0 s); Track-Sprünge für Vor / Zurück (3-s-Regel); fehlende Folge und fehlender Track. |
 | `box/src/tobibox/session.py` | änd. | Ziel `serie` / `folge` merken; `TrackWechsel` (Zeiger, keine Pause); `FolgeZuEnde` (Pause erst jetzt, Zeiger je Ziel); Vor / Zurück nach Track; Hauptknopf kurz und Zurück in `beendet`; Folgen-Tobie mit fehlender Folge → Überraschungs-Serie. |
@@ -1900,6 +1937,7 @@ das AP ändert sie nicht.
 | `box/tests/conftest.py` | änd. | Hilfen für die neuen Typen (`abspielen`, `zeiger`, `zeiger_speichern`, `ppos`), Folgen-Tobies in den Beispieldaten und der CUJ-Harnisch `CujBox` (Kern, Bibliothek, `resume.json`, simulierter Player). |
 | `box/tests/unit/test_store.py`, `box/tests/unit/test_core.py` | änd. | Erwartungen an die neuen Typen angepasst (Zeiger-Schlüssel, Schema 2, `ZustandMelden`); `test_core.py` zusätzlich Tracks im Kern. |
 | `box/tests/integration/test_app_e2e.py` | änd. | Kettentest mit echtem MPD: Folgen-Tobie mit drei Tracks. |
+| `box/tests/unit/test_session_restregel.py`, `box/tests/unit/test_audiodauer.py` | neu (Entscheidung I, 09.11.) | Restregel: Rest unter, an und über 15 s, Folge unter 60 s, unbekannte Dauer, mehrere Tracks, Serie in der Mitte und am Ende, Folgen-Tobie, Hauptknopf, Dienst-Neustart, Einschalten, Überraschungs-Serie. Dauer aus Kopfdaten und in der Bibliothek. |
 | `box/tests/unit/test_library.py` | änd. | Folge als Datei und als Ordner, Track-Reihenfolge, Dotfiles, leerer Folgen-Ordner, Serie „Einzelfolgen“. |
 | `box/tests/unit/test_pointer.py` | änd. | Folgenende für `serie` und `folge`, Vor / Zurück nach Track (3-s-Grenze, erster und letzter Track), fehlender Track. |
 | `box/tests/unit/test_session.py` | änd. | Neue Zeilen der Tabelle „Wiedergabe-Sitzung“: `TrackWechsel`, Folgenende je Ziel, Vor, Zurück, `beendet` mit Hauptknopf und Zurück, `PlayerPosition` nur bei passendem Zeiger, `TrackWechsel` und Folgenende in allen Zuständen mit laufendem MPD, Zuordnung auf fehlende Serie oder Folge (`serie_fehlt`, `folge_fehlt`). **Enthält auch die Tests „Hauptknopf kurz je Zustand“** (früher als eigene Datei `test_session_hauptknopf.py` in AP 4.2 vorgesehen; zusammengeführt). |
@@ -1974,7 +2012,7 @@ wird in AP 2.4 behoben.
 
 | Datei | Neu/Änd. | Inhalt und Grund |
 |---|---|---|
-| `box/tests/cuj/test_cuj03_resume.py` | neu | CUJ 3: Resume mit 3-s-Rücksprung, auch nach Neustart; Folge zu Ende bei liegendem Tobie (Pause, Zeiger auf die nächste Folge, nichts passiert bis Abheben und Auflegen; nach der letzten Folge Zeiger auf Folge 1); Resume mitten im zweiten Track einer Folge; Folgen-Tobie spielt nach dem Ende von vorn (Entscheidung F, 05.11.). |
+| `box/tests/cuj/test_cuj03_resume.py` | neu (Entscheidung I, 09.11.: ergänzt um die Restregel) | CUJ 3: Resume mit 3-s-Rücksprung, auch nach Neustart; Folge zu Ende bei liegendem Tobie (Pause, Zeiger auf die nächste Folge, nichts passiert bis Abheben und Auflegen; nach der letzten Folge Zeiger auf Folge 1); Resume mitten im zweiten Track einer Folge; Folgen-Tobie spielt nach dem Ende von vorn (Entscheidung F, 05.11.). |
 | `box/tests/cuj/test_cuj04_andere_figur.py` | neu | CUJ 4: Zeiger der alten Serie bleibt, neue Serie läuft an ihrem Zeiger oder bei Folge 1. |
 | `box/tests/cuj/test_cuj20_figur_beim_start.py` | neu | CUJ 20: Tobie liegt beim Start (bekannt: Zeiger; unbekannt: Überraschungs-Serie); Dienst-Neustart mit liegendem Tobie bleibt `pausiert`, Hauptknopf spielt am Zeiger (Entscheidung G, 06.11.). |
 | `box/tests/integration/test_resume_neustart.py` | neu | Dienst hart beenden und neu starten; Zeiger ist da, höchstens 30 s Wiedergabe verloren. |
