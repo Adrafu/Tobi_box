@@ -858,7 +858,7 @@ rm ~/Tobi_box/box/var/lauf.json
 ```
 
       Starte den Dienst wieder (Zeile `tobiboxd …` aus Schritt 12.1).
-      **Was du hörst:** Das Startgeräusch, und gleich danach spielt die Folge **von selbst**,
+      **Was du hörst:** Das Startgeräusch, und gleich danach (sobald es zu Ende ist) spielt die Folge **von selbst**,
       ohne dass du den Tobie abhebst, an der gespeicherten Stelle. Im Protokoll steht `start`
       mit Ergebnis `ok`, **kein** `dienst_neustart`, und `spielt`:
 
@@ -874,9 +874,15 @@ grep -E '"ereignis":"(start|dienst_neustart|spielt)"' ~/Tobi_box/box/var/log/tob
 Hebe vorher einen Tobie ab, falls einer liegt.
 
 - [ ] Lege `<UID-NEU>` auf (ein Tobie, den du noch nie zugeordnet hast).
-      **Was du hörst:** Zuerst „Diesen Tobie kenne ich noch nicht. Hier ist eine Überraschung.“ (`unbekannt`), dann „Überraschung! Das ist die
-      Überraschungs-Serie.“ (`ueberraschung`, 4 s). Im Protokoll hat die Zeile `zugeordnet` das
-      Ergebnis `ueberraschung`.
+      **Was du hörst:** Zuerst „Diesen Tobie kenne ich noch nicht. Hier ist eine Überraschung.“ (`unbekannt`), **bis
+      zum Ende**, und erst danach „Überraschung! Das ist die Überraschungs-Serie.“ (`ueberraschung`, 4 s). Die beiden
+      überlappen sich nie (Entscheidung L, 09.11.: Es spielen nie zwei Sachen gleichzeitig). Im Protokoll hat die
+      Zeile `zugeordnet` das Ergebnis `ueberraschung`; die Zeile `abspielen` mit Ergebnis `wartet_auf_toene` zeigt, dass
+      der Start auf das Ende des Tons wartete.
+- [ ] Hebe `<UID-NEU>` ab, **während** der Ton `unbekannt` noch spricht (lege ihn auf und nimm ihn nach etwa 1 s wieder
+      weg). **Was du hörst:** Der Ton spricht zu Ende, danach bleibt es still. Die Überraschung startet nicht.
+      Im Protokoll steht `abspielen` mit Ergebnis `verworfen`, wenn der Start schon auf den Ton wartete (der Befehl
+      zum Abheben hat ihn verworfen), und der Tobie steht als „unbekannt“ in `unknown.json`.
 - [ ] Prüfe den Status:
 
 ```bash
@@ -918,6 +924,14 @@ als „unbekannt“ in `unknown.json`).
 Abheben beendet das Warten. Während des Wartens bewirken Hauptknopf, Vor und Zurück nichts; die
 Lautstärke wirkt.
 
+**Nacheinander, nie gleichzeitig (Entscheidung L, 09.11.).** Kommen Ton und Hörspiel aus demselben Anlass,
+spielt immer **zuerst der Ton bis zum Ende, dann das Hörspiel**. Das gilt auch hier: Nach dem Auflegen hörst du
+erst `lernen_ende` ganz, dann startet das Lernziel (oder, bei einem Tobie ohne Zuordnung, nach dem Ton `unbekannt` die
+Überraschung). Vorher überlappte sich das (zum Beispiel „Lernmodus beendet.“ mit „Test-Serie, Folge drei.“).
+Ein Ton, der kommt, während ein Hörspiel schon läuft (zum Beispiel der Hinweiston bei Vor am letzten Track
+eines Folgen-Tobies), hält das Hörspiel kurz an und setzt es danach **an genau derselben Stelle** fort, ohne den
+3-s-Rücksprung. Das zählt nicht als Pause: Es wird kein Zeiger gespeichert, und der Status zeigt „spielt“.
+
 **a) Serie lernen**
 
 ```bash
@@ -927,7 +941,7 @@ tobibox sim learn --serie 5e1a0c7d9b31
 - [ ] Du siehst `{"ok": true}` und hörst einen Ton. `tobibox status` zeigt `Lernmodus: an`.
       Lege `<UID-NEU>` auf (hebe ihn vorher ab, falls er liegt).
       **Was du hörst:** Nur ein kurzer Ton (`lernen_ende`), **kein** `unbekannt` und keine
-      Überraschung dazwischen; dann spielt der Tobie sofort die Serie `test-serie` an dem Zeiger, an dem die Serie steht (nach 12.3
+      Überraschung dazwischen; dann, sobald der Ton zu Ende ist (nie gleichzeitig), spielt der Tobie die Serie `test-serie` an dem Zeiger, an dem die Serie steht (nach 12.3
       Folge 1 oder 2). Im Protokoll steht eine Zeile mit Baustein `ha_ersatz`, Ereignis
       `zuordnung` und Ergebnis `ok`.
 
@@ -945,7 +959,7 @@ tobibox sim learn --serie 5e1a0c7d9b31 --folge folge-02.mp3
 ```
 
 - [ ] Lege `<UID-NEU-2>` auf.
-      **Was du hörst:** Wie in a) (nur `lernen_ende`, keine Überraschung), dann nur die Folge `folge-02.mp3` („Test-Serie, Folge zwei.“). Die Serie spielt
+      **Was du hörst:** Wie in a) (nur `lernen_ende`, keine Überraschung; die Folge beginnt erst nach dem Ton), dann nur die Folge `folge-02.mp3` („Test-Serie, Folge zwei.“). Die Serie spielt
       danach nicht weiter.
 - [ ] Prüfe mit `grep -A5 '"<UID-NEU-2>"' ~/Tobi_box/box/var/config.json`: `"typ": "folge"`,
       `"folge": "folge-02.mp3"`.
@@ -969,8 +983,9 @@ tobibox sim learn --serie 5e1a0c7d9b31 --folge folge-03.mp3
 
 - [ ] Hebe `<UID-NEU>` ab und lege ihn wieder auf (er ist schon zugeordnet). Der Befehl selbst
       ist angenommen; die Ablehnung zeigt sich erst beim Auflegen.
-      **Was du hörst:** Erst den Ende-Ton `lernen_ende`, dann (sobald der HA-Ersatz abgelehnt hat,
-      also sofort) spielt seine bisherige Serie, ohne den Ton `unbekannt` (Entscheidung H, 07.11.).
+      **Was du hörst:** Erst den Ende-Ton `lernen_ende` ganz, dann (sobald der HA-Ersatz abgelehnt hat,
+      also sofort) spielt seine bisherige Serie, ohne den Ton `unbekannt` (Entscheidung H, 07.11.). Der Ton
+      und die Serie überlappen sich nicht (Entscheidung L, 09.11.).
       Die Ablehnung steht nur im Protokoll.
       **Was du siehst:** Im Protokoll eine WARNING-Zeile mit Baustein `ha_ersatz`, Ereignis
       `zuordnung`, Ergebnis `abgelehnt`, Grund `schon_zugeordnet` und dem Hinweis
@@ -985,7 +1000,8 @@ tobibox sim learn --serie 5e1a0c7d9b31 --folge folge-03.mp3 --ueberschreiben
 ```
 
 - [ ] Hebe `<UID-NEU>` ab und lege ihn wieder auf.
-      **Was du hörst:** Den Ende-Ton, dann die Folge `folge-03.mp3` („Test-Serie, Folge drei.“).
+      **Was du hörst:** Den Ende-Ton „Lernmodus beendet.“ bis zum Ende, danach erst die Folge `folge-03.mp3`
+      („Test-Serie, Folge drei.“); nicht gleichzeitig (Entscheidung L, 09.11.).
       `grep -A5 '"<UID-NEU>"' ~/Tobi_box/box/var/config.json` zeigt `"folge": "folge-03.mp3"`.
 
 ### 12.7 Status-Karte

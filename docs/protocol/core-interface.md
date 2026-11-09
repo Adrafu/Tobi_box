@@ -31,6 +31,12 @@
     Verstärkung folgt derselben Kennlinie wie MPD. `ton_pegel` entfällt als Wirkung. Die Töne und die
     gesprochenen Testmedien liegen bei −18 LUFS. Siehe Abschnitt 8.1 und Abschnitt 9, Punkt 31.
 
+*   **Änderung 09.11. (Entscheidung L, 09.11.):** Es spielen nie zwei Sachen gleichzeitig. Töne laufen
+    einzeln und nacheinander; enthält eine Ausgabe Töne und `Abspielen`, startet die Wiedergabe erst nach dem
+    Ende des letzten Tons. Ein Ton, der kommt, während MPD spielt, hält MPD kurz an und setzt es an derselben
+    Stelle fort, ohne Zeiger. Der Kern bleibt unverändert und rein; die Regel steht in Abschnitt 6.5 und 8.1,
+    Punkt 32. `data-model.md` ist nachgezogen (`ton_pegel`, `hinweis_pegel`).
+
 Die **Tabellen „Wiedergabe-Sitzung“, „Lernmodus“, „Ruhe-Regeln“ und
 „Strom / Leerlauf“** in „Kern-Zustände“ des Designs sind Teil dieses Vertrags
 und gelten unverändert. Dieses Dokument legt fest, **wie** die Teilautomaten
@@ -266,7 +272,7 @@ nennt, wer sie ausführt.
 | `Abspielen` | `serie_id: str`, `ordner: str`, `datei: str` (Name der Folge), `tracks: tuple[str, ...]` (Pfade der Tracks relativ zu `ordner`, in Reihenfolge), `track: int`, `position_s: float`, `vorgang: str \| None`, `gen: int` (06.11.) | `player` | Warteschlange leeren, **alle Tracks dieser Folge und nur diese** laden, auf Track `track` und `position_s` springen (`seek`), spielen (Entscheidung F, 05.11.). `position_s` ist die Position im Track und enthält schon den Rücksprung (Abschnitt 6.3). Der Pfad für MPD ist `ordner + "/" + tracks[i]`; bei einer Folge aus einer Datei ist `tracks = (datei,)`, bei einem Folgen-Ordner `tracks = (datei + "/" + trackname, …)`. |
 | `Pausieren` | `grund: Literal["abgehoben","folgenende","knopf","stumm","gute_nacht","leser_unbekannt","fehler","herunterfahren"]` | `player` | Pause. Ist MPD schon gestoppt (Folgenende), ist der Befehl wirkungslos. Danach sendet der Player sofort `PlayerPosition`. |
 | `ZeigerSpeichern` | `art: Literal["serie","folge"]`, `serie_id: str`, `datei: str`, `index: int \| None`, `track: int`, `position_s: float`, `grund: Literal["pause","folgenende","trackwechsel","zurueck","figurwechsel","periodisch","herunterfahren"]` (`zurueck`: Zurück in `beendet`, 9.12) (Entscheidung F, 05.11.) | `store` (`resume.json`) | Zeiger schreiben (`art="serie"` in `serien`, `art="folge"` in `folgen`), `zaehler` dieses Zeigers um 1 erhöhen (Entscheidung F, 05.11.). `position_s` ist abgerundet auf 1 Nachkommastelle (Abschnitt 3.8). `store` schreibt nicht, wenn Art, Folge, Index, Track und Position unverändert sind. |
-| `TonSpielen` | `ton: Literal["start","unbekannt","fehler","hinweis","lernen_beginn","lernen_ende","akku_leer","pruef_ok","pruef_fehler"]` | `sounds` | kurzer Rückmeldeton (Datei `box/sounds/<ton>.wav`, `pruef_*` in AP 2.3). Die Status-Karte spielt außerdem die Prüfpunkt-Töne `pruef_<punkt>_ok` und `pruef_<punkt>_fehler` mit `<punkt>` ∈ {`leser`, `medien`, `netz`, `speicher`} sowie `pruef_leser_simulation` (09.11., Sprach-Töne für Tests); sie stehen nicht in `TonSpielen`, sondern in der Tonfolge von `selftest`. Fehlt eine solche Datei im Tonordner, spielt `sounds` stattdessen `pruef_ok` bzw. `pruef_fehler`. |
+| `TonSpielen` | `ton: Literal["start","unbekannt","fehler","hinweis","lernen_beginn","lernen_ende","akku_leer","pruef_ok","pruef_fehler"]` | `sounds` | kurzer Rückmeldeton (Datei `box/sounds/<ton>.wav`, `pruef_*` in AP 2.3). Töne laufen nacheinander und nie gleichzeitig; ein `Abspielen` derselben Ausgabe startet erst nach dem Ende der Töne (Abschnitt 6.5, Punkt 6; Entscheidung L, 09.11.). Die Status-Karte spielt außerdem die Prüfpunkt-Töne `pruef_<punkt>_ok` und `pruef_<punkt>_fehler` mit `<punkt>` ∈ {`leser`, `medien`, `netz`, `speicher`} sowie `pruef_leser_simulation` (09.11., Sprach-Töne für Tests); sie stehen nicht in `TonSpielen`, sondern in der Tonfolge von `selftest`. Fehlt eine solche Datei im Tonordner, spielt `sounds` stattdessen `pruef_ok` bzw. `pruef_fehler`. |
 | `StatusPruefen` | `vorgang: str \| None` | `selftest` | Prüfpunkte Leser, Medien, Netz, Speicher in dieser Reihenfolge nach den Kriterien aus Abschnitt 12.3 prüfen und je Punkt einen Ton spielen (`pruef_<punkt>_ok` oder `pruef_<punkt>_fehler`, Leser in der Simulation `pruef_leser_simulation`; Rückfall auf `pruef_ok`/`pruef_fehler`, siehe `TonSpielen`; 09.11., Sprach-Töne für Tests) (Status-Admin-Karte, CUJ 11). `selftest` wertet aus und lässt `sounds` die Töne spielen; ausgeführt wird der Befehl nur von `selftest`. |
 | `Melden` | `art: Literal["unbekannt","gelernt"]`, `uid: str`, `befehl_id: str \| None` | `outbox` | Eintrag in `unknown.json`, Veröffentlichung an HA, Löschen erst nach Bestätigung (Abschnitt 7). `befehl_id` ist bei `gelernt` die ID des Lernbefehls, sonst `None`. |
 | `EreignisSenden` | `art: Literal["fehler","befehl_abgelehnt"]`, `daten: Mapping[str, str \| int \| bool \| None]` | `ha` | Meldung an HA ohne Bestätigung (`…/event`). `befehl_abgelehnt` hat `daten = {"befehl": <lernen\|sync\|update>, "befehl_id": <str>, "grund": <bedingung\|zeit_unsicher>}` und optional `"detail"`; `lernen_abbrechen` wird nie abgelehnt. Die Meldungen `liste_abgelehnt`, `v_unbekannt` und `befehl_unbekannt` entstehen **nicht** im Kern, sondern direkt in `ha` (Abschnitt 9, Punkt 9). |
@@ -557,6 +563,12 @@ Kopfhörerwechsel: Die neue Grenze (Rang 1) steht immer **vor** dem
 `AusgangWaehlen` (Rang 2). `app.py` führt die Befehle genau in dieser
 Reihenfolge nacheinander aus.
 
+**Rang 5 vor Rang 6 bleibt (Entscheidung L, 09.11.).** `Abspielen` steht vor `TonSpielen` in der
+Ausgabe, und das ändert sich nicht. „Zuerst der Ton“ ist deshalb keine Regel der Ausgabe, sondern der
+Ausführung: Beim Ausführen übergibt `app.py` Töne nur an die Tonspur (das blockiert nie); ein `Abspielen`
+wartet dort auf das Ende der Spur (Abschnitt 6.5, Punkt 6). So bleiben Rang, Konfliktregeln und die Tests
+des Kerns unverändert.
+
 ### 6.5 Wie `app.py` den Kern benutzt
 
 1.  Ereignis aus der Ereignisschleife holen, `Jetzt` bilden.
@@ -572,6 +584,43 @@ Reihenfolge nacheinander aus.
     Statussammler in `ha` (Abschnitt 12). Zusätzlich erhält er `HaVerbindung`,
     das den Kern nicht erreicht. Der Beobachter ändert nichts am Kern und gibt
     keine Befehle zurück.
+6.  **Töne und Wiedergabe: nie gleichzeitig (Entscheidung L, 09.11.).** Die Regel gilt in `app.py`, nicht im Kern.
+    a.  **Ton vor Hörspiel.** Enthält die Ausgabe eines Kern-Aufrufs `TonSpielen` (oder `StatusPruefen`) und
+        `Abspielen`, spielen zuerst die Töne bis zum Ende, in der Reihenfolge der Ausgabe, einzeln. Erst danach
+        startet die Wiedergabe. Das gilt für alle Fälle: unbekannter Tobie (`unbekannt`), Ende des Lernmodus
+        (`lernen_ende`), Status-Karte, Startton beim Einschalten mit liegendem Tobie, jeder andere Fall. Läuft
+        oder wartet noch ein Ton aus einem früheren Aufruf, wartet das `Abspielen` auch auf ihn. Die Dauer eines
+        Tons ist das Ende des Abspielprogramms (`afplay`, `aplay`), keine Schätzung. Ein Ton ist auf 10 s
+        begrenzt (`TON_MAX_S`); dann wird das Programm beendet und die Wiedergabe startet trotzdem. Ein
+        hängender Ton hält die Wiedergabe also höchstens 10 s auf (bei einer Folge mehrerer Töne je Ton).
+    b.  **Der Ausführer wartet nie auf einen Ton.** Der Ausführer in 6.5 Punkt 3 übergibt Töne an die Tonspur und
+        macht weiter. Ein `Abspielen`, das auf Töne wartet, ist eine eigene, wartende Aufgabe. So bleiben
+        `Pausieren`, `LautstaerkeSetzen` und `ZeigerSpeichern` in dieser Zeit wirksam.
+    c.  **Befehle während eines Tons.** Ein späteres `Pausieren` (Abheben, Hauptknopf, „stumm“, Gute Nacht, …)
+        oder ein späteres `Abspielen` verwirft einen noch wartenden Start: Er wird nie ausgeführt. Zusätzlich prüft
+        ein wartender Start vor dem Beginn, ob der Kern noch zu ihm passt: `gen` des Befehls ist gleich dem
+        aktuellen `gen` der Sitzung, und die Sitzung ist in `spielt` oder `unbekannt`. Die Prüfung ist nötig, weil
+        `gen` nur von `Abspielen` erhöht wird (Abschnitt 3.2: schützt Ereignisse des Players vor einer früheren
+        Wiedergabe), das Abheben aber nicht. Ist der Start einmal in Gang, bleibt er; ein folgendes `Pausieren`
+        reiht sich beim Player dahinter ein (Sperre des Players). Ein `Pausieren` überholt also nie einen
+        verzögerten Start, und ein verzögerter Start überholt nie ein `Pausieren`.
+    d.  **Abheben während eines Tons: der Ton läuft zu Ende.** Er wird nicht abgebrochen. Gründe: Töne sind kurze
+        Rückmeldungen (Sekunden), ein abgebrochenes Wort klingt wie ein Fehler; der Kern kennt keine Töne und
+        kann sie nicht widerrufen; der Hinweis (zum Beispiel „Diesen Tobie kenne ich noch nicht“) gilt auch dann,
+        wenn der Tobie schon weg ist; und „nie gleichzeitig“ gilt so oder so. Nur die Wiedergabe startet nicht.
+    e.  **Ton während das Hörspiel läuft.** Beginnt eine Tonfolge, während MPD spielt (zum Beispiel `hinweis`,
+        `fehler`, `akku_leer`), hält der Player MPD an (`pause 1`), die Tonfolge spielt, und danach setzt der
+        Player mit `pause 0` an genau derselben Stelle fort, ohne den 3-s-Rücksprung aus 6.3. Eine Tonfolge hält
+        MPD nur einmal an, auch bei mehreren Tönen. Diese kurze Pause bleibt dem Kern verborgen: Der Player meldet
+        dafür weder `PlayerPosition(spielt=False)` noch ein Ereignis; es entsteht kein `Pausieren` und kein
+        `ZeigerSpeichern` (Grund `pause`); der Status zeigt `spielt`, nicht `pausiert`. Kommt in dieser Zeit ein
+        echtes `Pausieren` oder `Abspielen`, endet die kurze Pause, und nach dem Ton wird nichts fortgesetzt.
+        Wartet nach den Tönen schon ein neuer Start, wird das alte Hörspiel nicht noch einmal fortgesetzt. Beim
+        Beenden des Dienstes setzt nichts fort.
+    f.  **Zeitbudget.** Ein bekannter Tobie ohne Ton (Normalfall) hat keine Tonspur im Weg: `Abspielen` läuft sofort
+        im Ausführer, ohne eigene Aufgabe und ohne Warten. Die Zeit bis zum Hörspiel (Ziel unter 1,0 s,
+        `docs/timing.md`) ändert sich dort nicht. Wo ein Ton kommt (unbekannter Tobie, Lernmodus, Status-Karte),
+        verlängert sich der Weg bis zum Hörspiel um die Dauer des Tons; das ist gewollt und gehört nicht zum Ziel.
 
 ## 7. Ereignis-Ausgang mit Bestätigung
 
@@ -665,6 +714,12 @@ aller aktiven Grenzen**, und keine Lautstärke liegt darüber.
 *   **Wer:** Das Modul `sounds` führt den bestehenden Befehl
     `TonSpielen(ton)` aus (Abschnitt 4); es gibt keinen neuen Befehl. Der Kern
     kennt keine Tonpegel.
+*   **Nie gleichzeitig (Entscheidung L, 09.11.):** Töne laufen über **eine** Spur, einer nach dem anderen, und
+    nie neben dem Hörspiel. Wie die Spur mit `Abspielen`, `Pausieren` und der laufenden Wiedergabe
+    zusammenspielt, steht in Abschnitt 6.5, Punkt 6. Für `sounds` heißt das: `TonSpielen` reiht den Ton ein und
+    kehrt sofort zurück; die Dauer ist das Ende des Abspielprogramms; ein Ton dauert höchstens `TON_MAX_S` = 10 s;
+    zu Beginn und am Ende einer zusammenhängenden Tonfolge ruft `sounds` zwei Haken auf, mit denen `app.py` ein
+    laufendes Hörspiel kurz anhält und fortsetzt.
 *   **Gleicher Ausgang wie MPD:** Alle Töne gehen über denselben Audioausgang wie
     die Wiedergabe. Auf dem Pi spielt `sounds` über das ALSA-`softvol`-Gerät, das
     auch MPD benutzt; die **harte Kappe** (`lautstaerke_max`) gilt damit auch für
@@ -694,8 +749,8 @@ aller aktiven Grenzen**, und keine Lautstärke liegt darüber.
         meist 0). Die Untergrenze war vor Entscheidung J 5; auf der Kennlinie von MPD sind 5 % rund
         −48 dB und nicht mehr zu hören, 10 % sind rund −41 dB.
     *   `ton_pegel` (`config.json`) hat **keine Wirkung mehr**: `app.py` liest es nicht. Das Feld bleibt
-        im Schema gültig (alte Dateien laden unverändert), `data-model.md` wird bei Gelegenheit
-        nachgezogen. `hinweis_pegel` gilt weiter. Fehlt das Feld, gilt die Vorgabe 15.
+        im Schema gültig (alte Dateien laden unverändert); `data-model.md` ist am 09.11. nachgezogen.
+        `hinweis_pegel` gilt weiter. Fehlt das Feld, gilt die Vorgabe 15.
 *   **Kennlinie** (Entscheidung J, 09.11.): Sie setzt eine Lautstärke `p` in Prozent in eine
     Verstärkung `g` (Faktor 0 bis 1, 100 % = 1) um. Sie hängt von der Plattform ab und steht deshalb
     in der Konfiguration (`tobibox.toml`, Abschnitt `[toene]`, Felder `kennlinie` und
@@ -1366,3 +1421,12 @@ Projektleitung (P) entschieden oder aus dem Goldfisch-Review übernommen
     MPD-Software-Mixers (−33 dB), also rund 25 dB leiser. Neu: Pegelregel und Kennlinie wie in 8.1,
     Untergrenze 10, Töne und Testmedien bei −18 LUFS, Testmedien mit ReplayGain-Tags. Der Kern bleibt
     rein; `app.py` leitet die Lautstärke aus dem zuletzt ausgegebenen `LautstaerkeSetzen` ab.
+32. **Bestätigt (09.11., Entscheidung L, T): Es spielen nie zwei Sachen gleichzeitig.**
+    Anlass am Mac mit den Sprach-Tönen: Im Lernmodus kam „Lernmodus beendet.“ gleichzeitig mit „Test-Serie,
+    Folge drei.“, und „Diesen Tobie kenne ich noch nicht …“ überlappte sich mit der Überraschungs-Serie. Töne
+    liefen als Hintergrundaufgaben neben MPD. Neu (Abschnitt 6.5, Punkt 6, und 8.1): Töne laufen einzeln über
+    eine Spur; die Wiedergabe startet nach dem Ende der Töne derselben Ausgabe; ein Ton während des Hörspiels
+    hält es kurz an und setzt es an derselben Stelle fort (kein Zeiger, kein Rücksprung, kein Status
+    „pausiert“); Abheben und `Pausieren` verwerfen einen wartenden Start, der Ton läuft zu Ende; ein hängender
+    Ton wird nach 10 s beendet. Der Kern, sein Rang (6.4) und seine Tests bleiben unverändert; die Regel gilt in
+    `app.py`, `sounds.py` und `player.py`.

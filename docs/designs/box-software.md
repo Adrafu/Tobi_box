@@ -8,6 +8,7 @@
 *   **Änderung 07.11.:** Entscheidung H eingearbeitet (Lernmodus wartet still). Die Änderungen sind mit „(Entscheidung H, 07.11.)“ markiert.
 *   **Änderung 09.11.:** Entscheidung I eingearbeitet (ein kleiner Rest gilt als fertig gehört). Die Änderungen sind mit „(Entscheidung I, 09.11.)“ markiert.
 *   **Änderung 09.11.:** Entscheidung J eingearbeitet (Töne folgen der Lautstärke des Hörspiels). Die Änderungen sind mit „(Entscheidung J, 09.11.)“ markiert.
+*   **Änderung 09.11.:** Entscheidung L eingearbeitet (nie zwei Sachen gleichzeitig). Die Änderungen sind mit „(Entscheidung L, 09.11.)“ markiert.
 *   **Grundlage:** `concepts_brief.md` (gleicher Ordner) inkl. Entscheidungen
     Runde 1 und 2
 
@@ -442,6 +443,38 @@ Alternativen“.
         gleicht `rsgain` das aus (D6). Am Mac normalisiert Tobias sie bei Bedarf selbst
         (`docs/betrieb/mac-prototyp.md`).
 
+*   **Entscheidung L — Es spielen nie zwei Sachen gleichzeitig (09.11.):** Anlass beim Test am
+    Mac mit den Sprach-Tönen: Im Lernmodus kam „Lernmodus beendet.“ gleichzeitig mit „Test-Serie, Folge
+    drei.“, und „Diesen Tobie kenne ich noch nicht …“ überlappte sich mit der Überraschungs-Serie. Ursache:
+    Töne liefen als Hintergrundaufgaben neben MPD; der Kern gibt Ton und `Abspielen` im selben Aufruf aus,
+    und beide wurden sofort ausgeführt.
+    Neu (Entscheidung L, 09.11.):
+    *   **L1 — Ton vor Hörspiel:** Enthält eine Ausgabe des Kerns Töne und `Abspielen`, spielen zuerst die
+        Töne bis zum Ende, einzeln und in der Reihenfolge der Ausgabe. Erst danach startet die Wiedergabe.
+        Das gilt für den unbekannten Tobie, das Ende des Lernmodus, die Status-Karte und alle anderen
+        Fälle. Läuft noch ein Ton aus einem früheren Aufruf, wartet der Start auch auf ihn.
+    *   **L2 — Ton während das Hörspiel läuft:** Die Box hält MPD an, spielt den Ton und setzt danach an
+        **genau derselben Stelle** fort, ohne den 3-s-Rücksprung. Für diese kurze Pause wird kein Zeiger
+        gespeichert, und der Status zeigt „spielt“, nicht „pausiert“. Mehrere Töne hintereinander halten MPD
+        nur einmal an.
+    *   **L3 — Abheben und andere Befehle während eines Tons:** Wird der Tobie während eines Tons
+        abgehoben, startet die Wiedergabe danach nicht. Der Ton läuft **zu Ende** und wird nicht abgebrochen
+        (kurze Rückmeldung; ein abgebrochenes Wort klingt wie ein Fehler; der Kern kennt keine Töne).
+        Ein späteres `Pausieren` (auch Hauptknopf, „stumm“, Gute Nacht) oder ein neuer Start verwirft einen
+        noch wartenden Start. Zusätzlich prüft der wartende Start vor dem Beginn die Wiedergabe-Generation
+        `gen` und den Zustand der Sitzung (`gen` allein genügt nicht: Abheben erhöht sie nicht). So überholt
+        kein verzögerter Start eine spätere Pause.
+    *   **L4 — Zeitbudget:** Beim normalen Auflegen eines bekannten Tobies gibt es keinen Ton. Der Start
+        läuft sofort, ohne Warten und ohne eigene Aufgabe; das Ziel unter 1 s (`docs/timing.md`) ändert
+        sich nicht. Wo ein Ton kommt, dauert es um den Ton länger bis zum Hörspiel; das ist gewollt.
+    *   **L5 — Zeitlimit:** Die Dauer eines Tons ist das Ende des Abspielprogramms (`afplay`, `aplay`), keine
+        Schätzung. Ein Ton ist auf 10 s begrenzt (`TON_MAX_S`); dann wird das Programm beendet, und die
+        Wiedergabe startet trotzdem.
+    *   **L6 — Wo die Regel gilt:** Der Kern bleibt rein und unverändert; Rang der Befehle (`Abspielen` vor
+        `TonSpielen`) und Konfliktregeln bleiben. Die Regel gilt in `app.py` (Reihenfolge der Ausführung,
+        wartender Start), `sounds.py` (eine Spur, Haken am Anfang und Ende einer Tonfolge) und `player.py`
+        (kurze Pause für einen Ton). Verträge: `core-interface.md`, 6.5 Punkt 6, 8.1 und Punkt 32.
+
 - **Nachtrag 05.11. (Stufe-0-Verträge):** Ein Leser-Neustart startet nie von selbst eine Wiedergabe; nach einem bestätigten Leserverlust (> 3 s) bleibt die Box pausiert, auch wenn der Tobie danach wieder gemeldet wird – das Kind legt neu auf. Lesefehler gelten bis 5 s als „Tobie liegt“; fehlende Serie → Überraschungs-Serie; „stumm“ sperrt auch Knöpfe; MPD-Verlust bis 5 s wird überbrückt. Maßgeblich sind die Verträge in `docs/protocol/` und `docs/data-model.md`.
 
 ## Offene Fragen
@@ -465,7 +498,7 @@ Alternativen“.
 Erledigt: Medienformate und Lautheitsangleich (siehe D5 und D6), Ende der
 letzten Folge und Ende eines „stumm“-Fensters (Entscheidungen A und B),
 Datenvolumen im Hotspot (Entscheidung C), Hauptknopf nach Folgenende
-(Entscheidung E), Tobies als Folge oder Serie (Entscheidung F), Lernmodus wartet still (Entscheidung H), kleiner Rest gilt als fertig gehört (Entscheidung I), Töne folgen der Lautstärke (Entscheidung J), Schnittstellen und Datenformate (Stufe 0), die Befunde R1 bis
+(Entscheidung E), Tobies als Folge oder Serie (Entscheidung F), Lernmodus wartet still (Entscheidung H), kleiner Rest gilt als fertig gehört (Entscheidung I), Töne folgen der Lautstärke (Entscheidung J), nie zwei Sachen gleichzeitig (Entscheidung L), Schnittstellen und Datenformate (Stufe 0), die Befunde R1 bis
 R18 des Reviews Stufe 9.
 
 ## Risiken
@@ -1063,6 +1096,9 @@ Baustein 4, D6) verweisen hierher.
   Hörspiel. Er ist nie lauter als die wirksame Grenze. Die Kennlinie hängt von der
   Plattform ab (Mac: Software-Mixer von MPD, Pi: ALSA-`softvol`) und steht in der
   Konfiguration. Siehe Entscheidung J und `core-interface.md`, 8.1.
+- **Töne und Hörspiel nie gleichzeitig (Entscheidung L, 09.11.):** Töne laufen einzeln über eine
+  Spur. Ein Start nach einem Ton wartet auf das Ende des Tons; ein Ton während des Hörspiels hält es
+  kurz an und setzt es an derselben Stelle fort. Siehe Entscheidung L und `core-interface.md`, 6.5 Punkt 6.
 - **Kopfhörerwechsel:** zuerst die neue Grenze setzen, dann den Ausgang
   schalten (nie umgekehrt).
 - **Test:** pytest für die Funktion `volume` (Minimum gewinnt, nie darüber) und
@@ -1899,10 +1935,10 @@ Ergebnis: Der Dienst spielt über MPD und lässt sich mit Leser (oder
 
 | Datei | Neu/Änd. | Inhalt und Grund |
 |---|---|---|
-| `box/src/tobibox/player.py` | neu | Dünne MPD-Schicht über `mpd.asyncio.MPDClient`: Warteschlange nur mit der aktuellen Folge (ab AP 1.7 mit allen Tracks der Folge), Abspielen, Pause, Resume per `seek` auf Position, Lautstärke, Ereignis „Folge zu Ende“ (MPD stoppt) nach `core-interface.md`. Setzt die wirksame Grenze aus `volume.py` nur durch und setzt beim Start **zuerst** die Lautstärke. |
-| `box/src/tobibox/sounds.py` | neu | Kurze Töne über konfigurierbares Kommando (Mac `afplay`, Pi `aplay`). (Entscheidung J, 09.11.: Pegel aus der Lautstärke der Sitzung, Kennlinie wie MPD.) |
+| `box/src/tobibox/player.py` | neu | Dünne MPD-Schicht über `mpd.asyncio.MPDClient`: Warteschlange nur mit der aktuellen Folge (ab AP 1.7 mit allen Tracks der Folge), Abspielen, Pause, Resume per `seek` auf Position, Lautstärke, Ereignis „Folge zu Ende“ (MPD stoppt) nach `core-interface.md`. Setzt die wirksame Grenze aus `volume.py` nur durch und setzt beim Start **zuerst** die Lautstärke. (Entscheidung L, 09.11.: `ton_pause_beginn` / `ton_pause_ende` halten MPD für einen Ton kurz an und setzen es an derselben Stelle fort, ohne Ereignis an den Kern.) |
+| `box/src/tobibox/sounds.py` | neu | Kurze Töne über konfigurierbares Kommando (Mac `afplay`, Pi `aplay`). (Entscheidung J, 09.11.: Pegel aus der Lautstärke der Sitzung, Kennlinie wie MPD. Entscheidung L, 09.11.: eine Spur, Töne nie gleichzeitig; Dauer = Ende des Prozesses, Zeitlimit 10 s; Haken `vor`/`nach` für die kurze Pause des Hörspiels.) |
 | `box/src/tobibox/notify.py` | neu | `READY=1` über `NOTIFY_SOCKET` senden (reines Python, ohne `python-systemd`); am Mac ohne Wirkung. |
-| `box/src/tobibox/app.py` | neu | **Einziger Zusammenbau-Punkt:** baut Uhr und Module, verdrahtet reader → core → player, Zeitgeber (`Takt`), meldet `READY=1`, beendet sauber. |
+| `box/src/tobibox/app.py` | neu | **Einziger Zusammenbau-Punkt:** baut Uhr und Module, verdrahtet reader → core → player, Zeitgeber (`Takt`), meldet `READY=1`, beendet sauber. (Entscheidung L, 09.11.: Töne einer Ausgabe vor das `Abspielen` stellen; ein `Abspielen` wartet als eigene Aufgabe auf das Ende der Tonspur und wird von `Pausieren`, einem neuen Start oder einer Prüfung von `gen` und Zustand verworfen; Haken für die kurze Pause des Hörspiels.) |
 | `box/src/tobibox/__main__.py` | neu | Einstieg `python -m tobibox` bzw. `tobiboxd`. |
 | `box/tools/make_sounds.py` | neu | Erzeugt die Platzhalter-Töne reproduzierbar. (Entscheidung J, 09.11.: je Ton eine feste Anpassung `PEGEL_DB` auf −18 LUFS.) |
 | `box/tools/lautheit.py` | neu | (Entscheidung J, 09.11.) Misst die Lautheit mit `ffmpeg` (EBU R128), kurze Töne werden auf mindestens 3 s wiederholt; schreibt `box/lautheit.json`. Zielwert −18 LUFS, Toleranz ±1 LU. |
@@ -1918,7 +1954,9 @@ Ergebnis: Der Dienst spielt über MPD und lässt sich mit Leser (oder
 | `box/tests/fixtures/mpd.test.conf` | neu | MPD-Konfiguration nur für Tests: eigener Port und eigenes Verzeichnis, Null-Ausgabe. |
 | `box/tests/integration/conftest.py` | neu | Startet und beendet ein MPD mit `mpd.test.conf`; nutzt `fixtures/audio.py`. |
 | `box/tests/integration/test_player_mpd.py` | neu | Gegen echtes MPD: Start, Pause, Position, Resume per `seek`, Folgenende (MPD stoppt, nichts spielt weiter), Lautstärke nie über der Grenze (auch nach Neustart des Dienstes; das ist die Klemmung im Dienst, die harte Kappung folgt im Pi-Probelauf). |
-| `box/tests/unit/test_sounds.py` | neu | Kommando wird korrekt zusammengesetzt; kein Aufruf ohne Datei. |
+| `box/tests/unit/test_sounds.py` | neu | Kommando wird korrekt zusammengesetzt; kein Aufruf ohne Datei. (Entscheidung L, 09.11.: ergänzt um die eine Spur: Töne aus verschiedenen Aufrufen nacheinander, Dauer = Ende des Prozesses, Zeitlimit beendet das Programm, Haken, Beenden ohne Haken.) |
+| `box/tests/unit/test_app_toene.py` | neu (Entscheidung L, 09.11.) | Echte `App` mit gesteuertem Ton-Ersatz: Ton + Abspielen in einer Ausgabe (unbekannter Tobie, Lernmodus-Ende), mehrere Töne nacheinander, Ton während der Wiedergabe (Pause, Fortsetzen, kein Zeiger), Abheben und `Pausieren` während des Tons, veralteter Start (`gen`, Zustand), neuer Start ersetzt den alten, hängender Ton (Zeitlimit), normales Auflegen ohne Ton ohne Verzug. |
+| `box/tests/integration/test_toene_mpd.py` | neu (Entscheidung L, 09.11.) | Gegen echtes MPD mit `fake_reader`; das Ton-Kommando ist `sleep 1.5`: Start erst nach dem Ton, Abheben im Ton, Ton während der Wiedergabe (MPD pausiert und setzt an derselben Stelle fort, kein Zeiger), Abheben bei angehaltenem Hörspiel, hängender Ton. |
 
 Abnahme AP 1.3:
 

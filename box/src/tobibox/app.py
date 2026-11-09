@@ -4,6 +4,17 @@ reader / player -> Ereignisschlange -> ``core.step`` -> Befehle -> Ausführer.
 Der Takt (``TAKT_S`` = 0,1 s) kommt von hier. Befehle laufen in der gegebenen
 Reihenfolge in einer eigenen Aufgabe, damit die Ereignisschleife nie auf MPD
 oder die Platte wartet (``core-interface.md``, 6.5).
+
+Nie zwei Dinge gleichzeitig (Entscheidung L, 09.11.; ``core-interface.md``, 8.1 und 6.5):
+
+* **Ton vor Hörspiel.** Enthält eine Ausgabe Töne und ``Abspielen``, geben die Töne zuerst an die Tonspur
+  (``verarbeite`` stellt sie in der Warteschlange vor das ``Abspielen``). Das Hörspiel startet erst, wenn die
+  Spur leer ist, also nach dem Ende des letzten Tons. Läuft kein Ton, startet es sofort und ohne Umweg.
+* **Der Ausführer wartet nie auf einen Ton.** Ein verzögerter Start ist eine eigene Aufgabe (``_Start``). Ein
+  späteres ``Pausieren`` oder ``Abspielen`` verwirft ihn, solange er noch wartet; zusätzlich prüft er vor dem
+  Start, ob die Wiedergabe-Generation ``gen`` und der Zustand des Kerns noch zu ihm passen.
+* **Ton während das Hörspiel läuft.** Die Tonspur hält MPD kurz an und setzt es danach fort
+  (``Player.ton_pause_beginn`` / ``ton_pause_ende``), ohne dass der Kern es erfährt.
 """
 
 from __future__ import annotations
@@ -18,7 +29,7 @@ import signal
 import sys
 import time
 from collections.abc import Sequence
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from . import __version__, bootid, core, eventlog, lauf, library, notify, selftest, store
@@ -40,6 +51,15 @@ STANDARD_KONFIG = "tobibox.toml"
 STANDARD_TOENE = Path(__file__).resolve().parents[2] / "sounds"
 
 log = logging.getLogger("tobibox.app")
+
+
+@dataclass(slots=True)
+class _Start:
+    """Ein ``Abspielen``, das auf das Ende der Töne wartet (Entscheidung L)."""
+
+    befehl: ev.Abspielen
+    task: asyncio.Task | None = None
+    wartet: bool = True  # ``False``, sobald der Start wirklich beginnt: dann nicht mehr abbrechen
 
 
 def _ms(seit: float) -> int:
@@ -105,7 +125,10 @@ class App:
             konfig.toene.ordner or STANDARD_TOENE,
             konfig.toene.kommando,
             kennlinie=Kennlinie(konfig.toene.kennlinie, konfig.toene.softvol_bereich_db),
+            vor=self._ton_vor,
+            nach=self._ton_nach,
         )
+        self._start: _Start | None = None  # verzögerter Start, solange er auf die Töne wartet
         self.grenze = konfig.lautstaerke.max  # zuletzt ausgegebene wirksame Grenze
         # zuletzt ausgegebene wirksame Lautstärke der Sitzung; ein Ton folgt ihr (Entscheidung J, 09.11.)
         self.lautstaerke = min(konfig.lautstaerke.start, konfig.lautstaerke.max)
@@ -138,6 +161,7 @@ class App:
             self._letzter_vorgang = e.vorgang
         self.kern, befehle = core.step(self.kern, e, jetzt)
         self.ausgang.nach_kern(self.kern)
+        auszufuehren: list[ev.Befehl] = []
         for b in befehle:
             self.status.befehl(b, jetzt)
             if isinstance(b, ev.Protokoll):
@@ -145,9 +169,27 @@ class App:
                 # gehören vor die Ausführung der Befehle derselben Verarbeitung (Kette von CUJ 1, Messung).
                 eventlog.logge_befehl(b, sim=sim)
             else:
-                self.befehle.put_nowait((b, jetzt.mono))
+                auszufuehren.append(b)
+        for b in self._toene_vor_start(auszufuehren):
+            self.befehle.put_nowait((b, jetzt.mono))
         self._marker_nachfuehren()
         return befehle
+
+    @staticmethod
+    def _toene_vor_start(befehle: Sequence[ev.Befehl]) -> list[ev.Befehl]:
+        """Töne einer Ausgabe vor das ``Abspielen`` stellen (Entscheidung L, Ton vor Hörspiel).
+
+        Der Kern gibt ``Abspielen`` (Rang 5) vor ``TonSpielen`` (Rang 6) aus (``core-interface.md``, 6.4). Der Ausführer
+        übergibt einen Ton nur an die Tonspur und wartet nicht; damit der Start die Töne derselben Ausgabe
+        schon in der Spur findet und auf sie wartet, steht der Ton in der Warteschlange vor dem Start. Alle anderen
+        Befehle behalten ihre Reihenfolge.
+        """
+        toene = [b for b in befehle if isinstance(b, (ev.TonSpielen, ev.StatusPruefen))]
+        if not toene or not any(isinstance(b, ev.Abspielen) for b in befehle):
+            return list(befehle)
+        rest = [b for b in befehle if not isinstance(b, (ev.TonSpielen, ev.StatusPruefen))]
+        i = next(n for n, b in enumerate(rest) if isinstance(b, ev.Abspielen))
+        return rest[:i] + toene + rest[i:]
 
     def _marker_nachfuehren(self) -> None:
         """``lauf.json`` bei jedem Wechsel des liegenden Tobies (Entscheidung G, 06.11.)."""
@@ -197,19 +239,14 @@ class App:
         elif isinstance(b, ev.AusgangWaehlen):
             await self.player.ausgang_waehlen(b.ausgang)
         elif isinstance(b, ev.Pausieren):
+            self._verwirf_start("pausieren")  # eine Pause gewinnt gegen einen noch wartenden Start
             vorgang = self._vorgang()
             eventlog.logge("app", "INFO", "pausieren", "gesendet", vorgang, daten={"grund": b.grund})
             t0 = time.monotonic()
             await self.player.pausieren(b)
             eventlog.logge("app", "INFO", "pausieren_fertig", "ok", vorgang, daten={"dauer_ms": _ms(t0)})
         elif isinstance(b, ev.Abspielen):
-            eventlog.logge(
-                "app", "INFO", "abspielen", "gesendet", b.vorgang,
-                daten={"serie": b.serie_id, "folge": b.datei, "track": b.track, "position_s": b.position_s},
-            )
-            t0 = time.monotonic()
-            await self.player.abspielen(b)
-            eventlog.logge("app", "INFO", "abspielen_fertig", "ok", b.vorgang, daten={"dauer_ms": _ms(t0)})
+            await self._abspielen(b)
         elif isinstance(b, ev.ZeigerSpeichern):
             await asyncio.to_thread(self.resume.speichern, b, mono)
         elif isinstance(b, ev.TonSpielen):
@@ -233,6 +270,80 @@ class App:
             self._status_pruefen(b)
         else:  # Sync, Update: Stufe 3
             eventlog.logge("app", "DEBUG", "befehl_nicht_umgesetzt", "ignoriert", daten={"befehl": type(b).__name__})
+
+    # ------------------------------------------------------------------
+    # Wiedergabestart und Töne (Entscheidung L, 09.11.)
+    # ------------------------------------------------------------------
+
+    def _toene_laufen(self) -> bool:
+        """Läuft oder wartet ein Ton? (Attrappen ohne Tonspur gelten als still.)"""
+        return bool(getattr(self.toene, "beschaeftigt", False))
+
+    async def _abspielen_jetzt(self, b: ev.Abspielen) -> None:
+        eventlog.logge(
+            "app", "INFO", "abspielen", "gesendet", b.vorgang,
+            daten={"serie": b.serie_id, "folge": b.datei, "track": b.track, "position_s": b.position_s},
+        )
+        t0 = time.monotonic()
+        await self.player.abspielen(b)
+        eventlog.logge("app", "INFO", "abspielen_fertig", "ok", b.vorgang, daten={"dauer_ms": _ms(t0)})
+
+    async def _abspielen(self, b: ev.Abspielen) -> None:
+        """Start jetzt, wenn kein Ton läuft; sonst erst nach dem Ende der Töne (Ton vor Hörspiel)."""
+        self._verwirf_start("neuer_start")
+        if not self._toene_laufen():
+            await self._abspielen_jetzt(b)  # normales Auflegen ohne Ton: kein Umweg, kein Verzug
+            return
+        start = _Start(b)
+        start.task = asyncio.get_running_loop().create_task(self._start_nach_toenen(start), name="tobibox-start")
+        self._start = start
+        eventlog.logge("app", "INFO", "abspielen", "wartet_auf_toene", b.vorgang, daten={"gen": b.gen})
+
+    def _start_gueltig(self, b: ev.Abspielen) -> str | None:
+        """``None`` wenn der Start noch gilt, sonst der Grund. ``gen`` allein reicht nicht: Abheben erhöht sie nicht."""
+        s = self.kern.session
+        if s.gen != b.gen:
+            return "gen_veraltet"
+        if s.modus not in ("spielt", "unbekannt"):
+            return "nicht_mehr_spielt"
+        return None
+
+    async def _start_nach_toenen(self, start: _Start) -> None:
+        b = start.befehl
+        try:
+            await self.toene.warte_leer()  # type: ignore[attr-defined]
+            # Ab hier kein ``await`` bis zum Aufruf des Players: nichts kann dazwischenkommen.
+            grund = self._start_gueltig(b)
+            if grund is not None:
+                eventlog.logge("app", "INFO", "abspielen", "verworfen", b.vorgang, daten={"grund": grund, "gen": b.gen})
+                return
+            start.wartet = False
+            await self._abspielen_jetzt(b)
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:  # darf die Box nicht anhalten
+            eventlog.logge("app", "ERROR", "befehl_fehler", "fehler", daten={"befehl": "Abspielen", "detail": repr(e)})
+        finally:
+            if self._start is start:
+                self._start = None
+
+    def _verwirf_start(self, grund: str) -> None:
+        """Einen noch wartenden Start verwerfen. Ein Start, der schon läuft, bleibt (der Player ordnet ihn vor)."""
+        s = self._start
+        if s is None or not s.wartet or s.task is None:
+            return
+        s.task.cancel()
+        self._start = None
+        eventlog.logge("app", "INFO", "abspielen", "verworfen", s.befehl.vorgang, daten={"grund": grund, "gen": s.befehl.gen})
+
+    async def _ton_vor(self) -> None:
+        """Anfang einer Tonfolge: spielt MPD gerade, kurz anhalten (kein Zeiger, kein Status)."""
+        await self.player.ton_pause_beginn()
+
+    async def _ton_nach(self) -> None:
+        """Ende einer Tonfolge: an derselben Stelle fortsetzen, außer ein neuer Start wartet schon."""
+        s = self._start
+        await self.player.ton_pause_ende(fortsetzen=not (s is not None and s.wartet))
 
     async def _melde(self, b: ev.Melden) -> None:
         """Unbekannten oder gelernten Tobie in ``unknown.json`` eintragen (``outbox``)."""
@@ -364,6 +475,10 @@ class App:
 
     async def _raeume_auf(self) -> None:
         """Alles stoppen, jeder Schritt unabhängig: Aufgaben, Player, Töne, Leser."""
+        if self._start is not None and self._start.task is not None:
+            self._start.task.cancel()
+            self._aufgaben.append(self._start.task)
+            self._start = None
         for t in self._aufgaben:
             t.cancel()
         for t in self._aufgaben:

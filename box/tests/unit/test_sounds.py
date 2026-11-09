@@ -5,6 +5,8 @@ from __future__ import annotations
 import array
 import asyncio
 import math
+import subprocess
+import time
 import wave
 from pathlib import Path
 
@@ -366,3 +368,121 @@ async def test_spiele_folge_mit_rueckfall_spielt_jeden_punkt(tmp_path):
     assert t.spiele_folge(["pruef_leser_ok", "pruef_medien_fehler", "pruef_netz_ok", "pruef_speicher_fehler"], 50)
     await t.warte()
     assert g == ["pruef_leser_ok", "pruef_medien_fehler", "pruef_netz_ok", "pruef_speicher_fehler"]  # alle vier gespielt
+
+
+# --- Eine Spur: nie zwei Töne gleichzeitig (Entscheidung L, 09.11.) ---------------------------------
+
+
+async def test_toene_aus_verschiedenen_aufrufen_laufen_nacheinander(tmp_path):
+    ereignisse: list[str] = []
+    laufend = {"n": 0, "max": 0}
+
+    async def starter(k):
+        name = Path(k[-1]).name.split("-")[2]
+        laufend["n"] += 1
+        laufend["max"] = max(laufend["max"], laufend["n"])
+        ereignisse.append(f"{name}:start")
+        await asyncio.sleep(0.02)
+        ereignisse.append(f"{name}:ende")
+        laufend["n"] -= 1
+
+    schreibe_wav(tmp_path / "start.wav")
+    schreibe_wav(tmp_path / "hinweis.wav")
+    schreibe_wav(tmp_path / "fehler.wav")
+    t = Toene(tmp_path, STANDARD_TON_KOMMANDO, starter=starter)
+    assert not t.beschaeftigt
+    t.spiele("start", 50)
+    t.spiele_folge(["hinweis", "fehler"], 50)
+    t.spiele("start", 50)
+    assert t.beschaeftigt
+    await t.warte_leer()
+    assert not t.beschaeftigt
+    assert laufend["max"] == 1
+    assert ereignisse == [
+        "start:start", "start:ende", "hinweis:start", "hinweis:ende", "fehler:start", "fehler:ende", "start:start", "start:ende"
+    ]
+
+
+async def test_dauer_eines_tons_ist_das_ende_des_prozesses(tmp_path):
+    """Kein Schätzwert: ``warte_leer`` kehrt erst zurück, wenn das Programm (hier ``sleep``) zu Ende ist."""
+    schreibe_wav(tmp_path / "start.wav")
+    t = Toene(tmp_path, ["sleep", "0.4"])
+    t0 = time.monotonic()
+    t.spiele("start", 50)
+    await asyncio.sleep(0.1)
+    assert t.beschaeftigt
+    await t.warte_leer()
+    assert 0.38 <= time.monotonic() - t0 < 1.5
+
+
+async def test_haengendes_programm_wird_nach_dem_zeitlimit_beendet(tmp_path):
+    schreibe_wav(tmp_path / "start.wav")
+    schreibe_wav(tmp_path / "hinweis.wav")
+    t = Toene(tmp_path, ["sleep", "30"], ton_max_s=0.3)
+    t0 = time.monotonic()
+    t.spiele("start", 50)
+    t.spiele("hinweis", 50)  # der zweite Ton wird nicht vom ersten blockiert, nur verzögert
+    await t.warte_leer()
+    assert 0.55 <= time.monotonic() - t0 < 3.0  # zweimal das Limit, nicht 30 s
+    assert not _sleep30_laeuft()  # das Programm wurde beendet, nicht nur nicht mehr abgewartet
+
+
+def _sleep30_laeuft() -> bool:
+    return subprocess.run(["pgrep", "-f", "^sleep 30$"], capture_output=True).returncode == 0
+
+
+async def test_haken_vor_und_nach_einmal_je_tonfolge(tmp_path):
+    haken: list[str] = []
+
+    async def vor():
+        haken.append("vor")
+
+    async def nach():
+        haken.append("nach")
+
+    async def starter(k):
+        haken.append("ton")
+        await asyncio.sleep(0.01)
+
+    schreibe_wav(tmp_path / "start.wav")
+    t = Toene(tmp_path, STANDARD_TON_KOMMANDO, starter=starter, vor=vor, nach=nach)
+    t.spiele("start", 50)
+    t.spiele("start", 50)
+    await t.warte_leer()
+    assert haken == ["vor", "ton", "ton", "nach"]
+    t.spiele("start", 50)  # eine neue Folge: wieder vor und nach
+    await t.warte_leer()
+    assert haken[4:] == ["vor", "ton", "nach"]
+
+
+async def test_fehler_im_haken_halten_die_spur_nicht_an(tmp_path):
+    gespielt: list[int] = []
+
+    async def kaputt():
+        raise RuntimeError("player kaputt")
+
+    async def starter(k):
+        gespielt.append(1)
+
+    schreibe_wav(tmp_path / "start.wav")
+    t = Toene(tmp_path, STANDARD_TON_KOMMANDO, starter=starter, vor=kaputt, nach=kaputt)
+    t.spiele("start", 50)
+    await t.warte_leer()
+    assert gespielt == [1] and not t.beschaeftigt
+
+
+async def test_stop_bricht_ab_und_ruft_keinen_haken(tmp_path):
+    """Beim Beenden darf nichts fortsetzen (``nach`` würde MPD wieder starten)."""
+    haken: list[str] = []
+
+    async def nach():
+        haken.append("nach")
+
+    schreibe_wav(tmp_path / "start.wav")
+    t = Toene(tmp_path, ["sleep", "30"], nach=nach)
+    t.spiele("start", 50)
+    t.spiele("start", 50)
+    await asyncio.sleep(0.1)
+    await t.stop()
+    assert haken == [] and not t.beschaeftigt
+    assert not _sleep30_laeuft()

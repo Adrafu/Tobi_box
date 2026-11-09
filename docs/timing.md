@@ -8,6 +8,10 @@ Die Rechnung steht im Design (`docs/designs/box-software.md`, Baustein 1,
 **Grenzen:** Auflegen bis zum ersten Ton **unter 1,0 s**. Abheben bis zur Pause
 **unter 1,5 s**. Lücken bis 1,0 s führen zu **keiner** Pause.
 
+Die Grenze gilt für einen **bekannten Tobie**, bei dem kein Ton kommt. Seit Entscheidung L (09.11.) startet
+das Hörspiel nach einem Ton erst, wenn der Ton zu Ende ist (unbekannter Tobie, Lernmodus-Ende, Status-Karte); dort
+gehört die Dauer des Tons nicht zur Messung. Beim bekannten Tobie ändert sich nichts.
+
 ## 1. Was gemessen wird
 
 Gemessen wird am **Ausgang**: Mikrofon vor dem Lautsprecher. Das Ereignisprotokoll

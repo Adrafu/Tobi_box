@@ -15,6 +15,13 @@ nie über der wirksamen Grenze und nie unter der Untergrenze 10; ``hinweis``:
 ``max(HINWEIS_MINDEST, min(hinweis_pegel, lautstaerke))`` (Vorgabe 15, Untergrenze 10). Ohne Tondatei, oder
 wenn die Datei kein 16-Bit-PCM ist (nicht sicher skalierbar), wird nichts gestartet.
 
+Töne nie gleichzeitig (Entscheidung L, 09.11.): Alle Töne laufen über **eine** Spur, einer nach dem
+anderen. Die Dauer eines Tons ist das Ende des Abspielprogramms (``afplay``/``aplay``), keine Schätzung;
+ein hängendes Programm wird nach ``TON_MAX_S`` beendet. ``beschaeftigt`` und ``warte_leer`` zeigen, ob
+noch ein Ton läuft; ``app.py`` startet das Hörspiel erst danach. Die Haken ``vor`` und ``nach`` rufen den
+Anfang und das Ende einer zusammenhängenden Tonfolge auf (``app.py`` pausiert dort ein laufendes Hörspiel
+und setzt es an derselben Stelle fort).
+
 Rückfall der Status-Karte: Fehlt ``pruef_<punkt>_ok``, ``pruef_<punkt>_fehler`` oder
 ``pruef_leser_simulation`` im Tonordner, spielt die Box den allgemeinen Ton ``pruef_ok``
 (bei ``_fehler`` ``pruef_fehler``). So bleibt ein Ordner nur mit den allgemeinen Tönen gültig.
@@ -31,6 +38,7 @@ import re
 import sys
 import tempfile
 import wave
+from collections import deque
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -41,8 +49,8 @@ from .eventlog import logge
 TON_MINDEST = 10  # Untergrenze der Ton-Lautstärke in Prozent: ein Ton bleibt hörbar (Entscheidung J)
 HINWEIS_PEGEL_VORGABE = 15
 HINWEIS_MINDEST = 10  # unter „stumm“ (Lautstärke 0) bleibt der Hinweiston hörbar; wie TON_MINDEST
-TON_MAX_S = 10.0
-_PRUEF_PUNKT = re.compile(r"^pruef_[a-z]+_(ok|simulation|fehler)$")  # ein hängendes Abspielprogramm wird danach beendet
+TON_MAX_S = 10.0  # ein hängendes Abspielprogramm wird danach beendet; die Wiedergabe wartet nie länger auf einen Ton
+_PRUEF_PUNKT = re.compile(r"^pruef_[a-z]+_(ok|simulation|fehler)$")
 
 
 def pegel(ton: str, grenze: int, lautstaerke: int | None = None, hinweis_pegel: int | None = None) -> int:
@@ -155,23 +163,34 @@ Starter = Callable[[Sequence[str]], Awaitable[None]]
 
 
 async def _starte_prozess(kommando: Sequence[str]) -> None:
+    """Abspielprogramm starten und bis zu seinem Ende warten. Die Zeitgrenze setzt der Aufrufer.
+
+    Wird die Aufgabe abgebrochen (Zeitgrenze, Beenden), wird auch das Programm beendet.
+    """
     proc = await asyncio.create_subprocess_exec(
         *kommando, stdin=asyncio.subprocess.DEVNULL, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL
     )
     try:
-        rc = await asyncio.wait_for(proc.wait(), TON_MAX_S)
-    except asyncio.TimeoutError:
+        rc = await proc.wait()
+    except BaseException:
         with contextlib.suppress(ProcessLookupError):
             proc.kill()
-        await proc.wait()
-        logge("sounds", "WARNING", "ton", "zeitueberschreitung", daten={"kommando": kommando[0]})
-        return
+        with contextlib.suppress(Exception):
+            await asyncio.shield(proc.wait())
+        raise
     if rc != 0:
         logge("sounds", "WARNING", "ton", "kommando_fehler", daten={"kommando": kommando[0], "rc": rc})
 
 
+Haken = Callable[[], Awaitable[None]]
+
+
 class Toene:
-    """Führt ``TonSpielen`` aus. Spielt im Hintergrund; blockiert nie."""
+    """Führt ``TonSpielen`` aus. Eine Spur: Töne laufen nacheinander, nie gleichzeitig (Entscheidung L).
+
+    ``spiele`` und ``spiele_folge`` reihen ein und kehren sofort zurück; ein Arbeiter spielt die Töne
+    der Reihe nach, jeden bis zum Ende seines Prozesses (höchstens ``ton_max_s``).
+    """
 
     def __init__(
         self,
@@ -180,13 +199,28 @@ class Toene:
         *,
         starter: Starter | None = None,
         kennlinie: Kennlinie = MPD_SOFTWARE,
+        vor: Haken | None = None,
+        nach: Haken | None = None,
+        ton_max_s: float | None = None,
     ) -> None:
         self.ordner = Path(ordner)
         self.kommando = tuple(kommando)
         self.kennlinie = kennlinie
+        self.ton_max_s = TON_MAX_S if ton_max_s is None else ton_max_s
         self._starter = starter or _starte_prozess
-        self._aufgaben: set[asyncio.Task] = set()
+        self._vor = vor
+        self._nach = nach
+        self._eintraege: deque[tuple[str, list[str]]] = deque()
+        self._arbeiter: asyncio.Task | None = None
+        self._leer = asyncio.Event()
+        self._leer.set()
+        self._beendet = False
         self._temp: set[Path] = set()
+
+    @property
+    def beschaeftigt(self) -> bool:
+        """``True``, solange ein Ton läuft oder wartet."""
+        return bool(self._eintraege) or self._arbeiter is not None
 
     def datei(self, ton: str) -> Path:
         """Tondatei; fehlt ein Prüfpunkt-Ton, die Datei des allgemeinen Tons (``pruef_ok``/``pruef_fehler``)."""
@@ -223,39 +257,65 @@ class Toene:
                 tmp.unlink(missing_ok=True)
                 self._temp.discard(tmp)
 
+    def _reihe_ein(self, eintraege: Sequence[tuple[str, list[str]]]) -> None:
+        self._eintraege.extend(eintraege)
+        self._leer.clear()
+        if self._arbeiter is None:
+            self._arbeiter = asyncio.get_running_loop().create_task(self._arbeit(), name="tobibox-ton-spur")
+
     def spiele(self, ton: str, grenze: int, lautstaerke: int | None = None, hinweis_pegel: int | None = None) -> bool:
-        """Ton starten (Hintergrundaufgabe). ``False``, wenn nichts gestartet wurde."""
+        """Ton einreihen (spielt nach allen früheren Tönen). ``False``, wenn nichts eingereiht wurde."""
         k = self.kommando_fuer(ton, grenze, lautstaerke, hinweis_pegel)
         if k is None:
             return False
-        t = asyncio.get_running_loop().create_task(self._lauf(ton, k), name=f"tobibox-ton-{ton}")
-        self._aufgaben.add(t)
-        t.add_done_callback(self._aufgaben.discard)
+        self._reihe_ein([(ton, k)])
         return True
 
     def spiele_folge(
         self, toene: Sequence[str], grenze: int, lautstaerke: int | None = None, hinweis_pegel: int | None = None
     ) -> bool:
-        """Töne nacheinander spielen (Status-Karte: ein Ton je Prüfpunkt). ``False`` bei leerer Folge."""
+        """Töne nacheinander einreihen (Status-Karte: ein Ton je Prüfpunkt). ``False`` bei leerer Folge."""
         if not toene:
             return False
-        t = asyncio.get_running_loop().create_task(
-            self._folge(tuple(toene), grenze, lautstaerke, hinweis_pegel), name="tobibox-ton-folge"
-        )
-        self._aufgaben.add(t)
-        t.add_done_callback(self._aufgaben.discard)
-        return True
-
-    async def _folge(self, toene: Sequence[str], grenze: int, lautstaerke: int | None, hinweis_pegel: int | None) -> None:
-        for ton in toene:
+        eintraege = []
+        for ton in toene:  # eine fehlende Datei stoppt die Folge nicht
             k = self.kommando_fuer(ton, grenze, lautstaerke, hinweis_pegel)
             if k is not None:
-                await self._lauf(ton, k)
+                eintraege.append((ton, k))
+        if eintraege:
+            self._reihe_ein(eintraege)
+        return True
+
+    async def _haken(self, haken: Haken | None, name: str) -> None:
+        if haken is None or self._beendet:
+            return
+        try:
+            await haken()
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:  # ein Fehler des Hakens darf die Tonspur nicht anhalten
+            logge("sounds", "WARNING", "ton", "haken_fehler", daten={"haken": name, "detail": repr(e)})
+
+    async def _arbeit(self) -> None:
+        try:
+            while self._eintraege:
+                await self._haken(self._vor, "vor")
+                while self._eintraege:
+                    ton, k = self._eintraege.popleft()
+                    await self._lauf(ton, k)
+                await self._haken(self._nach, "nach")
+        finally:
+            self._arbeiter = None
+            if self._beendet:
+                self._eintraege.clear()
+            self._leer.set()
 
     async def _lauf(self, ton: str, kommando: list[str]) -> None:
         try:
-            await self._starter(kommando)
+            await asyncio.wait_for(self._starter(kommando), self.ton_max_s)
             logge("sounds", "DEBUG", "ton", "gespielt", daten={"ton": ton, "kommando": kommando[0]})
+        except asyncio.TimeoutError:
+            logge("sounds", "WARNING", "ton", "zeitueberschreitung", daten={"ton": ton, "kommando": kommando[0]})
         except FileNotFoundError:
             logge("sounds", "WARNING", "ton", "programm_fehlt", daten={"ton": ton, "kommando": kommando[0]})
         except OSError as e:
@@ -263,15 +323,22 @@ class Toene:
         finally:
             self._aufraeumen(kommando)
 
+    async def warte_leer(self) -> None:
+        """Warten, bis kein Ton mehr läuft oder wartet (auch nicht einer, der unterdessen dazukam)."""
+        while self.beschaeftigt:
+            await self._leer.wait()
+
     async def warte(self) -> None:
         """Auf laufende Töne warten (Tests, sauberes Beenden)."""
-        if self._aufgaben:
-            await asyncio.gather(*list(self._aufgaben), return_exceptions=True)
+        await self.warte_leer()
 
     async def stop(self) -> None:
-        for t in list(self._aufgaben):
-            t.cancel()
-        await self.warte()
+        self._beendet = True  # keine Haken mehr: nach dem Beenden darf nichts weiterspielen
+        a = self._arbeiter
+        if a is not None:
+            a.cancel()
+            await asyncio.gather(a, return_exceptions=True)
+        self._eintraege.clear()
         for tmp in list(self._temp):
             tmp.unlink(missing_ok=True)
         self._temp.clear()

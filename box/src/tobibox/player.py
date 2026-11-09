@@ -16,6 +16,11 @@ Aufgaben:
   (MPD spielt mit dem nächsten Track weiter), ``FolgeZuEnde`` (erst nach dem
   letzten Track), ``PlayerFehler``, ``PlayerVerbindung``. Der Player verbindet
   sich selbst neu.
+* ``ton_pause_beginn`` / ``ton_pause_ende`` (Entscheidung L, 09.11.): Kommt ein Ton, während MPD spielt,
+  hält der Player MPD an und setzt es nach dem Ton an genau derselben Stelle fort (kein Rücksprung). Der
+  Kern erfährt davon nichts: keine ``PlayerPosition`` mit ``spielt=False``, kein Zeiger, kein Status
+  „pausiert“. Ein ``Pausieren`` oder ``Abspielen`` während des Tons beendet diese kurze Pause; dann
+  setzt ``ton_pause_ende`` nichts fort.
 * Vor dem ersten ``Abspielen`` muss eine Lautstärke gesetzt sein; sonst wird
   nichts gespielt. Eine Lautstärke über der Grenze wird auch im Betrieb
   (Abfrage alle 0,2 s) zurückgesetzt.
@@ -105,6 +110,7 @@ class Player:
         self._gespielt = False  # es lief mindestens ein Track seit dem letzten Abspielen
         self._nichts_zu_spielen = False  # Start hinter dem letzten spielbaren Track
         self._phase = "aus"  # "aus" | "spielt" | "pause"
+        self._ton_pause = False  # MPD ist nur für einen Ton angehalten (Entscheidung L); kein echtes Pausieren
         self._elapsed = 0.0
         self._dauer = 0.0
         self._letzte_pos_mono = 0.0
@@ -180,6 +186,7 @@ class Player:
         if not self._verbunden:
             self._fehler(b.serie_id, b.datei, "mpd_fehler", "nicht mit MPD verbunden")
             return
+        self._ton_pause = False  # ein neuer Start gewinnt gegen die kurze Pause für einen Ton
         async with self._lock:
             self._serie, self._datei = b.serie_id, b.datei
             self._gen = b.gen
@@ -207,10 +214,61 @@ class Player:
 
     async def pausieren(self, b: ev.Pausieren) -> None:
         """Pause. Ist MPD schon gestoppt (Folgenende), geschieht nichts am Player."""
+        self._ton_pause = False  # eine echte Pause gewinnt: nach dem Ton wird nichts fortgesetzt
         if not self._verbunden or self._serie is None or self._datei is None:
             return
         async with self._lock:
             await self._schutz(self._pausieren(), self._serie, self._datei)
+
+    async def ton_pause_beginn(self) -> bool:
+        """Vor einem Ton: spielt MPD gerade, anhalten (nicht als echte Pause). ``True``, wenn angehalten."""
+        if not self._verbunden or self._phase != "spielt" or self._ton_pause:
+            return False
+        async with self._lock:
+            if not self._verbunden or self._phase != "spielt" or self._client is None:
+                return False
+            try:
+                if (await self._status()).get("state") != "play":
+                    return False  # Folgenende oder Fehler: die Abfrage meldet das
+                self._ton_pause = True  # vor dem Befehl, damit die Abfrage die Pause nicht als echte meldet
+                await self._mpd(self._client.pause(1))
+            except CommandError:
+                self._ton_pause = False
+                return False
+            except _VERBINDUNGSFEHLER as e:
+                self._ton_pause = False
+                self._verbindung_weg(f"{type(e).__name__}: {e}")
+                return False
+        logge("player", "DEBUG", "ton_pause", "beginn")
+        return True
+
+    async def ton_pause_ende(self, fortsetzen: bool = True) -> bool:
+        """Nach dem Ton: MPD an derselben Stelle fortsetzen (``pause 0``), wenn die kurze Pause noch gilt.
+
+        ``fortsetzen=False`` beendet die kurze Pause, ohne MPD fortzusetzen (ein neuer Start folgt).
+        ``True``, wenn fortgesetzt wurde.
+        """
+        if not self._ton_pause:
+            return False
+        async with self._lock:
+            if not self._ton_pause:  # ``Pausieren`` oder ``Abspielen`` kam dazwischen
+                return False
+            self._ton_pause = False
+            if not fortsetzen or self._stopp or not self._verbunden or self._client is None:
+                return False
+            try:
+                if (await self._status()).get("state") != "pause":
+                    return False
+                await self._mpd(self._client.pause(0))
+            except CommandError as e:
+                self._fehler(self._serie, self._datei, "mpd_fehler", str(e))
+                return False
+            except _VERBINDUNGSFEHLER as e:
+                self._verbindung_weg(f"{type(e).__name__}: {e}")
+                return False
+            self._letzte_pos_mono = self._mono()
+        logge("player", "DEBUG", "ton_pause", "ende")
+        return True
 
     async def pausiere_hart(self) -> bool:
         """Beim Beenden: MPD in jedem Fall anhalten, unabhängig von Serie und Sitzung.
@@ -218,6 +276,7 @@ class Player:
         Erst über die bestehende Verbindung (unter ``_lock``), sonst über eine frische.
         ``True``, wenn MPD danach pausiert oder gestoppt ist.
         """
+        self._ton_pause = False  # nach dem harten Pausieren darf kein Ton mehr fortsetzen
         try:
             await asyncio.wait_for(self._lock.acquire(), BEFEHL_TIMEOUT_S)
         except asyncio.TimeoutError:
@@ -581,6 +640,8 @@ class Player:
         zustand = st.get("state")
         if self._phase != "spielt" or self._serie is None or self._datei is None:
             return
+        if self._ton_pause:
+            return  # MPD ist nur für einen Ton angehalten: weder Pause noch Position melden
         if zustand == "play":
             self._gespielt = True
             self._merke(st)
