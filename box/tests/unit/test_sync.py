@@ -297,8 +297,9 @@ def test_vorgabe_partial_dir_liegt_neben_dem_medienordner(tmp_path):
 async def test_befehl_hat_partial_dir_absolut_und_delay_updates(rsync_daemon):
     d = rsync_daemon
     sy, _ = baue(d)
-    cmd = sy.befehl(["--delete", "--delay-updates", f"--partial-dir={sy.partial_dir}"])
+    cmd = sy.befehl(["--delete", "--delay-updates", f"--partial-dir={sy.partial_dir}", f"--temp-dir={sy.temp_dir}"])
     assert "--delay-updates" in cmd
+    assert d.box not in sy.temp_dir.parents and sy.temp_dir.parent == d.partial.parent
     teil = [c for c in cmd if c.startswith("--partial-dir=")]
     assert teil == [f"--partial-dir={d.partial}"]
     assert os.path.isabs(d.partial) and d.box not in d.partial.parents
@@ -312,6 +313,7 @@ async def test_partial_dir_gleiches_dateisystem_wird_angelegt(rsync_daemon):
     assert d.partial.is_dir()
     assert d.partial.stat().st_dev == d.box.stat().st_dev
     assert not (d.box / ".rsync-partial").exists()
+    assert sy.temp_dir.stat().st_dev == d.box.stat().st_dev and not list(sy.temp_dir.iterdir())
 
 
 async def test_vorlaeufiger_befehl_echter_lauf_nutzt_delay_updates(rsync_daemon, monkeypatch):
@@ -329,7 +331,7 @@ async def test_vorlaeufiger_befehl_echter_lauf_nutzt_delay_updates(rsync_daemon,
     await lauf(sy)
     echter = gesehen[-1]
     assert "--delay-updates" in echter and "--delete" in echter and "--dry-run" not in echter
-    assert f"--partial-dir={d.partial}" in echter
+    assert f"--partial-dir={d.partial}" in echter and f"--temp-dir={sy.temp_dir}" in echter
     assert "--dry-run" in gesehen[1] and "-i" in gesehen[1]  # Trockenlauf mit itemize-changes
     assert all(not c.startswith("--partial-dir") for c in gesehen[0])  # Listen schreibt nichts
 
@@ -436,6 +438,11 @@ async def test_zweiter_start_waehrend_der_sync_laeuft_wird_ignoriert(rsync_daemo
 # --- Abbruch ------------------------------------------------------------------------------------------------
 
 
+def alle_dateien(ordner):
+    """Auch versteckte Dateien (rsync-Zwischendateien ``.name.XXXXXX``)."""
+    return dateien(ordner)
+
+
 async def warte_bis(bed, max_s=15.0):
     ende = asyncio.get_running_loop().time() + max_s
     while not bed():
@@ -451,14 +458,13 @@ async def test_abbruch_mitten_im_sync_laesst_keine_halben_dateien_im_medienordne
     sy, aus = baue(d, zusatz=["--bwlimit=400"])
     assert await sy.start("ha")
     # warten, bis die Übertragung begonnen hat (halbe Datei liegt im Partial-Ordner)
-    await warte_bis(lambda: d.partial.exists() and any(p.is_file() and p.stat().st_size > 0 for p in d.partial.rglob("*")))
-    assert dateien(d.box) == {"s/alt.mp3"}
+    await warte_bis(lambda: any(p.is_file() and p.stat().st_size > 0 for p in d.partial.parent.rglob("*") if d.box not in p.parents))
+    assert alle_dateien(d.box) == {"s/alt.mp3"}  # auch keine ``.gross.mp3.XXXX`` im Medienordner
     await sy.abbrechen("akku_tiefstand")
     assert not sy.laeuft
     assert aus.abbruch() == "akku_tiefstand"
     assert aus.typen[-1] is ev.SyncAbgebrochen and ev.SyncFertig not in aus.typen
-    assert dateien(d.box) == {"s/alt.mp3"}  # keine halbe Datei, auch keine .tmp-Namen
-    assert not [p for p in d.box.rglob("*") if p.name.startswith(".")]
+    assert alle_dateien(d.box) == {"s/alt.mp3"}  # keine halbe Datei, auch keine versteckte Zwischendatei
     # der Rest kommt beim nächsten Lauf (setzt im Partial-Ordner fort)
     sy2, aus2 = baue(d)
     await lauf(sy2)
@@ -471,11 +477,11 @@ async def test_netz_weg_waehrend_des_syncs_bricht_ab(rsync_daemon):
     schreibe(d.quelle / "gross.mp3", os.urandom(3 * MB))
     sy, aus = baue(d, zusatz=["--bwlimit=400"])
     assert await sy.start("ha")
-    await warte_bis(lambda: d.partial.exists() and any(d.partial.rglob("*")))
+    await warte_bis(lambda: any(p.is_file() and p.stat().st_size > 0 for p in d.partial.parent.rglob("*") if d.box not in p.parents))
     sy.setze_netz("offline")
     await sy.warte_ende()
     assert aus.abbruch() == "netz_weg"
-    assert dateien(d.box) == set()
+    assert alle_dateien(d.box) == set()
 
 
 async def test_abbrechen_ohne_sync_ist_wirkungslos(rsync_daemon):

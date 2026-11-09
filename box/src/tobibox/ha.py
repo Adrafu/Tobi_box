@@ -431,8 +431,17 @@ class Ha:
 
     async def leere(self) -> None:
         """Wartet, bis alle bisher eingegangenen Rückrufe verarbeitet sind (für Tests)."""
-        if self._queue is not None:
-            await self._queue.join()
+        if self._queue is None:
+            return
+        while True:
+            await asyncio.sleep(0)  # Rückrufe aus dem Netz-Thread (``call_soon_threadsafe``) laufen lassen
+            if self._queue.empty():
+                await self._queue.join()
+                await asyncio.sleep(0)
+                if self._queue.empty():
+                    return
+            else:
+                await self._queue.join()
 
     # -- Brücke vom Netz-Thread in die Ereignisschleife ----------------------------
 

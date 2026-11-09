@@ -13,8 +13,9 @@ Ablauf eines Syncs:
 3. Trockenlauf (``--dry-run --itemize-changes --stats``): Zeilen ``*deleting`` zählen. Mehr als 20 % der
    vorhandenen Dateien: ``zu_viele_loeschungen``. Reicht der freie Platz (übertragene Größe plus Reserve) nicht:
    ``kein_platz``.
-4. Echter Lauf mit ``--delete``, ``--delay-updates`` und ``--partial-dir`` (absolut, außerhalb des
-   Medienordners, gleiches Dateisystem). Halbe Dateien liegen nur im Partial-Ordner, MPD sieht sie nie.
+4. Echter Lauf mit ``--delete``, ``--delay-updates``, ``--partial-dir`` und ``--temp-dir`` (absolut, außerhalb
+   des Medienordners, gleiches Dateisystem). rsync schreibt eine Datei sonst zuerst als ``.name.XXXXXX`` in den
+   Zielordner; ``--temp-dir`` verhindert das. Halbe Dateien liegen nur außerhalb, MPD sieht sie nie.
    Die gerade spielende Datei (MPD ``currentsong``) ist per ``--exclude`` ausgenommen; das schützt sie auch
    vor ``--delete``. Ihre Änderung wartet auf den nächsten Abgleich.
 5. MPD neu einlesen lassen (nicht beim Start), dann ``SyncFertig``.
@@ -132,8 +133,13 @@ class Sync:
         self.medien = Path(medien).absolute()
         part = partial_dir or konfig.partial_dir or self.medien.parent / ".rsync-partial"
         self.partial_dir = Path(part).absolute()
+        #: rsync schreibt eine Datei zuerst als ``.name.XXXXXX`` neben das Ziel. Damit auch das nie im
+        #: Medienordner liegt, zeigt ``--temp-dir`` neben den Partial-Ordner (gleiches Dateisystem).
+        self.temp_dir = self.partial_dir.parent / ".rsync-tmp"
         if self.partial_dir == self.medien or self.medien in self.partial_dir.parents:
             raise ValueError("partial_dir muss außerhalb des Medienordners liegen")
+        if self.temp_dir == self.medien or self.medien in self.temp_dir.parents:
+            raise ValueError("der Ordner für rsync-Zwischendateien muss außerhalb des Medienordners liegen")
         self._ausgabe = ausgabe
         self._aktuelle_datei = aktuelle_datei
         self._einlesen = einlesen
@@ -299,7 +305,7 @@ class Sync:
 
         # 3. Echter Lauf. Die spielende Datei kann sich seit dem Trockenlauf geändert haben: neu fragen.
         ausnahmen = sorted(set(ausnahmen) | set(await self._spielende_ausnahmen()))
-        optionen = ["-i", "--info=progress2", "--delete", "--delay-updates", f"--partial-dir={self.partial_dir}"]
+        optionen = ["-i", "--info=progress2", "--delete", "--delay-updates", f"--partial-dir={self.partial_dir}", f"--temp-dir={self.temp_dir}"]
         neu = geloescht = 0
         letzte_meldung = self._mono() - FORTSCHRITT_ABSTAND_S
         letzte_prozent = -1
@@ -338,9 +344,10 @@ class Sync:
     # --- Hilfen -----------------------------------------------------------------------------------
 
     def _bereite_partial_vor(self) -> None:
-        self.partial_dir.mkdir(parents=True, exist_ok=True)
-        if self.partial_dir.stat().st_dev != self.medien.stat().st_dev:
-            raise _Abbruch("partial_dir_falsch", "Partial-Ordner liegt auf einem anderen Dateisystem als der Medienordner")
+        for ordner in (self.partial_dir, self.temp_dir):
+            ordner.mkdir(parents=True, exist_ok=True)
+            if ordner.stat().st_dev != self.medien.stat().st_dev:
+                raise _Abbruch("partial_dir_falsch", f"{ordner} liegt auf einem anderen Dateisystem als der Medienordner")
 
     def _zaehle_dateien(self) -> int:
         return sum(len(dateien) for _, _, dateien in os.walk(self.medien))
