@@ -1,0 +1,106 @@
+#!/usr/bin/env python3
+"""Misst die Lautheit von Audiodateien (EBU R128, integriert, in LUFS) mit ``ffmpeg``.
+
+    python tools/lautheit.py DATEI [DATEI ...]      # Messwert je Datei
+    python tools/lautheit.py --ordner box/sounds     # alle WAV und MP3 darin
+
+Zielwert (``ZIEL_LUFS``): -18 LUFS. Das ist der Bezugspegel von ReplayGain 2.0 und der
+Zielwert, den ``rsgain`` für die Hörspiele auf dem NAS nutzt (``docs/designs/box-software.md``,
+D6 und Entscheidung J). Box-Töne und Testmedien liegen am selben Wert, damit ein Ton so laut
+klingt wie ein Hörspiel bei gleicher Lautstärke.
+
+Kurze Töne: Die Messung nach R128 arbeitet mit 400-ms-Blöcken. Eine Datei unter 3 s wird deshalb
+vor der Messung bis auf mindestens 3 s wiederholt (``-stream_loop``). Gemessen wird also der Ton,
+wie er sich im Dauerbetrieb anhört; die Pausen darin fallen durch das Gate wie bei jeder Datei.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import math
+import re
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+ZIEL_LUFS = -18.0  # ReplayGain 2.0 / rsgain-Vorgabe
+TOLERANZ_LU = 1.0  # erlaubte Abweichung der Box-Töne und Testmedien vom Zielwert
+MIN_MESSDAUER_S = 3.0
+
+_INTEGRIERT = re.compile(r"lavfi\.r128\.I=(-?\d+(?:\.\d+)?|-inf)")
+
+
+def ffmpeg_da() -> bool:
+    return shutil.which("ffmpeg") is not None and shutil.which("ffprobe") is not None
+
+
+def dauer_s(pfad: Path) -> float:
+    aus = subprocess.run(
+        ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=nw=1:nk=1", str(pfad)],
+        check=True, capture_output=True, text=True,
+    ).stdout.strip()
+    return float(aus)
+
+
+def messe(pfad: str | Path) -> float:
+    """Integrierte Lautheit in LUFS. Wirft ``RuntimeError``, wenn ``ffmpeg`` nichts messen kann."""
+    pfad = Path(pfad)
+    d = dauer_s(pfad)
+    wiederholungen = max(0, math.ceil(MIN_MESSDAUER_S / d) - 1) if d > 0 else 0
+    lauf = subprocess.run(
+        ["ffmpeg", "-hide_banner", "-nostats", "-stream_loop", str(wiederholungen), "-i", str(pfad),
+         "-af", "ebur128=metadata=1:framelog=quiet,ametadata=mode=print:key=lavfi.r128.I:file=-",
+         "-f", "null", "-"],
+        capture_output=True, text=True,
+    )
+    if lauf.returncode != 0:
+        raise RuntimeError(f"{pfad.name}: ffmpeg-Fehler: {lauf.stderr.strip()[-300:]}")
+    treffer = _INTEGRIERT.findall(lauf.stdout + lauf.stderr)
+    if not treffer or treffer[-1] == "-inf":
+        raise RuntimeError(f"{pfad.name}: keine Lautheit messbar (Stille?)")
+    return float(treffer[-1])
+
+
+def spitze(pfad: str | Path) -> float:
+    """Größter Betrag der Abtastwerte als Anteil der Vollaussteuerung (0 bis 1), über ``ffmpeg`` dekodiert."""
+    roh = subprocess.run(
+        ["ffmpeg", "-v", "error", "-i", str(pfad), "-f", "s16le", "-ac", "1", "-"],
+        check=True, capture_output=True,
+    ).stdout
+    import array
+
+    a = array.array("h")
+    a.frombytes(roh[: len(roh) - len(roh) % 2])
+    return max((abs(x) for x in a), default=0) / 32768
+
+
+def dateien(ordner: Path) -> list[Path]:
+    return sorted(p for p in ordner.rglob("*") if p.suffix.lower() in (".wav", ".mp3"))
+
+
+def main(argv: list[str] | None = None) -> int:
+    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    p.add_argument("dateien", nargs="*", type=Path)
+    p.add_argument("--ordner", type=Path, action="append", default=[], help="alle WAV und MP3 darin messen")
+    p.add_argument("--json", action="store_true", help="Ausgabe als JSON {Pfad: LUFS}")
+    a = p.parse_args(argv)
+    if not ffmpeg_da():
+        p.error("ffmpeg/ffprobe fehlen")
+    liste = list(a.dateien)
+    for o in a.ordner:
+        liste += dateien(o)
+    if not liste:
+        p.error("keine Dateien angegeben")
+    werte = {str(d): messe(d) for d in liste}
+    if a.json:
+        print(json.dumps(werte, indent=2, ensure_ascii=False))
+    else:
+        for d, w in werte.items():
+            print(f"{w:7.2f} LUFS  ({w - ZIEL_LUFS:+.2f} LU)  {d}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

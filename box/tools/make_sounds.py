@@ -5,6 +5,12 @@
 
 Gleiche Eingabe ergibt gleiche Bytes (feste Rate, keine Zufallswerte). Die Töne
 sind einfache Sinusfolgen mit weicher Hüllkurve und ersetzen später die echten.
+
+Lautheit (Entscheidung J, 09.11.): Jeder Ton liegt bei -18 LUFS, dem Zielwert von ReplayGain
+für die Hörspiele. ``PEGEL_DB`` gleicht den Ton von der Grundamplitude ``AMPLITUDE`` auf diesen
+Wert an. Die Zahlen stammen aus einer Messung mit ``tools/lautheit.py``
+(``python tools/lautheit.py --ordner box/sounds``); das Skript selbst braucht kein ``ffmpeg``.
+Ändert sich ein Ton, muss seine Zahl neu bestimmt werden (der Test ``test_lautheit.py`` prüft es).
 """
 
 from __future__ import annotations
@@ -16,7 +22,19 @@ import wave
 from pathlib import Path
 
 RATE = 22050
-AMPLITUDE = 0.6  # Anteil der Vollaussteuerung; die Lautstärke regelt der Pegel beim Abspielen
+AMPLITUDE = 0.6  # Grundamplitude (Anteil der Vollaussteuerung), bevor ``PEGEL_DB`` greift
+# Anpassung je Ton in dB auf -18 LUFS (gemessen mit tools/lautheit.py; Zielwert wie rsgain/ReplayGain 2.0)
+PEGEL_DB: dict[str, float] = {
+    "start": -9.5,
+    "unbekannt": -9.4,
+    "fehler": -8.4,
+    "hinweis": -9.4,
+    "lernen_beginn": -9.3,
+    "lernen_ende": -9.2,
+    "pruef_ok": -9.9,
+    "pruef_fehler": -9.4,
+    "akku_leer": -8.5,
+}
 
 # Name -> Folge aus (Frequenz in Hz, Dauer in s); 0 Hz ist eine Pause
 TOENE: dict[str, list[tuple[float, float]]] = {
@@ -32,8 +50,9 @@ TOENE: dict[str, list[tuple[float, float]]] = {
 }
 
 
-def erzeuge_samples(folge: list[tuple[float, float]], rate: int = RATE) -> bytes:
+def erzeuge_samples(folge: list[tuple[float, float]], rate: int = RATE, pegel_db: float = 0.0) -> bytes:
     daten = bytearray()
+    amplitude = AMPLITUDE * 10 ** (pegel_db / 20)
     for frequenz, dauer in folge:
         n = int(rate * dauer)
         for i in range(n):
@@ -41,18 +60,18 @@ def erzeuge_samples(folge: list[tuple[float, float]], rate: int = RATE) -> bytes
                 wert = 0.0
             else:
                 rampe = min(1.0, i / (0.01 * rate), (n - 1 - i) / (0.02 * rate))  # 10 ms ein, 20 ms aus
-                wert = AMPLITUDE * rampe * math.sin(2 * math.pi * frequenz * i / rate)
+                wert = amplitude * rampe * math.sin(2 * math.pi * frequenz * i / rate)
             daten += struct.pack("<h", int(round(wert * 32767)))
     return bytes(daten)
 
 
-def schreibe(pfad: Path, folge: list[tuple[float, float]]) -> None:
+def schreibe(pfad: Path, folge: list[tuple[float, float]], pegel_db: float = 0.0) -> None:
     pfad.parent.mkdir(parents=True, exist_ok=True)
     with wave.open(str(pfad), "wb") as w:
         w.setnchannels(1)
         w.setsampwidth(2)
         w.setframerate(RATE)
-        w.writeframes(erzeuge_samples(folge))
+        w.writeframes(erzeuge_samples(folge, pegel_db=pegel_db))
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -61,7 +80,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--ziel", type=Path, default=standard, help=f"Zielordner (Vorgabe {standard})")
     a = p.parse_args(argv)
     for name, folge in TOENE.items():
-        schreibe(a.ziel / f"{name}.wav", folge)
+        schreibe(a.ziel / f"{name}.wav", folge, PEGEL_DB[name])
         print(f"{a.ziel / (name + '.wav')}")
     return 0
 
