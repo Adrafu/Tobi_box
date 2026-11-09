@@ -50,3 +50,16 @@ Rev. 2 von `design_draft.md` mit R1–R4 und den Übernahmen. Danach ein zweiter
 kurzer Goldfisch-Durchgang nur auf die geänderten Abschnitte. Die
 Sockel-Platine (Schaltplan, Layout) entsteht erst nach Annahme des Designs, als
 Auftrag an einen Sonnet-Agent.
+
+## Sanity Check (09.11., Tobias: „Geht das nicht einfacher und billiger?“)
+
+Fast der ganze Aufwand (eFuse-Platine, zwei Reeds, Hartgold, Zapfen,
+Toleranzen, Flüssigkeit, Magnete in der Box) folgt aus **offenen Kontakten**.
+Verglichen wurden: Kontakte (Stand Resolve, ~95–115 € plus viel Entwurf),
+**induktiv laden mit Qi** (~40–60 €, keine offenen Kontakte, Fremdmetall-
+Erkennung im Pad, jede Drehlage von selbst, keine Magnete; aber ~1 A, Wärme
+nah am Akku) und nur USB-C-Kabel (~0 €, nicht blind bedienbar).
+
+**Entscheidung Tobias:** Rev. 2 des Kontakt-Designs angehalten. Erst Qi prüfen
+(Recherche, dann Billigtest am PiSugar-Muster). Hält Qi, entsteht ein neuer,
+kurzer Draft. Fällt Qi durch, gilt der Resolve oben weiter.
