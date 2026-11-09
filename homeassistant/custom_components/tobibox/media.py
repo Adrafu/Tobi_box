@@ -39,6 +39,7 @@ from .fehler import TobiboxFehler
 from .namen import (
     NamenErschoepft,
     anzeigename,
+    anzeigename_streng,
     dateiname_bereinigen,
     eindeutiger_name,
     natuerlicher_schluessel,
@@ -59,6 +60,14 @@ FOLGE_INFO_FELDER = ("anzeige", "nummer", "datum", "pruefen", "pruefen_gruende")
 # --------------------------------------------------------------------------
 # Reservierte Namen
 # --------------------------------------------------------------------------
+
+
+def name_pruefen(text: Any, max_zeichen: int) -> str:
+    """Anzeigename prüfen (Regel 8): Steuerzeichen entfernt, Leerraum gekürzt; leer oder zu lang: ``name_ungueltig``."""
+    name = anzeigename_streng(text, max_zeichen)
+    if name is None:
+        raise TobiboxFehler("name_ungueltig")
+    return name
 
 
 def ist_reserviert(ordnername: str) -> bool:
@@ -815,9 +824,7 @@ class Medien:
     # --- Schreiben: Serien --------------------------------------------------------------
 
     async def serie_anlegen(self, name: Any, typ: str = "normal") -> dict[str, Any]:
-        anzeige = anzeigename(name, SERIE_NAME_MAX)
-        if not anzeige:
-            raise TobiboxFehler("name_ungueltig")
+        anzeige = name_pruefen(name, SERIE_NAME_MAX)
         await self._stelle_geprueft_sicher()
         if typ == "ueberraschung" and any(i.serie.typ == "ueberraschung" for i in self.serien.values()):
             raise TobiboxFehler("ueberraschung_existiert")
@@ -848,9 +855,7 @@ class Medien:
                 continue
 
     async def serie_umbenennen(self, serie_id: str, name: Any) -> dict[str, Any]:
-        anzeige = anzeigename(name, SERIE_NAME_MAX)
-        if not anzeige:
-            raise TobiboxFehler("name_ungueltig")
+        anzeige = name_pruefen(name, SERIE_NAME_MAX)
         async with self.sperren(serie_id):
             serie, pfad = await self._frisch(serie_id)
             if serie.name != anzeige or serie.pruefen:
@@ -882,9 +887,7 @@ class Medien:
         return self.kurzform(info)
 
     async def folge_umbenennen(self, serie_id: str, folge: str, name: Any, stand: str | None) -> dict[str, Any]:
-        anzeige = anzeigename(name, FOLGE_ANZEIGE_MAX)
-        if not anzeige:
-            raise TobiboxFehler("name_ungueltig")
+        anzeige = name_pruefen(name, FOLGE_ANZEIGE_MAX)
         async with self.sperren(serie_id):
             serie, pfad = await self._frisch(serie_id)
             self._pruefe_stand(serie, stand)

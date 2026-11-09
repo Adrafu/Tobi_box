@@ -49,6 +49,16 @@ def anzeigename(text: Any, max_zeichen: int) -> str:
     return text[:max_zeichen].strip()
 
 
+def anzeigename_streng(text: Any, max_zeichen: int) -> str | None:
+    """Wie ``anzeigename``, aber ``None``, wenn leer oder länger als ``max_zeichen`` (Fehler ``name_ungueltig``)."""
+    if not isinstance(text, str):
+        return None
+    bereinigt = nfc(ohne_steuerzeichen(text)).strip()
+    if not bereinigt or len(bereinigt) > max_zeichen:
+        return None
+    return bereinigt
+
+
 def vergleichsschluessel(name: str) -> str:
     """Namensgleichheit auf der SMB-Freigabe: nach NFC, ohne Groß-/Kleinschreibung (Regel 7)."""
     return nfc(name).lower()
