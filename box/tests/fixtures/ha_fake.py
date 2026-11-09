@@ -9,7 +9,7 @@ from typing import Any
 from tobibox import events as ev
 from tobibox.clock import SimUhr
 from tobibox.config import MqttKonfig
-from tobibox.ha import Ha
+from tobibox.ha import Ha, PahoKlient, Themen
 from tobibox.outbox import Outbox
 from tobibox.status import Statussammler
 from tobibox.store import KonfigStore
@@ -115,7 +115,7 @@ class Aufbau:
     """``Ha`` mit echtem ``KonfigStore`` und ``Outbox`` in ``verz``, simulierter Uhr und einem Klienten ohne Netz."""
 
     def __init__(self, verz: Path, *, klient: FakeKlient | None = None, serien: list | None = None,
-                 frei_mb: int | None = 4096, anzeigename: str = "box1") -> None:
+                 frei_mb: int | None = 4096, anzeigename: str = "box1", mqtt: MqttKonfig | None = None) -> None:
         self.verz = verz
         verz.mkdir(parents=True, exist_ok=True)
         self.uhr = SimUhr()
@@ -124,13 +124,15 @@ class Aufbau:
         self.outbox = Outbox(verz)
         self.outbox.laden()
         self.status = Statussammler()
+        if mqtt is not None and klient is None:
+            klient = PahoKlient(mqtt, Themen(mqtt.box_id).online)  # echter Klient, z. B. gegen einen lokalen Mosquitto
         self.klient = klient or FakeKlient()
         self.ereignisse: list[ev.Ereignis] = []
         self.bestaetigt_angenommen: list[bool] = []
         self.serien: list = serien if serien is not None else []
         self.frei_mb = frei_mb
         self.ha = Ha(
-            MqttKonfig(BOX, "localhost", anzeigename=anzeigename),
+            mqtt or MqttKonfig(BOX, "localhost", anzeigename=anzeigename),
             konfig_store=self.store, outbox=self.outbox, status=self.status, uhr=self.uhr,
             ausgabe=self._ausgabe, medien=verz, serien=lambda: self.serien, klient=self.klient,
             speicher_frei_mb=lambda: self.frei_mb,
@@ -154,6 +156,7 @@ class Aufbau:
         await self.ha.leere()
 
     async def stop(self) -> None:
+        self.klient.auto_puback = True  # sonst wartet ``stop`` die Frist auf den PUBACK von ``offline`` ab
         await self.ha.stop()
 
     async def sende(self, thema: str, nutzlast: bytes | dict) -> None:

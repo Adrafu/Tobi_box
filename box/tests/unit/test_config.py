@@ -300,3 +300,71 @@ def test_mqtt_passwort_wird_nicht_protokolliert():
     from tobibox import eventlog
 
     assert eventlog._bereinige({"mqtt": {"passwort": "x", "host": "h"}}) == {"mqtt": {"passwort": "***", "host": "h"}}
+
+
+# --- [sync] (AP 3.4) ----------------------------------------------------------------------------------------
+
+
+def test_ohne_sync_abschnitt_kein_sync(tmp_path):
+    assert config.lade(schreibe(tmp_path, MINIMAL)).sync is None
+
+
+def test_sync_vorgaben_und_pfade(tmp_path):
+    k = config.lade(schreibe(tmp_path, MINIMAL + '\n[sync]\nhost = "qnap.tail1234.ts.net"\n'))
+    s = k.sync
+    assert (s.host, s.port, s.modul, s.benutzer) == ("qnap.tail1234.ts.net", 873, "medien", None)
+    assert s.passwort_datei is None and s.passwort_umgebung is None and s.partial_dir is None
+    assert (s.intervall_s, s.reserve_mb) == (3600, 200)
+
+
+def test_sync_voll_mit_passwort_datei(tmp_path):
+    text = MINIMAL + (
+        '\n[sync]\nhost = "100.64.0.7"\nport = 8730\nmodul = "medien"\nbenutzer = "box1"\n'
+        'passwort_datei = "geheim/sync.pw"\npartial_dir = "/var/lib/tobibox/.rsync-partial"\n'
+        "intervall_s = 1800\nreserve_mb = 500\n"
+    )
+    s = config.lade(schreibe(tmp_path, text)).sync
+    assert s.port == 8730 and s.benutzer == "box1" and s.intervall_s == 1800 and s.reserve_mb == 500
+    assert s.passwort_datei == tmp_path / "geheim" / "sync.pw"
+    assert s.partial_dir == Path("/var/lib/tobibox/.rsync-partial")
+
+
+def test_sync_passwort_ueber_umgebungsvariable(tmp_path):
+    s = config.lade(schreibe(tmp_path, MINIMAL + '\n[sync]\nhost = "h"\nbenutzer = "b"\npasswort_umgebung = "TOBIBOX_SYNC_PW"\n')).sync
+    assert s.passwort_umgebung == "TOBIBOX_SYNC_PW" and s.passwort_datei is None
+
+
+@pytest.mark.parametrize(
+    "sync",
+    [
+        "",  # host fehlt
+        'host = "a b"',
+        'host = "rsync://h"',
+        'host = "h"\nport = 0',
+        'host = "h"\nport = 70000',
+        'host = "h"\nmodul = "../x"',
+        'host = "h"\npasswort = "klartext"',  # nie ein Passwort in der Datei
+        'host = "h"\nbenutzer = "b"',  # Benutzer ohne Passwortquelle
+        'host = "h"\npasswort_datei = "x"',  # Passwort ohne Benutzer
+        'host = "h"\nbenutzer = "b"\npasswort_datei = "x"\npasswort_umgebung = "Y"',
+        'host = "h"\nbenutzer = "b"\npasswort_umgebung = "1-falsch"',
+        'host = "h"\nintervall_s = 10',
+        'host = "h"\nreserve_mb = -1',
+        'host = "h"\npartial_dir = "/srv/medien"',  # gleich dem Medienordner
+        'host = "h"\npartial_dir = "/srv/medien/.partial"',  # innerhalb
+    ],
+)
+def test_sync_ungueltig(tmp_path, sync):
+    with pytest.raises(KonfigFehler, match=r"\[sync\]"):
+        config.lade(schreibe(tmp_path, MINIMAL + "\n[sync]\n" + sync + "\n"))
+
+
+def test_sync_passwort_fehlermeldung_nennt_das_passwort_nicht(tmp_path):
+    with pytest.raises(KonfigFehler) as e:
+        config.lade(schreibe(tmp_path, MINIMAL + '\n[sync]\nhost = "h"\npasswort = "streng-geheim"\n'))
+    assert "streng-geheim" not in str(e.value)
+
+
+def test_sync_vorgabe_partial_dir_ist_ausserhalb_des_medienordners(tmp_path):
+    # Vorgabe ``<Medienordner>/../.rsync-partial`` bei Medienordner ``/srv/medien`` ist gültig
+    config.lade(schreibe(tmp_path, MINIMAL + '\n[sync]\nhost = "h"\n'))

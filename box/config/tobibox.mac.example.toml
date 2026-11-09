@@ -48,3 +48,19 @@ datei = "../var/log/tobibox.log"
 ebene = "INFO"
 max_bytes = 1000000
 anzahl = 5
+
+# [sync]
+# Medien-Sync vom QNAP (rsync-Daemon, Modul "medien", nur lesend, über Tailscale).
+# Ohne diesen Abschnitt läuft der Dienst wie bisher ohne Sync. Zum Einschalten die Zeilen einkommentieren. Nur Platzhalter, nie echte Zugangsdaten.
+# host = "qnap.example.ts.net"        # Tailscale-Name oder -Adresse des QNAP
+# port = 873
+# modul = "medien"
+# benutzer = "box1"
+# Das Passwort steht nie in dieser Datei: entweder eine Datei (Rechte 600, nicht im Repo) ...
+# passwort_datei = "../var/sync.pw"
+# ... oder der Name einer Umgebungsvariable:
+# passwort_umgebung = "TOBIBOX_SYNC_PASSWORT"
+# Halbe Dateien landen hier, nie im Medienordner; gleiches Dateisystem wie "medien" (Vorgabe: neben "medien").
+# partial_dir = "../.rsync-partial"
+# intervall_s = 3600                  # Takt für den zeitgesteuerten Sync
+# reserve_mb = 200                    # so viel Platz bleibt nach dem Sync mindestens frei

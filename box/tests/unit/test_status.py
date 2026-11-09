@@ -104,3 +104,47 @@ def test_leser_simulation_zeigt_simulation_auch_ohne_hallo():
     s = Statussammler(leser_simulation=True)
     assert s.leser(0.0) == "simulation"
     assert s.als_dict(J, (S1,), 1)["leser"] == "simulation"
+
+
+# --- sync und update (AP 3.3, core-interface 12.1) ------------------------------------------------
+
+
+def test_sync_ohne_ereignis_ist_idle():
+    d = mit().als_dict(J, [], 100)
+    assert d["sync"] == {"zustand": "idle", "letzter_ende": None, "ergebnis": None, "grund": None, "neu": 0}
+    assert d["update"] == {"zustand": "ok", "version": d["version"], "grund": None}
+
+
+def test_sync_gestartet_dann_fertig():
+    s = mit(ev.SyncGestartet())
+    assert s.als_dict(J, [], 1)["sync"]["zustand"] == "laeuft"
+    s.beobachte(ev.SyncFertig(neu=3, geloescht=1), J)
+    assert s.als_dict(J, [], 1)["sync"] == {
+        "zustand": "idle", "letzter_ende": zeitstempel(J.wall), "ergebnis": "ok", "grund": None, "neu": 3}
+
+
+def test_sync_abgebrochen_durch_regel_ist_kein_fehler():
+    d = mit(ev.SyncAbgebrochen("regel")).als_dict(J, [], 1)["sync"]
+    assert (d["zustand"], d["ergebnis"], d["grund"]) == ("idle", "abgebrochen", "regel")
+
+
+def test_sync_abgebrochen_aus_anderem_grund_ist_fehler():
+    d = mit(ev.SyncGestartet(), ev.SyncAbgebrochen("kein_platz")).als_dict(J, [], 1)["sync"]
+    assert (d["zustand"], d["ergebnis"], d["grund"]) == ("fehler", "abgebrochen", "kein_platz")
+
+
+def test_update_testing_ok_und_failed():
+    s = mit(ev.UpdateGestartet("1.3.0"))
+    assert s.als_dict(J, [], 1)["update"] == {"zustand": "testing", "version": "1.3.0", "grund": None}
+    s.beobachte(ev.SelbsttestErgebnis(True), J)
+    assert s.als_dict(J, [], 1)["update"] == {"zustand": "ok", "version": "1.3.0", "grund": None}
+    s.beobachte(ev.UpdateGestartet("1.4.0"), J)
+    s.beobachte(ev.SelbsttestErgebnis(False, "leser fehlt"), J)
+    assert s.als_dict(J, [], 1)["update"] == {"zustand": "failed", "version": "1.4.0", "grund": "leser fehlt"}
+
+
+def test_status_dicts_sind_unabhaengige_kopien():
+    s = mit()
+    d = s.als_dict(J, [], 1)
+    d["sync"]["zustand"] = "kaputt"
+    assert s.als_dict(J, [], 1)["sync"]["zustand"] == "idle"
