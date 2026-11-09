@@ -1392,7 +1392,8 @@ möglichst abwärtskompatibel sein.
   Integration sie in die Liste eingetragen hat. Ein Hörspiel ohne Reihe liegt
   in einem beliebigen Serien-Ordner (z. B. „Einzelfolgen“), ohne Sonderregel.
 - **Serien-ID** — siehe Entscheidung D2. Die Box spielt auch Ordner ohne
-  `serie.json`: Ordnername als ID, Reihenfolge nach Dateiname. Tragen zwei
+  `serie.json`: Ordnername als ID, Reihenfolge nach Dateiname; legt HA später eine
+  `serie.json` an, bleibt der Ordnername die ID (09.11., Befund AP 3.1). Tragen zwei
   Ordner dieselbe ID (Ordner samt `serie.json` kopiert), gibt die
   Integration der **jüngeren** Kopie eine neue ID und meldet das. „Jünger“
   heißt: das spätere `angelegt_am` in `serie.json`.
@@ -1492,7 +1493,8 @@ Skripte, Automationen) liegt als Dateien im Repo unter `homeassistant/`.
   (Entscheidung D). Pakete legt Tobias ab. **`_upload/`, `_papierkorb/` und `eingang/`
   werden vom Sync der Boxen ausgenommen** (NAS-Modul und Box, AP 3.4, AP 3.5); Ordner mit
   `_` am Anfang und der Name `eingang` sind in `medien/` keine Serien.
-- **`serie.json`:** `schema_version`, `id` (zufällig, unveränderlich),
+- **`serie.json`:** `schema_version`, `id` (unveränderlich: zufällig; nur für einen Ordner,
+  der vorher keine `serie.json` hatte, der Ordnername, siehe „Erkennen von außen“),
   `name` (Anzeige), `angelegt_am`, `folgen` (Reihenfolge als Liste von
   Namen von Dateien und Folgen-Ordnern; maßgeblich, Regeln im Datenmodell), `typ` (`normal` oder
   `ueberraschung`; die Überraschungs-Serie wird nur daran erkannt). Geschrieben
@@ -1503,8 +1505,11 @@ Skripte, Automationen) liegt als Dateien im Repo unter `homeassistant/`.
   den Tags ein (`ha-websocket-v1.md`, Abschnitt 11). Kopiergeschütztes und Defektes
   bleibt im Eingang mit Hinweis; Doppelte (Prüfsumme) kommen in den Papierkorb.
 - **Erkennen von außen:** Beim Öffnen der Seite und alle 10 min prüft die
-  Integration die Freigabe. Neuer Ordner → `serie.json` mit neuer ID und
-  Ordnername als Anzeigename. Neue Datei oder neuer Folgen-Ordner → hinten an die Reihenfolge (erst
+  Integration die Freigabe. Neuer Ordner → `serie.json` mit Ordnername als
+  Anzeigename. **ID (09.11., Befund AP 3.1):** Ein Ordner, der vorher **keine** `serie.json`
+  hatte (die Box spielt ihn schon unter dem Ordnernamen als ID), behält den Ordnernamen als ID,
+  damit Zeiger und Zuordnungen erhalten bleiben (Datenmodell, Abschnitt 5; ist der Name als ID
+  ungültig, kommt eine zufällige). Die Seite legt neue Serien mit zufälliger ID an. Neue Datei oder neuer Folgen-Ordner → hinten an die Reihenfolge (erst
   dann spielt die Box sie). Fehlende Datei oder fehlender Ordner → aus der
   Reihenfolge, Hinweis (Entscheidung F, 05.11.).
   Neue Dateien werden auf Format und Kopierschutz geprüft (D5). Schreiben HA,

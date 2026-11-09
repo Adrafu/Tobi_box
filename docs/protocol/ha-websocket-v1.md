@@ -326,6 +326,7 @@ Keine Eingabe. Ausgabe:
 | `ueberraschung` | `"ok"`, `"fehlt"`, `"mehrere"` oder `"leer"` | Zustand der Überraschungs-Serie (Box spielt sonst Fehlerton, `data-model.md`, Abschnitt 5). Bei `fehlt` bietet die Seite „Überraschungs-Serie anlegen“ (`serie/create` mit `typ="ueberraschung"`). |
 | `geprueft_am` | string oder `null` | wann die Integration die Freigabe zuletzt geprüft hat |
 | `pruefung_laeuft` | bool | eine Prüfung läuft gerade |
+| `hinweise` | array | **(09.11., Befund AP 3.1, additiv)** Hinweise, die zu keiner Serie gehören: je reserviertem Ordner in `medien/` (Abschnitt 12) ein Objekt `{"code": "reservierter_ordner", "folge": <Ordnername>, "text": <Text>}` (`folge` trägt hier den Ordnernamen). Leer, wenn es keinen gibt. Die Systemordner `_upload` und `_papierkorb` stehen nicht darin. |
 
 Die Antwort kommt aus dem **Zwischenspeicher** der letzten Prüfung (W-28); `geprueft_am`
 zeigt sein Alter. Das Backend liest für diesen Befehl keine `serie.json` frisch von
@@ -452,7 +453,9 @@ löscht ihre Kopie beim nächsten Sync (`--delete`, mit Schutz).
 
 Stößt die Prüfung der Freigabe an (Design: „beim Öffnen der Seite und alle
 10 min“): neue Ordner (→ `serie.json` mit neuer ID, Ordnername als Name; für
-Ordner ohne Datei die ID = Ordnername, `data-model.md`, Abschnitt 5), neue Dateien und
+Ordner ohne Datei die ID = Ordnername, damit Zeiger und Zuordnungen erhalten bleiben
+(`data-model.md`, Abschnitt 5; ist der Ordnername als ID ungültig, eine neue zufällige ID)
+(09.11., Befund AP 3.1), neue Dateien und
 neue Folgen-Ordner (→ hinten an `folgen`), fehlende Dateien (→ heraus, Hinweis),
 doppelte Serien-IDs (→ jüngere Kopie bekommt neue ID), Format- und Kopierschutz-
 Prüfung neuer Dateien (D5). Das gilt für Dateien, die **von außen direkt in einen
@@ -790,7 +793,9 @@ auf, wechselt die Box auf das neue Ziel (`mqtt-v1.md`, 4.1, Schritt 6). Nebenwir
 Steht die Kennung in „Neue Tobies“, wird sie dort entfernt (Ereignis `neue_tobies`,
 `art="entfernt"`, `grund="zugeordnet"`). Das Backend schreibt `leise_zeiten`,
 `gute_nacht`, `ton_pegel`, `hinweis_pegel` und `lesezeichen_tage` unverändert fort
-(Entscheidung N, 09.11.: Fehlt `lesezeichen_tage`, bleibt es weg; die Box rechnet dann mit 14).
+(Entscheidung N, 09.11.). **(09.11., Befund AP 3.1)** `lesezeichen_tage` legt das Backend selbst
+an (Vorgabe 14) und veröffentlicht es in jeder `tobibox/config`; ein älterer Speicher ohne das Feld
+bekommt 14.
 
 #### 17. `tobibox/zuordnung/remove`
 
@@ -1292,8 +1297,11 @@ zweite Datei an der **Prüfsumme** und verwirft sie (11.10).
         `subprocess.run([...])`), nie über eine Shell, der Dateiname nie in einer
         Shell-Zeile; der Pfad wird als `file:<absoluter Pfad>` übergeben (ein Name mit
         führendem `-` ist so keine Option);
-    *   mit `-nostdin -v error -protocol_whitelist file -print_format json -show_format
-        -show_streams` (Tags stehen in `format.tags` und `streams[].tags`);
+    *   mit `-v error -protocol_whitelist file -print_format json -show_format
+        -show_streams` (Tags stehen in `format.tags` und `streams[].tags`). **(09.11., Befund AP 3.1)**
+        `ffprobe` kennt `-nostdin` nicht (nur `ffmpeg`; „Option not found“). Die Integration schließt
+        stattdessen die Standardeingabe (`stdin=DEVNULL`). `-nostdin` bekommt nur `ffmpeg` bei der
+        Probedekodierung (1 s);
     *   mit **erzwungenem Format** aus der Endung (`-f mp3`, `-f mov,mp4,m4a,3gp,3g2,mj2`
         für `m4a`/`m4b`, `-f aac`, `-f flac`, `-f ogg` für `ogg`/`opus`, `-f wav`); das
         Probieren aller Formate entfällt;
@@ -1301,8 +1309,12 @@ zweite Datei an der **Prüfsumme** und verwirft sie (11.10).
         es erlaubt) und mit abgebrochenem Prozess bei Überschreitung;
     *   danach prüft das Backend `format.format_name` gegen die erlaubte Liste und verlangt
         **mindestens einen Audio-Strom**. Playlist-Formate (`hls`, `concat`, `m3u8`, `sdp` …)
-        und alles, was nicht auf der Liste steht, lehnt es ab: 415 `format_nicht_erlaubt`
-        (z. B. eine Textdatei mit Endung `.mp3`).
+        und alles, was nicht auf der Liste steht, lehnt es ab: 415 `format_nicht_erlaubt`.
+        **Textdatei und Defekt (09.11., Befund AP 3.1):** Scheitert `ffprobe` und die Datei sieht
+        aus wie Text (in den ersten 8 KiB **kein NUL-Byte** und mindestens 95 % druckbare Zeichen),
+        ist es das falsche Format: 415 `format_nicht_erlaubt` (z. B. eine Textdatei oder Playlist mit
+        Endung `.mp3`). Scheitert `ffprobe` an einer Binärdatei (NUL-Byte oder kaum Text), ist sie
+        defekt: **kein 415**, nur die Warnung `nicht_lesbar` (nächster Punkt).
 *   **Kopierschutz und Defekte** (D5; Entscheidung M, Vorgabe 8) führen im Upload **nicht
     zur Ablehnung**, sondern zur **Warnung**: Die Datei kommt in den Eingang und **bleibt
     dort** (Abschnitt 11.10), sie kommt nicht in die Medien. Warngründe: `kopierschutz`
@@ -1632,7 +1644,10 @@ sind seit dem 09.11. Teil von Version 1: Nr. 24 und 25.)
 die Vorschläge des Designs) in der Konfiguration an, weil `config.json` sie als Pflicht
 verlangt, und schreibt sie bei jeder Änderung unverändert fort. Dasselbe gilt für die
 optionalen Felder `ton_pegel`, `hinweis_pegel` und `lesezeichen_tage` (Entscheidung N, 09.11.):
-Das Backend legt sie nicht an, **verliert sie aber nie** beim Schreiben einer neuen Revision. **Lautheit (D6)** hat
+`ton_pegel` und `hinweis_pegel` legt das Backend nicht an, **verliert sie aber nie** beim Schreiben
+einer neuen Revision. **(09.11., Befund AP 3.1)** `lesezeichen_tage` legt es mit der Vorgabe 14 an
+(Bereich 0 bis 365, `0` = nie), veröffentlicht es in jeder Liste, exportiert es und holt es mit
+`konfig/aus_export` zurück; eine Bedienung gibt es vorerst nicht. **Lautheit (D6)** hat
 keinen Befehl: Der Container läuft nach Zeitplan, ohne Auslöser aus HA (Design).
 Sichtbar wird sie höchstens später als optionales Feld an der Folge.
 
@@ -1734,7 +1749,9 @@ besteht sie aus mehreren, ist die Folge ein **Folgen-Ordner mit Tracks** (Entsch
 *   **Datei mit `album`, lose in `eingang/`:** Gruppe = `norm(album)` über alle losen
     Dateien des Durchlaufs.
 *   **Datei ohne `album`, im Ordner-Eintrag:** Alle solchen Dateien des Eintrags bilden
-    **eine** Gruppe mit dem Namen des Eintrags (Kennzeichen `tags_fehlen`).
+    **eine** Gruppe (Kennzeichen `tags_fehlen`). Bei mehreren Dateien ist der Anzeigename der Name des
+    Eintrags (Folgen-Ordner). Ist es nur **eine** Datei, ist ihr Anzeigename der `titel`, sonst der
+    Dateiname ohne Endung, nicht der Ordnername (09.11., Befund AP 3.1; Testfall T4).
 *   **Datei ohne `album`, lose:** eine Gruppe je Datei (Kennzeichen `tags_fehlen`).
 *   **Ein Ordner mit vielen Dateien ohne Tags** wird also eine Folge mit vielen Tracks
     (`bitte prüfen`). Aufteilen in einzelne Folgen geht in Version 1 nur durch Tags
@@ -1747,7 +1764,7 @@ besteht sie aus mehreren, ist die Folge ein **Folgen-Ordner mit Tracks** (Entsch
 
 | Ergebnis | Quelle, in Vorrangfolge | Kennzeichen, wenn die schwächere Quelle gilt |
 |---|---|---|
-| **Folge: Anzeigename** | 1. `album` (ohne CD-Zusatz); 2. bei einer Datei der `titel`; 3. Name des Eintrags (Ordner); 4. Dateiname ohne Endung | `tags_fehlen` ab 2 |
+| **Folge: Anzeigename** | 1. `album` (ohne CD-Zusatz); 2. bei einer einzelnen Datei der `titel`; 3. bei einer einzelnen Datei **der Dateiname ohne Endung** (nicht der Ordnername, auch wenn die Datei in einem Ordner-Eintrag liegt); bei einem Folgen-Ordner (mehrere Dateien) der **Name des Eintrags** (Ordner) (09.11., Befund AP 3.1) | `tags_fehlen` ab 2 |
 | **Folge: Name auf der Platte** | Datei: Dateiname nach Abschnitt 12; Folgen-Ordner: Anzeigename nach Abschnitt 12 | `name_geaendert` bei Ersatzname |
 | **Serie: Name** | 11.5 | `serie_aus_interpret`, `serie_aus_ordner` |
 | **Folgen-Nummer** | 1. `nummer_tag`; 2. Regeln R1–R4 auf den Albumnamen; 3. bei einer Datei R1–R4 auf den Titel; 4. keine | – |
@@ -1817,7 +1834,7 @@ Dateinamen** (`data-model.md`, Abschnitt 5). Das Backend baut deshalb die Namen 
 diese Sortierung die gewünschte Reihenfolge ergibt.
 
 *   **Gewünschte Reihenfolge:** Sortiert nach (`disc`, `track`, natürliche Sortierung des
-    relativen Pfads). Fehlt `disc`, gilt 1. Dateien **mit** `track` kommen vor Dateien
+    relativen Pfads). Fehlt `disc`, kommt die CD-Nummer aus dem Albumnamen (Zusatz `CD 1`, `Disc 2` usw., 11.2), sonst gilt 1 (09.11., Befund AP 3.1). Dateien **mit** `track` kommen vor Dateien
     ohne (Kennzeichen `track_teils_leer`). Hat **keine** Datei `track`, gilt allein die
     natürliche Sortierung des relativen Pfads im Eintrag (Unterordner `CD1` vor `CD2`).
     Zwei Dateien mit gleichem (`disc`, `track`) bleiben beide, in Pfad-Reihenfolge
@@ -1944,7 +1961,7 @@ geschrieben; „→“ ist das Ergebnis).
 | T1 | Ordner `Hörbuch X/` mit 12 mp3, alle `album="Hörbuch X"`, `album_artist="Autor A"`, `track=1..12` | Serie `Autor A` (neu, ohne `pruefen`), **eine** Folge `Hörbuch X` als Ordner mit 12 Tracks, Dateinamen unverändert |
 | T2 | 5 mp3 in einem Ordner, jede mit eigenem `album="Der kleine Rabe - Folge N: …"` (N = 3, 1, 5, 2, 4 in Dateireihenfolge), `album_artist="Der kleine Rabe"` | Serie `Der kleine Rabe`, 5 Folgen in der Reihenfolge Nummer 1, 2, 3, 4, 5 (Nummer aus R1) |
 | T3 | m4b mit `series="Die Känguru-Chroniken"`, `series-part="2"`, `album="Und überhaupt"`, `album_artist="Marc-Uwe Kling"` | Serie `Die Känguru-Chroniken` (der `serien_tag` schlägt den Interpreten), Folge `Und überhaupt`, Nummer 2 |
-| T4 | Datei ohne Tags in `Märchen/` | Serie `Märchen`, Folge (Datei) mit Anzeigename = Dateiname ohne Endung; Kennzeichen `tags_fehlen`, `serie_aus_ordner`; Serie `pruefen` |
+| T4 | Datei ohne Tags in `Märchen/` | Serie `Märchen`, Folge (Datei) mit Anzeigename = Dateiname ohne Endung (nicht der Ordnername; der gilt nur für Folgen-Ordner, 11.4); Kennzeichen `tags_fehlen`, `serie_aus_ordner`; Serie `pruefen` |
 | T5 | lose Datei `x.mp3` ohne Tags | Serie `Einzelfolgen`; Kennzeichen wie T4 |
 | T6 | Zwei Durchläufe nacheinander, `album_artist` = `Die drei ???` und `die drei ???` | **eine** Serie (gleicher Serienschlüssel `diedrei`) |
 | T7 | Ordner, `album` gleich, `serien_tag` 3-mal `A`, 1-mal `B` | eine Gruppe, Serie `A`, Kennzeichen `serie_widerspruch` |
@@ -1979,7 +1996,9 @@ schon auf der Freigabe liegen, werden nicht umgeschrieben.
     **Punkte und Leerzeichen am Ende entfallen** (Windows).
 4.  **Gerätenamen** (`CON`, `PRN`, `AUX`, `NUL`, `COM1`–`COM9`, `LPT1`–`LPT9`, ohne
     Rücksicht auf Groß-/Kleinschreibung, mit oder ohne Endung) erhalten ein `_` davor;
-    `.` und `..` werden zu `_`.
+    `.` und `..` werden zu `_`. **Ausnahme Serien-Ordner (09.11., Befund AP 3.1):** Ein führendes
+    `_` ergäbe einen reservierten Ordner (siehe unten). Darum bekommt ein Gerätename als Serien-Ordner
+    das `_` **hinten**: `CON` wird `CON_`, nicht `_CON`.
 5.  **Länge:** höchstens 255 Bytes (UTF-8) **und** 255 UTF-16-Einheiten, die kürzere Grenze
     gilt, abzüglich Platz für ` (99)`; gekürzt wird an einer **Zeichengrenze** (nie mitten
     in einem UTF-8-Zeichen), die Endung bleibt erhalten. Ein Kürzen um mehr als nur das
@@ -2144,7 +2163,8 @@ widerspricht.
 24. **Namen werden bereinigt statt abgelehnt** (Abschnitt 12); die Namensgleichheit prüft
     ohne Rücksicht auf Groß-/Kleinschreibung und NFC, unter der Sperre.
 25. **Entscheidung N: Feld `lesezeichen_tage` reserviert** (Abschnitt 10, `data-model.md` Abschnitt 2).
-    Das Backend schreibt und exportiert es unverändert; eine Seitenbedienung gibt es erst mit den
+    Das Backend legt es mit der Vorgabe 14 an (Bereich 0 bis 365, `0` = nie), veröffentlicht, exportiert
+    es und holt es mit `konfig/aus_export` zurück (09.11., Befund AP 3.1); eine Seitenbedienung gibt es erst mit den
     Einstellungen in Stufe 4. Kein neuer Befehl, Version 1 bleibt.
 
 ## Vorgaben der Projektleitung (09.11.)

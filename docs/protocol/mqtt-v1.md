@@ -95,7 +95,8 @@ Box mit Entscheidung F nimmt auch Listen der Version 1 an (5.2).
     `lesezeichen_tage` tragen (ganze Zahl 0 bis 365, `0` = Lesezeichen laufen nie ab; fehlt es, gilt 14).
     Anders als `name` **liest die Box es** (`validiere_konfig`, Anzeige und Wirkung in
     `core-interface.md`, 6.3). Ein ungültiger Wert macht die ganze Liste ungültig (`schema_ungueltig`).
-    Eine Box ohne Entscheidung N ignoriert das Feld (sie kennt keinen Ablauf). Auch eine Änderung nur
+    Eine Box ohne Entscheidung N ignoriert das Feld (sie kennt keinen Ablauf).
+    HA veröffentlicht das Feld in jeder Liste, bei Bedarf mit der Vorgabe 14 (09.11., Befund AP 3.1). Auch eine Änderung nur
     dieses Feldes erhöht die Revision.
 *   HA veröffentlicht nach **jeder** Änderung der Konfiguration (Revision + 1)
     und bei „Liste neu ausrollen“ (neue `liste_id`).
