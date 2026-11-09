@@ -137,10 +137,10 @@ def sammle_status(kfg: konfig_modul.BoxKonfig) -> dict:
         leser = {"zustand": UNBEKANNT, "letztes": "kein Leser-Ereignis im Protokoll (Dienst läuft nicht?)"}
 
     offen, o_hinweis = _lese_json(zustand / outbox.NAME, outbox._parse)
+    pfad_fehler = None
     try:
         live = frage_dienst(zustand)
         keine_rechte = False
-        pfad_fehler = None
     except PermissionError:
         live, keine_rechte = None, True
     except SocketPfadZuLang as e:

@@ -221,6 +221,13 @@ async def test_zu_langer_pfad_wirft_oserror_und_hinterlaesst_nichts(kurz):
     await s.stop()  # darf nichts werfen
 
 
+async def test_zu_langer_pfad_nennt_laenge_grenze_und_abhilfe(kurz):
+    s = Sim(kurz / ("x" * 100), lambda e: None, SimUhr())
+    with pytest.raises(OSError, match=r"Socket-Pfad zu lang \(\d+ Bytes, erlaubt höchstens \d+") as info:
+        await s.start()
+    assert "zustand" in str(info.value)
+
+
 async def test_stop_ohne_start_laesst_ein_fremdes_sock_in_ruhe(kurz):
     (kurz / "sim.sock").write_text("fremd")
     await Sim(kurz, lambda e: None, SimUhr()).stop()

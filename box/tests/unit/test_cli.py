@@ -331,3 +331,11 @@ def test_sim_ohne_medienordner_nennt_keine_serien(tmp_path, capsys):
     toml.write_text(f'[pfade]\nzustand = "{tmp_path / "var"}"\nmedien = "{tmp_path / "fehlt"}"\n', encoding="utf-8")
     assert cli.main(["sim", "--config", str(toml), "learn", "--serie", "x"], io.StringIO()) == 2
     assert "Vorhandene Serien-IDs: keine" in capsys.readouterr().err
+
+
+def test_sim_mit_zu_langem_socket_pfad_gibt_verstaendlichen_fehler_statt_traceback(tmp_path, capsys):
+    toml = tmp_path / "tobibox.toml"
+    toml.write_text(f'[pfade]\nzustand = "{tmp_path / ("v" * 120)}"\nmedien = "{tmp_path / "m"}"\n', encoding="utf-8")
+    code = cli.main(["sim", "--config", str(toml), "learn-abort"])
+    err = capsys.readouterr().err
+    assert code == 2 and "Socket-Pfad zu lang" in err and "Traceback" not in err

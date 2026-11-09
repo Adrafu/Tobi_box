@@ -219,7 +219,10 @@ def test_ungueltiges_utf8_im_dateinamen_sortiert_und_laedt(tmp_path, protokoll):
     ordner.mkdir()
     schlecht = os.fsdecode(b"folge-\xff2.wav")
     for n in ("folge-1.wav", schlecht, "folge-3.wav"):
-        schreibe_wav(ordner / n)
+        try:
+            schreibe_wav(ordner / n)
+        except OSError as e:  # APFS u. a. lehnen ungültiges UTF-8 in Dateinamen ab (Errno 92)
+            pytest.skip(f"Dateisystem lehnt ungültiges UTF-8 im Dateinamen ab: {e}")
     erzeuge_serie(tmp_path, "gut", ["a.wav"], serie_id="gut")
     assert sortiere_natuerlich([schlecht, "a"])  # wirft nicht
     bib = lade_bibliothek(tmp_path)
