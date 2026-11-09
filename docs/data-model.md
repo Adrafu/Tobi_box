@@ -100,8 +100,11 @@ Beim Start (und bei jedem Lesen) in dieser Reihenfolge:
     neue Felder kennen kann). Die Box schreibt ihre eigenen Dateien aus ihrem
     Wissen neu; unbekannte Felder gehen dort verloren. Das ist gewollt: Ein
     Update-Rückfall spielt ohnehin die gesicherten Dateien zurück. Beispiel (09.11.): Das
-    Feld `name` einer Zuordnung liest die Box nicht und schreibt es nicht in ihre
-    `config.json`; der Name bleibt in HA (Speicher und Export) erhalten.
+    Feld `name` einer Zuordnung liest die Box nicht (Prüfung und Wirkung hängen nur an `ziel`).
+    **Ausnahme `config.json` (09.11., Befund AP 3.7):** Beim Umschreiben der Konfiguration
+    **erhält** die Box `name`, unbekannte Zusatzfelder je Zuordnung und `lesezeichen_tage`
+    (`sim card`, HA-Ersatz, Übernahme aus MQTT). `schreibe_zuordnung` ändert nur `ziel`.
+    Der Name bleibt außerdem in HA (Speicher und Export) erhalten.
 
 ### 1.5 `schema_version` und Migration
 

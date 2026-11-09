@@ -1580,10 +1580,12 @@ Skripte, Automationen) liegt als Dateien im Repo unter `homeassistant/`.
   Themenrechten: Sie liest `tobibox/config` und ihr eigenes `cmd`-Thema und
   schreibt nur ihre eigenen Themen (`event`, Status, Discovery).
 - Die Broker-Rechte laufen über das Mosquitto-Add-on: `customize.active: true`,
-  eine ACL-Datei `/share/mosquitto/acl.conf` mit `topic readwrite …` je
-  Benutzer; `homeassistant` und `addons` bleiben unbeschränkt, die Box-Konten
-  sind keine HA-Administratoren (Option `logins`). Beispiele liegen unter
-  `homeassistant/mosquitto/`.
+  zwei Dateien (09.11., Befund AP 3.1): `/share/mosquitto/acl.conf`
+  ist eine Mosquitto-Konfiguration und enthält nur `acl_file /share/mosquitto/accesscontrollist`;
+  die Regeln (`user`, `topic`, `pattern`) stehen in der Datei `accesscontrollist` ohne Endung, weil
+  das Add-on jede `*.conf` als Konfiguration liest. `homeassistant` und `addons` bleiben
+  unbeschränkt, die Box-Konten sind keine HA-Administratoren (Option `logins`). Beispiele liegen
+  unter `homeassistant/mosquitto/`.
 - Alle Themen mit Nachrichten (Felder, Beispiele), QoS, „retained“, Ablaufzeit
   der Befehle, Bestätigungen und Discovery-Namen stehen als Vertrag in
   `docs/protocol/mqtt-v1.md` (Stufe 0).
@@ -1634,8 +1636,13 @@ Skripte, Automationen) liegt als Dateien im Repo unter `homeassistant/`.
   - Dateien landen erst nach vollständiger Übertragung sichtbar im
     Medienordner: `--partial-dir` mit **absolutem Pfad außerhalb des
     Medienordners, aber auf demselben Dateisystem**
-    (`/var/lib/tobibox/.rsync-partial`) und `--delay-updates`. So indexiert MPD
-    keine halben Dateien.
+    (`/var/lib/tobibox/.rsync-partial`) und ein ebenso absolutes `--temp-dir`.
+    So indexiert MPD keine halben Dateien; jede Datei wird erst fertig atomar an
+    ihren Platz umbenannt. **Kein `--delay-updates`** (09.11., Befund AP 3.7): Mit
+    einem absoluten `--partial-dir` legt rsync zurückgestellte Dateien flach nach
+    Dateiname ab; zwei Serien mit je einer `serie.json` kollidieren, der Sync bräche
+    mit `rsync_fehler` ab. Ohne `--delay-updates` ist je Datei höchstens eine halbe
+    Datei unterwegs, und zwar außerhalb des Medienordners.
   - **Spiegelnd mit `--delete`, mit Schutz:** Der Sync bricht ab, wenn die
     Quelle fehlt, leer ist oder mehr als 20 % der vorhandenen Dateien löschen
     würde. Die 20-%-Grenze wird vorab mit `--dry-run --itemize-changes` gezählt
@@ -2443,7 +2450,8 @@ WebSocket nach Vertrag W.
 | `homeassistant/custom_components/tobibox/services.yaml` | neu | Aktionen. |
 | `homeassistant/custom_components/tobibox/strings.json` | neu | Texte (Quelle). |
 | `homeassistant/custom_components/tobibox/translations/de.json` | neu | Deutsche Texte. |
-| `homeassistant/mosquitto/acl.conf.example` | neu | Broker-Rechte: ein Konto je Box, Themenrechte wie in Baustein 4; `homeassistant` und `addons` unbeschränkt. |
+| `homeassistant/mosquitto/acl.conf.example` | neu | Nur `acl_file /share/mosquitto/accesscontrollist` (09.11., Befund AP 3.1: eine `*.conf` liest das Add-on als Konfiguration). |
+| `homeassistant/mosquitto/accesscontrollist.example` | neu | Broker-Rechte ohne Endung `.conf` (09.11., Befund AP 3.1): ein Konto je Box, Themenrechte wie in Baustein 4; `homeassistant` und `addons` unbeschränkt. |
 | `homeassistant/mosquitto/mosquitto-addon.example.yaml` | neu | Add-on-Einstellung mit `customize.active: true` und `logins` (Box-Konten ohne HA-Admin). |
 | `homeassistant/requirements-test.txt` | neu | Feste HA-Version und `pytest-homeassistant-custom-component`, passend zur HA-Version. |
 | `homeassistant/README.md` | neu | Installation der Integration, getestete HA-Version. |
@@ -2505,7 +2513,7 @@ Ergebnis: Der Sync nach den Regeln aus „Netz, Sync, Strom“.
 
 | Datei | Neu/Änd. | Inhalt und Grund |
 |---|---|---|
-| `box/src/tobibox/sync.py` | neu | rsync gegen den rsync-Daemon des QNAP (Modul `medien`, nur lesend) über Tailscale; Regeln Heim/Hotspot/Akku (im Hotspot ohne Datenlimit); `--partial-dir` außerhalb des Medienordners auf demselben Dateisystem und `--delay-updates`; `--delete` mit Schutz (Abbruch bei fehlender oder leerer Quelle oder mehr als 20 % Löschungen, vorab gezählt mit `--dry-run --itemize-changes`); Platzprüfung vorab; die spielende Datei (MPD `currentsong`) per `--exclude`; **`_upload`, `_papierkorb` und `eingang` per `--exclude` ausnehmen (Entscheidung M, 09.11.)**, auch wenn das NAS-Modul sie schon auslässt; MPD neu einlesen; Sperre gegen Update; keine Abschaltung während des Syncs; `nice`/`ionice`. |
+| `box/src/tobibox/sync.py` | neu | rsync gegen den rsync-Daemon des QNAP (Modul `medien`, nur lesend) über Tailscale; Regeln Heim/Hotspot/Akku (im Hotspot ohne Datenlimit); `--partial-dir` und `--temp-dir` außerhalb des Medienordners auf demselben Dateisystem, **kein `--delay-updates`** (09.11., Befund AP 3.7: absolutes `--partial-dir` legt zurückgestellte Dateien flach nach Dateiname ab, zwei `serie.json` kollidieren); `--delete` mit Schutz (Abbruch bei fehlender oder leerer Quelle oder mehr als 20 % Löschungen, vorab gezählt mit `--dry-run --itemize-changes`); Platzprüfung vorab; die spielende Datei (MPD `currentsong`) per `--exclude`; **`_upload`, `_papierkorb` und `eingang` per `--exclude` ausnehmen (Entscheidung M, 09.11.)**, auch wenn das NAS-Modul sie schon auslässt; MPD neu einlesen; Sperre gegen Update; keine Abschaltung während des Syncs; `nice`/`ionice`. |
 | `box/tests/unit/test_sync.py` | neu | Tests gegen einen lokalen rsync-Daemon: leere Quelle, fehlende Quelle, zu viele Löschungen, zu wenig Platz, spielende Datei ausgenommen, **Ordner `_upload`, `_papierkorb` und `eingang` in der Quelle werden nicht übertragen und nicht auf der Box gelöscht**, `--partial-dir` außerhalb des Medienordners, Netzregel. |
 | `box/tests/unit/test_sync_ereignisse.py` | neu | Während eines Syncs laufen Kern-Ereignisse weiter (Auflegen wird verarbeitet). Die Latenz unter echter Last misst Abnahme Stufe 3a am Pi. |
 
@@ -2521,7 +2529,7 @@ Ergebnis: Anleitungen und Vorlagen für die Schritte, die nur Tobias machen kann
 | Datei | Neu/Änd. | Inhalt und Grund |
 |---|---|---|
 | `docs/betrieb/tailscale-nas.md` | neu | Schritte für die QNAP-App, das HA-Add-on, die Box-Schlüssel, die ACL und den rsync-Daemon; die Freigabe `tobibox/` mit `medien/`, `eingang/`, `export/`, `releases/` (Entscheidung M, 09.11.: `eingang/` anlegen, HA Schreibrecht). |
-| `docs/betrieb/mqtt-konten.md` | neu | Konto je Box anlegen, Themenrechte, Passwörter nur auf der Box (nicht im Repo). |
+| `docs/betrieb/mqtt-konten.md` | neu | Konto je Box anlegen, Themenrechte, Passwörter nur auf der Box (nicht im Repo). Zwei Dateien: `acl.conf` (nur `acl_file`) und `accesscontrollist` (Regeln, ohne Endung) (09.11., Befund AP 3.1). |
 | `deploy/nas/rsyncd.example.conf` | neu | Modul `medien` und Modul `releases`, beide `read only = yes`; im Modul `medien` `exclude` für `_upload`, `_papierkorb` und `eingang` (Entscheidung M, 09.11.). |
 | `deploy/tailscale/acl.example.json` | neu | ACL mit Tags: Boxen erreichen nur die Medienfreigabe und HA. |
 | `deploy/tailscale/acl-pruefung.sh` | neu | Prüft von einer Box aus, dass andere Ziele gesperrt sind. |

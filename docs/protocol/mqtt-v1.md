@@ -15,6 +15,9 @@
 *   **Änderung 09.11. (Abgleich mit Vertrag W, Abschnitt 13):** 5.1 beschreibt die Listen-ID jetzt
     nach den Zuständen `ok`, `leer_neu` und `export_neuer`; ein leerer Speicher setzt nicht mehr von
     selbst eine neue Listen-ID.
+*   **Änderung 09.11. (Befund AP 3.1):** Abschnitt 7 (ACL) noch einmal korrigiert: Das Add-on liest
+    alle `*.conf` unter `/share/mosquitto/` als Mosquitto-Konfiguration. Die Regeln stehen deshalb in
+    der Datei `accesscontrollist` ohne Endung; `acl.conf` enthält nur `acl_file …` (09.11., Befund AP 3.1).
 *   **Änderung 09.11.:** Abschnitt 7 (ACL) korrigiert: In der Form mit
     `pattern` müssen auch die Leserechte für `tobibox/config` und
     `homeassistant/status` `pattern read` heißen; ein `topic read` ohne `user`
@@ -645,11 +648,20 @@ Beispiel der Nachricht für den Knopf „Sync jetzt“ (Thema
 
 ## 7. Mosquitto-Rechte je Box-Konto
 
-Das Mosquitto-Add-on in HA läuft mit `customize.active: true` und der
-ACL-Datei `/share/mosquitto/acl.conf`. Die Box-Konten werden unter `logins`
-angelegt, sind **keine** HA-Administratoren. Die Konten `homeassistant` und
-`addons` bleiben unbeschränkt (Standard des Add-ons). Beispieldateien liegen in
+Das Mosquitto-Add-on in HA (7.1.3) läuft mit `customize.active: true`. Die Box-Konten werden
+unter `logins` angelegt, sind **keine** HA-Administratoren. Die Konten `homeassistant` und
+`addons` bleiben unbeschränkt (`topic readwrite #`). Beispieldateien liegen in
 `homeassistant/mosquitto/`.
+
+**Zwei Dateien (09.11., Befund AP 3.1):** Das Add-on liest jede `*.conf` unter `/share/mosquitto/`
+als Mosquitto-**Konfiguration**. Regeln mit `user`, `topic` oder `pattern` dürfen deshalb nicht in
+einer `*.conf` stehen; Mosquitto würde sie als Konfiguration lesen und abbrechen.
+
+*   `/share/mosquitto/acl.conf` enthält nur die eine Zeile
+    `acl_file /share/mosquitto/accesscontrollist` (Vorlage `acl.conf.example`).
+*   `/share/mosquitto/accesscontrollist` (**ohne** Endung) enthält alle Regeln dieses
+    Abschnitts (Vorlage `accesscontrollist.example`).
+*   Nach jeder Änderung das Add-on neu starten.
 
 Rechte für das Konto `box1` (für `box2` entsprechend; ein Konto je Box):
 
