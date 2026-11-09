@@ -221,7 +221,7 @@ Firmware) ist gültig und wird vom Dienst als Warnung behandelt.
 |---|---|---|---|
 | `pn5180_no_response` | Der PN5180 antwortet nicht (Produktversion unlesbar oder 0xFF, SPI/BUSY tot). | Fehler | Ergebnis `fehler` eines Zyklus, oder fehlgeschlagener Startversuch |
 | `pn5180_timeout` | Ein PN5180-Befehl überschritt `PN5180_CMD_TIMEOUT_MS` oder BUSY wurde nicht frei (z. B. `setRF_on`/`setRF_off`). | Fehler | Ergebnis `fehler` eines Zyklus |
-| `bad_response` | Antwort des Chips unbrauchbar (CRC-Fehler, unerwartete Länge oder Fehlerflag). | Warnung | Ergebnis `fehler` eines Zyklus |
+| `bad_response` | Antwort des Chips unbrauchbar (Fehlerbit in `RX_STATUS`, CRC-Fehler, unerwartete Länge oder Übertragungsfehler). Gilt auch für die Antwort auf die Kennungsabfrage (Inventory); `detail` nennt den Grund. | Warnung | Ergebnis `fehler` eines Zyklus |
 | `uid_invalid` | ISO 14443A lieferte eine Kennungslänge außerhalb 4, 7, 10 Byte. | Warnung | Ergebnis `fehler` eines Zyklus |
 | `unlock_failed` | Ein Tonie im Privacy-Modus liegt, das Entsperren mit dem Passwort ist gescheitert. Das ist der Normalfall bei fremden Tonies (CUJ 6), kein Hardwarefehler. | Hinweis | Zusatzzeile direkt nach `LOCKED`; kein `fehler`-Ergebnis, zählt nicht in `errors` |
 | `bad_command` | Die Firmware erhielt eine Zeile, die kein gültiger Befehl ist. | Hinweis | Antwort auf eine Zeile vom Box-Dienst |
@@ -306,7 +306,9 @@ vergibt kein `seq` und schreibt keine Zeilen; das macht die Protokoll-Ausgabe
 *   **Ausgabe**, null bis zwei Ereignisse je Eingabe, in dieser Reihenfolge:
     `Entfernt`, dann `Platziert(typ, uid)` oder `Gesperrt`.
 *   **Parameter** (dem Entpreller übergeben, Standardwerte aus `timing.h`):
-    `confirm_reads` (= `CONFIRM_READS`), `remove_after_ms`
+    `confirm_reads` (= `CONFIRM_READS`), `change_reads`
+    (= `CHANGE_CONFIRM_READS`, nur für den Wechsel; fehlt er, gilt `confirm_reads`),
+    `remove_after_ms`
     (= `REMOVE_AFTER_MS`) und `error_hold_ms` (= `ERROR_HOLD_MS`).
 
 ### Identität
@@ -349,7 +351,8 @@ immer zu `REMOVED`, danach ist es ein neues Auflegen mit frischer Bestätigung.
 
 ### Schritt 1: Übergänge
 
-`N` steht für `confirm_reads`. Eine Eingabe „gültig“ ist `uid` oder `gesperrt`.
+`N` steht für `confirm_reads`, `C` für `change_reads` (Standard 3, mindestens
+`N`). Eine Eingabe „gültig“ ist `uid` oder `gesperrt`.
 
 | Nr | Zustand | Eingabe | Bedingung | Ausgabe | Neuer Zustand und Änderungen |
 |---|---|---|---|---|---|
@@ -365,9 +368,9 @@ immer zu `REMOVED`, danach ist es ein neues Auflegen mit frischer Bestätigung.
 | 10 | `LIEGT` | `nichts` | – | – | `LIEGT`, Herausforderer gelöscht, `nur_fehler` falsch |
 | 11 | `LIEGT` | `fehler` | – | – | `LIEGT`, Herausforderer gelöscht; `last` und `nur_fehler` bleiben (der Fehler ist kein Beleg, aber auch keine Lücke) |
 | 12 | `LIEGT` | gültig `X`, `X = L` | – | – | `LIEGT`, `last=t`, `nur_fehler` wahr, Herausforderer gelöscht |
-| 13 | `LIEGT` | gültig `X`, `X ≠ L` | `X` ist neu oder ≠ `H`; `N ≥ 2` | – | `H=X`, `hn=1`, `nur_fehler` falsch; **rejected +1** |
-| 14 | `LIEGT` | gültig `X`, `X ≠ L` | `X = H`, `hn+1 < N` | – | `hn = hn+1`, `nur_fehler` falsch; **rejected +1** |
-| 15 | `LIEGT` | gültig `X`, `X ≠ L` | (`X = H` und `hn+1 ≥ N`) oder `N = 1` | `Entfernt`, dann `Platziert(X)`/`Gesperrt` | `LIEGT`, `L=X`, `last=t`, `nur_fehler` wahr, Herausforderer gelöscht; **rejected +1** |
+| 13 | `LIEGT` | gültig `X`, `X ≠ L` | `X` ist neu oder ≠ `H`; `C ≥ 2` | – | `H=X`, `hn=1`, `nur_fehler` falsch; **rejected +1** |
+| 14 | `LIEGT` | gültig `X`, `X ≠ L` | `X = H`, `hn+1 < C` | – | `hn = hn+1`, `nur_fehler` falsch; **rejected +1** |
+| 15 | `LIEGT` | gültig `X`, `X ≠ L` | (`X = H` und `hn+1 ≥ C`) oder `C = 1` | `Entfernt`, dann `Platziert(X)`/`Gesperrt` | `LIEGT`, `L=X`, `last=t`, `nur_fehler` wahr, Herausforderer gelöscht; **rejected +1** |
 
 Zu den Zeilen:
 
@@ -385,10 +388,16 @@ Zu den Zeilen:
 *   **Zeile 10 (`nichts` bei liegender Figur):** löscht einen offenen
     Herausforderer; die Bestätigungen eines Wechsels müssen **unmittelbar
     aufeinander** folgen.
-*   **Zeilen 13 bis 15 (Wechsel):** Eine andere Identität gilt erst nach `N`
-    gleichen Lesungen in Folge. Dazwischen ändert sie weder die liegende Figur
-    noch `last`. Eine einzelne verfälschte Kennung am Rand (CUJ 8) wird so zu
-    `rejected +1` und sonst ignoriert.
+*   **Zeilen 13 bis 15 (Wechsel):** Eine andere Identität gilt erst nach `C`
+    gleichen Lesungen in Folge (Standard 3). Dazwischen ändert sie weder die
+    liegende Figur noch `last`. Eine einzelne verfälschte Kennung am Rand (CUJ 8)
+    wird so zu `rejected +1` und sonst ignoriert. Ein Wechsel braucht eine
+    Lesung mehr als das Auflegen aus `LEER` (`N`, Standard 2), weil eine
+    verfälschte Kennung sich bei gleicher Lage in zwei Zyklen wiederholen kann
+    (Messung 09.11.: gleicher falscher Wert zweimal in Folge). Die Firmware
+    verwirft zusätzlich schon vor dem Entprellen jede Chip-Antwort mit
+    Fehlerbit, falscher Länge oder falscher CRC als `fehler(bad_response)`
+    (Zeile 11 bzw. 6 der Tabelle); sie erreicht den Entpreller nie als `uid`.
 *   **„gesperrt liegt“ → „Kennung liegt“** (dieselbe Figur, danach als Kennung
     gelesen): wie jeder andere Wechsel, `Entfernt` + `Platziert`. Der Box-Dienst
     beendet damit die Überraschungs-Serie und startet die Serie der Figur. Das
@@ -432,7 +441,8 @@ Eingecheckt, ohne Geheimnisse. Die Namen sind verbindlich.
 | Name | Wert | Bedeutung | Quelle |
 |---|---|---|---|
 | `POLL_PERIOD_MS` | 200 | Abfragezyklus, Beginn zu Beginn | Design, Baustein 1 |
-| `CONFIRM_READS` | 2 | gleiche Lesungen in Folge für `PLACED`, `LOCKED` und Wechsel (3, falls die Messung in Stufe 1 zeigt, dass 2 nicht reichen) | Design, Baustein 1 |
+| `CONFIRM_READS` | 2 | gleiche Lesungen in Folge für `PLACED` und `LOCKED` aus dem leeren Zustand (mehr würde die Auflegezeit von 1 s sprengen) | Design, Baustein 1 |
+| `CHANGE_CONFIRM_READS` | 3 | gleiche Lesungen in Folge für einen Wechsel bei liegender Figur (`REMOVED` + `PLACED`/`LOCKED`) | Befund 09.11. (verfälschte Kennung, zweimal gleich gelesen) |
 | `REMOVE_AFTER_MS` | 1100 | `REMOVED` nach so langer Zeit ohne gültige Lesung der liegenden Figur, wenn dazwischen ein `nichts` oder eine fremde Lesung kam | Design, Baustein 1 |
 | `ERROR_HOLD_MS` | 5000 | `REMOVED` bei **ununterbrochenen Lesefehlern** erst nach so langer Zeit seit der letzten gültigen Lesung (Fehlerzyklen zählen bis dahin als „Figur liegt noch“) | Entscheidung Tobias, 05.11. |
 | `HEARTBEAT_INTERVAL_MS` | 2000 | Abstand der `HB` | Design, Baustein 2 |

@@ -41,6 +41,7 @@ struct Rec {
 void test_defaults_come_from_timing_h() {
   DebounceParams p;
   TEST_ASSERT_EQUAL_UINT32(CONFIRM_READS, p.confirm_reads);
+  TEST_ASSERT_EQUAL_UINT32(CHANGE_CONFIRM_READS, p.change_reads);
   TEST_ASSERT_EQUAL_UINT32(1100, p.remove_after_ms);
   TEST_ASSERT_EQUAL_UINT32(5000, p.error_hold_ms);
   TEST_ASSERT_EQUAL_UINT32(200, POLL_PERIOD_MS);
@@ -118,18 +119,57 @@ void test_gap_over_threshold_with_same_figure_is_new_placement() {
   TEST_ASSERT_EQUAL(2, r.placed);
 }
 
-void test_figure_change_needs_two_equal_reads() {
+void test_figure_change_needs_three_equal_reads() {
   Debouncer d;
   Rec r;
   r.step(d, ntag(A), 0);
   r.step(d, ntag(A), 200);
   r.step(d, ntag(B), 400);
-  TEST_ASSERT_EQUAL(0, r.removed);
-  DebounceResult x = r.step(d, ntag(B), 600);
+  r.step(d, ntag(B), 600);
+  TEST_ASSERT_EQUAL(0, r.removed);  // zwei gleiche Lesungen reichen beim Wechsel nicht
+  DebounceResult x = r.step(d, ntag(B), 800);
   TEST_ASSERT_TRUE(x.removed);
   TEST_ASSERT_TRUE(x.placement == DebounceResult::Placement::Placed);
   TEST_ASSERT_EQUAL(0xff, x.placed.uid[1]);
-  TEST_ASSERT_EQUAL(2, r.rejected);
+  TEST_ASSERT_EQUAL(3, r.rejected);
+}
+
+// Gemessener Fall: derselbe verfaelschte Wert in zwei Zyklen nacheinander
+// (Tonie am Rand). Beim Auflegen aus dem leeren Zustand zaehlt weiter 2; beim
+// Wechsel muss eine dritte gleiche Lesung kommen, die nie kam.
+void test_repeated_corruption_twice_is_no_change() {
+  static const uint8_t GOOD[8] = {0xe0, 0x04, 0x03, 0x50, 0x1b, 0xea, 0x7e, 0x42};
+  static const uint8_t BAD[8] = {0xe0, 0x04, 0x03, 0x50, 0x1b, 0xea, 0x7e, 0x0e};
+  Debouncer d;
+  Rec r;
+  r.step(d, Reading::tag(UidType::Iso15693, GOOD, 8), 0);
+  r.step(d, Reading::tag(UidType::Iso15693, GOOD, 8), 200);
+  r.step(d, Reading::tag(UidType::Iso15693, BAD, 8), 400);
+  r.step(d, Reading::tag(UidType::Iso15693, BAD, 8), 600);
+  r.step(d, Reading::tag(UidType::Iso15693, GOOD, 8), 800);
+  r.step(d, Reading::tag(UidType::Iso15693, GOOD, 8), 1000);
+  TEST_ASSERT_EQUAL(1, r.placed);
+  TEST_ASSERT_EQUAL(0, r.removed);
+  TEST_ASSERT_TRUE(d.present());
+  TEST_ASSERT_EQUAL(0x42, d.current().uid[7]);
+}
+
+// Ein Lesefehler mitten im Liegen ist weder REMOVED noch ein Wechsel.
+void test_read_error_while_lying_keeps_figure() {
+  Debouncer d;
+  Rec r;
+  r.step(d, ntag(A), 0);
+  r.step(d, ntag(A), 200);
+  r.step(d, err(), 400);
+  r.step(d, ntag(A), 600);
+  r.step(d, ntag(B), 800);   // Herausforderer 1
+  r.step(d, err(), 1000);    // Fehler loescht den Herausforderer
+  r.step(d, ntag(B), 1200);  // wieder 1
+  r.step(d, ntag(B), 1400);  // 2
+  r.step(d, ntag(A), 1600);
+  TEST_ASSERT_EQUAL(1, r.placed);
+  TEST_ASSERT_EQUAL(0, r.removed);
+  TEST_ASSERT_TRUE(d.present());
 }
 
 void test_corrupted_uid_at_the_edge_is_ignored() {
@@ -193,8 +233,9 @@ void test_locked_then_open_is_a_change() {
   r.step(d, Reading::locked(), 0);
   r.step(d, Reading::locked(), 200);
   r.step(d, tonie(), 400);
+  r.step(d, tonie(), 600);
   TEST_ASSERT_EQUAL(0, r.removed);
-  DebounceResult x = r.step(d, tonie(), 600);
+  DebounceResult x = r.step(d, tonie(), 800);
   TEST_ASSERT_TRUE(x.removed);
   TEST_ASSERT_TRUE(x.placement == DebounceResult::Placement::Placed);
   TEST_ASSERT_EQUAL(8, x.placed.len);
@@ -206,7 +247,8 @@ void test_open_then_locked_is_a_change() {
   r.step(d, tonie(), 0);
   r.step(d, tonie(), 200);
   r.step(d, Reading::locked(), 400);
-  DebounceResult x = r.step(d, Reading::locked(), 600);
+  r.step(d, Reading::locked(), 600);
+  DebounceResult x = r.step(d, Reading::locked(), 800);
   TEST_ASSERT_TRUE(x.removed);
   TEST_ASSERT_TRUE(x.placement == DebounceResult::Placement::Locked);
 }
@@ -331,7 +373,9 @@ int main(int, char**) {
   RUN_TEST(test_removed_at_1100ms_without_valid_read);
   RUN_TEST(test_exactly_at_threshold_removes);
   RUN_TEST(test_gap_over_threshold_with_same_figure_is_new_placement);
-  RUN_TEST(test_figure_change_needs_two_equal_reads);
+  RUN_TEST(test_figure_change_needs_three_equal_reads);
+  RUN_TEST(test_repeated_corruption_twice_is_no_change);
+  RUN_TEST(test_read_error_while_lying_keeps_figure);
   RUN_TEST(test_corrupted_uid_at_the_edge_is_ignored);
   RUN_TEST(test_corrupted_uid_before_confirmation_restarts_count);
   RUN_TEST(test_challenger_must_be_consecutive);

@@ -834,12 +834,17 @@ nur Tobias' Handy) und Tailscale.
     gemessen: NTAG-Karte 176 ms (einschließlich des erfolglosen
     ISO-15693-Versuchs), gesperrter Tonie 137 ms, offener Tonie 58 ms. Die
     Messung in Stufe 1 bestätigt das an Tobias' Tobies.
-  - Neue Kennung gilt nach **2 gleichen Lesungen in Folge** (3 falls die
-    Messung zeigt, dass 2 nicht reichen).
+  - Neue Kennung gilt nach **2 gleichen Lesungen in Folge** (`CONFIRM_READS`).
+    Mehr würde die Auflegezeit sprengen.
+  - Jede Antwort mit Fehlerbit, falscher Länge oder falscher CRC wird schon in
+    der Firmware verworfen (`fehler(bad_response)`), bevor der Entpreller sie sieht.
   - `REMOVED` nach **1,1 s** ohne gültige Lesung des liegenden Tobies.
     Damit: Lücken bis 1,0 s überbrückt, Pause ≤ 1,5 s nach Abheben.
   - Eine andere Kennung, während ein Tobie liegt, wird erst nach
-    2 gleichen Lesungen als Wechsel gemeldet (`REMOVED` + `PLACED`).
+    **3 gleichen Lesungen in Folge** als Wechsel gemeldet (`REMOVED` + `PLACED`,
+    `CHANGE_CONFIRM_READS`). Grund: Eine verfälschte Kennung am Rand wurde
+    einmal zweimal gleich gelesen (09.11.). Der Wechsel dauert dadurch
+    200 ms länger; das Auflegen aus leerem Zustand bleibt bei 2 Lesungen.
 - **Gesperrter Tonie**: eigener stabiler Zustand „gesperrt liegt“; gleiche
   Entprell- und Abhebe-Regeln wie bei einer Kennung.
 

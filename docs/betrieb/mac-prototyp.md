@@ -642,6 +642,57 @@ Prüfpunkts, spielt die Box den allgemeinen Ton `pruef_ok` oder `pruef_fehler`.
 
 Die Töne kommen aus `box/tools/make_sprache.py`; neu erzeugen geht nur im Container, nicht am Mac.
 
+## Lautstärke der Töne und des Hörspiels (Entscheidung J, 09.11.)
+
+**Was neu ist.** Die Ansagen und Töne der Box sind jetzt so laut wie das Hörspiel. Vorher spielten
+sie mit einem festen Pegel und waren viel lauter als das Hörspiel bei Startlautstärke 20. Jetzt
+folgt jeder Ton der aktuellen Lautstärke: Drehst du leiser, wird auch die Ansage leiser. Die Grenzen
+(`max`, `kopfhoerer`, „leiser“-Zeiten) gelten für Töne wie für das Hörspiel. Ganz still wird ein
+Ton nicht: Er spielt mindestens mit Lautstärke 10. Der Hinweiston bleibt leiser als die Lautstärke
+(Vorgabe 15, nie darüber, außer durch dieses Minimum).
+
+**Warum es vorher so war.** MPD setzt die Lautstärke nicht linear um. Mit `mixer_type "software"`
+(so steht es in `mpd.mac.example.conf`) gilt `Verstärkung = (exp(p / 25) − 1) / (exp(4) − 1)`. Das ist
+ein Wert pro Prozent, nicht „halb so laut bei 50“:
+
+| Lautstärke | 10 | 20 (Start) | 30 | 40 (Maximum) | 50 | 70 | 100 |
+|---|---|---|---|---|---|---|---|
+| Pegel gegenüber der Datei | −41 dB | −33 dB | −27 dB | −23 dB | −18 dB | −11 dB | 0 dB |
+
+Bei 20 ist das Hörspiel also gut 30 dB unter der Datei, ein Ton mit dem alten Pegel 40 (linear) nur
+8 dB. Das ist der große Unterschied. Die Box rechnet Töne jetzt mit derselben Kurve, damit gleiche
+Lautstärke auch gleich laut klingt. Wer das Hörspiel lauter will, dreht auf oder erhöht `start`
+und `max` in `box/config/tobibox.toml` (zum Beispiel `start = 40`, `max = 60`). Die Kurve für den
+Pi ist anders (ALSA-`softvol`); sie steht in der Konfiguration (`[toene] kennlinie`), am Mac
+änderst du nichts.
+
+**Was du am Mac tun musst.**
+
+- `git pull`, dann den Dienst neu starten. Die neuen Töne und Testmedien liegen im Repo. Die
+  MPD-Konfiguration bleibt unverändert (Software-Mixer, `replaygain "track"`). Nach dem Neuladen der
+  Medien einmal `(printf 'update\n'; sleep 1) | nc localhost 6600`.
+- Wenn du `ton_pegel` in der `config.json` hast: Das Feld ist ohne Wirkung und darf stehen bleiben.
+
+**Gleiche Lautheit.** Die Töne in `box/sounds/`, `box/sounds/sprache/` und die gesprochenen Testmedien
+in `box/medien-sprache/` liegen jetzt alle bei −18 LUFS. Das ist der Wert, auf den `rsgain` auf dem NAS
+später die echten Hörspiele bringt. Die Testmedien tragen dazu ReplayGain-Tags; ohne Tags würde MPD sie
+um 6 dB dämpfen (`replaygain_missing_preamp`).
+
+**Eigene Dateien am Mac.** Ein eigenes Hörspiel wie dein `zaehlen.mp3` hat keine ReplayGain-Tags.
+MPD dämpft es dann um 6 dB und lässt seinen eigenen Pegel stehen. Es kann deshalb leiser oder lauter
+sein als die Testmedien oder die Ansagen. Das ist am Mac gewollt so; **auf der Box gleicht `rsgain` das
+aus** (Design, D6). Willst du am Mac denselben Pegel, mach eine normalisierte Kopie. Du brauchst
+`ffmpeg` (`brew install ffmpeg`):
+
+```bash
+python3 ~/Tobi_box/box/tools/lautheit.py --normalisiere ~/Tobi_box/box/medien-sprache/lang/zaehlen.mp3
+```
+
+Das schreibt `zaehlen-normalisiert.mp3` neben die Datei (−18 LUFS, mit ReplayGain-Tags). Das
+Original bleibt. Zum Hören nimm die Kopie und führe danach `update` bei MPD aus. Den Pegel einer
+Datei misst `python3 ~/Tobi_box/box/tools/lautheit.py DATEI`. Bei sehr dynamischen Dateien kann der
+Pegel knapp unter −18 bleiben (ein Limiter schützt vor Übersteuern); der Rest steht im Tag.
+
 ## 12. Abnahme Stufe 2
 
 Diese Liste führt jeden Punkt von „Abnahme Stufe 2“ aus `docs/designs/box-software.md`

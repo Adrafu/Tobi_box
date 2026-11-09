@@ -102,7 +102,9 @@ Zyklus, erster Lesung, Entprellen und Übertragung. Die Teile:
 - *Warten auf den Zyklus:* Streuung der Klack-Werte (Maximum minus Minimum) bei einer
   NTAG-Karte. Sie liegt unter dem Zyklus von 200 ms.
 - *Entprellen:* fest ein Zyklus (`CONFIRM_READS` = 2, also die zweite Lesung 200 ms
-  nach der ersten); keine eigene Messung. Zeigt Klack mehr als die Summe aus
+  nach der ersten); keine eigene Messung. Nur ein **Wechsel** bei liegendem Tobie
+  braucht drei Lesungen (`CHANGE_CONFIRM_READS` = 3, also 400 ms nach der ersten);
+  das gehört nicht zur Auflegezeit. Zeigt Klack mehr als die Summe aus
   Streuung, Lesung und 200 ms, steht hier der Grund.
 - *Übertragung:* USB-CDC am Mac; der Wert steckt im Klack. Im Container: Abschnitt 4.
 
