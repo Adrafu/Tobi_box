@@ -45,7 +45,7 @@ RATE = 22050
 WURZEL = Path(__file__).resolve().parents[1]
 STIMME = "de_DE-thorsten-medium"
 STIMME_URL = "https://huggingface.co/rhasspy/piper-voices/resolve/main/de/de_DE/thorsten/medium/"
-MAX_SPITZE = 0.98  # größter erlaubter Abtastwert nach dem Angleichen auf -18 LUFS (sonst Fehler, kein stilles Übersteuern)
+MAX_FEHLBETRAG_DB = 0.5  # so viel darf eine Datei unter -18 LUFS bleiben, wenn die Vollaussteuerung die Verstärkung begrenzt
 ANGELEGT_AM = "2026-11-09T09:00:00Z"
 
 # --------------------------------------------------------------------------
@@ -176,12 +176,20 @@ def _normiere(s: array.array) -> array.array:
 
 
 def verstaerke(s: array.array, db: float) -> array.array:
+    """Um ``db`` verstärken, ohne zu übersteuern (Piper liefert schon volle Aussteuerung).
+
+    Reicht die Aussteuerung nicht für ``db``, wird nur bis zur Vollaussteuerung verstärkt; fehlen dann
+    mehr als ``MAX_FEHLBETRAG_DB``, ist das ein Fehler (-18 LUFS ohne Limiter nicht erreichbar).
+    """
+    spitze = max((abs(x) for x in s), default=0)
+    if spitze:
+        grenze_db = math.floor(20 * math.log10(32767 / spitze) * 100) / 100
+        if db > grenze_db:
+            if db - grenze_db > MAX_FEHLBETRAG_DB:
+                raise ValueError(f"{db:+.2f} dB nötig, nur {grenze_db:+.2f} dB bis zur Vollaussteuerung")
+            db = grenze_db
     f = 10 ** (db / 20)
-    neu = array.array("h", (max(-32768, min(32767, int(round(x * f)))) for x in s))
-    spitze = max((abs(x) for x in neu), default=0) / 32768
-    if spitze > MAX_SPITZE:
-        raise ValueError(f"Spitze {spitze:.3f} nach {db:+.2f} dB über {MAX_SPITZE}: -18 LUFS ohne Übersteuern nicht erreichbar")
-    return neu
+    return array.array("h", (max(-32768, min(32767, int(round(x * f)))) for x in s))
 
 
 def stille(sekunden: float) -> array.array:
