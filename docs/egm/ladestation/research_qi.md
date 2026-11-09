@@ -40,3 +40,26 @@ Qi löst alle Probleme der offenen Kontakte: keine Kontakte, keine Magnete,
 keine Reeds, keine eigene Sockel-Platine. Das Risiko wandert in die Box:
 Kommen Empfänger und PiSugar-Ladechip miteinander aus, und wie warm wird es
 am Akku? Beides ist billig zu testen.
+
+## Nachtrag: Erfahrungen anderer mit PiSugar + Qi (09.11., Haiku)
+
+PiSugar bietet selbst kein Qi an. Es gibt nur Bastlerberichte, keiner ist ein
+sauberer Erfolg:
+
+- **PiSugar/PiSugar #168** (PiSugar 3, Qi-Modul angelötet): Akku und Lader
+  wurden **sehr heiß**. Der Pi Zero ging beim Laden **von selbst an**.
+  Antwort des Herstellers: Das Modul darf nicht am Akku anliegen. Die
+  Modul-Platine hält über 100 °C aus, der Akku verträgt beim Laden nur
+  45 °C. Ohne Lösung geschlossen.
+  https://github.com/PiSugar/PiSugar/issues/168
+- **#62:** Qi lädt nicht, Ursache war vertauschte Verdrahtung. Nach der
+  Korrektur lud es. https://github.com/PiSugar/PiSugar/issues/62
+- **#73:** Laden über Qi wird ab ~50 % stark langsamer. Keine Lösung.
+  https://github.com/PiSugar/PiSugar/issues/73
+- **Hackaday (PiSugar Zero):** nur die Idee, kein Test.
+- **Phoniebox- und TonUINO-Szene:** keine Kinderbox mit Qi gefunden.
+
+**Folgerung:** Die beiden Hauptrisiken sind real belegt: Wärme am Akku und
+Aufwachen beim Laden. Das Aufwachen kann an der Einstellung Auto-Power-On
+gelegen haben, das ist nicht geklärt. Qi bleibt nur mit Wärmetest machbar,
+der Vorsprung gegenüber den Kontakten wird kleiner.
