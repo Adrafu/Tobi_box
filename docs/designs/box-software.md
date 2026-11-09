@@ -1568,6 +1568,10 @@ Skripte, Automationen) liegt als Dateien im Repo unter `homeassistant/`.
     Tests mit `pytest-homeassistant-custom-component` sind an HA- und
     Python-Version gebunden und laufen deshalb in einer eigenen venv und einem
     eigenen CI-Job.
+    **Nachtrag zu Rev. 3.15 (09.11., Befund AP 3.1; keine neue Revision):** Die HA-Tests laufen
+    vorerst gegen **2026.10.4**, weil `pytest-homeassistant-custom-component` für 2026.11 noch
+    nicht erschienen ist. Die Integration ist statisch gegen 2026.11.0 geprüft. Die Pins
+    (`homeassistant/requirements-test.txt`, CI) werden nachgezogen, sobald das Plugin da ist.
   - Upload als Strom in Blöcken (`request.multipart()`): HA begrenzt normale
     Anfragen auf 16 MiB (`MAX_CLIENT_SIZE` in `components/http/server.py`, am 09.11.
     im Quelltext belegt), Hörspielfolgen sind größer; Grenze je Datei zunächst 500 MiB,

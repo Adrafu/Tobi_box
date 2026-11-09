@@ -1123,7 +1123,12 @@ Alle Ereignisse haben dieselbe Hülle (Inhalt des Feldes `event` der HA-Nachrich
 
 ### 4.3 Thema `lernmodus`
 
-Gilt je Box und Vorgang. `daten`:
+| `art` | `daten` |
+|---|---|
+| `snapshot` | `{"vorgaenge": […]}` (siehe unten) |
+| `zustand` | **(09.11., Befund AP 3.1)** ein Vorgang hat den Zustand gewechselt oder sich geändert; `daten` wie in der Tabelle unten |
+
+Gilt je Box und Vorgang. `daten` von `zustand`:
 
 | Feld | Typ | Bedeutung |
 |---|---|---|
@@ -1638,6 +1643,19 @@ sind seit dem 09.11. Teil von Version 1: Nr. 24 und 25.)
 | `tobibox/box/update` | 3b (AP 3.8/3.11) | `{"box", "version"?}`; Backend nimmt ohne Angabe die neueste Version aus `releases/`. Rechte: Admin. MQTT: `cmd` `update`, 300 s (`mqtt-v1.md`, 3.7). Ergebnis über `status.update` (Ereignis `boxen`). Fehler wie bei `box/sync`, dazu `keine_version`. Fähigkeit `update`. |
 | `tobibox/releases/list` | 3b | Liest die vorhandenen Pakete auf `releases/` (nur Name und Version). Rechte: alle. |
 | `tobibox/eingang/track_anhaengen` | offen | Nachlieferung einzelner Tracks zu einer schon einsortierten Folge (11.3: in Version 1 nicht vorgesehen) |
+
+**Erweiterungen v1.1, später (09.11., Befund AP 3.2, gegen den Code von AP 3.1 geprüft):** Das Backend hat
+dafür **keine** passenden Befehle. Alle sind additiv (Abschnitt 9, „Ohne Erhöhung“) und gehören nicht zu
+Version 1; die Seite behilft sich bis dahin.
+
+| Lücke | Stand im Backend | Vorschlag (keine Festlegung) |
+|---|---|---|
+| Blockierten oder defekten Eingangseintrag entfernen | `eingang/list` und `eingang/sortieren` gibt es, einen Befehl zum Entfernen eines Eintrags nicht. Von Hand auf der Freigabe löschen. | `tobibox/eingang/entfernen` mit `eintrag_id` (Admin; Datei in den Papierkorb oder löschen, mit Bestätigung) |
+| `papierkorb/restore` mit `serie_id`: Serie in der Seite wählen | Der Befehl nimmt `serie_id` schon an (Nr. 11); es fehlt nur die Auswahl in der Seite. | Kein neuer Befehl; Seite ergänzt die Serienauswahl aus `serien/list` |
+| Felder des Box-`status` genau benennen | `boxen/list` gibt `status` unverändert weiter (Nr. 21). Die Felder stehen in `mqtt-v1.md`, 3.3; dieser Vertrag wiederholt sie nicht. | Die Seite liest nur Felder aus `mqtt-v1.md`, 3.3 (Verweis); fehlende Felder zeigt sie als „unbekannt“ |
+| `zuordnung/list` mit Filter `uid` | Nur Filter `serie_id`, `limit`, `offset` (Nr. 15). | optionale Eingabe `uid` (genau eine Zuordnung) |
+| Lesebefehl für den Konfig-Stand | Der Stand steht nur in der Ausgabe von `zuordnung/list`, `konfig/export_lesen` und im Ereignis `konfig`; ein eigener Lesebefehl fehlt. | `tobibox/konfig/get` mit dem Konfig-Stand und `zustand` (alle) |
+| Ereignis „Upload fertig“ mit Dateiname und Prüfung | `fortschritt` trägt nur `upload_id`, `zustand`, `bytes`, `code` (4.7). | `fortschritt` mit `zustand="fertig"` bekommt `datei` (Dateiname) und `pruefung` (`ok`, `warnung`, `nicht_moeglich`) |
 
 **Schon in Stufe 3a nötig:** Das Backend legt `leise_zeiten` (`zeitzone`
 `Europe/Berlin`, `fenster` leer) und `gute_nacht` (`timer_min` 30, `ausblenden_s` 60,
