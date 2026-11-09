@@ -104,6 +104,10 @@ void loop() {
     const uint32_t t0 = now;
     const Reading r = reader.poll();
     const uint32_t t1 = millis();
+    // Einmalig nach dem Start: Laenge der ersten gueltigen Inventory-Antwort
+    // (10 oder 12 laut classify.h). Zeile "DBG inv_len=<n>", vom Dienst ignoriert.
+    uint8_t invLen = 0;
+    if (reader.takeFirstInventoryLen(&invLen)) protocol->onDebug("inv_len", invLen);
     protocol->onCycle(r, t1, t1 - t0);
     nextPoll = t0 + POLL_PERIOD_MS;  // Beginn zu Beginn; war die Arbeit laenger, sofort weiter
   }

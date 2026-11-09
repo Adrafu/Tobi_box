@@ -44,6 +44,10 @@ size_t formatHb(char* buf, size_t cap, const HbFields& hb);
 // 80 Zeichen gekürzt, leer wird "n/a".
 size_t formatErr(char* buf, size_t cap, const char* code, const char* detail);
 
+// Diagnosezeile "DBG <schluessel>=<zahl>". Unbekannter Zeilentyp in reader-v1: der
+// Box-Dienst ignoriert sie (Abschnitt 11). Kein seq, kein Einfluss auf Zaehler.
+size_t formatDbg(char* buf, size_t cap, const char* key, uint32_t value);
+
 const char* cycleErrorCode(CycleError e);
 
 // ------------------------------------------------------------ Befehle (Box-Dienst -> Leser)
@@ -133,6 +137,9 @@ class Protocol {
   // ERR bad_command (außer leerer Zeile).
   void onCommandLine(const char* line, size_t len);
   void onLineTooLong();
+
+  // Einzelne Diagnosezeile (DBG), z. B. die Laenge der ersten Inventory-Antwort.
+  void onDebug(const char* key, uint32_t value);
 
   // Herzschlag: ruft main regelmäßig auf. up_ms: Zeit seit Start (64 Bit).
   void tick(uint32_t now_ms, uint64_t up_ms);

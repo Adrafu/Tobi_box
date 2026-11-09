@@ -325,7 +325,7 @@ void test_error_clears_challenger_but_keeps_last() {
 
 void test_confirm_reads_1_and_3() {
   {
-    Debouncer d(DebounceParams(1, 1100, 5000));
+    Debouncer d(DebounceParams(1, 0, 1100, 5000));
     Rec r;
     DebounceResult x = r.step(d, ntag(A), 0);
     TEST_ASSERT_TRUE(x.placement == DebounceResult::Placement::Placed);
@@ -335,7 +335,7 @@ void test_confirm_reads_1_and_3() {
     TEST_ASSERT_EQUAL(1, r.rejected);
   }
   {
-    Debouncer d(DebounceParams(3, 1100, 5000));
+    Debouncer d(DebounceParams(3, 0, 1100, 5000));
     Rec r;
     r.step(d, ntag(A), 0);
     r.step(d, ntag(A), 200);

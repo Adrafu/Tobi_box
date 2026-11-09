@@ -1,5 +1,6 @@
-// Native Tests der Antwort-Einordnung (classify.h): Fehlerflag des Tags ist
-// "nichts", nur Uebertragungsfehler sind "fehler", Entsperren nach Vorgabe.
+// Native Tests der Antwort-Einordnung (classify.h): Rahmenpruefung der
+// Inventory-Antwort, feste Abbildung des Fehlerflags, Entsperren nach Vorgabe,
+// Pruefungen fuer ISO 14443A.
 #include <unity.h>
 
 #include <cstring>
@@ -71,7 +72,15 @@ void test_frame_clean_without_and_with_crc() {
 void test_frame_with_one_wrong_bit_is_rejected_by_crc() {
   uint8_t b[INV_MAX_LEN];
   size_t n = buildFrame(b, true);
-  b[2] ^= 0x4c;  // 0x42 -> 0x0e, wie im Fehlerfall
+  b[2] ^= 0x01;  // genau ein Bit: 0x42 -> 0x43
+  TEST_ASSERT_EQUAL_HEX8(0x43, b[2]);
+  TEST_ASSERT_TRUE(checkInventoryFrame(n, b) == FrameCheck::BadCrc);
+}
+
+void test_frame_with_three_wrong_bits_is_rejected_by_crc() {
+  uint8_t b[INV_MAX_LEN];
+  size_t n = buildFrame(b, true);
+  b[2] ^= 0x4c;  // drei Bits: 0x42 -> 0x0e, wie im Fehlerfall
   TEST_ASSERT_EQUAL_HEX8(0x0e, b[2]);
   TEST_ASSERT_TRUE(checkInventoryFrame(n, b) == FrameCheck::BadCrc);
 }
@@ -93,9 +102,159 @@ void test_frame_wrong_length_is_rejected() {
   for (size_t n : bad) TEST_ASSERT_TRUE(checkInventoryFrame(n, b) == FrameCheck::BadLength);
 }
 
-void test_frame_tag_error_flag_stays_nothing() {
-  uint8_t b[INV_MAX_LEN] = {0x01, 0x0f};  // Fehlerflag, Code "unbekannt"
-  TEST_ASSERT_TRUE(checkInventoryFrame(2, b) == FrameCheck::TagError);
+void test_frame_length_detail_names_the_length() {
+  uint8_t b[INV_MAX_LEN];
+  buildFrame(b, false);
+  char d[64];
+  describeFrame(FrameCheck::BadLength, 11, b, d, sizeof d);
+  TEST_ASSERT_EQUAL_STRING("inventory length=11", d);
+  // auch eine zu lange Antwort nennt ihre Laenge
+  describeFrame(FrameCheck::BadLength, 300, b, d, sizeof d);
+  TEST_ASSERT_EQUAL_STRING("inventory length=300", d);
+}
+
+// Echtes Fehlerflag des Tags (Laenge 2 ohne CRC, Laenge 4 mit CRC).
+static size_t buildTagError(uint8_t* buf, uint8_t code, bool withCrc) {
+  memset(buf, 0, INV_MAX_LEN);
+  buf[0] = 0x01;
+  buf[1] = code;
+  if (!withCrc) return 2;
+  const uint16_t crc = static_cast<uint16_t>(~crc16Iso15693(buf, 2));
+  buf[2] = static_cast<uint8_t>(crc & 0xff);
+  buf[3] = static_cast<uint8_t>(crc >> 8);
+  return 4;
+}
+
+void test_frame_tag_error_flag_maps_to_fixed_code() {
+  uint8_t b[INV_MAX_LEN];
+  for (int withCrc = 0; withCrc <= 1; withCrc++) {
+    // Codes 0x01 und 0xA0 (benutzerdefiniert): fest RC_TAG_ERROR, nie der rohe Code
+    const uint8_t codes[] = {0x01, 0x02, 0x10, 0xA0, 0xFF};
+    for (uint8_t code : codes) {
+      const size_t n = buildTagError(b, code, withCrc);
+      TEST_ASSERT_TRUE(checkInventoryFrame(n, b) == FrameCheck::TagError);
+      TEST_ASSERT_EQUAL(RC_TAG_ERROR, frameToRc(FrameCheck::TagError, b));
+    }
+    // Code 0x0F ("unbekannt") wie in der Bibliothek ein Fehler
+    size_t n = buildTagError(b, 0x0F, withCrc);
+    TEST_ASSERT_TRUE(checkInventoryFrame(n, b) == FrameCheck::TagError);
+    TEST_ASSERT_EQUAL(RC_UNKNOWN_ERROR, frameToRc(FrameCheck::TagError, b));
+    // Code 0x00 ist kein Fehlercode: nie RC_OK (das waere eine leere Kennung)
+    n = buildTagError(b, 0x00, withCrc);
+    TEST_ASSERT_TRUE(checkInventoryFrame(n, b) == FrameCheck::TagError);
+    TEST_ASSERT_EQUAL(RC_UNKNOWN_ERROR, frameToRc(FrameCheck::TagError, b));
+  }
+}
+
+void test_tag_error_codes_keep_unlock_behaviour() {
+  uint8_t b[INV_MAX_LEN];
+  // erstes Inventory: Fehlerflag -> weiter zum Entsperrversuch (wie bisher)
+  buildTagError(b, 0x01, false);
+  TEST_ASSERT_TRUE(classifyResponse(frameToRc(FrameCheck::TagError, b)) == RespClass::Nothing);
+  // zweites Inventory nach dem Entsperren: Fehlerflag -> gesperrt (wie bisher)
+  TEST_ASSERT_TRUE(classifyReinventory(frameToRc(FrameCheck::TagError, b)) == UnlockClass::Locked);
+  // 0x0F und 0x00 sind Fehler in beiden Faellen
+  buildTagError(b, 0x0F, false);
+  TEST_ASSERT_TRUE(classifyResponse(frameToRc(FrameCheck::TagError, b)) == RespClass::Error);
+  TEST_ASSERT_TRUE(classifyReinventory(frameToRc(FrameCheck::TagError, b)) == UnlockClass::Error);
+}
+
+void test_tag_error_frame_with_bad_crc_is_rejected() {
+  uint8_t b[INV_MAX_LEN];
+  size_t n = buildTagError(b, 0x01, true);
+  b[1] ^= 0x01;
+  TEST_ASSERT_TRUE(checkInventoryFrame(n, b) == FrameCheck::BadCrc);
+}
+
+void test_error_flag_in_full_frame_is_rejected_not_taken_as_tag_error() {
+  uint8_t b[INV_MAX_LEN];
+  for (int withCrc = 0; withCrc <= 1; withCrc++) {
+    size_t n = buildFrame(b, false);
+    b[0] = 0x01;  // Fehlerflag, DSFID 0x00 wie bei einem Tonie
+    if (withCrc) {
+      const uint16_t crc = static_cast<uint16_t>(~crc16Iso15693(b, 10));
+      b[10] = static_cast<uint8_t>(crc & 0xff);
+      b[11] = static_cast<uint8_t>(crc >> 8);
+      n = 12;
+    }
+    TEST_ASSERT_TRUE(checkInventoryFrame(n, b) == FrameCheck::BadFlags);
+    // Fall aus dem Review: darf nie RC_OK werden (Kennung waere nur Nullen)
+    TEST_ASSERT_EQUAL(RC_UNKNOWN_ERROR, frameToRc(FrameCheck::BadFlags, b));
+  }
+}
+
+void test_zero_uid_is_never_valid() {
+  uint8_t b[INV_MAX_LEN];
+  for (int withCrc = 0; withCrc <= 1; withCrc++) {
+    size_t n = buildFrame(b, false);
+    memset(b + 2, 0, 8);
+    if (withCrc) {
+      const uint16_t crc = static_cast<uint16_t>(~crc16Iso15693(b, 10));
+      b[10] = static_cast<uint8_t>(crc & 0xff);
+      b[11] = static_cast<uint8_t>(crc >> 8);
+      n = 12;
+    }
+    TEST_ASSERT_TRUE(checkInventoryFrame(n, b) == FrameCheck::ZeroUid);
+    TEST_ASSERT_EQUAL(RC_UNKNOWN_ERROR, frameToRc(FrameCheck::ZeroUid, b));
+  }
+}
+
+void test_frame_to_rc_ok_only_for_ok() {
+  uint8_t b[INV_MAX_LEN] = {0};
+  TEST_ASSERT_EQUAL(RC_OK, frameToRc(FrameCheck::Ok, b));
+  const FrameCheck bad[] = {FrameCheck::BadFlags, FrameCheck::ZeroUid, FrameCheck::RxError,
+                            FrameCheck::BadLength, FrameCheck::BadCrc};
+  for (FrameCheck c : bad) TEST_ASSERT_EQUAL(RC_UNKNOWN_ERROR, frameToRc(c, b));
+}
+
+// ---- ISO 14443A
+
+void test_typea_frame_check() {
+  TEST_ASSERT_TRUE(checkTypeAFrame(0, 5) == TypeAFrame::Nothing);
+  // auch mit gesetztem Fehlerbit: nichts empfangen heisst keine Karte
+  TEST_ASSERT_TRUE(checkTypeAFrame(1UL << 16, 5) == TypeAFrame::Nothing);
+  TEST_ASSERT_TRUE(checkTypeAFrame(5, 5) == TypeAFrame::Ok);
+  for (uint32_t bit = 16; bit <= 18; bit++)
+    TEST_ASSERT_TRUE(checkTypeAFrame(5 | (1UL << bit), 5) == TypeAFrame::RxError);
+  TEST_ASSERT_TRUE(checkTypeAFrame(4, 5) == TypeAFrame::BadLength);
+  TEST_ASSERT_TRUE(checkTypeAFrame(6, 5) == TypeAFrame::BadLength);
+  TEST_ASSERT_TRUE(checkTypeAFrame(2, 1) == TypeAFrame::BadLength);
+}
+
+void test_typea_bcc() {
+  const uint8_t four[5] = {0x12, 0x34, 0x56, 0x78, 0x12 ^ 0x34 ^ 0x56 ^ 0x78};
+  TEST_ASSERT_TRUE(typeABccValid(four));
+  // 7-Byte-Tag, Ebene 1: 0x88 zaehlt mit
+  const uint8_t cascade[5] = {0x88, 0x04, 0x11, 0x22, 0x88 ^ 0x04 ^ 0x11 ^ 0x22};
+  TEST_ASSERT_TRUE(typeABccValid(cascade));
+  for (int i = 0; i < 5; i++) {
+    uint8_t b[5];
+    memcpy(b, four, 5);
+    b[i] ^= 0x10;
+    TEST_ASSERT_FALSE(typeABccValid(b));
+  }
+}
+
+void test_typea_sak_consistency() {
+  TEST_ASSERT_TRUE(typeASakConsistent(0x04, 0x00));   // 4 Byte, fertig
+  TEST_ASSERT_TRUE(typeASakConsistent(0x88, 0x04));   // 7 Byte, Ebene 2 folgt
+  TEST_ASSERT_FALSE(typeASakConsistent(0x88, 0x00));  // 0x88 ohne Cascade-Bit
+  TEST_ASSERT_FALSE(typeASakConsistent(0x04, 0x04));  // Cascade-Bit ohne 0x88
+  TEST_ASSERT_TRUE(typeASakConsistent(0x04, 0x20));   // ISO 14443-4 ist kein Problem
+}
+
+void test_typea_uid_plausible() {
+  const uint8_t ok4[4] = {0x04, 0x12, 0x34, 0x56};
+  TEST_ASSERT_TRUE(typeAUidPlausible(ok4, 4));
+  const uint8_t zero4[4] = {0x00, 0x12, 0x34, 0x56};
+  TEST_ASSERT_FALSE(typeAUidPlausible(zero4, 4));
+  const uint8_t flat4[4] = {0x04, 0x00, 0xFF, 0x00};
+  TEST_ASSERT_FALSE(typeAUidPlausible(flat4, 4));
+  const uint8_t ok7[7] = {0x04, 0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc};
+  TEST_ASSERT_TRUE(typeAUidPlausible(ok7, 7));
+  const uint8_t zeroTail[7] = {0x04, 0x12, 0x34, 0x00, 0x00, 0x00, 0x00};
+  TEST_ASSERT_FALSE(typeAUidPlausible(zeroTail, 7));
+  TEST_ASSERT_FALSE(typeAUidPlausible(ok4, 5));
 }
 
 void test_health_classes() {
@@ -119,9 +278,20 @@ int main(int, char**) {
   RUN_TEST(test_crc16_known_value);
   RUN_TEST(test_frame_clean_without_and_with_crc);
   RUN_TEST(test_frame_with_one_wrong_bit_is_rejected_by_crc);
+  RUN_TEST(test_frame_with_three_wrong_bits_is_rejected_by_crc);
   RUN_TEST(test_frame_with_rx_error_bits_is_rejected);
   RUN_TEST(test_frame_wrong_length_is_rejected);
-  RUN_TEST(test_frame_tag_error_flag_stays_nothing);
+  RUN_TEST(test_frame_length_detail_names_the_length);
+  RUN_TEST(test_frame_tag_error_flag_maps_to_fixed_code);
+  RUN_TEST(test_tag_error_codes_keep_unlock_behaviour);
+  RUN_TEST(test_tag_error_frame_with_bad_crc_is_rejected);
+  RUN_TEST(test_error_flag_in_full_frame_is_rejected_not_taken_as_tag_error);
+  RUN_TEST(test_zero_uid_is_never_valid);
+  RUN_TEST(test_frame_to_rc_ok_only_for_ok);
+  RUN_TEST(test_typea_frame_check);
+  RUN_TEST(test_typea_bcc);
+  RUN_TEST(test_typea_sak_consistency);
+  RUN_TEST(test_typea_uid_plausible);
   RUN_TEST(test_health_classes);
   RUN_TEST(test_cycle_timeout_threshold);
   return UNITY_END();

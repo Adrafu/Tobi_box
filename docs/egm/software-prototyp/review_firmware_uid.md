@@ -206,3 +206,35 @@ Quellen:
   mit dem Code überein.
 - Tonie-Passwort: nicht im Repo, `config.h` nur lokal erzeugt und wieder gelöscht,
   `git status` sauber (außer diesem Report).
+
+---
+
+## Auflösung
+
+Stand 09.11.2026, Umsetzung nach den Entscheidungen der Projektleitung. Nichts committet,
+nichts hochgeladen. `pio test -e native`: 78 von 78 bestanden; `pio run -e esp32s3`: Build
+erfolgreich (Flash 25,0 %, RAM 6,9 %).
+
+- **B1 (hoch): behoben, Messung am Gerät steht aus.** Länge 12: CRC wird geprüft. Länge 10: nur mit
+  aktiver Empfangs-CRC möglich, dann gilt Fehlerbit 16 (Begründung in `classify.h`). Jede andere Länge:
+  `ERR code=bad_response detail=inventory length=<n>`. Einmal nach dem Start `DBG inv_len=<n>`
+  (Dienst ignoriert unbekannte Zeilentypen, `protocol.py` geprüft; Vertrag Abschnitt 3 ergänzt, keine
+  Änderung am Zeilenformat). Register `CRC_RX_CONFIG` wird nicht gelesen: Länge 10 beweist die aktive CRC.
+- **B2 (mittel): behoben.** `frameToRc()` (rein, getestet) bildet das Fehlerflag fest auf `RC_TAG_ERROR`
+  ab, Code 0x00 und 0x0F auf Fehler; Fehlerflag in Rahmen mit Länge 10/12 ist `BadFlags` (fehler), Kennung
+  nur aus Nullen ist `ZeroUid` (fehler). Der Entsperrversuch hängt nur an "nicht OK, nicht 0x0F"; gesperrte
+  Tonies verhalten sich wie vorher (Test `test_tag_error_codes_keep_unlock_behaviour`). Einzige Änderung:
+  Fehlercode 0x0F nach dem Entsperren ist weiter Fehler (wie Bibliothek), der Kommentar sagt es jetzt.
+- **B3 (mittel): behoben.** Eigener Pfad `typea.h` statt `readCardSerial()`: Prüfung von Fehlerbits und
+  Länge bei REQA, Antikollision und Select, BCC je Ebene (4 und 7 Byte), SAK (Cascade-Bit passt zu 0x88,
+  keine 10-Byte-Kennung). Die Befehlsfolge der Bibliothek ist als Ablaufprotokoll im Test festgehalten;
+  Ergänzungen: je ein Lesen von `RX_STATUS` nach REQA, Antikollision und Select, dazu 5 ms Wartezeit vor dem
+  SAK (und vor Ebene 2). Wirkung am Gerät unbestätigt, Messung steht aus.
+- **B4 (niedrig): behoben.** `sendData`-Fehler ist wieder "nichts"; `RX_SOF_DET` wird nach `readData` erneut
+  geprüft (wie `PN5180ISO15693.cpp` 781-786, Rahmen ohne SOF ist "nichts").
+- **B5 (niedrig): dokumentiert.** `LEER` bleibt bei 2 Lesungen (Auflegezeit unter 1 s, Schicht 1 ist der
+  Hauptschutz). Beide Grenzen (a, b) stehen in `reader-v1.md`, Abschnitt 9; c ist kein Fehler.
+- **B6 (niedrig): behoben.** Tabelle 83 mit Revision Rev. 3.0 genannt (C3/C4 nicht verglichen). Test mit einem
+  gekippten Bit neu geschrieben, der alte (drei Bits) heißt jetzt `..._three_wrong_bits_...`. Der Test zum
+  Fehlerflag prüft jetzt die Abbildung. `DebounceParams(confirm, change, remove, error)` hat die Reihenfolge der
+  Felder (`change = 0` heißt wie `confirm`), Aufrufer angepasst, Verhalten gleich.

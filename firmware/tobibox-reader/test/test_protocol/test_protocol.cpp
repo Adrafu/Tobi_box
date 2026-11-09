@@ -414,7 +414,8 @@ void test_section3_sequences() {
       cur.name = p[1];
       open = true;
     } else if (p[0] == "PARAM" && open) {
-      cur.params = DebounceParams(u32(p[1].substr(p[1].find('=') + 1).c_str()),
+      // PARAM|confirm=..|remove=..|error=.. ; change = 0 heisst: gleich confirm
+      cur.params = DebounceParams(u32(p[1].substr(p[1].find('=') + 1).c_str()), 0,
                                   u32(p[2].substr(p[2].find('=') + 1).c_str()),
                                   u32(p[3].substr(p[3].find('=') + 1).c_str()));
     } else if (p[0] == "STEP" && open) {
@@ -610,6 +611,26 @@ void test_removed_and_err_same_step() {
   TEST_ASSERT_EQUAL_UINT32(1, proto.counters().errors);
 }
 
+void test_dbg_line_is_an_unknown_type_without_effect() {
+  char buf[64];
+  const size_t n = formatDbg(buf, sizeof buf, "inv_len", 12);
+  TEST_ASSERT_EQUAL_STRING("DBG inv_len=12", buf);
+  TEST_ASSERT_EQUAL_UINT32(14, n);
+  // Vertrag Abschnitt 11: unbekannter Zeilentyp, der Dienst ignoriert ihn
+  ParsedLine pl;
+  TEST_ASSERT_TRUE(parseReaderLine(buf, &pl) == ParseReason::UnknownType);
+  // kein seq, keine Zaehler
+  VecSink sink;
+  Protocol proto(sink, testHello());
+  proto.start(0);
+  sink.lines.clear();
+  proto.onDebug("inv_len", 10);
+  TEST_ASSERT_EQUAL_UINT32(1, sink.lines.size());
+  TEST_ASSERT_EQUAL_STRING("DBG inv_len=10", sink.lines[0].c_str());
+  TEST_ASSERT_EQUAL_UINT32(0, proto.nextSeq());
+  TEST_ASSERT_EQUAL_UINT32(0, proto.counters().errors);
+}
+
 void test_line_assembler_200_plus_cr() {
   LineAssembler a;
   LineAssembler::Event e = LineAssembler::Event::None;
@@ -661,6 +682,7 @@ int main(int, char**) {
   RUN_TEST(test_err_rate_limit_near_wrap);
   RUN_TEST(test_seq_overflow);
   RUN_TEST(test_removed_and_err_same_step);
+  RUN_TEST(test_dbg_line_is_an_unknown_type_without_effect);
   RUN_TEST(test_line_assembler_200_plus_cr);
   RUN_TEST(test_hello_after_start_retry);
   return UNITY_END();

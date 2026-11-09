@@ -26,6 +26,11 @@ class Reader {
   // Ein Abfragezyklus. Danach ist das HF-Feld aus.
   Reading poll();
 
+  // Einmalig nach dem Start: Laenge der ersten gueltigen Inventory-Antwort
+  // (Rahmenlaenge laut RX_STATUS). true nur beim ersten Aufruf nach dieser
+  // Lesung; main.cpp schreibt dann eine DBG-Zeile.
+  bool takeFirstInventoryLen(uint8_t* len);
+
  private:
   int inventoryChecked(uint8_t* uid);
   Reading readIso14443();
@@ -36,6 +41,9 @@ class Reader {
   PN5180ISO15693 nfc15693_;
   uint32_t cycleStart_ = 0;   // millis() zu Beginn des Zyklus
   const char* errDetail_ = "";  // Grund der letzten verworfenen Inventory-Antwort
+  bool firstInvLenSeen_ = false;
+  bool firstInvLenPending_ = false;
+  uint8_t firstInvLen_ = 0;
   bool lastWasNtag_ = false;  // zuletzt gelesenes Protokoll zuerst abfragen
 };
 

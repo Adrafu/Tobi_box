@@ -1,5 +1,7 @@
 #include "classify.h"
 
+#include <cstdio>
+
 namespace tobibox {
 
 RespClass classifyResponse(int rc) {
@@ -37,11 +39,16 @@ uint16_t crc16Iso15693(const uint8_t* data, size_t len) {
   return crc;  // ohne abschliessendes Invertieren
 }
 
+static bool allZero(const uint8_t* p, size_t n) {
+  for (size_t i = 0; i < n; i++)
+    if (p[i] != 0) return false;
+  return true;
+}
+
 FrameCheck checkInventoryFrame(uint32_t rx_status, const uint8_t* buf) {
   if (rx_status & RX_ERROR_BITS) return FrameCheck::RxError;
   const size_t len = rx_status & RX_LEN_MASK;
   // Fehlerantwort des Tags: Flags (Bit 0 gesetzt) + Fehlercode, ggf. + CRC.
-  // Sie bleibt "nichts", wie vor dieser Pruefung (classifyResponse).
   if ((len == 2 || len == 4) && (buf[0] & 0x01)) {
     if (len == 4 && crc16Iso15693(buf, len) != ISO15693_CRC_RESIDUE) return FrameCheck::BadCrc;
     return FrameCheck::TagError;
@@ -49,8 +56,64 @@ FrameCheck checkInventoryFrame(uint32_t rx_status, const uint8_t* buf) {
   if (len != INV_LEN_NO_CRC && len != INV_LEN_WITH_CRC) return FrameCheck::BadLength;
   if (len == INV_LEN_WITH_CRC && crc16Iso15693(buf, len) != ISO15693_CRC_RESIDUE)
     return FrameCheck::BadCrc;
-  if (buf[0] & 0x01) return FrameCheck::TagError;  // nur bei Verfaelschung moeglich
+  if (buf[0] & 0x01) return FrameCheck::BadFlags;  // nur bei Verfaelschung moeglich
+  if (allZero(buf + 2, 8)) return FrameCheck::ZeroUid;
   return FrameCheck::Ok;
+}
+
+int frameToRc(FrameCheck check, const uint8_t* buf) {
+  switch (check) {
+    case FrameCheck::Ok: return RC_OK;
+    case FrameCheck::TagError:
+      if (buf[1] == 0x00 || buf[1] == RC_UNKNOWN_ERROR) return RC_UNKNOWN_ERROR;
+      return RC_TAG_ERROR;
+    default: return RC_UNKNOWN_ERROR;
+  }
+}
+
+void describeFrame(FrameCheck check, uint32_t rx_status, const uint8_t* buf, char* out, size_t cap) {
+  if (cap == 0) return;
+  const unsigned len = static_cast<unsigned>(rx_status & RX_LEN_MASK);
+  switch (check) {
+    case FrameCheck::Ok: snprintf(out, cap, "inventory ok"); break;
+    case FrameCheck::TagError: snprintf(out, cap, "inventory tag error code=%u", buf[1]); break;
+    case FrameCheck::BadFlags: snprintf(out, cap, "inventory flags length=%u", len); break;
+    case FrameCheck::ZeroUid: snprintf(out, cap, "inventory uid zero"); break;
+    case FrameCheck::RxError: snprintf(out, cap, "inventory rx error bit"); break;
+    case FrameCheck::BadLength: snprintf(out, cap, "inventory length=%u", len); break;
+    case FrameCheck::BadCrc: snprintf(out, cap, "inventory crc length=%u", len); break;
+  }
+}
+
+TypeAFrame checkTypeAFrame(uint32_t rx_status, size_t expected) {
+  const size_t len = rx_status & RX_LEN_MASK;
+  if (len == 0) return TypeAFrame::Nothing;
+  if (rx_status & RX_ERROR_BITS) return TypeAFrame::RxError;
+  if (len != expected) return TypeAFrame::BadLength;
+  return TypeAFrame::Ok;
+}
+
+bool typeABccValid(const uint8_t* five) {
+  return static_cast<uint8_t>(five[0] ^ five[1] ^ five[2] ^ five[3]) == five[4];
+}
+
+bool typeASakConsistent(uint8_t first, uint8_t sak) {
+  return (first == 0x88) == ((sak & 0x04) != 0);
+}
+
+bool typeAUidPlausible(const uint8_t* uid, size_t len) {
+  if (len != 4 && len != 7) return false;
+  if (uid[0] == 0x00) return false;
+  bool someData = false;  // wie die Bibliothek: ausser dem ersten Byte nicht nur 0x00/0xFF
+  for (size_t i = 1; i < len; i++)
+    if (uid[i] != 0x00 && uid[i] != 0xFF) someData = true;
+  if (!someData) return false;
+  if (len == 7) {
+    const uint8_t* t = uid + 3;  // die vier Bytes der Ebene 2
+    if (allZero(t, 4)) return false;
+    if (t[0] == 0xFF && t[1] == 0xFF && t[2] == 0xFF && t[3] == 0xFF) return false;
+  }
+  return true;
 }
 
 }  // namespace tobibox

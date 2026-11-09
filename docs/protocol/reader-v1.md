@@ -19,7 +19,9 @@ Wo es etwas nicht sagt, gilt: nicht erfinden, sondern die Projektleitung fragen.
     Der Box-Dienst schickt ebenfalls `\n`. Beim Empfang wird **ein** `\r`
     unmittelbar vor dem `\n` entfernt (CRLF wird akzeptiert).
 *   Die Firmware schreibt auf die USB-Serielle **nur Protokollzeilen**, keinen
-    Diagnosetext. Fehler gehen als `ERR`.
+    Diagnosetext. Fehler gehen als `ERR`. Einzige Ergänzung ist die
+    Diagnosezeile `DBG` (Abschnitt 3); sie hat den Aufbau einer Protokollzeile
+    und ist für den Box-Dienst ein unbekannter Zeilentyp.
 *   Die Firmware setzt `setTxTimeoutMs(0)`: Ist niemand am anderen Ende, werden
     Zeilen verworfen statt zu blockieren. Das zeigt sich als Lücke in `seq`.
 *   Der Box-Dienst öffnet die Serielle ohne DTR/RTS (beide vor dem Öffnen auf
@@ -77,6 +79,15 @@ Regeln:
 | `ERR` | `code` `detail` | Fehler oder Hinweis |
 
 Alle Felder jeder Zeile sind **Pflicht**. Es gibt keine optionalen Felder.
+
+**Diagnosezeile `DBG` (keine Vertragszeile):** `DBG <schluessel>=<zahl>`, Aufbau
+nach Abschnitt 2. Sie steht nicht in der Zeilentabelle, hat kein `seq` und
+ändert keinen Zähler. Der Box-Dienst behandelt sie als unbekannten Zeilentyp
+und ignoriert sie (Abschnitt 11, `unknown_type`, nur DEBUG-Protokoll). Version
+1 kennt eine Zeile: `DBG inv_len=<n>`, einmal nach dem Start, mit der
+Rahmenlänge (Bytes laut `RX_STATUS`) der ersten gültigen Inventory-Antwort
+eines Tonies (erwartet 10 oder 12). Sie dient der Messung am Gerät und darf
+später entfallen, ohne dass der Dienst etwas ändern muss.
 
 ### Felder und Wertebereiche
 
@@ -221,7 +232,7 @@ Firmware) ist gültig und wird vom Dienst als Warnung behandelt.
 |---|---|---|---|
 | `pn5180_no_response` | Der PN5180 antwortet nicht (Produktversion unlesbar oder 0xFF, SPI/BUSY tot). | Fehler | Ergebnis `fehler` eines Zyklus, oder fehlgeschlagener Startversuch |
 | `pn5180_timeout` | Ein PN5180-Befehl überschritt `PN5180_CMD_TIMEOUT_MS` oder BUSY wurde nicht frei (z. B. `setRF_on`/`setRF_off`). | Fehler | Ergebnis `fehler` eines Zyklus |
-| `bad_response` | Antwort des Chips unbrauchbar (Fehlerbit in `RX_STATUS`, CRC-Fehler, unerwartete Länge oder Übertragungsfehler). Gilt auch für die Antwort auf die Kennungsabfrage (Inventory); `detail` nennt den Grund. | Warnung | Ergebnis `fehler` eines Zyklus |
+| `bad_response` | Antwort des Chips unbrauchbar (Fehlerbit in `RX_STATUS`, CRC-Fehler, unerwartete Länge, falsches BCC oder SAK bei NTAG, Fehlerflag des Tags ohne gültigen Code, Kennung nur aus Nullen oder Übertragungsfehler). Gilt für die Antwort auf die Kennungsabfrage (Inventory, ISO 15693) und für die Aktivierung von ISO 14443A; `detail` nennt den Grund und bei einer falschen Länge die gemessene Länge, z. B. `inventory length=11`. | Warnung | Ergebnis `fehler` eines Zyklus |
 | `uid_invalid` | ISO 14443A lieferte eine Kennungslänge außerhalb 4, 7, 10 Byte. | Warnung | Ergebnis `fehler` eines Zyklus |
 | `unlock_failed` | Ein Tonie im Privacy-Modus liegt, das Entsperren mit dem Passwort ist gescheitert. Das ist der Normalfall bei fremden Tonies (CUJ 6), kein Hardwarefehler. | Hinweis | Zusatzzeile direkt nach `LOCKED`; kein `fehler`-Ergebnis, zählt nicht in `errors` |
 | `bad_command` | Die Firmware erhielt eine Zeile, die kein gültiger Befehl ist. | Hinweis | Antwort auf eine Zeile vom Box-Dienst |
@@ -395,9 +406,23 @@ Zu den Zeilen:
     Lesung mehr als das Auflegen aus `LEER` (`N`, Standard 2), weil eine
     verfälschte Kennung sich bei gleicher Lage in zwei Zyklen wiederholen kann
     (Messung 09.11.: gleicher falscher Wert zweimal in Folge). Die Firmware
-    verwirft zusätzlich schon vor dem Entprellen jede Chip-Antwort mit
-    Fehlerbit, falscher Länge oder falscher CRC als `fehler(bad_response)`
-    (Zeile 11 bzw. 6 der Tabelle); sie erreicht den Entpreller nie als `uid`.
+    verwirft zusätzlich schon vor dem Entprellen (Schicht 1) jede Chip-Antwort
+    mit Fehlerbit, falscher Länge, falscher CRC (ISO 15693) bzw. falschem BCC
+    oder SAK (ISO 14443A) als `fehler(bad_response)` (Zeile 11 bzw. 6 der
+    Tabelle). Dasselbe gilt für ein Fehlerflag im Rahmen einer Kennung und für
+    eine Kennung nur aus Nullen; sie erreichen den Entpreller nie als `uid`.
+    Schicht 1 ist der Hauptschutz, der Entpreller (Schicht 2) fängt, was
+    durchrutscht.
+*   **Bekannte Grenzen des Entprellers:**
+    *   Aus `LEER` genügen `N` = 2 gleiche Lesungen (Zeile 3, 8). Mehr würde die
+        Auflegezeit unter 1 s sprengen (Abschnitt 10). Kommt eine Lesung nach
+        einer Lücke von mehr als `REMOVE_AFTER_MS` mit zweimal derselben falschen
+        Kennung, wird sie platziert; davor schützt nur Schicht 1.
+    *   Alle `gesperrt`-Lesungen sind gleich (Abschnitt „Identität“). Der Wechsel
+        von einem gesperrten Tonie zu einem **anderen** gesperrten Tonie ohne
+        eine Lücke von mindestens `REMOVE_AFTER_MS` wird nicht erkannt: Es
+        kommt weder `REMOVED` noch `LOCKED`. Der Dienst sieht weiter denselben
+        gesperrten Tonie.
 *   **„gesperrt liegt“ → „Kennung liegt“** (dieselbe Figur, danach als Kennung
     gelesen): wie jeder andere Wechsel, `Entfernt` + `Platziert`. Der Box-Dienst
     beendet damit die Überraschungs-Serie und startet die Serie der Figur. Das

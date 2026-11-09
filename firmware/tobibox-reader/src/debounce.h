@@ -66,8 +66,8 @@ struct DebounceParams {
   uint32_t remove_after_ms;
   uint32_t error_hold_ms;
   DebounceParams();  // Standardwerte aus timing.h
-  // change = 0: gleich confirm (wie vor CHANGE_CONFIRM_READS).
-  DebounceParams(uint32_t confirm, uint32_t remove_after, uint32_t error_hold, uint32_t change = 0)
+  // Reihenfolge wie die Felder. change = 0: gleich confirm (wie vor CHANGE_CONFIRM_READS).
+  DebounceParams(uint32_t confirm, uint32_t change, uint32_t remove_after, uint32_t error_hold)
       : confirm_reads(confirm),
         change_reads(change == 0 ? confirm : change),
         remove_after_ms(remove_after),

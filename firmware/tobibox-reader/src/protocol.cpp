@@ -72,6 +72,10 @@ size_t formatHb(char* buf, size_t cap, const HbFields& hb) {
       cap);
 }
 
+size_t formatDbg(char* buf, size_t cap, const char* key, uint32_t value) {
+  return finish(std::snprintf(buf, cap, "DBG %s=%lu", key, static_cast<unsigned long>(value)), cap);
+}
+
 size_t formatErr(char* buf, size_t cap, const char* code, const char* detail) {
   char d[MAX_DETAIL_CHARS + 1];
   size_t n = 0;
@@ -464,6 +468,11 @@ void Protocol::onCommandLine(const char* line, size_t len) {
   }
   char buf[LINE_BUF_SIZE];
   emit(buf, formatErr(buf, sizeof buf, "bad_command", detail));
+}
+
+void Protocol::onDebug(const char* key, uint32_t value) {
+  char buf[LINE_BUF_SIZE];
+  emit(buf, formatDbg(buf, sizeof buf, key, value));
 }
 
 void Protocol::onLineTooLong() {

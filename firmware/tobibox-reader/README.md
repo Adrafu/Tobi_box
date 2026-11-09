@@ -9,6 +9,12 @@ stehen nur Protokollzeilen, kein Diagnosetext.
 Aufbau: `reader.cpp` (ein Abfragezyklus) → `debounce.cpp` (Entpreller, reine
 Logik) → `protocol.cpp` (Zeilen, `seq`, Zähler). `debounce.cpp` und
 `protocol.cpp` enthalten keine Arduino-Typen und laufen auch auf dem Rechner.
+Die Antworten des Chips prüft die Firmware selbst, nicht die Bibliothek:
+`classify.cpp` (Inventory-Rahmen ISO 15693: Fehlerbits, Länge, CRC, Fehlerflag,
+Kennung nicht nur Nullen) und `typea.h` (Aktivierung ISO 14443A: Fehlerbits,
+Längen, BCC, SAK; Vorlage ohne Arduino-Typen, im Test mit einem Fake-Chip).
+Einmal nach dem Start schreibt sie `DBG inv_len=<n>` (Rahmenlänge der ersten
+gültigen Tonie-Antwort); der Box-Dienst ignoriert die Zeile.
 Alle Zeitkonstanten stehen in `include/timing.h`.
 
 ## Versionen (fest gepinnt)
