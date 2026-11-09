@@ -445,3 +445,52 @@ def test_status_ohne_dienst_nennt_die_eingerichteten_abschnitte(box):
     text = lauf("status", "--config", str(toml))[1]
     assert "Eingerichtet: HA box1@broker.example.ts.net:1883, Netz sim, Strom sim, Sync qnap.example.ts.net/medien" in text
     assert "passwort" not in text
+
+
+# --- AP 4.8: sim key, knob, headphones, time -----------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "argv, erwartet",
+    [
+        (["key", "haupt"], {"befehl": "taste", "taste": "hauptknopf_kurz"}),
+        (["key", "haupt-lang"], {"befehl": "taste", "taste": "hauptknopf_lang"}),
+        (["key", "vor"], {"befehl": "taste", "taste": "weiter"}),
+        (["key", "zurueck"], {"befehl": "taste", "taste": "zurueck"}),
+        (["knob", "+3"], {"befehl": "regler", "delta": 6}),
+        (["knob", "3"], {"befehl": "regler", "delta": 6}),
+        (["knob", "-1"], {"befehl": "regler", "delta": -2}),
+        (["knob", "-10"], {"befehl": "regler", "delta": -20}),
+        (["headphones", "on"], {"befehl": "kopfhoerer", "steckt": True}),
+        (["headphones", "off"], {"befehl": "kopfhoerer", "steckt": False}),
+        (["time", "2026-11-09T22:30:00+01:00"], {"befehl": "zeit", "iso": "2026-11-09T22:30:00+01:00"}),
+        (["time", "2026-11-09T22:30"], {"befehl": "zeit", "iso": "2026-11-09T22:30"}),
+        (["time", "now"], {"befehl": "zeit", "iso": None}),
+    ],
+)
+def test_sim_key_knob_headphones_time_bauen_die_zeile(box, monkeypatch, argv, erwartet):
+    _, toml = box
+    gesendet = []
+    monkeypatch.setattr(cli, "_frage_socket", lambda pfad, zeile: gesendet.append(zeile) or {"ok": True})
+    assert cli.main(["sim", "--config", str(toml), *argv], io.StringIO()) == 0
+    assert gesendet == [erwartet]
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [["knob", "0"], ["knob", "+11"], ["knob", "-11"], ["knob", "laut"], ["time", "gestern"], ["time", "2026-13-45T00:00"], ["time", ""]],
+)
+def test_sim_knob_und_time_lehnen_falsche_eingaben_mit_exitcode_2_ab(box, monkeypatch, argv, capsys):
+    _, toml = box
+    gesendet = []
+    monkeypatch.setattr(cli, "_frage_socket", lambda pfad, zeile: gesendet.append(zeile) or {"ok": True})
+    assert cli.main(["sim", "--config", str(toml), *argv], io.StringIO()) == 2
+    assert gesendet == [] and "tobibox sim:" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("argv", [["key"], ["key", "oben"], ["headphones"], ["headphones", "an"], ["time"]])
+def test_sim_key_headphones_time_ohne_oder_mit_falschem_argument(box, argv):
+    _, toml = box
+    with pytest.raises(SystemExit) as e:
+        cli.main(["sim", "--config", str(toml), *argv], io.StringIO())
+    assert e.value.code == 2

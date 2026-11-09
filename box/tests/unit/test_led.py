@@ -203,3 +203,96 @@ def test_unbekannter_zustand_ist_fehler():
 def test_ring_braucht_40_leds():
     with pytest.raises(ValueError):
         Ring("x", ((0, 0, 0),) * 39, 10)
+
+
+# -- AP 4.8: Lernmodus, Gute Nacht, stumm (Vorschlag, Tobias entscheidet nach Ansicht in der Simulation) ------
+
+
+def test_lernmodus_blaues_atmen_auch_im_leerlauf():
+    lg = LedLogik()
+    lg.beobachte(melden("leer", strom="leerlauf", lernmodus=True), 0.0)
+    r0, r1 = lg.ring(0.0), lg.ring(led.LERNEN_ATMEN_S / 2)
+    assert r0.zustand == led.LERNEN and all(c == led.FARBE_LERNEN for c in r0.leds)
+    assert r0.helligkeit == pytest.approx(led.LERNEN_HELL_MIN) and r1.helligkeit == pytest.approx(led.LERNEN_HELL_MAX)
+
+
+def test_lernmodus_schlaegt_laeuft_und_pause_aber_nicht_unbekannte_karte():
+    assert logik_mit_lernen("pausiert").zustand(0.0) == led.LERNEN
+    assert logik_mit_lernen("spielt").zustand(0.0) == led.LERNEN
+    assert logik_mit_lernen("unbekannt").zustand(0.0) == led.UNBEKANNTE_KARTE
+
+
+def logik_mit_lernen(sitzung):
+    lg = LedLogik()
+    lg.beobachte(melden(sitzung, lernmodus=True), 0.0)
+    return lg
+
+
+def test_lernmodus_aus_ring_wieder_normal():
+    lg = LedLogik()
+    lg.beobachte(melden("leer", lernmodus=True), 0.0)
+    lg.beobachte(melden("leer", lernmodus=False), 1.0)
+    assert lg.zustand(1.0) == led.AUS
+
+
+def test_beim_herunterfahren_ist_der_ring_aus_auch_im_lernmodus():
+    lg = LedLogik()
+    lg.beobachte(melden("leer", strom="herunterfahren", lernmodus=True), 0.0)
+    assert lg.zustand(0.0) == led.AUS
+
+
+def test_gute_nacht_glimmt_in_warmem_orange():
+    lg = LedLogik()
+    lg.beobachte(melden("spielt", gute_nacht="laeuft"), 0.0)
+    for t in (0.0, 1.0, 2.0, 3.0):
+        r = lg.ring(t)
+        assert r.zustand == led.GUTE_NACHT and all(c == led.FARBE_GUTE_NACHT for c in r.leds)
+        assert led.GUTE_NACHT_HELL_MIN - 1e-9 <= r.helligkeit <= led.GUTE_NACHT_HELL_MAX + 1e-9
+
+
+def test_gute_nacht_wird_mit_dem_ausblenden_schwaecher_und_geht_gegen_null():
+    lg = LedLogik()
+    lg.beobachte(melden("spielt", gute_nacht="ausblenden"), 0.0)
+    t = led.GUTE_NACHT_GLIMMEN_S / 2  # oberer Punkt des Glimmens
+    hell = []
+    for faktor in (1.0, 0.5, 0.1, 0.0):
+        lg.setze_ausblenden(faktor)
+        hell.append(lg.ring(t).helligkeit)
+    assert hell == sorted(hell, reverse=True) and hell[0] == pytest.approx(led.GUTE_NACHT_HELL_MAX) and hell[-1] == 0
+    lg.setze_ausblenden(7.0)  # außerhalb: geklemmt
+    assert lg.ring(t).helligkeit == pytest.approx(led.GUTE_NACHT_HELL_MAX)
+    lg.setze_ausblenden(None)
+    assert lg.ring(t).helligkeit == pytest.approx(led.GUTE_NACHT_HELL_MAX)
+
+
+def test_gute_nacht_nur_waehrend_die_wiedergabe_laeuft():
+    lg = LedLogik()
+    lg.beobachte(melden("pausiert", gute_nacht="laeuft"), 0.0)
+    assert lg.zustand(0.0) == led.PAUSE
+
+
+@pytest.mark.parametrize("zustand", [led.LAEUFT, led.PAUSE, led.LERNEN, led.GUTE_NACHT])
+def test_unter_stumm_bleibt_der_zustand_nur_die_helligkeit_sinkt(zustand):
+    sitzung = {led.LAEUFT: "spielt", led.PAUSE: "pausiert", led.LERNEN: "pausiert", led.GUTE_NACHT: "spielt"}[zustand]
+    extra = {led.LERNEN: {"lernmodus": True}, led.GUTE_NACHT: {"gute_nacht": "laeuft"}}.get(zustand, {})
+    normal, stumm = LedLogik(), LedLogik()
+    normal.beobachte(melden(sitzung, **extra), 0.0)
+    stumm.beobachte(melden(sitzung, ruhe="stumm", **extra), 0.0)
+    for t in (0.0, 0.7, 1.9, 2.5):
+        a, b = normal.ring(t), stumm.ring(t)
+        assert a.zustand == b.zustand == zustand and a.leds == b.leds
+        assert b.helligkeit == pytest.approx(a.helligkeit * led.STUMM_DIMMUNG) and b.helligkeit <= DECKEL_PROZENT
+
+
+def test_alle_zustaende_haben_ein_bild_und_halten_den_deckel():
+    lg = LedLogik()
+    lg.beobachte(ev.AkkuStand(60), 0.0)
+    for z in led.ZUSTAENDE:
+        for t in range(0, 40):
+            r = led.ring_fuer(z, t / 3.0, lg)
+            assert 0 <= r.helligkeit <= DECKEL_PROZENT and r.zustand == z
+
+
+def test_farben_und_muster_sind_benannte_konstanten():
+    for name in ("FARBE_LERNEN", "FARBE_GUTE_NACHT", "LERNEN_ATMEN_S", "GUTE_NACHT_GLIMMEN_S", "STUMM_DIMMUNG", "PAUSE_HELLIGKEIT"):
+        assert hasattr(led, name)

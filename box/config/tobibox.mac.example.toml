@@ -93,3 +93,24 @@ anzahl = 5
 # tiefstand_prozent = 5               # darunter, nicht am Lader: Sync abbrechen und herunterfahren
 # intervall_s = 10
 # abschalt_kommando = ["systemctl", "poweroff"]   # Pi; am Mac wird nur protokolliert
+
+# [kopfhoerer]
+# Schaltkontakt der Klinkenbuchse. Am Mac: quelle = "sim" (Vorgabe), der Stecker kommt von "tobibox sim headphones on|off".
+# Auf dem Pi: quelle = "gpio". Die Pin-Nummer (BCM) ist noch nicht bekannt, deshalb ohne Vorgabe; bei "gpio" muss sie gesetzt sein.
+# quelle = "sim"
+# gpio_pin = 17                       # Platzhalter, am Pi prüfen (Pin, Pegel, Pull-up)
+# aktiv_niedrig = true                # Stecker steckt = Pin niedrig (Kontakt nach Masse); am Pi prüfen
+# intervall_s = 0.2
+
+# [tasten]
+# Vor, Zurück, Drehregler und Hauptknopf. Am Mac: quelle = "sim" (Vorgabe), die Eingaben kommen von "tobibox sim key|knob"
+# und von der Oberfläche "tobibox gui". Auf dem Pi: quelle = "gpio" (gpiozero). Die Pins (BCM) sind noch nicht bekannt,
+# deshalb ohne Vorgabe; bei "gpio" müssen pin_vor, pin_zurueck, pin_dreh_a und pin_dreh_b gesetzt sein.
+# pin_haupt ist optional: Der Hauptknopf kommt auf dem Pi über die Taste des PiSugar ([strom]).
+# quelle = "sim"
+# pin_vor = 5                         # Platzhalter, am Pi prüfen
+# pin_zurueck = 6                     # Platzhalter
+# pin_dreh_a = 12                     # Platzhalter (Drehregler, Kanal A)
+# pin_dreh_b = 13                     # Platzhalter (Drehregler, Kanal B)
+# pin_haupt = 26                      # Platzhalter, nur bei einem Knopf direkt am GPIO
+# lang_s = 1.5                        # so lange gehalten = Hauptknopf lang (Zeiger speichern und herunterfahren)

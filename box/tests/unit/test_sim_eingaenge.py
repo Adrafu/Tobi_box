@@ -216,3 +216,49 @@ async def test_anzeige_ohne_quelle_ist_ungueltig(kurz):
         assert (await eins(s, befehl="anzeige")) == {"ok": False, "fehler": "anzeige nicht verfuegbar"}
     finally:
         await s.stop()
+
+
+# -- AP 4.8: Haken für Kopfhörer und Uhr, ``zeit`` ---------------------------------------------------------------
+
+
+async def test_kopfhoerer_haken_ersetzt_das_eigene_ereignis(sim):
+    gerufen = []
+    sim.kopfhoerer_haken = gerufen.append
+    assert await eins(sim, befehl="kopfhoerer", steckt=True) == {"ok": True}
+    assert gerufen == [True] and sim.got == []  # das Ereignis kommt von der Buchse, nicht von ``sim``
+
+
+async def test_alle_eingaenge_sind_verdrahtet(sim):
+    assert all(sim_modul.VERDRAHTET.values())
+    a = await eins(sim, befehl="anzeige")
+    assert all(a["verdrahtet"].values())
+
+
+async def test_zeit_ohne_haken_ist_nicht_verfuegbar(sim):
+    assert await eins(sim, befehl="zeit", iso="2026-11-09T22:30:00+01:00") == {"ok": False, "fehler": "zeit_nicht_verfuegbar"}
+
+
+async def test_zeit_stellt_ueber_den_haken(sim):
+    gerufen = []
+    sim.zeit_haken = lambda wall: gerufen.append(wall) or True
+    a = await eins(sim, befehl="zeit", iso="2026-11-09T22:30:00+01:00")
+    assert a["ok"] and gerufen == [a["wall"]] and a["wall"] == __import__("datetime").datetime.fromisoformat("2026-11-09T22:30:00+01:00").timestamp()
+    assert (await eins(sim, befehl="zeit", iso=None))["ok"] and gerufen[-1] is None
+    sim.zeit_haken = lambda wall: False
+    assert await eins(sim, befehl="zeit", iso=None) == {"ok": False, "fehler": "zeit_nicht_verfuegbar"}
+
+
+@pytest.mark.parametrize("zeile", [{"befehl": "zeit"}, {"befehl": "zeit", "iso": 5}, {"befehl": "zeit", "iso": "gestern"}, {"befehl": "zeit", "iso": " "}])
+async def test_zeit_ungueltig(sim, zeile):
+    sim.zeit_haken = lambda wall: True
+    a = await eins(sim, **zeile)
+    assert a["ok"] is False and a["fehler"] in ("iso fehlt", "iso ungueltig")
+
+
+async def test_zeit_ohne_zone_gilt_die_ortszeit_des_rechners(sim):
+    gerufen = []
+    sim.zeit_haken = lambda wall: gerufen.append(wall) or True
+    await eins(sim, befehl="zeit", iso="2026-11-09T22:30:00")
+    from datetime import datetime
+
+    assert gerufen == [datetime(2026, 11, 9, 22, 30).astimezone().timestamp()]

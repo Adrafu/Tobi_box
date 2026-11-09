@@ -185,6 +185,11 @@ function farbe(f, hell) {
   return "rgb(" + rgb.map((x) => Math.max(0, Math.min(255, Math.round(x * hell)))).join(",") + ")";
 }
 
+const RING_NAMEN = {
+  aus: "aus", laeuft: "läuft", pause: "Pause", akku: "Akku", unbekannte_karte: "unbekannte Karte", aufwachen: "Aufwachen",
+  lernen: "Lernmodus (Vorschlag)", gute_nacht: "Gute Nacht (Vorschlag)",
+};
+
 function zeichneRing(ring) {
   if (!ring || !Array.isArray(ring.farben) || ring.farben.length !== 40) {
     leds.forEach((c) => { c.setAttribute("fill", "#8a8a8a"); c.setAttribute("opacity", "0.35"); });
@@ -198,7 +203,8 @@ function zeichneRing(ring) {
     leds[i].setAttribute("fill", farbe(f, h) || "var(--led-aus)");
     leds[i].setAttribute("opacity", c ? "1" : "0.45");
   });
-  $("ringtext").textContent = "Helligkeit " + Math.round(h * 100) + " %";
+  const name = ring.zustand ? (RING_NAMEN[ring.zustand] || ring.zustand) + ", " : "";
+  $("ringtext").textContent = name + "Helligkeit " + Math.round(h * 100) + " %";
 }
 
 async function senden(zeile) {

@@ -858,7 +858,7 @@ tobibox sim card <UID> --serie 7b3f2a6e8c14
 grep dienst_neustart ~/Tobi_box/box/var/log/tobibox.log | tail -n 2
 ```
 
-- [ ] Den Hauptknopf gibt es am Mac nicht, und `tobibox sim` hat dafür keinen Befehl. Ersatz:
+- [ ] Den Hauptknopf gibt es am Mac nicht; seit AP 4.8 ersetzt ihn `tobibox sim key haupt`. Hier zum Üben:
       Hebe `<UID>` ab und lege ihn wieder auf.
       **Was du hörst:** Die Folge läuft an der gespeicherten Stelle weiter (3 s Rücksprung): Die zuletzt
       gehörte Sekundenansage kommt bald noch einmal (die Box springt 3 s zurück).
@@ -1079,8 +1079,9 @@ sich kein Browserfenster. Wie bei `tobibox status` gilt die Konfiguration aus `-
 
 ### Was die Seite zeigt und kann
 
-- **LED-Ring:** 40 Punkte aus dem Ring-Zustand des Dienstes. Solange der Dienst keinen Ring meldet, steht dort ein grauer
-  Ring mit „Ring noch nicht verdrahtet“.
+- **LED-Ring:** 40 Punkte aus dem Ring-Zustand des Dienstes (läuft, Pause, Akku, unbekannte Karte, Aufwachen; als Vorschlag
+  Lernmodus und Gute Nacht). Dieselbe Zeile steht im Terminal des Dienstes, und das Protokoll nennt jeden Wechsel (`led`/`ring`).
+  Solange der Dienst keinen Ring meldet, steht dort ein grauer Ring mit „Ring noch nicht verdrahtet“.
 - **Tasten:** Hauptknopf kurz, Hauptknopf lang, Zurück, Vor.
 - **Drehregler:** „− Raste“ und „+ Raste“ (eine Raste sind 2 Prozentpunkte), dazu die Lautstärke und die wirksame Grenze.
 - **Schalter:** Kopfhörer eingesteckt, Ladegerät dran, Akku 0 bis 100 %, Netz (Heim, Hotspot, Offline; nie die echten
@@ -1114,13 +1115,14 @@ Die Seite spielt den Leser. Ihre Ereignisse sind genau die des echten Lesers (`c
 ### Die Socket-Befehle (Format seit AP 4.9)
 
 Jede Zeile auf `sim.sock` ist ein JSON-Objekt mit dem Schlüssel `befehl` und wird mit einer JSON-Zeile beantwortet:
-`{"ok": true, …}` oder `{"ok": false, "fehler": "…"}`. Die Namen sind fest; AP 4.8 und AP 3.7 ändern sie nicht.
+`{"ok": true, …}` oder `{"ok": false, "fehler": "…"}`. Die Namen sind fest; AP 4.8 und AP 3.7 ändern sie nicht (AP 4.8 ergänzt nur `zeit`).
 
 | Befehl | Felder | Wirkung (Ereignis) | Heute |
 |---|---|---|---|
-| `taste` | `taste`: `hauptknopf_kurz`, `hauptknopf_lang`, `weiter`, `zurueck` | `Hauptknopf("kurz")`, `Hauptknopf("lang")`, `Weiter`, `Zurueck` | kurz, weiter, zurueck wirken; `hauptknopf_lang` wartet auf `idle` (AP 4.3, AP 4.8) |
-| `regler` | `delta`: ganze Zahl, nicht 0, höchstens 20 in Betrag (Prozentpunkte) | `LautstaerkeDrehen(delta)` | wirkt (der Kern klemmt an der Grenze) |
-| `kopfhoerer` | `steckt`: `true` oder `false` | `Kopfhoerer(steckt)` | wirkt (Grenze und Ausgang der Sitzung) |
+| `taste` | `taste`: `hauptknopf_kurz`, `hauptknopf_lang`, `weiter`, `zurueck` | `Hauptknopf("kurz")`, `Hauptknopf("lang")`, `Weiter`, `Zurueck` | wirkt seit AP 4.8 (`tobibox sim key haupt\|haupt-lang\|vor\|zurueck`); `hauptknopf_lang` fährt herunter (am Mac nur protokolliert) |
+| `regler` | `delta`: ganze Zahl, nicht 0, höchstens 20 in Betrag (Prozentpunkte) | `LautstaerkeDrehen(delta)` | wirkt (der Kern klemmt an der Grenze); `tobibox sim knob +N\|-N` dreht N Rasten zu je 2 Prozentpunkten (höchstens 10) |
+| `kopfhoerer` | `steckt`: `true` oder `false` | `Kopfhoerer(steckt)` | wirkt (Grenze und Ausgang der Sitzung); `tobibox sim headphones on\|off`. Mit `[kopfhoerer] quelle = "sim"` (Vorgabe) stellt `sim` den simulierten Schaltkontakt, und die `Buchse` meldet; bei `gpio` kommt der Stecker von der echten Buchse |
+| `zeit` | `iso`: Zeitpunkt in ISO 8601 (ohne Zone: Ortszeit des Rechners) oder `null` | stellt die Wanduhr des Dienstes (kein Ereignis); Antwort `{"ok": true, "wall": …}` | wirkt seit AP 4.8 (`tobibox sim time <ISO>\|now`), für die Leise-Zeiten. Die Uhr läuft von dort weiter, Timer und Fristen bleiben unberührt |
 | `strom` | `lader`: bool und/oder `akku`: 0 bis 100 | `LaderGeaendert`, `AkkuStand` | wirkt seit AP 3.7 (`tobibox sim power --charger on\|off --battery N`); mit `[strom] quelle = "sim"` stellt `sim` den Treiber ein und `power` meldet, sonst gibt `sim` die Ereignisse selbst aus |
 | `netz` | `klasse`: `home`, `hotspot`, `offline` | `NetzKlasse(klasse)` | wirkt seit AP 3.7 (`tobibox sim net home\|hotspot\|offline`); mit `[netz] quelle = "sim"` setzt `sim` das simulierte WLAN (Namen aus `heim_ssid`/`hotspot_ssid`, sonst `sim-heim`/`sim-hotspot`) und `net` klassifiziert, sonst gibt `sim` das Ereignis selbst aus |
 | `tobie_auflegen` | `uid` (Kennung wie in `config.json`) oder `"zufall": true` | `Aufgelegt` (vorher `Abgehoben`, wenn schon einer liegt); Antwort mit `uid` und `vorgang` | wirkt |
@@ -1135,12 +1137,12 @@ Regeln:
   nicht verdrahtet ist. Danach erst kommt die Prüfung der Verdrahtung.
 - Ist ein Eingang noch nicht verdrahtet, lautet die Antwort `{"ok": false, "fehler": "noch_nicht_verdrahtet"}`, und es
   entsteht kein Ereignis. Die Tabelle `VERDRAHTET` in `box/src/tobibox/sim.py` hält fest, welche Eingänge wirken; AP 3.7 hat
-  `strom` und `netz` auf `True` gesetzt, AP 4.8 folgt mit `hauptknopf_lang`. Die Antwort auf `anzeige` nennt sie im Feld `verdrahtet`, daran graut die Seite
+  `strom` und `netz` auf `True` gesetzt, AP 4.8 den Rest (heute sind alle `True`). Die Antwort auf `anzeige` nennt sie im Feld `verdrahtet`, daran graut die Seite
   die Knöpfe aus.
 - `anzeige.anzeige.figur` ist der Tobie, den der Kern als liegend kennt (`uid` oder `null` bei gesperrt, `vorgang`, `art`).
   Gleicht seine `vorgang` dem Feld `simuliert.vorgang`, kommt er von der Seite („simuliert“), sonst vom Leser („echt“).
 - `anzeige.anzeige.ring`: `null` oder `{"farben": [...40 Farben...], "helligkeit": <0 bis 100>}`; eine Farbe ist `"#rrggbb"`
-  oder `[r, g, b]`. Das Feld füllt der Dienst, sobald `led` (AP 4.1) in AP 4.8 verdrahtet ist.
+  oder `[r, g, b]`. Das Feld füllt der Dienst seit AP 4.8 aus `led`; dazu kommen `zustand`, `deckel` (25) und `leds` (dieselben Farben wie `farben`).
 - `tobibox gui` leitet nur diese Befehle weiter: `taste`, `regler`, `kopfhoerer`, `strom`, `netz`, `tobie_auflegen`,
   `tobie_gesperrt`, `tobie_abheben`, `learn`, `learn_abort`, `ack`. `card` und `status` bleiben bei `tobibox sim`.
 

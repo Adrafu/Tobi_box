@@ -368,3 +368,84 @@ def test_sync_passwort_fehlermeldung_nennt_das_passwort_nicht(tmp_path):
 def test_sync_vorgabe_partial_dir_ist_ausserhalb_des_medienordners(tmp_path):
     # Vorgabe ``<Medienordner>/../.rsync-partial`` bei Medienordner ``/srv/medien`` ist gültig
     config.lade(schreibe(tmp_path, MINIMAL + '\n[sync]\nhost = "h"\n'))
+
+
+# --- [kopfhoerer] und [tasten] (AP 4.8) ---------------------------------------------------------
+
+
+def test_ohne_kopfhoerer_und_tasten_gilt_sim(tmp_path):
+    k = config.lade(schreibe(tmp_path, MINIMAL))
+    assert k.kopfhoerer.simulation and k.kopfhoerer.gpio_pin is None and k.kopfhoerer.aktiv_niedrig and k.kopfhoerer.intervall_s == 0.2
+    t = k.tasten
+    assert t.simulation and (t.pin_vor, t.pin_zurueck, t.pin_dreh_a, t.pin_dreh_b, t.pin_haupt) == (None,) * 5 and t.lang_s == 1.5
+
+
+def test_kopfhoerer_und_tasten_voll(tmp_path):
+    k = config.lade(schreibe(tmp_path, MINIMAL + """
+[kopfhoerer]
+quelle = "gpio"
+gpio_pin = 17
+aktiv_niedrig = false
+intervall_s = 0.1
+
+[tasten]
+quelle = "gpio"
+pin_vor = 5
+pin_zurueck = 6
+pin_dreh_a = 12
+pin_dreh_b = 13
+pin_haupt = 26
+lang_s = 2.0
+"""))
+    kh, t = k.kopfhoerer, k.tasten
+    assert (kh.quelle, kh.gpio_pin, kh.aktiv_niedrig, kh.intervall_s) == ("gpio", 17, False, 0.1) and not kh.simulation
+    assert (t.quelle, t.pin_vor, t.pin_zurueck, t.pin_dreh_a, t.pin_dreh_b, t.pin_haupt, t.lang_s) == ("gpio", 5, 6, 12, 13, 26, 2.0)
+
+
+def test_tasten_gpio_ohne_hauptknopf_pin_ist_gueltig_der_hauptknopf_kommt_vom_pisugar(tmp_path):
+    k = config.lade(schreibe(tmp_path, MINIMAL + '\n[tasten]\nquelle = "gpio"\npin_vor = 5\npin_zurueck = 6\npin_dreh_a = 12\npin_dreh_b = 13\n'))
+    assert k.tasten.pin_haupt is None
+
+
+@pytest.mark.parametrize(
+    "abschnitt, text",
+    [
+        ("kopfhoerer", 'quelle = "usb"'),
+        ("kopfhoerer", 'quelle = "gpio"'),  # ohne gpio_pin
+        ("kopfhoerer", "gpio_pin = 99"),
+        ("kopfhoerer", "gpio_pin = -1"),
+        ("kopfhoerer", 'gpio_pin = "17"'),
+        ("kopfhoerer", 'aktiv_niedrig = "ja"'),
+        ("kopfhoerer", "intervall_s = 0.001"),
+        ("kopfhoerer", "intervall_s = 100"),
+        ("tasten", 'quelle = "tastatur"'),
+        ("tasten", 'quelle = "gpio"'),  # ohne Pins
+        ("tasten", 'quelle = "gpio"\npin_vor = 5\npin_zurueck = 6\npin_dreh_a = 12'),  # dreh_b fehlt
+        ("tasten", "pin_vor = 5\npin_zurueck = 5"),  # doppelt
+        ("tasten", "pin_vor = 40"),
+        ("tasten", "lang_s = 0.1"),
+        ("tasten", "lang_s = 60"),
+        ("tasten", 'lang_s = "lang"'),
+    ],
+)
+def test_kopfhoerer_und_tasten_ungueltig(tmp_path, abschnitt, text):
+    with pytest.raises(KonfigFehler, match=rf"\[{abschnitt}\]"):
+        config.lade(schreibe(tmp_path, MINIMAL + f"\n[{abschnitt}]\n{text}\n"))
+
+
+def test_kopfhoerer_pin_darf_nicht_auf_einem_tastenpin_liegen(tmp_path):
+    with pytest.raises(KonfigFehler, match=r"\[kopfhoerer\]"):
+        config.lade(schreibe(tmp_path, MINIMAL + '\n[kopfhoerer]\nquelle = "gpio"\ngpio_pin = 5\n[tasten]\npin_vor = 5\n'))
+
+
+def test_unbekannte_schluessel_in_den_neuen_abschnitten_warnen_nur(tmp_path):
+    k = config.lade(schreibe(tmp_path, MINIMAL + "\n[tasten]\nneu = 1\n[kopfhoerer]\nneu = 2\n"))
+    assert k.tasten.simulation and k.kopfhoerer.simulation
+
+
+def test_beispielkonfiguration_mac_laedt_mit_den_platzhaltern_und_bleibt_sim():
+    pfad = Path(__file__).resolve().parents[2] / "config" / "tobibox.mac.example.toml"
+    k = config.lade(pfad)
+    assert k.kopfhoerer.simulation and k.tasten.simulation
+    text = pfad.read_text(encoding="utf-8")
+    assert "[kopfhoerer]" in text and "[tasten]" in text and "gpio_pin" in text and "pin_dreh_a" in text
