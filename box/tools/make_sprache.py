@@ -45,7 +45,8 @@ RATE = 22050
 WURZEL = Path(__file__).resolve().parents[1]
 STIMME = "de_DE-thorsten-medium"
 STIMME_URL = "https://huggingface.co/rhasspy/piper-voices/resolve/main/de/de_DE/thorsten/medium/"
-MAX_FEHLBETRAG_DB = 0.5  # so viel darf eine Datei unter -18 LUFS bleiben, wenn die Vollaussteuerung die Verstärkung begrenzt
+MAX_FEHLBETRAG_DB = 0.5  # so viel darf eine Ansage unter -18 LUFS bleiben, wenn die Vollaussteuerung die Verstärkung begrenzt
+MAX_FEHLBETRAG_DATEI_DB = lautheit.TOLERANZ_LU  # dasselbe für die fertige MP3 (Ansagen mit Pausen messen etwas leiser)
 ANGELEGT_AM = "2026-11-09T09:00:00Z"
 
 # --------------------------------------------------------------------------
@@ -175,17 +176,17 @@ def _normiere(s: array.array) -> array.array:
     return verstaerke(s, round(lautheit.ZIEL_LUFS - gemessen, 2))
 
 
-def verstaerke(s: array.array, db: float) -> array.array:
+def verstaerke(s: array.array, db: float, max_fehl: float = MAX_FEHLBETRAG_DB) -> array.array:
     """Um ``db`` verstärken, ohne zu übersteuern (Piper liefert schon volle Aussteuerung).
 
     Reicht die Aussteuerung nicht für ``db``, wird nur bis zur Vollaussteuerung verstärkt; fehlen dann
-    mehr als ``MAX_FEHLBETRAG_DB``, ist das ein Fehler (-18 LUFS ohne Limiter nicht erreichbar).
+    mehr als ``max_fehl``, ist das ein Fehler (-18 LUFS ohne Limiter nicht erreichbar).
     """
     spitze = max((abs(x) for x in s), default=0)
     if spitze:
         grenze_db = math.floor(20 * math.log10(32767 / spitze) * 100) / 100
         if db > grenze_db:
-            if db - grenze_db > MAX_FEHLBETRAG_DB:
+            if db - grenze_db > max_fehl:
                 raise ValueError(f"{db:+.2f} dB nötig, nur {grenze_db:+.2f} dB bis zur Vollaussteuerung")
             db = grenze_db
     f = 10 ** (db / 20)
@@ -225,8 +226,13 @@ def schreibe_mp3(pfad: Path, samples: array.array) -> None:
             rest = lautheit.ZIEL_LUFS - lautheit.messe(roh)
             if abs(rest) <= 0.05:
                 break
-            s = verstaerke(s, round(rest, 2))
+            neu = verstaerke(s, round(rest, 2), MAX_FEHLBETRAG_DATEI_DB)
+            if neu == s:  # die Vollaussteuerung begrenzt: die Tags tragen den Rest
+                break
+            s = neu
         gain = lautheit.ZIEL_LUFS - lautheit.messe(roh)
+        if abs(gain) > lautheit.TOLERANZ_LU:
+            raise ValueError(f"{pfad.name}: {gain:+.2f} LU neben dem Zielwert")
         spitze = lautheit.spitze(roh)
         subprocess.run(
             ["ffmpeg", "-v", "error", "-y", "-i", str(roh), "-c", "copy", "-map_metadata", "-1",
