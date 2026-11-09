@@ -19,11 +19,13 @@ und Prüfung einer Konfiguration** (Datei und MQTT-Liste); ``ha.py`` benutzt sie
 
 from __future__ import annotations
 
+import calendar
 import json
 import math
 import os
 import re
 import shutil
+import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -41,6 +43,10 @@ verlorene_dateien: list[str] = []
 
 SCHEMA_VERSION = 2
 BEKANNTE_VERSIONEN = frozenset({1, 2})
+
+#: Lesezeichen laufen nach so vielen Tagen ohne Benutzung ab (Vorgabe; 0 = nie), Obergrenze der Prüfung (Entscheidung N, 09.11.)
+LESEZEICHEN_TAGE_VORGABE = 14
+LESEZEICHEN_TAGE_MAX = 365
 
 #: Vorgabe-Zeitzone von ``leise_zeiten`` (Abschnitt 2)
 STANDARD_ZEITZONE = "Europe/Berlin"
@@ -253,6 +259,29 @@ def migriere_resume_v1_nach_v2(roh: Mapping[str, Any]) -> dict[str, Any]:
     return {"schema_version": 2, **neu}
 
 
+def wall_zu_iso(wall: float) -> str:
+    """Unix-Sekunden -> ``2026-11-09T12:00:00Z`` (UTC, auf die Sekunde abgerundet)."""
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(math.floor(wall)))
+
+
+def iso_zu_wall(text: str) -> float:
+    """``2026-11-09T12:00:00Z`` -> Unix-Sekunden; wirft ``ValueError`` bei anderer Form."""
+    return float(calendar.timegm(time.strptime(text, "%Y-%m-%dT%H:%M:%SZ")))
+
+
+def _pruefe_benutzt_am(e: dict[str, Any], wo: str) -> float | None:
+    """Optionales Feld ``benutzt_am`` (Entscheidung N, 09.11.): fehlt = ``None`` (der Zeiger läuft nie ab)."""
+    if "benutzt_am" not in e or e["benutzt_am"] is None:
+        return None
+    try:
+        text = e["benutzt_am"]
+        if not isinstance(text, str):
+            raise ValueError
+        return iso_zu_wall(text)
+    except (ValueError, OverflowError):
+        raise Ungueltig("schema_ungueltig", f"{wo}.benutzt_am") from None
+
+
 def _gueltiger_name(x: Any) -> bool:
     return (
         isinstance(x, str)
@@ -291,7 +320,7 @@ def parse_resume(roh: Mapping[str, Any]) -> dict[pointer.Schluessel, ev.Zeiger]:
             raise Ungueltig("schema_ungueltig", f"serien.{sid}.folge")
         if not _ganz(index) or index < 0:
             raise Ungueltig("schema_ungueltig", f"serien.{sid}.index")
-        z = ev.Zeiger("serie", sid, folge, index, track, pos, zaehler)
+        z = ev.Zeiger("serie", sid, folge, index, track, pos, zaehler, _pruefe_benutzt_am(e, f"serien.{sid}"))
         aus[pointer.schluessel_von(z)] = z
     folgen = roh.get("folgen")
     if not isinstance(folgen, dict):
@@ -303,7 +332,9 @@ def parse_resume(roh: Mapping[str, Any]) -> dict[pointer.Schluessel, ev.Zeiger]:
             if not _gueltiger_name(name):
                 raise Ungueltig("schema_ungueltig", f"folgen.{sid}.{name}")
             track, pos, zaehler = _pruefe_zeiger_felder(e, f"folgen.{sid}.{name}")
-            z = ev.Zeiger("folge", sid, name, None, track, pos, zaehler)
+            z = ev.Zeiger(
+                "folge", sid, name, None, track, pos, zaehler, _pruefe_benutzt_am(e, f"folgen.{sid}.{name}")
+            )
             aus[pointer.schluessel_von(z)] = z
     return aus
 
@@ -320,12 +351,15 @@ def resume_zu_json(zeiger: Mapping[pointer.Schluessel, ev.Zeiger]) -> dict[str, 
                 "position_s": z.position_s,
                 "zaehler": z.zaehler,
             }
+            ziel_eintrag = serien[z.serie_id]
         else:
-            folgen.setdefault(z.serie_id, {})[z.datei] = {
+            ziel_eintrag = folgen.setdefault(z.serie_id, {})[z.datei] = {
                 "track": z.track,
                 "position_s": z.position_s,
                 "zaehler": z.zaehler,
             }
+        if z.benutzt_wall is not None:  # additiv (Entscheidung N, 09.11.); fehlt bei alten Zeigern
+            ziel_eintrag["benutzt_am"] = wall_zu_iso(z.benutzt_wall)
     return {"schema_version": SCHEMA_VERSION, "serien": serien, "folgen": folgen}
 
 
@@ -359,10 +393,12 @@ class ResumeStore:
         """
         key = pointer.schluessel(befehl.art, befehl.serie_id, befehl.datei)
         alt = self._zeiger.get(key)
-        if pointer.unveraendert(alt, befehl.art, befehl.datei, befehl.index, befehl.track, befehl.position_s):
+        if pointer.unveraendert(
+            alt, befehl.art, befehl.datei, befehl.index, befehl.track, befehl.position_s
+        ) and not pointer.stempel_faellig(alt, befehl.wall):
             return False
         neu = pointer.neuer_zeiger(
-            alt, befehl.art, befehl.serie_id, befehl.datei, befehl.index, befehl.track, befehl.position_s
+            alt, befehl.art, befehl.serie_id, befehl.datei, befehl.index, befehl.track, befehl.position_s, befehl.wall
         )
         zeiger = dict(self._zeiger)
         zeiger[key] = neu
@@ -530,6 +566,10 @@ def parse_konfig(roh: Mapping[str, Any]) -> ev.Konfig:
     for opt in ("ton_pegel", "hinweis_pegel"):
         if opt in roh and (not _ganz(roh[opt]) or not 0 <= roh[opt] <= 100):
             raise fail(opt)
+    # Lesezeichen laufen nach so vielen Tagen ab, 0 = nie; fehlt das Feld, gilt 14 (Entscheidung N, 09.11.)
+    tage = roh.get("lesezeichen_tage", LESEZEICHEN_TAGE_VORGABE)
+    if not _ganz(tage) or not 0 <= tage <= LESEZEICHEN_TAGE_MAX:
+        raise fail("lesezeichen_tage")
 
     return ev.Konfig(
         revision=rev,
@@ -537,12 +577,13 @@ def parse_konfig(roh: Mapping[str, Any]) -> ev.Konfig:
         zuordnungen=zuordnungen,
         leise_zeiten=ev.LeiseZeiten(zone, tuple(fenster)),
         gute_nacht=ev.GuteNacht(timer, aus),
+        lesezeichen_tage=tage,
     )
 
 
 def leere_konfig() -> ev.Konfig:
     """Standard bei fehlender oder verlorener Datei: Revision 0, Listen-ID leer."""
-    return ev.Konfig(0, "", {}, ev.LeiseZeiten(STANDARD_ZEITZONE, ()), ev.GuteNacht(30, 60))
+    return ev.Konfig(0, "", {}, ev.LeiseZeiten(STANDARD_ZEITZONE, ()), ev.GuteNacht(30, 60), LESEZEICHEN_TAGE_VORGABE)
 
 
 def konfig_zu_json(k: ev.Konfig) -> dict[str, Any]:
@@ -568,6 +609,7 @@ def konfig_zu_json(k: ev.Konfig) -> dict[str, Any]:
         "zuordnungen": zuo,
         "leise_zeiten": {"zeitzone": k.leise_zeiten.zeitzone, "fenster": fenster},
         "gute_nacht": {"timer_min": k.gute_nacht.timer_min, "ausblenden_s": k.gute_nacht.ausblenden_s},
+        "lesezeichen_tage": k.lesezeichen_tage,
     }
 
 
@@ -579,7 +621,7 @@ class Annahme:
 
 _KONFIG_FELDER = (
     "schema_version", "revision", "liste_id", "erzeugt_am", "zuordnungen",
-    "leise_zeiten", "gute_nacht", "ton_pegel", "hinweis_pegel",
+    "leise_zeiten", "gute_nacht", "ton_pegel", "hinweis_pegel", "lesezeichen_tage",
 )
 
 

@@ -39,6 +39,8 @@ REST_FERTIG_S = 15.0
 REST_REGEL_MIN_FOLGE_S = 60.0
 #: So weit darf ``position_s`` über der Trackdauer liegen, damit die Restregel noch gilt (falsche Dauer, B9)
 REST_TOLERANZ_S = 2.0
+#: Vorgabe für ``Konfig.lesezeichen_tage`` (Entscheidung N, 09.11.)
+LESEZEICHEN_TAGE = 14
 _EPS = 1e-9
 
 Modus = Literal["leer", "spielt", "pausiert", "beendet", "gehalten", "unbekannt"]
@@ -197,6 +199,38 @@ def _rest_regel(
     return neu, [zeile]
 
 
+def _lesezeichen(
+    z: Zustand, serie: ev.Serie, art: str, ort: pointer.Ort, vorgang: str | None, jetzt: Jetzt
+) -> tuple[pointer.Ort, bool, Ausgabe]:
+    """Lesezeichen mit Ablauf (Entscheidung N, 09.11.). Gibt ``(Ort, abgelaufen, Protokoll)`` zurück.
+
+    Wurde der Zeiger länger als ``Konfig.lesezeichen_tage`` (Vorgabe 14, 0 = nie) nicht benutzt, beginnt dieselbe
+    Folge von vorn (Track 0, Position 0); bei einer Serie bleibt es die Folge, es geht nicht auf Folge 1 zurück.
+    Gilt nur bei sicherer Uhr (``jetzt.zeit_ok``) und nur für einen Zeiger mit Zeitstempel. Gemessen ab der letzten
+    Benutzung; die Wanduhr kommt aus ``jetzt``. Der Ablauf geht der Restregel voran.
+    """
+    if ort.folge_fehlte or ort.track_fehlte:
+        return ort, False, []
+    key = pointer.schluessel("folge" if art == "folge" else "serie", serie.id, ort.datei)
+    zeiger = z.zeiger.get(key)
+    if zeiger is None or zeiger.datei != ort.datei:
+        return ort, False, []
+    tage = z.konfig.lesezeichen_tage if z.konfig is not None else LESEZEICHEN_TAGE
+    alter_s = pointer.lesezeichen_alter_s(zeiger, jetzt.wall, jetzt.zeit_ok)
+    if not pointer.lesezeichen_abgelaufen(alter_s, tage):
+        return ort, False, []
+    assert alter_s is not None
+    if zeiger.track == 0 and zeiger.position_s <= 0:
+        return ort, True, []  # liegt schon vorn: nichts zu ändern, die Restregel entfällt trotzdem
+    neu = pointer.Ort(ort.datei, ort.index, 0, 0.0)
+    uid = z.figur.uid if z.figur else None
+    zeile = _prot(
+        "INFO", "lesezeichen_abgelaufen", "von_vorn", vorgang, uid=uid, art=art, serie=serie.id, folge=ort.datei,
+        alter_tage=round(alter_s / pointer.TAG_S, 1), tage=tage,
+    )
+    return neu, True, [zeile]
+
+
 def _abspielen(
     serie: ev.Serie, datei: str, track: int, position_s: float, vorgang: str | None, gen: int
 ) -> ev.Abspielen:
@@ -218,12 +252,13 @@ def _speichern(z: Zustand, grund: str, jetzt: Jetzt) -> tuple[Zustand, Ausgabe]:
     index = z.index if art == "serie" else None
     key = pointer.schluessel(art, z.serie_id, z.datei)
     alt = z.zeiger.get(key)
-    if pointer.unveraendert(alt, art, z.datei, index, z.track, z.position_s):
+    wall = jetzt.wall if jetzt.zeit_ok else None  # Zeitstempel des Lesezeichens nur bei sicherer Uhr (Entscheidung N)
+    if pointer.unveraendert(alt, art, z.datei, index, z.track, z.position_s) and not pointer.stempel_faellig(alt, wall):
         return z, []
-    neu = pointer.neuer_zeiger(alt, art, z.serie_id, z.datei, index, z.track, z.position_s)
+    neu = pointer.neuer_zeiger(alt, art, z.serie_id, z.datei, index, z.track, z.position_s, wall)
     zeiger = dict(z.zeiger)
     zeiger[key] = neu
-    cmd = ev.ZeigerSpeichern(art, z.serie_id, z.datei, index, z.track, neu.position_s, grund)  # type: ignore[arg-type]
+    cmd = ev.ZeigerSpeichern(art, z.serie_id, z.datei, index, z.track, neu.position_s, grund, wall)  # type: ignore[arg-type]
     return replace(z, zeiger=zeiger, letzte_speicherung=jetzt.mono), [cmd]
 
 
@@ -257,8 +292,11 @@ def _start(
         ]
         return _ruhe(z, modus="pausiert", ziel=None, serie_id=None, datei=None), out
     out = []
-    ort, regel = _rest_regel(z, serie, art, ort, vorgang)
-    out += regel
+    ort, abgelaufen, ablauf = _lesezeichen(z, serie, art, ort, vorgang, jetzt)
+    out += ablauf
+    if not abgelaufen:  # abgelaufen: die Folge beginnt von vorn, die Restregel ist nicht nötig (Entscheidung N)
+        ort, regel = _rest_regel(z, serie, art, ort, vorgang)
+        out += regel
     if ort.folge_fehlte:
         out.append(_prot("WARNING", "zeiger_folge_fehlt", "naechste_folge", vorgang, serie=serie.id, datei=ort.datei))
     if ort.track_fehlte:

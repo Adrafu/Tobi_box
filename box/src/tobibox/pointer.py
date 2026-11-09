@@ -21,6 +21,9 @@ from .events import Serie, Zeiger
 RUECKSPRUNG_S = 3.0
 ZURUECK_NEU_S = 3.0
 SPEICHERN_PERIODISCH_S = 30.0
+#: Ist ein Zeiger unverändert, wird sein Zeitstempel erst nach dieser Zeit neu geschrieben (Entscheidung N, 09.11.)
+STEMPEL_ERNEUERN_S = 3600.0
+TAG_S = 86400.0
 
 _EPS = 1e-9
 
@@ -171,11 +174,41 @@ def unveraendert(
     )
 
 
+def stempel_faellig(alt: Zeiger | None, wall: float | None) -> bool:
+    """Ein unveränderter Zeiger wird trotzdem geschrieben, wenn sein Zeitstempel fehlt oder veraltet ist
+    (Entscheidung N, 09.11.). Bei unsicherer Uhr (``wall=None``) nie."""
+    if alt is None or wall is None:
+        return False
+    return alt.benutzt_wall is None or wall - alt.benutzt_wall >= STEMPEL_ERNEUERN_S
+
+
 def neuer_zeiger(
-    alt: Zeiger | None, art: Art, serie_id: str, datei: str, index: int | None, track: int, position_s: float
+    alt: Zeiger | None,
+    art: Art,
+    serie_id: str,
+    datei: str,
+    index: int | None,
+    track: int,
+    position_s: float,
+    wall: float | None = None,
 ) -> Zeiger:
-    """Zeiger mit abgerundeter Position und um 1 erhöhtem Zähler."""
-    return Zeiger(art, serie_id, datei, index, track, abrunden(position_s), (alt.zaehler if alt else 0) + 1)
+    """Zeiger mit abgerundeter Position und um 1 erhöhtem Zähler.
+
+    ``wall``: Wanduhr der Benutzung (nur bei sicherer Uhr). Ohne ``wall`` bleibt der alte Zeitstempel."""
+    stempel = wall if wall is not None else (alt.benutzt_wall if alt else None)
+    return Zeiger(art, serie_id, datei, index, track, abrunden(position_s), (alt.zaehler if alt else 0) + 1, stempel)
+
+
+def lesezeichen_alter_s(zeiger: Zeiger | None, wall: float, zeit_ok: bool) -> float | None:
+    """Alter des Lesezeichens in Sekunden; ``None`` bei unsicherer Uhr, ohne Zeiger oder ohne Zeitstempel."""
+    if not zeit_ok or zeiger is None or zeiger.benutzt_wall is None:
+        return None
+    return wall - zeiger.benutzt_wall
+
+
+def lesezeichen_abgelaufen(alter_s: float | None, tage: int) -> bool:
+    """Länger als ``tage`` Tage nicht benutzt (genau an der Grenze: noch nicht); ``tage=0``: nie."""
+    return alter_s is not None and tage > 0 and alter_s > tage * TAG_S
 
 
 def periodisch_faellig(letzte_speicherung: float, jetzt_mono: float) -> bool:

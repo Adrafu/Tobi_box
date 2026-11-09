@@ -70,6 +70,8 @@ class Zeiger:
     track: int
     position_s: float  # Sekunden im Track, ohne Rücksprung
     zaehler: int
+    #: Wanduhr (Unix-Sekunden) der letzten Benutzung (Entscheidung N, 09.11.); ``None``: unbekannt, der Zeiger läuft nie ab
+    benutzt_wall: float | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -109,6 +111,8 @@ class Konfig:
     zuordnungen: Mapping[str, Zuordnung]
     leise_zeiten: LeiseZeiten
     gute_nacht: GuteNacht
+    #: Lesezeichen laufen nach so vielen Tagen ohne Benutzung ab; 0 = nie (Entscheidung N, 09.11.)
+    lesezeichen_tage: int = 14
 
 
 @dataclass(frozen=True, slots=True)
@@ -543,6 +547,8 @@ class ZeigerSpeichern(Befehl):
     grund: Literal[
         "pause", "folgenende", "trackwechsel", "zurueck", "figurwechsel", "periodisch", "herunterfahren"
     ]
+    #: Wanduhr (Unix-Sekunden) der Benutzung; ``None``, wenn die Uhr unsicher ist (Entscheidung N, 09.11.)
+    wall: float | None = None
 
 
 @dataclass(frozen=True, slots=True)
