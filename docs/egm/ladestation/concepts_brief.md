@@ -47,6 +47,42 @@ darf nichts anrichten.
 | D6 | Anzeige | **Keine LED am Sockel.** Den Ladezustand zeigt die Box. |
 | D7 | Bauweise | **Fertige Module** (USB-C-Breakout mit 5,1 kΩ an CC, Pololu-Schalter #2810, rückstellbare Sicherung PTC, Reed). Der Wechsel auf eine eigene eFuse-Platine bleibt offen, wenn Messung oder Münztest das verlangen. |
 
+### Nachtrag zu D2: So funktioniert „jede Drehlage“ (09.11.)
+
+Die Pins müssen nicht an festen Stellen der Box landen, nur im richtigen
+**Abstand zur Mitte** (Prinzip Wasserkocher-Sockel). Die Box dreht sich immer
+um ihre Mitte. Der Mittel-Pin trifft daher immer die Mittelfläche, die
+Ring-Pins treffen in jedem Winkel den Ring.
+
+```
+Box-Boden (von unten)          Sockel (von oben)
+
+   ┌─────────────────┐          ┌─────────────────┐
+   │ M             M │          │ m             m │
+   │     ╭─────╮     │          │        o        │
+   │    ╱ Ring  ╲    │          │                 │
+   │   │   (●)   │   │          │  o     ●     o  │
+   │    ╲ GND   ╱    │          │                 │
+   │     ╰─────╯     │          │        o        │
+   │ M             M │          │ m             m │
+   └─────────────────┘          └─────────────────┘
+   ● Mittelfläche = +5 V        ● Mittel-Pin = +5 V
+   Ring = GND                   o Ring-Pins (2–4) = GND
+   M = Magnete                  m = Gegenstück, Reed unter einem
+```
+
+- Plus immer in der Mitte, Masse immer außen: Verpolung geht nicht.
+- Die vier Eck-Magnete liegen im 90°-Raster, in jeder Lage sitzt einer über
+  dem Reed.
+- Richtwerte: Mittelfläche Ø 8–10 mm, Ring 4–5 mm breit, Spalt Mitte–Ring
+  ~4 mm.
+- Die Flächen entstehen als runde Leiterplatte ohne Bauteile (vergoldet) oder
+  aus Messing. Offen für den Draft.
+- **Budget (Tobias, 09.11.: rausnehmen, wenn es das Budget stark belastet):**
+  Mehrkosten gegenüber 2 Pins etwa 10–20 € gesamt (Pad-Platinen inkl. Versand,
+  2–3 zusätzliche Pogo-Pins je Sockel). Das belastet das Budget nicht stark,
+  D2 bleibt.
+
 ### Folgen und Abweichungen vom Plan
 
 - **Stückliste 1.2 ändert sich:** statt einer „Dual-Ladestation mit 5 V/4 A“
