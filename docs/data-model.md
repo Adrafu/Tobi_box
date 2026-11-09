@@ -17,6 +17,13 @@
     Punkt 20 der Festlegungen). Entscheidung L (nie zwei Sachen gleichzeitig) ändert kein Schema. Nach dem Code-Review (09.11.): Die Grenze
     gewinnt immer, auch für den Hinweiston (Zeile `hinweis_pegel`, Abschnitt 3).
 
+*   **Änderung 09.11. (Vertrag W, Entscheidung M, 09.11.; alles additiv, `schema_version` bleibt):**
+    Optionales Feld `name` je Zuordnung in `config.json` (Tobie-Name, die Box ignoriert
+    es); optionale Felder `pruefen`, `pruefen_gruende` und `folgen_info` in `serie.json`
+    (Anzeigenamen, Folgen-Nummer, Erscheinungsdatum, „bitte prüfen“); reservierte
+    Ordnernamen in `medien/`; neuer Abschnitt 9 (Papierkorb-Eintrag `meta.json`) und
+    Abschnitt 10 (Eingang `eingang/`). Die Box-Software ändert sich dadurch nicht.
+
 ## 1. Allgemeine Regeln
 
 ### 1.1 Format
@@ -86,7 +93,9 @@ Beim Start (und bei jedem Lesen) in dieser Reihenfolge:
     gelesen hat, **nur bei `serie.json`** (dort schreibt die HA-Integration, die
     neue Felder kennen kann). Die Box schreibt ihre eigenen Dateien aus ihrem
     Wissen neu; unbekannte Felder gehen dort verloren. Das ist gewollt: Ein
-    Update-Rückfall spielt ohnehin die gesicherten Dateien zurück.
+    Update-Rückfall spielt ohnehin die gesicherten Dateien zurück. Beispiel (09.11.): Das
+    Feld `name` einer Zuordnung liest die Box nicht und schreibt es nicht in ihre
+    `config.json`; der Name bleibt in HA (Speicher und Export) erhalten.
 
 ### 1.5 `schema_version` und Migration
 
@@ -119,7 +128,9 @@ Beim Start (und bei jedem Lesen) in dieser Reihenfolge:
 | `manifest.json` | im Paket `tobibox-<version>.tar.gz` | `deploy/build_release.sh` | `update.py`, `guard.py` | liegt auf dem NAS (`releases/`) |
 | `update.json` | Box, Zustandsverzeichnis | Box: `update.py` und `guard.py` | `update.py`, `guard.py`, `selftest`, `cli` | nie |
 | Ereignisprotokoll | Pi: journald (stdout); Mac: rotierende Datei | `eventlog` | Tobias | nie |
-| `export/config.json` | NAS, `tobibox/export/` | HA-Integration, nach jeder Änderung | Tobias (Wiederherstellung) | – |
+| `export/config.json` | NAS, `tobibox/export/` | HA-Integration, nach jeder Änderung (nach dem Veröffentlichen, im Hintergrund) | Tobias, HA (`konfig/export_lesen`, `konfig/aus_export`) | – |
+| `_papierkorb/<id>/meta.json` | NAS, `medien/_papierkorb/` | HA-Integration (`media.py`) | HA-Integration | **nie** (vom Sync ausgenommen) |
+| Eingang | NAS, `tobibox/eingang/` (neben `medien/`) | Tobias (PC, Dateimanager) und HA (Upload, Einsortieren) | HA-Integration (`eingang.py`) | **nie** (liegt außerhalb des Sync-Moduls und ist ausdrücklich ausgenommen) |
 
 *   `update.json` schreiben zwei Programme, aber nie gleichzeitig: `guard.py`
     läuft als `ExecStartPre` vor dem Dienst, `update.py` im Dienst. Beide
@@ -163,6 +174,7 @@ Struktur ist die Nachricht auf dem Thema `tobibox/config` (`mqtt-v1.md`).
 | `erzeugt_am` | string (Zeitstempel) | nein | wann HA diese Fassung erzeugt hat (nur zur Anzeige) |
 | `zuordnungen` | object | ja (darf leer sein) | Schlüssel = Kennung (kanonisch), Wert = Zuordnung |
 | `zuordnungen.<uid>.ziel` | object | ja | Worauf der Tobie zeigt (Entscheidung F, 05.11.) |
+| `zuordnungen.<uid>.name` | string, 1–60 Zeichen | nein | **Tobie-Name** für die HA-Seite (Vorgabe der Projektleitung, 09.11.), z. B. „Rabe aus Holz“. Ohne Steuerzeichen, Leerraum gekürzt. Die Box **ignoriert** das Feld (1.4): Die Prüfung der Liste (`validiere_konfig`) schaut nur auf `ziel`, ein vorhandenes `name` macht eine Liste nie ungültig. Alte Listen ohne `name` bleiben gültig. Ändert HA nur einen Namen, gilt das wie jede Änderung (Revision + 1). Ein Name erhöht die Größe der Liste um höchstens 70 Bytes je Zuordnung (Grenze 256 KiB, `mqtt-v1.md`, Abschnitt 1). |
 | `ziel.typ` | `"serie"`, `"folge"` oder `"aktion"` | ja | `serie`: jedes Auflegen setzt die Serie an ihrem Zeiger fort. `folge`: genau eine Folge einer Serie. `aktion`: Aktionskarte. |
 | `ziel.serie` | string | wenn `typ="serie"` oder `typ="folge"` | Serien-ID. Verweist die ID auf keine Serie auf der Box (noch nicht synchronisiert), spielt die Box die **Überraschungs-Serie** und protokolliert den Grund (`serie_fehlt`); kommt die Serie später, gilt die Zuordnung beim nächsten Auflegen (`core-interface.md`, Abschnitt 6.3). |
 | `ziel.folge` | string | wenn `typ="folge"` | Name der Folge in der Serie (Dateiname oder Ordnername, reiner Name nach 1.1). Gibt es die Folge in der Serie auf der Box nicht, gilt dasselbe wie bei fehlender Serie (`folge_fehlt`). |
@@ -236,10 +248,10 @@ Beispiel:
   "liste_id": "a3f9c1e07b2d4856",
   "erzeugt_am": "2026-11-05T09:30:00Z",
   "zuordnungen": {
-    "e0040312345678ab": { "ziel": { "typ": "serie", "serie": "3f9a1c07b2d4" } },
+    "e0040312345678ab": { "ziel": { "typ": "serie", "serie": "3f9a1c07b2d4" }, "name": "Rabe aus Holz" },
     "04a1b2c3": { "ziel": { "typ": "folge", "serie": "8c21d5e9a0b7", "folge": "folge-03.mp3" } },
     "04ffeedd": { "ziel": { "typ": "aktion", "aktion": "status" } },
-    "04112233445566": { "ziel": { "typ": "aktion", "aktion": "gute_nacht" } }
+    "04112233445566": { "ziel": { "typ": "aktion", "aktion": "gute_nacht" }, "name": "Gute-Nacht-Karte" }
   },
   "leise_zeiten": {
     "zeitzone": "Europe/Berlin",
@@ -409,6 +421,9 @@ HA-Integration legt sie an und pflegt sie; die Boxen lesen sie nur.
 | `typ` | `"normal"` oder `"ueberraschung"` | ja | Die Überraschungs-Serie ist **nur** daran erkennbar; es gibt keine feste ID. |
 | `folgen` | array von string | ja (darf leer sein) | Namen der Folgen in der maßgeblichen Reihenfolge: Dateiname (Folge aus einer Datei) oder Ordnername (Folge aus mehreren Tracks) (Entscheidung F, 05.11.). Die Tracks eines Folgen-Ordners stehen nicht in `serie.json`; die Box liest sie aus dem Ordner. |
 | `angelegt_am` | string (Zeitstempel) | ja | Anlegezeit. Bei doppelter `id` entscheidet das spätere `angelegt_am` (jüngere Kopie bekommt eine neue ID). |
+| `pruefen` | bool | nein | **(09.11., Entscheidung M)** Die Serie wurde beim Einsortieren aus schwachen Angaben (Interpret, Ordnername) angelegt: „bitte prüfen“. Fehlt = `false`. |
+| `pruefen_gruende` | array von string | nein | Codes zu `pruefen` (Vertrag W, 11.9). |
+| `folgen_info` | object | nein | **(09.11.)** Schlüssel = Name einer Folge aus `folgen`; Wert = Objekt mit den optionalen Feldern `anzeige` (string, 1–200 Zeichen: Anzeigename), `nummer` (int ≥ 0: Folgen-Nummer aus den Tags oder dem Albumnamen), `datum` (string `YYYY-MM-DD`: Erscheinungsdatum), `pruefen` (bool) und `pruefen_gruende` (array von string). Nur die HA-Integration schreibt es. Einträge für Namen, die nicht in `folgen` stehen, sind bedeutungslos und werden beim nächsten Schreiben entfernt. |
 
 Regeln (aus dem Design, hier zusammengefasst):
 
@@ -467,6 +482,17 @@ Regeln (aus dem Design, hier zusammengefasst):
 
     Beispiele (aufsteigend): `folge-2.mp3`, `folge-10.mp3`; `a1.mp3`, `a1b.mp3`;
     `01.mp3`, `1.mp3`, `2.mp3`, `10.mp3`; `Folge.mp3`, `folge.mp3`.
+*   **Die Box ignoriert `pruefen`, `pruefen_gruende` und `folgen_info`** (1.4); sie
+    spielt nach Dateinamen und `folgen`. Das **Umbenennen** einer Serie oder Folge in
+    HA ändert nur `name` bzw. `folgen_info.<name>.anzeige`, nie einen Datei- oder
+    Ordnernamen; Zeiger und Zuordnungen bleiben gültig. Der **Sortierschlüssel**
+    (Nummer, Datum) dient der HA-Integration, wenn sie neue Folgen einfügt (Vertrag W, 11.6).
+*   **Reservierte Namen in `medien/` (09.11.):** Ordner, deren Name mit `_` beginnt
+    (`_papierkorb`, `_upload`), und der Name `eingang` (ohne Rücksicht auf
+    Groß-/Kleinschreibung) sind **keine Serien**. Die HA-Integration legt dafür keine
+    `serie.json` an. Sie werden vom Sync der Box ausgenommen und erreichen die Box nie;
+    die Box-Software braucht deshalb keine eigene Regel. Namensregeln für neue Dateien und
+    Ordner: Vertrag W, Abschnitt 12.
 *   **Ungültige `serie.json`:** behandelt die Box wie eine fehlende; die Datei
     wird nicht repariert, aber protokolliert. (Die Integration repariert sie.)
 *   **Überraschungs-Serie:** genau eine Serie mit `typ="ueberraschung"`. Keine,
@@ -500,6 +526,28 @@ die Tracks stehen nicht in der Datei.
   "typ": "normal",
   "folgen": ["CD Die Schatzinsel", "folge-02.mp3"],
   "angelegt_am": "2026-11-05T09:02:00Z"
+}
+```
+
+Beispiel (Serie, die HA aus dem Eingang einsortiert hat, mit `folgen_info` (09.11.)):
+
+```json
+{
+  "schema_version": 1,
+  "id": "5d0e7a3c91b8",
+  "name": "Der kleine Rabe",
+  "typ": "normal",
+  "folgen": ["folge-01.mp3", "Der Wald"],
+  "angelegt_am": "2026-11-09T18:00:00Z",
+  "folgen_info": {
+    "folge-01.mp3": { "anzeige": "Der kleine Rabe - Folge 1: Der Anfang", "nummer": 1, "datum": "2019-03-01" },
+    "Der Wald": {
+      "anzeige": "Der kleine Rabe - Folge 2: Der Wald",
+      "nummer": 2,
+      "pruefen": true,
+      "pruefen_gruende": ["track_teils_leer"]
+    }
+  }
 }
 ```
 
@@ -625,6 +673,54 @@ Beispiel (simuliertes Ereignis):
 Obergrenze des Protokolls: Pi: journald mit begrenztem Platz; Mac: bis zu
 5 Dateien zu je 1 MB (Vorschlag aus dem Design, im Pi-Probelauf geprüft).
 
+## 9. Papierkorb-Eintrag (`meta.json`) (09.11., Vertrag W, 3.3)
+
+Jeder Eintrag im Papierkorb ist ein Ordner `medien/_papierkorb/<id>/` mit der Datei
+`meta.json` und dem Ordner `inhalt/`, der das Gelöschte **unter seinem bisherigen Namen**
+enthält (eine Datei, ein Folgen-Ordner oder ein ganzer Serien-Ordner). `<id>` sind 12
+Zeichen `[0-9a-f]` (vom Backend erzeugt), damit zwei gleichnamige Löschungen nie
+kollidieren. Das Verschieben ist ein Umbenennen auf derselben Freigabe. Schreiber ist
+allein die HA-Integration (`media.py`); die Boxen holen den Papierkorb nie (vom Sync
+ausgenommen).
+
+| Feld | Typ | Pflicht | Bedeutung |
+|---|---|---|---|
+| `schema_version` | int | ja | `1` |
+| `id` | string | ja | wie der Ordnername |
+| `typ` | `"folge"`, `"serie"` oder `"eingang"` | ja | was es war |
+| `grund` | `"manuell"`, `"zusammengefuehrt"`, `"doppelt"` oder `"eingang_rest"` | ja | wie es in den Papierkorb kam |
+| `geloescht_am` | string (Zeitstempel) | ja | |
+| `serie_id` | string oder `null` | ja | Serie, aus der es kam (`null` bei `eingang`) |
+| `serie_name` | string oder `null` | ja | Anzeigename der Serie zum Zeitpunkt des Löschens |
+| `serie_ordner` | string oder `null` | ja | Ordnername der Serie auf der Freigabe (`typ="serie"`: der Ordner, der zurückkommt) |
+| `name` | string | ja | ursprünglicher Name der Datei oder des Ordners (= Name in `inhalt/`) |
+| `art` | `"datei"` oder `"ordner"` | ja | |
+| `dateien` | int | ja | Anzahl Dateien (Tracks) |
+| `groesse_bytes` | int | ja | |
+| `folge_info` | object oder `null` | ja | bei `typ="folge"` der Eintrag aus `folgen_info` (Anzeigename, Nummer, Datum, `pruefen`), sonst `null` |
+| `serie_json` | object oder `null` | ja | bei `typ="serie"` eine Kopie der `serie.json`; sonst `null` |
+| `index_pruefsummen` | array von string | nein | SHA-256 der Dateien, die zum Hash-Index des Einsortierens gehörten (Vertrag W, 11.10); sie kommen beim Wiederherstellen zurück in den Index |
+
+Das Schreiben ist atomar (`.tmp`, `fsync`, umbenennen, 1.2 ohne `.bak`). Eine
+`meta.json` ohne `inhalt/` (oder umgekehrt) gilt als Rest eines Abbruchs und wird beim
+nächsten Prüfen der Freigabe protokolliert (`papierkorb_unvollstaendig`) und nicht
+angeboten.
+
+## 10. Eingang `eingang/` (09.11., Vertrag W, Abschnitt 11)
+
+Der Eingang ist ein Ordner `tobibox/eingang/` auf dem NAS, **neben** `medien/`, `export/` und
+`releases/` (dieselbe Freigabe). Tobias legt dort Ordner und Dateien ab (zum Beispiel einen
+Hörbuch-Download), die HA-Integration liest die Tags und sortiert sie in `medien/` ein.
+Es gibt **keine** Dateien mit festem Schema im Eingang; der Zustand des Einsortierens
+(Protokoll der letzten 100 Einträge, Hash-Index, Upload-Vorgaben) liegt im HA-Speicher,
+nicht auf dem NAS.
+
+*   Der Eingang wird **nie gesynct** (außerhalb des Moduls `medien`); `_upload/`,
+    `_papierkorb/` und `eingang` werden zusätzlich im Sync ausdrücklich ausgenommen.
+*   Dateifilter wie bei den Tracks (Abschnitt 5): kein Dotfile, Endung aus der Liste.
+*   Die Box-Software ändert sich dadurch nicht: Was einsortiert ist, hat die Form von
+    Abschnitt 5 (Serien-Ordner, `serie.json`, Dateien oder Folgen-Ordner).
+
 ## Festlegungen in diesem Vertrag (Stand 05.11.)
 
 Das Design lässt diese Einzelheiten offen. Entschieden wurde die einfachste
@@ -724,3 +820,14 @@ Projektleitung (P) entschieden oder aus dem Goldfisch-Review übernommen
     jetzt weniger Tracks als der Zeiger meint, gilt Track 0 / Position 0
     (`zeiger_track_fehlt`). Beides folgt Punkt 14 und ist von Tobias noch nicht
     bestätigt.
+26. **Bestätigt (09.11., P, Vorgabe 10 des Vertrags W): Tobie-Name.** Optionales Feld
+    `name` je Zuordnung in `config.json` und `tobibox/config` (Abschnitt 2); die Box
+    ignoriert es. Additiv, `schema_version` bleibt 2.
+27. **Bestätigt (09.11., P, Entscheidung M): `serie.json` hat optionale Felder**
+    `pruefen`, `pruefen_gruende` und `folgen_info` (Anzeigename, Nummer, Datum je
+    Folge). Umbenennen ändert nur Anzeigenamen. Additiv, `schema_version` bleibt 1.
+28. **Bestätigt (09.11., P, Vorgabe 15): Papierkorb-Eintrag** als Ordner
+    `_papierkorb/<id>/` mit `meta.json` und `inhalt/` (Abschnitt 9).
+29. **Bestätigt (09.11., P, Entscheidung M): Eingang `eingang/` neben `medien/`;**
+    `_…`-Ordner und `eingang` in `medien/` sind keine Serien; Eingang, `_upload/` und
+    `_papierkorb/` werden nicht gesynct (Abschnitte 5 und 10).

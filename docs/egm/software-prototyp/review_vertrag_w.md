@@ -253,3 +253,54 @@ Aus den Quellen schon beantwortbar oder keine Entscheidung von Tobias:
 *   Versionierung (`hello`, strengere Eingaben, neuer Wurzelname bei `v2`) passt zu `mqtt-v1.md` 8.
 *   Reservierte Befehle (Abschnitt 10) widersprechen dem Design nicht (Leise-Zeiten Stufe 4, Update 3b, Lautheit ohne Befehl, D6).
 *   Begriff „Tobie“/„Tobies“ in den Texten für Eltern (Entscheidung F1).
+
+---
+
+## Auflösung (09.11.2026, Projektleitung)
+
+Alle Befunde sind in `docs/protocol/ha-websocket-v1.md` eingearbeitet (Überarbeitung vom
+09.11.). Abschnittsnummern beziehen sich auf den überarbeiteten Vertrag. „Vorgabe“ heißt:
+Entscheidung der Projektleitung vom 09.11. zu den früheren offenen Punkten, Tobias kann
+widersprechen.
+
+| Befund | Auflösung |
+|---|---|
+| W-01 | Übernommen. Abschnitt 13: Zustand `leer_neu` (Speicher leer, obwohl es eine Konfiguration gab): nichts wird veröffentlicht, keine Listen-ID; Erststart (kein Export, kein Box-Status) ausgenommen. Neue Befehle `konfig/export_lesen` (Nr. 31) und `konfig/aus_export` (Nr. 32, neue Listen-ID, Revision 1); `hello.konfig.zustand`; `test_restore.py` erweitert (13.7). Änderungen sperrt `konfig_nicht_bereit`. |
+| W-02 | Übernommen. `konfig_stand` um `voraus` ergänzt (3.7), Ereignis `konfig` `abweichung` (4.6), Revision wird nie von selbst erhöht (13.4). Dazu `export_neuer` (13.2) für HA aus alter Sicherung. |
+| W-03 | Übernommen. Abschluss des Uploads als eigene Aufgabe mit `asyncio.shield` unter der Sperre des Eingangs; `.part` immer mit Zufallsnamen; Namensprüfung ohne Groß-/Kleinschreibung und NFC unter der Sperre, Anlegen ohne Überschreiben (`os.link`/`O_EXCL`); Ergebnis je `upload_id` 1 Stunde gemerkt, auch wenn der Client weg ist; `upload_laeuft` (5.2). Die Zusicherung „Abbruch hinterlässt nichts“ gilt nur noch für den Empfang. Mit Entscheidung M geht der Upload in den Eingang und `datei_existiert` entfällt dort (Suffix). |
+| W-04 | Übernommen, Variante 1: Ereignisse `upload` an alle Abos des Nutzers, die Seite filtert nach `upload_id`; `empfange` entfällt (4.7, 5.7). |
+| W-05 | Übernommen. Ein Vorgang gilt als tot nach Status `lernmodus=false` (nach `true`), nach 30 s ohne Status `true` oder nach `frist_bis`; beim Start nur ein lebender Vorgang wird zurückgegeben; späte Meldung bis `frist_bis` bleibt angenommen; Vorgang endet in genau einem Zustand (3.6, 6.2 Schritt 6, 4.3). Statt „spätestens Beginn + 130 s“ gilt die Statusregel mit `frist_bis` (die Box kann bei spätem Eintreffen des Befehls bis 180 s lernen). |
+| W-06 | Übernommen. Reihenfolge Speichern, Veröffentlichen, Export im Hintergrund mit Wiederholung; `konfig.export_ok`, `export_geschrieben_am`, Ereignisse `export_fehler`/`export_ok` (Abschnitt 1, 13.5). |
+| W-07 | (a)+(b) übernommen: `ack` erst nach PUBACK, ohne PUBACK kein `ack`, Nachholen beim Wiederverbinden. (c) übernommen: `abgelehnt` mit `grund` `konfig_zu_gross`, `speicherfehler`, `ziel_fehlt`, `konfig_nicht_bereit`. (d) entschieden: Hat der Tobie das Ziel schon, sendet das Backend `ack abgelehnt` (die Box spielt sofort das identische bestehende Ziel, keine 10 s Stille); die Seite zeigt „Der Tobie hat dieses Ziel schon.“ (6.2 Schritt 3 und 4). |
+| W-08 | Übernommen. Die letzten 20 abgeschlossenen Lernmodus-Vorgänge im HA-Speicher; erneutes `gelernt` mit bekannter `befehl_id` wiederholt das `ack` (6.2 Schritt 3, Festlegung 21). |
+| W-09 | Übernommen. `rueckfrage_bis` = das spätere von `frist_bis` und Meldung + 60 s; `persistent_notification` bei Rückfrage (Vorgabe 11; die 180 s bleiben die Frist des Vorgangs). |
+| W-10 | Übernommen. Ein Grundsatz in Abschnitt 1: Aktionen und `ui/*` rufen dieselben Funktionen; bei Aktionen ohne Seite gilt `ueberschreiben=false`/`tobies_bestaetigt=false`, außer das Aktionsfeld sagt `true`; `ui/lernen_abbrechen` wie `lernmodus/abbrechen`. |
+| W-11 | Übernommen. Eine schon zugeordnete Kennung wird nicht in „Neue Tobies“ aufgenommen (`ack bekannt`); `anzahl` je Box ersetzen, nie addieren (3.4). |
+| W-12 | Übernommen. Optionales `erwartet_ziel` bei `zuordnung/set`/`remove`, Fehler `zuordnung_geaendert`; die Seite sendet `stand` und `erwartet_ziel` immer (Schema optional, damit Aktionen funktionieren). |
+| W-13 | Übernommen, mit Vorgabe 16: `limit`/`offset` bei `zuordnung/list` schon in Version 1 (höchstens 100 je Seite ≈ 35 KiB); der Widerspruch 64/256 KiB ist aufgelöst (Abschnitt 8). |
+| W-14 | Übernommen. Fundstelle `components/http/server.py` Zeile 69 und 278 eingetragen; Streaming mit `read_chunk` nicht begrenzt; `max_body_size` bleibt unverändert; AP 3.1 testet mit 40 MiB (Abschnitt 8, Prüftabelle, Design AP 3.1). |
+| W-15 | Übernommen mit Vorgabe 6/20: `upload_max_bytes` 500 MiB, einstellbar; Abnahmetest am Handy mit 20, 150 und 500 MiB und gemessener Dauer. |
+| W-16 | Übernommen. Pflicht-Härtung in 5.4: Argumentliste ohne Shell, `file:`-Pfad, `-protocol_whitelist file`, erzwungenes Format aus der Endung, `format_name` gegen Liste, mindestens ein Audio-Strom, Zeit- und Speicherlimit. Gilt auch für die Tags im Eingang (11.2). |
+| W-17 | Übernommen. Neuer Abschnitt 12 „Namen und reservierte Ordner“: SMB-verbotene Zeichen werden ersetzt statt abgelehnt (`:` → ` - `), Steuerzeichen, Punkt/Leerzeichen am Ende, Gerätenamen, Kürzen an Zeichengrenzen mit der kürzeren Grenze aus UTF-8-Bytes und UTF-16-Einheiten, Namensgleichheit ohne Groß-/Kleinschreibung und NFC; `_…`-Ordner und `eingang` reserviert (auch in `data-model.md`). |
+| W-18 | Übernommen mit Vorgabe 15. Papierkorb je Eintrag `_papierkorb/<id>/` mit `meta.json` und `inhalt/`; Format in `data-model.md`, Abschnitt 9. |
+| W-19 | Übernommen. Dekorator `homeassistant.components.http.decorators.require_admin`; Status 401 oder 403, die Seite wertet `code` (2.1, Abschnitt 7). |
+| W-20 | Übernommen. `veroeffentlicht` ist `null` bei `geaendert=false` (3.5). |
+| W-21 | Übernommen. „Sperre für die Konfiguration, je Serie und für den Eingang“, feste Reihenfolge der Sperren (Abschnitt 1). |
+| W-22 | Übernommen. Nur Erfolge werden unter der `anfrage_id` gemerkt (2.2). |
+| W-23 | Übernommen. Zusammengefasst werden nur `geaendert`/`serien_geaendert`; `ereignis`, Lernmodus-Zustände, `neu_einsortiert`, `abweichung` und `fortschritt` nie (Abschnitt 4). |
+| W-24 | Übernommen. Bei offener Rückfrage geht das `ack abgelehnt` sofort beim Abbrechen (3.6, Nr. 20). |
+| W-25 | Übernommen. `online=null` gilt als offline (`box_offline`, 3.6, 3.7). |
+| W-26 | Übernommen. Die statischen Dateien sind öffentlich und enthalten keine Geheimnisse; Namen nur als Text darstellen (Abschnitt 1). |
+| W-27 | Übernommen. `hello` ist für jeden angemeldeten Nutzer lesbar, im Vertrag genannt (2.1); mit der Seite nur für Administratoren (Vorgabe 1) praktisch ohne Folge. |
+| W-28 | Übernommen. `serien/list` und `eingang/list` aus dem Zwischenspeicher der letzten Prüfung; nur `serie/get` liest frisch (3.2, Abschnitt 1). |
+
+**Zusätzlich aus den Prüffragen des Reports übernommen:** Obergrenze für gleichzeitige
+Uploads (2) und Platzprüfung vor dem Start (5.1); „Pfad aus der Serien-Tabelle, nie aus der
+Eingabe“ (Abschnitt 1); Benachrichtigung bei Rückfrage (W-09) und sichtbarer Export-Fehler
+(W-06) als neue Ereignisse statt offener Punkte.
+
+**Offene Punkte für Tobias (früher 1 bis 20):** Alle 20 sind als Vorgabe der Projektleitung
+entschieden (Tabelle „Vorgaben der Projektleitung“ im Vertrag). Übrig bleiben nur
+Dinge, die Tobias allein beantworten oder tun kann: die Messung über Nabu Casa, das
+Beispielmaterial für die Tags, die Frage nach dem Hörstand beim Verschieben von Folgen
+und zwei Aufgaben (Eingangsordner anlegen, HA-Patch-Version nennen).

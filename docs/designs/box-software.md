@@ -9,6 +9,7 @@
 *   **Änderung 09.11.:** Entscheidung I eingearbeitet (ein kleiner Rest gilt als fertig gehört). Die Änderungen sind mit „(Entscheidung I, 09.11.)“ markiert.
 *   **Änderung 09.11.:** Entscheidung J eingearbeitet (Töne folgen der Lautstärke des Hörspiels). Die Änderungen sind mit „(Entscheidung J, 09.11.)“ markiert.
 *   **Änderung 09.11.:** Entscheidung L eingearbeitet (nie zwei Sachen gleichzeitig). Die Änderungen sind mit „(Entscheidung L, 09.11.)“ markiert.
+*   **Änderung 09.11.:** Entscheidung M eingearbeitet (Einsortieren nach Metadaten, vollautomatisch mit Korrektur) und die Vorgaben der Projektleitung zu Vertrag W (`docs/protocol/ha-websocket-v1.md`). Die Änderungen sind mit „(Entscheidung M, 09.11.)“ markiert.
 *   **Grundlage:** `concepts_brief.md` (gleicher Ordner) inkl. Entscheidungen
     Runde 1 und 2
 
@@ -483,6 +484,48 @@ Alternativen“.
         und Klemmung; ein Ton mitten in einem Start wartet auf den Start; zwischen zwei Tonfolgen blitzt das alte
         Hörspiel nicht auf (`core-interface.md`, 6.5 Punkt 6e).
 
+*   **Entscheidung M — Einsortieren nach Metadaten, vollautomatisch mit Korrektur (09.11.):**
+    Tobias will Hörbücher und Hörspiele „wie bei Plex“ ablegen, nicht von Hand in Serien
+    sortieren. Neu (Entscheidung M, 09.11.); die Regeln stehen testbar in
+    `docs/protocol/ha-websocket-v1.md`, Abschnitt 11:
+    *   **M1 — Eingang:** Tobias legt einen Ordner (z. B. einen Hörbuch-Download) in den
+        **Eingangsordner** `tobibox/eingang/` auf dem NAS (neben `medien/`, `export/`,
+        `releases/`). Ein **Upload über die Seite** geht ebenfalls dorthin und durchläuft
+        dieselbe Einsortierung (die Seite kann eine Serie als Vorgabe mitgeben).
+    *   **M2 — Tags lesen:** Die HA-Integration liest mit `ffprobe` Album, Album-Interpret,
+        Serien-Tags (`series`, `grouping`, `MVNM`/`movement_name` bei m4b, `TIT1`),
+        Track- und Disc-Nummer, Titel, Datum und eine Folgen-Nummer im Albumnamen
+        („Folge 12“, „Teil 2“, …).
+    *   **M3 — Automatisch einsortieren:** **Album = eine Folge**, bei mehreren Dateien ein
+        Folgen-Ordner mit Tracks (Entscheidung F). **Serie** aus Serien-Tag, sonst
+        Album-Interpret; Alben derselben Serie werden zusammengeführt (Vergleich ohne
+        Groß-/Kleinschreibung und Satzzeichen). **Folgen** in der Serie nach
+        Folgen-Nummer, sonst Erscheinungsdatum, sonst Eingangsreihenfolge; **Tracks** nach
+        Disc und Track, sonst natürliche Sortierung der Dateinamen. Danach legt sie
+        `serie.json` an bzw. ergänzt sie (Anzeigenamen aus den Tags) und verschiebt die
+        Dateien in die Medienstruktur.
+    *   **M4 — Korrigieren:** Die Seite zeigt, was erkannt wurde. Tobias kann Namen ändern
+        (nur **Anzeigenamen**, Dateinamen bleiben, Zeiger gehen nie verloren), die Serie
+        einer Folge wechseln, die Reihenfolge ändern und zwei Serien zusammenführen.
+        Fehlen Tags, nimmt HA Ordner- und Dateinamen und markiert den Eintrag als „bitte
+        prüfen“.
+    *   **M5 — Kopierschutz, Defekte, Doppelte:** Kopiergeschützte oder defekte Dateien
+        kommen **nicht in die Medien**; sie bleiben im Eingang mit Hinweis (D5). Gleicher
+        Inhalt (Prüfsumme) wird erkannt und verworfen (Papierkorb) mit Hinweis; gleicher
+        Name mit anderem Inhalt erhält automatisch ein Suffix.
+    *   **M6 — Box unverändert:** Die Medienstruktur auf den Boxen bleibt (Serien-Ordner mit
+        `serie.json`); der Box-Code weiß nichts davon. **Nicht gesynct** werden
+        `_upload/`, `_papierkorb/` und `eingang/` (AP 3.4, AP 3.5).
+    *   **M7 — Tobie-Namen und Löschen:** Ein Tobie kann einen **Namen** tragen (optionales
+        Feld `name` je Zuordnung, die Box ignoriert es). Eine Serie löschen geht über den
+        Papierkorb; zeigen Tobies auf eine Folge oder Serie, die gelöscht wird, fragt die
+        Seite vorher mit Anzahl und Namen der Tobies (die Zuordnung bleibt, die Box spielt
+        bis zur Wiederherstellung die Überraschung).
+    *   **M8 — Folgen:** D4 (Serien anlegen und umbenennen, Folgen sortieren und löschen,
+        Audiodateien vom Handy hochladen, Überraschungs-Serie befüllen) bleibt; „Hochladen“
+        heißt jetzt „in den Eingang“. Die Überraschungs-Serie kann die Seite anlegen, wenn
+        es keine gibt; als Ziel einer Zuordnung ist sie verboten.
+
 - **Nachtrag 05.11. (Stufe-0-Verträge):** Ein Leser-Neustart startet nie von selbst eine Wiedergabe; nach einem bestätigten Leserverlust (> 3 s) bleibt die Box pausiert, auch wenn der Tobie danach wieder gemeldet wird – das Kind legt neu auf. Lesefehler gelten bis 5 s als „Tobie liegt“; fehlende Serie → Überraschungs-Serie; „stumm“ sperrt auch Knöpfe; MPD-Verlust bis 5 s wird überbrückt. Maßgeblich sind die Verträge in `docs/protocol/` und `docs/data-model.md`.
 
 ## Offene Fragen
@@ -506,7 +549,7 @@ Alternativen“.
 Erledigt: Medienformate und Lautheitsangleich (siehe D5 und D6), Ende der
 letzten Folge und Ende eines „stumm“-Fensters (Entscheidungen A und B),
 Datenvolumen im Hotspot (Entscheidung C), Hauptknopf nach Folgenende
-(Entscheidung E), Tobies als Folge oder Serie (Entscheidung F), Lernmodus wartet still (Entscheidung H), kleiner Rest gilt als fertig gehört (Entscheidung I), Töne folgen der Lautstärke (Entscheidung J), nie zwei Sachen gleichzeitig (Entscheidung L), Schnittstellen und Datenformate (Stufe 0), die Befunde R1 bis
+(Entscheidung E), Tobies als Folge oder Serie (Entscheidung F), Lernmodus wartet still (Entscheidung H), kleiner Rest gilt als fertig gehört (Entscheidung I), Töne folgen der Lautstärke (Entscheidung J), nie zwei Sachen gleichzeitig (Entscheidung L), Einsortieren nach Metadaten (Entscheidung M), Schnittstellen und Datenformate (Stufe 0), die Befunde R1 bis
 R18 des Reviews Stufe 9.
 
 ## Risiken
@@ -1393,18 +1436,30 @@ Skripte, Automationen) liegt als Dateien im Repo unter `homeassistant/`.
   Gute-Nacht-Einstellungen) liegt im HA-Speicher (`.storage/tobibox`), mit
   **einer** Revision und **einer** Listen-ID. **Export** automatisch nach
   jeder Änderung als Datei auf das NAS (`tobibox/export/`). Rückweg bei
-  Verlust von HA: HA-Sicherung und NAS-Export; danach „Liste neu ausrollen“.
+  Verlust von HA: HA-Sicherung und NAS-Export; danach „Liste neu ausrollen“ oder
+  die Konfiguration aus dem Export zurückholen. (Vertrag W, 09.11.: Ist der Speicher leer
+  oder der Export neuer, veröffentlicht die Integration **nichts**, bis Tobias entschieden
+  hat; erst veröffentlichen, dann exportieren; Fehler beim Export werden gemeldet;
+  Abschnitt 13.)
 - **Medien:** Die Medienfreigabe des QNAP ist in HA als Netzwerkspeicher
   eingebunden. Aufbau auf dem NAS: `tobibox/medien/<ordner>/serie.json` +
-  Audiodateien, `tobibox/medien/_papierkorb/`, `tobibox/export/`,
+  Audiodateien, `tobibox/medien/_papierkorb/`, `tobibox/medien/_upload/`
+  (Zwischendateien), `tobibox/eingang/` (Entscheidung M, 09.11.), `tobibox/export/`,
   `tobibox/releases/`. HA hat vollen Schreibzugriff auf die Freigabe
-  (`medien/`, `export/`, `releases/`); Tobias ist der einzige Benutzer
-  (Entscheidung D). Pakete legt Tobias ab.
+  (`medien/`, `eingang/`, `export/`, `releases/`); Tobias ist der einzige Benutzer
+  (Entscheidung D). Pakete legt Tobias ab. **`_upload/`, `_papierkorb/` und `eingang/`
+  werden vom Sync der Boxen ausgenommen** (NAS-Modul und Box, AP 3.4, AP 3.5); Ordner mit
+  `_` am Anfang und der Name `eingang` sind in `medien/` keine Serien.
 - **`serie.json`:** `schema_version`, `id` (zufällig, unveränderlich),
   `name` (Anzeige), `angelegt_am`, `folgen` (Reihenfolge als Liste von
   Namen von Dateien und Folgen-Ordnern; maßgeblich, Regeln im Datenmodell), `typ` (`normal` oder
   `ueberraschung`; die Überraschungs-Serie wird nur daran erkannt). Geschrieben
-  atomar.
+  atomar. Optional (09.11., Entscheidung M): `folgen_info` (Anzeigename, Folgen-Nummer,
+  Datum je Folge) und `pruefen`/`pruefen_gruende`; die Box ignoriert sie (Datenmodell).
+- **Eingang (Entscheidung M, 09.11.):** Beim Öffnen der Seite und alle 10 min liest die
+  Integration `eingang/` (Ruhezeit 120 s gegen halb kopierte Ordner) und sortiert nach
+  den Tags ein (`ha-websocket-v1.md`, Abschnitt 11). Kopiergeschütztes und Defektes
+  bleibt im Eingang mit Hinweis; Doppelte (Prüfsumme) kommen in den Papierkorb.
 - **Erkennen von außen:** Beim Öffnen der Seite und alle 10 min prüft die
   Integration die Freigabe. Neuer Ordner → `serie.json` mit neuer ID und
   Ordnername als Anzeigename. Neue Datei oder neuer Folgen-Ordner → hinten an die Reihenfolge (erst
@@ -1413,27 +1468,37 @@ Skripte, Automationen) liegt als Dateien im Repo unter `homeassistant/`.
   Neue Dateien werden auf Format und Kopierschutz geprüft (D5). Schreiben HA,
   ein PC und der Lautheits-Container (D6) gleichzeitig auf die Freigabe, gibt
   es keine Sperre; das ist als Risiko geführt.
-- **Löschen** verschiebt in `_papierkorb/`, nie endgültig sofort. Es gibt
-  keine Automatik; Tobias leert den Papierkorb von Hand mit dem Knopf
+- **Löschen** (Folge oder ganze Serie) verschiebt in `_papierkorb/<id>/` mit
+  `meta.json` (Herkunft für „wiederherstellen“, `data-model.md`, Abschnitt 9), nie
+  endgültig sofort. Zeigen Tobies darauf, fragt die Seite vorher mit Anzahl und Namen.
+  Es gibt keine Automatik; Tobias leert den Papierkorb von Hand mit dem Knopf
   „Papierkorb leeren“ auf der Seite. Die Boxen übernehmen `_papierkorb/` nicht.
 
 #### Aktionen und Seite
 
 - **Aktionen** (auch für Automationen): zuordnen (Typ `serie`, `folge` oder
   Aktion; Aktionskarten wie Status und Gute Nacht) (Entscheidung F, 05.11.), lösen, Lernmodus starten / abbrechen, Serie anlegen /
-  umbenennen, Folgen sortieren / löschen, Papierkorb leeren, Sync anstoßen,
+  umbenennen / löschen, Folge umbenennen / verschieben, Serien zusammenführen,
+  Eingang einsortieren (Entscheidung M, 09.11.), Folgen sortieren / löschen, Papierkorb leeren, Sync anstoßen,
   Update anstoßen, Liste neu ausrollen (erzeugt eine neue Listen-ID),
   Leise-Zeiten und Gute-Nacht-Einstellungen einstellen (Stufe 4).
 - **Eigene Seite** in der HA-Seitenleiste („Tobi Box“), läuft auch über
   Nabu Casa am Handy:
   - Serienliste mit Anzahl Folgen und zugeordneten Tobies
-  - Serie öffnen: Folgen (Dateien oder Folgen-Ordner) per Ziehen sortieren, löschen, umbenennen,
-    Audiodateien vom Handy hochladen
+  - Serie öffnen: Folgen (Dateien oder Folgen-Ordner) per Ziehen sortieren, löschen, umbenennen
+    (Anzeigename), in eine andere Serie verschieben, Audiodateien vom Handy hochladen
+    (sie gehen in den Eingang)
+  - „Eingang“: was im Eingang liegt und was erkannt wurde (Serie, Folge, Nummer), mit
+    „bitte prüfen“ bei fehlenden oder widersprüchlichen Tags, Hinweisen zu
+    Kopierschutz und Doppelten, „erneut einsortieren“ und Zusammenführen zweier Serien
+    (Entscheidung M, 09.11.)
   - „Neue Tobies“: unbekannte Kennungen beider Boxen (gleiche Kennung = ein
     Eintrag), mit einem Tipp einer Serie oder einer einzelnen Folge zuordnen
     (Weg A; Tobias wählt dabei den Typ `serie` oder `folge`) (Entscheidung F, 05.11.); „Jetzt kommt ein
     neuer Tobie“ (Weg B, ebenfalls mit Typ)
-  - Aktionskarten (Status, Gute Nacht) einer Kennung zuordnen
+  - Aktionskarten (Status, Gute Nacht) einer Kennung zuordnen; Tobies bekommen auf Wunsch einen Namen
+  - Warnungen: Speicher von HA leer oder Export neuer, Export fehlgeschlagen, Box mit
+    neuerem Stand (Vertrag W, Abschnitt 13)
   - Box-Status: Version, Netz, Akku, Sync-Stand, letzter Fehler, abgelehnte
     Listen
   - Speicher: freier Platz je Box (die Box meldet ihn mit dem Status, D5);
@@ -1442,7 +1507,8 @@ Skripte, Automationen) liegt als Dateien im Repo unter `homeassistant/`.
   eigenen Build-Server), Daten über die HA-WebSocket-Schnittstelle mit
   HA-Anmeldung; Hochladen über einen eigenen HA-HTTP-Endpunkt mit Anmeldung,
   der nur Audioformate nach D5 annimmt. Die Seite wird mit `panel_custom`
-  registriert, ihre Dateien liefert `async_register_static_paths`; Lit liegt in
+  registriert (nur für Administratoren, `require_admin=True`), ihre Dateien liefert
+  `async_register_static_paths` (öffentlich, deshalb ohne Geheimnisse); Lit liegt in
   fester Version eingecheckt im Ordner der Seite. Die WebSocket-Befehle (Name,
   Eingabe, Ausgabe) sind ein Vertrag, den die Projektleitung zu Beginn von
   Stufe 3a schreibt (`docs/protocol/ha-websocket-v1.md`), bevor Backend und
@@ -1450,13 +1516,16 @@ Skripte, Automationen) liegt als Dateien im Repo unter `homeassistant/`.
 - **Technik der Integration:**
   - `manifest.json` mit `version` und `dependencies` (`mqtt`, `http`,
     `panel_custom`, `websocket_api`).
-  - **HA-Version fest** (die laufende stabile Version, Tobias nennt sie). Die
+  - **HA-Version fest: 2026.11.x** (Tobias aktualisiert darauf; die genaue
+    Patch-Version nennt er beim Start von AP 3.1). Mosquitto-Add-on 7.1.3. Die
     Tests mit `pytest-homeassistant-custom-component` sind an HA- und
     Python-Version gebunden und laufen deshalb in einer eigenen venv und einem
     eigenen CI-Job.
   - Upload als Strom in Blöcken (`request.multipart()`): HA begrenzt normale
-    Anfragen auf 16 MiB, Hörspielfolgen sind größer. Ob Nabu Casa große
-    Uploads durchlässt, wird am Handy geprüft (Risiko).
+    Anfragen auf 16 MiB (`MAX_CLIENT_SIZE` in `components/http/server.py`, am 09.11.
+    im Quelltext belegt), Hörspielfolgen sind größer; Grenze je Datei zunächst 500 MiB,
+    einstellbar. Ob Nabu Casa große Uploads durchlässt, wird am Handy mit 20, 150 und
+    500 MiB gemessen (Risiko). Der Upload geht in den Eingang (Entscheidung M, 09.11.).
   - Datei-Zugriffe auf die Netzwerkfreigabe über `hass.async_add_executor_job`.
   - `ffprobe` im HA ist eine Annahme (HA OS hat es). Fehlt es, meldet die
     Integration „Prüfung nicht möglich“.
@@ -2293,10 +2362,12 @@ Schlüsselpaar zum Signieren (`minisign`) auf seinem Mac erzeugt hat.
 | Was | Wofür | Frist |
 |---|---|---|
 | Home Assistant mit Mosquitto-Add-on (Broker) | HA-Tests, AP 3.3, Abnahme | vor Stufe 3a |
-| Laufende HA-Version (Nummer nennen) | feste Version für die HA-Tests | vor AP 3.1 |
+| HA auf **2026.11.x** aktualisieren und die genaue Patch-Version nennen (Mosquitto-Add-on 7.1.3) | feste Version für die HA-Tests | vor AP 3.1 |
+| Beispieldateien (m4b-Hörbuch, mp3-Serienfolge, CD-Rip mit mehreren Dateien, Datei ohne Tags; Entscheidung M) | Tag-Schlüssel und Folgen-Nummer belegen | vor AP 3.1 |
+| Ordner `tobibox/eingang/` auf dem NAS anlegen, HA Schreibrecht (Entscheidung M) | Eingang, Upload | vor AP 3.5 |
 | Namen (SSIDs) von Heim-WLAN und Handy-Hotspot | `net.py`, Konfiguration | vor AP 3.3 |
 | QNAP: rsync-Daemon mit Modul `medien` (nur lesend) und den Zugangsdaten | AP 3.4 | vor AP 3.4 |
-| CPU-Architektur des QNAP | Container-Bild (Stufe 3b) | vor Stufe 3b |
+| CPU-Architektur des QNAP: **bekannt**, QNAP TS-464eU-8G (Celeron N5095), amd64 | Container-Bild (Stufe 3b) | erledigt (09.11.) |
 | Tailscale: Konto, HA-Add-on, QNAP-App, Box-Knoten | AP 3.5 | vor AP 3.5 |
 | Ein Ort für Zugangsdaten (`tobibox.toml`, MQTT-Passwörter), nie im Repo | AP 3.3, 3.5 | vor AP 3.3 |
 | Handy mit Nabu Casa | Abnahme (Upload, Seite) | Abnahme |
@@ -2319,11 +2390,12 @@ WebSocket nach Vertrag W.
 | `homeassistant/custom_components/tobibox/__init__.py` | neu | Einrichtung; Seite über `panel_custom` registrieren, Dateien über `async_register_static_paths`. |
 | `homeassistant/custom_components/tobibox/config_flow.py` | neu | Einrichtung: Medienpfad, Boxen. |
 | `homeassistant/custom_components/tobibox/const.py` | neu | Konstanten. |
-| `homeassistant/custom_components/tobibox/store.py` | neu | Konfiguration (Zuordnungen, Leise-Zeiten, Gute-Nacht-Einstellungen) mit einer Revision und einer Listen-ID im HA-Speicher; automatischer Export auf das NAS nach jeder Änderung. |
-| `homeassistant/custom_components/tobibox/media.py` | neu | `serie.json` lesen/schreiben (mit `angelegt_am`, `typ`), neue Ordner/Dateien erkennen (neue Dateien und neue Folgen-Ordner hinten an die Reihenfolge (Entscheidung F, 05.11.)), Format- und Kopierschutz-Prüfung (D5), Speicheranzeige aus den Box-Meldungen, Papierkorb ohne Automatik, Hochladen als Strom in Blöcken; Datei-Zugriffe über `async_add_executor_job`. |
-| `homeassistant/custom_components/tobibox/mqtt.py` | neu | `tobibox/config` veröffentlichen („Liste neu ausrollen“ = neue Listen-ID), Box-Ereignisse empfangen und idempotent verarbeiten, Kennungen auf `…/ack` bestätigen, Befehle mit Ablaufzeit senden, abgelehnte Listen anzeigen. |
+| `homeassistant/custom_components/tobibox/store.py` | neu | Konfiguration (Zuordnungen mit optionalem `name`, Leise-Zeiten, Gute-Nacht-Einstellungen) mit einer Revision und einer Listen-ID im HA-Speicher; **erst veröffentlichen, dann exportieren** (Export im Hintergrund mit Wiederholung, Fehler sichtbar); Zustand `ok` / `leer_neu` / `export_neuer`, Befehle `konfig/export_lesen` und `konfig/aus_export` (Vertrag W, Abschnitt 13); Letzte 20 Box-Meldungen und die letzten 20 Lernmodus-Vorgänge im HA-Speicher. |
+| `homeassistant/custom_components/tobibox/eingang.py` | neu | **(Entscheidung M, 09.11.)** Eingang lesen (Ruhezeit), Tags mit `ffprobe` (gehärtet, Vertrag W 5.4), Gruppieren, Serie bestimmen und zusammenführen, Reihenfolge von Folgen und Tracks, Prüfsummen und Hash-Index, Einsortieren in `medien/` (Vertrag W, Abschnitt 11), Protokoll der letzten 100 Einträge im HA-Speicher. Kein Code in `media.py`, der das Dateisystem anders anfasst als dort beschrieben. |
+| `homeassistant/custom_components/tobibox/media.py` | neu | `serie.json` lesen/schreiben (mit `angelegt_am`, `typ`, `folgen_info`, `pruefen`), Namensregeln und reservierte Ordner (Vertrag W, Abschnitt 12), Serie löschen / Folge verschieben / Serien zusammenführen, Papierkorb mit `meta.json`, neue Ordner/Dateien erkennen (neue Dateien und neue Folgen-Ordner hinten an die Reihenfolge (Entscheidung F, 05.11.)), Format- und Kopierschutz-Prüfung (D5), Speicheranzeige aus den Box-Meldungen, Papierkorb ohne Automatik (je Eintrag `_papierkorb/<id>/meta.json`), Datei-Zugriffe über `async_add_executor_job`. |
+| `homeassistant/custom_components/tobibox/mqtt.py` | neu | `tobibox/config` veröffentlichen („Liste neu ausrollen“ = neue Listen-ID; `ack` im Lernmodus erst nach dem PUBACK der Konfiguration), Box-Ereignisse empfangen und idempotent verarbeiten, Kennungen auf `…/ack` bestätigen, Befehle mit Ablaufzeit senden, abgelehnte Listen anzeigen. |
 | `homeassistant/custom_components/tobibox/websocket_api.py` | neu | Die WebSocket-Befehle nach Vertrag W. |
-| `homeassistant/custom_components/tobibox/http.py` | neu | Upload-Endpunkt mit Anmeldung (nur Audioformate nach D5). |
+| `homeassistant/custom_components/tobibox/http.py` | neu | Upload-Endpunkt mit Anmeldung (nur Audioformate nach D5) in den **Eingang**: Abschluss mit `asyncio.shield` unter der Sperre des Eingangs, Zwischendatei mit Zufallsnamen, Namens-Suffix statt Überschreiben, Ergebnis je `upload_id` merken, höchstens 2 gleichzeitige Uploads, Platzprüfung vorab (Vertrag W, Abschnitt 5). |
 | `homeassistant/custom_components/tobibox/services.yaml` | neu | Aktionen. |
 | `homeassistant/custom_components/tobibox/strings.json` | neu | Texte (Quelle). |
 | `homeassistant/custom_components/tobibox/translations/de.json` | neu | Deutsche Texte. |
@@ -2333,16 +2405,18 @@ WebSocket nach Vertrag W.
 | `homeassistant/README.md` | neu | Installation der Integration, getestete HA-Version. |
 | `homeassistant/tests/conftest.py` | neu | Fixtures: Test-Medienordner, Fake-Box. |
 | `homeassistant/tests/test_store.py` | neu | Revision und Listen-ID, Export auf das NAS. |
-| `homeassistant/tests/test_media.py` | neu | Neue Ordner/Dateien, `serie.json`-Regeln, doppelte IDs, Papierkorb, DRM-Prüfung (`drms`, Probedekodierung). |
+| `homeassistant/tests/test_media.py` | neu | Neue Ordner/Dateien, `serie.json`-Regeln, doppelte IDs, Papierkorb (`meta.json`, Serie und Folge, Wiederherstellen), DRM-Prüfung (`drms`, Probedekodierung), Namensregeln (SMB-Zeichen, Groß-/Kleinschreibung, NFC, Kürzen an Zeichengrenzen), reservierte Ordner, Verschieben und Zusammenführen mit umgeschriebenen Zuordnungen. |
+| `homeassistant/tests/test_eingang.py` | neu | **(Entscheidung M)** Jede Zeile T1 bis T20 aus Vertrag W, 11.12, dazu Ruhezeit, Gruppieren, Vorrang der Serie, Zusammenführen, Folgen- und Track-Reihenfolge, Widersprüche, Kopierschutz (ganze Gruppe bleibt), Doppelte (Prüfsumme), Suffix, Abbruch zwischen Verschieben und `serie.json`. |
 | `homeassistant/tests/test_mqtt.py` | neu | Veröffentlichen, Bestätigung `…/ack`, Ablaufzeit der Befehle, Idempotenz. |
 | `homeassistant/tests/test_websocket_api.py` | neu | Jeder Befehl aus Vertrag W: gültig und ungültig. |
-| `homeassistant/tests/test_upload.py` | neu | Upload größer als 16 MiB im Strom; falsches Format wird abgelehnt; ohne Anmeldung abgelehnt. |
-| `homeassistant/tests/test_restore.py` | neu | „HA-Wiederherstellung mit neuer Listen-ID und niedriger Revision“ und „Liste neu ausrollen“. |
+| `homeassistant/tests/test_upload.py` | neu | Upload größer als 16 MiB im Strom (z. B. **40 MiB**, belegt, dass die feste HA-Version das Streaming nicht begrenzt); falsches Format wird abgelehnt; `ffprobe` nur mit `-protocol_whitelist file` und erzwungenem Format; ohne Anmeldung abgelehnt (401); Abbruch des Clients im Empfang (nichts bleibt) und im Abschluss (`shield`: Datei und Ergebnis da); zwei Uploads mit gleichem Namen (Suffix, nie Überschreiben); gleiche `upload_id` parallel (`upload_laeuft`); Platzprüfung. |
+| `homeassistant/tests/test_restore.py` | neu | „HA-Wiederherstellung mit neuer Listen-ID und niedriger Revision“ und „Liste neu ausrollen“; **leerer Speicher** (`leer_neu`: nichts veröffentlicht, Befehle `konfig_nicht_bereit`), Erststart, Export neuer, `konfig/aus_export`, Box `voraus`, Export schlägt fehl (Vertrag W, 13.7). |
 
 Abnahme AP 3.1:
 
 - Alle HA-Tests sind grün, in eigener venv mit der festen HA-Version.
-- Der Upload-Test belegt, dass eine Datei über 16 MiB ankommt.
+- Der Upload-Test belegt, dass eine Datei über 16 MiB (40 MiB) ankommt.
+- Die Tests aus `test_eingang.py` sind grün; die Tag-Schlüssel sind mit den Beispieldateien von Tobias belegt (Vertrag W, 11.2).
 - Eine Kennung wird erst nach `…/ack` als bestätigt geführt.
 
 #### AP 3.2 HA-Seite (Sonnet)
@@ -2351,10 +2425,10 @@ Ergebnis: Die Seite „Tobi Box“, bedienbar am Handy.
 
 | Datei | Neu/Änd. | Inhalt und Grund |
 |---|---|---|
-| `homeassistant/custom_components/tobibox/frontend/tobibox-panel.js` | neu | Serienliste, Folgen ziehen, Hochladen, Umbenennen, Neue Tobies, Lernmodus (mit Wahl Serie oder Folge), Zuordnen mit Typ `serie` / `folge` (Entscheidung F, 05.11.), Zuordnen von Aktionskarten (Status, Gute Nacht), Box-Status mit freiem Speicher, Aktionen „Liste neu ausrollen“ und „Papierkorb leeren“. |
+| `homeassistant/custom_components/tobibox/frontend/tobibox-panel.js` | neu | Serienliste, Folgen ziehen, Hochladen (in den Eingang, optional mit Serie als Vorgabe), Umbenennen (Anzeigenamen von Serie und Folge), Serie löschen und Löschen mit Rückfrage zu betroffenen Tobies, Folge verschieben, Serien zusammenführen, Ansicht „Eingang“ (erkannt, „bitte prüfen“, Hinweise, erneut einsortieren; Entscheidung M, 09.11.), Tobie-Namen, Warnungen zu Konfiguration (leerer Speicher, Export neuer, Export fehlgeschlagen, Box mit neuerem Stand), Neue Tobies, Lernmodus (mit Wahl Serie oder Folge), Zuordnen mit Typ `serie` / `folge` (Entscheidung F, 05.11.), Zuordnen von Aktionskarten (Status, Gute Nacht), Box-Status mit freiem Speicher, Aktionen „Liste neu ausrollen“ und „Papierkorb leeren“. |
 | `homeassistant/custom_components/tobibox/frontend/lit-all.min.js` | neu | Lit in fester Version, eingecheckt (kein Laden aus dem Netz). |
 | `homeassistant/tests/frontend/mock-hass.mjs` | neu | Mock für die HA-WebSocket-Schnittstelle. |
-| `homeassistant/tests/frontend/panel.test.mjs` | neu | Mit `node --test`: Das Modul lädt; jeder Aufruf geht mit den Namen und Feldern aus Vertrag W gegen den Mock; Fehlerantworten werden angezeigt. |
+| `homeassistant/tests/frontend/panel.test.mjs` | neu | Mit `node --test`: Das Modul lädt; jeder Aufruf geht mit den Namen und Feldern aus Vertrag W gegen den Mock (auch `stand`, `erwartet_ziel`, `tobies_bestaetigt`); Fehlerantworten werden angezeigt; Namen werden nur als Text dargestellt. |
 
 Abnahme AP 3.2:
 
@@ -2387,8 +2461,8 @@ Ergebnis: Der Sync nach den Regeln aus „Netz, Sync, Strom“.
 
 | Datei | Neu/Änd. | Inhalt und Grund |
 |---|---|---|
-| `box/src/tobibox/sync.py` | neu | rsync gegen den rsync-Daemon des QNAP (Modul `medien`, nur lesend) über Tailscale; Regeln Heim/Hotspot/Akku (im Hotspot ohne Datenlimit); `--partial-dir` außerhalb des Medienordners auf demselben Dateisystem und `--delay-updates`; `--delete` mit Schutz (Abbruch bei fehlender oder leerer Quelle oder mehr als 20 % Löschungen, vorab gezählt mit `--dry-run --itemize-changes`); Platzprüfung vorab; die spielende Datei (MPD `currentsong`) per `--exclude`; MPD neu einlesen; Sperre gegen Update; keine Abschaltung während des Syncs; `nice`/`ionice`. |
-| `box/tests/unit/test_sync.py` | neu | Tests gegen einen lokalen rsync-Daemon: leere Quelle, fehlende Quelle, zu viele Löschungen, zu wenig Platz, spielende Datei ausgenommen, `--partial-dir` außerhalb des Medienordners, Netzregel. |
+| `box/src/tobibox/sync.py` | neu | rsync gegen den rsync-Daemon des QNAP (Modul `medien`, nur lesend) über Tailscale; Regeln Heim/Hotspot/Akku (im Hotspot ohne Datenlimit); `--partial-dir` außerhalb des Medienordners auf demselben Dateisystem und `--delay-updates`; `--delete` mit Schutz (Abbruch bei fehlender oder leerer Quelle oder mehr als 20 % Löschungen, vorab gezählt mit `--dry-run --itemize-changes`); Platzprüfung vorab; die spielende Datei (MPD `currentsong`) per `--exclude`; **`_upload`, `_papierkorb` und `eingang` per `--exclude` ausnehmen (Entscheidung M, 09.11.)**, auch wenn das NAS-Modul sie schon auslässt; MPD neu einlesen; Sperre gegen Update; keine Abschaltung während des Syncs; `nice`/`ionice`. |
+| `box/tests/unit/test_sync.py` | neu | Tests gegen einen lokalen rsync-Daemon: leere Quelle, fehlende Quelle, zu viele Löschungen, zu wenig Platz, spielende Datei ausgenommen, **Ordner `_upload`, `_papierkorb` und `eingang` in der Quelle werden nicht übertragen und nicht auf der Box gelöscht**, `--partial-dir` außerhalb des Medienordners, Netzregel. |
 | `box/tests/unit/test_sync_ereignisse.py` | neu | Während eines Syncs laufen Kern-Ereignisse weiter (Auflegen wird verarbeitet). Die Latenz unter echter Last misst Abnahme Stufe 3a am Pi. |
 
 Abnahme AP 3.4:
@@ -2402,9 +2476,9 @@ Ergebnis: Anleitungen und Vorlagen für die Schritte, die nur Tobias machen kann
 
 | Datei | Neu/Änd. | Inhalt und Grund |
 |---|---|---|
-| `docs/betrieb/tailscale-nas.md` | neu | Schritte für die QNAP-App, das HA-Add-on, die Box-Schlüssel, die ACL und den rsync-Daemon. |
+| `docs/betrieb/tailscale-nas.md` | neu | Schritte für die QNAP-App, das HA-Add-on, die Box-Schlüssel, die ACL und den rsync-Daemon; die Freigabe `tobibox/` mit `medien/`, `eingang/`, `export/`, `releases/` (Entscheidung M, 09.11.: `eingang/` anlegen, HA Schreibrecht). |
 | `docs/betrieb/mqtt-konten.md` | neu | Konto je Box anlegen, Themenrechte, Passwörter nur auf der Box (nicht im Repo). |
-| `deploy/nas/rsyncd.example.conf` | neu | Modul `medien` und Modul `releases`, beide `read only = yes`. |
+| `deploy/nas/rsyncd.example.conf` | neu | Modul `medien` und Modul `releases`, beide `read only = yes`; im Modul `medien` `exclude` für `_upload`, `_papierkorb` und `eingang` (Entscheidung M, 09.11.). |
 | `deploy/tailscale/acl.example.json` | neu | ACL mit Tags: Boxen erreichen nur die Medienfreigabe und HA. |
 | `deploy/tailscale/acl-pruefung.sh` | neu | Prüft von einer Box aus, dass andere Ziele gesperrt sind. |
 | `deploy/tailscale/einrichtung-assistent.sh` | neu | Optional: führt durch die Schritte, die nur Tobias machen kann. |
@@ -2455,7 +2529,9 @@ Abnahme AP 3.7:
 **Abnahme Stufe 3a**
 
 - CUJ 7a/7b mit HA, 9 und 12 sind als pytest-Tabellen grün.
-- Tobias führt die Seite am Handy über Nabu Casa vor, mit einem Upload größer als 16 MiB, und eine Box am Mac.
+- Tobias führt die Seite am Handy über Nabu Casa vor, mit Uploads von 20, 150 und 500 MiB (Dauer gemessen, alle größer als die 16 MiB von HA), und eine Box am Mac.
+- Einsortieren (Entscheidung M): Tobias legt seine Beispieldateien in den Eingang; Serie, Folgen und Reihenfolge sind richtig oder als „bitte prüfen“ markiert, eine Korrektur auf der Seite wirkt nach dem Sync auf der Box; `eingang/`, `_upload/` und `_papierkorb/` landen nicht auf der Box.
+- Leerer HA-Speicher: Die Integration verteilt nichts, bis Tobias entschieden hat; „aus dem Export holen“ stellt die Zuordnungen samt Namen auf beiden Boxen wieder her.
 - Auflegen während Sync: Am Pi innerhalb der Zeitgrenze; ohne Pi holt das der Pi-Lauf nach, sobald der Pi da ist.
 - Leser-Neustart bei spielendem Tobie (CUJ 13) ist weiter bestanden.
 - Die HA-Wiederherstellung mit neuer Listen-ID wird von beiden Boxen übernommen, auch bei niedrigerer Revision.

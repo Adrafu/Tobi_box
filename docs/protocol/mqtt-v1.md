@@ -6,6 +6,13 @@
 *   **Gilt für:** Modul `ha` des Box-Dienstes und `mqtt.py` der
     HA-Integration `tobibox`. Schemas der Inhalte: `data-model.md`. Ereignisse
     und Befehle im Kern: `core-interface.md`.
+*   **Änderung 09.11. (Tobie-Namen, Vertrag W):** Jede Zuordnung in `tobibox/config` darf
+    ein optionales Feld `name` tragen (3.1). Die Box ignoriert es; sie liest nur `ziel`.
+    Rückwärtskompatibel: kein neues `schema_version`, keine neue Revisionsregel.
+*   **Änderung 09.11.:** Abschnitt 7 (ACL) korrigiert: In der Form mit
+    `pattern` müssen auch die Leserechte für `tobibox/config` und
+    `homeassistant/status` `pattern read` heißen; ein `topic read` ohne `user`
+    gehört bei Mosquitto zum zuletzt genannten Konto (Test gegen Mosquitto 2.0.18).
 
 ## 1. Grundsätze
 
@@ -69,6 +76,12 @@ Liste mit `schema_zu_neu` ab (5.2). **Reihenfolge der Einführung (Entscheidung 
 05.11.): zuerst alle Boxen aktualisieren, danach verteilt HA Version 2.** Eine
 Box mit Entscheidung F nimmt auch Listen der Version 1 an (5.2).
 
+*   **Tobie-Name (09.11.):** Eine Zuordnung darf ein optionales Feld `name` tragen
+    (Text, 1–60 Zeichen, `data-model.md`, Abschnitt 2), das die HA-Seite als Namen des
+    Tobies anzeigt. Die Box **ignoriert** es (Prüfung und Annahme der Liste hängen nur an
+    `ziel`; ein vorhandenes `name` macht die Liste nie ungültig) und schreibt es nicht in
+    ihre `config.json`. Eine Box ohne diese Änderung ignoriert es ebenso (unbekannte Felder
+    werden ignoriert, Abschnitt 1). Auch eine Änderung nur des Namens erhöht die Revision.
 *   HA veröffentlicht nach **jeder** Änderung der Konfiguration (Revision + 1)
     und bei „Liste neu ausrollen“ (neue `liste_id`).
 *   Der Broker liefert die dauerhafte Nachricht bei jedem Abonnieren erneut. Die
@@ -84,7 +97,7 @@ Beispiel (gekürzt):
   "liste_id": "a3f9c1e07b2d4856",
   "erzeugt_am": "2026-11-05T09:30:00Z",
   "zuordnungen": {
-    "e0040312345678ab": { "ziel": { "typ": "serie", "serie": "3f9a1c07b2d4" } },
+    "e0040312345678ab": { "ziel": { "typ": "serie", "serie": "3f9a1c07b2d4" }, "name": "Rabe aus Holz" },
     "04a1b2c3": { "ziel": { "typ": "folge", "serie": "8c21d5e9a0b7", "folge": "folge-03.mp3" } },
     "04ffeedd": { "ziel": { "typ": "aktion", "aktion": "status" } }
   },
@@ -646,9 +659,18 @@ topic write homeassistant/+/tobibox_box1/+/config
     pattern write tobibox/%u/event
     pattern write tobibox/%u/unknown/+
     pattern write homeassistant/+/tobibox_%u/+/config
-    topic read tobibox/config
-    topic read homeassistant/status
+    pattern read tobibox/config
+    pattern read homeassistant/status
     ```
+
+    Wichtig (Änderung 09.11.): Die beiden letzten Zeilen müssen `pattern` sein.
+    Eine Zeile `topic …` ohne eigenes `user` rechnet Mosquitto dem zuletzt
+    genannten `user` zu (oder, vor dem ersten `user`, allen anonymen
+    Verbindungen). Als `topic read tobibox/config` neben den `pattern`-Zeilen
+    bekamen die Boxen deshalb weder die Konfiguration noch den HA-Status.
+    Belegt durch einen Test gegen Mosquitto 2.0.18. In der Form mit `user` je
+    Konto (oben) steht jede `topic`-Zeile im `user`-Block des Kontos und ist
+    richtig.
 *   Passwörter der Box-Konten stehen nur auf der Box (`tobibox.toml`,
     gitignored) und im Add-on, nie im Repo.
 
@@ -740,3 +762,6 @@ Projektleitung (P) entschieden oder aus dem Goldfisch-Review übernommen
     keine Boxen im Feld; das Betriebshandbuch (AP 3.12) nennt die Reihenfolge. Die
     Box migriert Version-1-Listen von MQTT und die gespeicherte Datei im Speicher
     (5.2).
+17. **Bestätigt (09.11., P, Vorgabe 10 des Vertrags W): Tobie-Name.** `tobibox/config` darf je
+    Zuordnung ein optionales Feld `name` tragen; die Box ignoriert es (3.1). Additiv,
+    `schema_version` bleibt 2. Das Beispiel in 3.1 zeigt es.
