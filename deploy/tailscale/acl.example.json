@@ -1,0 +1,24 @@
+{
+  "tagOwners": {
+    "tag:box": ["tobias@example.com"],
+    "tag:ha": ["tobias@example.com"],
+    "tag:nas": ["tobias@example.com"]
+  },
+  "acls": [
+    {
+      "action": "accept",
+      "src": ["autogroup:member"],
+      "dst": ["*:*"]
+    },
+    {
+      "action": "accept",
+      "src": ["tag:box"],
+      "dst": ["tag:nas:873", "tag:ha:1883"]
+    },
+    {
+      "action": "accept",
+      "src": ["tag:ha"],
+      "dst": ["tag:nas:445"]
+    }
+  ]
+}
