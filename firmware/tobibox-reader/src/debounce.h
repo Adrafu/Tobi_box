@@ -61,12 +61,17 @@ struct Identity {
 };
 
 struct DebounceParams {
-  uint32_t confirm_reads;
+  uint32_t confirm_reads;   // aus dem leeren Zustand
+  uint32_t change_reads;    // Wechsel bei liegendem Tobie (>= confirm_reads)
   uint32_t remove_after_ms;
   uint32_t error_hold_ms;
   DebounceParams();  // Standardwerte aus timing.h
-  DebounceParams(uint32_t confirm, uint32_t remove_after, uint32_t error_hold)
-      : confirm_reads(confirm), remove_after_ms(remove_after), error_hold_ms(error_hold) {}
+  // change = 0: gleich confirm (wie vor CHANGE_CONFIRM_READS).
+  DebounceParams(uint32_t confirm, uint32_t remove_after, uint32_t error_hold, uint32_t change = 0)
+      : confirm_reads(confirm),
+        change_reads(change == 0 ? confirm : change),
+        remove_after_ms(remove_after),
+        error_hold_ms(error_hold) {}
 };
 
 // Ausgabe je Eingabe: null bis zwei Ereignisse, erst Entfernt, dann

@@ -7,6 +7,7 @@
 *   **Änderung 05.11.:** Entscheidung F eingearbeitet (Tobies: Folge oder Serie, Folgen mit mehreren Tracks). Alle Änderungen sind mit „(Entscheidung F, 05.11.)“ markiert.
 *   **Änderung 07.11.:** Entscheidung H eingearbeitet (Lernmodus wartet still). Die Änderungen sind mit „(Entscheidung H, 07.11.)“ markiert.
 *   **Änderung 09.11.:** Entscheidung I eingearbeitet (ein kleiner Rest gilt als fertig gehört). Die Änderungen sind mit „(Entscheidung I, 09.11.)“ markiert.
+*   **Änderung 09.11.:** Entscheidung J eingearbeitet (Töne folgen der Lautstärke des Hörspiels). Die Änderungen sind mit „(Entscheidung J, 09.11.)“ markiert.
 *   **Grundlage:** `concepts_brief.md` (gleicher Ordner) inkl. Entscheidungen
     Runde 1 und 2
 
@@ -282,7 +283,8 @@ Alternativen“.
     garantiert, dass ReplayGain nur dämpft: Ein positiver Gain wird durch den
     Peak-Schutz (`replaygain_limit`) und am Pi durch die ALSA-Kappung
     begrenzt. Die Lautstärke-Regel bleibt darüber bestehen („Lautstärke“ in
-    Baustein 3). Umsetzung: AP 3.9 (Stufe 3b).
+    Baustein 3). Umsetzung: AP 3.9 (Stufe 3b). Auf diesen Zielwert −18 LUFS sind auch die
+    Box-Töne und die Testmedien gebracht (Entscheidung J, 09.11.).
 *   **Lautstärke und Gute-Nacht-Karte:** Lautstärke-Regel in Stufe 1,
     Gute-Nacht-Karte in Stufe 4.
 *   **Hardware (Ziel 9):** Alle Hardware-Funktionen werden jetzt mit
@@ -400,6 +402,46 @@ Alternativen“.
         `audiodauer`). Andere Formate: Dauer unbekannt. Die Sitzung bleibt rein: Die Dauern
         stehen in `Serie.dauern`. MPD wird dafür nicht gefragt.
 
+*   **Entscheidung J — Die Töne folgen der Lautstärke des Hörspiels (09.11.):** Anlass beim
+    Test am Mac: Die Box-Töne waren viel lauter als das Hörspiel, das Hörspiel „ultra leise“.
+    Ein Gegentest mit einer gesprochenen Testfolge (gleiche Stimme, gleicher Dateipegel wie die
+    Ansage `start`) war ebenso leise. Es lag also an der Wiedergabe, nicht an den Dateien.
+    Ursache: Töne liefen mit festem Pegel 40 % **linear** (−8 dB). Das Hörspiel läuft über
+    MPD mit Lautstärke 20 % (Start) auf der **exponentiellen** Kennlinie des Software-Mixers
+    (MPD 0.24: `g = (exp(p/25) − 1) / (exp(4) − 1)`, 20 % sind −33 dB). Der Unterschied war
+    rund 25 dB. Zusätzlich lagen die Melodie-Töne bei −8,5 LUFS und die Sprach-Töne zufällig
+    bei −17 bis −20 LUFS, während ReplayGain die Hörspiele auf −18 LUFS bringt.
+    Neu (Entscheidung J, 09.11.):
+    *   **J1 — Pegel:** Ein Ton spielt mit der **aktuellen Lautstärke der Sitzung** nach allen
+        Grenzen, mindestens 10 (`TON_MINDEST`): `pegel = min(grenze, max(10, lautstaerke))`.
+        Die Grenzen (Kopfhörer, „leiser“, Maximum) gelten weiter und stehen über der Untergrenze.
+        `hinweis`: `max(10, min(hinweis_pegel, lautstaerke))`, Vorgabe `hinweis_pegel` 15.
+        Die Untergrenze des Hinweistons steigt von 5 auf 10, weil 5 % auf der Kennlinie von MPD
+        rund −48 dB sind und nicht mehr zu hören.
+    *   **J2 — Gleiche Kennlinie:** Die Skalierung der Tondateien in Python (`skaliere_wav`) benutzt
+        dieselbe Kennlinie wie die Wiedergabe des Hörspiels. Sie ist je Plattform verschieden und
+        steht in der Konfiguration (`[toene] kennlinie`, `softvol_bereich_db`): Mac
+        `mpd_software` (Vorgabe), Pi `alsa_softvol`. Formeln und Quellen: `core-interface.md`, 8.1.
+    *   **J3 — Pfad des Pegels:** `app.py` leitet die Lautstärke aus dem zuletzt ausgegebenen
+        `LautstaerkeSetzen` ab (`min(prozent, grenze)`), das der Kern ohnehin erzeugt. Der Kern
+        bleibt rein und kennt keine Tonpegel. `ton_pegel` in `config.json` hat keine Wirkung
+        mehr (das Feld bleibt gültig); `hinweis_pegel` gilt weiter.
+    *   **J4 — Lautheit der Töne und Testmedien:** Die Box-Töne (`box/sounds/`,
+        `box/sounds/sprache/`) und die gesprochenen Testmedien (`box/medien-sprache/`) liegen bei
+        −18 LUFS, dem Zielwert von `rsgain` (D6). Erzeugt von `box/tools/make_sounds.py` und
+        `box/tools/make_sprache.py`, gemessen mit `box/tools/lautheit.py` (`ffmpeg`, EBU R128),
+        festgehalten in `box/lautheit.json`. Die MP3 der Testmedien tragen ReplayGain-Tags wie von
+        `rsgain`. MPD wendet ReplayGain an (Modus Track); ohne Tags dämpft es eine Datei um
+        `replaygain_missing_preamp` (−6 dB), das Hörspiel ohne Tags wäre dann 6 dB leiser als die Töne.
+    *   **J5 — Pi:** Die Töne laufen am Pi über ein zweites `softvol`-Gerät mit demselben `max_dB` und
+        einem eigenen, auf 100 % stehenden Regler. So gilt die harte Kappe auch für Töne, und die
+        Lautstärke wirkt nur einmal (in Python). Die Kennlinie des Pi ist aus dem Quelltext von MPD
+        und ALSA abgeleitet; ob sie am Gerät stimmt, zeigt der Pi-Probelauf.
+    *   **J6 — Eigene Dateien am Mac:** Eigene Hörspiele ohne ReplayGain-Tags (z. B. Tobias'
+        `zaehlen.mp3`) können leiser oder lauter sein als die normalisierten Testmedien. Auf der Box
+        gleicht `rsgain` das aus (D6). Am Mac normalisiert Tobias sie bei Bedarf selbst
+        (`docs/betrieb/mac-prototyp.md`).
+
 - **Nachtrag 05.11. (Stufe-0-Verträge):** Ein Leser-Neustart startet nie von selbst eine Wiedergabe; nach einem bestätigten Leserverlust (> 3 s) bleibt die Box pausiert, auch wenn der Tobie danach wieder gemeldet wird – das Kind legt neu auf. Lesefehler gelten bis 5 s als „Tobie liegt“; fehlende Serie → Überraschungs-Serie; „stumm“ sperrt auch Knöpfe; MPD-Verlust bis 5 s wird überbrückt. Maßgeblich sind die Verträge in `docs/protocol/` und `docs/data-model.md`.
 
 ## Offene Fragen
@@ -423,7 +465,7 @@ Alternativen“.
 Erledigt: Medienformate und Lautheitsangleich (siehe D5 und D6), Ende der
 letzten Folge und Ende eines „stumm“-Fensters (Entscheidungen A und B),
 Datenvolumen im Hotspot (Entscheidung C), Hauptknopf nach Folgenende
-(Entscheidung E), Tobies als Folge oder Serie (Entscheidung F), Lernmodus wartet still (Entscheidung H), kleiner Rest gilt als fertig gehört (Entscheidung I), Schnittstellen und Datenformate (Stufe 0), die Befunde R1 bis
+(Entscheidung E), Tobies als Folge oder Serie (Entscheidung F), Lernmodus wartet still (Entscheidung H), kleiner Rest gilt als fertig gehört (Entscheidung I), Töne folgen der Lautstärke (Entscheidung J), Schnittstellen und Datenformate (Stufe 0), die Befunde R1 bis
 R18 des Reviews Stufe 9.
 
 ## Risiken
@@ -1011,6 +1053,11 @@ Baustein 4, D6) verweisen hierher.
   Eingestellt sind `replaygain_preamp` 0, `replaygain_missing_preamp` −6 dB und
   `replaygain_limit` (Peak-Schutz). Ein positiver Gain bleibt möglich, wird
   aber durch den Peak-Schutz und am Pi durch die ALSA-Kappung begrenzt.
+- **Töne (Entscheidung J, 09.11.):** Ein Ton spielt mit der aktuellen Lautstärke
+  der Sitzung (nach allen Grenzen), mindestens 10, auf derselben Kennlinie wie das
+  Hörspiel. Er ist nie lauter als die wirksame Grenze. Die Kennlinie hängt von der
+  Plattform ab (Mac: Software-Mixer von MPD, Pi: ALSA-`softvol`) und steht in der
+  Konfiguration. Siehe Entscheidung J und `core-interface.md`, 8.1.
 - **Kopfhörerwechsel:** zuerst die neue Grenze setzen, dann den Ausgang
   schalten (nie umgekehrt).
 - **Test:** pytest für die Funktion `volume` (Minimum gewinnt, nie darüber) und
@@ -1848,11 +1895,14 @@ Ergebnis: Der Dienst spielt über MPD und lässt sich mit Leser (oder
 | Datei | Neu/Änd. | Inhalt und Grund |
 |---|---|---|
 | `box/src/tobibox/player.py` | neu | Dünne MPD-Schicht über `mpd.asyncio.MPDClient`: Warteschlange nur mit der aktuellen Folge (ab AP 1.7 mit allen Tracks der Folge), Abspielen, Pause, Resume per `seek` auf Position, Lautstärke, Ereignis „Folge zu Ende“ (MPD stoppt) nach `core-interface.md`. Setzt die wirksame Grenze aus `volume.py` nur durch und setzt beim Start **zuerst** die Lautstärke. |
-| `box/src/tobibox/sounds.py` | neu | Kurze Töne über konfigurierbares Kommando (Mac `afplay`, Pi `aplay`). |
+| `box/src/tobibox/sounds.py` | neu | Kurze Töne über konfigurierbares Kommando (Mac `afplay`, Pi `aplay`). (Entscheidung J, 09.11.: Pegel aus der Lautstärke der Sitzung, Kennlinie wie MPD.) |
 | `box/src/tobibox/notify.py` | neu | `READY=1` über `NOTIFY_SOCKET` senden (reines Python, ohne `python-systemd`); am Mac ohne Wirkung. |
 | `box/src/tobibox/app.py` | neu | **Einziger Zusammenbau-Punkt:** baut Uhr und Module, verdrahtet reader → core → player, Zeitgeber (`Takt`), meldet `READY=1`, beendet sauber. |
 | `box/src/tobibox/__main__.py` | neu | Einstieg `python -m tobibox` bzw. `tobiboxd`. |
-| `box/tools/make_sounds.py` | neu | Erzeugt die Platzhalter-Töne reproduzierbar. |
+| `box/tools/make_sounds.py` | neu | Erzeugt die Platzhalter-Töne reproduzierbar. (Entscheidung J, 09.11.: je Ton eine feste Anpassung `PEGEL_DB` auf −18 LUFS.) |
+| `box/tools/lautheit.py` | neu | (Entscheidung J, 09.11.) Misst die Lautheit mit `ffmpeg` (EBU R128), kurze Töne werden auf mindestens 3 s wiederholt; schreibt `box/lautheit.json`. Zielwert −18 LUFS, Toleranz ±1 LU. |
+| `box/lautheit.json` | neu | (Entscheidung J, 09.11.) Prüfsumme und Messwert jeder Audiodatei in `box/sounds/`, `box/sounds/sprache/`, `box/medien-sprache/`. |
+| `box/tests/unit/test_lautheit.py` | neu | (Entscheidung J, 09.11.) Alle Töne und Testmedien liegen innerhalb ±1 LU bei −18 LUFS: mit `ffmpeg` gemessen, sonst über `lautheit.json`; MP3 mit ReplayGain-Tags; Messhelfer an einem Sinus. |
 | `box/sounds/start.wav` | neu | Platzhalter-Ton: Start. |
 | `box/sounds/unbekannt.wav` | neu | Platzhalter-Ton: unbekannter Tobie. |
 | `box/sounds/fehler.wav` | neu | Platzhalter-Ton: Fehler. |
@@ -2123,7 +2173,7 @@ dauerhaftem Protokoll.
 | `deploy/pi/tobiboxd.service` | neu | systemd-Dienst: `Type=notify`, `TimeoutStartSec=300`, `Restart=on-failure`, `RestartSec=3`, `StartLimitIntervalSec=120`, `StartLimitBurst=5`, `PYTHONPATH` auf die Abhängigkeiten, `StandardOutput=journal`. |
 | `deploy/pi/99-tobibox-reader.rules.example` | neu | udev-Regel: fester Gerätename nach der Seriennummer des ESP32 (Platzhalter). |
 | `deploy/pi/mpd.conf` | neu | MPD für die Box: ALSA-Ausgabe über `softvol`, Puffer-Startwerte (`audio_buffer_size`, `buffer_before_play`, `buffer_time`), ReplayGain (`replaygain_preamp` 0, `replaygain_missing_preamp` −6 dB, `replaygain_limit`). |
-| `deploy/pi/asound.conf` | neu | ALSA-`softvol` mit `max_dB`: die harte Kappung der Lautstärke. |
+| `deploy/pi/asound.conf` | neu | ALSA-`softvol` mit `max_dB`: die harte Kappung der Lautstärke. (Entscheidung J, 09.11.: dazu ein zweites `softvol`-Gerät für die Töne mit demselben `max_dB` und eigenem Regler auf 100 %; `softvol_bereich_db` in `tobibox.toml` muss zu `max_dB − min_dB` passen; MPD-Mixer `hardware` am ersten Regler.) |
 | `deploy/pi/mpd.service.d/startvolume.conf` | neu | systemd-Drop-in für MPD: `ExecStartPost` setzt die Startlautstärke vor dem ersten Abspielen. |
 | `deploy/pi/journald-tobibox.conf` | neu | `Storage=persistent`, begrenzter Platz, `SyncIntervalSec=30s`, damit das Protokoll einen Stromausfall übersteht. |
 | `box/config/tobibox.pi.example.toml` | neu | Pi-Konfiguration (Gerätename, Pfade, Obergrenze, Startlautstärke). |

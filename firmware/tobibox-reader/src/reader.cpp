@@ -40,6 +40,49 @@ bool Reader::probe(char* version, size_t cap) {
   return true;
 }
 
+// Inventory (ein Slot, Flags 0x26) mit eigener Pruefung der Antwort. Die
+// Bibliothek-Funktion getInventory() wertet RX_STATUS nur fuer die Laenge aus:
+// Fehlerbits (CRC, Protokoll, Kollision) werden uebergangen, die Laenge wird
+// nicht geprueft, und ein zu kurzer Rahmen liefert alte Bytes aus einem
+// gemeinsamen Puffer. Hier: eigener Puffer, Fehlerbits, Laenge und CRC.
+// Rueckgabe wie ISO15693ErrorCode; Verwerfen als RC_UNKNOWN_ERROR (-> fehler).
+// uid: 8 Byte, LSB zuerst (wie getInventory).
+int Reader::inventoryChecked(uint8_t* uid) {
+  static const uint8_t inventory[] = {0x26, 0x01, 0x00};
+  memset(uid, 0, 8);
+  errDetail_ = "inventory transfer error";
+  if (!nfc15693_.sendData(inventory, sizeof inventory)) return RC_UNKNOWN_ERROR;
+  delay(10);
+  uint32_t irq = nfc15693_.getIRQStatus();
+  if (!(irq & RX_SOF_DET_IRQ_STAT)) return RC_NO_CARD;
+  const uint32_t waitStart = millis();
+  while (!(irq & RX_IRQ_STAT)) {
+    irq = nfc15693_.getIRQStatus();
+    delay(1);
+    if (millis() - waitStart > nfc15693_.commandTimeout) return RC_NO_CARD;
+  }
+  uint32_t rxStatus = 0;
+  nfc15693_.readRegister(RX_STATUS, &rxStatus);
+  const size_t len = rxStatus & RX_LEN_MASK;
+  uint8_t buf[INV_MAX_LEN] = {0};  // frisch: keine alten Bytes
+  if (len > INV_MAX_LEN) {
+    nfc15693_.clearIRQStatus(0xffffffff);
+    errDetail_ = "inventory length";
+    return RC_UNKNOWN_ERROR;
+  }
+  if (len > 0 && !nfc15693_.readData(static_cast<int>(len), buf)) return RC_UNKNOWN_ERROR;
+  nfc15693_.clearIRQStatus(RX_SOF_DET_IRQ_STAT | IDLE_IRQ_STAT | TX_IRQ_STAT | RX_IRQ_STAT);
+  switch (checkInventoryFrame(rxStatus, buf)) {
+    case FrameCheck::Ok: break;
+    case FrameCheck::TagError: return buf[1] >= 0xA0 ? ISO15693_EC_CUSTOM_CMD_ERROR : buf[1];
+    case FrameCheck::RxError: errDetail_ = "inventory rx error bit"; return RC_UNKNOWN_ERROR;
+    case FrameCheck::BadLength: errDetail_ = "inventory length"; return RC_UNKNOWN_ERROR;
+    case FrameCheck::BadCrc: errDetail_ = "inventory crc"; return RC_UNKNOWN_ERROR;
+  }
+  memcpy(uid, buf + 2, 8);
+  return RC_OK;
+}
+
 Reading Reader::readIso14443() {
   nfc14443_.reset();
   // Kein setupRF(): readCardSerial() laedt die Konfiguration und schaltet das
@@ -65,14 +108,14 @@ Reading Reader::readIso15693() {
     return Reading::failure(CycleError::Pn5180Timeout, "rf field did not start");
 
   nfc15693_.clearIRQStatus(0xffffffff);  // alte IRQ-Flags wuerden Phantomkarten melden
-  ISO15693ErrorCode rc = nfc15693_.getInventory(uid);
-  if (rc == ISO15693_EC_OK) {
+  int rc = inventoryChecked(uid);
+  if (rc == RC_OK) {
     uint8_t msb[8];
     for (uint8_t i = 0; i < 8; i++) msb[i] = uid[7 - i];  // ISO 15693: LSB zuerst -> umdrehen
     return Reading::tag(UidType::Iso15693, msb, 8);
   }
   if (classifyResponse(rc) == RespClass::Error)
-    return Reading::failure(CycleError::BadResponse, "inventory transfer error");
+    return Reading::failure(CycleError::BadResponse, errDetail_);
 
   // Keine Antwort auf Inventory: liegt ein Tag im Privacy-Modus auf?
   uint8_t rnd[2] = {0};
@@ -101,7 +144,7 @@ Reading Reader::readIso15693() {
     case UnlockClass::Proceed: break;
   }
 
-  rc = nfc15693_.getInventory(uid);
+  rc = inventoryChecked(uid);
   switch (classifyReinventory(rc)) {
     case UnlockClass::Proceed: {
       uint8_t msb[8];
@@ -110,7 +153,7 @@ Reading Reader::readIso15693() {
     }
     case UnlockClass::Nothing: return Reading::nothing();
     case UnlockClass::Error:
-      return Reading::failure(CycleError::BadResponse, "inventory transfer error");
+      return Reading::failure(CycleError::BadResponse, errDetail_);
     case UnlockClass::Locked: break;
   }
   return Reading::locked();  // Figur erkannt, Kennung unbekannt

@@ -161,3 +161,22 @@ def test_nur_max_gegeben_kappt_die_vorgaben_auf_max(tmp_path):
 def test_kopfhoerer_darf_max_erreichen(tmp_path):
     k = config.lade(schreibe(tmp_path, MINIMAL + "[lautstaerke]\nmax = 40\nkopfhoerer = 40\n"))
     assert k.lautstaerke.kopfhoerer == 40
+
+
+def test_toene_kennlinie_vorgabe_und_eigene_werte():
+    roh = {"pfade": {"zustand": "v", "medien": "m"}}
+    k = config.pruefe(roh, Path("/b"))
+    assert k.toene.kennlinie == "mpd_software" and k.toene.softvol_bereich_db == 51.0  # Vorgabe: Mac
+    pi = {**roh, "toene": {"kennlinie": "alsa_softvol", "softvol_bereich_db": 40}}
+    k = config.pruefe(pi, Path("/b"))
+    assert k.toene.kennlinie == "alsa_softvol" and k.toene.softvol_bereich_db == 40.0
+
+
+@pytest.mark.parametrize(
+    "toene",
+    [{"kennlinie": "linear"}, {"kennlinie": ""}, {"softvol_bereich_db": 0}, {"softvol_bereich_db": "viel"},
+     {"softvol_bereich_db": True}, {"softvol_bereich_db": 500}],
+)
+def test_toene_kennlinie_ungueltig(toene):
+    with pytest.raises(KonfigFehler):
+        config.pruefe({"pfade": {"zustand": "v", "medien": "m"}, "toene": toene}, Path("/b"))

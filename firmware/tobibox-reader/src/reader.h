@@ -27,6 +27,7 @@ class Reader {
   Reading poll();
 
  private:
+  int inventoryChecked(uint8_t* uid);
   Reading readIso14443();
   Reading readIso15693();
   Reading pollProtocols();
@@ -34,6 +35,7 @@ class Reader {
   PN5180ISO14443 nfc14443_;
   PN5180ISO15693 nfc15693_;
   uint32_t cycleStart_ = 0;   // millis() zu Beginn des Zyklus
+  const char* errDetail_ = "";  // Grund der letzten verworfenen Inventory-Antwort
   bool lastWasNtag_ = false;  // zuletzt gelesenes Protokoll zuerst abfragen
 };
 

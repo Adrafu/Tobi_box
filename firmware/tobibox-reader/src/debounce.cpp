@@ -37,11 +37,13 @@ bool Identity::operator==(const Identity& o) const {
 
 DebounceParams::DebounceParams()
     : confirm_reads(CONFIRM_READS),
+      change_reads(CHANGE_CONFIRM_READS),
       remove_after_ms(REMOVE_AFTER_MS),
       error_hold_ms(ERROR_HOLD_MS) {}
 
 Debouncer::Debouncer(const DebounceParams& params) : p_(params) {
   if (p_.confirm_reads < 1) p_.confirm_reads = 1;
+  if (p_.change_reads < p_.confirm_reads) p_.change_reads = p_.confirm_reads;
 }
 
 DebounceResult Debouncer::update(const Reading& in, uint32_t t) {
@@ -59,6 +61,7 @@ DebounceResult Debouncer::update(const Reading& in, uint32_t t) {
 
   const bool valid = in.valid();
   const uint32_t N = p_.confirm_reads;
+  const uint32_t C = p_.change_reads;  // nur im Zustand LIEGT (Wechsel)
   const Identity x = valid ? Identity::from(in) : Identity();
 
   auto place = [&](const Identity& id) {
@@ -116,7 +119,7 @@ DebounceResult Debouncer::update(const Reading& in, uint32_t t) {
       } else {  // Zeilen 13 bis 15
         out.rejected = true;
         const bool same_challenger = has_challenger_ && x == challenger_;
-        if (N == 1 || (same_challenger && challenger_n_ + 1 >= N)) {  // Zeile 15
+        if (C == 1 || (same_challenger && challenger_n_ + 1 >= C)) {  // Zeile 15
           out.removed = true;
           place(x);
         } else if (same_challenger) {  // Zeile 14

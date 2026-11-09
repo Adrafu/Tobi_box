@@ -7,9 +7,14 @@
 
 // Abfragezyklus, Beginn zu Beginn.
 constexpr uint32_t POLL_PERIOD_MS = 200;
-// Gleiche Lesungen in Folge für PLACED, LOCKED und Wechsel
-// (3, falls die Messung in Stufe 1 zeigt, dass 2 nicht reichen).
+// Gleiche Lesungen in Folge für PLACED und LOCKED aus dem leeren Zustand.
+// Mehr als 2 würde die Auflegezeit (unter 1 s) sprengen, siehe docs/timing.md.
 constexpr uint32_t CONFIRM_READS = 2;
+// Gleiche Lesungen in Folge für einen Wechsel: Es liegt schon ein Tobie, und
+// eine andere Kennung wird gelesen. Ein Wechsel ohne Lücke ist selten, eine
+// verfälschte Kennung dagegen kann sich in zwei Zyklen wiederholen (gleiche
+// Lage am Rand). Der dritte Zyklus kostet nur beim Wechsel 200 ms.
+constexpr uint32_t CHANGE_CONFIRM_READS = 3;
 // REMOVED nach so langer Zeit ohne gültige Lesung der liegenden Figur,
 // wenn dazwischen ein "nichts" oder eine fremde Lesung kam.
 constexpr uint32_t REMOVE_AFTER_MS = 1100;

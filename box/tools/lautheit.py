@@ -3,6 +3,10 @@
 
     python tools/lautheit.py DATEI [DATEI ...]      # Messwert je Datei
     python tools/lautheit.py --ordner box/sounds     # alle WAV und MP3 darin
+    python tools/lautheit.py --manifest              # box/lautheit.json neu schreiben (nach make_sounds/make_sprache)
+
+``box/lautheit.json`` hält je Datei die Prüfsumme (SHA-256) und den Messwert fest. So prüft ein Test
+auch dort, wo ``ffmpeg`` fehlt, dass die Dateien noch zu den gemessenen passen.
 
 Zielwert (``ZIEL_LUFS``): -18 LUFS. Das ist der Bezugspegel von ReplayGain 2.0 und der
 Zielwert, den ``rsgain`` für die Hörspiele auf dem NAS nutzt (``docs/designs/box-software.md``,
@@ -17,6 +21,7 @@ wie er sich im Dauerbetrieb anhört; die Pausen darin fallen durch das Gate wie 
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import math
 import re
@@ -76,6 +81,38 @@ def spitze(pfad: str | Path) -> float:
     return max((abs(x) for x in a), default=0) / 32768
 
 
+#: Ordner (ab ``box/``), deren Audiodateien am Zielwert liegen müssen
+MANIFEST_ORDNER = ("sounds", "sounds/sprache", "medien-sprache")
+WURZEL = Path(__file__).resolve().parents[1]
+MANIFEST = WURZEL / "lautheit.json"
+
+
+def manifest_dateien() -> list[Path]:
+    """Alle Audiodateien der ``MANIFEST_ORDNER``; ``sounds/sprache`` nur einmal (nicht zusätzlich unter ``sounds``)."""
+    gefunden: dict[Path, None] = {}
+    for o in MANIFEST_ORDNER:
+        for d in dateien(WURZEL / o):
+            gefunden[d] = None
+    return sorted(gefunden)
+
+
+def sha256(pfad: Path) -> str:
+    return hashlib.sha256(pfad.read_bytes()).hexdigest()
+
+
+def schreibe_manifest(ziel: Path = MANIFEST) -> dict:
+    daten = {
+        "ziel_lufs": ZIEL_LUFS,
+        "toleranz_lu": TOLERANZ_LU,
+        "dateien": {
+            d.relative_to(WURZEL).as_posix(): {"sha256": sha256(d), "lufs": round(messe(d), 2)}
+            for d in manifest_dateien()
+        },
+    }
+    ziel.write_text(json.dumps(daten, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    return daten
+
+
 def dateien(ordner: Path) -> list[Path]:
     return sorted(p for p in ordner.rglob("*") if p.suffix.lower() in (".wav", ".mp3"))
 
@@ -85,9 +122,14 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("dateien", nargs="*", type=Path)
     p.add_argument("--ordner", type=Path, action="append", default=[], help="alle WAV und MP3 darin messen")
     p.add_argument("--json", action="store_true", help="Ausgabe als JSON {Pfad: LUFS}")
+    p.add_argument("--manifest", action="store_true", help=f"{MANIFEST.name} neu schreiben")
     a = p.parse_args(argv)
     if not ffmpeg_da():
         p.error("ffmpeg/ffprobe fehlen")
+    if a.manifest:
+        daten = schreibe_manifest()
+        print(f"{MANIFEST}: {len(daten['dateien'])} Dateien")
+        return 0
     liste = list(a.dateien)
     for o in a.ordner:
         liste += dateien(o)

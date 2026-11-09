@@ -4,31 +4,122 @@ from __future__ import annotations
 
 import array
 import asyncio
+import math
 import wave
 from pathlib import Path
 
 import pytest
 
-from tobibox.config import STANDARD_TON_KOMMANDO, STANDARD_TON_KOMMANDO_PI
-from tobibox.sounds import Toene, baue_kommando, pegel, skaliere_wav
+from tobibox.config import (
+    KENNLINIE_ALSA_SOFTVOL,
+    KENNLINIE_MPD_SOFTWARE,
+    STANDARD_TON_KOMMANDO,
+    STANDARD_TON_KOMMANDO_PI,
+)
+from tobibox.sounds import (
+    HINWEIS_MINDEST,
+    HINWEIS_PEGEL_VORGABE,
+    TON_MINDEST,
+    Kennlinie,
+    Toene,
+    baue_kommando,
+    pegel,
+    skaliere_wav,
+)
 
 
 @pytest.mark.parametrize(
-    ("ton", "grenze", "ton_pegel", "hinweis_pegel", "erwartet"),
+    ("ton", "grenze", "lautstaerke", "hinweis_pegel", "erwartet"),
     [
-        ("start", 100, None, None, 40),  # Vorgabe 40
-        ("start", 30, None, None, 30),  # nie über der Grenze
-        ("fehler", 100, 60, None, 60),
+        ("start", 100, 40, None, 40),  # der Ton folgt der Lautstärke der Sitzung
+        ("start", 100, 20, None, 20),
+        ("start", 100, None, None, 100),  # ohne Lautstärke gilt die Grenze
+        ("fehler", 100, 60, 99, 60),  # hinweis_pegel betrifft nur den Hinweiston
+        ("start", 30, 50, None, 30),  # nie über der wirksamen Grenze
+        ("start", 100, 3, None, TON_MINDEST),  # Untergrenze: hörbar
+        ("start", 100, 0, None, TON_MINDEST),
+        ("start", 5, 3, None, 5),  # die Grenze gilt auch unter der Untergrenze
         ("start", 0, 40, None, 0),
-        ("hinweis", 100, None, None, 15),  # Vorgabe 15
-        ("hinweis", 10, None, None, 10),
-        ("hinweis", 3, None, None, 5),  # Untergrenze 5
-        ("hinweis", 100, None, 2, 5),
-        ("hinweis", 100, None, 25, 25),
+        ("hinweis", 100, 40, None, 15),  # Vorgabe 15
+        ("hinweis", 100, 10, None, 10),
+        ("hinweis", 100, 12, None, 12),  # nie über der Lautstärke
+        ("hinweis", 100, 20, 25, 20),
+        ("hinweis", 100, 40, 25, 25),
+        ("hinweis", 100, 0, None, HINWEIS_MINDEST),  # unter „stumm“ (Lautstärke 0): Untergrenze
+        ("hinweis", 100, 40, 2, HINWEIS_MINDEST),
     ],
 )
-def test_pegel(ton, grenze, ton_pegel, hinweis_pegel, erwartet):
-    assert pegel(ton, grenze, ton_pegel, hinweis_pegel) == erwartet
+def test_pegel(ton, grenze, lautstaerke, hinweis_pegel, erwartet):
+    assert pegel(ton, grenze, lautstaerke, hinweis_pegel) == erwartet
+
+
+def test_pegel_regel_gilt_fuer_alle_werte():
+    """Ein Ton ist nie über der Grenze und nie unter der Untergrenze (außer die Grenze liegt darunter);
+    der Hinweiston ist nie lauter als die Lautstärke (außer durch die Untergrenze)."""
+    for grenze in range(0, 101, 5):
+        for laut in range(0, grenze + 1, 5):
+            for ton in ("start", "fehler", "pruef_ok", "akku_leer"):
+                p = pegel(ton, grenze, laut)
+                assert p <= grenze
+                assert p == min(grenze, max(TON_MINDEST, laut))
+            h = pegel("hinweis", grenze, laut)
+            assert h <= max(laut, HINWEIS_MINDEST)
+            assert h >= HINWEIS_MINDEST
+
+
+def test_konstanten_der_pegelregel():
+    assert TON_MINDEST == 10 and HINWEIS_MINDEST == 10 and HINWEIS_PEGEL_VORGABE == 15
+
+
+# --- Kennlinie (Entscheidung J) -----------------------------------------------------------------------
+
+
+def mpd_software(p):
+    """Unabhängig nachgerechnet: MPD 0.24 ``PercentVolumeToSoftwareVolume``, gerundet auf 1/1024."""
+    return 1.0 if p >= 100 else 0.0 if p <= 0 else round((math.exp(p / 25) - 1) / (math.exp(4) - 1) * 1024) / 1024
+
+
+def test_kennlinie_mpd_software_stuetzstellen():
+    k = Kennlinie()
+    assert k.verstaerkung(0) == 0.0
+    assert k.verstaerkung(100) == 1.0
+    assert k.verstaerkung(20) == 23 / 1024  # Startlautstärke am Mac
+    assert k.verstaerkung(40) == 76 / 1024  # Grenze am Mac
+    assert k.verstaerkung(50) == 122 / 1024
+    assert k.db(20) == pytest.approx(-33.0, abs=0.1)
+    assert k.db(40) == pytest.approx(-22.6, abs=0.1)
+    for p in range(0, 101):
+        assert k.verstaerkung(p) == mpd_software(p)
+
+
+def test_kennlinie_ist_steigend_und_geklemmt():
+    for art in (KENNLINIE_MPD_SOFTWARE, KENNLINIE_ALSA_SOFTVOL):
+        k = Kennlinie(art)
+        werte = [k.verstaerkung(p) for p in range(0, 101)]
+        assert werte == sorted(werte) and werte[-1] == 1.0
+        assert k.verstaerkung(-5) == k.verstaerkung(0) and k.verstaerkung(500) == 1.0
+
+
+def test_kennlinie_alsa_softvol_nach_volume_mapping():
+    k = Kennlinie(KENNLINIE_ALSA_SOFTVOL, 51.0)  # ALSA-Vorgabe -51 dB bis 0 dB
+    m = 10 ** (-51 / 60)
+    assert k.verstaerkung(100) == 1.0
+    assert k.verstaerkung(50) == pytest.approx((m + 0.5 * (1 - m)) ** 3, rel=1e-9)
+    assert k.db(20) == pytest.approx(-30.3, abs=0.1)
+    assert k.db(40) == pytest.approx(-18.9, abs=0.1)
+    assert k.db(0) == pytest.approx(-51.0, abs=1e-9)  # MPD setzt min_dB, das ist praktisch still
+
+
+def test_kennlinie_alsa_softvol_kleiner_bereich_ist_linear_in_db():
+    k = Kennlinie(KENNLINIE_ALSA_SOFTVOL, 20.0)  # höchstens 24 dB: linear in dB (MAX_LINEAR_DB_SCALE)
+    assert k.db(50) == pytest.approx(-10.0, abs=1e-9)
+    assert k.db(75) == pytest.approx(-5.0, abs=1e-9)
+
+
+def test_beide_kennlinien_unterscheiden_sich_bei_gleicher_lautstaerke():
+    """Darum steht die Kennlinie in der Konfiguration: bei 40 % liegen Mac und Pi rund 3,7 dB auseinander."""
+    mac, pi = Kennlinie(), Kennlinie(KENNLINIE_ALSA_SOFTVOL)
+    assert pi.db(40) - mac.db(40) == pytest.approx(3.7, abs=0.2)
 
 
 def test_kommando_mac_und_pi(tmp_path):
@@ -69,10 +160,21 @@ def test_skaliere_pegel_0_ist_still(tmp_path):
 
 def test_skaliere_verkleinert_proportional(tmp_path):
     q = schreibe_wav(tmp_path / "q.wav")
+    f = 122 / 1024  # Verstärkung bei 50 % nach der Kennlinie von MPD (nicht 0,5)
     skaliere_wav(q, 50, tmp_path / "z.wav")
-    assert lies_samples(tmp_path / "z.wav") == [0, 500, -500, 16384, -16384, 10000]
+    assert lies_samples(tmp_path / "z.wav") == [round(x * f) for x in SAMPLES]
+    assert max(lies_samples(tmp_path / "z.wav")) == 3904
     skaliere_wav(q, 100, tmp_path / "z.wav")
     assert lies_samples(tmp_path / "z.wav") == SAMPLES
+
+
+def test_skaliere_mit_der_kennlinie_des_pi(tmp_path):
+    q = schreibe_wav(tmp_path / "q.wav")
+    k = Kennlinie(KENNLINIE_ALSA_SOFTVOL)
+    skaliere_wav(q, 40, tmp_path / "z.wav", k)
+    f = k.verstaerkung(40)
+    assert lies_samples(tmp_path / "z.wav") == [round(x * f) for x in SAMPLES]
+    assert f > Kennlinie().verstaerkung(40)  # am Pi ist 40 % lauter als am Mac
 
 
 def test_skaliere_lehnt_andere_formate_ab(tmp_path):
@@ -98,13 +200,13 @@ def mk(tmp_path, gespielt, kommando=STANDARD_TON_KOMMANDO):
 async def test_spielt_skalierte_kopie_unter_grenze(tmp_path):
     g: list = []
     t = mk(tmp_path, g)
-    assert t.spiele("start", 25)
-    assert t.spiele("hinweis", 100, hinweis_pegel=20)
+    assert t.spiele("start", 25, 25)
+    assert t.spiele("hinweis", 100, 40, hinweis_pegel=20)
     await t.warte()
     assert [k[0] for k in g] == ["afplay", "afplay"]
     assert all(k[1] != str(tmp_path / "start.wav") for k in g)  # Kopie, nicht das Original
-    assert t.gesehen[0] == [round(x * 0.25) for x in SAMPLES]
-    assert t.gesehen[1] == [round(x * 0.20) for x in SAMPLES]
+    assert t.gesehen[0] == [round(x * mpd_software(25)) for x in SAMPLES]
+    assert t.gesehen[1] == [round(x * mpd_software(20)) for x in SAMPLES]
     assert lies_samples(tmp_path / "start.wav") == SAMPLES  # Original unverändert
     import os
 
@@ -114,20 +216,49 @@ async def test_spielt_skalierte_kopie_unter_grenze(tmp_path):
 async def test_pegel_nie_ueber_grenze_und_0_ist_still(tmp_path):
     g: list = []
     t = mk(tmp_path, g)
-    t.spiele("start", 0)
-    t.spiele("start", 10, ton_pegel=90)
+    t.spiele("start", 0, 0)
+    t.spiele("start", 20, 90)  # die Lautstärke liegt nie über der Grenze: geklemmt
     await t.warte()
     assert t.gesehen[0] == [0] * len(SAMPLES)
-    assert max(abs(x) for x in t.gesehen[1]) <= round(32768 * 0.10)
+    assert max(abs(x) for x in t.gesehen[1]) <= round(32768 * mpd_software(20))
+
+
+async def test_ton_folgt_der_lautstaerke_wie_das_hoerspiel(tmp_path):
+    """Gleiche Lautstärke, gleiche Verstärkung wie MPD: bei 20 % und bei 40 %."""
+    g: list = []
+    t = mk(tmp_path, g)
+    for laut in (20, 40):
+        t.spiele("start", 100, laut)
+    await t.warte()
+    voll = max(abs(x) for x in SAMPLES)
+    assert max(abs(x) for x in t.gesehen[0]) == round(voll * 23 / 1024)
+    assert max(abs(x) for x in t.gesehen[1]) == round(voll * 76 / 1024)
+
+
+async def test_untergrenze_haelt_den_ton_hoerbar(tmp_path):
+    g: list = []
+    t = mk(tmp_path, g)
+    t.spiele("start", 100, 0)
+    await t.warte()
+    assert max(abs(x) for x in t.gesehen[0]) == round(32768 * mpd_software(TON_MINDEST))
+
+
+async def test_toene_mit_kennlinie_des_pi(tmp_path):
+    g: list = []
+    t = mk(tmp_path, g)
+    t.kennlinie = Kennlinie(KENNLINIE_ALSA_SOFTVOL)
+    t.spiele("start", 100, 40)
+    await t.warte()
+    assert t.gesehen[0] == [round(x * t.kennlinie.verstaerkung(40)) for x in SAMPLES]
 
 
 async def test_pi_kommando_ohne_platzhalter_bleibt_leise(tmp_path):
     g: list = []
     t = mk(tmp_path, g, ["aplay", "-q", "{datei}"])
-    t.spiele("start", 10)
+    t.spiele("start", 10, 10)
     await t.warte()
     assert g[0][:2] == ["aplay", "-q"]
-    assert max(abs(x) for x in t.gesehen[0]) <= round(32768 * 0.10)
+    assert max(abs(x) for x in t.gesehen[0]) <= round(32768 * mpd_software(10))
 
 
 async def test_nicht_skalierbare_datei_wird_nicht_gespielt(tmp_path):

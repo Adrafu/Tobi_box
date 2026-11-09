@@ -386,3 +386,62 @@ async def test_status_auskunft_enthaelt_status_pruefpunkte_und_offene_meldungen(
         json.dumps(r)  # muss über den Socket gehen können
     finally:
         await a.beende()
+
+
+# --- Töne folgen der Lautstärke der Sitzung (Entscheidung J, 09.11.) --------------------------------
+
+
+class TonSpion:
+    """Merkt sich, mit welchen Pegel-Angaben ``App`` einen Ton ausführt."""
+
+    def __init__(self) -> None:
+        self.aufrufe: list[tuple] = []
+        self.gestoppt = False
+
+    def spiele(self, ton, grenze, lautstaerke=None, hinweis_pegel=None) -> bool:
+        self.aufrufe.append((ton, grenze, lautstaerke, hinweis_pegel))
+        return True
+
+    def spiele_folge(self, toene, grenze, lautstaerke=None, hinweis_pegel=None) -> bool:
+        self.aufrufe.append((tuple(toene), grenze, lautstaerke, hinweis_pegel))
+        return True
+
+    async def stop(self):
+        self.gestoppt = True
+
+
+async def test_ton_bekommt_die_zuletzt_ausgegebene_lautstaerke_und_grenze(app):
+    app.toene = TonSpion()
+    # vor dem ersten Befehl: die Startlautstärke (20), gekappt auf das Maximum
+    assert app.lautstaerke == min(app.konfig.lautstaerke.start, app.konfig.lautstaerke.max)
+    await app._fuehre_aus(ev.LautstaerkeSetzen(35, 40), 0.0)
+    await app._fuehre_aus(ev.TonSpielen("start"), 0.0)
+    assert app.toene.aufrufe[-1] == ("start", 40, 35, None)
+    await app._fuehre_aus(ev.LautstaerkeSetzen(12, 30), 0.0)  # Grenze sinkt (Kopfhörer, „leiser“, Ausblenden)
+    await app._fuehre_aus(ev.TonSpielen("unbekannt"), 0.0)
+    assert app.toene.aufrufe[-1] == ("unbekannt", 30, 12, None)
+
+
+async def test_ton_lautstaerke_liegt_nie_ueber_der_grenze(app):
+    app.toene = TonSpion()
+    await app._fuehre_aus(ev.LautstaerkeSetzen(80, 30), 0.0)  # der Player klemmt ebenso
+    await app._fuehre_aus(ev.TonSpielen("fehler"), 0.0)
+    assert app.toene.aufrufe[-1][1:3] == (30, 30)
+
+
+async def test_hinweis_pegel_kommt_aus_der_konfiguration_ton_pegel_wird_ignoriert(app):
+    app.toene = TonSpion()
+    app.konfig_store.roh = {**app.konfig_store.roh, "ton_pegel": 90, "hinweis_pegel": 22}
+    await app._fuehre_aus(ev.LautstaerkeSetzen(20, 40), 0.0)
+    await app._fuehre_aus(ev.TonSpielen("hinweis"), 0.0)
+    assert app.toene.aufrufe[-1] == ("hinweis", 40, 20, 22)  # kein ton_pegel in der Übergabe
+
+
+def test_app_baut_die_kennlinie_aus_der_konfiguration(app):
+    assert App(app.konfig, melde_bereit=False).toene.kennlinie.art == konfig_modul.KENNLINIE_MPD_SOFTWARE  # Vorgabe: Mac
+    k = dataclasses.replace(
+        app.konfig,
+        toene=dataclasses.replace(app.konfig.toene, kennlinie="alsa_softvol", softvol_bereich_db=40.0),
+    )
+    a = App(k, melde_bereit=False)
+    assert (a.toene.kennlinie.art, a.toene.kennlinie.softvol_bereich_db) == ("alsa_softvol", 40.0)

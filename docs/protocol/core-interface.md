@@ -26,6 +26,11 @@
     vorn und eine Serie spielt die nächste Folge von vorn. `Serie` bekommt das Feld `dauern`,
     die Bibliothek füllt es aus den Dateien. Siehe Abschnitt 6.3 und Abschnitt 9, Punkt 30.
 
+*   **Änderung 09.11. (Entscheidung J, 09.11.):** Die Töne folgen der Lautstärke des Hörspiels. Der
+    Tonpegel ist die aktuelle Lautstärke der Sitzung (nach allen Grenzen), mindestens 10; die
+    Verstärkung folgt derselben Kennlinie wie MPD. `ton_pegel` entfällt als Wirkung. Die Töne und die
+    gesprochenen Testmedien liegen bei −18 LUFS. Siehe Abschnitt 8.1 und Abschnitt 9, Punkt 31.
+
 Die **Tabellen „Wiedergabe-Sitzung“, „Lernmodus“, „Ruhe-Regeln“ und
 „Strom / Leerlauf“** in „Kern-Zustände“ des Designs sind Teil dieses Vertrags
 und gelten unverändert. Dieses Dokument legt fest, **wie** die Teilautomaten
@@ -664,23 +669,61 @@ aller aktiven Grenzen**, und keine Lautstärke liegt darüber.
     die Wiedergabe. Auf dem Pi spielt `sounds` über das ALSA-`softvol`-Gerät, das
     auch MPD benutzt; die **harte Kappe** (`lautstaerke_max`) gilt damit auch für
     Töne. Auf dem Mac gibt es **keine** harte Kappe, es gilt nur die Regel unten.
-    **Wie der Pegel wirkt (korrigiert 05.11., Entscheidung F, 05.11.):** `sounds` skaliert die Töne **in Python** auf den
-    Pegel (nicht über eine Option des Abspielprogramms) und spielt die skalierte
-    Datei mit `afplay {datei}` (Mac) bzw. `aplay -q {datei}` (Pi). Es gibt kein
-    `afplay -v`.
-*   **Pegel in Prozent** (Felder `ton_pegel` und `hinweis_pegel` in `config.json`,
-    `data-model.md`, Abschnitt 2). `grenze` ist die **wirksame Grenze** aus
-    Abschnitt 8; `app.py` gibt sie `sounds` beim Ausführen mit (der zuletzt mit
-    `LautstaerkeSetzen` ausgegebene Wert `grenze`; `TonSpielen` bekommt kein Feld).
-    *   Alle Töne außer `hinweis`: `pegel = min(ton_pegel, grenze)`. `ton_pegel`
-        ist ein **eigener fester Wert** (Vorgabe 40), unabhängig von der
-        Wiedergabelautstärke `wunsch`, aber nie über der wirksamen Grenze.
+    **Wie der Pegel wirkt (korrigiert 05.11., Entscheidung F, 05.11.; geändert 09.11., Entscheidung J):**
+    `sounds` skaliert die Töne **in Python** (nicht über eine Option des Abspielprogramms) und spielt
+    die skalierte Datei mit `afplay {datei}` (Mac) bzw. `aplay -q {datei}` (Pi). Es gibt kein
+    `afplay -v`. Die Skalierung benutzt **dieselbe Kennlinie wie MPD** (unten), damit ein Ton bei
+    gleicher Lautstärke so laut klingt wie das Hörspiel.
+*   **Pegel in Prozent** (Entscheidung J, 09.11.). Der Pegel steht auf der Skala der
+    MPD-Lautstärke (0 bis 100). `app.py` gibt `sounds` beim Ausführen zwei Werte aus dem zuletzt
+    ausgegebenen `LautstaerkeSetzen(prozent, grenze)` mit (`TonSpielen` bekommt kein Feld, der Kern
+    bleibt rein und kennt keine Tonpegel):
+    *   `grenze`: die **wirksame Grenze** aus Abschnitt 8;
+    *   `lautstaerke = max(0, min(prozent, grenze))`: die **aktuelle Lautstärke der Sitzung** nach
+        allen Grenzen. Vor dem ersten Befehl gilt `min(lautstaerke_start, lautstaerke_max)`.
+        Sie ändert sich mit dem Drehregler, mit Rampen (Ausblenden, Absenken) und mit jeder Grenze;
+        ein Ton folgt ihr.
+    *   Alle Töne außer `hinweis`: `pegel = min(grenze, max(TON_MINDEST, lautstaerke))`
+        mit `TON_MINDEST` = 10. Der Ton spielt also so laut wie das Hörspiel; die Untergrenze 10
+        hält ihn hörbar (z. B. bei Lautstärke 0 nach einem Ausblenden); **die Grenze gilt
+        weiter** (Kopfhörer, „leiser“, Maximum) und steht über der Untergrenze.
     *   `hinweis` (der leise Hinweiston unter „stumm“, 6.2 Regel 2):
-        `pegel = max(5, min(hinweis_pegel, grenze))`. `hinweis_pegel` hat die
-        Vorgabe 15 (hörbar, aber leise). Die Untergrenze 5 hält den Hinweiston
-        auch bei sehr kleiner Grenze hörbar; die harte Kappe bleibt wirksam.
-    *   Fehlen die Felder (keine Konfiguration geladen), gelten die Vorgaben 40
-        und 15.
+        `pegel = max(HINWEIS_MINDEST, min(hinweis_pegel, lautstaerke))` mit `hinweis_pegel` =
+        Vorgabe 15 (`HINWEIS_PEGEL_VORGABE`) und `HINWEIS_MINDEST` = 10. Er ist leiser als die
+        Lautstärke und übersteigt sie nur durch die Untergrenze (unter „stumm“ ist die Lautstärke
+        meist 0). Die Untergrenze war vor Entscheidung J 5; auf der Kennlinie von MPD sind 5 % rund
+        −48 dB und nicht mehr zu hören, 10 % sind rund −41 dB.
+    *   `ton_pegel` (`config.json`) hat **keine Wirkung mehr**: `app.py` liest es nicht. Das Feld bleibt
+        im Schema gültig (alte Dateien laden unverändert), `data-model.md` wird bei Gelegenheit
+        nachgezogen. `hinweis_pegel` gilt weiter. Fehlt das Feld, gilt die Vorgabe 15.
+*   **Kennlinie** (Entscheidung J, 09.11.): Sie setzt eine Lautstärke `p` in Prozent in eine
+    Verstärkung `g` (Faktor 0 bis 1, 100 % = 1) um. Sie hängt von der Plattform ab und steht deshalb
+    in der Konfiguration (`tobibox.toml`, Abschnitt `[toene]`, Felder `kennlinie` und
+    `softvol_bereich_db`; Code: `config.py`, `sounds.Kennlinie`):
+
+    | Plattform | `kennlinie` | MPD-Mixer | Verstärkung | Quelle |
+    |---|---|---|---|---|
+    | Mac (Vorgabe) | `mpd_software` | `mixer_type "software"` | `g = (exp(p / 25) − 1) / (exp(4) − 1)`, gerundet auf 1/1024; 100 % ist 1, 0 % ist still | MPD 0.24, `src/mixer/plugins/SoftwareMixerPlugin.cxx`, `PercentVolumeToSoftwareVolume`; `src/pcm/Volume.hxx`, `PCM_VOLUME_BITS` = 10, `pcm_float_to_volume` |
+    | Pi | `alsa_softvol` | `mixer_type "hardware"` am ALSA-`softvol`-Regler | Bereich `b` = `max_dB − min_dB` (Vorgabe 51 dB, ALSA-Vorgabe −51 bis 0 dB; Feld `softvol_bereich_db`). Ist `b` > 24 dB: `dB = 60 · log10(m + p/100 · (1 − m))` mit `m = 10^(−b/60)`, also `g = (m + p/100 · (1 − m))³`; sonst linear in dB: `dB = −b · (1 − p/100)`. 0 dB entspricht `max_dB`, der harten Kappe | MPD 0.24, `src/mixer/plugins/VolumeMapping.cxx` (`set_normalized_playback_volume`, `MAX_LINEAR_DB_SCALE` = 24); `AlsaMixerPlugin.cxx` (`SetVolume`); alsa-lib `src/pcm/pcm_softvol.c` (dB-Tabelle linear in dB zwischen `min_dB` und `max_dB`) |
+
+    Beispiele: Am Mac sind 20 % rund −33,0 dB, 40 % rund −22,6 dB (das Hörspiel bei Startlautstärke
+    und bei Maximum der Beispielkonfiguration). Der alte feste Tonpegel 40 % linear waren −8 dB; er lag
+    damit rund 25 dB über dem Hörspiel bei 20 %. Am Pi sind 20 % rund −30,3 dB, 40 % rund −18,9 dB.
+    Die Kennlinie wirkt **zusätzlich** zu ReplayGain und unabhängig davon (MPD wendet ReplayGain als
+    eigenen Filter an). Die Werte für den Pi sind aus dem Quelltext abgeleitet und noch nicht am Gerät
+    gemessen (Pi-Probelauf).
+*   **Zielwert der Lautheit** (Entscheidung J, 09.11.): Die Dateien in `box/sounds/`,
+    `box/sounds/sprache/` und `box/medien-sprache/` liegen bei **−18 LUFS** (integriert, EBU R128),
+    dem Zielwert, den `rsgain` für die Hörspiele nutzt (Design, D6). Erlaubte Abweichung ±1 LU.
+    Ein Ton und ein Hörspiel haben dann bei gleicher Lautstärke und gleicher Kennlinie den gleichen
+    Pegel. Die MP3 der Testmedien tragen ReplayGain-Tags (`REPLAYGAIN_TRACK_GAIN`, `…_PEAK`),
+    sonst dämpft MPD sie um `replaygain_missing_preamp` (−6 dB).
+*   **Pi: ein Regler, nicht zwei.** Spielte `aplay` über denselben `softvol`-Regler wie MPD, würde die
+    Lautstärke doppelt wirken (einmal im Regler, einmal in Python). Die Töne laufen am Pi deshalb über
+    ein zweites `softvol`-Gerät mit **demselben `max_dB`** und eigenem Regler, der fest auf 100 %
+    steht (`aplay -D <Gerät>` im Kommando, `deploy/pi/asound.conf`, Stufe 4). So gilt die harte Kappe
+    auch für die Töne, und die Lautstärke wirkt genau einmal.
+*   Fehlen die Felder (keine Konfiguration geladen), gilt für `hinweis_pegel` die Vorgabe 15.
 
 ## 9. Fälle, die die Tabellen des Designs offenlassen
 
@@ -1095,6 +1138,9 @@ Modulkonstanten mit genau diesen Namen. Es gibt keine eigene Konstanten-Datei.
 | `SPEICHERN_PERIODISCH_S` | 30 | `session.py` |
 | `REST_FERTIG_S` | 15 | `session.py` (Rest bis zum Ende der ganzen Folge, unter dem sie beim Fortsetzen als fertig gehört gilt; Entscheidung I, 09.11.) |
 | `REST_REGEL_MIN_FOLGE_S` | 60 | `session.py` (kürzere Folgen sind von der Restregel ausgenommen; Entscheidung I, 09.11.) |
+| `TON_MINDEST` | 10 | `sounds.py` (Untergrenze der Ton-Lautstärke in Prozent, Entscheidung J, 09.11.) |
+| `HINWEIS_PEGEL_VORGABE`, `HINWEIS_MINDEST` | 15, 10 | `sounds.py` (Hinweiston, Entscheidung J, 09.11.; die Untergrenze war 5) |
+| `ZIEL_LUFS`, `TOLERANZ_LU` | −18, 1 | `box/tools/lautheit.py` (Lautheit der Töne und Testmedien, Entscheidung J, 09.11.) |
 | `LERN_FRIST_S` | 120 | `learn.py` |
 | `LERN_ANTWORT_FRIST_S` | 10 | `session.py` (Wartezeit auf HA, wenn im Lernmodus ein Tobie aufgelegt wird, `mono`, Punkt 9.8) (Entscheidung H, 07.11.) |
 | `LEERLAUF_S` | 1200 (20 min) | `idle.py` |
@@ -1233,6 +1279,7 @@ Projektleitung (P) entschieden oder aus dem Goldfisch-Review übernommen
         `seq=0` oder nach `seq_reset` erhalten, selbst ohne `HELLO` (3.1).
     *   Töne: gleicher Ausgang wie MPD, `ton_pegel` (40) und `hinweis_pegel` (15,
         Untergrenze 5), nie über der wirksamen Grenze; Mac ohne harte Kappe (8.1).
+        **Ersetzt am 09.11. durch Entscheidung J (Punkt 31):** Töne folgen der Lautstärke.
     *   Auflegen in `beendet` und `gehalten` unter „stumm“: nur Hinweiston (9.12); `StummBeginnt` in `unbekannt` wirkt erst nach dem
         Verlassen (9.2); `Weiter`/`Zurueck` in `beendet` (9.12; `Zurueck` spielt die eben beendete Folge neu).
 14. **Bestätigt (05.11., P): `volume.rampe`** und `LautstaerkeGeaendert` als
@@ -1311,3 +1358,11 @@ Projektleitung (P) entschieden oder aus dem Goldfisch-Review übernommen
     unbekannter Dauer sind ausgenommen. Die Dauer kommt aus der Bibliothek (`Serie.dauern`), die
     Sitzung bleibt rein. Pause nach jeder Folge (A), Dienst-Neustart bleibt pausiert (G) und
     Lernmodus (H) gelten unverändert.
+31. **Bestätigt (09.11., Entscheidung J, T): Die Töne folgen der Lautstärke des Hörspiels.**
+    Anlass: Am Mac waren die Box-Töne viel lauter als das Hörspiel, und eine gesprochene Testfolge
+    mit derselben Stimme und demselben Dateipegel wie die Ansage `start` war „ultra leise“. Ursache
+    war die Wiedergabe, nicht die Dateien: Töne liefen mit festem Pegel 40 % **linear**
+    (−8 dB), das Hörspiel mit der MPD-Lautstärke 20 % auf der **exponentiellen** Kennlinie des
+    MPD-Software-Mixers (−33 dB), also rund 25 dB leiser. Neu: Pegelregel und Kennlinie wie in 8.1,
+    Untergrenze 10, Töne und Testmedien bei −18 LUFS, Testmedien mit ReplayGain-Tags. Der Kern bleibt
+    rein; `app.py` leitet die Lautstärke aus dem zuletzt ausgegebenen `LautstaerkeSetzen` ab.
