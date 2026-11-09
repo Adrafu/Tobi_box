@@ -17,6 +17,7 @@ from conftest import CujBox, mk_konfig
 from fixtures import audio
 
 from tobibox import events as ev
+from tobibox import nachfuehrung
 from tobibox.controls import Bedienung
 from tobibox.led import LedLogik
 from tobibox.volume import wirksame_grenze
@@ -98,7 +99,8 @@ def gehe_bis(box: CujBox, bedingung, max_s: float = 600.0, schritt: float = 1.0)
 class BedienBox(CujBox):
     """``CujBox`` mit ``Bedienung`` (Tasten, Drehregler) und ``LedLogik``: dieselben Teile wie in ``app.py``.
 
-    ``bedienung`` sendet in ``sende``; nach jedem Schritt führt die Box Lautstärke und Ring nach (wie ``App._nachfuehren_stufe_4``).
+    ``bedienung`` sendet in ``sende``; nach jedem Schritt führt die Box Lautstärke und Ring nach (``tobibox.nachfuehrung``: derselbe Code
+    wie in ``App``).
     """
 
     def __init__(self, *a, **kw) -> None:
@@ -110,21 +112,12 @@ class BedienBox(CujBox):
 
     def sende(self, e, dt: float = 0.0) -> list:
         befehle = super().sende(e, dt)
-        self.led.beobachte(e, self.uhr.mono)
-        for b in befehle:
-            if isinstance(b, ev.ZustandMelden):
-                self.led.beobachte(b, self.uhr.mono)
-        self._fuehre_nach()
+        self._fuehre_nach(e, befehle)
         return befehle
 
-    def _fuehre_nach(self) -> None:
-        if self.bedienung is not None:
-            self.bedienung.setze_lautstaerke(self.kern.wunsch, wirksame_grenze(self.kern.grenzen))
-        b = self.kern.teil["bedtime"]
-        faktor = None
-        if b.modus == "ausblenden" and b.von > 0:
-            faktor = (b.letzter if b.letzter is not None else b.von) / b.von
-        self.led.setze_ausblenden(faktor)
+    def _fuehre_nach(self, e=None, befehle=()) -> None:
+        """Derselbe Code wie in ``App`` (``tobibox.nachfuehrung``), keine Kopie (T1)."""
+        nachfuehrung.stufe_4(self.led, self.bedienung, self.kern, e or ev.Takt(), befehle, self.uhr.mono)
 
     def ring(self):
         return self.led.ring(self.uhr.mono)

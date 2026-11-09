@@ -35,6 +35,16 @@ def _kurze_verzeichnisse_aufraeumen():
         shutil.rmtree(_KURZE_VERZEICHNISSE.pop(), ignore_errors=True)
 
 
+@pytest.fixture(autouse=True)
+def _systemuhr_wie_am_mac(monkeypatch):
+    """Die Tests laufen auf Linux, simulieren aber den Mac: Die Systemuhr gilt als sicher (B15).
+
+    Wer die NTP-Pflicht des Pi prüft, setzt ``App._systemuhr_pruefen_noetig`` im Test wieder auf ``True``."""
+    from tobibox.app import App
+
+    monkeypatch.setattr(App, "_systemuhr_pruefen_noetig", lambda self: False)
+
+
 @pytest.fixture
 def kurz() -> Path:
     """Kurzes Verzeichnis für Unix-Sockets (``sim.sock``, ``NOTIFY_SOCKET``)."""
@@ -604,5 +614,6 @@ def app_welt(mpd, tmp_path, zuordnungen: dict, serien: dict | None = None) -> di
         f'[pfade]\nzustand = "{zustand}"\nmedien = "{mpd.medien}"\n[leser]\ngeraet = "{link}"\n'
         f'[mpd]\nhost = "127.0.0.1"\nport = {mpd.port}\n[lautstaerke]\nmax = 50\nstart = 20\nkopfhoerer = 30\n'
         '[toene]\nkommando = ["true", "{datei}"]\n'
+        '[uhr]\nntp_pflicht = false\n'  # der Dienst läuft hier als Prozess auf Linux, simuliert aber den Mac (Systemuhr sicher, B15)
     )
     return {"zustand": zustand, "link": link, "toml": toml, "mpd": mpd}

@@ -78,6 +78,41 @@ Die Tasten (Einfach, Doppel, Lang) führt der PiSugar als Shell-Befehle aus,
 siehe `docs/plan/stueckliste-und-psp.md`, Punkt 4. Sie laufen nicht über
 diese TCP-Befehle.
 
+## 3a. Hauptknopf: Wie kommt die Taste zur Box? (Review B2, 09.11., **am Pi prüfen**)
+
+Das Modul `power.py` hat eine Methode `taste(art)`, die ein `Hauptknopf`-Ereignis (kurz oder lang) in den Kern gibt. Nur gab es im
+Dienst keinen, der sie aufruft. Die Recherche (README `PiSugar/pisugar-power-manager-rs`, Stand 09.11.) ergibt:
+
+- Der `pisugar-server` kennt `get button_enable`, `set_button_enable <single|double|long> <0|1>` und `get button_shell`. Die Tasten
+  führen **Shell-Befehle** aus (Plan, Punkt 4).
+- Es ist **kein** Befehl belegt, der ein Tastenereignis meldet (weder Abfrage noch Abonnement, auch nicht über WebSocket 8422 oder
+  HTTP). Die Namen der Konfigurationsschlüssel für die Shell-Befehle in `/etc/pisugar-server/config.json` sind in der Quelle nicht
+  sicher belegt.
+
+Deshalb ist der Weg in der Box **hinter einer Einstellung** und standardmäßig aus:
+
+```toml
+[strom]
+quelle = "pisugar"
+# taste_befehl = "get button_event"   # PLATZHALTER, am Pi prüfen: Befehl, dessen Antwort die Taste nennt
+# taste_intervall_s = 0.5
+```
+
+`power.taste_lauf` schickt `taste_befehl` alle `taste_intervall_s` an den `pisugar-server` und versteht in der Antwortzeile
+(`name: wert`) die Werte `long`/`lang` (Hauptknopf lang) und `single`/`short`/`kurz` (Hauptknopf kurz). **Am Pi zu prüfen:** Gibt es
+überhaupt so einen Befehl (`help xx` am Server fragen), und wie heißt die Antwort? Passt sie nicht, bleibt die Taste stumm; dann muss
+`parse_taste` in `power.py` angepasst werden.
+
+Zwei sichere Wege ohne diese Abfrage:
+
+1. **Knopf am GPIO:** Der Arcade-Knopf liegt nach Plan 3.2.4 parallel zum PiSugar-Taster. Hängt er zusätzlich an einem GPIO,
+   steht `[tasten] pin_haupt` (dann kommt der Hauptknopf über `controls`).
+2. **Shell-Befehl des PiSugar:** Der PiSugar ruft bei Einfach- und Langdruck einen Befehl auf (z. B. `tobibox sim key haupt`, wenn
+   `[sim] erlauben = true` gesetzt ist). Das ist ein Behelf und noch nicht erprobt.
+
+Fehlen `taste_befehl` **und** `pin_haupt` bei `[tasten] quelle = "gpio"`, schreibt der Dienst beim Start die Warnung
+`hauptknopf`/`ohne_quelle` ins Protokoll: Dann gehen Pause, Weiter und Abschalten per Hauptknopf nicht.
+
 ## 4. Der Wecker: Idee und Ablauf
 
 Ziel (CUJ 16, „Später kann der PiSugar-Wecker die Box am Lader nachts zum Sync
@@ -144,6 +179,8 @@ Vor der Entscheidung zu klären:
 
 ## 6. Lücken, die beim Schreiben aufgefallen sind
 
+- **Erledigt (Rev. 3.16 und 3.17):** Der Start-Sync am Lader wird alle 10 min bis zu 6-mal wiederholt und wartet beim Start auf die erste
+  Netz-Klasse (höchstens 30 s). Die folgende Beschreibung ist der Stand vor dieser Änderung.
 - **Kein zweiter Versuch beim Start-Sync.** Kommt `SyncAbgebrochen` mit
   `netz_weg` oder `regel`, wartet die Box nicht auf bessere Netzverhältnisse.
   Beim nächtlichen Wecker würde die Box dann herunterfahren, ohne

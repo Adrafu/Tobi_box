@@ -221,6 +221,9 @@ class StromKonfig:
     tiefstand_prozent: int = 5
     intervall_s: int = 10
     abschalt_kommando: tuple[str, ...] = STANDARD_ABSCHALT_KOMMANDO
+    #: Befehl an den ``pisugar-server``, der die Taste meldet (B2). ``None``: aus. **Am Pi zu prüfen**, siehe ``power.taste_lauf``.
+    taste_befehl: str | None = None
+    taste_intervall_s: float = 0.5
 
     @property
     def simulation(self) -> bool:
@@ -231,6 +234,7 @@ _MQTT_SCHLUESSEL = {"box_id", "host", "port", "benutzer", "passwort", "anzeigena
 _NETZ_SCHLUESSEL = {"quelle", "heim_ssid", "hotspot_ssid", "nas_host", "nas_port", "intervall_s"}
 _STROM_SCHLUESSEL = {
     "quelle", "pisugar_host", "pisugar_port", "tiefstand_prozent", "intervall_s", "abschalt_kommando",
+    "taste_befehl", "taste_intervall_s",
 }
 
 
@@ -314,6 +318,8 @@ def _pruefe_strom(roh: dict[str, Any]) -> StromKonfig | None:
         tiefstand_prozent=_ganz(a, "strom", "tiefstand_prozent", 5, 1, 50),
         intervall_s=_ganz(a, "strom", "intervall_s", 10, 1, 3600),
         abschalt_kommando=tuple(kommando),
+        taste_befehl=_text(a, "strom", "taste_befehl", None),
+        taste_intervall_s=_kommazahl(a, "strom", "taste_intervall_s", 0.5, 0.1, 60.0),
     )
 # --- Ende [mqtt], [netz], [strom] ----------------------------------------------------------------------
 
@@ -415,6 +421,25 @@ def _pruefe_pins_gemeinsam(k: KopfhoererKonfig, t: TastenKonfig) -> None:
 
 
 @dataclass(frozen=True, slots=True)
+class SimKonfig:
+    """``[sim]``: ``erlauben = true`` lässt ``tobibox sim`` und die Oberfläche auch Eingänge bedienen, deren Quelle **nicht** ``sim`` ist
+    (B9, 09.11.). Vorgabe ``false``: Am Pi wirken ``sim time``, ``key``, ``headphones`` usw. nicht auf echte Hardware und Uhr
+    (Antwort ``quelle_nicht_sim``)."""
+
+    erlauben: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class UhrKonfig:
+    """``[uhr]``: Braucht die Systemuhr eine NTP-Synchronisierung, um als sicher zu gelten (B15)?
+
+    ``None`` (Vorgabe, Schlüssel fehlt): Auf Linux (Pi) ja, am Mac nein. Gilt nur ohne ``[netz]`` und ``[strom]``; mit ihnen bewerten NTP
+    und RTC die Uhr ohnehin. ``ntp_pflicht = false`` erzwingt die sichere Systemuhr (Entwicklung auf einem Linux-Rechner)."""
+
+    ntp_pflicht: bool | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class BoxKonfig:
     pfade: Pfade
     leser: LeserKonfig = field(default_factory=LeserKonfig)
@@ -428,6 +453,8 @@ class BoxKonfig:
     strom: StromKonfig | None = None  # [strom]; None: keine Strom-Schnittstelle
     kopfhoerer: KopfhoererKonfig = field(default_factory=KopfhoererKonfig)  # [kopfhoerer]; Vorgabe sim
     tasten: TastenKonfig = field(default_factory=TastenKonfig)  # [tasten]; Vorgabe sim
+    uhr: UhrKonfig = field(default_factory=UhrKonfig)  # [uhr]; Vorgabe: Linux braucht NTP, der Mac nicht
+    sim: SimKonfig = field(default_factory=SimKonfig)  # [sim]; Vorgabe: nur Eingänge mit Quelle ``sim``
 
     def geraete_einstellungen(self) -> ev.GeraeteEinstellungen:
         """Das erste Ereignis des Kerns (``core-interface.md``, 3.3)."""
@@ -448,6 +475,8 @@ _BEKANNT = {
     "strom": _STROM_SCHLUESSEL,
     "kopfhoerer": _KOPFHOERER_SCHLUESSEL,
     "tasten": _TASTEN_SCHLUESSEL,
+    "sim": {"erlauben"},
+    "uhr": {"ntp_pflicht"},
 }
 
 
@@ -546,6 +575,14 @@ def pruefe(roh: dict[str, Any], basis: Path | None = None) -> BoxKonfig:
     kopfhoerer = _pruefe_kopfhoerer(roh)
     tasten = _pruefe_tasten(roh)
     _pruefe_pins_gemeinsam(kopfhoerer, tasten)
+    uhr_abschnitt = _abschnitt(roh, "uhr")
+    ntp_pflicht = uhr_abschnitt.get("ntp_pflicht")
+    if ntp_pflicht is not None and not isinstance(ntp_pflicht, bool):
+        raise KonfigFehler("[uhr] ntp_pflicht muss true oder false sein")
+    sim_abschnitt = _abschnitt(roh, "sim")
+    erlauben = sim_abschnitt.get("erlauben", False)
+    if not isinstance(erlauben, bool):
+        raise KonfigFehler("[sim] erlauben muss true oder false sein")
 
     return BoxKonfig(
         pfade=Pfade(_pfad(zustand, basis), _pfad(medien, basis)),
@@ -571,6 +608,8 @@ def pruefe(roh: dict[str, Any], basis: Path | None = None) -> BoxKonfig:
         strom=_pruefe_strom(roh),
         kopfhoerer=kopfhoerer,
         tasten=tasten,
+        uhr=UhrKonfig(ntp_pflicht),
+        sim=SimKonfig(erlauben),
     )
 
 

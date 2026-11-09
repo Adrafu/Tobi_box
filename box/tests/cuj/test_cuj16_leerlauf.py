@@ -78,10 +78,31 @@ def test_nach_dem_abheben_zaehlt_der_leerlauf_von_neuem(box):
     assert [b.grund for b in fahren(box)] == ["leerlauf"]
 
 
-def test_pausierte_wiedergabe_mit_liegendem_tobie_ist_kein_leerlauf(box):
+def test_spielende_wiedergabe_ist_kein_leerlauf(box):
+    box.auflege(UID)
+    warte(box, 2 * LEERLAUF_S - 1)  # die Folge ist 60 s lang: sie wäre zu Ende; hier zählt nur, dass sie spielt
+    box.sende(ev.Takt())
+    assert fahren(box) == [] or box.modus != "spielt"
+
+
+def test_pausierte_wiedergabe_mit_liegendem_tobie_ist_leerlauf(box):
+    """Entscheidung O (09.11., B5): 20 min lang wird nichts gespielt, egal ob ein Tobie liegt. Die Box schaltet auch nachts ab."""
     box.auflege(UID)
     box.sende(ev.Hauptknopf("kurz"))  # Pause, der Tobie liegt noch
-    warte(box, 2 * LEERLAUF_S)
+    assert box.kern.session.figur is not None
+    warte(box, LEERLAUF_S - 5)
+    assert fahren(box) == []
+    warte(box, 10)
+    assert [b.grund for b in fahren(box)] == ["leerlauf"]
+
+
+def test_bedienung_mit_liegendem_tobie_setzt_den_zaehler_zurueck(box):
+    box.auflege(UID)
+    box.sende(ev.Hauptknopf("kurz"))
+    warte(box, LEERLAUF_S - 60)
+    box.sende(ev.LautstaerkeDrehen(2))  # Bedienung: der Zähler beginnt neu, die Wiedergabe bleibt pausiert
+    assert box.modus == "pausiert"
+    warte(box, LEERLAUF_S - 60)
     assert fahren(box) == []
 
 

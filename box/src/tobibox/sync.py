@@ -187,6 +187,11 @@ class Sync:
         self._akku = prozent
 
     @property
+    def netz_bekannt(self) -> bool:
+        """Hat ``setze_netz`` schon einmal eine Netz-Klasse gebracht? (Sonst wäre ``regel`` nur ein Mangel an Wissen, B7.)"""
+        return self._netz is not None
+
+    @property
     def laeuft(self) -> bool:
         """Für ``idle`` (keine Abschaltung) und das Update (Sperre): solange ein Sync läuft, ``True``."""
         return self._aufgabe is not None and not self._aufgabe.done()
@@ -283,8 +288,8 @@ class Sync:
             raise _Abbruch(self._abbruch_grund)
 
     async def _durchfuehren(self) -> tuple[int, int]:
-        self.medien.mkdir(parents=True, exist_ok=True)
-        self._bereite_partial_vor()
+        # Dateizugriffe in einem Thread: Ereignisschleife, Takt und Ring stehen sonst bei vielen Dateien (B10)
+        await asyncio.to_thread(self._bereite_vor)
 
         # 1. Quelle prüfen
         code, aus, fehl = await self._rsync_lauf(self._basis(["--list-only", "-r"]), lies=True)
@@ -307,7 +312,7 @@ class Sync:
             m = _LOESCHEN.match(zeile)
             if m and not m.group(1).rstrip().endswith("/"):
                 geplant_loeschen += 1
-        vorhanden = self._zaehle_dateien()
+        vorhanden = await asyncio.to_thread(self._zaehle_dateien)
         if zu_viele_loeschungen(geplant_loeschen, vorhanden):
             raise _Abbruch("zu_viele_loeschungen", f"{geplant_loeschen} von {vorhanden}")
         bytes_noetig = 0
@@ -357,6 +362,10 @@ class Sync:
         return neu, geloescht
 
     # --- Hilfen -----------------------------------------------------------------------------------
+
+    def _bereite_vor(self) -> None:
+        self.medien.mkdir(parents=True, exist_ok=True)
+        self._bereite_partial_vor()
 
     def _bereite_partial_vor(self) -> None:
         for ordner in (self.partial_dir, self.temp_dir):

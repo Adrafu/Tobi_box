@@ -213,7 +213,8 @@ class LedLogik:
         if isinstance(e, ev.ZustandMelden):
             alt = self.zustand_melden
             # aus dem Leerlauf zurück in den Betrieb: Aufwachen zeigen
-            if alt is not None and alt.strom == "leerlauf" and e.strom == "aktiv":
+            # (nicht, wenn ein Tobie lag: mit Entscheidung O zählt auch die Pause mit liegendem Tobie als Leerlauf)
+            if alt is not None and alt.strom == "leerlauf" and e.strom == "aktiv" and not alt.figur_liegt:
                 self.aufwachen(jetzt_mono)
             self.zustand_melden = e
             if e.strom == "herunterfahren":
@@ -251,8 +252,8 @@ class LedLogik:
             return UNBEKANNTE_KARTE
         if z.lernmodus:
             return LERNEN  # auch im Leerlauf: Lernen wartet auf einen Tobie, der Ring zeigt es
-        if z.strom != "aktiv":
-            return AUS
+        if z.strom != "aktiv" and not (z.strom == "leerlauf" and z.figur_liegt):
+            return AUS  # Leerlauf ohne Tobie; mit liegendem Tobie zeigt der Ring die Pause weiter (Entscheidung O)
         if z.sitzung == "spielt":
             return GUTE_NACHT if z.gute_nacht != "aus" else LAEUFT
         if z.sitzung in ("pausiert", "gehalten", "beendet"):

@@ -17,6 +17,7 @@ from __future__ import annotations
 import asyncio
 import inspect
 import re
+import time
 from collections.abc import Callable
 from datetime import datetime, timezone
 from typing import Any, Literal, Protocol
@@ -32,6 +33,11 @@ TIEFSTAND_ABSTAND_PROZENT = 3
 #: Eine RTC vor diesem Zeitpunkt hat ihre Zeit verloren (leerer Akku): sie gilt nicht als vertrauenswürdig.
 RTC_FRUEHESTENS = datetime(2026, 1, 1, tzinfo=timezone.utc)
 PISUGAR_FRIST_S = 3.0
+#: So lange darf ``systemctl poweroff`` (oder das eingestellte Kommando) höchstens brauchen, bevor es als Fehler gilt (B1).
+ABSCHALT_FRIST_S = 60.0
+#: Nach einem fehlgeschlagenen Herunterfahren meldet ``power`` einen fortbestehenden Tiefstand frühestens nach so vielen Sekunden
+#: wieder (B1: ein Tiefstand darf nicht „verbraucht“ sein; kein Dauerfeuer alle 10 s).
+TIEFSTAND_WIEDERHOLEN_S = 60.0
 
 
 # --------------------------------------------------------------------------
@@ -45,11 +51,19 @@ class StromTreiber(Protocol):
     async def akku(self) -> int | None: ...
     async def lader(self) -> bool | None: ...
     async def rtc(self) -> datetime | None: ...
-    async def herunterfahren(self, grund: str) -> None: ...
+    async def herunterfahren(self, grund: str) -> None:
+        """Wirft eine Ausnahme (``OSError``/``HerunterfahrenFehler``), wenn das Herunterfahren nicht gewirkt hat."""
+        ...
+
+
+class HerunterfahrenFehler(OSError):
+    """Das Abschalt-Kommando fehlt, endete mit einem Fehler oder brauchte zu lange."""
 
 
 class SimStrom:
     """Mac und Test. Standard: Lader und Akku unbekannt, bis ``setze`` sie vorgibt."""
+
+    simuliert = True  # „Herunterfahren“ wird nur protokolliert
 
     def __init__(self, akku: int | None = None, lader: bool | None = None, rtc: datetime | None = None) -> None:
         self._akku, self._lader, self._rtc = akku, lader, rtc
@@ -154,10 +168,27 @@ class PiSugarStrom:
         """Lässt ``pisugar-server`` die Systemuhr aus der RTC setzen (er läuft mit den nötigen Rechten)."""
         await self._frage("rtc_rtc2pi")
 
+    async def taste_abfragen(self, befehl: str) -> str:
+        """Die Antwort des ``pisugar-server`` auf einen frei einstellbaren Befehl (``[strom] taste_befehl``). **Am Pi zu prüfen.**"""
+        return await self._frage(befehl)
+
     async def herunterfahren(self, grund: str) -> None:
+        """Abschalt-Kommando ausführen und prüfen (B1): Rückgabecode 0 und innerhalb ``ABSCHALT_FRIST_S``.
+
+        Fehlendes Kommando, Rückgabecode ungleich 0 und Zeitüberschreitung sind ``HerunterfahrenFehler``."""
         logge("power", "INFO", "herunterfahren", "ausgefuehrt", daten={"grund": grund})
-        proc = await asyncio.create_subprocess_exec(*self.abschalt_kommando)
-        await proc.wait()
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                *self.abschalt_kommando, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL
+            )
+        except OSError as e:
+            raise HerunterfahrenFehler(f"{self.abschalt_kommando[0]} nicht startbar: {e!r}") from e
+        try:
+            code = await asyncio.wait_for(proc.wait(), ABSCHALT_FRIST_S)
+        except asyncio.TimeoutError as e:
+            raise HerunterfahrenFehler(f"{self.abschalt_kommando[0]} brauchte länger als {ABSCHALT_FRIST_S:g} s") from e
+        if code != 0:
+            raise HerunterfahrenFehler(f"{self.abschalt_kommando[0]} endete mit Rückgabecode {code}")
 
 
 # --------------------------------------------------------------------------
@@ -176,6 +207,9 @@ class Power:
         *,
         tiefstand_prozent: int = 5,
         intervall_s: float = 10.0,
+        taste_befehl: str | None = None,
+        taste_intervall_s: float = 0.5,
+        mono: Callable[[], float] = time.monotonic,
     ) -> None:
         self.treiber = treiber
         self._ausgabe = ausgabe
@@ -185,6 +219,10 @@ class Power:
         self.akku: int | None = None  # letzter bekannter Akkustand
         self.am_lader: bool | None = None
         self._tiefstand_gemeldet = False
+        self._tiefstand_wieder_ab: float | None = None  # mono; nach einem fehlgeschlagenen Herunterfahren
+        self.taste_befehl = taste_befehl
+        self.taste_intervall_s = taste_intervall_s
+        self._mono = mono
 
     @classmethod
     def aus_konfig(
@@ -195,7 +233,10 @@ class Power:
             if konfig.simulation
             else PiSugarStrom(konfig.pisugar_host, konfig.pisugar_port, konfig.abschalt_kommando)
         )
-        return cls(treiber, ausgabe, zeit, tiefstand_prozent=konfig.tiefstand_prozent, intervall_s=konfig.intervall_s)
+        return cls(
+            treiber, ausgabe, zeit, tiefstand_prozent=konfig.tiefstand_prozent, intervall_s=konfig.intervall_s,
+            taste_befehl=konfig.taste_befehl, taste_intervall_s=konfig.taste_intervall_s,
+        )
 
     async def _gib(self, e: ev.Ereignis, neu: list[ev.Ereignis]) -> None:
         neu.append(e)
@@ -254,6 +295,9 @@ class Power:
         if self.am_lader is not False or self.akku is None:
             self._tiefstand_gemeldet = False  # am Lader oder unbekannt: neu bewaffnen
             return False
+        if self._tiefstand_gemeldet and self._tiefstand_wieder_ab is not None and self._mono() >= self._tiefstand_wieder_ab:
+            self._tiefstand_gemeldet = False  # das Herunterfahren hat nicht gewirkt: noch einmal melden (B1)
+            self._tiefstand_wieder_ab = None
         if self.akku <= self.tiefstand_prozent:
             if not self._tiefstand_gemeldet:
                 self._tiefstand_gemeldet = True
@@ -285,7 +329,61 @@ class Power:
         await self._gib(ev.Hauptknopf(art), neu)
         return neu
 
-    async def fuehre_aus(self, befehl: ev.Befehl) -> None:
-        """Führt ``Herunterfahren`` aus (in der Simulation nur protokolliert). Andere Befehle: nicht seine Sache."""
-        if isinstance(befehl, ev.Herunterfahren):
+    async def taste_lauf(self) -> None:
+        """Dauerlauf (nur mit ``[strom] taste_befehl``): fragt den ``pisugar-server`` nach der Taste und ruft ``taste`` auf.
+
+        **Am Pi zu prüfen (B2):** In der Dokumentation des ``pisugar-server`` ist kein Befehl belegt, der Tastenereignisse liefert
+        (Abfrage oder Abonnement). Dieser Weg ist deshalb ausgeschaltet, bis am Gerät ein Befehl gefunden ist, dessen Antwort
+        ``parse_taste`` versteht. Siehe ``docs/betrieb/pisugar-wecker.md``, Abschnitt „Hauptknopf“."""
+        abfrage = getattr(self.treiber, "taste_abfragen", None)
+        if self.taste_befehl is None or abfrage is None:
+            return
+        while True:
+            try:
+                art = parse_taste(await abfrage(self.taste_befehl))
+                if art is not None:
+                    await self.taste(art)
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:  # noqa: BLE001 - der Dauerlauf darf nie stehen bleiben
+                logge("power", "WARNING", "taste", "fehler", daten={"detail": repr(e)[:200]})
+                await asyncio.sleep(max(self.taste_intervall_s, 5.0))  # bei Fehlern seltener fragen
+            await asyncio.sleep(self.taste_intervall_s)
+
+    async def fuehre_aus(self, befehl: ev.Befehl) -> bool:
+        """Führt ``Herunterfahren`` aus (in der Simulation nur protokolliert). Andere Befehle: nicht seine Sache.
+
+        Gibt ``True`` zurück, wenn das Kommando gewirkt hat. Sonst sendet ``power`` ``HerunterfahrenFehlgeschlagen`` (B1;
+        ``simuliert=True`` am Mac, sonst mit dem Fehlertext) und gibt ``False`` zurück."""
+        if not isinstance(befehl, ev.Herunterfahren):
+            return True
+        simuliert = bool(getattr(self.treiber, "simuliert", False))
+        neu: list[ev.Ereignis] = []
+        try:
             await self.treiber.herunterfahren(befehl.grund)
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:  # noqa: BLE001 - jeder Fehler heißt: nicht heruntergefahren
+            logge("power", "ERROR", "herunterfahren", "fehler", daten={"grund": befehl.grund, "detail": repr(e)[:200]})
+            self._tiefstand_wieder_ab = self._mono() + TIEFSTAND_WIEDERHOLEN_S
+            await self._gib(ev.HerunterfahrenFehlgeschlagen(str(e) or repr(e)), neu)
+            return False
+        if simuliert:
+            self._tiefstand_wieder_ab = self._mono() + TIEFSTAND_WIEDERHOLEN_S
+            await self._gib(ev.HerunterfahrenFehlgeschlagen("", simuliert=True), neu)
+            return False
+        return True
+
+
+def parse_taste(text: str) -> Literal["kurz", "lang"] | None:
+    """Antwort des ``pisugar-server`` auf die Tasten-Abfrage als ``kurz`` / ``lang``; ``None``: keine Taste. **Am Pi zu prüfen.**
+
+    Verstanden werden die Wörter ``long`` / ``lang`` und ``single`` / ``short`` / ``kurz`` hinter dem Doppelpunkt der Antwortzeile
+    (``name: wert``). Alles andere (auch ``double``) ist keine Taste."""
+    t = text.strip().lower()
+    wert = t.split(":", 1)[1].strip() if ":" in t else t
+    if wert in ("long", "lang"):
+        return "lang"
+    if wert in ("single", "short", "kurz"):
+        return "kurz"
+    return None

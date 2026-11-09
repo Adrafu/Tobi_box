@@ -83,12 +83,42 @@ def test_herunterfahren_wird_protokolliert():
     assert len(zeilen) == 1 and zeilen[0].daten["grund"] == "leerlauf"
 
 
-@pytest.mark.parametrize("zustand", ["spielt", "pausiert", "beendet", "gehalten"])
-def test_liegender_tobie_ist_kein_leerlauf(zustand):
+def test_spielende_wiedergabe_ist_kein_leerlauf():
     r = Rahmen()
-    belegt(r, zustand)
+    belegt(r, "spielt")
     assert r.vor(3 * LEERLAUF_S) == []
     assert r.modus == "aktiv"
+
+
+@pytest.mark.parametrize("zustand", ["pausiert", "beendet", "gehalten"])
+def test_liegender_tobie_ohne_wiedergabe_zaehlt_als_leerlauf(zustand):
+    """Entscheidung O (09.11., B5): 20 min lang wird nichts gespielt, egal ob ein Tobie liegt (Gute Nacht, „stumm“-Fenster)."""
+    r = Rahmen()
+    belegt(r, zustand)
+    r.sende(ev.Takt())
+    assert r.modus == "leerlauf"
+    assert r.vor(LEERLAUF_S - 1) == []
+    assert r.vor(2) == FAHREN
+    assert r.modus == "herunterfahren"
+
+
+def test_liegender_tobie_im_leerlauf_nicht_bei_sync_lernmodus():
+    """Die Ausnahmen gelten weiter: Lernmodus (oder Sync, Update) halten die Abschaltung auch mit liegendem Tobie auf."""
+    r = Rahmen()
+    belegt(r, "pausiert")
+    r.sende(ev.LernenGeaendert(True))
+    assert r.vor(2 * LEERLAUF_S) == []
+    assert r.modus == "leerlauf" and r.z.faellig
+
+
+def test_bedienung_setzt_den_zaehler_auch_mit_liegendem_tobie_zurueck():
+    r = Rahmen()
+    belegt(r, "pausiert")
+    r.sende(ev.Takt())
+    r.vor(LEERLAUF_S - 10)
+    r.sende(ev.Weiter())
+    assert r.vor(LEERLAUF_S - 10) == []
+    assert r.vor(11) == FAHREN
 
 
 def test_wiedergabe_ohne_tobie_ist_kein_leerlauf():
@@ -353,14 +383,17 @@ def test_hauptknopf_kurz_aendert_nichts():
 def test_tiefstand_bricht_den_sync_ab_und_faehrt_herunter():
     r = leer()
     r.sende(ev.LaderGeaendert(False), ev.SyncGestartet())
-    assert r.sende(ev.AkkuTiefstand()) == [ev.SyncAbbrechen("akku_tiefstand"), ev.HerunterfahrenAngefordert("akku_tiefstand")]
+    assert r.sende(ev.AkkuTiefstand()) == [
+        ev.SyncAbbrechen("akku_tiefstand"), ev.TonSpielen("akku_leer"), ev.HerunterfahrenAngefordert("akku_tiefstand"),
+    ]
     assert r.modus == "herunterfahren"
 
 
 def test_tiefstand_ohne_sync_fahrt_nur_herunter():
     r = Rahmen()
     belegt(r)
-    assert r.sende(ev.AkkuTiefstand()) == [ev.HerunterfahrenAngefordert("akku_tiefstand")]
+    # B12: einmal der Ton ``akku_leer``, dann Herunterfahren
+    assert r.sende(ev.AkkuTiefstand()) == [ev.TonSpielen("akku_leer"), ev.HerunterfahrenAngefordert("akku_tiefstand")]
 
 
 def test_tiefstand_bricht_auch_einen_offenen_sync_ab():
@@ -557,3 +590,51 @@ def test_ohne_sync_abschnitt_wird_nicht_wiederholt():
     r = am_lader_gestartet()
     r.sende(ev.SyncAbgebrochen("nicht_eingerichtet"))
     assert r.z.wdh_bei is None
+
+
+# --- B1: ein fehlgeschlagenes Herunterfahren ist nicht endgültig --------------------------------------------------
+
+
+def test_fehlgeschlagenes_herunterfahren_verlaesst_den_zustand_und_zaehlt_neu():
+    r = leer()
+    assert r.sende(ev.Hauptknopf("lang")) == FAHREN[:0] + [ev.HerunterfahrenAngefordert("hauptknopf")]
+    assert r.modus == "herunterfahren"
+    r.uhr.vor(5)
+    aus = r.sende(ev.HerunterfahrenFehlgeschlagen("systemctl endete mit Rückgabecode 1"))
+    assert r.modus == "leerlauf"  # kein Tobie, keine Wiedergabe: der Zähler beginnt neu
+    fehler = [x for x in aus if isinstance(x, ev.EreignisSenden)]
+    assert len(fehler) == 1 and fehler[0].art == "fehler"
+    assert fehler[0].daten["code"] == "herunterfahren_fehlgeschlagen" and "Rückgabecode 1" in str(fehler[0].daten["text"])
+    assert any(isinstance(x, ev.Protokoll) and x.ergebnis == "fehlgeschlagen" for x in r.alles)
+    # neuer Zähler: nach 20 min wieder Herunterfahren, nicht sofort
+    assert r.vor(LEERLAUF_S - 1) == []
+    assert r.vor(2) == FAHREN
+
+
+def test_nach_dem_fehlschlag_geht_hauptknopf_lang_und_tiefstand_wieder():
+    r = leer()
+    r.sende(ev.LaderGeaendert(False), ev.Hauptknopf("lang"))
+    r.sende(ev.HerunterfahrenFehlgeschlagen("x"))
+    assert r.sende(ev.Hauptknopf("lang")) == [ev.HerunterfahrenAngefordert("hauptknopf")]
+    r.sende(ev.HerunterfahrenFehlgeschlagen("x"))
+    assert ev.HerunterfahrenAngefordert("akku_tiefstand") in r.sende(ev.AkkuTiefstand())
+
+
+def test_fehlschlag_mit_wiedergabe_geht_nach_aktiv():
+    r = Rahmen()
+    r.sende(ev.Hauptknopf("lang"))
+    belegt(r, "spielt")  # während des Herunterfahrens meldet die Sitzung weiter
+    r.sende(ev.HerunterfahrenFehlgeschlagen("x"))
+    assert r.modus == "aktiv"
+
+
+def test_simuliertes_herunterfahren_kehrt_nach_fester_zeit_zurueck_ohne_hinweis():
+    r = leer()
+    r.sende(ev.Hauptknopf("lang"))
+    aus = r.sende(ev.HerunterfahrenFehlgeschlagen("", simuliert=True))
+    assert aus == [] and r.modus == "herunterfahren"
+    assert r.vor(idle.SIMULATION_RUECKKEHR_S - 1) == [] and r.modus == "herunterfahren"
+    r.vor(2)
+    assert r.modus == "leerlauf"
+    assert not [x for x in r.alles if isinstance(x, ev.EreignisSenden)]
+    assert r.sende(ev.Hauptknopf("lang")) == [ev.HerunterfahrenAngefordert("hauptknopf")]

@@ -26,6 +26,12 @@ Seit AP 4.8 kommt ``zeit`` dazu (``tobibox sim time``): ``{"befehl":"zeit","iso"
 des Dienstes (sie läuft von dort weiter, Timer und Fristen auf der monotonen Uhr bleiben), ``{"befehl":"zeit","iso":null}`` stellt die
 echte Uhr wieder her. Das ist für die Leise-Zeiten gedacht.
 
+Seit B9 (09.11.) wirken die Eingänge nur, wenn die jeweilige **Quelle** ``sim`` ist (oder ``[sim] erlauben = true`` gilt). Sonst
+antwortet ``sim`` mit ``{"ok": false, "fehler": "quelle_nicht_sim"}``; die Antwort auf ``anzeige`` nennt die gesperrten Eingänge
+unter ``quelle_sim`` (die Oberfläche graut sie aus). Das schützt den Pi: Dort stellt ``sim time`` nicht die Uhr, und ``sim key``
+tippt keine Tasten. Gruppen: die vier Tasten (je mit eigenem Namen), ``regler``, ``kopfhoerer``, ``strom``, ``netz``, ``zeit``,
+``tobie`` (``tobie_auflegen`` und Verwandte) und ``ha`` (``learn``, ``learn_abort``, ``ack``, ``card``: der HA-Ersatz gilt nur ohne ``[mqtt]``).
+
 Wer nach dem Lernen die Zuordnung schreibt und bestätigt, steht in ``ha_ersatz.py``.
 
 Ungültige Zeilen werden protokolliert und ignoriert. Jede Zeile wird mit einer JSON-Zeile beantwortet
@@ -45,7 +51,7 @@ import socket
 import sys
 import uuid
 from collections.abc import Callable
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -98,6 +104,10 @@ ANZEIGE_KARENZ_S = 2.0
 REGLER_MAX = 20  # Prozentpunkte je Befehl; eine Raste sind in der Oberfläche 2
 _UID_RE = re.compile(r"^(?:[0-9a-f]{8}|[0-9a-f]{14}|[0-9a-f]{16}|[0-9a-f]{20})$")
 MAX_VORGEMERKT = 8  # ``learn``-Befehle, die die Box noch nicht angenommen hat
+QUELLE_NICHT_SIM = "quelle_nicht_sim"
+#: Die Simulationszeit muss gültig sein (B8): ein Jahr in diesem Bereich, sonst ``iso ungueltig``.
+ZEIT_JAHR_MIN = 2000
+ZEIT_JAHR_MAX = 2100
 
 
 def logge(*args, **kwargs) -> None:  # type: ignore[no-untyped-def]
@@ -149,7 +159,19 @@ class Sim:
         #: ``None``: ``sim`` gibt ``Kopfhoerer`` selbst aus; ``zeit`` ist dann nicht verfügbar.
         self.kopfhoerer_haken: Callable[[bool], Any] | None = None
         self.zeit_haken: Callable[[float | None], Any] | None = None
+        #: Haken des Dienstes (B14): ``regler_haken(delta)`` dreht über ``Bedienung`` wie der Drehregler (Wunsch ändert sich nie durch
+        #: „lauter“ über der Grenze). ``None``: ``sim`` gibt ``LautstaerkeDrehen`` selbst aus.
+        self.regler_haken: Callable[[int], Any] | None = None
+        #: Eingangsgruppe -> darf ``sim`` sie bedienen? Fehlt ein Name, gilt ``True``. Der Dienst setzt es nach den Quellen der
+        #: Konfiguration (B9). Ohne Dienst (Tests) ist alles erlaubt.
+        self.quelle_sim: dict[str, bool] = {}
         self._server: asyncio.AbstractServer | None = None
+
+    def _quelle(self, gruppe: str) -> None:
+        """Wirft ``Ungueltig("quelle_nicht_sim")``, wenn die Quelle der Gruppe nicht ``sim`` ist (B9)."""
+        if not self.quelle_sim.get(gruppe, True):
+            logge("sim", "WARNING", "eingang", QUELLE_NICHT_SIM, daten={"gruppe": gruppe})
+            raise Ungueltig(QUELLE_NICHT_SIM)
 
     # -- Zeile -> Ereignis ---------------------------------------------------
 
@@ -161,6 +183,7 @@ class Sim:
         """Wie ``zeile_zu_ereignis``; das Schreiben der Zuordnung (``card``) läuft in einem Thread."""
         d = self._lies(zeile)
         if d.get("befehl") == "card":
+            self._quelle("ha")
             return await asyncio.to_thread(self._card, d)
         return self._ereignis(d)
 
@@ -176,6 +199,8 @@ class Sim:
 
     def _ereignis(self, d: dict[str, Any]) -> ev.Ereignis:
         befehl = d.get("befehl")
+        if befehl in ("learn", "ack", "card", "learn_abort"):
+            self._quelle("ha")
         if befehl == "learn":
             return self._learn(d)
         if befehl == "ack":
@@ -283,6 +308,8 @@ class Sim:
         Dritter Wert: ein Aufruf, den ``verarbeite`` nach den Ereignissen ausführt (``strom`` und ``netz`` mit Haken: Treiber
         einstellen und messen lassen; dann gibt es keine Ereignisse von ``sim``)."""
         befehl = d.get("befehl")
+        if befehl in ("tobie_auflegen", "tobie_gesperrt", "tobie_abheben"):
+            self._quelle("tobie")
         if befehl == "tobie_auflegen":
             return (*self._tobie_auflegen(d), None)
         if befehl == "tobie_gesperrt":
@@ -293,6 +320,7 @@ class Sim:
             taste = d.get("taste")
             if taste not in TASTEN:
                 raise Ungueltig("taste ungueltig")
+            self._quelle(taste)
             if not VERDRAHTET[taste]:
                 return {"ok": False, "fehler": NOCH_NICHT_VERDRAHTET}, [], None
             e: ev.Ereignis = {
@@ -306,13 +334,17 @@ class Sim:
             delta = d.get("delta")
             if isinstance(delta, bool) or not isinstance(delta, int) or delta == 0 or abs(delta) > REGLER_MAX:
                 raise Ungueltig("delta ungueltig")
+            self._quelle("regler")
             if not VERDRAHTET["regler"]:
                 return {"ok": False, "fehler": NOCH_NICHT_VERDRAHTET}, [], None
+            if self.regler_haken is not None:
+                return {"ok": True}, [], lambda: self.regler_haken(delta)  # type: ignore[misc]
             return {"ok": True}, [ev.LautstaerkeDrehen(delta)], None
         if befehl == "kopfhoerer":
             steckt = d.get("steckt")
             if not isinstance(steckt, bool):
                 raise Ungueltig("steckt ungueltig")
+            self._quelle("kopfhoerer")
             if not VERDRAHTET["kopfhoerer"]:
                 return {"ok": False, "fehler": NOCH_NICHT_VERDRAHTET}, [], None
             if self.kopfhoerer_haken is not None:
@@ -328,6 +360,7 @@ class Sim:
                 raise Ungueltig("lader ungueltig")
             if akku is not None and (isinstance(akku, bool) or not isinstance(akku, int) or not 0 <= akku <= 100):
                 raise Ungueltig("akku ungueltig")
+            self._quelle("strom")
             if not VERDRAHTET["strom"]:
                 return {"ok": False, "fehler": NOCH_NICHT_VERDRAHTET}, [], None
             if self.strom_haken is not None:
@@ -342,6 +375,7 @@ class Sim:
             klasse = d.get("klasse")
             if klasse not in ("home", "hotspot", "offline"):
                 raise Ungueltig("klasse ungueltig")
+            self._quelle("netz")
             if not VERDRAHTET["netz"]:
                 return {"ok": False, "fehler": NOCH_NICHT_VERDRAHTET}, [], None
             if self.netz_haken is not None:
@@ -360,10 +394,22 @@ class Sim:
                 raise Ungueltig("iso ungueltig")
             try:
                 dt = datetime.fromisoformat(iso.strip())
-            except ValueError as e:
+                if not ZEIT_JAHR_MIN <= dt.year <= ZEIT_JAHR_MAX:
+                    raise Ungueltig("iso ungueltig")
+                wall = dt.astimezone().timestamp()  # ohne Zone: Ortszeit des Rechners
+                if not ZEIT_JAHR_MIN <= datetime.fromtimestamp(wall, timezone.utc).year <= ZEIT_JAHR_MAX:
+                    raise Ungueltig("iso ungueltig")
+            except Ungueltig:
+                raise
+            except (ValueError, OverflowError, OSError) as e:  # ``astimezone`` und ``timestamp`` laufen bei Extremwerten über
                 raise Ungueltig("iso ungueltig") from e
-            wall = dt.astimezone().timestamp()  # ohne Zone: Ortszeit des Rechners
-        if self.zeit_haken is None or self.zeit_haken(wall) is False:
+        self._quelle("zeit")
+        try:
+            gestellt = self.zeit_haken is not None and self.zeit_haken(wall) is not False
+        except Exception as e:  # noqa: BLE001 - die Uhr darf an einer Eingabe nicht scheitern
+            logge("sim", "ERROR", "eingang", "zeit_fehler", daten={"detail": repr(e)[:200]})
+            raise Ungueltig("iso ungueltig") from e
+        if not gestellt:
             return {"ok": False, "fehler": "zeit_nicht_verfuegbar"}, [], None
         logge("sim", "INFO", "eingang", "zeit", daten={"wall": wall})
         return {"ok": True, "wall": wall}, [], None
@@ -380,7 +426,10 @@ class Sim:
             if self.uhr.jetzt().mono - self.liegt["mono"] > ANZEIGE_KARENZ_S:
                 self.liegt = None
         simuliert = {k: v for k, v in self.liegt.items() if k != "mono"} if self.liegt is not None else None
-        return {"ok": True, **a, "verdrahtet": dict(VERDRAHTET), "simuliert": simuliert}
+        return {
+            "ok": True, **a, "verdrahtet": dict(VERDRAHTET), "simuliert": simuliert,
+            "quelle_sim": {k: v for k, v in self.quelle_sim.items()},
+        }
 
     async def verarbeite(self, zeile: str | bytes) -> dict[str, Any]:
         """Eine Zeile bearbeiten und die Antwort liefern (Ereignisse gehen an ``ausgabe``). Wirft ``Ungueltig``."""
@@ -434,6 +483,9 @@ class Sim:
                 except Ungueltig as ex:
                     logge("sim", "WARNING", "zeile", "ungueltig", daten={"grund": str(ex)})
                     antwort = {"ok": False, "fehler": str(ex)}
+                except Exception as ex:  # noqa: BLE001 - ein Fehler in einer Zeile darf die Verbindung nicht beenden (B8)
+                    logge("sim", "ERROR", "zeile", "fehler", daten={"detail": repr(ex)[:200]})
+                    antwort = {"ok": False, "fehler": "intern"}
                 try:
                     schreiber.write((json.dumps(antwort) + "\n").encode())
                     await schreiber.drain()

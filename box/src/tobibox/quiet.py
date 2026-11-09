@@ -110,9 +110,13 @@ def wirkung_jetzt(lz: ev.LeiseZeiten | None, jetzt: Jetzt) -> tuple[str, int | N
         # Uhr nicht vertrauenswürdig: kleinste „leiser“-Grenze aller Fenster, nie „stumm“.
         return ("leiser", min(leiser_alle)) if leiser_alle else ("normal", None)
     zone = _zone(lz.zeitzone)
-    jetzt_utc = datetime.fromtimestamp(jetzt.wall, _UTC)
-    lokal_tag = jetzt_utc.astimezone(zone).date()
-    aktiv = [f for f in lz.fenster if _fenster_aktiv(f, zone, jetzt_utc, lokal_tag)]
+    try:
+        jetzt_utc = datetime.fromtimestamp(jetzt.wall, _UTC)
+        lokal_tag = jetzt_utc.astimezone(zone).date()
+        aktiv = [f for f in lz.fenster if _fenster_aktiv(f, zone, jetzt_utc, lokal_tag)]
+    except (OverflowError, ValueError, OSError):
+        # Wanduhr außerhalb des Rechenbereichs (B8): wie eine unsichere Uhr, nie „stumm“, kein Absturz des Kerns
+        return ("leiser", min(leiser_alle)) if leiser_alle else ("normal", None)
     if any(f.wirkung == "stumm" for f in aktiv):
         return "stumm", None
     grenzen = [f.grenze for f in aktiv if f.wirkung == "leiser" and f.grenze is not None]
@@ -192,6 +196,11 @@ def _leiser(z: Zustand, grenze: int, jetzt: Jetzt, *, aus_stumm: bool) -> tuple[
         out.append(ev.GrenzeGesetzt(GRENZE_AUSBLENDEN, None))
     out.append(ev.GrenzeGesetzt(GRENZE_LEISE_ZEIT, grenze))
     return replace(z, gesetzt=grenze, absenken=None), out
+
+
+def ziel_grenze_absenken(z: Zustand) -> int | None:
+    """Das Ziel einer laufenden „leiser“-Absenkung, sonst ``None``. Töne richten sich schon während der Rampe danach (B13)."""
+    return z.absenken[1] if z.absenken is not None else None
 
 
 def _rampe_weiter(z: Zustand, jetzt: Jetzt) -> tuple[Zustand, list]:

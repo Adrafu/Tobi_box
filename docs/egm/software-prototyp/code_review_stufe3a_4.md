@@ -274,3 +274,41 @@ Schwere: **Hoch** = kann auf dem Pi Schaden oder Stillstand verursachen. **Mitte
 * 2763 bestanden (`tests/unit`, `tests/cuj`). Die Integrationstests mit Mosquitto, MPD und rsync wurden nicht gelaufen
   (brauchen Dienste, überspringen sich sonst).
 * Kein Test ohne Behauptung außer T3. Keine `skip`/`xfail` im neuen Code außer den Dienst-Voraussetzungen.
+
+---
+
+## Auflösung (09.11., Rev. 3.17)
+
+Neue Entscheidungen von Tobias: **O** (Leerlauf zählt auch mit liegendem Tobie, Befund B5) und **P** (nicht lesbarer Kopfhörer-Kontakt:
+die Kopfhörer-Grenze gilt, Befund B3). Tests: `box/tests/unit/test_befunde_stufe3a_4.py` (neu) und die geänderten Tests in `test_idle.py`,
+`test_headphones.py`, `cuj/test_cuj16_leerlauf.py`.
+
+| Befund | Ergebnis |
+|---|---|
+| B1 (hoch) | **Behoben.** `power` prüft Rückgabecode, fehlendes Kommando und Frist (60 s) und sendet `HerunterfahrenFehlgeschlagen`; `idle` verlässt `herunterfahren`, zählt neu, schreibt ins Protokoll und meldet HA `fehler`/`herunterfahren_fehlgeschlagen`. Ein fortbestehender Tiefstand wird nach 60 s wieder gemeldet. Marker `lauf.json` wird wieder geschrieben. Mac und ohne `[strom]`: nur protokolliert, `idle` kehrt nach 10 s zurück (`SIMULATION_RUECKKEHR_S`, im Vertrag). |
+| B2 | **Behoben mit Vorbehalt (am Pi prüfen).** Recherche: Für den `pisugar-server` ist kein Befehl für Tastenereignisse belegt. Die Abfrage `power.taste_lauf` steht hinter `[strom] taste_befehl` (Vorgabe aus, im Code und in `docs/betrieb/pisugar-wecker.md` als „am Pi prüfen“ markiert). Ohne `taste_befehl` und `pin_haupt` warnt der Dienst beim Start. Offener Punkt im Plan (3.2.4). |
+| B3 | **Behoben (Entscheidung P).** Neues Ereignis `KopfhoererLesbar`; `session` hält die Kopfhörer-Grenze, solange der Kontakt nicht lesbar ist (auch beim Start), der Ausgang bleibt; HA bekommt `fehler`/`kopfhoerer_unlesbar`. Wieder lesbar erst nach einem stabilen Wert. |
+| B4 | **Behoben (am Pi prüfen).** Vorrang `gpiozero.DigitalInputDevice` (Pull-up ausdrücklich, kein Prozess je Messung, unabhängig von libgpiod, dieselbe Bibliothek wie die Tasten). Rückfall `gpioget --bias=pull-up|pull-down` mit erkannter Version (1.x `gpioget <chip> <pin>`, 2.x `gpioget -c <chip> <pin>`), dann höchstens 1 Messung je Sekunde. |
+| B5 | **Behoben (Entscheidung O).** `belegt` ist nur noch `spielt` oder `unbekannt`. Folge: Der Ring zeigt die Pause auch im Leerlauf mit liegendem Tobie weiter und kein Aufwachen-Lauflicht beim Weiterspielen (`led.py`). |
+| B6 | **Behoben.** Kein zeitgesteuerter Sync, wenn `idle` in `herunterfahren` steht. |
+| B7 | **Behoben.** Start-Sync am Lader wartet (eigene Aufgabe, höchstens 30 s) auf die erste `NetzKlasse`; danach `sync.start`. Ohne Netz-Klasse nach der Frist antwortet `sync` wie bisher mit `regel` und `idle` wiederholt. |
+| B8 | **Behoben.** `sim time` nimmt nur Jahre 2000 bis 2100; Überlauf und Haken-Fehler werden zu `iso ungueltig`; `_client` fängt jede Ausnahme (`intern`); `quiet.wirkung_jetzt` behandelt eine Uhr außerhalb des Bereichs wie eine unsichere Uhr (nie „stumm“). |
+| B9 | **Behoben.** `[sim] erlauben` (Vorgabe aus). `sim` bedient Tasten, Regler, Kopfhörer, Strom, Netz, Zeit und den HA-Ersatz nur mit Quelle `sim`; sonst `quelle_nicht_sim`. `anzeige` nennt `quelle_sim`, die Seite graut aus. Die Tobies (`tobie_*`) bleiben immer erlaubt (echter Leser parallel am Mac). |
+| B10 | **Behoben.** `_zaehle_dateien`, `mkdir` und `_bereite_partial_vor` des Syncs und `lauf.loesche` laufen mit `to_thread`. |
+| B11 | **Behoben.** Alle Nachführungen nach `core.step` laufen einzeln abgesichert; Befehle werden immer eingereiht. |
+| B12 | **Behoben.** `idle` gibt bei `AkkuTiefstand` einmal `TonSpielen("akku_leer")` aus; der Dienst wartet vor dem Poweroff bis zu 5 s auf das Ende des Tons. |
+| B13 | **Behoben.** `nachfuehrung.ton_pegel` rechnet während der „leiser“-Absenkung schon mit deren Ziel (im Vertrag, 8.1). |
+| B14 | **Behoben.** `sim regler` geht über `Bedienung.drehen_prozent` wie der Drehregler; das Verhalten des Kerns bleibt nach Vertrag. |
+| B15 | **Behoben.** Linux mit echter Systemuhr und ohne `[netz]`/`[strom]`: Zeit unsicher, bis `/run/systemd/timesync/synchronized` oder `timedatectl` NTP melden (alle 10 s); Warnung beim Start. Am Mac (und mit Test-Uhr) weiter sicher. `sim time` ist dort gesperrt. |
+| B16 | **Behoben.** `UpdateStarten` wird mit `befehl_abgelehnt` (`detail` „Update kommt mit Stufe 3b.“) beantwortet. |
+| B17 | **Behoben.** `GpioTreiber.start` schließt bei einem Teilfehler alle schon erzeugten Geräte. |
+| T1 | **Behoben.** Neues Modul `box/src/tobibox/nachfuehrung.py` (wie `ausgang.py`): `App` und `BedienBox` (CUJ 14 bis 19) rufen denselben Code; die Kopie ist weg. |
+| T2 | **Behoben.** Neue Tests zu B1 bis B17 in `tests/unit/test_befunde_stufe3a_4.py`, dazu Idle- und CUJ-16-Tests zu O. |
+| T3 | **Behoben.** `assert` ergänzt. |
+| T4, T5 | Nicht Teil dieses Auftrags (Stufe 3b bzw. niedrig). |
+| GUI-Ring | **Behoben.** Farbe normiert (volle Deckkraft), echte Helligkeit als Zahl und Balken (Marke = Deckel 25 %). Der Deckel der Box ist unverändert. |
+
+**Am Pi zu prüfen:** (1) wie der `pisugar-server` die Taste meldet (B2, Befehl und Antwortwort für `taste_befehl`); (2) gpiozero-Lesen des
+Schaltkontakts und Pegel (`aktiv_niedrig`, Pin) sowie Rückfall `gpioget` mit installierter libgpiod-Version (B4); (3) Rückgabecode und
+Dauer von `systemctl poweroff` mit dem Dienstbenutzer (Rechte, polkit; B1); (4) `/run/systemd/timesync/synchronized` unter dem
+verwendeten NTP-Dienst (B15); (5) Ton `akku_leer` ist nur ein Platzhalter (Datei vorhanden?).

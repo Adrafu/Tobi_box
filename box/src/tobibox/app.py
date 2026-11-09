@@ -54,7 +54,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
 
-from . import __version__, bootid, core, eventlog, lauf, library, notify, selftest, store
+from . import __version__, bootid, core, eventlog, lauf, library, nachfuehrung, notify, selftest, store
 from . import config as konfig_modul
 from . import events as ev
 from .clock import SystemUhr, Uhr
@@ -63,14 +63,14 @@ from .controls import Bedienung, GpioTreiber
 from .ha import Ha
 from .headphones import Buchse, GpioKopfhoerer, SimKopfhoerer
 from .led import DECKEL_PROZENT, LedLogik
-from .net import Netz, SimSsid, Zeitquelle
+from .net import Netz, SimSsid, TimedatectlNtp, Zeitquelle
 from .player import Player
 from .power import Power, SimStrom
 from .reader import Leser
 from .sounds import Kennlinie, Toene
 from .status import Statussammler
 from .sync import MpdHaken, Sync, SyncFortschritt
-from .volume import GRENZE_AUSBLENDEN, GRENZE_GUTE_NACHT, klemmen, wirksame_grenze
+from .volume import wirksame_grenze
 from .store import KonfigStore, ResumeStore, raeume_auf
 
 TAKT_S = 0.1
@@ -81,6 +81,13 @@ ABBRUCH_SYNC_WARTEN_S = 15.0  # ``sync`` wartet nach SIGTERM bis zu 10 s auf rsy
 #: ``[netz] quelle = "sim"`` ohne eigene Namen: Mit diesen WLAN-Namen bildet ``tobibox sim net`` die Klassen ab.
 SIM_HEIM_SSID = "sim-heim"
 SIM_HOTSPOT_SSID = "sim-hotspot"
+#: Start-Sync am Lader, solange die Netz-Klasse noch unbekannt ist: so lange wartet ``App`` auf die erste ``NetzKlasse`` (B7).
+NETZ_KLASSE_WARTEN_S = 30.0
+#: Pi ohne ``[netz]`` und ``[strom]``: so oft prüft ``App`` die NTP-Synchronisierung der Systemuhr (B15).
+SYSTEMUHR_PRUEFEN_S = 10.0
+#: Vor dem Herunterfahren wartet ``App`` höchstens so lange auf den Ton ``akku_leer`` (B12).
+TON_VOR_HERUNTERFAHREN_S = 5.0
+UPDATE_NOCH_NICHT_TEXT = "Update kommt mit Stufe 3b."
 ENV_KONFIG = "TOBIBOX_CONFIG"
 STANDARD_KONFIG = "tobibox.toml"
 STANDARD_TOENE = Path(__file__).resolve().parents[2] / "sounds"
@@ -204,6 +211,17 @@ class App:
         self.power: Power | None = None
         self.ha: Ha | None = None
         self.sync: Sync | None = None
+        self._systemuhr_ntp: TimedatectlNtp | None = None
+        self._netz_bekannt = asyncio.Event()  # erste ``NetzKlasse`` ist angekommen (B7)
+        if k.netz is None and k.strom is None and self._systemuhr_pruefen_noetig():
+            # Pi ohne ``[netz]`` und ``[strom]`` (B15): Die Systemuhr gilt nur mit NTP-Synchronisierung als sicher.
+            self.zeitquelle = Zeitquelle(system=False)
+            self._systemuhr_ntp = TimedatectlNtp()
+            self._uebernimm_zeitquelle(self.zeitquelle.quelle, self.zeitquelle.vertrauenswuerdig)
+            eventlog.logge(
+                "app", "WARNING", "systemuhr", "ntp_pflicht",
+                meldung="Ohne [netz] und [strom] gilt die Systemuhr nur mit NTP-Synchronisierung als sicher.",
+            )
         if k.netz is not None or k.strom is not None:
             # Am Mac (alles ``sim``) gilt die Systemuhr; sonst bewerten NTP (``net``) und RTC (``power``) die Uhr.
             system = all(a.simulation for a in (k.netz, k.strom) if a is not None)
@@ -235,6 +253,15 @@ class App:
                 aktuelle_datei=haken.aktuelle_datei, einlesen=haken.einlesen,
             )
 
+    def _systemuhr_pruefen_noetig(self) -> bool:
+        """Echte Systemuhr auf Linux (Pi): ohne NTP ist die Zeit unsicher. Am Mac (und mit Test-Uhr) gilt sie als sicher.
+
+        ``[uhr] ntp_pflicht`` überstimmt die Vorgabe nach dem Betriebssystem (es gibt keine Abfrage „bin ich am Mac?“ im Dienst)."""
+        if not isinstance(self.uhr, SystemUhr):
+            return False
+        vorgabe = self.konfig.uhr.ntp_pflicht
+        return sys.platform.startswith("linux") if vorgabe is None else vorgabe
+
     def _baue_stufe_4(self, ring_ausgabe: Callable[[str], None] | None) -> None:
         """LED-Ring, Tasten und Drehregler, Kopfhörer-Buchse (AP 4.8). Ohne Abschnitt in der Konfiguration gilt ``sim``."""
         k = self.konfig
@@ -265,6 +292,35 @@ class App:
         if kh.simulation:
             self.sim.kopfhoerer_haken = self._sim_kopfhoerer
         self.sim.zeit_haken = self._sim_zeit
+        self.sim.regler_haken = self._sim_regler
+        self.sim.quelle_sim = self._sim_quellen()
+
+    def _sim_quellen(self) -> dict[str, bool]:
+        """Welche Eingänge darf ``sim`` bedienen (B9)? Nur die, deren Quelle ``sim`` ist, oder alle mit ``[sim] erlauben = true``.
+
+        Ohne ``[netz]``/``[strom]`` gibt ``sim`` ``NetzKlasse``, ``AkkuStand`` und ``LaderGeaendert`` selbst aus (Mac): erlaubt.
+        Die Zeit stellt ``sim`` nur, wenn die Systemuhr nicht von NTP abhängt (Mac, ``[netz]``/``[strom]`` auf ``sim``)."""
+        k = self.konfig
+
+        def ok(quelle_sim: bool) -> bool:
+            return k.sim.erlauben or quelle_sim
+
+        tasten = ok(k.tasten.simulation)
+        return {
+            "hauptknopf_kurz": tasten, "hauptknopf_lang": tasten, "weiter": tasten, "zurueck": tasten, "regler": tasten,
+            "kopfhoerer": ok(k.kopfhoerer.simulation),
+            "strom": ok(k.strom is None or k.strom.simulation),
+            "netz": ok(k.netz is None or k.netz.simulation),
+            "zeit": ok(
+                (k.netz is None or k.netz.simulation) and (k.strom is None or k.strom.simulation)
+                and self._systemuhr_ntp is None
+            ),
+            "ha": ok(k.mqtt is None),
+        }
+
+    async def _sim_regler(self, delta: int) -> None:
+        """``tobibox sim regler``: wie der Drehregler über ``Bedienung`` (kein Hochdrehen über die Grenze, B14)."""
+        self.bedienung.drehen_prozent(delta)
 
     def _bedienung_ein(self, e: ev.Ereignis) -> None:
         """Eingang der ``Bedienung``. gpiozero ruft aus eigenen Threads: dann über die Ereignisschleife."""
@@ -338,11 +394,11 @@ class App:
             self._uebernimm_zeitquelle(e.quelle, e.vertrauenswuerdig)  # vor ``jetzt``: schon dieses Ereignis sieht die neue Uhr
         jetzt = self.uhr.jetzt()
         sim = self.ausgang.war_sim(e)
-        _protokolliere_leser(e)
-        self.status.beobachte(e, jetzt)
+        self._sicher(lambda: _protokolliere_leser(e), "protokoll_leser")
+        self._sicher(lambda: self.status.beobachte(e, jetzt), "status")
         if isinstance(e, SyncFortschritt):
             return ()  # nur Anzeige (Statussammler); der Kern kennt das Ereignis nicht
-        self._melde_an_sync(e)
+        self._sicher(lambda: self._melde_an_sync(e), "sync_eingabe")
         if isinstance(e, ev.Bestaetigt):
             # Zuerst die Outbox (``core-interface.md``, Abschnitt 3 und 7). Den Kern erreicht nur eine
             # Bestätigung für einen gelernten Tobie, die die Outbox angenommen hat (offener Eintrag, passendes
@@ -352,31 +408,52 @@ class App:
                 return ()
         if isinstance(e, (ev.Aufgelegt, ev.Gesperrt)) or (isinstance(e, ev.Abgehoben) and e.vorgang):
             self._letzter_vorgang = e.vorgang
+        war_unten = self.kern.teil["idle"].modus == "herunterfahren"
         self.kern, befehle = core.step(self.kern, e, jetzt)
-        self._ton_pegel_nachfuehren()
-        self._nachfuehren_stufe_4(e, befehle, jetzt)
-        self.ausgang.nach_kern(self.kern)
+        if war_unten and self.kern.teil["idle"].modus != "herunterfahren":
+            # Das Herunterfahren hat nicht gewirkt (B1) oder war simuliert: Das Gerät läuft weiter, der Marker in ``lauf.json`` gilt wieder
+            self._herunterfahren = False
+            self._marker_uid = None
+        # Ab hier darf keine Ausnahme die Befehle dieses Schritts verlieren: der Kern ist schon weiter (B11)
+        self._sicher(self._ton_pegel_nachfuehren, "ton_pegel")
+        self._sicher(lambda: self._nachfuehren_stufe_4(e, befehle, jetzt), "stufe_4")
+        self._sicher(lambda: self.ausgang.nach_kern(self.kern), "ausgang")
         auszufuehren: list[ev.Befehl] = []
         for b in befehle:
-            self.status.befehl(b, jetzt)
-            if isinstance(b, ev.Protokoll):
-                # Protokollzeilen sofort schreiben: Sie halten die Entscheidung fest (zugeordnet, spielt) und
-                # gehören vor die Ausführung der Befehle derselben Verarbeitung (Kette von CUJ 1, Messung).
-                eventlog.logge_befehl(b, sim=sim)
-            else:
+            try:
+                self.status.befehl(b, jetzt)
+                if isinstance(b, ev.Protokoll):
+                    # Protokollzeilen sofort schreiben: Sie halten die Entscheidung fest (zugeordnet, spielt) und
+                    # gehören vor die Ausführung der Befehle derselben Verarbeitung (Kette von CUJ 1, Messung).
+                    eventlog.logge_befehl(b, sim=sim)
+            except Exception:  # noqa: BLE001
+                self._ausnahme("befehl_vorbereiten", b)
+            if not isinstance(b, ev.Protokoll):
                 auszufuehren.append(b)
-        for b in self._toene_vor_start(auszufuehren):
+        try:
+            geordnet = self._toene_vor_start(auszufuehren)
+        except Exception:  # noqa: BLE001
+            self._ausnahme("toene_ordnen")
+            geordnet = auszufuehren
+        for b in geordnet:
             self.befehle.put_nowait((b, jetzt.mono))
-        self._marker_nachfuehren()
+        self._sicher(self._marker_nachfuehren, "marker")
         return befehle
 
+    def _ausnahme(self, stelle: str, b: ev.Befehl | None = None) -> None:
+        log.exception("Kern: Ausnahme bei %s", stelle)
+        eventlog.logge("app", "ERROR", "nachfuehrung", "fehler", daten={"stelle": stelle, "befehl": type(b).__name__ if b else None})
+
+    def _sicher(self, aufruf: Callable[[], object], stelle: str) -> None:
+        """Eine Nachführung, die fehlschlagen darf, ohne den Schritt des Kerns zu stoppen (B11)."""
+        try:
+            aufruf()
+        except Exception:  # noqa: BLE001
+            self._ausnahme(stelle)
+
     def _nachfuehren_stufe_4(self, e: ev.Ereignis, befehle: Sequence[ev.Befehl], jetzt: ev.Jetzt) -> None:
-        """Ring und Bedienung folgen dem Kern: jede ``ZustandMelden`` und die Strom-Ereignisse an ``led``, Lautstärke an ``controls``."""
-        self.led.beobachte(e, jetzt.mono)  # Bereit, AkkuStand, LaderGeaendert, AkkuTiefstand
-        for b in befehle:
-            if isinstance(b, ev.ZustandMelden):
-                self.led.beobachte(b, jetzt.mono)
-        self.bedienung.setze_lautstaerke(self.kern.wunsch, wirksame_grenze(self.kern.grenzen))
+        """Ring und Bedienung folgen dem Kern (derselbe Code wie im Testaufbau: ``nachfuehrung``)."""
+        nachfuehrung.stufe_4(self.led, self.bedienung, self.kern, e, befehle, jetzt.mono)
 
     def _melde_an_sync(self, e: ev.Ereignis) -> None:
         """Netz-Klasse, Lader und Akku für die Regel des Syncs (``setze_*``); ein Netzverlust bricht einen laufenden Sync ab."""
@@ -385,6 +462,7 @@ class App:
             return
         if isinstance(e, ev.NetzKlasse):
             sy.setze_netz(e.klasse)
+            self._netz_bekannt.set()
         elif isinstance(e, ev.LaderGeaendert):
             sy.setze_lader(e.am_lader)
         elif isinstance(e, ev.AkkuStand):
@@ -405,13 +483,10 @@ class App:
             self._bibliothek_laedt = False
 
     def _ton_pegel_nachfuehren(self) -> None:
-        """``grenze`` und ``lautstaerke`` für Töne aus dem Zustand des Kerns (ohne Ausblende-Rampen)."""
-        k = self.kern
-        if k.ausgegeben is None:
-            return  # noch kein ``LautstaerkeSetzen``: die Werte aus der Konfiguration gelten
-        dauerhaft = {n: w for n, w in k.grenzen.items() if n not in (GRENZE_AUSBLENDEN, GRENZE_GUTE_NACHT)}
-        self.grenze = wirksame_grenze(dauerhaft)
-        self.lautstaerke = klemmen(k.wunsch, dauerhaft)
+        """``grenze`` und ``lautstaerke`` für Töne aus dem Zustand des Kerns (``nachfuehrung.ton_pegel``)."""
+        werte = nachfuehrung.ton_pegel(self.kern)
+        if werte is not None:  # sonst gelten die Werte aus der Konfiguration
+            self.grenze, self.lautstaerke = werte
 
     def _ton_pegel(self) -> tuple[int, int, int | None]:
         """Die Werte für den Pegel eines Tons, im Augenblick, in dem er an der Reihe ist (B6)."""
@@ -445,7 +520,10 @@ class App:
             e = await self.ereignisse.get()
             try:
                 self.verarbeite(e)
-                if isinstance(e, ev.Takt) and self.sync is not None:
+                if (
+                    isinstance(e, ev.Takt) and self.sync is not None
+                    and self.kern.teil["idle"].modus != "herunterfahren"  # nach dem Entschluss zum Herunterfahren startet kein Sync mehr (B6)
+                ):
                     await self.sync.takt()  # zeitgesteuerter Sync: startet nur, wenn Intervall und Regel es erlauben
             except Exception:  # ein Fehler im Kern darf die Box nicht anhalten
                 log.exception("Kern: Ausnahme bei %s", type(e).__name__)
@@ -499,10 +577,14 @@ class App:
             self.leser.ping()
         elif isinstance(b, ev.Herunterfahren):
             self._herunterfahren = True
-            lauf.loesche(self.konfig.pfade.zustand)
+            await asyncio.to_thread(lauf.loesche, self.konfig.pfade.zustand)
             eventlog.logge("app", "INFO", "herunterfahren", "angefordert", daten={"grund": b.grund})
+            await self._warte_ton_ende()  # ``akku_leer`` soll noch zu hören sein (B12)
             if self.power is not None:
-                await self.power.fuehre_aus(b)  # Pi: pisugar/systemctl poweroff; Mac: nur protokolliert
+                # Pi: pisugar/systemctl poweroff. Schlägt es fehl (oder ist es simuliert), sendet ``power`` ``HerunterfahrenFehlgeschlagen``
+                await self.power.fuehre_aus(b)
+            else:  # kein ``[strom]``: nichts, was herunterfährt (Mac)
+                self.ereignisse.put_nowait(ev.HerunterfahrenFehlgeschlagen("", simuliert=True))
         elif isinstance(b, ev.ZustandMelden):
             pass  # der Statussammler hat sie in ``verarbeite`` schon gesehen
         elif isinstance(b, ev.Melden):
@@ -518,11 +600,50 @@ class App:
         elif isinstance(b, ev.SyncAbbrechen):
             if self.sync is not None:  # ``abbrechen`` wartet auf rsync: nicht im Ausführer, sonst steht die Wiedergabe
                 self._spawn(self.sync.abbrechen(b.grund), "tobibox-sync-abbrechen")
-        else:  # Update: Stufe 3b
+        elif isinstance(b, ev.UpdateStarten):
+            # Bis Stufe 3b gibt es kein Update: HA bekommt eine ehrliche Ablehnung statt Schweigen (B16)
+            eventlog.logge("app", "WARNING", "update", "nicht_eingerichtet", daten={"befehl_id": b.befehl_id, "version": b.version})
+            await self._fuehre_aus(
+                ev.EreignisSenden("befehl_abgelehnt", {
+                    "befehl": "update", "befehl_id": b.befehl_id, "grund": "bedingung", "detail": UPDATE_NOCH_NICHT_TEXT,
+                }),
+                mono,
+            )
+        else:
             eventlog.logge("app", "DEBUG", "befehl_nicht_umgesetzt", "ignoriert", daten={"befehl": type(b).__name__})
+
+    async def _warte_ton_ende(self) -> None:
+        """Vor dem Herunterfahren den laufenden Ton (``akku_leer``) ausspielen lassen, höchstens ``TON_VOR_HERUNTERFAHREN_S``."""
+        warte = getattr(self.toene, "warte_leer", None)
+        if warte is None or not self._toene_laufen():
+            return
+        try:
+            await asyncio.wait_for(warte(), TON_VOR_HERUNTERFAHREN_S)
+        except (asyncio.TimeoutError, Exception) as e:  # noqa: BLE001 - das Herunterfahren hat Vorrang
+            eventlog.logge("app", "WARNING", "herunterfahren", "ton_wartet_nicht", daten={"detail": repr(e)[:100]})
+
+    async def _start_sync_nach_netz(self, b: ev.SyncStarten) -> None:
+        """Start-Sync am Lader, bevor die erste Netz-Klasse da ist (B7): auf sie warten, mit Frist, dann starten."""
+        assert self.sync is not None
+        try:
+            await asyncio.wait_for(self._netz_bekannt.wait(), NETZ_KLASSE_WARTEN_S)
+        except asyncio.TimeoutError:
+            eventlog.logge("app", "WARNING", "sync", "netz_klasse_fehlt", daten={"frist_s": NETZ_KLASSE_WARTEN_S})
+        try:
+            await self.sync.start(b.grund)
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:  # noqa: BLE001
+            eventlog.logge("app", "ERROR", "befehl_fehler", "fehler", daten={"befehl": "SyncStarten", "detail": repr(e)})
+            self.ereignisse.put_nowait(ev.SyncAbgebrochen("rsync_fehler"))
 
     async def _sync_starten(self, b: ev.SyncStarten) -> None:
         if self.sync is not None:
+            if b.grund == "start_lader" and self.netz is not None and not self.sync.netz_bekannt:
+                # Die Netz-Klasse wird noch gemessen (``nmcli``, NAS): nicht mit ``regel`` abbrechen, sondern kurz warten.
+                # Eigene Aufgabe, damit der Ausführer (Pause, Zeiger) nicht wartet.
+                self._spawn(self._start_sync_nach_netz(b), "tobibox-sync-start")
+                return
             await self.sync.start(b.grund)  # die Regel (Heim / Hotspot und Akku) prüft ``sync``; sonst ``SyncAbgebrochen("regel")``
             return
         # ohne ``[sync]`` gibt es nichts zu holen; die Antwort verhindert, dass ein Sync „offen“ bleibt (``idle``)
@@ -695,11 +816,7 @@ class App:
 
     def _led_ausblenden(self) -> None:
         """Stand des Ausblendens von „Gute Nacht“ aus dem Zustand von ``bedtime`` an ``led`` (Glimmen wird schwächer)."""
-        b = self.kern.teil["bedtime"]
-        faktor = None
-        if b.modus == "ausblenden" and b.von > 0:
-            faktor = (b.letzter if b.letzter is not None else b.von) / b.von
-        self.led.setze_ausblenden(faktor)
+        nachfuehrung.led_ausblenden(self.led, self.kern)
 
     def ring_anzeige(self) -> dict:
         """Das Bild des Rings jetzt: ``led.ring_dict`` und dieselben Farben als ``farben`` (Format der Oberfläche)."""
@@ -821,13 +938,24 @@ class App:
             await self.ha.start()  # verbindet im Hintergrund; ohne Broker läuft die Box offline weiter
         if self.netz is not None:
             self._aufgaben.append(asyncio.create_task(self.netz.lauf(), name="tobibox-netz"))
+        if self._systemuhr_ntp is not None:
+            self._aufgaben.append(asyncio.create_task(self._systemuhr_lauf(), name="tobibox-systemuhr"))
         if self.power is not None:
             self._aufgaben.append(asyncio.create_task(self._strom_lauf(), name="tobibox-strom"))
+            if self.power.taste_befehl is not None:  # B2: Hauptknopf über den PiSugar, **am Pi zu prüfen**
+                self._aufgaben.append(asyncio.create_task(self.power.taste_lauf(), name="tobibox-taste"))
 
     def _starte_stufe_4(self) -> None:
         """Ring, Kopfhörer-Messung und (am Pi) Tasten starten."""
         self._aufgaben.append(asyncio.create_task(self._led_lauf(), name="tobibox-led"))
         self._aufgaben.append(asyncio.create_task(self.buchse.lauf(), name="tobibox-kopfhoerer"))
+        k = self.konfig
+        if not k.tasten.simulation and k.tasten.pin_haupt is None and (self.power is None or self.power.taste_befehl is None):
+            eventlog.logge(
+                "app", "WARNING", "hauptknopf", "ohne_quelle",
+                meldung="Der Hauptknopf hat keine Quelle: [tasten] pin_haupt fehlt und [strom] taste_befehl ist nicht gesetzt "
+                        "(Pause, Weiter und Abschalten per Hauptknopf gehen nicht; docs/betrieb/pisugar-wecker.md).",
+            )
         if self.gpio_tasten is not None:
             try:
                 self.gpio_tasten.start()
@@ -835,6 +963,20 @@ class App:
                 eventlog.logge("app", "ERROR", "tasten_start", "fehler", daten={"detail": repr(e)})
             else:
                 eventlog.logge("app", "INFO", "tasten", "gpio")
+
+    async def _systemuhr_lauf(self) -> None:
+        """Pi ohne ``[netz]`` und ``[strom]`` (B15): NTP-Synchronisierung prüfen; ein Wechsel stellt die Zeitquelle."""
+        assert self._systemuhr_ntp is not None and self.zeitquelle is not None
+        while True:
+            try:
+                z = self.zeitquelle.ntp(await self._systemuhr_ntp.synchron())
+                if z is not None:
+                    self.ereignisse.put_nowait(z)
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:  # noqa: BLE001
+                eventlog.logge("app", "ERROR", "systemuhr", "fehler", daten={"detail": repr(e)})
+            await asyncio.sleep(SYSTEMUHR_PRUEFEN_S)
 
     async def _strom_lauf(self) -> None:
         """RTC lesen und erste Messung (``Power.start``), dann dauernd messen (``Power.lauf``)."""
@@ -882,6 +1024,10 @@ class App:
         if self.gpio_tasten is not None:
             with contextlib.suppress(Exception):
                 self.gpio_tasten.stop()
+        schliesse = getattr(self.kopfhoerer_treiber, "schliesse", None)
+        if schliesse is not None:
+            with contextlib.suppress(Exception):
+                schliesse()
         if self._ring_zeile_offen and self._ring_ausgabe is not None:
             self._ring_ausgabe("")  # Zeile beenden
             self._ring_zeile_offen = False

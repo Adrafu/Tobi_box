@@ -6,6 +6,10 @@
 *   **Gilt für:** Modul `ha` des Box-Dienstes und `mqtt.py` der
     HA-Integration `tobibox`. Schemas der Inhalte: `data-model.md`. Ereignisse
     und Befehle im Kern: `core-interface.md`.
+*   **Änderung 09.11. (Befunde des Code-Reviews zu AP 3.7 und 4.8, Entscheidung P, Rev. 3.17):** `event` `fehler` bekommt zwei
+    Codes der Box (3.4): `kopfhoerer_unlesbar` (Entscheidung P: der Kopfhörer-Kontakt ist nicht lesbar, es gilt die Kopfhörer-Grenze)
+    und `herunterfahren_fehlgeschlagen` (B1). `befehl_abgelehnt` für `update` nennt bis Stufe 3b `detail` „Update kommt mit Stufe 3b.“ (B16).
+    Rückwärtskompatibel: `art` und Felder bleiben, `code` ist ein freier Text.
 *   **Änderung 09.11. (Tobie-Namen, Vertrag W):** Jede Zuordnung in `tobibox/config` darf
     ein optionales Feld `name` tragen (3.1). Die Box ignoriert es; sie liest nur `ziel`.
     Rückwärtskompatibel: kein neues `schema_version`, keine neue Revisionsregel.
@@ -213,7 +217,7 @@ Einmalige Meldungen ohne Bestätigung.
 | `art` | Felder in `daten` |
 |---|---|
 | `liste_abgelehnt` | `liste_id`, `revision` (der abgelehnten Liste), `gespeichert_liste_id`, `gespeichert_revision` (was die Box hat), `grund` ∈ `revision_zu_niedrig`, `schema_ungueltig`, `schema_zu_neu` |
-| `fehler` | `baustein` (string), `code` (string), `text` (string). Beispiel: der Update-Rückfall nach `failed` meldet `baustein="update"`, `code="rueckfall"`, `text=<Grund>` |
+| `fehler` | `baustein` (string), `code` (string), `text` (string). Beispiel: der Update-Rückfall nach `failed` meldet `baustein="update"`, `code="rueckfall"`, `text=<Grund>`. Codes der Box (09.11., Rev. 3.17): `baustein="kopfhoerer"`, `code="kopfhoerer_unlesbar"` (der Schaltkontakt der Buchse ist nicht lesbar; bis er es wieder ist, gilt die Kopfhörer-Grenze; einmal je Störung) und `baustein="power"`, `code="herunterfahren_fehlgeschlagen"` (das Abschalt-Kommando hat nicht gewirkt; die Box läuft weiter, `text` nennt den Grund). Weitere Codes: `v_unbekannt`, `befehl_unbekannt` (`ha`). |
 | `befehl_abgelehnt` | `befehl` ∈ `lernen`, `sync`, `update`, `befehl_id`, `grund` ∈ `bedingung`, `zeit_unsicher`, optional `detail` (Texte für `detail` im Abschnitt darunter; 09.11., AP 4.8) |
 
 Beispiel:
@@ -250,7 +254,7 @@ hat <Befehl> abgelehnt: ihre Uhr ist nicht vertrauenswürdig (Zeitquelle:
 Uhrzeit sicher kennt.“ Bei `grund="bedingung"`: der Text aus `detail`. Der
 Sensor „Zeitquelle“ (6.2) zeigt dazu `zeit_ok`.
 
-Beispiele für `detail` (09.11., AP 4.8; heute nur bei `befehl` = `update`, Bedingungen in `core-interface.md`, Abschnitt 9, Punkt 9): „Die Box ist nicht im Heimnetz.“, „Die Box hängt nicht am Lader.“, „Es läuft gerade ein Hörspiel.“, „Es läuft gerade ein Sync.“, „Es läuft schon ein Update.“ Es wird die erste nicht erfüllte Bedingung genannt.
+Beispiele für `detail` (09.11., AP 4.8; heute nur bei `befehl` = `update`, Bedingungen in `core-interface.md`, Abschnitt 9, Punkt 9): „Die Box ist nicht im Heimnetz.“, „Die Box hängt nicht am Lader.“, „Es läuft gerade ein Hörspiel.“, „Es läuft gerade ein Sync.“, „Es läuft schon ein Update.“ Es wird die erste nicht erfüllte Bedingung genannt. Bis Stufe 3b gibt es kein Update: Ein `update`-Befehl, der alle Bedingungen erfüllt, wird mit `grund="bedingung"` und `detail` „Update kommt mit Stufe 3b.“ abgelehnt (B16, 09.11.), statt still verworfen zu werden.
 
 ### 3.5 `tobibox/<box>/unknown/<uid>` (retained)
 

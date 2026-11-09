@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+from pathlib import Path
 from collections.abc import Callable
 from typing import Any, Protocol
 
@@ -23,6 +24,7 @@ from .config import NetzKonfig
 from .eventlog import logge
 
 NAS_FRIST_S = 2.0  # so lange wartet der Verbindungsversuch zum NAS
+NTP_MARKE = Path("/run/systemd/timesync/synchronized")
 BEFEHL_FRIST_S = 5.0  # so lange darf ``nmcli`` oder ``timedatectl`` brauchen
 
 
@@ -169,6 +171,9 @@ class TimedatectlNtp:
     """Pi: ``timedatectl`` meldet, ob die Uhr per NTP synchron ist."""
 
     async def synchron(self) -> bool:
+        # systemd-timesyncd legt diese Datei an, sobald die Uhr einmal synchron war (B15)
+        if await asyncio.to_thread(NTP_MARKE.exists):
+            return True
         aus = await _lauf("timedatectl", "show", "-p", "NTPSynchronized", "--value")
         return aus is not None and aus.strip() == "yes"
 

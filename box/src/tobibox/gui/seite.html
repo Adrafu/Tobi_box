@@ -63,6 +63,8 @@
     <h2>LED-Ring</h2>
     <svg id="ring" viewBox="-110 -110 220 220" role="img" aria-label="LED-Ring mit 40 Punkten"></svg>
     <div id="ringtext" class="leise"></div>
+    <div class="balken" aria-hidden="true" title="Echte Helligkeit des Rings; die Marke ist der Deckel der Box"><i id="ring-balken"></i><b id="ring-deckel"></b></div>
+    <div id="ring-hinweis" class="leise" style="text-align:center">Die Farben sind zur besseren Sichtbarkeit voll dargestellt; die echte Helligkeit steht in der Zahl und im Balken.</div>
   </section>
 
   <section>
@@ -194,17 +196,22 @@ function zeichneRing(ring) {
   if (!ring || !Array.isArray(ring.farben) || ring.farben.length !== 40) {
     leds.forEach((c) => { c.setAttribute("fill", "#8a8a8a"); c.setAttribute("opacity", "0.35"); });
     $("ringtext").textContent = "Ring noch nicht verdrahtet";
+    $("ring-balken").style.width = "0%";
     return;
   }
-  let h = Number(ring.helligkeit); if (!(h >= 0)) h = 100;
-  if (h > 1) h = h / 100;
+  // Helligkeit in Prozent (0 bis zum Deckel der Box, 25 %). Die Punkte zeigen die Farbe mit voller Deckkraft (normiert):
+  // bei 25 % wären sie sonst kaum zu sehen. Die echte Helligkeit steht als Zahl und im Balken darunter.
+  let h = Number(ring.helligkeit); if (!(h >= 0)) h = 0;
+  const deckel = Number(ring.deckel) > 0 ? Number(ring.deckel) : 25;
   ring.farben.forEach((f, i) => {
     const c = farbe(f, 1);
-    leds[i].setAttribute("fill", farbe(f, h) || "var(--led-aus)");
-    leds[i].setAttribute("opacity", c ? "1" : "0.45");
+    if (h <= 0 || !c) { leds[i].setAttribute("fill", "var(--led-aus)"); leds[i].setAttribute("opacity", "0.45"); }
+    else { leds[i].setAttribute("fill", c); leds[i].setAttribute("opacity", "1"); }
   });
   const name = ring.zustand ? (RING_NAMEN[ring.zustand] || ring.zustand) + ", " : "";
-  $("ringtext").textContent = name + "Helligkeit " + Math.round(h * 100) + " %";
+  $("ringtext").textContent = name + "Helligkeit " + (Math.round(h * 10) / 10) + " % (Deckel " + deckel + " %)";
+  $("ring-balken").style.width = Math.min(100, h) + "%";
+  $("ring-deckel").style.left = Math.min(100, deckel) + "%";
 }
 
 async function senden(zeile) {
@@ -213,6 +220,7 @@ async function senden(zeile) {
     const a = await r.json();
     if (a.ok) { $("meldung").textContent = ""; }
     else if (a.fehler === "noch_nicht_verdrahtet") { $("meldung").textContent = "Dieser Eingang ist in der Box noch nicht verdrahtet."; }
+    else if (a.fehler === "quelle_nicht_sim") { $("meldung").textContent = "Dieser Eingang ist gesperrt: Seine Quelle ist nicht „sim“ (Einstellung [sim] erlauben = true hebt das auf)."; }
     else { $("meldung").textContent = "Abgelehnt: " + (a.fehler || "unbekannter Grund"); }
     holen();
     return a;
@@ -274,19 +282,27 @@ function zeigeLautstaerke(d) {
   $("grenze-text").textContent = a.grenze != null ? "Wirksame Grenze: " + a.grenze + " %" + (namen ? " (" + namen + ")" : "") : "";
 }
 
-function grauSetzen(el, ok, name) {
+let quelleSim = {};         // vom Dienst: welche Eingänge die Simulation bedienen darf (false: Quelle ist nicht „sim“)
+
+function grauSetzen(el, ok, grund) {
   el.classList.toggle("grau", !ok);
-  el.title = ok ? "" : "In der Box noch nicht verdrahtet";
+  el.title = ok ? "" : (grund || "In der Box noch nicht verdrahtet");
   if (el.tagName === "INPUT") el.disabled = !ok;
 }
 
+const GESPERRT_TEXT = "Gesperrt: Die Quelle dieses Eingangs ist nicht „sim“ ([sim] erlauben = true hebt das auf)";
+function eingangOk(name) { return verdrahtet[name] !== false && quelleSim[name] !== false; }
+function eingangGrund(name) { return quelleSim[name] === false ? GESPERRT_TEXT : "In der Box noch nicht verdrahtet"; }
+
 function zeigeEingaenge(d) {
   verdrahtet = d.verdrahtet || {};
+  quelleSim = d.quelle_sim || {};
   document.querySelectorAll("[data-eingang]").forEach((el) => {
     const n = el.dataset.eingang;
-    grauSetzen(el, verdrahtet[n] !== false);
+    grauSetzen(el, eingangOk(n), eingangGrund(n));
   });
-  document.querySelectorAll("[data-netz]").forEach((el) => grauSetzen(el, verdrahtet.netz !== false));
+  document.querySelectorAll("[data-regler]").forEach((el) => grauSetzen(el, eingangOk("regler"), eingangGrund("regler")));
+  document.querySelectorAll("[data-netz]").forEach((el) => grauSetzen(el, eingangOk("netz"), eingangGrund("netz")));
   const taste = verdrahtet.hauptknopf_lang === false ? "Hauptknopf lang: in der Box noch nicht verdrahtet." : "";
   $("hinweis-taste").textContent = taste;
   const teile = [];

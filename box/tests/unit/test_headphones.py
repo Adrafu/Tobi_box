@@ -93,13 +93,14 @@ async def test_unlesbarer_kontakt_haelt_den_letzten_wert_und_loggt_einmal(caplog
     b = Buchse(k, entprellen=1)
     await b.start()
     k.ok = False
-    for _ in range(3):
+    assert await b.pruefe() == [ev.KopfhoererLesbar(False)]  # Entscheidung P: einmal melden, dann gilt die Kopfhörer-Grenze
+    for _ in range(2):
         assert await b.pruefe() == []
     assert b.steckt is True
     warnungen = [r for r in caplog.records if r.levelname == "WARNING" and getattr(r, "ereignis", "") == "messen"]
     assert len(warnungen) == 1
     k.ok, k.wert = True, False
-    assert await b.pruefe() == [ev.Kopfhoerer(False)]
+    assert await b.pruefe() == [ev.Kopfhoerer(False), ev.KopfhoererLesbar(True)]  # erst der Wert, dann wieder lesbar
 
 
 async def test_start_mit_unlesbarem_kontakt_meldet_nichts_und_spaeter_den_ersten_wert():
@@ -113,10 +114,10 @@ async def test_start_mit_unlesbarem_kontakt_meldet_nichts_und_spaeter_den_ersten
             return await sim.steckt()
 
     b = Buchse(Treiber(), entprellen=1)
-    assert await b.start() == []
+    assert await b.start() == [ev.KopfhoererLesbar(False)]  # B3/Entscheidung P: ohne erste Messung gilt die Kopfhörer-Grenze
     assert b.steckt is None
     laeuft["ok"] = True
-    assert await b.pruefe() == [ev.Kopfhoerer(True)]
+    assert await b.pruefe() == [ev.Kopfhoerer(True), ev.KopfhoererLesbar(True)]
 
 
 def test_entprellen_unter_eins_ist_ein_fehler():
@@ -168,19 +169,145 @@ def test_parse_pegel_unverstaendlich():
         headphones.parse_pegel("hallo")
 
 
-async def test_gpioget_attrappe(tmp_path, monkeypatch):
-    """Der Standardleser ruft ``gpioget <chip> <pin>``; hier ein Skript, das den Pegel aus einer Datei liest."""
-    zustand = tmp_path / "pegel"
-    zustand.write_text("0\n")
+def _gpioget_skript(tmp_path, version: str, pegel_datei) -> None:
+    """Attrappe für ``gpioget``: schreibt die Argumente in ``aufruf``, kennt ``--version``, gibt den Pegel aus der Datei aus."""
     skript = tmp_path / "gpioget"
-    skript.write_text(f'#!/bin/sh\necho "$1 $2" > {tmp_path}/aufruf\ncat {zustand}\n')
+    skript.write_text(
+        '#!/bin/sh\n'
+        f'if [ "$1" = "--version" ]; then echo "gpioget (libgpiod) {version}"; exit 0; fi\n'
+        f'echo "$@" > {tmp_path}/aufruf\n'
+        f'cat {pegel_datei}\n'
+    )
     skript.chmod(0o755)
+
+
+@pytest.fixture
+def ohne_gpiozero(monkeypatch):
+    """Rückfall auf ``gpioget``: ``gpiozero`` gilt als nicht installiert; die Versionserkennung ist frisch."""
+    import sys
+
+    from tobibox import headphones
+
+    monkeypatch.setitem(sys.modules, "gpiozero", None)  # ``import gpiozero`` -> ImportError
+    monkeypatch.setattr(headphones, "_versionen", {})
+
+
+async def test_gpioget_libgpiod_1_mit_bias_pull_up(tmp_path, monkeypatch, ohne_gpiozero):
+    """B4: libgpiod 1.x: ``gpioget --bias=pull-up <chip> <pin>``."""
+    pegel = tmp_path / "pegel"
+    pegel.write_text("0\n")
+    _gpioget_skript(tmp_path, "1.6.3", pegel)
     monkeypatch.setenv("PATH", f"{tmp_path}:/usr/bin:/bin")
     k = GpioKopfhoerer(17, chip="gpiochip0")
     assert await k.steckt() is True  # Pegel tief, aktiv niedrig
-    assert (tmp_path / "aufruf").read_text().strip() == "gpiochip0 17"
-    zustand.write_text("1\n")
+    assert (tmp_path / "aufruf").read_text().strip() == "--bias=pull-up gpiochip0 17"
+    pegel.write_text("1\n")
     assert await k.steckt() is False
+    assert k.dauerhaft is False  # Prozess je Messung: die Buchse misst seltener
+
+
+async def test_gpioget_libgpiod_2_mit_bias_und_c(tmp_path, monkeypatch, ohne_gpiozero):
+    """B4: libgpiod 2.x: ``gpioget --bias=pull-up -c <chip> <pin>``; Ausgabe ``"17"=active`` / ``inactive``."""
+    pegel = tmp_path / "pegel"
+    pegel.write_text('"17"=inactive\n')
+    _gpioget_skript(tmp_path, "v2.1.3", pegel)
+    monkeypatch.setenv("PATH", f"{tmp_path}:/usr/bin:/bin")
+    k = GpioKopfhoerer(17, chip="gpiochip0")
+    assert await k.steckt() is True
+    assert (tmp_path / "aufruf").read_text().strip() == "--bias=pull-up -c gpiochip0 17"
+    pegel.write_text('"17"=active\n')
+    assert await k.steckt() is False
+
+
+async def test_gpioget_aktiv_hoch_nimmt_pull_down(tmp_path, monkeypatch, ohne_gpiozero):
+    pegel = tmp_path / "pegel"
+    pegel.write_text("1\n")
+    _gpioget_skript(tmp_path, "1.6.3", pegel)
+    monkeypatch.setenv("PATH", f"{tmp_path}:/usr/bin:/bin")
+    k = GpioKopfhoerer(17, aktiv_niedrig=False)
+    assert await k.steckt() is True
+    assert "--bias=pull-down" in (tmp_path / "aufruf").read_text()
+
+
+def test_gpioget_befehl_je_version():
+    from tobibox.headphones import gpioget_befehl
+
+    assert gpioget_befehl(1, "gpiochip0", 5, pull_up=True) == ["gpioget", "--bias=pull-up", "gpiochip0", "5"]
+    assert gpioget_befehl(2, "gpiochip0", 5, pull_up=False) == ["gpioget", "--bias=pull-down", "-c", "gpiochip0", "5"]
+
+
+class GpiozeroAttrappe:
+    """Nur ``DigitalInputDevice``: merkt sich die Argumente; ``value`` 1 = aktiv (bei Pull-up: Pin tief)."""
+
+    def __init__(self) -> None:
+        self.aufrufe: list[tuple] = []
+        self.geraet: "GpiozeroAttrappe.Geraet | None" = None
+
+    class Geraet:
+        def __init__(self) -> None:
+            self.value = 0
+            self.zu = False
+
+        def close(self) -> None:
+            self.zu = True
+
+    def DigitalInputDevice(self, pin, **kw):  # noqa: N802 - Name wie in gpiozero
+        self.aufrufe.append((pin, kw))
+        self.geraet = self.Geraet()
+        return self.geraet
+
+
+async def test_gpiozero_ist_der_vorrang_ohne_prozess_und_mit_pull_up():
+    """B4: Vorgabe ist gpiozero (kein Prozess je Messung, ausdrücklicher Pull-up)."""
+    g = GpiozeroAttrappe()
+    k = GpioKopfhoerer(17, fabrik=g)
+    assert await k.steckt() is False  # value 0 = Pin hoch = offen
+    assert g.aufrufe == [(17, {"pull_up": True, "bounce_time": None})]
+    g.geraet.value = 1  # aktiv = Pin tief = Stecker
+    assert await k.steckt() is True
+    assert k.dauerhaft is True
+    k.schliesse()
+    assert g.geraet is not None and g.geraet.zu
+
+
+async def test_gpiozero_aktiv_hoch_mit_pull_down():
+    g = GpiozeroAttrappe()
+    k = GpioKopfhoerer(17, aktiv_niedrig=False, fabrik=g)
+    await k.steckt()
+    assert g.aufrufe[0][1]["pull_up"] is False
+    g.geraet.value = 1
+    assert await k.steckt() is True
+
+
+async def test_gpiozero_fehler_ist_ein_oserror():
+    class Kaputt:
+        def DigitalInputDevice(self, pin, **kw):  # noqa: N802
+            raise RuntimeError("Pin belegt")
+
+    with pytest.raises(OSError):
+        await GpioKopfhoerer(17, fabrik=Kaputt()).steckt()
+
+
+async def test_buchse_misst_mit_gpioget_hoechstens_einmal_je_sekunde(monkeypatch):
+    """B4: Rückfall ohne gpiozero: kein Prozessstart alle 0,2 s."""
+    from tobibox import headphones
+
+    class T:
+        dauerhaft = False
+
+        async def steckt(self):
+            return False
+
+    schlaf: list[float] = []
+
+    async def schlafen(s):
+        schlaf.append(s)
+        raise asyncio.CancelledError
+
+    monkeypatch.setattr(headphones.asyncio, "sleep", schlafen)
+    with pytest.raises(asyncio.CancelledError):
+        await Buchse(T(), intervall_s=0.2).lauf()
+    assert schlaf == [headphones.GPIOGET_INTERVALL_MIN_S]
 
 
 async def test_gpioget_fehlt_ist_ein_oserror(monkeypatch, tmp_path):

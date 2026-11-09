@@ -74,6 +74,7 @@ class Zustand:
     wirksam: int = 0
     kopfhoerer_grenze: int = 0  # bis zu den Einstellungen: nichts hörbar (Punkt 9.15)
     kopfhoerer_steckt: bool = False
+    kopfhoerer_unlesbar: bool = False  # Kontakt der Buchse nicht lesbar: Kopfhörer-Grenze gilt (Entscheidung P, 09.11.)
     stumm: bool = False
     lernt: bool = False
     unbekannt_seit: float | None = None
@@ -786,13 +787,38 @@ def _zurueck(z: Zustand, e: ev.Zurueck, jetzt: Jetzt) -> tuple[Zustand, Ausgabe]
     return _springen(z, -1, jetzt)
 
 
+def _kopfhoerer_grenze(z: Zustand) -> int | None:
+    """Die Kopfhörer-Grenze gilt, wenn ein Stecker steckt **oder** der Kontakt nicht lesbar ist (Entscheidung P)."""
+    return z.kopfhoerer_grenze if (z.kopfhoerer_steckt or z.kopfhoerer_unlesbar) else None
+
+
 def _kopfhoerer(z: Zustand, e: ev.Kopfhoerer, jetzt: Jetzt) -> tuple[Zustand, Ausgabe]:
-    grenze = z.kopfhoerer_grenze if e.steckt else None
     ausgang = "kopfhoerer" if e.steckt else "lautsprecher"
-    return replace(z, kopfhoerer_steckt=e.steckt), [
-        ev.GrenzeGesetzt(GRENZE_KOPFHOERER, grenze),
+    z = replace(z, kopfhoerer_steckt=e.steckt)
+    return z, [
+        ev.GrenzeGesetzt(GRENZE_KOPFHOERER, _kopfhoerer_grenze(z)),
         ev.AusgangWaehlen(ausgang),
     ]
+
+
+def _kopfhoerer_lesbar(z: Zustand, e: ev.KopfhoererLesbar, jetzt: Jetzt) -> tuple[Zustand, Ausgabe]:
+    """Entscheidung P (09.11.): Ist der Kontakt nicht lesbar, gilt die Kopfhörer-Grenze, bis er wieder lesbar ist.
+
+    Der Ausgang bleibt, wie er ist (nur die Ohren sind zu schützen). HA bekommt einen Hinweis."""
+    unlesbar = not e.lesbar
+    if unlesbar == z.kopfhoerer_unlesbar:
+        return z, []
+    z = replace(z, kopfhoerer_unlesbar=unlesbar)
+    out: list = [ev.GrenzeGesetzt(GRENZE_KOPFHOERER, _kopfhoerer_grenze(z))]
+    if unlesbar:
+        out.append(_prot("WARNING", "kopfhoerer", "unlesbar", grenze=z.kopfhoerer_grenze))
+        out.append(ev.EreignisSenden("fehler", {
+            "baustein": "kopfhoerer", "code": "kopfhoerer_unlesbar",
+            "text": "Der Kopfhörer-Kontakt ist nicht lesbar. Bis er wieder lesbar ist, gilt die Kopfhörer-Grenze.",
+        }))
+    else:
+        out.append(_prot("INFO", "kopfhoerer", "wieder_lesbar"))
+    return z, out
 
 
 # --------------------------------------------------------------------------
@@ -802,7 +828,7 @@ def _kopfhoerer(z: Zustand, e: ev.Kopfhoerer, jetzt: Jetzt) -> tuple[Zustand, Au
 
 def _einstellungen(z: Zustand, e: ev.GeraeteEinstellungen, jetzt: Jetzt) -> tuple[Zustand, Ausgabe]:
     z = replace(z, kopfhoerer_grenze=e.lautstaerke_kopfhoerer, neustart_uid=e.neustart_uid)
-    if z.kopfhoerer_steckt:
+    if z.kopfhoerer_steckt or z.kopfhoerer_unlesbar:
         return z, [ev.GrenzeGesetzt(GRENZE_KOPFHOERER, e.lautstaerke_kopfhoerer)]
     return z, []
 
@@ -969,6 +995,7 @@ _HANDLER: dict[type, _Handler] = {
     ev.Weiter: _weiter,
     ev.Zurueck: _zurueck,
     ev.Kopfhoerer: _kopfhoerer,
+    ev.KopfhoererLesbar: _kopfhoerer_lesbar,
     ev.Takt: _takt,
     ev.StummBeginnt: _stumm_beginnt,
     ev.StummEndet: _stumm_endet,

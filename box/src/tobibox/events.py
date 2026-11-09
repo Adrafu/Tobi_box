@@ -366,6 +366,16 @@ class Kopfhoerer(Ereignis):
     steckt: bool
 
 
+@dataclass(frozen=True, slots=True)
+class KopfhoererLesbar(Ereignis):
+    """Der Schaltkontakt der Buchse ist nicht (mehr) lesbar (``lesbar=False``) oder wieder lesbar (Entscheidung P, 09.11.).
+
+    Solange er nicht lesbar ist, gilt die Kopfhörer-Grenze (Gehörschutz). ``lesbar=False`` kommt auch beim Start, wenn die
+    erste Messung scheitert."""
+
+    lesbar: bool
+
+
 # --------------------------------------------------------------------------
 # 3.6 Strom, Netz, Sync, Update
 # --------------------------------------------------------------------------
@@ -384,6 +394,18 @@ class AkkuStand(Ereignis):
 @dataclass(frozen=True, slots=True)
 class AkkuTiefstand(Ereignis):
     pass
+
+
+@dataclass(frozen=True, slots=True)
+class HerunterfahrenFehlgeschlagen(Ereignis):
+    """Der Befehl ``Herunterfahren`` hat nicht gewirkt (09.11., Befund B1).
+
+    ``simuliert=False``: ``systemctl poweroff`` bzw. PiSugar hat einen Fehler gemeldet (``detail``); ``idle`` verlässt
+    ``herunterfahren``, zählt neu und meldet den Fehler an HA. ``simuliert=True``: Mac, das Herunterfahren wurde nur
+    protokolliert; ``idle`` kehrt nach ``SIMULATION_RUECKKEHR_S`` in den normalen Zustand zurück (kein Fehler, kein Hinweis)."""
+
+    detail: str = ""
+    simuliert: bool = False
 
 
 @dataclass(frozen=True, slots=True)

@@ -92,7 +92,9 @@ anzahl = 5
 # quelle = "sim"
 # tiefstand_prozent = 5               # darunter, nicht am Lader: Sync abbrechen und herunterfahren
 # intervall_s = 10
-# abschalt_kommando = ["systemctl", "poweroff"]   # Pi; am Mac wird nur protokolliert
+# abschalt_kommando = ["systemctl", "poweroff"]   # Pi; am Mac wird nur protokolliert. Endet es mit einem Fehler, läuft die Box weiter und meldet es HA.
+# taste_befehl = "get button_event"   # PLATZHALTER, am Pi prüfen (docs/betrieb/pisugar-wecker.md, "Hauptknopf"): Hauptknopf über den PiSugar; Vorgabe: aus
+# taste_intervall_s = 0.5
 
 # [kopfhoerer]
 # Schaltkontakt der Klinkenbuchse. Am Mac: quelle = "sim" (Vorgabe), der Stecker kommt von "tobibox sim headphones on|off".
@@ -114,3 +116,12 @@ anzahl = 5
 # pin_dreh_b = 13                     # Platzhalter (Drehregler, Kanal B)
 # pin_haupt = 26                      # Platzhalter, nur bei einem Knopf direkt am GPIO
 # lang_s = 1.5                        # so lange gehalten = Hauptknopf lang (Zeiger speichern und herunterfahren)
+
+# [sim]
+# Auf dem Pi stellt "tobibox sim" weder Uhr noch Tasten noch Kopfhörer (Antwort "quelle_nicht_sim"). Nur Eingänge mit quelle = "sim" (Mac)
+# werden simuliert. Wer am Pi trotzdem simulieren will:
+# erlauben = false
+
+# [uhr]
+# Ohne [netz] und [strom] gilt die Systemuhr auf Linux (Pi) nur mit NTP-Synchronisierung als sicher, am Mac immer. Überstimmen:
+# ntp_pflicht = false

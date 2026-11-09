@@ -185,6 +185,7 @@ async def test_drehregler_aus_einem_thread_kommt_in_die_ereignisschleife(d):
     await asyncio.to_thread(a.bedienung.drehen, 1)
     await d.ruhe()
     await d.warte(lambda: a.kern.wunsch == 22, 3.0, "Drehregler nicht angekommen")
+    assert a.kern.wunsch == 22 and a.bedienung.stand == 22  # T3: ein eigenes ``assert``, nicht nur die Zeitüberschreitung
 
 
 async def test_sim_tasten_und_regler_wirken(d):

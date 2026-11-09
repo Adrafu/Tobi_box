@@ -11,6 +11,7 @@
 *   **Änderung 09.11.:** Entscheidung L eingearbeitet (nie zwei Sachen gleichzeitig). Die Änderungen sind mit „(Entscheidung L, 09.11.)“ markiert.
 *   **Änderung 09.11.:** Entscheidung M eingearbeitet (Einsortieren nach Metadaten, vollautomatisch mit Korrektur) und die Vorgaben der Projektleitung zu Vertrag W (`docs/protocol/ha-websocket-v1.md`). Die Änderungen sind mit „(Entscheidung M, 09.11.)“ markiert.
 *   **Änderung 09.11.:** Entscheidung N eingearbeitet (Lesezeichen je Tobie mit Ablauf). Die Änderungen sind mit „(Entscheidung N, 09.11.)“ markiert.
+*   **Änderung 09.11.:** Entscheidungen O und P eingearbeitet (Leerlauf zählt auch mit liegendem Tobie; nicht lesbarer Kopfhörer-Kontakt gilt als „Kopfhörer steckt“ für die Grenze) und die Befunde des Code-Reviews zu AP 3.7 und 4.8 (`docs/egm/software-prototyp/code_review_stufe3a_4.md`). Die Änderungen sind mit „(Entscheidung O, 09.11.)“, „(Entscheidung P, 09.11.)“ bzw. „(Befund B…, 09.11.)“ markiert.
 *   **Grundlage:** `concepts_brief.md` (gleicher Ordner) inkl. Entscheidungen
     Runde 1 und 2
 
@@ -527,6 +528,41 @@ Alternativen“.
         heißt jetzt „in den Eingang“. Die Überraschungs-Serie kann die Seite anlegen, wenn
         es keine gibt; als Ziel einer Zuordnung ist sie verboten.
 
+*   **Entscheidung O — Leerlauf zählt auch mit liegendem Tobie (09.11.):** Leerlauf heißt: 20 min lang wird nichts
+    gespielt, **egal ob ein Tobie liegt**. Anlass (Review, B5): Nach „Gute Nacht“ oder einem „stumm“-Fenster liegt der
+    Tobie noch, und die Box blieb die ganze Nacht an, bis der Akku am Morgen leer war. Es gelten weiter die Ausnahmen
+    Sync, Update und Lernmodus (die Box wartet), und Bedienung an der Box setzt den Zähler zurück. Morgens beim
+    Einschalten spielt ein liegender Tobie wie bisher sofort weiter (Entscheidung G). Der Ring zeigt die Pause bei
+    liegendem Tobie auch im Leerlauf weiter. Vertrag: `core-interface.md`, Abschnitt 9, Punkt 9.
+
+*   **Entscheidung P — Nicht lesbarer Kopfhörer-Kontakt: die Kopfhörer-Grenze gilt (09.11.):** Ist der Schaltkontakt der
+    Buchse nicht lesbar (`gpioget` fehlt, falscher Pin, fehlende Rechte), gilt die Kopfhörer-Grenze. Das schützt die
+    Ohren; die Grenze gilt, bis der Kontakt wieder lesbar ist, und auch beim Start, solange die erste Messung fehlt.
+    Der Ausgang bleibt, wie er ist. HA bekommt einen Hinweis (`event` `fehler`, `code="kopfhoerer_unlesbar"`).
+    Anlass (Review, B3): Vorher fiel der Gehörschutz stillschweigend weg. Vertrag: `core-interface.md`, Abschnitt 3.5 und 9, Punkt 15;
+    `mqtt-v1.md`, Abschnitt 3.4.
+
+*   **Befunde des Reviews zu AP 3.7 und 4.8 (09.11.), Entscheidungen der Projektleitung:**
+    *   **B1 — Herunterfahren ist nicht endgültig.** `power` prüft den Rückgabecode von `systemctl poweroff` bzw. des
+        eingestellten Kommandos (und eine Frist von 60 s) und meldet einen Fehler als `HerunterfahrenFehlgeschlagen`;
+        `idle` verlässt `herunterfahren`, zählt neu, schreibt ins Protokoll und meldet es HA (`code="herunterfahren_fehlgeschlagen"`).
+        Am Mac (Simulation, auch ohne `[strom]`) ist das Herunterfahren nur protokolliert; `idle` kehrt nach 10 s in den normalen
+        Zustand zurück.
+    *   **B2 — Hauptknopf am Pi.** Der `pisugar-server` hat nach der Dokumentation keinen Befehl für Tastenereignisse. Die Abfrage ist
+        hinter `[strom] taste_befehl` verdrahtet (Vorgabe: aus) und **am Pi zu prüfen**; sonst braucht der Hauptknopf `[tasten] pin_haupt`.
+        Ohne beides warnt der Dienst beim Start (`docs/betrieb/pisugar-wecker.md`).
+    *   **B4 — Kopfhörer-Kontakt lesen.** Vorrang hat `gpiozero` (Pull-up ausdrücklich, kein Prozess je Messung, unabhängig von der
+        libgpiod-Version); Rückfall `gpioget --bias=…` mit erkannter Version (1.x: `gpioget <chip> <pin>`, 2.x: `gpioget -c <chip> <pin>`),
+        dann höchstens eine Messung je Sekunde.
+    *   **B6, B7.** Nach dem Entschluss zum Herunterfahren startet kein zeitgesteuerter Sync mehr; ein Start-Sync am Lader wartet
+        (höchstens 30 s) auf die erste Netz-Klasse.
+    *   **B9 — Sim-Eingänge nur mit Quelle `sim`.** `sim time`, `key`, `headphones` und die übrigen Eingänge wirken nur, wenn die Quelle
+        des Eingangs `sim` ist (Mac) oder `[sim] erlauben = true` gilt. Sonst antwortet `sim` mit `quelle_nicht_sim`, die Oberfläche
+        graut den Knopf aus.
+    *   **B12, B13, B14, B15, B16.** Der Ton `akku_leer` beim Tiefstand; Töne folgen der „leiser“-Absenkung; `sim regler` geht
+        über `Bedienung` wie der Drehregler; die Systemuhr gilt auf einem Pi ohne `[netz]`/`[strom]` nur mit NTP-Synchronisierung
+        (`timedatectl`, `/run/systemd/timesync/synchronized`); `UpdateStarten` wird bis Stufe 3b mit „Update kommt mit Stufe 3b.“ abgelehnt.
+
 *   **Entscheidung N — Lesezeichen je Tobie mit Ablauf (09.11.):** Jeder Tobie (genauer: jeder
     Zeiger) behält seine eigene Stelle, auch wenn zwischendurch andere Tobies gespielt haben;
     das war schon so (CUJ 4, `resume.json`). Neu (Entscheidung N, 09.11.); die Regeln stehen
@@ -578,7 +614,7 @@ Alternativen“.
 Erledigt: Medienformate und Lautheitsangleich (siehe D5 und D6), Ende der
 letzten Folge und Ende eines „stumm“-Fensters (Entscheidungen A und B),
 Datenvolumen im Hotspot (Entscheidung C), Hauptknopf nach Folgenende
-(Entscheidung E), Tobies als Folge oder Serie (Entscheidung F), Lernmodus wartet still (Entscheidung H), kleiner Rest gilt als fertig gehört (Entscheidung I), Töne folgen der Lautstärke (Entscheidung J), nie zwei Sachen gleichzeitig (Entscheidung L), Einsortieren nach Metadaten (Entscheidung M), Lesezeichen mit Ablauf (Entscheidung N), Schnittstellen und Datenformate (Stufe 0), die Befunde R1 bis
+(Entscheidung E), Tobies als Folge oder Serie (Entscheidung F), Lernmodus wartet still (Entscheidung H), kleiner Rest gilt als fertig gehört (Entscheidung I), Töne folgen der Lautstärke (Entscheidung J), nie zwei Sachen gleichzeitig (Entscheidung L), Einsortieren nach Metadaten (Entscheidung M), Lesezeichen mit Ablauf (Entscheidung N), Leerlauf mit liegendem Tobie (Entscheidung O), nicht lesbarer Kopfhörer-Kontakt (Entscheidung P), Schnittstellen und Datenformate (Stufe 0), die Befunde R1 bis
 R18 des Reviews Stufe 9.
 
 ## Risiken
@@ -824,8 +860,10 @@ Zustände, Übergänge und Konflikte: siehe „Kern-Zustände“.
     Sync und Update fertig sind. Beim Start am Lader prüft sie, ob ein Sync
     ansteht. Bedienung an der Box (Taste, Drehregler, Hauptknopf kurz,
     Kopfhörer) beginnt die 20 min neu; HA-Befehle (Sync, Update) tun das nicht
-    (09.11., AP 4.8). In der Simulation wird das Herunterfahren nur
-    protokolliert. Später (Stufe 4) kann der PiSugar-Wecker die Box am Lader
+    (09.11., AP 4.8). **Auch ein liegender Tobie hält die Box nicht an:** Wird 20 min lang nichts gespielt, schaltet sie ab
+    (Entscheidung O, 09.11.). Schlägt das Herunterfahren fehl, läuft die Box weiter, der Zähler beginnt neu und HA
+    bekommt einen Hinweis (Befund B1). In der Simulation wird das Herunterfahren nur
+    protokolliert; nach 10 s ist die Box wieder im normalen Zustand. Später (Stufe 4) kann der PiSugar-Wecker die Box am Lader
     nachts zum Sync wecken.
 
 ### CUJ 17: Kopfhörer
@@ -836,6 +874,8 @@ Zustände, Übergänge und Konflikte: siehe „Kern-Zustände“.
 *   **Then**: Zuerst gilt die Kopfhörer-Grenze, dann schaltet der Ausgang um
     (Regel: „Lautstärke“ in Baustein 3). Der Lautsprecher schaltet ab. Beim
     Ziehen gilt wieder Lautsprecher mit der normalen Grenze.
+*   **Kontakt nicht lesbar (Entscheidung P, 09.11.)**: Kann die Box den Schaltkontakt der Buchse nicht lesen (auch beim Start),
+    gilt die Kopfhörer-Grenze, bis er wieder lesbar ist. Der Ausgang bleibt. HA bekommt einen Hinweis (`kopfhoerer_unlesbar`).
 
 ### CUJ 18: LED-Ring-Zustände
 
@@ -1224,6 +1264,9 @@ Baustein 4, D6) verweisen hierher.
   „leiser“-Fenster, gilt die normale Grenze), bis die Zeit stimmt. Die Box meldet
   das an HA und trägt es ins Protokoll (Zeitquelle).
 - Am Mac ist die Systemuhr vertrauenswürdig. In Tests ist die Uhr simuliert.
+- Auf einem Pi ohne `[netz]` und `[strom]` gilt die Systemuhr nur mit NTP-Synchronisierung als sicher (`timedatectl` bzw.
+  `/run/systemd/timesync/synchronized`, Prüfung alle 10 s); sonst ist die Zeit unsicher wie ohne RTC und NTP (Befund B15, 09.11.).
+  `tobibox sim time` stellt die Uhr nur, wenn sie nicht von NTP abhängt (Mac). Die Vorgabe richtet sich nach dem Betriebssystem (Linux: Pflicht, Mac: nicht); `[uhr] ntp_pflicht = true|false` überstimmt sie.
 
 #### Kern-Zustände
 
@@ -1339,12 +1382,14 @@ Zustände: `aktiv`, `leerlauf` (Zähler für 20 min läuft), `herunterfahren`.
 
 | Zustand | Ereignis | Befehl | neuer Zustand |
 |---|---|---|---|
-| `aktiv` | keine Wiedergabe und kein Tobie | Leerlauf-Zähler starten (monotone Uhr) | `leerlauf` |
-| `leerlauf` | Wiedergabe oder Tobie → Zähler verwerfen; oder Bedienung (Taste, Drehregler, Hauptknopf kurz, Kopfhörer) → Zähler beginnt neu (09.11., AP 4.8) | Zähler verwerfen (bei Wiedergabe oder Tobie); bei Bedienung Zähler neu starten | `aktiv` (bei Wiedergabe oder Tobie); `leerlauf` (bei Bedienung) |
+| `aktiv` | keine Wiedergabe (ein liegender Tobie zählt nicht, Entscheidung O, 09.11.) | Leerlauf-Zähler starten (monotone Uhr) | `leerlauf` |
+| `leerlauf` | Wiedergabe → Zähler verwerfen; oder Bedienung (Taste, Drehregler, Hauptknopf kurz, Kopfhörer) → Zähler beginnt neu (09.11., AP 4.8) | Zähler verwerfen (bei Wiedergabe); bei Bedienung Zähler neu starten | `aktiv` (bei Wiedergabe); `leerlauf` (bei Bedienung) |
 | `leerlauf` | 20 min um, Sync, Update oder Lernmodus läuft (am Lader auch: Sync oder Update noch offen) | warten, Zähler neu; nach Ende des Syncs oder Updates erneut prüfen | `leerlauf` |
 | `leerlauf` | 20 min um, nichts läuft | Zeiger speichern, Herunterfahren | `herunterfahren` |
 | `aktiv` | Hauptknopf lang | Zeiger speichern, Herunterfahren | `herunterfahren` |
-| `aktiv`, `leerlauf` | Akku-Tiefstand (nicht am Lader) | Sync abbrechen, Zeiger speichern, Herunterfahren | `herunterfahren` |
+| `aktiv`, `leerlauf` | Akku-Tiefstand (nicht am Lader) | Sync abbrechen, Ton `akku_leer` (einmal), Zeiger speichern, Herunterfahren (Befund B12, 09.11.) | `herunterfahren` |
+| `herunterfahren` | das Kommando hat nicht gewirkt (`HerunterfahrenFehlgeschlagen`: Rückgabecode ungleich 0, Kommando fehlt, Frist 60 s) | Protokoll, Hinweis an HA (`herunterfahren_fehlgeschlagen`), Zähler neu | `aktiv`, dann `leerlauf` (Befund B1, 09.11.) |
+| `herunterfahren` | Simulation (Mac oder ohne `[strom]`): nur protokolliert, 10 s vergangen | Zähler neu (kein Hinweis an HA) | `aktiv`, dann `leerlauf` (Befund B1, 09.11.) |
 | beim Start | am Lader | prüfen, ob ein Sync ansteht. Bricht er mit `netz_weg` oder `regel` ab, versucht `idle` es erneut, solange die Box am Lader hängt: alle 10 min, höchstens 6-mal. Währenddessen wird nicht abgeschaltet. Danach, bei Erfolg, anderem Abbruchgrund oder ohne Lader gilt wieder die 20-min-Regel (Zähler abgelaufen: sofort) (09.11., AP 4.8) | `aktiv` |
 
 In der Simulation wird „Herunterfahren“ nur protokolliert. Am Lader nachts

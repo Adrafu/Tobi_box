@@ -54,6 +54,23 @@
     voran. Der Kern bleibt rein: Die Wanduhr kommt über `jetzt`. Siehe Abschnitt 6.3 und Abschnitt 9, Punkt 33.
     Alle Änderungen sind additiv; `schema_version` bleibt 2.
 
+*   **Änderung 09.11. (Befunde des Code-Reviews zu AP 3.7 und AP 4.8, `docs/egm/software-prototyp/code_review_stufe3a_4.md`;
+    Entscheidungen O und P von Tobias, Rev. 3.17):**
+    *   **Entscheidung O: Leerlauf zählt auch mit liegendem Tobie.** Leerlauf heißt: 20 min lang wird nichts gespielt, egal ob ein
+        Tobie liegt. Es gelten weiter die Ausnahmen Sync, Update und Lernmodus; Bedienung setzt den Zähler zurück. Beim Einschalten
+        spielt ein liegender Tobie wie bisher sofort weiter (Entscheidung G). Siehe Abschnitt 9, Punkt 9.
+    *   **Entscheidung P: Ist der Kopfhörer-Kontakt nicht lesbar, gilt die Kopfhörer-Grenze** (Gehörschutz), bis er wieder lesbar ist,
+        auch beim Start, solange die erste Messung fehlt. Neues Ereignis `KopfhoererLesbar`, HA bekommt `fehler` mit
+        `code="kopfhoerer_unlesbar"`. Siehe Abschnitt 3.5 und 9, Punkt 15.
+    *   **B1:** Ein fehlgeschlagenes Herunterfahren ist nicht endgültig. Neues Ereignis `HerunterfahrenFehlgeschlagen` (von `power`);
+        `idle` verlässt `herunterfahren` und zählt neu, HA bekommt `fehler` mit `code="herunterfahren_fehlgeschlagen"`. Am Mac
+        (Simulation) kehrt `idle` nach `SIMULATION_RUECKKEHR_S` = 10 s in den normalen Zustand zurück. Siehe 3.6 und 9, Punkt 9.
+    *   **B12:** `AkkuTiefstand` gibt einmal `TonSpielen("akku_leer")` aus; der Dienst wartet vor dem Poweroff auf das Ende des Tons.
+    *   **B13:** Während der Absenkung von „leiser“ richten sich Töne schon nach dem **Ziel** der Absenkung (8.1).
+    *   **B16:** Bis Stufe 3b antwortet `UpdateStarten` an HA mit `befehl_abgelehnt` (`detail` „Update kommt mit Stufe 3b.“).
+    *   Weitere Befunde (B2, B4 bis B11, B14, B15, B17) betreffen die Verdrahtung und stehen im Design (`box-software.md`) und in
+        `docs/betrieb/`. Alle Änderungen am Vertrag sind additiv.
+
 Die **Tabellen „Wiedergabe-Sitzung“, „Lernmodus“, „Ruhe-Regeln“ und
 „Strom / Leerlauf“** in „Kern-Zustände“ des Designs sind Teil dieses Vertrags
 und gelten unverändert. Dieses Dokument legt fest, **wie** die Teilautomaten
@@ -199,8 +216,9 @@ Alle HA-Befehle tragen eine Ablaufzeit. Der Kern prüft sie mit `jetzt.wall` und
 | `Zurueck` | – | voriger Track bzw. aktuellen Track neu starten (Taste „Zurück“), Regel in Abschnitt 9, Punkt 12 (Entscheidung F, 05.11.). |
 | `LautstaerkeDrehen` | `delta: int` | Drehregler, in Prozentpunkten (positiv lauter). |
 | `Kopfhoerer` | `steckt: bool` | Stecker erkannt (`True`) oder gezogen. |
+| `KopfhoererLesbar` | `lesbar: bool` | Der Schaltkontakt der Buchse ist nicht (mehr) lesbar (`False`, einmal je Störung, auch wenn schon die erste Messung beim Start scheitert) oder wieder lesbar (`True`, erst nach einem stabilen Wert und nach dem zugehörigen `Kopfhoerer`). `session` hält solange die Grenze `kopfhoerer` (Entscheidung P, 09.11.; Punkt 9.15). Der Ausgang ändert sich nicht. |
 
-Quellen am Pi (09.11., AP 4.8): `Hauptknopf` (kurz und lang) kommt von `power` (Taste des PiSugar) oder von `controls` (Knopf am GPIO, `pin_haupt` in `[tasten]`). `Kopfhoerer` kommt von der Buchse (`headphones`) und wird über 2 Messungen entprellt: Ein neuer Wert gilt erst, wenn zwei Messungen hintereinander ihn zeigen.
+Quellen am Pi (09.11., AP 4.8): `Hauptknopf` (kurz und lang) kommt von `power` (Taste des PiSugar) oder von `controls` (Knopf am GPIO, `pin_haupt` in `[tasten]`). **B2 (Review, 09.11.):** Für `power` ist in der Dokumentation des `pisugar-server` kein Befehl belegt, der Tastenereignisse liefert. Die Abfrage (`power.taste_lauf`) ist deshalb hinter `[strom] taste_befehl` verdrahtet (Vorgabe: aus) und **am Pi zu prüfen**; ohne `taste_befehl` und ohne `pin_haupt` warnt der Dienst beim Start (`docs/betrieb/pisugar-wecker.md`, Abschnitt „Hauptknopf“). `Kopfhoerer` kommt von der Buchse (`headphones`) und wird über 2 Messungen entprellt: Ein neuer Wert gilt erst, wenn zwei Messungen hintereinander ihn zeigen.
 
 ### 3.6 Strom, Netz, Sync, Update
 
@@ -209,6 +227,7 @@ Quellen am Pi (09.11., AP 4.8): `Hauptknopf` (kurz und lang) kommt von `power` (
 | `LaderGeaendert` | `am_lader: bool` | `power` | |
 | `AkkuStand` | `prozent: int` | `power` | 0 bis 100; nur zur Information und für `sync`. |
 | `AkkuTiefstand` | – | `power` | Akku kritisch leer, Box nicht am Lader. |
+| `HerunterfahrenFehlgeschlagen` | `detail: str` (Standard `""`), `simuliert: bool` (Standard `False`) | `power` (`app`, wenn es kein `power` gibt) | Der Befehl `Herunterfahren` hat nicht gewirkt (09.11., B1): das Kommando fehlt, endete mit Rückgabecode ungleich 0 oder brauchte länger als `ABSCHALT_FRIST_S` (`simuliert=False`, `detail` nennt den Grund); oder das Herunterfahren wurde nur protokolliert (Mac, `simuliert=True`). `idle` reagiert in `herunterfahren` darauf (Punkt 9.9). Nach einem Fehler meldet `power` einen fortbestehenden Tiefstand frühestens nach `TIEFSTAND_WIEDERHOLEN_S` = 60 s wieder. |
 | `NetzKlasse` | `klasse: Literal["home","hotspot","offline"]` | `net` | bei Änderung und einmal beim Start. |
 | `SyncGestartet` | – | `sync` | |
 | `SyncFertig` | `neu: int`, `geloescht: int` | `sync` | `neu` = übertragene Dateien. |
@@ -297,7 +316,7 @@ nennt, wer sie ausführt.
 | `TonSpielen` | `ton: Literal["start","unbekannt","fehler","hinweis","lernen_beginn","lernen_ende","akku_leer","pruef_ok","pruef_fehler"]` | `sounds` | kurzer Rückmeldeton (Datei `box/sounds/<ton>.wav`, `pruef_*` in AP 2.3). Töne laufen nacheinander und nie gleichzeitig; ein `Abspielen` derselben Ausgabe startet erst nach dem Ende der Töne (Abschnitt 6.5, Punkt 6; Entscheidung L, 09.11.). Die Status-Karte spielt außerdem die Prüfpunkt-Töne `pruef_<punkt>_ok` und `pruef_<punkt>_fehler` mit `<punkt>` ∈ {`leser`, `medien`, `netz`, `speicher`} sowie `pruef_leser_simulation` (09.11., Sprach-Töne für Tests); sie stehen nicht in `TonSpielen`, sondern in der Tonfolge von `selftest`. Fehlt eine solche Datei im Tonordner, spielt `sounds` stattdessen `pruef_ok` bzw. `pruef_fehler`. |
 | `StatusPruefen` | `vorgang: str \| None` | `selftest` | Prüfpunkte Leser, Medien, Netz, Speicher in dieser Reihenfolge nach den Kriterien aus Abschnitt 12.3 prüfen und je Punkt einen Ton spielen (`pruef_<punkt>_ok` oder `pruef_<punkt>_fehler`, Leser in der Simulation `pruef_leser_simulation`; Rückfall auf `pruef_ok`/`pruef_fehler`, siehe `TonSpielen`; 09.11., Sprach-Töne für Tests) (Status-Admin-Karte, CUJ 11). `selftest` wertet aus und lässt `sounds` die Töne spielen; ausgeführt wird der Befehl nur von `selftest`. |
 | `Melden` | `art: Literal["unbekannt","gelernt"]`, `uid: str`, `befehl_id: str \| None` | `outbox` | Eintrag in `unknown.json`, Veröffentlichung an HA, Löschen erst nach Bestätigung (Abschnitt 7). `befehl_id` ist bei `gelernt` die ID des Lernbefehls, sonst `None`. |
-| `EreignisSenden` | `art: Literal["fehler","befehl_abgelehnt"]`, `daten: Mapping[str, str \| int \| bool \| None]` | `ha` | Meldung an HA ohne Bestätigung (`…/event`). `befehl_abgelehnt` hat `daten = {"befehl": <lernen\|sync\|update>, "befehl_id": <str>, "grund": <bedingung\|zeit_unsicher>}` und optional `"detail"` (09.11., AP 4.8; Texte in Abschnitt 9, Punkt 9: „Die Box ist nicht im Heimnetz.“, „Die Box hängt nicht am Lader.“, „Es läuft gerade ein Hörspiel.“, „Es läuft gerade ein Sync.“, „Es läuft schon ein Update.“); `lernen_abbrechen` wird nie abgelehnt. Die Meldungen `liste_abgelehnt`, `v_unbekannt` und `befehl_unbekannt` entstehen **nicht** im Kern, sondern direkt in `ha` (Abschnitt 9, Punkt 9). |
+| `EreignisSenden` | `art: Literal["fehler","befehl_abgelehnt"]`, `daten: Mapping[str, str \| int \| bool \| None]` | `ha` | Meldung an HA ohne Bestätigung (`…/event`). `befehl_abgelehnt` hat `daten = {"befehl": <lernen\|sync\|update>, "befehl_id": <str>, "grund": <bedingung\|zeit_unsicher>}` und optional `"detail"` (09.11., AP 4.8; Texte in Abschnitt 9, Punkt 9: „Die Box ist nicht im Heimnetz.“, „Die Box hängt nicht am Lader.“, „Es läuft gerade ein Hörspiel.“, „Es läuft gerade ein Sync.“, „Es läuft schon ein Update.“); `lernen_abbrechen` wird nie abgelehnt. Bis Stufe 3b beantwortet `app` `UpdateStarten` mit `befehl_abgelehnt` (`befehl="update"`, `grund="bedingung"`, `detail="Update kommt mit Stufe 3b."`, B16, 09.11.). `art="fehler"` aus dem Kern: `baustein="kopfhoerer"`, `code="kopfhoerer_unlesbar"` (`session`, Entscheidung P) und `baustein="power"`, `code="herunterfahren_fehlgeschlagen"` (`idle`, B1), jeweils mit `text`. Die Meldungen `liste_abgelehnt`, `v_unbekannt` und `befehl_unbekannt` entstehen **nicht** im Kern, sondern direkt in `ha` (Abschnitt 9, Punkt 9). |
 | `ZustandMelden` | `sitzung: str`, `strom: Literal["aktiv","leerlauf","herunterfahren"]`, `serie_id: str \| None`, `lernmodus: bool`, `ruhe: Literal["normal","leiser","stumm"]`, `gute_nacht: Literal["aus","laeuft","ausblenden"]`, `figur_liegt: bool`, `folge: str \| None = None`, `track: int \| None = None` (Name der aktuellen Folge und Nummer des Tracks, für das optionale Statusfeld `folge`, 12.1) (Entscheidung F, 05.11.) | `ha` (Statussammler, Abschnitt 12), `led` | Sammelzustand für Status-Sensoren und LED-Ring. `core` erzeugt ihn bei jeder Änderung (6.1, Schritt 6). Den Status-JSON baut nicht der Kern, sondern der Statussammler in `ha` (Abschnitt 12). |
 | `LeserPing` | – | `reader` | `PING` an den Leser senden. |
 | `SyncStarten` | `grund: Literal["ha","start_lader"]` | `sync` | Sync anfordern. `sync` entscheidet nach der Netz-Regel (Heim / Hotspot und Akku), ob er läuft; wenn nicht, meldet er `SyncAbgebrochen(grund="regel")`. |
@@ -334,10 +353,10 @@ kennzeichen(zustand: Zustand) -> str                # kurzer Name des Zustands f
 
 | Modul | Name im Design | Zustände (`kennzeichen`) | Verarbeitet (Ereignisse) | Gibt aus |
 |---|---|---|---|---|
-| `session.py` | Wiedergabe-Sitzung | `leer`, `spielt`, `pausiert`, `beendet`, `gehalten`, `unbekannt` | `GeraeteEinstellungen`, `KonfigGeladen`, `BibliothekGeladen`, `ResumeGeladen`, `Bereit`, `Aufgelegt`, `Gesperrt`, `Abgehoben`, `LeserHallo`, `LeserAlarm`, `LeserHerzschlag`, `LautstaerkeGeaendert`, `TrackWechsel`, `FolgeZuEnde`, `PlayerPosition`, `PlayerFehler`, `PlayerVerbindung`, `Hauptknopf`, `Weiter`, `Zurueck`, `Kopfhoerer`, `Takt`, `StummBeginnt`, `StummEndet`, `LernenGeaendert`, `Bestaetigt` (nur `art="gelernt"`, Entscheidung H, 07.11.), `GuteNachtEnde`, `HerunterfahrenAngefordert`, `DienstEndet` | `Abspielen`, `Pausieren`, `ZeigerSpeichern`, `TonSpielen`, `Melden`, `AusgangWaehlen`, `LeserPing`, `Protokoll`; intern `SitzungGeaendert`, `AktionAusgeloest`, `GrenzeGesetzt` (`kopfhoerer`, `ausblenden`) |
+| `session.py` | Wiedergabe-Sitzung | `leer`, `spielt`, `pausiert`, `beendet`, `gehalten`, `unbekannt` | `GeraeteEinstellungen`, `KonfigGeladen`, `BibliothekGeladen`, `ResumeGeladen`, `Bereit`, `Aufgelegt`, `Gesperrt`, `Abgehoben`, `LeserHallo`, `LeserAlarm`, `LeserHerzschlag`, `LautstaerkeGeaendert`, `TrackWechsel`, `FolgeZuEnde`, `PlayerPosition`, `PlayerFehler`, `PlayerVerbindung`, `Hauptknopf`, `Weiter`, `Zurueck`, `Kopfhoerer`, `KopfhoererLesbar` (Entscheidung P), `Takt`, `StummBeginnt`, `StummEndet`, `LernenGeaendert`, `Bestaetigt` (nur `art="gelernt"`, Entscheidung H, 07.11.), `GuteNachtEnde`, `HerunterfahrenAngefordert`, `DienstEndet` | `Abspielen`, `Pausieren`, `ZeigerSpeichern`, `TonSpielen`, `Melden`, `AusgangWaehlen`, `LeserPing`, `EreignisSenden` (nur `fehler` bei `KopfhoererLesbar`), `Protokoll`; intern `SitzungGeaendert`, `AktionAusgeloest`, `GrenzeGesetzt` (`kopfhoerer`, `ausblenden`) |
 | `learn.py` | Lernmodus | `aus`, `lernt` | `HaLernmodus`, `HaLernmodusAbbruch`, `Aufgelegt`, `Gesperrt`, `Takt` | `TonSpielen`, `Melden`, `EreignisSenden`, `Protokoll`; intern `LernenGeaendert` |
 | `quiet.py` und `bedtime.py` | Ruhe-Regeln | `quiet`: `normal`, `leiser`, `stumm`; `bedtime`: `aus`, `laeuft`, `ausblenden` | `KonfigGeladen`, `Takt`, `ZeitquelleGeaendert`, `LautstaerkeGeaendert` (`quiet`); `KonfigGeladen`, `Takt`, `AktionAusgeloest`, `Abgehoben`, `LautstaerkeGeaendert` (`bedtime`) | `Protokoll`; intern `StummBeginnt`, `StummEndet`, `GrenzeGesetzt` (`leise_zeit`, `ausblenden` aus `quiet`; `gute_nacht` aus `bedtime`), `GuteNachtEnde` (aus `bedtime`) |
-| `idle.py` | Strom / Leerlauf | `aktiv`, `leerlauf`, `herunterfahren` | `SitzungGeaendert`, `LernenGeaendert`, `Takt`, `Hauptknopf` (lang), `Hauptknopf` (kurz), `Weiter`, `Zurueck`, `LautstaerkeDrehen`, `Kopfhoerer` (09.11., AP 4.8: Bedienung setzt den Leerlauf-Zähler zurück), `AkkuTiefstand`, `LaderGeaendert`, `NetzKlasse`, `SyncGestartet`, `SyncFertig`, `SyncAbgebrochen`, `UpdateGestartet`, `SelbsttestErgebnis`, `HaSyncAnstossen`, `HaUpdateAnstossen`, `Bereit` | `SyncStarten`, `SyncAbbrechen`, `UpdateStarten`, `EreignisSenden`, `Protokoll`; intern `HerunterfahrenAngefordert` |
+| `idle.py` | Strom / Leerlauf | `aktiv`, `leerlauf`, `herunterfahren` | `SitzungGeaendert`, `LernenGeaendert`, `Takt`, `Hauptknopf` (lang), `Hauptknopf` (kurz), `Weiter`, `Zurueck`, `LautstaerkeDrehen`, `Kopfhoerer` (09.11., AP 4.8: Bedienung setzt den Leerlauf-Zähler zurück), `AkkuTiefstand`, `LaderGeaendert`, `NetzKlasse`, `SyncGestartet`, `SyncFertig`, `SyncAbgebrochen`, `UpdateGestartet`, `SelbsttestErgebnis`, `HaSyncAnstossen`, `HaUpdateAnstossen`, `Bereit`, `HerunterfahrenFehlgeschlagen` (09.11., B1) | `SyncStarten`, `SyncAbbrechen`, `UpdateStarten`, `EreignisSenden`, `TonSpielen` (nur `akku_leer` beim Tiefstand, B12), `Protokoll`; intern `HerunterfahrenAngefordert` |
 
 Hinweise:
 
@@ -816,7 +835,9 @@ aller aktiven Grenzen**, und keine Lautstärke liegt darüber.
     MPD-Lautstärke (0 bis 100). `app.py` führt nach jedem Schritt des Kerns zwei Werte nach, die `sounds` verwendet
     (`TonSpielen` bekommt kein Feld, der Kern bleibt rein und kennt keine Tonpegel):
     *   `grenze`: die **dauerhafte wirksame Grenze** aus Abschnitt 8, also das Minimum aller Grenzen **ohne** die
-        Rampen `ausblenden` und `gute_nacht` (Review B2: Ohne diese Ausnahme blieben Töne nach dem Ausblenden
+        Rampen `ausblenden` und `gute_nacht`. **Ausnahme (Review zu AP 4.8, B13, 09.11.):** Läuft die Absenkung wegen eines „leiser“-Fensters
+        (`quiet.absenken`, Rampe über `ausblenden`, `LEISER_ABSENKEN_S`), zählt schon ihr **Ziel** als `leise_zeit`; ein Ton in diesen 3 s
+        klingt nie über der Grenze, die gleich gilt (`nachfuehrung.ton_pegel`) (Review B2: Ohne diese Ausnahme blieben Töne nach dem Ausblenden
         hängen bei 1 % und wären nicht zu hören; „stumm“ senkt damit nicht die Töne, sondern hält nur das Hörspiel an);
     *   `lautstaerke = max(0, min(wunsch, grenze))`: die **Lautstärke der Sitzung** nach den dauerhaften Grenzen, mit
         dem Wunsch des Kerns (`KernZustand.wunsch`). Vor dem ersten `LautstaerkeSetzen` gilt
@@ -1103,11 +1124,32 @@ gekennzeichneten sind von Tobias oder der Projektleitung entschieden
         dass sie ausgeht. HA-Befehle setzen ihn nicht zurück. (09.11., AP 4.8;
         Bedienung sind Hauptknopf kurz, `Weiter`, `Zurueck`, `LautstaerkeDrehen`
         und `Kopfhoerer`, Teilautomat `idle`.)
+    *   **Leerlauf zählt auch mit liegendem Tobie (Entscheidung O, 09.11., Befund B5).** Leerlauf heißt: 20 min lang wird nichts
+        gespielt (`spielt` und `unbekannt` zählen als belegt, `pausiert`, `beendet`, `gehalten` und `leer` nicht), egal ob ein
+        Tobie liegt. Anlass: Nach Gute Nacht oder einem „stumm“-Fenster liegt der Tobie noch, und die Box blieb sonst die ganze Nacht an.
+        Es gelten weiter die Ausnahmen Sync, Update und Lernmodus (die Abschaltung wartet), und Bedienung setzt den Zähler zurück.
+        Morgens beim Einschalten spielt ein liegender Tobie wie bisher sofort weiter (Entscheidung G). Der Ring zeigt die Pause bei
+        liegendem Tobie auch im Leerlauf weiter (`led`).
+    *   **Ein fehlgeschlagenes Herunterfahren ist nicht endgültig (B1, 09.11.).** `app` führt `Herunterfahren` erst aus, nachdem ein
+        laufender Ton (`akku_leer`) zu Ende ist (höchstens `TON_VOR_HERUNTERFAHREN_S` = 5 s). `power` prüft das Kommando
+        (`systemctl poweroff` oder `abschalt_kommando`): Rückgabecode 0 innerhalb `ABSCHALT_FRIST_S` = 60 s. Sonst sendet `power`
+        `HerunterfahrenFehlgeschlagen(detail)`. `idle` im Zustand `herunterfahren` verlässt ihn dann (neuer Zustand `aktiv`, danach
+        `leerlauf`, **der Zähler beginnt neu**), schreibt `Protokoll(ERROR)` und gibt
+        `EreignisSenden("fehler", {baustein: "power", code: "herunterfahren_fehlgeschlagen", text})` aus. `Hauptknopf lang` und ein
+        späterer Tiefstand fahren dann wieder herunter. **Ohne `power` und am Mac** (Simulation) ist das Herunterfahren nur
+        protokolliert: `power` (ohne `[strom]` `app`) sendet `HerunterfahrenFehlgeschlagen(simuliert=True)`; `idle` bleibt
+        `SIMULATION_RUECKKEHR_S` = 10 s in `herunterfahren` und kehrt dann in den normalen Zustand zurück (kein Hinweis an HA), damit die
+        Simulation benutzbar bleibt. In `herunterfahren` führt `idle` die Sitzungs-, Lade-, Lern- und Netzzustände nach, damit die Rückkehr auf dem
+        richtigen Stand beginnt. Der Zeitgesteuerte Sync (`takt`) startet nach dem Entschluss zum Herunterfahren nicht mehr (B6).
+    *   **Tiefstand (B12):** `idle` gibt bei `AkkuTiefstand` (nicht am Lader) einmal `TonSpielen("akku_leer")` aus, dann
+        `HerunterfahrenAngefordert("akku_tiefstand")`. Unter „stumm“ wird der Ton zum Hinweis (6.2, Regel 2).
     *   **Start am Lader** (09.11., AP 4.8). Bricht der Start-Sync mit
         `netz_weg` oder `regel` ab, versucht `idle` es erneut, solange die Box am
         Lader hängt: alle 10 min, höchstens 6-mal. Währenddessen wird nicht
         abgeschaltet. Danach, bei Erfolg, anderem Abbruchgrund oder ohne Lader
-        gilt wieder die 20-min-Regel (Zähler abgelaufen: sofort).
+        gilt wieder die 20-min-Regel (Zähler abgelaufen: sofort). Ist die Netz-Klasse beim Start noch unbekannt (die erste Messung von
+        `net` dauert länger als die von `power`), wartet `app` mit dem Start-Sync auf die erste `NetzKlasse`, höchstens
+        `NETZ_KLASSE_WARTEN_S` = 30 s, statt mit `SyncAbgebrochen("regel")` abzubrechen (B7, 09.11.).
 10. **Fehler des Players:**
     *   `PlayerFehler` im Zustand `spielt`: `TonSpielen("fehler")`,
         `Pausieren("fehler")`, `Protokoll(ERROR)`. Bei `datei_fehlt` oder
@@ -1299,7 +1341,14 @@ Modulkonstanten mit genau diesen Namen. Es gibt keine eigene Konstanten-Datei.
 | `ZIEL_LUFS`, `TOLERANZ_LU` | −18, 1 | `box/tools/lautheit.py` (Lautheit der Töne und Testmedien, Entscheidung J, 09.11.) |
 | `LERN_FRIST_S` | 120 | `learn.py` |
 | `LERN_ANTWORT_FRIST_S` | 10 | `session.py` (Wartezeit auf HA, wenn im Lernmodus ein Tobie aufgelegt wird, `mono`, Punkt 9.8) (Entscheidung H, 07.11.) |
-| `LEERLAUF_S` | 1200 (20 min) | `idle.py` |
+| `LEERLAUF_S` | 1200 (20 min) | `idle.py` (zählt auch mit liegendem Tobie, Entscheidung O, 09.11.) |
+| `SIMULATION_RUECKKEHR_S` | 10 | `idle.py` (Simulation: so lange bleibt `herunterfahren`, dann Rückkehr in den normalen Zustand; B1, 09.11.) |
+| `ABSCHALT_FRIST_S` | 60 | `power.py` (so lange darf das Abschalt-Kommando höchstens brauchen; B1) |
+| `TIEFSTAND_WIEDERHOLEN_S` | 60 | `power.py` (nach einem fehlgeschlagenen Herunterfahren meldet `power` den fortbestehenden Tiefstand frühestens dann wieder; B1) |
+| `TON_VOR_HERUNTERFAHREN_S` | 5 | `app.py` (so lange wartet der Dienst vor dem Poweroff auf das Ende des Tons `akku_leer`; B12) |
+| `NETZ_KLASSE_WARTEN_S` | 30 | `app.py` (Start-Sync am Lader wartet höchstens so lange auf die erste `NetzKlasse`; B7) |
+| `SYSTEMUHR_PRUEFEN_S` | 10 | `app.py` (Pi ohne `[netz]`/`[strom]`: Abstand der NTP-Prüfung der Systemuhr; B15) |
+| `GPIOGET_INTERVALL_MIN_S` | 1,0 | `headphones.py` (Rückfall ohne gpiozero: ein `gpioget`-Prozess je Messung, deshalb höchstens einmal je Sekunde; B4) |
 | `START_WIEDERHOLUNG_S` | 600 (10 min) | `idle.py` (Start am Lader: Abstand bis zum nächsten Versuch nach `netz_weg` oder `regel`, Abschnitt 9, Punkt 9; 09.11., AP 4.8) |
 | `START_WIEDERHOLUNGEN` | 6 | `idle.py` (höchstens so viele Wiederholungen des Start-Syncs am Lader; 09.11., AP 4.8) |
 | `STUMM_AUSBLENDEN_S` | 3,0 | `session.py` |
@@ -1444,6 +1493,12 @@ Projektleitung (P) entschieden oder aus dem Goldfisch-Review übernommen
     Weg, den Startwert der Rampe zu kennen (Abschnitt 8).
 15. **`kopfhoerer`-Grenze** kommt aus `tobibox.toml` als `lautstaerke_kopfhoerer`
     (das Design nennt die Grenze, aber nicht ihre Quelle).
+    **Bestätigt (09.11., Entscheidung P, Befund B3): Ist der Kopfhörer-Kontakt nicht lesbar, gilt die Kopfhörer-Grenze.** Das schützt
+    die Ohren. `headphones` sendet `KopfhoererLesbar(False)` einmal je Störung, auch beim Start, wenn die erste Messung scheitert.
+    `session` setzt dann die Grenze `kopfhoerer` (Wert `lautstaerke_kopfhoerer`), lässt aber den Ausgang, wie er ist, und gibt
+    `EreignisSenden("fehler", {baustein: "kopfhoerer", code: "kopfhoerer_unlesbar", text})` aus (einmal). Die Grenze gilt, bis der Kontakt
+    wieder lesbar ist: `KopfhoererLesbar(True)` kommt erst nach einem stabilen Wert und nach dem zugehörigen `Kopfhoerer`; steckt dann ein
+    Stecker, bleibt die Grenze. `GeraeteEinstellungen` nach dem Ausfall setzen die Grenze ebenfalls.
 16. **Bestätigt (05.11., P, Review-Befund 6): Neue Konfiguration bei liegender
     Tobie** wechselt auf die zugeordnete Serie, auch in `pausiert` und `beendet`
     (9.14), damit CUJ 7a „Box wechselt sofort“ erfüllt ist.

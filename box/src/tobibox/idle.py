@@ -3,9 +3,11 @@
 Reine Funktionen: kein Zugriff auf Dateien, Netz, Uhr oder Zufall. Zustände ``aktiv``, ``leerlauf``
 (Zähler für ``LEERLAUF_S`` läuft), ``herunterfahren``. Alle Fristen laufen auf ``jetzt.mono``.
 
-**Was „Leerlauf“ heißt.** Der Vertrag (Tabelle „Strom / Leerlauf“) kennt nur: *keine Wiedergabe und kein Tobie*.
-Das steht hier als ``belegt``: Die Sitzung spielt, ein Tobie liegt (auch eine Aktionskarte) oder die Sitzung ist im
-Zustand ``unbekannt`` (Leser-Unterbrechung, der Tobie kann noch da sein).
+**Was „Leerlauf“ heißt** (Entscheidung O, 09.11.). 20 min lang wird nichts gespielt, **egal ob ein Tobie liegt**. Das steht hier als
+``belegt``: Die Sitzung spielt, oder sie ist im Zustand ``unbekannt`` (Leser-Unterbrechung, die Wiedergabe läuft noch kurz).
+Ein liegender Tobie in ``pausiert``, ``beendet`` oder ``gehalten`` hält die Box nicht an (Gute Nacht, „stumm“-Fenster: sonst bliebe
+sie die ganze Nacht an). Es gelten weiter die Ausnahmen Sync, Update und Lernmodus; Bedienung setzt den Zähler zurück. Beim
+Einschalten spielt ein liegender Tobie wie bisher sofort weiter (Entscheidung G).
 
 **Bedienung setzt den Zähler zurück** (Entscheidung der Projektleitung, AP 4.8): Hauptknopf (kurz), ``Weiter``, ``Zurueck``,
 ``LautstaerkeDrehen`` und ``Kopfhoerer``. Wer an der Box spielt, will nicht, dass sie ausgeht. HA-Befehle (Sync, Update) setzen
@@ -24,7 +26,12 @@ fährt sie sofort herunter („nach Ende erneut prüfen“). Endet der **Lernmod
 Handlung von Tobias und der Zähler hatte sie nicht gesehen). Wird die Box wieder belegt, verfällt die Abschaltung.
 
 ``Hauptknopf`` lang und ``AkkuTiefstand`` (nicht am Lader) fahren immer herunter, auch während Sync, Update oder
-Lernmodus. Beim Tiefstand wird ein laufender oder offener Sync abgebrochen.
+Lernmodus. Beim Tiefstand wird ein laufender oder offener Sync abgebrochen und einmal der Ton ``akku_leer`` ausgegeben (B12).
+
+**Ein fehlgeschlagenes Herunterfahren ist nicht endgültig** (B1, 09.11.). Meldet ``power`` ``HerunterfahrenFehlgeschlagen``,
+verlässt ``idle`` den Zustand ``herunterfahren`` und zählt neu (``aktiv``/``leerlauf``); Protokoll und ``EreignisSenden("fehler")``
+an HA. Am Mac (``simuliert=True``) wird das Herunterfahren nur protokolliert; nach ``SIMULATION_RUECKKEHR_S`` kehrt ``idle`` in den
+normalen Zustand zurück, damit die Simulation benutzbar bleibt (kein Hinweis an HA).
 
 **Start am Lader.** Sobald ``Bereit`` da ist und der Lader bekannt ist (``LaderGeaendert`` kann vor oder nach
 ``Bereit`` kommen), gibt ``idle`` einmal ``SyncStarten("start_lader")`` aus, wenn die Box am Lader hängt.
@@ -53,6 +60,8 @@ SYNC_ANTWORT_FRIST_S = 60.0
 #: Start am Lader: nach ``netz_weg`` oder ``regel`` alle 10 min noch einmal versuchen, höchstens 6-mal.
 START_WIEDERHOLUNG_S = 600.0
 START_WIEDERHOLUNGEN = 6
+#: Am Mac wird das Herunterfahren nur protokolliert; so lange bleibt ``idle`` danach in ``herunterfahren`` (B1).
+SIMULATION_RUECKKEHR_S = 10.0
 _WIEDERHOLEN_BEI = ("netz_weg", "regel")
 
 Ausgabe = tuple[ev.Befehl | ev.InternesEreignis, ...]
@@ -81,6 +90,8 @@ class Zustand:
     start_wdh: bool = False  # der Start-Sync ist noch nicht gelungen und wird ggf. wiederholt
     wdh_n: int = 0  # bisher gemachte Wiederholungen
     wdh_bei: float | None = None  # mono; nächster Versuch
+    # Rückkehr aus ``herunterfahren`` (Simulation): Zeitpunkt auf ``mono``
+    ende_bis: float | None = None
 
 
 def neuer_zustand() -> Zustand:
@@ -92,8 +103,8 @@ def kennzeichen(zustand: Zustand) -> str:
 
 
 def belegt(z: Zustand) -> bool:
-    """Gegenteil von Leerlauf: es spielt etwas oder ein Tobie liegt."""
-    return z.spielt or z.figur_liegt or z.unbekannt
+    """Gegenteil von Leerlauf: es spielt etwas (ein liegender Tobie allein zählt nicht, Entscheidung O)."""
+    return z.spielt or z.unbekannt
 
 
 def sync_offen(z: Zustand) -> bool:
@@ -245,7 +256,7 @@ def _verarbeite(z: Zustand, e: ev.Ereignis | ev.InternesEreignis, jetzt: Jetzt) 
         if z.sync_laeuft or sync_offen(z):
             abbrechen = (ev.SyncAbbrechen("akku_tiefstand"),)
         z = _wdh_ende(replace(z, sync_laeuft=False, sync_offen_bis=None))
-        return _herunterfahren(z, "akku_tiefstand", *abbrechen)
+        return _herunterfahren(z, "akku_tiefstand", *abbrechen, ev.TonSpielen("akku_leer"))
 
     if isinstance(e, ev.LaderGeaendert):
         z = replace(z, am_lader=e.am_lader)
@@ -308,9 +319,45 @@ def _verarbeite(z: Zustand, e: ev.Ereignis | ev.InternesEreignis, jetzt: Jetzt) 
     return z, ()  # ``Takt`` und alles Übrige: nur der Zähler (``_auswerten``)
 
 
+def _zurueck_aus_herunterfahren(z: Zustand, jetzt: Jetzt, *vorher: ev.Befehl) -> tuple[Zustand, Ausgabe]:
+    """Das Herunterfahren hat nicht gewirkt: wieder ``aktiv``, der Leerlauf-Zähler beginnt neu."""
+    z = replace(z, modus="aktiv", faellig=False, frist_bis=0.0, ende_bis=None)
+    z, mehr = _auswerten(z, jetzt)
+    return z, (*vorher, *mehr)
+
+
+def _im_herunterfahren(z: Zustand, e: ev.Ereignis | ev.InternesEreignis, jetzt: Jetzt) -> tuple[Zustand, Ausgabe]:
+    """``herunterfahren`` ist beschlossen: nur das Ergebnis des Befehls und der Zustand der Umgebung zählen."""
+    if isinstance(e, ev.HerunterfahrenFehlgeschlagen):
+        if e.simuliert:
+            if z.ende_bis is not None:
+                return z, ()
+            return replace(z, ende_bis=jetzt.mono + SIMULATION_RUECKKEHR_S), (
+                _prot("INFO", "herunterfahren", "simuliert", rueckkehr_in_s=SIMULATION_RUECKKEHR_S),
+            )
+        text = f"Herunterfahren fehlgeschlagen: {e.detail}"[:200] if e.detail else "Herunterfahren fehlgeschlagen."
+        return _zurueck_aus_herunterfahren(
+            z, jetzt,
+            _prot("ERROR", "herunterfahren", "fehlgeschlagen", detail=e.detail[:200]),
+            ev.EreignisSenden("fehler", {"baustein": "power", "code": "herunterfahren_fehlgeschlagen", "text": text}),
+        )
+    if z.ende_bis is not None and jetzt.mono >= z.ende_bis:
+        return _zurueck_aus_herunterfahren(z, jetzt, _prot("INFO", "herunterfahren", "simulation_zurueck"))
+    # Umgebung nachführen, damit die Rückkehr auf dem richtigen Stand beginnt (keine Befehle)
+    if isinstance(e, ev.SitzungGeaendert):
+        z = replace(z, spielt=e.spielt, figur_liegt=e.figur_liegt, unbekannt=e.zustand == "unbekannt")
+    elif isinstance(e, ev.LernenGeaendert):
+        z = replace(z, lernt=e.aktiv)
+    elif isinstance(e, ev.LaderGeaendert):
+        z = replace(z, am_lader=e.am_lader)
+    elif isinstance(e, ev.NetzKlasse):
+        z = replace(z, klasse=e.klasse)
+    return z, ()
+
+
 def step(zustand: Zustand, ereignis: ev.Ereignis | ev.InternesEreignis, jetzt: Jetzt) -> tuple[Zustand, Ausgabe]:
     if zustand.modus == "herunterfahren":
-        return zustand, ()
+        return _im_herunterfahren(zustand, ereignis, jetzt)
     z, out = _verarbeite(zustand, ereignis, jetzt)
     z, mehr = _auswerten(z, jetzt)
     return z, out + mehr

@@ -98,12 +98,16 @@ class Bedienung:
 
     def drehen(self, raster: int) -> None:
         """``raster`` Raster im Uhrzeigersinn (positiv, lauter) oder dagegen (negativ)."""
-        if raster == 0:
+        self.drehen_prozent(raster * self.raster_prozent)
+
+    def drehen_prozent(self, prozent: int) -> None:
+        """Wie ``drehen``, aber in Prozentpunkten (``tobibox sim regler``: derselbe Weg wie die Hardware, B14)."""
+        if prozent == 0:
             return
         with self._sperre:
-            if raster > 0 and self.stand >= self.grenze:
+            if prozent > 0 and self.stand >= self.grenze:
                 return  # lauter geht nicht über die Grenze
-            neu = max(0, min(self.stand + raster * self.raster_prozent, self.grenze))
+            neu = max(0, min(self.stand + prozent, self.grenze))
             delta = neu - self.stand
             if delta == 0:
                 return  # schon an der Grenze (oder bei 0)
@@ -147,21 +151,35 @@ class GpioTreiber:
         if g is None:
             import gpiozero as g  # nur auf dem Pi vorhanden
         vor, zurueck, a, b, haupt = self._pins
-        # bounce_time: Entprellen im Treiber
-        tv = g.Button(vor, pull_up=True, bounce_time=0.03)
-        tv.when_pressed = self.b.vor
-        tz = g.Button(zurueck, pull_up=True, bounce_time=0.03)
-        tz.when_pressed = self.b.zurueck
-        dreh = g.RotaryEncoder(a, b, max_steps=0)
-        dreh.when_rotated_clockwise = lambda: self.b.drehen(1)
-        dreh.when_rotated_counter_clockwise = lambda: self.b.drehen(-1)
-        self.geraete = [tv, tz, dreh]
-        if haupt is not None:
-            th = g.Button(haupt, pull_up=True, bounce_time=0.03, hold_time=self.b.lang_s)
-            th.when_pressed = lambda: self.b.haupt_runter(self._uhr())
-            th.when_held = self.b.haupt_gehalten
-            th.when_released = lambda: self.b.haupt_hoch(self._uhr())
-            self.geraete.append(th)
+        erzeugt: list[Any] = []
+        try:
+            # bounce_time: Entprellen im Treiber
+            tv = g.Button(vor, pull_up=True, bounce_time=0.03)
+            erzeugt.append(tv)
+            tv.when_pressed = self.b.vor
+            tz = g.Button(zurueck, pull_up=True, bounce_time=0.03)
+            erzeugt.append(tz)
+            tz.when_pressed = self.b.zurueck
+            dreh = g.RotaryEncoder(a, b, max_steps=0)
+            erzeugt.append(dreh)
+            dreh.when_rotated_clockwise = lambda: self.b.drehen(1)
+            dreh.when_rotated_counter_clockwise = lambda: self.b.drehen(-1)
+            if haupt is not None:
+                th = g.Button(haupt, pull_up=True, bounce_time=0.03, hold_time=self.b.lang_s)
+                erzeugt.append(th)
+                th.when_pressed = lambda: self.b.haupt_runter(self._uhr())
+                th.when_held = self.b.haupt_gehalten
+                th.when_released = lambda: self.b.haupt_hoch(self._uhr())
+        except BaseException:
+            # Teilfehler (Pin belegt, fehlendes Recht): schon erzeugte Geräte schließen, sonst bleiben ihre Pins belegt (B17)
+            for g_ in erzeugt:
+                try:
+                    g_.close()
+                except Exception:  # noqa: BLE001
+                    pass
+            self.geraete = []
+            raise
+        self.geraete = erzeugt
 
     def stop(self) -> None:
         for g in self.geraete:

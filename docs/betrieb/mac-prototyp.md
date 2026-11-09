@@ -1080,7 +1080,8 @@ sich kein Browserfenster. Wie bei `tobibox status` gilt die Konfiguration aus `-
 ### Was die Seite zeigt und kann
 
 - **LED-Ring:** 40 Punkte aus dem Ring-Zustand des Dienstes (läuft, Pause, Akku, unbekannte Karte, Aufwachen; als Vorschlag
-  Lernmodus und Gute Nacht). Dieselbe Zeile steht im Terminal des Dienstes, und das Protokoll nennt jeden Wechsel (`led`/`ring`).
+  Lernmodus und Gute Nacht). Die Punkte zeigen die Farbe **normiert** (volle Deckkraft), damit man sie sieht; die echte Helligkeit
+  der Box (höchstens 25 %) steht daneben als Zahl und im Helligkeitsbalken, die Marke im Balken ist der Deckel. Dieselbe Zeile steht im Terminal des Dienstes, und das Protokoll nennt jeden Wechsel (`led`/`ring`).
   Solange der Dienst keinen Ring meldet, steht dort ein grauer Ring mit „Ring noch nicht verdrahtet“.
 - **Tasten:** Hauptknopf kurz, Hauptknopf lang, Zurück, Vor.
 - **Drehregler:** „− Raste“ und „+ Raste“ (eine Raste sind 2 Prozentpunkte), dazu die Lautstärke und die wirksame Grenze.
@@ -1096,6 +1097,14 @@ sich kein Browserfenster. Wie bei `tobibox status` gilt die Konfiguration aus `-
 
 Eingänge, die der Dienst noch nicht kennt, sind grau mit dem Hinweis „in der Box noch nicht verdrahtet“ (siehe Tabelle
 unten). Sie bekommen später ohne Änderung der Seite Leben.
+
+**Nur Eingänge mit Quelle `sim` (seit Rev. 3.17, Befund B9).** Die Seite und `tobibox sim` bedienen nur Eingänge, deren Quelle in
+`tobibox.toml` `sim` ist: Tasten und Regler (`[tasten] quelle`), Kopfhörer (`[kopfhoerer] quelle`), Ladegerät und Akku (`[strom]`
+fehlt oder `quelle = "sim"`), Netz (`[netz]` fehlt oder `quelle = "sim"`), Uhrzeit (`sim time`: nur, wenn `[netz]` und `[strom]` nicht
+an echter Hardware hängen und die Systemuhr nicht von NTP abhängt) und der HA-Ersatz (`learn`, `ack`, `card`: nur ohne `[mqtt]`).
+Auf dem Pi ist das Standard: Dort antwortet `sim` auf diese Eingänge mit `{"ok": false, "fehler": "quelle_nicht_sim"}`, und die Seite
+graut die Knöpfe aus. Wer am Pi trotzdem simulieren will, setzt `[sim] erlauben = true`. Die Tobies (`tobie_auflegen` usw.) bleiben
+immer erlaubt, damit ein echter Leser am Mac parallel weiterläuft.
 
 ### Wie die Tobies funktionieren (simulierter Leser)
 
@@ -1120,7 +1129,7 @@ Jede Zeile auf `sim.sock` ist ein JSON-Objekt mit dem Schlüssel `befehl` und wi
 | Befehl | Felder | Wirkung (Ereignis) | Heute |
 |---|---|---|---|
 | `taste` | `taste`: `hauptknopf_kurz`, `hauptknopf_lang`, `weiter`, `zurueck` | `Hauptknopf("kurz")`, `Hauptknopf("lang")`, `Weiter`, `Zurueck` | wirkt seit AP 4.8 (`tobibox sim key haupt\|haupt-lang\|vor\|zurueck`); `hauptknopf_lang` fährt herunter (am Mac nur protokolliert) |
-| `regler` | `delta`: ganze Zahl, nicht 0, höchstens 20 in Betrag (Prozentpunkte) | `LautstaerkeDrehen(delta)` | wirkt (der Kern klemmt an der Grenze); `tobibox sim knob +N\|-N` dreht N Rasten zu je 2 Prozentpunkten (höchstens 10) |
+| `regler` | `delta`: ganze Zahl, nicht 0, höchstens 20 in Betrag (Prozentpunkte) | `LautstaerkeDrehen(delta)` über `Bedienung` wie der echte Drehregler (seit B14: „lauter“ über der Grenze sendet nichts, der Wunsch bleibt) | wirkt (der Kern klemmt an der Grenze); `tobibox sim knob +N\|-N` dreht N Rasten zu je 2 Prozentpunkten (höchstens 10) |
 | `kopfhoerer` | `steckt`: `true` oder `false` | `Kopfhoerer(steckt)` | wirkt (Grenze und Ausgang der Sitzung); `tobibox sim headphones on\|off`. Mit `[kopfhoerer] quelle = "sim"` (Vorgabe) stellt `sim` den simulierten Schaltkontakt, und die `Buchse` meldet; bei `gpio` kommt der Stecker von der echten Buchse |
 | `zeit` | `iso`: Zeitpunkt in ISO 8601 (ohne Zone: Ortszeit des Rechners) oder `null` | stellt die Wanduhr des Dienstes (kein Ereignis); Antwort `{"ok": true, "wall": …}` | wirkt seit AP 4.8 (`tobibox sim time <ISO>\|now`), für die Leise-Zeiten. Die Uhr läuft von dort weiter, Timer und Fristen bleiben unberührt |
 | `strom` | `lader`: bool und/oder `akku`: 0 bis 100 | `LaderGeaendert`, `AkkuStand` | wirkt seit AP 3.7 (`tobibox sim power --charger on\|off --battery N`); mit `[strom] quelle = "sim"` stellt `sim` den Treiber ein und `power` meldet, sonst gibt `sim` die Ereignisse selbst aus |
@@ -1133,6 +1142,11 @@ Jede Zeile auf `sim.sock` ist ein JSON-Objekt mit dem Schlüssel `befehl` und wi
 
 Regeln:
 
+- Ist die Quelle des Eingangs nicht `sim` (und `[sim] erlauben` nicht gesetzt), lautet die Antwort `{"ok": false, "fehler": "quelle_nicht_sim"}`
+  und es entsteht kein Ereignis. Die Antwort auf `anzeige` nennt das Feld `quelle_sim` (Eingang → `true`/`false`; Namen wie in `verdrahtet`
+  und `zeit`, `ha`), daran graut die Seite die Knöpfe aus (B9).
+- `zeit` nimmt nur Jahre von 2000 bis 2100 an; alles andere (und jeder Fehler beim Umrechnen) ist `{"ok": false, "fehler": "iso ungueltig"}`
+  (B8). Die Verbindung bleibt offen; ein unerwarteter Fehler wird mit `{"ok": false, "fehler": "intern"}` beantwortet.
 - Ungültige Felder lehnt `sim` immer mit `{"ok": false, "fehler": "<Feld> ungueltig"}` ab, auch wenn der Eingang noch
   nicht verdrahtet ist. Danach erst kommt die Prüfung der Verdrahtung.
 - Ist ein Eingang noch nicht verdrahtet, lautet die Antwort `{"ok": false, "fehler": "noch_nicht_verdrahtet"}`, und es
