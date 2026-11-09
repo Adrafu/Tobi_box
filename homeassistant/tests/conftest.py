@@ -332,31 +332,49 @@ def einrichtung_daten(nas: Nas) -> dict[str, Any]:
 
 
 @pytest.fixture
-async def integration(
+async def starte_integration(
     hass: Any,
     mqtt_broker: Any,
     hass_storage: dict[str, Any],
     enable_custom_integrations: None,
     frontend_dir: Path,
-    nas: Nas,
     einrichtung_daten: dict[str, Any],
-) -> AsyncGenerator[Any]:
-    """Richtet die Integration ein und wartet, bis die Prüfung des Speichers beim Start fertig ist."""
-    entry = MockConfigEntry(domain=DOMAIN, data=einrichtung_daten, unique_id=DOMAIN, title="Tobi Box")
-    entry.add_to_hass(hass)
-    assert await hass.config_entries.async_setup(entry.entry_id)
+) -> AsyncGenerator[Callable[..., Any]]:
+    """``await starte(warten=True)`` richtet die Integration ein. Mit ``warten=False`` kommt der Test zurück, solange die
+    Prüfung des Speichers beim Start noch läuft (um dabei dauerhafte ``status``-Nachrichten der Boxen einzuspielen)."""
+    eintraege: list[MockConfigEntry] = []
+
+    async def starte(warten: bool = True) -> Any:
+        entry = MockConfigEntry(domain=DOMAIN, data=einrichtung_daten, unique_id=DOMAIN, title="Tobi Box")
+        entry.add_to_hass(hass)
+        eintraege.append(entry)
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+        hub = hass.data[DOMAIN]
+        if warten:
+            await fertig(hass, hub)
+        return hub
+
+    yield starte
+    for entry in eintraege:
+        await hass.config_entries.async_unload(entry.entry_id)
     await hass.async_block_till_done()
-    hub = hass.data[DOMAIN]
+
+
+async def fertig(hass: Any, hub: Any) -> None:
+    """Wartet, bis die Prüfung des Speichers, die erste Prüfung der Freigabe und der erste Durchlauf des Eingangs fertig sind."""
     await hub.start_fertig.wait()
-    # auch die erste Prüfung der Freigabe und der erste Durchlauf des Eingangs sind fertig, bevor der Test beginnt
     if hub._start_task is not None:
         await hub._start_task
     if hub.eingang._task is not None:
         await hub.eingang._task
     await hass.async_block_till_done()
-    yield hub
-    await hass.config_entries.async_unload(entry.entry_id)
-    await hass.async_block_till_done()
+
+
+@pytest.fixture
+async def integration(starte_integration: Callable[..., Any], nas: Nas) -> Any:
+    """Die eingerichtete Integration (Erststart: neue Liste, veröffentlicht)."""
+    return await starte_integration()
 
 
 @pytest.fixture

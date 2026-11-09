@@ -9,7 +9,6 @@ import threading
 import time
 from datetime import timedelta
 from pathlib import Path
-from typing import Any
 from unittest.mock import patch
 
 import aiohttp
@@ -269,7 +268,7 @@ async def test_gleiche_upload_id_parallel_upload_laeuft(hass, client, nas, mp3, 
         frei.wait(10)
         return echt(pfad, endung)
 
-    with patch("custom_components.tobibox.http.ffprobe.pruefe_datei", side_effect=langsam):
+    with patch("custom_components.tobibox.http.ffprobe.pruefe_datei", new=langsam):  # kein Mock: der Test-Harness von HA führt Mocks im Executor sofort in der Schleife aus
         erste = asyncio.ensure_future(post(client, formular(mp3, "a.mp3", upload_id="parallel-0001")))
         await warte_auf(hass, lambda: "parallel-0001" in integration.uploads_laufend, block=False)
         zweite = await post(client, formular(mp3, "b.mp3", upload_id="parallel-0001"))
@@ -289,7 +288,7 @@ async def test_hoechstens_zwei_uploads_gleichzeitig(hass, client, nas, mp3, inte
         frei.wait(10)
         return echt(pfad, endung)
 
-    with patch("custom_components.tobibox.http.ffprobe.pruefe_datei", side_effect=langsam):
+    with patch("custom_components.tobibox.http.ffprobe.pruefe_datei", new=langsam):  # kein Mock: der Test-Harness von HA führt Mocks im Executor sofort in der Schleife aus
         a = asyncio.ensure_future(post(client, formular(mp3, "a.mp3")))
         b = asyncio.ensure_future(post(client, formular(mp3, "b.mp3")))
         await warte_auf(hass, lambda: integration.upload_zaehler == 2, block=False)
@@ -401,7 +400,7 @@ async def test_abbruch_im_abschluss_shield_datei_und_ergebnis_sind_da(hass, clie
         frei.wait(10)
         return echt(pfad, endung)
 
-    with patch("custom_components.tobibox.http.ffprobe.pruefe_datei", side_effect=langsam):
+    with patch("custom_components.tobibox.http.ffprobe.pruefe_datei", new=langsam):  # kein Mock: der Test-Harness von HA führt Mocks im Executor sofort in der Schleife aus
         aufgabe = asyncio.ensure_future(post(client, formular(mp3, "abschluss.mp3", upload_id="abschluss-0001")))
         await warte_auf(hass, lambda: "abschluss-0001" in integration.uploads_laufend, versuche=300, block=False)
         await asyncio.sleep(0.5)  # das letzte Byte ist angekommen, die Prüfung hängt
@@ -473,8 +472,10 @@ async def test_ereignisse_und_einsortieren_nach_20_sekunden(hass, integration, h
     freezer.tick(timedelta(seconds=UPLOAD_SAMMELZEIT_S + 1))
     async_fire_time_changed(hass)
     await hass.async_block_till_done()
-    await warte_auf(hass, lambda: not (nas.eingang / "folge.mp3").exists(), versuche=300)
-    await warte_auf(hass, lambda: not integration.eingang.laeuft, versuche=300)
+    assert integration.eingang._task is not None
+    await integration.eingang._task  # (unter dem ``freezer`` steht die Schleifenzeit still: kein ``asyncio.sleep`` hier)
+    await hass.async_block_till_done()
+    assert not (nas.eingang / "folge.mp3").exists()
     serie = json.loads(next(nas.medien.glob("*/serie.json")).read_text())
     assert serie["name"] == "Upload-Serie" and serie["folgen"] == ["folge.mp3"]
     assert serie["folgen_info"]["folge.mp3"]["anzeige"] == "Folge 1"

@@ -13,7 +13,7 @@ import asyncio
 import json
 import logging
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.components import mqtt
@@ -31,7 +31,7 @@ from .const import (
 )
 from .fehler import TobiboxFehler
 from .store import konfig_zu_mqtt
-from .util import jetzt, iso, jetzt_iso, neue_uuid
+from .util import jetzt_iso, neue_uuid
 
 if TYPE_CHECKING:
     from .hub import Hub

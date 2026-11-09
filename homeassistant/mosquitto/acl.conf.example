@@ -1,0 +1,17 @@
+# Mosquitto-Add-on 7.1.3 ("Mosquitto broker"): Zugriffsrechte der Boxen
+#
+# Diese Datei kommt als  /share/mosquitto/acl.conf  auf den HA-Rechner. Sie ist eine
+# Mosquitto-KONFIGURATIONSdatei (das Add-on liest alle *.conf aus dem Ordner, wenn
+# customize.active: true gesetzt ist, siehe mosquitto-addon.example.yaml) und sagt nur,
+# wo die eigentlichen Regeln stehen. Die Regeln selbst (user/topic) gehören NICHT in eine
+# *.conf, Mosquitto würde sie als Konfiguration lesen und abbrechen.
+#
+# Die Regeln stehen in der Datei  /share/mosquitto/accesscontrollist  (Vorlage:
+# accesscontrollist.example in diesem Ordner, ohne Endung .conf).
+#
+# Der Ordner /share erreicht man in HA über SMB (Freigabe "share") oder auf dem Host unter
+# /usr/share/hassio/share. Nach jeder Änderung das Add-on neu starten.
+#
+# Quelle: DOCS.md des Add-ons 7.1.3, Abschnitt "Access Control Lists (ACLs)".
+
+acl_file /share/mosquitto/accesscontrollist

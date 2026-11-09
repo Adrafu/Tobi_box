@@ -39,7 +39,6 @@ from .fehler import TobiboxFehler
 from .media import (
     Serie,
     einfuege_index,
-    lese_serie,
     papierkorb_anlegen,
     schreibe_serie,
 )
@@ -59,7 +58,7 @@ from .namen import (
     vergleichsschluessel,
     zahl_vor_slash,
 )
-from .util import iso, jetzt, jetzt_iso, neue_id12, neue_uuid, parse_iso
+from .util import iso, jetzt, jetzt_iso, neue_id12, parse_iso
 
 if TYPE_CHECKING:
     from .hub import Hub
@@ -779,8 +778,8 @@ class Eingang:
         # --- Gruppieren und berechnen ---
         indizes = self._eingangsindizes(scan)
         gruppen = bilde_gruppen(bereit, indizes)
-        # Blockierte Dateien haben keine Tags und stehen im Ordner-Eintrag in der Gruppe "ohne album": eine
-        # Datei, die blockiert ist, hält ihre Gruppe zurück. Gruppen mit blockierter Datei werden nicht berechnet.
+        # Eine blockierte Datei (Kopierschutz, defekt) hält ihre ganze Gruppe zurück (Vertrag W, 11.10). Bei Kopierschutz
+        # kennt ``ffprobe`` die Tags, die Datei gehört also zu ihrem Album; eine unlesbare Datei landet in der Gruppe „ohne Album“.
         blockierte: list[Gruppe] = [g for g in gruppen if any(d.block for d in g.dateien)]
         gute = [g for g in gruppen if g not in blockierte]
         vorgaben = {k: v.get("serie_id") for k, v in self.vorgaben.items()}

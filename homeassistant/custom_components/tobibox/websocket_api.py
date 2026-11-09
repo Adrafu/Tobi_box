@@ -18,7 +18,6 @@ from .const import (
     DOMAIN,
     EREIGNIS_THEMEN,
     RE_ANFRAGE_ID,
-    VERTRAG_V,
 )
 from .fehler import TobiboxFehler
 from .hub import FEHLT, Hub
@@ -121,10 +120,6 @@ def befehl(
 def _felder(msg: dict[str, Any], *ohne: str) -> dict[str, Any]:
     """Die Eingabefelder ohne ``id`` und ``type`` (für den Fingerabdruck der ``anfrage_id``)."""
     return {k: v for k, v in msg.items() if k not in ("id", "type", "anfrage_id", *ohne)}
-
-
-def _begrenze_hub(hass: HomeAssistant) -> Hub:  # pragma: no cover - Hilfe für Tests
-    return _hub(hass)
 
 
 # --------------------------------------------------------------------------

@@ -1,0 +1,29 @@
+# Einstellung des Add-ons "Mosquitto broker" (Version 7.1.3) in Home Assistant:
+# Einstellungen > Add-ons > Mosquitto broker > Konfiguration (Dreipunktmenü: "In YAML bearbeiten").
+#
+# Die Box-Konten stehen unter "logins" (lokale Konten des Add-ons). Sie sind KEINE Home-Assistant-
+# Benutzer und haben damit keine Administratorrechte. Die Namen "homeassistant" und "addons" sind
+# reserviert. Das Add-on erlaubt keine anonyme Anmeldung.
+#
+# Passwörter: lang und zufällig (openssl rand -base64 24), nie im Repo, nie wiederverwenden.
+# Statt Klartext geht auch ein Hash: im Mosquitto-Container  pw -p "<Passwort>"  ausführen und das
+# Ergebnis mit  password_pre_hashed: true  eintragen. Der Hash ist trotzdem geheim.
+logins:
+  - username: box1
+    password: "<Passwort von Box 1>"
+  - username: box2
+    password: "<Passwort von Box 2>"
+  # Beispiel mit Hash:
+  # - username: box3
+  #   password: "PBKDF2$sha512$100000$...$..."
+  #   password_pre_hashed: true
+
+# Nötig, damit das Add-on /share/mosquitto/acl.conf liest und damit die Rechte der Boxen gelten
+# (acl.conf.example und accesscontrollist.example).
+customize:
+  active: true
+  folder: mosquitto
+
+log_dest: []
+log_type: []
+require_certificate: false

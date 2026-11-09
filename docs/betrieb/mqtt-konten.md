@@ -3,7 +3,7 @@
 *   **Status:** Anleitung zu AP 3.5, Entwurf. Noch nicht am Gerät durchgegangen.
 *   **Zielgruppe:** Tobias.
 *   **Gehört zu:** `docs/designs/box-software.md` (Baustein 4, MQTT-Schnittstelle), `docs/protocol/mqtt-v1.md` (Abschnitt 7, Mosquitto-Rechte, und Themenbaum in Abschnitt 2), `docs/betrieb/tailscale-nas.md` (Abschnitt 9 und 10).
-*   **Vorlagen dieses AP:** keine eigenen Dateien. Die Beispieldateien für den Broker (`homeassistant/mosquitto/`) entstehen erst in AP 3.3.
+*   **Vorlagen dieses AP:** keine eigenen Dateien. Die Beispieldateien für den Broker liegen unter `homeassistant/mosquitto/` (AP 3.1: `acl.conf.example`, `accesscontrollist.example`, `mosquitto-addon.example.yaml`).
 
 Wo eine Angabe nicht sicher ist, steht **„bitte am Gerät prüfen“**.
 
@@ -61,7 +61,7 @@ customize:
 ```
 
 *   `customize.active: true` ist nötig, sonst liest das Add-on keine eigene ACL-Datei.
-*   Die ACL-Datei heißt `/share/mosquitto/acl.conf` (Vertrag `mqtt-v1.md`, Abschnitt 7). Die Rechte aus Abschnitt 3 stehen dort, je Konto ein `user`-Block. Das Add-on muss die Datei über `acl_file` finden (laut Add-on-Dokumentation). Die Vorlagendatei kommt in AP 3.3 unter `homeassistant/mosquitto/`. Bis dahin von Hand anlegen. **Bitte am Gerät prüfen**, ob die Dateien unter `/share/mosquitto/` mit dem Dateimanager oder über SMB ankommen.
+*   **Zwei Dateien (Add-on 7.1.3, DOCS.md „Access Control Lists“):** `/share/mosquitto/acl.conf` ist eine Mosquitto-**Konfigurationsdatei** (das Add-on liest alle `*.conf` des Ordners) und enthält nur die Zeile `acl_file /share/mosquitto/accesscontrollist`. Die Regeln aus Abschnitt 3 (je Konto ein `user`-Block) stehen in der Datei `/share/mosquitto/accesscontrollist` **ohne** Endung `.conf`. Regeln in einer `*.conf` würde Mosquitto als Konfiguration lesen und abbrechen. Vorlagen: `homeassistant/mosquitto/acl.conf.example` und `accesscontrollist.example`; beide Formen (`user` je Konto und `pattern`) sind gegen Mosquitto 2.0.18 getestet (`homeassistant/tests/test_mosquitto_acl.py`). **Bitte am Gerät prüfen**, ob die Dateien über SMB oder den Dateimanager unter `/share/mosquitto/` ankommen.
 *   Passwort als Hash statt Klartext: Das Add-on kann Hash-Einträge verarbeiten (`password_pre_hashed: true`). Die Erzeugung des Hashs ist bitte am Gerät zu prüfen. Der Hash ist trotzdem geheim, wenn er in Abschnitt 5 nicht steht.
 *   Nach jeder Änderung das Add-on **neu starten** und das Protokoll des Add-ons ansehen. Dort stehen Anmeldefehler.
 

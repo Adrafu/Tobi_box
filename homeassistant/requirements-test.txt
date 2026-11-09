@@ -1,0 +1,17 @@
+# Feste Versionen für die Tests der Integration "tobibox" (eigene venv, Python 3.14, siehe README.md).
+#
+# Die Tests laufen mit pytest-homeassistant-custom-component. Dieses Paket pinnt GENAU eine HA-Version
+# (hier 2026.10.4). Für 2026.11.x gab es am 09.11.2026 noch keine passende Ausgabe des Pakets
+# (neueste: 0.13.375 -> homeassistant==2026.10.4; HA 2026.11.0 erschien am 04.11.2026).
+# Sobald es eine Ausgabe gibt, die homeassistant==2026.11.x pinnt, beide Zeilen unten ersetzen
+# (siehe README.md, Abschnitt "Getestete Versionen").
+pytest-homeassistant-custom-component==0.13.375
+homeassistant==2026.10.4
+
+# Die Seite der Integration braucht das Frontend-Paket (panel_custom setzt "frontend" voraus);
+# die Version ist die, die HA 2026.10.4 in components/frontend/manifest.json verlangt.
+home-assistant-frontend==20260930.5
+
+# Zusätzlich für die Tests dieses Ordners: eine ffmpeg-Installation im System (ffmpeg und ffprobe in
+# $PATH; erzeugt die Testdateien mit Tags) und optional mosquitto + mosquitto_passwd (prüft die
+# Zugriffsrechte der Vorlage gegen einen echten Broker; ohne sie werden diese Tests übersprungen).

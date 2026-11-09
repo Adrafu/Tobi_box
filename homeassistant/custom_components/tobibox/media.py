@@ -501,8 +501,6 @@ class Medien:
 
     def _fehler_schreiben(self, err: BaseException) -> TobiboxFehler:
         _LOGGER.error("Schreiben auf die Freigabe fehlgeschlagen: %s", err)
-        if isinstance(err, NamenErschoepft):
-            return TobiboxFehler("medien_schreibfehler")
         return TobiboxFehler("medien_schreibfehler")
 
     def tobies_der_serie(self, serie_id: str) -> list[dict[str, Any]]:

@@ -1,0 +1,59 @@
+# Regeln für das Mosquitto-Add-on 7.1.3. Kommt als  /share/mosquitto/accesscontrollist  (ohne
+# Endung) auf den HA-Rechner. Die Datei  /share/mosquitto/acl.conf  verweist darauf
+# (acl.conf.example). Vertrag: docs/protocol/mqtt-v1.md, Abschnitt 7 (korrigierte Fassung vom 09.11.).
+#
+# Wichtig:
+#  * "homeassistant" und "addons" erwartet HA unbeschränkt (readwrite #). Ohne diese Zeilen
+#    funktioniert die MQTT-Integration nicht mehr, sobald eine ACL aktiv ist.
+#  * Jede Box hat ein eigenes Konto (Name = Box-Name = box_id in tobibox.toml) und ist KEIN
+#    HA-Administrator (Konto unter "logins" im Add-on, siehe mosquitto-addon.example.yaml).
+#  * Eine Zeile "topic ..." gehört bei Mosquitto immer zum zuletzt genannten "user". Darum steht
+#    jede Zeile hier unter dem Konto, für das sie gilt.
+#  * Die Box darf NICHT: tobibox/config schreiben, .../cmd, .../ack und .../ui/... schreiben,
+#    Themen anderer Boxen lesen oder schreiben, andere Themen unter homeassistant/ schreiben.
+#  * Das Löschen der dauerhaften Nachricht einer unbekannten Kennung (leere Nutzlast) erlaubt
+#    "topic write tobibox/<box>/unknown/+".
+
+user homeassistant
+topic readwrite #
+
+user addons
+topic readwrite #
+
+user box1
+topic read tobibox/config
+topic read tobibox/box1/cmd
+topic read tobibox/box1/unknown/+/ack
+topic read homeassistant/status
+topic write tobibox/box1/online
+topic write tobibox/box1/status
+topic write tobibox/box1/event
+topic write tobibox/box1/unknown/+
+topic write homeassistant/+/tobibox_box1/+/config
+
+user box2
+topic read tobibox/config
+topic read tobibox/box2/cmd
+topic read tobibox/box2/unknown/+/ack
+topic read homeassistant/status
+topic write tobibox/box2/online
+topic write tobibox/box2/status
+topic write tobibox/box2/event
+topic write tobibox/box2/unknown/+
+topic write homeassistant/+/tobibox_box2/+/config
+
+# Gleichwertig, kürzer, für beliebig viele Boxen: eine "pattern"-Regel mit %u (Benutzername =
+# Box-Name). ACHTUNG: Auch die Leserechte für tobibox/config und homeassistant/status müssen
+# dann "pattern read" heißen. Ein "topic read ..." ohne eigenes "user" wird dem zuletzt
+# genannten Konto zugerechnet (Test gegen Mosquitto 2.0.18, mqtt-v1.md Abschnitt 7).
+# Wer diese Form nimmt, löscht die beiden Blöcke "user box1" und "user box2" oben.
+#
+# pattern read tobibox/%u/cmd
+# pattern read tobibox/%u/unknown/+/ack
+# pattern write tobibox/%u/online
+# pattern write tobibox/%u/status
+# pattern write tobibox/%u/event
+# pattern write tobibox/%u/unknown/+
+# pattern write homeassistant/+/tobibox_%u/+/config
+# pattern read tobibox/config
+# pattern read homeassistant/status

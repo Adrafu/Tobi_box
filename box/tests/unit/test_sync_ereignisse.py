@@ -95,7 +95,10 @@ async def test_auflegen_wird_waehrend_des_syncs_verarbeitet(rsync_daemon):
     assert max(verzoegerung) < GRENZE_S
     assert tick_max < GRENZE_S
     assert not sy.laeuft
-    assert dateien(d.box) == set()  # abgebrochen: nichts Halbes im Medienordner
+    # abgebrochen: nichts Halbes im Medienordner. Fertige Dateien liegen an ihrem Platz (kein ``--delay-updates``, siehe ``sync.py``),
+    # die große, unterbrochene nicht.
+    assert dateien(d.box) <= {"s1/a.mp3"}
+    assert not (d.box / "s1" / "a.mp3").exists() or (d.box / "s1" / "a.mp3").read_bytes() == b"a"
 
 
 async def test_core_nimmt_sync_ereignisse_an_ohne_zu_stolpern():

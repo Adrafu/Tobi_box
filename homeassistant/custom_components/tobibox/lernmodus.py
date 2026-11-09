@@ -24,7 +24,7 @@ from .const import (
 )
 from .fehler import TobiboxFehler
 from .media import name_pruefen
-from .util import iso, jetzt, parse_iso
+from .util import iso, jetzt
 
 if TYPE_CHECKING:
     from .hub import Hub
