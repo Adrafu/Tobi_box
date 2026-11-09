@@ -5,8 +5,9 @@ Stand 09.11.2026 · Grundlage: Plan Rev. 3.9 (Stückliste 1.1/1.2, PSP 1.2.1)
 Zweck: Alles für den Pi-Probelauf (Software auf dem echten Pi, harte
 Lautstärke-Grenze über ALSA, Zeit bis zum Ton am Lautsprecher) und den
 Breadboard-Aufbau der kritischen Teile. **Nur ein Satz** (Muster), Box 2 kommt
-später. Ausnahme: die Arcade-Knöpfe, die kosten fast nichts und reichen gleich
-für beide Boxen.
+später. Ausnahmen: die Arcade-Knöpfe (kosten fast nichts, reichen für beide
+Boxen) und die Box-2-Teile bei DigiKey, die nicht altern und den
+DigiKey-Versand sparen (LED-Ring, DAC, Verstärker, Sicherung).
 
 Schon vorhanden: 2× PN5180, 2× ESP32-S3 SuperMini (Bestellung 12.10.).
 
@@ -24,8 +25,9 @@ Schon vorhanden: 2× PN5180, 2× ESP32-S3 SuperMini (Bestellung 12.10.).
 
 ## Einkaufsliste je Shop
 
-Preise vom 09.11.2026 inkl. MwSt., ohne Versand. Vor dem Bestellen im
-Warenkorb prüfen. ⚠ = nur aus Suchtreffern, nicht auf der Shopseite geprüft.
+Preise vom 09.11.2026 inkl. MwSt., auf den Shopseiten geprüft (Conrad: aus
+Tobias' Warenkorb). Einzige Ausnahme: die Conrad-Versandkosten stammen aus
+Shop-Vergleichsseiten, weil conrad.at keine automatischen Abrufe zulässt.
 
 ### 1. Conrad.at — ca. 55 €
 
@@ -41,7 +43,7 @@ Berrybase). Pi 3A+ und Visaton FRS 8 gibt es bei Berrybase nicht.
 | 17 | Drehregler Joy-it KY-040 | 1695709-62 | 1 | 2,79 | 2,79 |
 | | | | | **Summe** | **54,96** |
 
-Versand: Betrag an der Kasse prüfen.
+Versand: 6,99 €, kostenlos ab 69 € (laut Vergleichsportalen).
 
 ### 2. Berrybase.at — ca. 74 €
 
@@ -60,7 +62,11 @@ Versand: Betrag an der Kasse prüfen.
 | 16 | Mini Arcade Button 24 mm, **weiß** | 4 | 0,90 | 3,60 | wie oben, Farbe wählen |
 | | | | | **74,44** | |
 
-Versand: kostenlos ab 200 €, darunter Betrag an der Kasse prüfen.
+Versand: DHL 5,95 €, kostenlos ab 200 €.
+
+microSD: 28,90 € ist der Marktpreis. Andere Shops verlangen gerade mehr
+(Coolblue 34,90 €, MediaMarkt.at 44,59 €). Die 32-GB-Variante kostet bei
+Berrybase 26,90 €, lohnt also nicht.
 
 Knöpfe: Einbauloch 23,5 mm, passt zu den 24 mm der Stückliste. Die Menge
 reicht für beide Boxen (2× Haupt rot, Vor/Zurück wahlweise blau oder weiß).
@@ -75,20 +81,25 @@ Versand nach Österreich: 11,50 € ohne MwSt. (ca. 13,80 € mit MwSt.), laut
 [Bezorginformatie](https://www.tinytronics.nl/nl/bezorginformatie). Lager:
 10+ Stück in Eindhoven. In keinem österreichischen Shop gefunden.
 
-### 4. DigiKey.at — ca. 30 € ⚠
+### 4. DigiKey.at — 61,19 €, versandkostenfrei
 
-Teile, die weder Conrad noch Berrybase lieferbar hat.
+Teile, die weder Conrad noch Berrybase lieferbar hat. Dazu die Teile für
+Box 2, die nicht altern (LED-Ring, DAC, Verstärker). Damit kommt die
+Bestellung über 50 € und der Versand (sonst 18 €) entfällt. Die Box-2-Teile
+kosten 32,33 €, also nur gut 14 € mehr als der Versand allein.
 
-| # | Teil | Hersteller-Nr. | Stk | ca. Preis | Link |
-|---|---|---|---|---|---|
-| 12 | SparkFun LuMini LED-Ring 2″, 40× APA102-2020 | COM-14966 | 1 | 17 ⚠ | [Link](https://www.digikey.at/de/products/detail/sparkfun-electronics/14966/9856840) |
-| 15 | Adafruit PCM5102 I²S-DAC (Line-Ausgang) | 6250 | 1 | 9 ⚠ | [Link](https://www.digikey.at/de/products/detail/adafruit-industries-llc/6250/26249971) |
-| 15 | Adafruit TRRS-Klinkenbuchse 3,5 mm mit **Schaltkontakten** | 5764 | 1 | 3,50 ⚠ | [Link](https://www.digikey.at/de/products/detail/adafruit-industries-llc/5764/20370626) |
-| 14 | Rückstellbare Sicherung Bourns MF-R110 (1,1 A halten, 30 V, bedrahtet) | MF-R110 | 2 | 0,60 ⚠ | [Link](https://www.digikey.at/de/products/detail/bourns-inc/MF-R110/259970) |
+| # | Teil | Hersteller-Nr. | Stk | Preis | Summe | Lager | Link |
+|---|---|---|---|---|---|---|---|
+| 12 | SparkFun LuMini LED-Ring 2″, 40× APA102-2020 (1× Box 2) | COM-14966 | 2 | 20,72 | 41,44 | 44 | [Link](https://www.digikey.at/de/products/detail/sparkfun-electronics/14966/9856840) |
+| 15 | Adafruit PCM5102 I²S-DAC, Line-Ausgang (1× Box 2) | 6250 | 2 | 5,27 | 10,54 | 448 | [Link](https://www.digikey.at/de/products/detail/adafruit-industries-llc/6250/26249971) |
+| 6 | Adafruit MAX98357A I²S-Verstärker (für Box 2) | 3006 | 1 | 6,34 | 6,34 | 1600 | [Link](https://www.digikey.at/de/products/detail/adafruit-industries-llc/3006/6058477) |
+| 15 | Adafruit TRRS-Klinkenbuchse 3,5 mm mit **Schaltkontakten** | 5764 | 1 | 1,86 | 1,86 | 325 | [Link](https://www.digikey.at/de/products/detail/adafruit-industries-llc/5764/20370626) |
+| 14 | Rückstellbare Sicherung Bourns MF-R110 (1,1 A halten, 30 V, bedrahtet; 1× Box 2) | MF-R110 | 2 | 0,50 | 1,01 | 9932 | [Link](https://www.digikey.at/de/products/detail/bourns-inc/MF-R110/259970) |
+| | | | | | **61,19** | | |
 
-Versand: laut DigiKey kostenlos ab 50 €, darunter ca. 18 € ⚠. Den
-Pi 3A+ dort zu bestellen (statt bei Conrad), könnte die 50 € erreichen.
-Verfügbarkeit und Preis vorher prüfen.
+Warenwert netto 50,99 €, also auch über der Grenze, falls DigiKey netto
+rechnet. Versand nach Österreich: kostenlos ab 50 €, sonst 18 €.
+Den Pi 3A+ führt DigiKey nicht mehr (0 Stück, „nicht für neue Designs“).
 
 Zur Buchse: Die zwei Schaltkontakte sind ohne Stecker mit links/rechts
 verbunden und offen, wenn ein Stecker steckt. Damit geht „Stecker erkannt“
@@ -98,21 +109,23 @@ an GPIO 26 (Punkt 28).
 
 | Shop | Ware | Versand |
 |---|---|---|
-| Conrad.at | 54,96 € | an der Kasse |
-| Berrybase.at | 74,44 € | an der Kasse |
+| Conrad.at | 54,96 € | 6,99 € |
+| Berrybase.at | 74,44 € | 5,95 € |
 | Tinytronics | 51,00 € | ca. 13,80 € |
-| DigiKey.at | ca. 30 € ⚠ | ca. 18 € ⚠ |
-| **Gesamt** | **ca. 210 €** | **+ ca. 32 € + Conrad + Berrybase** |
+| DigiKey.at | 61,19 € (davon 32,33 € für Box 2) | 0,00 € |
+| **Gesamt** | **241,59 €** | **26,74 €** |
 
-## Bevor du bestellst
+**Alles zusammen: ca. 268 €.** Ohne die Box-2-Teile wären es ca. 254 €
+(mit 18 € DigiKey-Versand), die Box-2-Teile kosten also effektiv nur ca. 14 €.
 
-- **microSD:** Bei Berrybase 28,90 €. Hat conrad.at eine SanDisk High
-  Endurance oder Samsung PRO Endurance 64 GB billiger, dort mitnehmen und bei
-  Berrybase streichen.
+## Hinweise zur Bestellung
+
 - **NTAG215:** Die Berrybase-Tags sind 25-mm-Scheiben, keine Karten im
   Scheckkartenformat. Für Tests und als Tobie zum Bekleben gut.
 - Hat dein Mac keinen SD-Schlitz, brauchst du zusätzlich einen
   USB-SD-Kartenleser.
+- Die Preise ändern sich. Weicht ein Preis im Warenkorb deutlich ab, Bescheid
+  geben, dann suche ich eine Alternative.
 
 ## Bewusst noch nicht
 
