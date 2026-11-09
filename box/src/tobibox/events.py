@@ -547,8 +547,9 @@ class ZeigerSpeichern(Befehl):
     grund: Literal[
         "pause", "folgenende", "trackwechsel", "zurueck", "figurwechsel", "periodisch", "herunterfahren"
     ]
-    #: Wanduhr (Unix-Sekunden) der Benutzung; ``None``, wenn die Uhr unsicher ist (Entscheidung N, 09.11.)
-    wall: float | None = None
+    #: Wanduhr (Unix-Sekunden) der Benutzung; ``None``, wenn die Uhr unsicher ist (Entscheidung N, 09.11.).
+    #: Zählt beim Vergleich zweier Befehle nicht mit (Tests vergleichen den Zeiger, nicht die Uhrzeit).
+    wall: float | None = field(default=None, compare=False)
 
 
 @dataclass(frozen=True, slots=True)

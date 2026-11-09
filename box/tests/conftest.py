@@ -83,25 +83,26 @@ def abspielen(serie_id, ordner, datei, position_s, vorgang=None, track=0, tracks
     return ev.Abspielen(serie_id, ordner, datei, tracks if tracks is not None else (datei,), track, position_s, vorgang)
 
 
-def zeiger_speichern(serie_id, datei, index, position_s, grund, track=0, art="serie"):
-    return ev.ZeigerSpeichern(art, serie_id, datei, None if art == "folge" else index, track, position_s, grund)
+def zeiger_speichern(serie_id, datei, index, position_s, grund, track=0, art="serie", wall=None):
+    return ev.ZeigerSpeichern(art, serie_id, datei, None if art == "folge" else index, track, position_s, grund, wall)
 
 
-def zeiger(serie_id, datei, index, position_s, zaehler, track=0, art="serie"):
-    return ev.Zeiger(art, serie_id, datei, None if art == "folge" else index, track, position_s, zaehler)
+def zeiger(serie_id, datei, index, position_s, zaehler, track=0, art="serie", benutzt_wall=None):
+    return ev.Zeiger(art, serie_id, datei, None if art == "folge" else index, track, position_s, zaehler, benutzt_wall)
 
 
 def ppos(serie_id, datei, position_s, spielt=True, track=0):
     return ev.PlayerPosition(serie_id, datei, track, position_s, spielt)
 
 
-def mk_konfig(zuordnungen=None, revision=1) -> ev.Konfig:
+def mk_konfig(zuordnungen=None, revision=1, lesezeichen_tage=14) -> ev.Konfig:
     return ev.Konfig(
         revision=revision,
         liste_id="liste-1",
         zuordnungen=dict(ZUORDNUNGEN if zuordnungen is None else zuordnungen),
         leise_zeiten=ev.LeiseZeiten("Europe/Berlin", ()),
         gute_nacht=ev.GuteNacht(30, 60),
+        lesezeichen_tage=lesezeichen_tage,
     )
 
 
