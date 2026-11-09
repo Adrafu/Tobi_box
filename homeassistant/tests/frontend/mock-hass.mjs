@@ -1,0 +1,371 @@
+/* Mock für die HA-WebSocket-Schnittstelle nach Vertrag W (ha-websocket-v1).
+ *
+ * `createMockHass()` liefert ein `hass`-Objekt mit connection.sendMessagePromise / subscribeMessage,
+ * eine kleine Backend-Nachbildung im Arbeitsspeicher und einen XMLHttpRequest-Ersatz für den Upload.
+ * Der Mock ist streng wie das echte Backend: unbekannte Felder und fehlende Pflichtfelder
+ * ergeben `invalid_format`; Felder, die die Seite senden MUSS (`stand`, `erwartet_ziel`), ebenfalls.
+ * Fehler kommen wie bei HA als Objekt { code, message }.
+ */
+import { createHash } from 'node:crypto';
+
+/* Befehl -> Pflichtfelder (req), optionale Felder (opt), Felder, die die Seite immer senden muss (must). */
+export const SCHEMA = {
+  'tobibox/hello': { req: ['v'] },
+  'tobibox/subscribe': { opt: ['themen'] },
+  'tobibox/serien/list': {},
+  'tobibox/serie/get': { req: ['serie_id'] },
+  'tobibox/serie/create': { req: ['name'], opt: ['typ', 'anfrage_id'] },
+  'tobibox/serie/rename': { req: ['serie_id', 'name'] },
+  'tobibox/folgen/order': { req: ['serie_id', 'folgen'], opt: ['stand'], must: ['stand'] },
+  'tobibox/folge/delete': { req: ['serie_id', 'folge'], opt: ['tobies_bestaetigt', 'stand'], must: ['stand'] },
+  'tobibox/medien/pruefen': {},
+  'tobibox/papierkorb/list': { opt: ['limit', 'offset'] },
+  'tobibox/papierkorb/restore': { req: ['eintrag_id'], opt: ['serie_id'] },
+  'tobibox/papierkorb/empty': { req: ['bestaetigt'], opt: ['eintrag_ids'] },
+  'tobibox/neue_tobies/list': { opt: ['limit', 'offset'] },
+  'tobibox/neue_tobies/verwerfen': { req: ['uid'] },
+  'tobibox/zuordnung/list': { opt: ['serie_id', 'limit', 'offset'] },
+  'tobibox/zuordnung/set': { req: ['uid', 'ziel'], opt: ['name', 'ueberschreiben', 'erwartet_ziel'], must: ['erwartet_ziel'] },
+  'tobibox/zuordnung/remove': { req: ['uid'], opt: ['erwartet_ziel'], must: ['erwartet_ziel'] },
+  'tobibox/lernmodus/start': { req: ['box', 'ziel'], opt: ['name', 'anfrage_id'] },
+  'tobibox/lernmodus/antwort': { req: ['befehl_id', 'ueberschreiben'] },
+  'tobibox/lernmodus/abbrechen': { req: ['box'] },
+  'tobibox/boxen/list': {},
+  'tobibox/box/sync': { req: ['box'], opt: ['anfrage_id'] },
+  'tobibox/liste/neu_ausrollen': { req: ['bestaetigt'], opt: ['anfrage_id'] },
+  'tobibox/serie/delete': { req: ['serie_id'], opt: ['tobies_bestaetigt', 'stand'], must: ['stand'] },
+  'tobibox/folge/rename': { req: ['serie_id', 'folge', 'name'], opt: ['stand'], must: ['stand'] },
+  'tobibox/folge/verschieben': { req: ['serie_id', 'folge', 'ziel_serie_id'], opt: ['tobies_bestaetigt', 'stand'], must: ['stand'] },
+  'tobibox/serien/zusammenfuehren': { req: ['quelle_id', 'ziel_id'], opt: ['tobies_bestaetigt', 'stand_quelle', 'stand_ziel'], must: ['stand_quelle', 'stand_ziel'] },
+  'tobibox/einsortierung/bestaetigen': { req: ['serie_id'], opt: ['folgen'] },
+  'tobibox/eingang/list': { opt: ['filter', 'limit', 'offset'] },
+  'tobibox/eingang/sortieren': { opt: ['eintrag_ids', 'sofort'] },
+  'tobibox/konfig/export_lesen': {},
+  'tobibox/konfig/aus_export': { req: ['bestaetigt'], opt: ['anfrage_id'] },
+};
+
+/* Befehle, die nur Administratoren ausführen dürfen (Vertrag 2.1). */
+const LESEN = new Set(['hello', 'subscribe', 'serien/list', 'serie/get', 'papierkorb/list', 'neue_tobies/list', 'zuordnung/list', 'boxen/list', 'eingang/list', 'konfig/export_lesen'].map((x) => `tobibox/${x}`));
+
+export const FAEHIGKEITEN = ['medien', 'upload', 'zuordnung', 'tobie_namen', 'neue_tobies', 'lernmodus', 'boxen', 'papierkorb', 'liste_ausrollen', 'konfig_export', 'sync', 'eingang', 'korrektur', 'serie_loeschen'];
+
+const fehler = (code, message = code) => ({ code, message });
+const gleich = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+const hex = (s, n = 16) => createHash('sha256').update(s).digest('hex').slice(0, n);
+
+export function pruefeEingabe(msg) {
+  const sch = SCHEMA[msg.type];
+  if (!sch) throw fehler('unknown_command', `Unbekannter Befehl ${msg.type}`);
+  const { type, id, ...felder } = msg; // eslint-disable-line no-unused-vars
+  const erlaubt = new Set([...(sch.req || []), ...(sch.opt || [])]);
+  for (const k of Object.keys(felder)) {
+    if (!erlaubt.has(k)) throw fehler('invalid_format', `Unbekanntes Feld ${k}`);
+    if (felder[k] === undefined) throw fehler('invalid_format', `Feld ${k} ist undefined`);
+  }
+  for (const k of sch.req || []) if (!(k in felder)) throw fehler('invalid_format', `Pflichtfeld ${k} fehlt`);
+  for (const k of sch.must || []) if (!(k in felder)) throw fehler('invalid_format', `Die Seite muss ${k} senden`);
+  if ('bestaetigt' in felder && felder.bestaetigt !== true) throw fehler('invalid_format', 'bestaetigt muss true sein');
+  if ('anfrage_id' in felder && !/^[0-9A-Za-z-]{8,64}$/.test(felder.anfrage_id)) throw fehler('invalid_format', 'anfrage_id');
+  return felder;
+}
+
+export function createMockHass(opts = {}) {
+  const darf = opts.darf ?? true;
+  const calls = []; // { type, msg } in der Reihenfolge des Eingangs
+  const overrides = new Map(); // type -> Funktion (msg, b) => Ergebnis
+  const failures = new Map(); // type -> [code…]
+  const subs = [];
+  const xhrs = [];
+  let nextId = 1;
+
+  /* ---- Backend im Arbeitsspeicher ---- */
+  const folge = (name, anzeige, extra = {}) => ({ name, anzeige: anzeige ?? name.replace(/\.[^.]+$/, ''), nummer: null, datum: null, art: 'datei', tracks: 1,
+    groesse_bytes: 5 * 1048576, pruefung: 'ok', hinweis: null, pruefen: false, pruefen_gruende: [], tobies: [], ...extra });
+  const b = {
+    konfig: { revision: 7, liste_id: 'liste-aaaa', zustand: 'ok', export_ok: true, export_geschrieben_am: '2026-11-09T08:00:00Z' },
+    serien: {
+      s1: { id: 's1', name: 'Die drei ???', typ: 'normal', ordner: 'Die drei ???', pruefen: false, hinweise: [],
+        folgen: [folge('folge-01.mp3', 'Der Rabe'), folge('folge-02.mp3', 'Das Gespensterschloss'), folge('folge-03.mp3', 'Der Super-Papagei')] },
+      s2: { id: 's2', name: 'Bibi Blocksberg', typ: 'normal', ordner: 'Bibi', pruefen: true, hinweise: [], folgen: [folge('b-01.mp3', 'Hexen gibt es doch', { pruefen: true, pruefen_gruende: ['tags_fehlen'] })] },
+      s3: { id: 's3', name: 'Überraschung', typ: 'ueberraschung', ordner: 'Ueberraschung', pruefen: false, hinweise: [], folgen: [folge('u-01.mp3', 'Zufall')] },
+    },
+    ueberraschung: 'ok',
+    zuordnungen: {
+      '04A1B2C3D4E5F6': { uid: '04A1B2C3D4E5F6', name: 'Anna', ziel: { typ: 'serie', serie: 's1' } },
+      '04FFEEDDCCBBAA': { uid: '04FFEEDDCCBBAA', name: null, ziel: { typ: 'folge', serie: 's1', folge: 'folge-02.mp3' } },
+    },
+    neueTobies: [{ uid: '0499887766554433', zuerst: '2026-11-09T07:00:00Z', zuletzt: '2026-11-09T07:05:00Z', anzahl: 2, boxen: { kueche: { zuerst: '2026-11-09T07:00:00Z', zuletzt: '2026-11-09T07:05:00Z', anzahl: 2, zeit_ok: true } } }],
+    papierkorb: [{ id: 'aabbccddeeff', typ: 'folge', serie_id: 's1', serie_name: 'Die drei ???', folge: 'folge-09.mp3', anzeige: 'Alte Folge', art: 'datei', tracks: 1, groesse_bytes: 4000000, grund: 'manuell', geloescht_am: '2026-11-08T10:00:00Z' }],
+    boxen: [
+      { box: 'kueche', anzeigename: 'Küche', online: true, status: { speicher_frei_mb: 5120, netz: 'heim', akku_prozent: 80, version: '0.3.1', sync: { ergebnis: 'ok' }, letzter_fehler: null, konfig: { liste_id: 'liste-aaaa', revision: 7 } }, status_empfangen_am: '2026-11-09T08:00:00Z', konfig_stand: 'aktuell', lernmodus: null, ereignisse: [{ id: 'e1', ts: '2026-11-09T07:00:00Z', art: 'liste_abgelehnt', daten: {}, text: 'Die Box Küche hat eine Liste abgelehnt.' }] },
+      { box: 'kinderzimmer', anzeigename: 'Kinderzimmer', online: false, status: { speicher_frei_mb: 900, konfig: { liste_id: 'liste-aaaa', revision: 5 } }, status_empfangen_am: '2026-11-08T20:00:00Z', konfig_stand: 'veraltet', lernmodus: null, ereignisse: [] },
+    ],
+    eingang: [{ id: '111111111111', name: 'Hoerbuch Neu', art: 'ordner', dateien: 3, ignoriert: 1, groesse_bytes: 90000000, zuerst_gesehen: '2026-11-09T07:30:00Z', geaendert_am: '2026-11-09T07:29:00Z', status: 'blockiert', hinweise: [{ code: 'kopierschutz', datei: 'a.m4b', text: 'Die Datei ist kopiergeschützt.' }], ergebnis: [], fertig_am: null }],
+    eingangErledigt: [],
+    lern: null,
+    exportDatei: { vorhanden: true, liste_id: 'liste-aaaa', revision: 9, exportiert_am: '2026-11-09T09:00:00Z', anzahl_zuordnungen: 4, anzahl_fenster: 0, neuer_als_ha: true },
+    gesehenAnfragen: new Map(),
+  };
+
+  const stand = (s) => hex(JSON.stringify([s.name, s.folgen.map((f) => [f.name, f.anzeige])]));
+  const kurzform = (s) => ({
+    id: s.id, name: s.name, typ: s.typ, ordner: s.ordner, anzahl_folgen: s.folgen.length,
+    anzahl_tobies: tobiesAuf(s.id).length, angelegt_am: '2026-10-01T10:00:00Z', stand: stand(s),
+    pruefen: s.pruefen, anzahl_pruefen: s.folgen.filter((f) => f.pruefen).length, hinweise: s.hinweise,
+  });
+  function tobiesAuf(id) {
+    return Object.values(b.zuordnungen).filter((z) => z.ziel.serie === id);
+  }
+  const kurzTobie = (z) => ({ uid: z.uid, name: z.name ?? null });
+  const holeSerie = (id) => { const s = b.serien[id]; if (!s) throw fehler('serie_nicht_gefunden'); return s; };
+  const holeFolge = (s, name) => { const f = s.folgen.find((x) => x.name === name); if (!f) throw fehler('folge_nicht_gefunden'); return f; };
+  const mitTobies = (s) => ({
+    ...kurzform(s),
+    folgen: s.folgen.map((f) => ({ ...f, tobies: Object.values(b.zuordnungen).filter((z) => z.ziel.typ === 'folge' && z.ziel.serie === s.id && z.ziel.folge === f.name).map(kurzTobie) })),
+    zuordnungen: Object.values(b.zuordnungen).filter((z) => z.ziel.typ === 'serie' && z.ziel.serie === s.id).map(kurzTobie),
+  });
+  const pruefeStand = (s, st) => { if (st !== undefined && st !== stand(s)) throw fehler('stand_veraltet'); };
+  const alsEintrag = (typ, s, f) => ({ id: hex(`${s.id}${f?.name}${Math.random()}`, 12), typ, serie_id: s.id, serie_name: s.name, folge: f?.name ?? null, anzeige: f ? f.anzeige : s.name, art: 'datei', tracks: f ? f.tracks : s.folgen.length, groesse_bytes: 1000, grund: 'manuell', geloescht_am: '2026-11-09T10:00:00Z' });
+  const konfigAendern = () => { b.konfig = { ...b.konfig, revision: (b.konfig.revision || 0) + 1 }; return b.konfig; };
+  const zielPruefen = (ziel) => {
+    if (!ziel || !['serie', 'folge', 'aktion'].includes(ziel.typ)) throw fehler('ziel_ungueltig');
+    if (ziel.typ === 'aktion') { if (!['status', 'gute_nacht'].includes(ziel.aktion)) throw fehler('ziel_ungueltig'); return; }
+    const s = holeSerie(ziel.serie);
+    if (s.typ === 'ueberraschung') throw fehler('ziel_ungueltig');
+    if (ziel.typ === 'folge') holeFolge(s, ziel.folge);
+  };
+  const betroffeneFolge = (sid, fname) => Object.values(b.zuordnungen).filter((z) => z.ziel.typ === 'folge' && z.ziel.serie === sid && z.ziel.folge === fname);
+  const konfigBereit = () => { if (b.konfig.zustand !== 'ok') throw fehler('konfig_nicht_bereit'); };
+
+  const H = {
+    'tobibox/hello': () => ({ v: 1, version: '0.1.0', darf_schreiben: darf, faehigkeiten: opts.faehigkeiten || FAEHIGKEITEN, boxen: b.boxen.map((x) => x.box), konfig: b.konfig,
+      grenzen: { upload_max_bytes: 524288000, upload_block_bytes: 1048576, upload_parallel: 2, endungen: ['mp3', 'm4a', 'm4b'], serie_name_max: 100, folge_anzeige_max: 200, tobie_name_max: 60, name_max_bytes: 255, limit_max: 100 } }),
+    'tobibox/serien/list': () => ({ serien: Object.values(b.serien).map(kurzform), ueberraschung: b.ueberraschung, geprueft_am: '2026-11-09T08:00:00Z', pruefung_laeuft: false }),
+    'tobibox/serie/get': (m) => mitTobies(holeSerie(m.serie_id)),
+    'tobibox/serie/create': (m) => {
+      if (!m.name.trim()) throw fehler('name_ungueltig');
+      if (m.typ === 'ueberraschung' && Object.values(b.serien).some((s) => s.typ === 'ueberraschung')) throw fehler('ueberraschung_existiert');
+      const id = hex(m.name + Date.now(), 12);
+      b.serien[id] = { id, name: m.name, typ: m.typ || 'normal', ordner: m.name, pruefen: false, hinweise: [], folgen: [] };
+      if (m.typ === 'ueberraschung') b.ueberraschung = 'leer';
+      return { serie: kurzform(b.serien[id]) };
+    },
+    'tobibox/serie/rename': (m) => { const s = holeSerie(m.serie_id); if (!m.name.trim()) throw fehler('name_ungueltig'); s.name = m.name; s.pruefen = false; return { serie: kurzform(s) }; },
+    'tobibox/folgen/order': (m) => {
+      const s = holeSerie(m.serie_id); pruefeStand(s, m.stand);
+      const alt = s.folgen.map((f) => f.name).sort(); const neu = [...m.folgen].sort();
+      if (!gleich(alt, neu)) throw fehler('reihenfolge_ungueltig');
+      s.folgen = m.folgen.map((n) => holeFolge(s, n));
+      return { serie: kurzform(s) };
+    },
+    'tobibox/folge/delete': (m) => {
+      const s = holeSerie(m.serie_id); pruefeStand(s, m.stand); const f = holeFolge(s, m.folge);
+      const tob = betroffeneFolge(s.id, f.name);
+      if (tob.length && !m.tobies_bestaetigt) throw fehler('tobies_betroffen');
+      s.folgen = s.folgen.filter((x) => x !== f);
+      const e = alsEintrag('folge', s, f); b.papierkorb.unshift(e);
+      return { eintrag: e, betroffene_tobies: tob.map(kurzTobie) };
+    },
+    'tobibox/serie/delete': (m) => {
+      const s = holeSerie(m.serie_id); pruefeStand(s, m.stand);
+      const tob = Object.values(b.zuordnungen).filter((z) => z.ziel.serie === s.id);
+      if (tob.length && !m.tobies_bestaetigt) throw fehler('tobies_betroffen');
+      delete b.serien[s.id];
+      const e = alsEintrag('serie', s); b.papierkorb.unshift(e);
+      return { eintrag: e, betroffene_tobies: tob.map(kurzTobie), ueberraschung: b.ueberraschung };
+    },
+    'tobibox/folge/rename': (m) => {
+      const s = holeSerie(m.serie_id); pruefeStand(s, m.stand); const f = holeFolge(s, m.folge);
+      if (!m.name.trim()) throw fehler('name_ungueltig');
+      f.anzeige = m.name; f.pruefen = false;
+      return { serie: kurzform(s), folge: f };
+    },
+    'tobibox/folge/verschieben': (m) => {
+      const q = holeSerie(m.serie_id); pruefeStand(q, m.stand); const z = holeSerie(m.ziel_serie_id); const f = holeFolge(q, m.folge);
+      if (q === z) throw fehler('ziel_ungueltig');
+      const tob = betroffeneFolge(q.id, f.name);
+      if (tob.length && !m.tobies_bestaetigt) throw fehler('tobies_betroffen');
+      if (tob.length) { konfigBereit(); tob.forEach((t) => { t.ziel = { typ: 'folge', serie: z.id, folge: f.name }; }); }
+      q.folgen = q.folgen.filter((x) => x !== f); z.folgen.push(f);
+      return { quelle: kurzform(q), ziel: kurzform(z), folge: f.name, betroffene_tobies: tob.map(kurzTobie), konfig: tob.length ? konfigAendern() : null, veroeffentlicht: tob.length ? true : null };
+    },
+    'tobibox/serien/zusammenfuehren': (m) => {
+      const q = holeSerie(m.quelle_id); const z = holeSerie(m.ziel_id);
+      if (q === z || q.typ !== 'normal' || z.typ !== 'normal') throw fehler('ziel_ungueltig');
+      pruefeStand(q, m.stand_quelle); pruefeStand(z, m.stand_ziel);
+      const tob = Object.values(b.zuordnungen).filter((t) => t.ziel.serie === q.id);
+      if (tob.length && !m.tobies_bestaetigt) throw fehler('tobies_betroffen');
+      const n = q.folgen.length;
+      tob.forEach((t) => { t.ziel = { ...t.ziel, serie: z.id }; });
+      z.folgen.push(...q.folgen); q.folgen = [];
+      delete b.serien[q.id];
+      const e = alsEintrag('serie', q); e.grund = 'zusammengefuehrt'; b.papierkorb.unshift(e);
+      return { ziel: kurzform(z), verschoben: n, umbenannt: [], betroffene_tobies: tob.map(kurzTobie), eintrag: e, konfig: tob.length ? konfigAendern() : null, veroeffentlicht: tob.length ? true : null };
+    },
+    'tobibox/einsortierung/bestaetigen': (m) => {
+      const s = holeSerie(m.serie_id);
+      (m.folgen || s.folgen.map((f) => f.name)).forEach((n) => { holeFolge(s, n).pruefen = false; });
+      if (!m.folgen) s.pruefen = false;
+      return { serie: kurzform(s) };
+    },
+    'tobibox/medien/pruefen': () => ({ gestartet: true, laeuft_bereits: false }),
+    'tobibox/papierkorb/list': (m) => ({ eintraege: b.papierkorb.slice(m.offset || 0, (m.offset || 0) + (m.limit || 100)), gesamt: b.papierkorb.length, gesamt_bytes: b.papierkorb.reduce((a, e) => a + e.groesse_bytes, 0) }),
+    'tobibox/papierkorb/restore': (m) => {
+      const e = b.papierkorb.find((x) => x.id === m.eintrag_id); if (!e) throw fehler('eintrag_nicht_gefunden');
+      b.papierkorb = b.papierkorb.filter((x) => x !== e);
+      return { serie: null, folge: e.folge };
+    },
+    'tobibox/papierkorb/empty': (m) => {
+      const n = b.papierkorb.length; b.papierkorb = m.eintrag_ids ? b.papierkorb.filter((e) => !m.eintrag_ids.includes(e.id)) : [];
+      return { geloescht: n - b.papierkorb.length, freigegeben_bytes: 1 };
+    },
+    'tobibox/neue_tobies/list': (m) => ({ eintraege: b.neueTobies.slice(m.offset || 0, (m.offset || 0) + (m.limit || 100)), gesamt: b.neueTobies.length }),
+    'tobibox/neue_tobies/verwerfen': (m) => { const n = b.neueTobies.length; b.neueTobies = b.neueTobies.filter((x) => x.uid !== m.uid); return { entfernt: n !== b.neueTobies.length }; },
+    'tobibox/zuordnung/list': (m) => {
+      const alle = Object.values(b.zuordnungen).filter((z) => !m.serie_id || z.ziel.serie === m.serie_id).sort((x, y) => (x.uid < y.uid ? -1 : 1));
+      const seite = alle.slice(m.offset || 0, (m.offset || 0) + (m.limit || 100));
+      return { konfig: b.konfig, gesamt: alle.length, zuordnungen: seite.map((z) => {
+        const s = b.serien[z.ziel.serie];
+        return { uid: z.uid, name: z.name ?? null, ziel: z.ziel, serie_name: z.ziel.typ === 'aktion' ? null : (s ? s.name : null),
+          folge_anzeige: z.ziel.typ === 'folge' ? (s?.folgen.find((f) => f.name === z.ziel.folge)?.anzeige ?? null) : null,
+          folge_vorhanden: z.ziel.typ === 'folge' ? !!s?.folgen.some((f) => f.name === z.ziel.folge) : null };
+      }) };
+    },
+    'tobibox/zuordnung/set': (m) => {
+      if (!/^[0-9A-F]{8,}$/.test(m.uid)) throw fehler('kennung_ungueltig');
+      konfigBereit(); zielPruefen(m.ziel);
+      if ('name' in m && m.name !== null && (!m.name.trim() || m.name.length > 60)) throw fehler('name_ungueltig');
+      const alt = b.zuordnungen[m.uid];
+      if ('erwartet_ziel' in m && m.erwartet_ziel !== undefined) { if (!gleich(m.erwartet_ziel, alt?.ziel)) throw fehler('zuordnung_geaendert'); }
+      else if (alt && !gleich(alt.ziel, m.ziel) && !m.ueberschreiben) throw fehler('zuordnung_existiert');
+      const name = 'name' in m ? m.name : (alt?.name ?? null);
+      if (alt && gleich(alt.ziel, m.ziel) && (alt.name ?? null) === (name ?? null)) return { geaendert: false, konfig: b.konfig, veroeffentlicht: null };
+      b.zuordnungen[m.uid] = { uid: m.uid, name, ziel: m.ziel };
+      b.neueTobies = b.neueTobies.filter((x) => x.uid !== m.uid);
+      return { geaendert: true, konfig: konfigAendern(), veroeffentlicht: true };
+    },
+    'tobibox/zuordnung/remove': (m) => {
+      konfigBereit();
+      const alt = b.zuordnungen[m.uid];
+      if (!gleich(m.erwartet_ziel, alt?.ziel)) throw fehler('zuordnung_geaendert');
+      if (!alt) return { geaendert: false, konfig: b.konfig, veroeffentlicht: null };
+      delete b.zuordnungen[m.uid];
+      return { geaendert: true, konfig: konfigAendern(), veroeffentlicht: true };
+    },
+    'tobibox/lernmodus/start': (m) => {
+      const box = b.boxen.find((x) => x.box === m.box); if (!box) throw fehler('box_unbekannt');
+      konfigBereit(); zielPruefen(m.ziel);
+      if (!box.online) throw fehler('box_offline');
+      if (b.lern && b.lern.box === m.box && !gleich(b.lern.ziel, m.ziel)) throw fehler('lernmodus_laeuft');
+      b.lern = { box: m.box, befehl_id: `befehl-${Math.random().toString(16).slice(2)}`, ziel: m.ziel, name: m.name ?? null };
+      return { befehl_id: b.lern.befehl_id, box: m.box, ziel: m.ziel, beginn: '2026-11-09T10:00:00Z', frist_bis: '2026-11-09T10:03:00Z' };
+    },
+    'tobibox/lernmodus/antwort': (m) => {
+      if (!b.lern || b.lern.befehl_id !== m.befehl_id) throw fehler('kein_lernmodus');
+      b.lern = null;
+      return { zustand: m.ueberschreiben ? 'zugeordnet' : 'abgelehnt', konfig: b.konfig };
+    },
+    'tobibox/lernmodus/abbrechen': (m) => {
+      if (!b.boxen.some((x) => x.box === m.box)) throw fehler('box_unbekannt');
+      const war = !!b.lern; b.lern = null; return { abgebrochen: war };
+    },
+    'tobibox/boxen/list': () => ({ boxen: b.boxen }),
+    'tobibox/box/sync': (m) => {
+      const box = b.boxen.find((x) => x.box === m.box); if (!box) throw fehler('box_unbekannt');
+      if (!box.online) throw fehler('box_offline');
+      return { befehl_id: 'sync-1', ttl_s: 300 };
+    },
+    'tobibox/liste/neu_ausrollen': () => { b.konfig = { ...b.konfig, zustand: 'ok', revision: 1, liste_id: `liste-${Math.random().toString(16).slice(2, 8)}` }; return { konfig: b.konfig, veroeffentlicht: true }; },
+    'tobibox/eingang/list': (m) => {
+      const l = (m.filter === 'erledigt') ? b.eingangErledigt : b.eingang;
+      return { eintraege: l, gesamt: l.length, sortierung_laeuft: false, geprueft_am: '2026-11-09T08:00:00Z' };
+    },
+    'tobibox/eingang/sortieren': () => ({ gestartet: true, laeuft_bereits: false, eintraege: b.eingang.length }),
+    'tobibox/konfig/export_lesen': () => ({ ...b.exportDatei, konfig: b.konfig }),
+    'tobibox/konfig/aus_export': () => {
+      if (!b.exportDatei.vorhanden) throw fehler('export_nicht_gefunden');
+      b.konfig = { ...b.konfig, zustand: 'ok', revision: 1, liste_id: `liste-${Math.random().toString(16).slice(2, 8)}` };
+      return { konfig: b.konfig, veroeffentlicht: true, uebernommen: { zuordnungen: b.exportDatei.anzahl_zuordnungen, fenster: 0 } };
+    },
+  };
+
+  async function verarbeite(msg) {
+    calls.push({ type: msg.type, msg: structuredClone(msg) });
+    const felder = pruefeEingabe(msg);
+    if (!darf && !LESEN.has(msg.type)) throw fehler('unauthorized', 'Nur für Administratoren');
+    const f = failures.get(msg.type);
+    if (f && f.length) { const c = f.shift(); throw typeof c === 'string' ? fehler(c, `Fehler ${c}`) : c; }
+    if (msg.anfrage_id) {
+      const alt = b.gesehenAnfragen.get(msg.anfrage_id);
+      if (alt) { if (alt.type !== msg.type || !gleich(alt.felder, felder)) throw fehler('anfrage_id_konflikt'); return alt.antwort; }
+    }
+    const h = overrides.get(msg.type) || H[msg.type];
+    const antwort = structuredClone(await h(felder, b));
+    if (msg.anfrage_id) b.gesehenAnfragen.set(msg.anfrage_id, { type: msg.type, felder, antwort });
+    return antwort;
+  }
+
+  const connection = {
+    sendMessagePromise: (msg) => new Promise((res, rej) => { queueMicrotask(() => { verarbeite({ id: nextId++, ...msg }).then(res, rej); }); }),
+    subscribeMessage: (cb, msg) => new Promise((res, rej) => {
+      queueMicrotask(() => {
+        try { calls.push({ type: msg.type, msg: structuredClone(msg), abo: true }); pruefeEingabe({ id: nextId++, ...msg }); } catch (e) { rej(e); return; }
+        const abo = { cb, aktiv: true, themen: msg.themen || ['boxen', 'neue_tobies', 'lernmodus', 'medien', 'eingang', 'konfig', 'upload'] };
+        subs.push(abo);
+        res(() => { abo.aktiv = false; });
+        /* Snapshot je Thema direkt nach dem Abonnieren (Vertrag 4) */
+        const snap = {
+          boxen: { boxen: b.boxen.map((x) => ({ box: x.box, online: x.online, konfig_stand: x.konfig_stand })) },
+          neue_tobies: { gesamt: b.neueTobies.length }, lernmodus: { vorgaenge: [] },
+          medien: { pruefung_laeuft: false, geprueft_am: '2026-11-09T08:00:00Z' },
+          eingang: { offen: b.eingang.length, blockiert: 1, sortierung_laeuft: false, geprueft_am: '2026-11-09T08:00:00Z' },
+          konfig: { konfig: b.konfig }, upload: {},
+        };
+        if (opts.snapshots !== false) abo.themen.forEach((t) => emit(t, 'snapshot', snap[t]));
+      });
+    }),
+  };
+
+  function emit(thema, art, daten = {}) {
+    subs.filter((s) => s.aktiv && s.themen.includes(thema)).forEach((s) => s.cb({ v: 1, thema, art, daten: structuredClone(daten) }));
+  }
+
+  /* XMLHttpRequest-Ersatz. Modus 'auto': sendet Fortschritt und antwortet mit Erfolg. */
+  class MockXHR {
+    constructor() { this.upload = {}; this.headers = {}; this.status = 0; this.responseText = ''; xhrs.push(this); }
+    open(method, url) { this.method = method; this.url = url; }
+    setRequestHeader(k, v) { this.headers[k] = v; }
+    send(body) {
+      this.body = body;
+      if ((opts.xhr || 'auto') === 'auto') queueMicrotask(() => { const g = this.body.get('datei')?.size ?? 100; this.fortschritt(Math.floor(g / 2), g); this.fortschritt(g, g); this.antwort(200, this.erfolg()); });
+    }
+    erfolg() {
+      const d = this.body.get('datei');
+      return { v: 1, upload_id: this.body.get('upload_id'), eingang_name: d?.name, serie_id: this.body.get('serie_id'), groesse_bytes: d?.size ?? 0, pruefung: 'ok', hinweis: null, wiederholt: false };
+    }
+    fortschritt(loaded, total) { this.upload.onprogress?.({ loaded, total, lengthComputable: true }); }
+    antwort(status, obj) {
+      this.upload.onload?.(); this.status = status; this.responseText = typeof obj === 'string' ? obj : JSON.stringify(obj); this.onload?.();
+    }
+    netzfehler() { this.onerror?.(); }
+  }
+
+  const hass = {
+    connection,
+    auth: { data: { access_token: 'token-123' }, expired: false, refreshAccessToken: async () => { hass.auth.data.access_token = 'token-neu'; hass.auth.expired = false; } },
+    user: { is_admin: darf },
+    language: 'de',
+  };
+
+  return {
+    hass, backend: b, calls, subs, xhrs, emit, MockXHR,
+    xhrFactory: () => new MockXHR(),
+    /* Aufrufe eines Befehls (ohne Abos) */
+    aufrufe: (type) => calls.filter((c) => c.type === type && !c.abo).map((c) => c.msg),
+    letzter: (type) => calls.filter((c) => c.type === type && !c.abo).at(-1)?.msg,
+    on: (type, fn) => overrides.set(type, fn),
+    failNext: (type, ...codes) => { failures.set(type, [...(failures.get(type) || []), ...codes]); },
+    reset: () => { calls.length = 0; },
+    tick: () => new Promise((r) => setTimeout(r, 0)),
+  };
+}
