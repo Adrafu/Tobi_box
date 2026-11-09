@@ -136,6 +136,11 @@ async def test_tasten_regler_und_kopfhoerer(gui):
     await warte(lambda: spielt_aus(port, "rabe", "folge-02.wav"), 10.0, "(Vor springt zur nächsten Folge)")
 
 
+async def _status_ist(srv, **felder) -> bool:
+    st = (await anzeige(srv))["status"]
+    return all(st[k] == v for k, v in felder.items())
+
+
 async def _laut(srv, wert) -> bool:
     return (await anzeige(srv))["anzeige"]["lautstaerke"] == wert
 
@@ -147,10 +152,17 @@ async def _kopfhoerer(srv, steckt) -> bool:
 async def test_noch_nicht_verdrahtete_eingaenge_antworten_klar(gui):
     srv, _, _ = gui
     nv = {"ok": False, "fehler": "noch_nicht_verdrahtet"}
-    assert await befehl(srv, befehl="strom", lader=True) == nv
-    assert await befehl(srv, befehl="netz", klasse="home") == nv
     assert await befehl(srv, befehl="taste", taste="hauptknopf_lang") == nv
-    assert (await anzeige(srv))["verdrahtet"]["netz"] is False
+    d = (await anzeige(srv))["verdrahtet"]
+    assert d["netz"] is True and d["strom"] is True and d["hauptknopf_lang"] is False  # strom und netz seit AP 3.7
+
+
+async def test_strom_und_netz_wirken_auch_ohne_netz_und_strom_abschnitt(gui):
+    """Die Test-Konfiguration hat kein ``[netz]`` und kein ``[strom]``: ``sim`` gibt die Ereignisse selbst aus."""
+    srv, _, _ = gui
+    assert (await befehl(srv, befehl="strom", lader=True, akku=61))["ok"]
+    assert (await befehl(srv, befehl="netz", klasse="hotspot"))["ok"]
+    await warte(lambda: _status_ist(srv, akku_prozent=61, lader=True, netz="hotspot"), 5.0, "(Status zeigt Akku und Netz)")
 
 
 async def test_unbekannter_tobie_wird_gemeldet_und_ueber_die_api_bestaetigt(gui):

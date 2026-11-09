@@ -329,7 +329,11 @@ def papierkorb_anlegen(
         except FileExistsError:
             continue
     ist_ordner = quelle.is_dir()
-    anzahl, groesse = dateien.ordner_groesse(quelle) if ist_ordner else (1, quelle.stat().st_size)
+    if ist_ordner:
+        groesse = dateien.ordner_groesse(quelle)[1]
+        anzahl = max(dateien.zaehle_audio(quelle), 1)  # "Anzahl Dateien (Tracks)": Audiodateien
+    else:
+        anzahl, groesse = 1, quelle.stat().st_size
     meta: dict[str, Any] = {
         "schema_version": 1,
         "id": eid,
@@ -377,8 +381,11 @@ def lese_papierkorb(papierkorb: Path) -> list[dict[str, Any]]:
         if not (pfad / "inhalt").is_dir() or not isinstance(meta, dict) or meta.get("id") != e.name:
             _LOGGER.warning("papierkorb_unvollstaendig: %s", e.name)
             continue
+        meta["_ns"] = e.stat().st_mtime_ns  # nur zum Sortieren innerhalb derselben Sekunde
         aus.append(meta)
-    aus.sort(key=lambda m: (parse_iso(m.get("geloescht_am")) or jetzt(), m.get("id", "")), reverse=True)
+    aus.sort(key=lambda m: (parse_iso(m.get("geloescht_am")) or jetzt(), m["_ns"], m.get("id", "")), reverse=True)
+    for m in aus:
+        m.pop("_ns", None)
     return aus
 
 
@@ -787,6 +794,7 @@ class Medien:
     async def _frisch(self, serie_id: str) -> tuple[Serie, Path]:
         """Liest ``serie.json`` frisch von der Freigabe (der Ordner kommt aus dem Zwischenspeicher)."""
         await self._stelle_geprueft_sicher()
+        await self._medien_erreichbar()
         info = self.finde(serie_id)
         pfad = self.pfad_serie(info.ordner)
         try:
@@ -825,6 +833,7 @@ class Medien:
 
     async def serie_anlegen(self, name: Any, typ: str = "normal") -> dict[str, Any]:
         anzeige = name_pruefen(name, SERIE_NAME_MAX)
+        await self._medien_erreichbar()
         await self._stelle_geprueft_sicher()
         if typ == "ueberraschung" and any(i.serie.typ == "ueberraschung" for i in self.serien.values()):
             raise TobiboxFehler("ueberraschung_existiert")

@@ -113,6 +113,15 @@ def ordner_groesse(pfad: Path) -> tuple[int, int]:
     return anzahl, summe
 
 
+def zaehle_audio(pfad: Path) -> int:
+    """Anzahl der Audiodateien unterhalb von ``pfad`` (ohne Dotfiles)."""
+    anzahl = 0
+    for _wurzel, ordner, namen in os.walk(pfad):
+        ordner[:] = [o for o in ordner if not o.startswith(".")]
+        anzahl += sum(1 for n in namen if ist_audio(n))
+    return anzahl
+
+
 def ist_audio(name: str) -> bool:
     """Kein Dotfile und eine erlaubte Endung (``data-model.md`` Abschnitt 5)."""
     return not name.startswith(".") and name.rpartition(".")[2].lower() in ENDUNGEN and "." in name

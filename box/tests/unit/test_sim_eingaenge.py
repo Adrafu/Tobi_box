@@ -140,28 +140,45 @@ async def test_kopfhoerer(sim):
     assert (await eins(sim, befehl="kopfhoerer", steckt="ja"))["ok"] is False
 
 
-# -- Strom und Netz: geprüft, aber noch nicht verdrahtet ----------------------------------------
+# -- Strom und Netz (seit AP 3.7 verdrahtet) --------------------------------------------------
 
 
-async def test_strom_und_netz_sind_noch_nicht_verdrahtet_aber_werden_geprueft(sim):
-    nv = {"ok": False, "fehler": "noch_nicht_verdrahtet"}
-    assert await eins(sim, befehl="strom", lader=True) == nv
-    assert await eins(sim, befehl="strom", akku=40) == nv
-    assert await eins(sim, befehl="netz", klasse="home") == nv
-    assert await eins(sim, befehl="netz", klasse="hotspot") == nv
+async def test_strom_und_netz_ohne_haken_geben_die_ereignisse_selbst_aus(sim):
+    """Ohne ``[strom]`` und ``[netz]`` im Dienst (keine Haken) gibt ``sim`` die Ereignisse selbst aus."""
+    assert (await eins(sim, befehl="strom", lader=True, akku=55))["ok"]
+    assert (await eins(sim, befehl="netz", klasse="hotspot"))["ok"]
+    assert sim.got == [ev.LaderGeaendert(True), ev.AkkuStand(55), ev.NetzKlasse("hotspot")]
+
+
+async def test_strom_und_netz_werden_weiter_geprueft(sim):
     assert (await eins(sim, befehl="strom", akku=101))["fehler"] == "akku ungueltig"
+    assert (await eins(sim, befehl="strom", lader="ja"))["fehler"] == "lader ungueltig"
     assert (await eins(sim, befehl="strom"))["ok"] is False
     assert (await eins(sim, befehl="netz", klasse="MeinWLAN"))["fehler"] == "klasse ungueltig"
     assert sim.got == []
 
 
-async def test_wird_ein_eingang_verdrahtet_kommen_die_ereignisse(sim, monkeypatch):
-    monkeypatch.setitem(sim_modul.VERDRAHTET, "strom", True)
-    monkeypatch.setitem(sim_modul.VERDRAHTET, "netz", True)
+async def test_mit_haken_stellt_sim_den_treiber_ein_und_gibt_selbst_nichts_aus(sim):
+    aufrufe: list = []
+
+    async def strom(lader, akku):
+        aufrufe.append(("strom", lader, akku))
+
+    async def netz(klasse):
+        aufrufe.append(("netz", klasse))
+
+    sim.strom_haken, sim.netz_haken = strom, netz
+    assert (await eins(sim, befehl="strom", lader=False))["ok"]
+    assert (await eins(sim, befehl="strom", akku=40))["ok"]
+    assert (await eins(sim, befehl="netz", klasse="home"))["ok"]
+    assert aufrufe == [("strom", False, None), ("strom", None, 40), ("netz", "home")]
+    assert sim.got == []  # die Ereignisse kommen von ``power`` und ``net``
+
+
+async def test_hauptknopf_lang_wird_verdrahtet_kommen_die_ereignisse(sim, monkeypatch):
     monkeypatch.setitem(sim_modul.VERDRAHTET, "hauptknopf_lang", True)
-    assert (await eins(sim, befehl="strom", lader=True, akku=55))["ok"]
-    assert (await eins(sim, befehl="netz", klasse="hotspot"))["ok"]
-    assert sim.got == [ev.LaderGeaendert(True), ev.AkkuStand(55), ev.NetzKlasse("hotspot")]
+    assert (await eins(sim, befehl="taste", taste="hauptknopf_lang"))["ok"]
+    assert sim.got == [ev.Hauptknopf("lang")]
 
 
 # -- anzeige --------------------------------------------------------------------------------
@@ -170,7 +187,7 @@ async def test_wird_ein_eingang_verdrahtet_kommen_die_ereignisse(sim, monkeypatc
 async def test_anzeige_nennt_verdrahtung_und_simulierten_tobie(sim):
     a = await eins(sim, befehl="anzeige")
     assert a["ok"] and a["simuliert"] is None
-    assert a["verdrahtet"]["hauptknopf_kurz"] is True and a["verdrahtet"]["netz"] is False
+    assert a["verdrahtet"]["hauptknopf_kurz"] is True and a["verdrahtet"]["netz"] is True and a["verdrahtet"]["strom"] is True and a["verdrahtet"]["hauptknopf_lang"] is False
     t = await eins(sim, befehl="tobie_auflegen", uid="04a1b2c3")
     a = await eins(sim, befehl="anzeige")
     assert a["simuliert"] == {"uid": "04a1b2c3", "vorgang": t["vorgang"]}  # innerhalb der Karenz bleibt er

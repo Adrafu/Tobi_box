@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -165,3 +166,80 @@ class Aufbau:
 
     def typen(self, klasse: type) -> list:
         return [e for e in self.ereignisse if isinstance(e, klasse)]
+
+
+# --------------------------------------------------------------------------
+# Fake-HA für die CUJ-Tests mit der echten ``App`` (AP 3.7): spielt Home Assistant über einen echten Mosquitto
+# --------------------------------------------------------------------------
+
+
+class FakeHa:
+    """Home Assistant aus Sicht der Box, über ``GegenstelleHa`` (Konto ``ha``, alle Rechte).
+
+    * ``konfig_ausrollen``: veröffentlicht ``tobibox/config`` dauerhaft mit der nächsten Revision (wartet auf den PUBACK).
+    * ``bestaetigen``: antwortet auf ``…/unknown/<uid>/ack`` mit ``zuletzt`` und ``art`` der **zuletzt empfangenen** Meldung.
+    * ``ordne_zu``: Konfiguration **zuerst**, dann ``ack`` ``zugeordnet`` (``mqtt-v1.md``, 4.2, Schritt 5 und 6; Entscheidung H).
+    * ``befehl``: ein Befehl auf ``…/cmd`` (nicht dauerhaft).
+    """
+
+    def __init__(self, gegenstelle: Any, box: str = BOX, liste_id: str = LISTE_A) -> None:
+        self.g = gegenstelle
+        self.box = box
+        self.liste_id = liste_id
+        self.revision = 0
+        self.zuordnungen: dict[str, Any] = {}
+        self.gesendet: list[tuple[str, str]] = []  # ("config" | "ack" | "cmd", Beschreibung) in der Reihenfolge des Sendens
+
+    # -- Empfang --------------------------------------------------------------------------------------------
+
+    def meldungen(self, uid: str) -> list[dict]:
+        """Alle Meldungen der Box auf ``tobibox/<box>/unknown/<uid>`` (ohne die leeren Löschungen)."""
+        return self.g.json_auf(f"tobibox/{self.box}/unknown/{uid}")
+
+    def loeschungen(self, uid: str) -> int:
+        """Wie oft die Box die dauerhafte Nachricht gelöscht hat (leere Nutzlast)."""
+        return sum(1 for n, _ in self.g.auf(f"tobibox/{self.box}/unknown/{uid}") if not n)
+
+    def ereignisse(self, art: str | None = None) -> list[dict]:
+        alle = self.g.json_auf(f"tobibox/{self.box}/event")
+        return [e for e in alle if art is None or e["art"] == art]
+
+    def status(self) -> dict | None:
+        s = self.g.json_auf(f"tobibox/{self.box}/status")
+        return s[-1] if s else None
+
+    # -- Senden ---------------------------------------------------------------------------------------------
+
+    def konfig_ausrollen(self, zuordnungen: dict[str, Any] | None = None, *, revision: int | None = None,
+                         liste_id: str | None = None, **zusatz: Any) -> dict:
+        """Eine neue Fassung der Liste; ``zuordnungen`` ersetzt die bisherigen (sonst bleiben sie)."""
+        if zuordnungen is not None:
+            self.zuordnungen = dict(zuordnungen)
+        self.revision = revision if revision is not None else self.revision + 1
+        if liste_id is not None:
+            self.liste_id = liste_id
+        roh = konfig_json(revision=self.revision, liste_id=self.liste_id, zuordnungen=self.zuordnungen, **zusatz)
+        self.g.veroeffentliche("tobibox/config", roh, retain=True)
+        self.gesendet.append(("config", f"revision {self.revision}"))
+        return roh
+
+    def bestaetigen(self, uid: str, grund: str = "neu", *, zuletzt: str | None = None, art: str | None = None) -> None:
+        m = self.meldungen(uid)
+        assert m or zuletzt, f"keine Meldung für {uid} empfangen"
+        n = {"v": 1, "ts": "2026-11-09T10:00:00Z", "zuletzt": zuletzt or m[-1]["zuletzt"], "art": art or m[-1]["art"], "grund": grund}
+        self.g.veroeffentliche(f"tobibox/{self.box}/unknown/{uid}/ack", n)
+        self.gesendet.append(("ack", f"{uid} {grund}"))
+
+    def ordne_zu(self, uid: str, ziel: dict[str, Any], name: str | None = None) -> None:
+        """Zuordnung schreiben und veröffentlichen, **danach** bestätigen (Reihenfolge Konfiguration vor ``ack``)."""
+        eintrag: dict[str, Any] = {"ziel": ziel}
+        if name is not None:
+            eintrag["name"] = name
+        self.konfig_ausrollen({**self.zuordnungen, uid: eintrag})
+        self.bestaetigen(uid, "zugeordnet")
+
+    def befehl(self, befehl: str, *, erzeugt: str | None = None, ttl_s: int = 60, id: str | None = None, daten: dict | None = None) -> str:
+        n = cmd(befehl, erzeugt=erzeugt, ttl_s=ttl_s, daten=daten, id=id or str(uuid.uuid4()))  # jede ``id`` neu, sonst gilt sie als doppelt
+        self.g.veroeffentliche(f"tobibox/{self.box}/cmd", n)
+        self.gesendet.append(("cmd", befehl))
+        return n["id"]

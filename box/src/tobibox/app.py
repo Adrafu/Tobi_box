@@ -15,6 +15,17 @@ Nie zwei Dinge gleichzeitig (Entscheidung L, 09.11.; ``core-interface.md``, 8.1 
   Start, ob die Wiedergabe-Generation ``gen`` und der Zustand des Kerns noch zu ihm passen.
 * **Ton während das Hörspiel läuft.** Die Tonspur hält MPD kurz an und setzt es danach fort
   (``Player.ton_pause_beginn`` / ``ton_pause_ende``), ohne dass der Kern es erfährt.
+
+Stufe 3a (AP 3.7): HA, Netz, Strom und Sync hängen hier im Dienst.
+
+* ``[mqtt]`` da: ``Ha`` spricht MQTT. Es veröffentlicht die Meldungen (``Ausgang.melde_async``, danach ``ha.melde``), führt
+  ``EreignisSenden`` aus und gibt Konfiguration, Befehle und ``Bestaetigt`` in die Ereignisschleife. Der HA-Ersatz der Stufe 2
+  schweigt dann. Ohne ``[mqtt]`` bleibt er aktiv (Mac ohne Broker).
+* ``[netz]`` und ``[strom]``: ``Netz`` und ``Power`` messen und senden ``NetzKlasse``, ``AkkuStand``, ``LaderGeaendert`` und
+  die Zeitquelle (geteiltes ``Zeitquelle``-Objekt). ``ZeitquelleGeaendert`` stellt die Uhr (``setze_quelle``).
+* ``[sync]``: ``Sync`` bekommt Netz-Klasse, Lader und Akku, ``Takt`` für den zeitgesteuerten Start, ``SyncStarten`` und
+  ``SyncAbbrechen`` aus dem Kern. Nach einem Sync lädt ``app`` die Bibliothek neu (``BibliothekGeladen``).
+* ``SyncFortschritt`` (Ereignis von ``sync``, nicht im Vertrag) geht nur an den Statussammler und die Anzeige, nie in den Kern.
 """
 
 from __future__ import annotations
@@ -37,16 +48,24 @@ from . import config as konfig_modul
 from . import events as ev
 from .clock import SystemUhr, Uhr
 from .ausgang import Ausgang
+from .ha import Ha
+from .net import Netz, SimSsid, Zeitquelle
 from .player import Player
+from .power import Power, SimStrom
 from .reader import Leser
 from .sounds import Kennlinie, Toene
 from .status import Statussammler
+from .sync import MpdHaken, Sync, SyncFortschritt
 from .volume import GRENZE_AUSBLENDEN, GRENZE_GUTE_NACHT, klemmen, wirksame_grenze
 from .store import KonfigStore, ResumeStore, raeume_auf
 
 TAKT_S = 0.1
 VERBINDEN_WARTEN_S = 10.0  # so lange wartet ``starte`` auf MPD, bevor ``Bereit`` kommt
 ENDE_WARTEN_S = 5.0
+ABBRUCH_SYNC_WARTEN_S = 15.0  # ``sync`` wartet nach SIGTERM bis zu 10 s auf rsync
+#: ``[netz] quelle = "sim"`` ohne eigene Namen: Mit diesen WLAN-Namen bildet ``tobibox sim net`` die Klassen ab.
+SIM_HEIM_SSID = "sim-heim"
+SIM_HOTSPOT_SSID = "sim-hotspot"
 ENV_KONFIG = "TOBIBOX_CONFIG"
 STANDARD_KONFIG = "tobibox.toml"
 STANDARD_TOENE = Path(__file__).resolve().parents[2] / "sounds"
@@ -115,6 +134,7 @@ class App:
         self.outbox = self.ausgang.outbox
         self.sim = self.ausgang.sim
         self.ha_ersatz = self.ausgang.ha_ersatz
+        self._baue_stufe_3a()
         self._verloren_basis = len(store.verlorene_dateien)  # ``datei_verloren`` zählt erst seit dem Start
         self.kern = core.neuer_zustand()
         self.ereignisse: asyncio.Queue[ev.Ereignis] = asyncio.Queue()
@@ -140,6 +160,78 @@ class App:
         self.bereit = asyncio.Event()
         self._stopp = asyncio.Event()
         self._aufgaben: list[asyncio.Task] = []
+        self._hintergrund: set[asyncio.Task] = set()  # kurze Aufgaben (Sync abbrechen, Bibliothek neu laden)
+        self._bibliothek_laedt = False
+
+    def _baue_stufe_3a(self) -> None:
+        """HA, Netz, Strom und Sync aus der Konfiguration (jeder Abschnitt ist optional)."""
+        k = self.konfig
+        self.zeitquelle: Zeitquelle | None = None
+        self.netz: Netz | None = None
+        self.power: Power | None = None
+        self.ha: Ha | None = None
+        self.sync: Sync | None = None
+        if k.netz is not None or k.strom is not None:
+            # Am Mac (alles ``sim``) gilt die Systemuhr; sonst bewerten NTP (``net``) und RTC (``power``) die Uhr.
+            system = all(a.simulation for a in (k.netz, k.strom) if a is not None)
+            self.zeitquelle = Zeitquelle(system=system)
+            self._uebernimm_zeitquelle(self.zeitquelle.quelle, self.zeitquelle.vertrauenswuerdig)
+        if k.netz is not None:
+            netz_k = k.netz
+            if netz_k.simulation:
+                netz_k = replace(
+                    netz_k, heim_ssid=netz_k.heim_ssid or SIM_HEIM_SSID, hotspot_ssid=netz_k.hotspot_ssid or SIM_HOTSPOT_SSID
+                )
+            self.netz = Netz.aus_konfig(netz_k, self.zeitquelle, self.ereignisse_ein)
+            if isinstance(self.netz._ssid, SimSsid):
+                self.sim.netz_haken = self._sim_netz
+        if k.strom is not None:
+            self.power = Power.aus_konfig(k.strom, self.zeitquelle, self.ereignisse_ein)
+            if isinstance(self.power.treiber, SimStrom):
+                self.sim.strom_haken = self._sim_strom
+        if k.mqtt is not None:
+            self.ha = Ha(
+                k.mqtt, konfig_store=self.konfig_store, outbox=self.outbox, status=self.status, uhr=self.uhr,
+                ausgabe=self.ereignisse_ein, medien=k.pfade.medien, serien=lambda: self.bibliothek.serien,
+            )
+            self.ausgang.ha = self.ha  # ab jetzt bestätigt HA, nicht der HA-Ersatz
+        if k.sync is not None:
+            haken = MpdHaken(k.mpd.host, k.mpd.port)
+            self.sync = Sync(
+                k.sync, k.pfade.medien, ausgabe=self.ereignisse_ein,
+                aktuelle_datei=haken.aktuelle_datei, einlesen=haken.einlesen,
+            )
+
+    def _uebernimm_zeitquelle(self, quelle: ev.ZeitQuelle, vertrauenswuerdig: bool) -> None:
+        """``ZeitquelleGeaendert`` stellt die Uhr: ``SystemUhr.setze_quelle`` (im Test ``SimUhr.setze_zeit``)."""
+        for name in ("setze_quelle", "setze_zeit"):
+            stelle = getattr(self.uhr, name, None)
+            if stelle is not None:
+                stelle(quelle, vertrauenswuerdig)
+                return
+
+    async def _sim_strom(self, lader: bool | None, akku: int | None) -> None:
+        """``tobibox sim power``: Treiber einstellen, ``power`` sofort messen lassen."""
+        assert self.power is not None and isinstance(self.power.treiber, SimStrom)
+        werte: dict = {}
+        if lader is not None:
+            werte["lader"] = lader
+        if akku is not None:
+            werte["akku"] = akku
+        self.power.treiber.setze(**werte)
+        await self.power.pruefe()
+
+    async def _sim_netz(self, klasse: str) -> None:
+        """``tobibox sim net``: das simulierte WLAN passend setzen, ``net`` sofort messen lassen."""
+        assert self.netz is not None and isinstance(self.netz._ssid, SimSsid)
+        ssid = {"home": self.netz.konfig.heim_ssid, "hotspot": self.netz.konfig.hotspot_ssid}.get(klasse)
+        self.netz._ssid.setze(ssid)
+        await self.netz.pruefe()
+
+    def _spawn(self, coro, name: str) -> None:
+        t = asyncio.get_running_loop().create_task(coro, name=name)
+        self._hintergrund.add(t)
+        t.add_done_callback(self._hintergrund.discard)
 
     # ------------------------------------------------------------------
     # Kern
@@ -151,10 +243,15 @@ class App:
 
     def verarbeite(self, e: ev.Ereignis) -> tuple[ev.Befehl, ...]:
         """Ein Ereignis durch den Kern; die Befehle gehen an den Ausführer."""
+        if isinstance(e, ev.ZeitquelleGeaendert):
+            self._uebernimm_zeitquelle(e.quelle, e.vertrauenswuerdig)  # vor ``jetzt``: schon dieses Ereignis sieht die neue Uhr
         jetzt = self.uhr.jetzt()
         sim = self.ausgang.war_sim(e)
         _protokolliere_leser(e)
         self.status.beobachte(e, jetzt)
+        if isinstance(e, SyncFortschritt):
+            return ()  # nur Anzeige (Statussammler); der Kern kennt das Ereignis nicht
+        self._melde_an_sync(e)
         if isinstance(e, ev.Bestaetigt):
             # Zuerst die Outbox (``core-interface.md``, Abschnitt 3 und 7). Den Kern erreicht nur eine
             # Bestätigung für einen gelernten Tobie, die die Outbox angenommen hat (offener Eintrag, passendes
@@ -180,6 +277,32 @@ class App:
             self.befehle.put_nowait((b, jetzt.mono))
         self._marker_nachfuehren()
         return befehle
+
+    def _melde_an_sync(self, e: ev.Ereignis) -> None:
+        """Netz-Klasse, Lader und Akku für die Regel des Syncs (``setze_*``); ein Netzverlust bricht einen laufenden Sync ab."""
+        sy = self.sync
+        if sy is None:
+            return
+        if isinstance(e, ev.NetzKlasse):
+            sy.setze_netz(e.klasse)
+        elif isinstance(e, ev.LaderGeaendert):
+            sy.setze_lader(e.am_lader)
+        elif isinstance(e, ev.AkkuStand):
+            sy.setze_akku(e.prozent)
+        elif isinstance(e, ev.SyncFertig) and (e.neu or e.geloescht):
+            self._spawn(self._bibliothek_neu_laden(), "tobibox-bibliothek")  # neue Folgen sind auf der Platte
+
+    async def _bibliothek_neu_laden(self) -> None:
+        """Nach einem Sync: Medienordner neu lesen und als ``BibliothekGeladen`` in die Ereignisschleife geben."""
+        if self._bibliothek_laedt:
+            return  # läuft schon; sie liest den Stand von jetzt
+        self._bibliothek_laedt = True
+        try:
+            self.bibliothek = await asyncio.to_thread(library.lade_bibliothek, self.konfig.pfade.medien)
+            self.ereignisse.put_nowait(self.bibliothek.ereignis())
+            eventlog.logge("app", "INFO", "bibliothek", "neu_geladen", daten={"serien": len(self.bibliothek.serien)})
+        finally:
+            self._bibliothek_laedt = False
 
     def _ton_pegel_nachfuehren(self) -> None:
         """``grenze`` und ``lautstaerke`` für Töne aus dem Zustand des Kerns (ohne Ausblende-Rampen)."""
@@ -222,6 +345,8 @@ class App:
             e = await self.ereignisse.get()
             try:
                 self.verarbeite(e)
+                if isinstance(e, ev.Takt) and self.sync is not None:
+                    await self.sync.takt()  # zeitgesteuerter Sync: startet nur, wenn Intervall und Regel es erlauben
             except Exception:  # ein Fehler im Kern darf die Box nicht anhalten
                 log.exception("Kern: Ausnahme bei %s", type(e).__name__)
                 eventlog.logge("app", "ERROR", "kern_ausnahme", "fehler", daten={"ereignis": type(e).__name__})
@@ -276,17 +401,33 @@ class App:
             self._herunterfahren = True
             lauf.loesche(self.konfig.pfade.zustand)
             eventlog.logge("app", "INFO", "herunterfahren", "angefordert", daten={"grund": b.grund})
+            if self.power is not None:
+                await self.power.fuehre_aus(b)  # Pi: pisugar/systemctl poweroff; Mac: nur protokolliert
         elif isinstance(b, ev.ZustandMelden):
             pass  # der Statussammler hat sie in ``verarbeite`` schon gesehen
         elif isinstance(b, ev.Melden):
             await self._melde(b)
         elif isinstance(b, ev.EreignisSenden):
-            # Stufe 3a veröffentlicht auf ``tobibox/<box>/event``; bis dahin nur ins Protokoll
             eventlog.logge("app", "INFO", "ereignis_senden", b.art, daten=dict(b.daten))
+            if self.ha is not None:
+                self.ha.fuehre_aus(b)  # ``tobibox/<box>/event``
         elif isinstance(b, ev.StatusPruefen):
             self._status_pruefen(b)
-        else:  # Sync, Update: Stufe 3
+        elif isinstance(b, ev.SyncStarten):
+            await self._sync_starten(b)
+        elif isinstance(b, ev.SyncAbbrechen):
+            if self.sync is not None:  # ``abbrechen`` wartet auf rsync: nicht im Ausführer, sonst steht die Wiedergabe
+                self._spawn(self.sync.abbrechen(b.grund), "tobibox-sync-abbrechen")
+        else:  # Update: Stufe 3b
             eventlog.logge("app", "DEBUG", "befehl_nicht_umgesetzt", "ignoriert", daten={"befehl": type(b).__name__})
+
+    async def _sync_starten(self, b: ev.SyncStarten) -> None:
+        if self.sync is not None:
+            await self.sync.start(b.grund)  # die Regel (Heim / Hotspot und Akku) prüft ``sync``; sonst ``SyncAbgebrochen("regel")``
+            return
+        # ohne ``[sync]`` gibt es nichts zu holen; die Antwort verhindert, dass ein Sync „offen“ bleibt (``idle``)
+        eventlog.logge("app", "INFO", "sync", "nicht_eingerichtet", daten={"grund": b.grund})
+        self.ereignisse.put_nowait(ev.SyncAbgebrochen("regel"))
 
     # ------------------------------------------------------------------
     # Wiedergabestart und Töne (Entscheidung L, 09.11.)
@@ -400,6 +541,17 @@ class App:
             "status": self.status.als_dict(jetzt, self.bibliothek.serien, frei),
             "pruefpunkte": self.pruefbericht(jetzt).als_dict(),
             "offen": [dataclasses.asdict(e) for e in self.outbox.offen()],
+            "verbindungen": self.verbindungen(),
+        }
+
+    def verbindungen(self) -> dict:
+        """Was ``tobibox status`` zusätzlich zeigt (AP 3.7): HA-Verbindung, Netz, Akku, Sync samt Zwischenstand."""
+        st = self.status
+        return {
+            "ha": {"eingerichtet": self.ha is not None, "verbunden": st.ha_verbunden},
+            "netz": {"eingerichtet": self.netz is not None, "klasse": st.netz},
+            "strom": {"eingerichtet": self.power is not None, "akku_prozent": st.akku, "lader": st.lader},
+            "sync": {"eingerichtet": self.sync is not None, **st.sync, "fortschritt": st.sync_fortschritt},
         }
 
     def anzeige_auskunft(self) -> dict:
@@ -431,6 +583,7 @@ class App:
                 "gute_nacht": zeile.gute_nacht if zeile is not None else "aus",
                 "strom": zeile.strom if zeile is not None else "aktiv",
                 "figur": figur,
+                "sync_fortschritt": self.status.sync_fortschritt,
                 "ring": None,
             },
         }
@@ -508,10 +661,31 @@ class App:
                 daten={"pfad": str(self.sim.pfad), "detail": str(e) or repr(e)},
             )
         self._aufgaben.append(asyncio.create_task(self._taktgeber(), name="tobibox-takt"))
+        await self._starte_stufe_3a()
         self.bereit.set()
         if self._melde_bereit:
             notify.bereit()
         eventlog.logge("app", "INFO", "bereit", "ok")
+
+    async def _starte_stufe_3a(self) -> None:
+        """HA, Netz und Strom starten, nachdem ``Bereit`` verarbeitet ist (ihre Ereignisse treffen einen bereiten Kern)."""
+        if self.ha is not None:
+            await self.ha.start()  # verbindet im Hintergrund; ohne Broker läuft die Box offline weiter
+        if self.netz is not None:
+            self._aufgaben.append(asyncio.create_task(self.netz.lauf(), name="tobibox-netz"))
+        if self.power is not None:
+            self._aufgaben.append(asyncio.create_task(self._strom_lauf(), name="tobibox-strom"))
+
+    async def _strom_lauf(self) -> None:
+        """RTC lesen und erste Messung (``Power.start``), dann dauernd messen (``Power.lauf``)."""
+        assert self.power is not None
+        try:
+            await self.power.start()
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:  # noqa: BLE001 - ein Fehler beim Start darf die Messung nicht verhindern
+            eventlog.logge("app", "ERROR", "strom_start", "fehler", daten={"detail": repr(e)})
+        await self.power.lauf()
 
     async def _leere_ereignisse(self) -> None:
         await self.ereignisse.join()
@@ -533,17 +707,21 @@ class App:
             self._start.task.cancel()
             self._aufgaben.append(self._start.task)
             self._start = None
-        for t in self._aufgaben:
+        for t in (*self._aufgaben, *self._hintergrund):
             t.cancel()
-        for t in self._aufgaben:
+        for t in (*self._aufgaben, *self._hintergrund):
             with contextlib.suppress(asyncio.CancelledError, Exception):
                 await t
+        if self.sync is not None:
+            await self._warte(self.sync.beenden(), "sync", ABBRUCH_SYNC_WARTEN_S)  # rsync-Kindprozess beenden
         await self._warte(self.player.pausiere_hart(), "pause_hart")
         await self._warte(self.player.stop(), "player")
         await self._warte(self.toene.stop(), "toene")
         await self._warte(self.sim.stop(), "sim")
         await self._warte(self.leser.stop(), "leser")
         await self._warte(self.outbox.warte_gespeichert(), "outbox")
+        if self.ha is not None:
+            await self._warte(self.ha.stop(), "ha")  # zuerst ``offline`` veröffentlichen, dann trennen
 
     async def beende(self) -> None:
         """Sauber beenden: Leser zu, laufende Wiedergabe pausieren und Zeiger sichern.

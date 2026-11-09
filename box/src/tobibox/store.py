@@ -26,6 +26,7 @@ import os
 import re
 import shutil
 import time
+import unicodedata
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -461,6 +462,15 @@ def validiere_konfig(roh: Mapping[str, Any]) -> tuple[ev.Konfig, dict[str, Any]]
     return parse_konfig(roh), {k: roh[k] for k in _KONFIG_FELDER if k in roh}
 
 
+def _tobie_name(zuordnung: Mapping[str, Any]) -> str | None:
+    """Das optionale Feld ``name`` einer Zuordnung (``data-model.md``, Abschnitt 2): 1 bis 60 Zeichen, ohne Steuerzeichen,
+    Leerraum gekürzt. Ein ungültiger Name macht die Liste **nie** ungültig; die Box ignoriert ihn dann."""
+    n = zuordnung.get("name")
+    if not isinstance(n, str) or not 1 <= len(n) <= 60 or n != n.strip():
+        return None
+    return None if any(unicodedata.category(c).startswith("C") for c in n) else n
+
+
 def parse_konfig(roh: Mapping[str, Any]) -> ev.Konfig:
     """``config.json`` Version 2 (Abschnitt 2) prüfen. Ist irgendein Teil ungültig, wirft es ``Ungueltig``.
 
@@ -493,17 +503,17 @@ def parse_konfig(roh: Mapping[str, Any]) -> ev.Konfig:
             if not isinstance(sid, str) or not 1 <= len(sid) <= 64:
                 raise fail(f"zuordnungen.{uid}.ziel.serie")
             if typ == "serie":
-                zuordnungen[uid] = ev.Zuordnung("serie", sid)
+                zuordnungen[uid] = ev.Zuordnung("serie", sid, name=_tobie_name(z))
             else:
                 folge = ziel.get("folge")
                 if not _gueltiger_name(folge):
                     raise fail(f"zuordnungen.{uid}.ziel.folge")
-                zuordnungen[uid] = ev.Zuordnung("folge", sid, folge)
+                zuordnungen[uid] = ev.Zuordnung("folge", sid, folge, name=_tobie_name(z))
         elif typ == "aktion":
             akt = ziel.get("aktion")
             if akt not in ("status", "gute_nacht"):
                 raise fail(f"zuordnungen.{uid}.ziel.aktion")
-            zuordnungen[uid] = ev.Zuordnung("aktion", aktion=akt)
+            zuordnungen[uid] = ev.Zuordnung("aktion", aktion=akt, name=_tobie_name(z))
         else:
             raise fail(f"zuordnungen.{uid}.ziel.typ")
 
@@ -595,7 +605,7 @@ def konfig_zu_json(k: ev.Konfig) -> dict[str, Any]:
             ziel = {"typ": "folge", "serie": z.serie_id, "folge": z.folge}
         else:
             ziel = {"typ": "aktion", "aktion": z.aktion}
-        zuo[uid] = {"ziel": ziel}
+        zuo[uid] = {"ziel": ziel, **({"name": z.name} if z.name is not None else {})}
     fenster = []
     for f in k.leise_zeiten.fenster:
         d: dict[str, Any] = {"id": f.id, "tage": list(f.tage), "von": f.von, "bis": f.bis, "wirkung": f.wirkung}

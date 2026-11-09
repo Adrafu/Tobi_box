@@ -7,7 +7,7 @@ Ereignisprotokoll) und braucht **keinen laufenden Dienst**. Es verändert nichts
 Abschnitt 12; ``mqtt-v1.md``, 3.3) und die Prüfpunkte der Status-Karte.
 
 ``sim`` ist ein Client des Unix-Sockets ``sim.sock`` im Zustandsverzeichnis (Stufe 2, ``sim.py``):
-``learn``, ``learn-abort``, ``ack`` und ``card``. Exit-Codes von ``sim``: 0 angenommen, 1 abgelehnt, 2 Eingabe,
+``learn``, ``learn-abort``, ``ack``, ``card`` und seit AP 3.7 ``power`` und ``net``. Exit-Codes von ``sim``: 0 angenommen, 1 abgelehnt, 2 Eingabe,
 3 Dienst nicht erreichbar, 4 keine Berechtigung auf ``sim.sock``. ``learn`` und ``card`` prüfen vorab, ob es
 Serie und Folge in der Bibliothek gibt; sonst Exit-Code 2 mit den vorhandenen Serien-IDs in der Meldung.
 """
@@ -182,6 +182,12 @@ def sammle_status(kfg: konfig_modul.BoxKonfig) -> dict:
             f"{z.get('zeit')} {z.get('baustein')}/{z.get('ereignis')} {z.get('meldung', '')}".rstrip() for z in fehler
         ],
         "protokoll": log_hinweis or str(kfg.protokoll.datei),
+        "eingerichtet": {
+            "ha": f"{kfg.mqtt.box_id}@{kfg.mqtt.host}:{kfg.mqtt.port}" if kfg.mqtt is not None else None,
+            "netz": kfg.netz.quelle if kfg.netz is not None else None,
+            "strom": kfg.strom.quelle if kfg.strom is not None else None,
+            "sync": f"{kfg.sync.host}/{kfg.sync.modul}" if kfg.sync is not None else None,
+        },
         "versionen": {"tobibox": __version__, "protokoll": max(PROTO_UNTERSTUETZT), "python": platform.python_version()},
     }
 
@@ -192,6 +198,34 @@ def _offen_zeile(offen: list | str) -> str:
     if not offen:
         return "Meldungen: keine offen (unknown.json)"
     return "Meldungen: " + ", ".join(f"{m['uid']} ({m['art']}, {m['anzahl']}x)" for m in offen) + " warten auf Bestätigung"
+
+
+def _verbindungs_zeilen(v: dict | None) -> list[str]:
+    """HA-Verbindung, Netz, Akku und Sync (AP 3.7), je eine Zeile; ohne Angaben vom Dienst keine."""
+    if not v:
+        return []
+    ha = v["ha"]
+    ha_text = "nicht eingerichtet ([mqtt] fehlt)" if not ha["eingerichtet"] else ("verbunden" if ha["verbunden"] else "getrennt")
+    st = v["strom"]
+    if not st["eingerichtet"] and st["akku_prozent"] is None:
+        strom_text = "nicht eingerichtet ([strom] fehlt)"
+    else:
+        akku = "unbekannt" if st["akku_prozent"] is None else f"{st['akku_prozent']} %"
+        lader = {True: "am Lader", False: "nicht am Lader", None: "Lader unbekannt"}[st["lader"]]
+        strom_text = f"{akku}, {lader}"
+    sy = v["sync"]
+    if not sy["eingerichtet"]:
+        sync_text = "nicht eingerichtet ([sync] fehlt)"
+    elif sy["zustand"] == "laeuft":
+        f = sy.get("fortschritt")
+        sync_text = "läuft" + (f", {f['prozent']} % ({f['dateien']} Dateien)" if f else "")
+    else:
+        ende = f", zuletzt {sy['letzter_ende']}: {sy['ergebnis']}" if sy.get("letzter_ende") else ", noch nie gelaufen"
+        grund = f" ({sy['grund']})" if sy.get("grund") else ""
+        neu = f", {sy['neu']} neu" if sy.get("ergebnis") == "ok" else ""
+        sync_text = f"{sy['zustand']}{ende}{grund}{neu}"
+    netz = v["netz"]["klasse"] + ("" if v["netz"]["eingerichtet"] else " ([netz] fehlt)")
+    return [f"  HA: {ha_text}; Netz: {netz}; Akku: {strom_text}", f"  Sync: {sync_text}"]
 
 
 def _live_zeilen(live: dict | None) -> list[str]:
@@ -205,6 +239,7 @@ def _live_zeilen(live: dict | None) -> list[str]:
         f"  Sitzung: {s['zustand']}, Serie: {serie}{folge}, Lernmodus: {'an' if s['lernmodus'] else 'aus'}",
         f"  Leser: {s['leser']} (Firmware {s['firmware'] or '-'}), Netz: {s['netz']}, Zeit: {s['zeitquelle']}"
         f" ({'ok' if s['zeit_ok'] else 'unsicher'})",
+        *_verbindungs_zeilen(live.get("verbindungen")),
         f"  Konfiguration: Revision {s['konfig']['revision']}, Liste {s['konfig']['liste_id'] or '-'}; "
         f"frei: {s['speicher_frei_mb']} MB; letzter Fehler: {fehler}",
         "  Status-Karte: " + ", ".join(f"{p['name']} {'ok' if p['ok'] else 'FEHLER'}" for p in live["pruefpunkte"]["punkte"]),
@@ -224,6 +259,9 @@ def formatiere(st: dict) -> str:
         "Medien:    {zustand}  {serien} Serien, {folgen} Folgen, Überraschung: {ueberraschung} ({pfad})".format(**st["medien"]),
         "Speicher:  {zustand}  Zeiger: {resume}; Konfiguration: {config} ({pfad})".format(**st["speicher"]),
         _offen_zeile(st["offene_meldungen"]),
+        "Eingerichtet: " + ", ".join(f"{n} {w or '-'}" for n, w in (
+            ("HA", st["eingerichtet"]["ha"]), ("Netz", st["eingerichtet"]["netz"]),
+            ("Strom", st["eingerichtet"]["strom"]), ("Sync", st["eingerichtet"]["sync"]))),
         f"Protokoll: {st['protokoll']}",
         "Letzte Fehler:" + ("" if st["letzte_fehler"] else " keine im Protokoll"),
         *[f"  {t}" for t in st["letzte_fehler"]],
@@ -283,6 +321,15 @@ def _sim_zeile(args: argparse.Namespace, zustand: Path, medien: Path | None = No
         return zeile
     if args.sim_befehl == "learn-abort":
         return {"befehl": "learn_abort"}
+    if args.sim_befehl == "power":
+        zeile = {"befehl": "strom"}
+        if args.charger is not None:
+            zeile["lader"] = args.charger == "on"
+        if args.battery is not None:
+            zeile["akku"] = args.battery
+        return zeile
+    if args.sim_befehl == "net":
+        return {"befehl": "netz", "klasse": args.klasse}
     if args.sim_befehl == "card":
         if args.aktion:
             ziel: dict = {"typ": "aktion", "aktion": args.aktion}
@@ -408,6 +455,11 @@ def main(argv: Sequence[str] | None = None, ausgabe: TextIO | None = None) -> in
     ack.add_argument("--zuletzt", help="Zeitstempel der Meldung (sonst aus unknown.json)")
     ack.add_argument("--art", choices=("unbekannt", "gelernt"), help="Art der Meldung (sonst aus unknown.json)")
     ack.add_argument("--grund", default="sim", help="Grund der Bestätigung (neu, bekannt, zugeordnet, abgelehnt)")
+    strom = ms.add_parser("power", help="Lader und Akku vorgeben (Treiber SimStrom; Dienst braucht [strom] quelle = sim)")
+    strom.add_argument("--charger", choices=("on", "off"), help="Lader dran (on) oder nicht (off)")
+    strom.add_argument("--battery", type=int, help="Akkustand in Prozent (0 bis 100)")
+    netz = ms.add_parser("net", help="Netz-Klasse vorgeben: daheim (home), Handy-Hotspot (hotspot) oder offline")
+    netz.add_argument("klasse", choices=("home", "hotspot", "offline"))
     karte = ms.add_parser("card", help="Karte oder Tobie einem Ziel zuordnen (schreibt config.json)")
     karte.add_argument("uid")
     karte.add_argument("--serie", help="Serien-ID (Ziel Serie, mit --folge Ziel Folge)")
@@ -421,6 +473,11 @@ def main(argv: Sequence[str] | None = None, ausgabe: TextIO | None = None) -> in
     args = p.parse_args(argv)
     if getattr(args, "sim_befehl", None) == "card" and not (args.aktion or args.serie):
         p.error("card: --serie oder --aktion angeben")
+    if getattr(args, "sim_befehl", None) == "power":
+        if args.charger is None and args.battery is None:
+            p.error("power: --charger und/oder --battery angeben")
+        if args.battery is not None and not 0 <= args.battery <= 100:
+            p.error("power: --battery muss zwischen 0 und 100 liegen")
     return args.func(args, ausgabe or sys.stdout)
 
 

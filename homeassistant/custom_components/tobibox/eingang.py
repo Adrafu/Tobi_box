@@ -784,8 +784,6 @@ class Eingang:
         blockierte: list[Gruppe] = [g for g in gruppen if any(d.block for d in g.dateien)]
         gute = [g for g in gruppen if g not in blockierte]
         vorgaben = {k: v.get("serie_id") for k, v in self.vorgaben.items()}
-        for g in gute:
-            berechne_gruppe(g, vorgaben)
         # Hinweise zu blockierten Dateien (Eintrag, Datei)
         hinweise_je_eintrag: dict[str, list[dict[str, Any]]] = {e.name: [] for e in bereit}
         for g in blockierte:
@@ -793,10 +791,10 @@ class Eingang:
                 if d.block:
                     hinweise_je_eintrag[g.eintrag].append(self._hinweis(d.block, d.rel))
                     zaehler["blockiert"] += 1
-        # --- Doppelte (Prüfsumme) ---
+        # --- Doppelte (Prüfsumme): vor dem Berechnen, damit eine Gruppe mit einer Datei übrig eine Datei-Folge wird ---
         gesehen: dict[str, Datei] = {}
         doppelte_je_eintrag: dict[str, list[Datei]] = {e.name: [] for e in bereit}
-        for g in sorted(gute, key=lambda g: (g.eingangsindex, g.erste_pfad_schluessel)):
+        for g in sorted(gute, key=lambda g: (g.eingangsindex, natuerlicher_schluessel(g.dateien[0].rel))):
             rest = []
             for d in g.dateien:
                 if d.sha and (self._index_treffer(d.sha) or d.sha in gesehen):
@@ -811,6 +809,7 @@ class Eingang:
             g.dateien = rest
         gute = [g for g in gute if g.dateien]
         for g in gute:
+            berechne_gruppe(g, vorgaben)
             vergebe_namen(g)
         # --- Serien bestimmen und einsortieren ---
         await self.hub.medien._stelle_geprueft_sicher()
@@ -939,7 +938,9 @@ class Eingang:
             neue_folgen: list[tuple[Gruppe, str]] = []
             for g in gruppen:
                 try:
-                    endname = await hass.async_add_executor_job(self._verschiebe_gruppe, g, pfad, serie)
+                    endname, index_neu = await hass.async_add_executor_job(self._verschiebe_gruppe, g, pfad, serie)
+                    for sha, rel, groesse in index_neu:
+                        self.index_aufnehmen(sha, rel, groesse)
                 except _GleicherInhalt as gleich:
                     try:
                         await hass.async_add_executor_job(self._doppeltes_wegraeumen, gleich.datei)
@@ -1003,8 +1004,11 @@ class Eingang:
                 zaehler["serien_neu"] += 1
         self.hub.emit("medien", "serien_geaendert", {"serie_ids": [serie.id]})
 
-    def _verschiebe_gruppe(self, g: Gruppe, serie_pfad: Path, serie: Serie) -> str:
-        """Verschiebt die Dateien einer Gruppe in den Serien-Ordner (11.11, Schritt 3). Gibt den Folgen-Namen zurück."""
+    def _verschiebe_gruppe(self, g: Gruppe, serie_pfad: Path, serie: Serie) -> tuple[str, list[tuple[str, str, int]]]:
+        """Verschiebt die Dateien einer Gruppe in den Serien-Ordner (11.11, Schritt 3).
+
+        Läuft im Executor und fasst deshalb den Index nicht an. Gibt ``(Folgen-Name, Index-Einträge)`` zurück,
+        die der Aufrufer in der Ereignisschleife aufnimmt."""
         ordner = serie_pfad.name
         if not g.ist_ordner:
             d = g.dateien[0]
@@ -1023,9 +1027,7 @@ class Eingang:
                     dateien.verschiebe_ohne_ueberschreiben(d.pfad, serie_pfad / name)
                 except dateien.ZielExistiert:
                     continue
-                if d.sha:
-                    self.index_aufnehmen(d.sha, f"{ordner}/{name}", d.groesse)
-                return name
+                return name, ([(d.sha, f"{ordner}/{name}", d.groesse)] if d.sha else [])
             raise dateien.ZielExistiert(g.zielnamen[d.rel])
         # Folgen-Ordner: zuerst vollständig unter _upload/<zufall>/ aufbauen, dann als Ganzes umbenennen
         staging = self.pfade.upload / dateien.zufall_hex(8)
@@ -1054,10 +1056,7 @@ class Eingang:
                     os.rename(ziel, quelle)
             shutil.rmtree(staging, ignore_errors=True)
             raise
-        for d in g.dateien:
-            if d.sha:
-                self.index_aufnehmen(d.sha, f"{ordner}/{name}/{g.zielnamen[d.rel]}", d.groesse)
-        return name
+        return name, [(d.sha, f"{ordner}/{name}/{g.zielnamen[d.rel]}", d.groesse) for d in g.dateien if d.sha]
 
     def _doppeltes_wegraeumen(self, d: Datei) -> None:
         papierkorb_anlegen(

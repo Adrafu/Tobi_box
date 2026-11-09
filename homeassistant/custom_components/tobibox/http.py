@@ -166,6 +166,8 @@ async def _empfange(hub: Hub, request: web.Request, nutzer_id: str | None) -> we
     name, _stark = dateiname_bereinigen(dateiname)
     if not name:
         return _fehler_antwort(hub, "name_ungueltig")
+    if ffprobe.endung_von(name) not in ENDUNGEN:  # z. B. ".mp3": die Bereinigung entfernt den führenden Punkt, die Endung bleibt
+        name = f"{name}.{endung}"
     if serie_id is not None:
         try:
             await hub.medien._stelle_geprueft_sicher()

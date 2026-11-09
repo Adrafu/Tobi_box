@@ -16,6 +16,7 @@ from . import events as ev
 from .events import Jetzt
 from .outbox import zeitstempel
 from .protocol import PROTO_UNTERSTUETZT
+from .sync import SyncFortschritt
 
 LESER_FEHLER_FENSTER_S = 10.0  # 12.2: ein ``LeserFehler`` mit schwere ``fehler`` zählt so lange
 _GETRENNT = ("getrennt", "kein_herzschlag", "hello_timeout")
@@ -37,6 +38,9 @@ class Statussammler:
         # 12.1: ``sync`` aus ``SyncGestartet`` / ``SyncFertig`` / ``SyncAbgebrochen``, ``update`` aus ``UpdateGestartet`` / ``SelbsttestErgebnis``
         self.sync: dict[str, Any] = {"zustand": "idle", "letzter_ende": None, "ergebnis": None, "grund": None, "neu": 0}
         self.update: dict[str, Any] = {"zustand": "ok", "version": __version__, "grund": None}
+        #: Zwischenstand eines laufenden Syncs (``SyncFortschritt`` aus ``sync``); **kein** Feld des Status-JSON (``mqtt-v1.md`` 3.3
+        #: bleibt Version 1). Nur für ``tobibox status`` und die Simulations-Oberfläche. ``None``, wenn kein Sync läuft.
+        self.sync_fortschritt: dict[str, int] | None = None
         self.jetzt: Jetzt | None = None
 
     # -- füttern ---------------------------------------------------------------------
@@ -62,9 +66,14 @@ class Statussammler:
             self.konfig = e.konfig
         elif isinstance(e, ev.SyncGestartet):
             self.sync = {**self.sync, "zustand": "laeuft"}
+            self.sync_fortschritt = None
+        elif isinstance(e, SyncFortschritt):
+            self.sync_fortschritt = {"prozent": e.prozent, "dateien": e.dateien}
         elif isinstance(e, ev.SyncFertig):
+            self.sync_fortschritt = None
             self.sync = {"zustand": "idle", "letzter_ende": zeitstempel(jetzt.wall), "ergebnis": "ok", "grund": None, "neu": e.neu}
         elif isinstance(e, ev.SyncAbgebrochen):
+            self.sync_fortschritt = None
             # ``regel``: die Regel hat den Sync nicht zugelassen, das ist kein Fehler (12.1)
             zustand = "idle" if e.grund == "regel" else "fehler"
             self.sync = {**self.sync, "zustand": zustand, "letzter_ende": zeitstempel(jetzt.wall), "ergebnis": "abgebrochen", "grund": e.grund}

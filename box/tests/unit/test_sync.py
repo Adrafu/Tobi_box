@@ -277,7 +277,7 @@ def test_maskiere():
     assert s._maskiere("a[1]*?\\") == "a\\[1]\\*\\?\\\\"
 
 
-# --- partial-dir und delay-updates ----------------------------------------------------------------------
+# --- partial-dir (ohne delay-updates, siehe sync.py) ----------------------------------------------------------------------
 
 
 def test_partial_dir_muss_ausserhalb_des_medienordners_liegen(tmp_path):
@@ -294,11 +294,10 @@ def test_vorgabe_partial_dir_liegt_neben_dem_medienordner(tmp_path):
     assert sy.partial_dir == tmp_path / "var" / ".rsync-partial"
 
 
-async def test_befehl_hat_partial_dir_absolut_und_delay_updates(rsync_daemon):
+async def test_befehl_hat_partial_dir_absolut(rsync_daemon):
     d = rsync_daemon
     sy, _ = baue(d)
-    cmd = sy.befehl(["--delete", "--delay-updates", f"--partial-dir={sy.partial_dir}", f"--temp-dir={sy.temp_dir}"])
-    assert "--delay-updates" in cmd
+    cmd = sy.befehl(["--delete", f"--partial-dir={sy.partial_dir}", f"--temp-dir={sy.temp_dir}"])
     assert d.box not in sy.temp_dir.parents and sy.temp_dir.parent == d.partial.parent
     teil = [c for c in cmd if c.startswith("--partial-dir=")]
     assert teil == [f"--partial-dir={d.partial}"]
@@ -316,7 +315,7 @@ async def test_partial_dir_gleiches_dateisystem_wird_angelegt(rsync_daemon):
     assert sy.temp_dir.stat().st_dev == d.box.stat().st_dev and not list(sy.temp_dir.iterdir())
 
 
-async def test_vorlaeufiger_befehl_echter_lauf_nutzt_delay_updates(rsync_daemon, monkeypatch):
+async def test_echter_lauf_hat_partial_dir_und_temp_dir_aber_kein_delay_updates(rsync_daemon, monkeypatch):
     d = rsync_daemon
     schreibe(d.quelle / "a.mp3")
     sy, aus = baue(d)
@@ -330,7 +329,7 @@ async def test_vorlaeufiger_befehl_echter_lauf_nutzt_delay_updates(rsync_daemon,
     monkeypatch.setattr(sy, "_rsync_lauf", spion)
     await lauf(sy)
     echter = gesehen[-1]
-    assert "--delay-updates" in echter and "--delete" in echter and "--dry-run" not in echter
+    assert "--delay-updates" not in echter and "--delete" in echter and "--dry-run" not in echter
     assert f"--partial-dir={d.partial}" in echter and f"--temp-dir={sy.temp_dir}" in echter
     assert "--dry-run" in gesehen[1] and "-i" in gesehen[1]  # Trockenlauf mit itemize-changes
     assert all(not c.startswith("--partial-dir") for c in gesehen[0])  # Listen schreibt nichts
@@ -573,3 +572,108 @@ async def test_mpd_haken_currentsong_und_einlesen():
     assert f.aktualisiert and f.status_folge == [{}]
     leer = s.MpdHaken("h", 1, fabrik=lambda: FalscherMpd({}, [{}]))
     assert await leer.aktuelle_datei() is None
+
+
+# --- Ordner der HA-Medienverwaltung (Entscheidung M6, AP 3.4, in AP 3.7 nachgeholt) ----------------------
+
+
+async def test_upload_papierkorb_und_eingang_werden_nicht_uebertragen(rsync_daemon):
+    d = rsync_daemon
+    schreibe(d.quelle / "s1" / "a.mp3", b"a")
+    for ordner in ("_upload", "_papierkorb", "eingang"):
+        schreibe(d.quelle / ordner / "x" / "geheim.mp3", b"nicht auf die Box")
+        schreibe(d.quelle / ordner / "meta.json", b"{}")
+    sy, aus = baue(d)
+    await lauf(sy)
+    assert aus.fertig() == ev.SyncFertig(neu=1, geloescht=0)
+    assert dateien(d.box) == {"s1/a.mp3"}
+
+
+async def test_upload_papierkorb_und_eingang_auf_der_box_werden_nicht_geloescht(rsync_daemon):
+    d = rsync_daemon
+    schreibe(d.quelle / "s1" / "a.mp3", b"a")
+    for ordner in ("_upload", "_papierkorb", "eingang"):
+        schreibe(d.box / ordner / "alt.mp3", b"liegt nur auf der Box")
+    sy, aus = baue(d)
+    await lauf(sy)
+    assert aus.fertig() == ev.SyncFertig(neu=1, geloescht=0)
+    assert {"_upload/alt.mp3", "_papierkorb/alt.mp3", "eingang/alt.mp3", "s1/a.mp3"} <= dateien(d.box)
+
+
+async def test_nur_diese_ordner_am_anfang_sind_ausgenommen(rsync_daemon):
+    """Ein Ordner ``eingang`` tief in einer Serie ist ein normaler Ordner (Anker am Anfang des Moduls)."""
+    d = rsync_daemon
+    schreibe(d.quelle / "serie" / "eingang" / "folge.mp3", b"f")
+    schreibe(d.quelle / "eingang" / "x.mp3", b"nein")
+    sy, _ = baue(d)
+    await lauf(sy)
+    assert dateien(d.box) == {"serie/eingang/folge.mp3"}
+
+
+async def test_quelle_nur_mit_diesen_ordnern_gilt_als_leer(rsync_daemon):
+    d = rsync_daemon
+    schreibe(d.quelle / "eingang" / "x.mp3", b"nein")
+    sy, aus = baue(d)
+    await lauf(sy)
+    assert aus.abbruch() == "quelle_leer"
+
+
+def test_der_befehl_nennt_die_drei_ausschluesse(tmp_path):
+    sy = s.Sync(SyncKonfig(host="h"), tmp_path / "m", ausgabe=lambda e: None)
+    cmd = sy.befehl(["-i"])
+    for a in ("--exclude=/_upload", "--exclude=/_papierkorb", "--exclude=/eingang"):
+        assert a in cmd
+
+
+# --- Rückkehr ins Netz (CUJ 12): der Takt wartet nicht das Intervall ab ----------------------------------
+
+
+async def test_neu_im_erlaubten_netz_startet_der_naechste_takt_sofort(rsync_daemon):
+    d = rsync_daemon
+    schreibe(d.quelle / "a.mp3")
+    sy, aus = baue(d, netz="offline")
+    sy.letzter_start = sy._mono()  # gerade erst gelaufen: das Intervall von 1 h ist nicht um
+    assert not await sy.takt()
+    sy.setze_netz("home")  # die Box kommt heim
+    assert await sy.takt()
+    await sy.warte_ende()
+    assert aus.fertig() == ev.SyncFertig(1, 0)
+
+
+async def test_hotspot_ohne_akku_dann_lader_startet_der_naechste_takt_sofort(rsync_daemon):
+    d = rsync_daemon
+    schreibe(d.quelle / "a.mp3")
+    sy, aus = baue(d, netz="hotspot", akku=20)
+    sy.letzter_start = sy._mono()
+    assert not await sy.takt()  # Regel verbietet
+    sy.setze_lader(True)
+    assert await sy.takt()
+    await sy.warte_ende()
+    assert aus.fertig() == ev.SyncFertig(1, 0)
+
+
+async def test_wechsel_zwischen_erlaubten_netzen_loest_keinen_neuen_sync_aus(rsync_daemon):
+    d = rsync_daemon
+    sy, _ = baue(d, netz="home")
+    sy.letzter_start = sy._mono()
+    sy.setze_netz("hotspot")  # Hotspot ohne Lader und ohne Akku: nicht erlaubt
+    sy.setze_netz("home")  # wieder erlaubt: ein Netzwechsel, der etwas ändert, löst aus
+    assert sy.letzter_start is None
+    sy.letzter_start = sy._mono()
+    sy.setze_netz("home")  # gleiche Klasse noch einmal: nichts
+    assert sy.letzter_start is not None
+
+
+async def test_gleiche_dateinamen_in_mehreren_ordnern_stossen_nicht_zusammen(rsync_daemon):
+    """Fund aus CUJ 9 (AP 3.7): Jede Serie hat eine ``serie.json``. Mit ``--delay-updates`` und absolutem ``--partial-dir`` brach der
+    Sync ab (``rsync_fehler``), sobald zwei Ordner dieselbe Datei neu bekamen."""
+    d = rsync_daemon
+    for serie in ("lang", "kurz", "neu"):
+        schreibe(d.quelle / serie / "serie.json", f'{{"id": "{serie}"}}')
+        schreibe(d.quelle / serie / "folge-01.mp3", serie.encode() * 100)
+    sy, aus = baue(d)
+    await lauf(sy)
+    assert aus.fertig() == ev.SyncFertig(6, 0)
+    for serie in ("lang", "kurz", "neu"):
+        assert (d.box / serie / "serie.json").read_text() == f'{{"id": "{serie}"}}'
+        assert (d.box / serie / "folge-01.mp3").read_bytes() == serie.encode() * 100

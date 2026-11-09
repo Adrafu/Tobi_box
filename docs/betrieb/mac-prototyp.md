@@ -1121,8 +1121,8 @@ Jede Zeile auf `sim.sock` ist ein JSON-Objekt mit dem Schlüssel `befehl` und wi
 | `taste` | `taste`: `hauptknopf_kurz`, `hauptknopf_lang`, `weiter`, `zurueck` | `Hauptknopf("kurz")`, `Hauptknopf("lang")`, `Weiter`, `Zurueck` | kurz, weiter, zurueck wirken; `hauptknopf_lang` wartet auf `idle` (AP 4.3, AP 4.8) |
 | `regler` | `delta`: ganze Zahl, nicht 0, höchstens 20 in Betrag (Prozentpunkte) | `LautstaerkeDrehen(delta)` | wirkt (der Kern klemmt an der Grenze) |
 | `kopfhoerer` | `steckt`: `true` oder `false` | `Kopfhoerer(steckt)` | wirkt (Grenze und Ausgang der Sitzung) |
-| `strom` | `lader`: bool und/oder `akku`: 0 bis 100 | `LaderGeaendert`, `AkkuStand` | `noch_nicht_verdrahtet` bis AP 4.8 |
-| `netz` | `klasse`: `home`, `hotspot`, `offline` | `NetzKlasse(klasse)` | `noch_nicht_verdrahtet` bis AP 3.7 und AP 4.8 |
+| `strom` | `lader`: bool und/oder `akku`: 0 bis 100 | `LaderGeaendert`, `AkkuStand` | wirkt seit AP 3.7 (`tobibox sim power --charger on\|off --battery N`); mit `[strom] quelle = "sim"` stellt `sim` den Treiber ein und `power` meldet, sonst gibt `sim` die Ereignisse selbst aus |
+| `netz` | `klasse`: `home`, `hotspot`, `offline` | `NetzKlasse(klasse)` | wirkt seit AP 3.7 (`tobibox sim net home\|hotspot\|offline`); mit `[netz] quelle = "sim"` setzt `sim` das simulierte WLAN (Namen aus `heim_ssid`/`hotspot_ssid`, sonst `sim-heim`/`sim-hotspot`) und `net` klassifiziert, sonst gibt `sim` das Ereignis selbst aus |
 | `tobie_auflegen` | `uid` (Kennung wie in `config.json`) oder `"zufall": true` | `Aufgelegt` (vorher `Abgehoben`, wenn schon einer liegt); Antwort mit `uid` und `vorgang` | wirkt |
 | `tobie_gesperrt` | – | `Gesperrt` (vorher `Abgehoben`, wenn schon einer liegt) | wirkt |
 | `tobie_abheben` | – | `Abgehoben` mit der ID des simulierten Tobies | wirkt |
@@ -1134,8 +1134,8 @@ Regeln:
 - Ungültige Felder lehnt `sim` immer mit `{"ok": false, "fehler": "<Feld> ungueltig"}` ab, auch wenn der Eingang noch
   nicht verdrahtet ist. Danach erst kommt die Prüfung der Verdrahtung.
 - Ist ein Eingang noch nicht verdrahtet, lautet die Antwort `{"ok": false, "fehler": "noch_nicht_verdrahtet"}`, und es
-  entsteht kein Ereignis. Die Tabelle `VERDRAHTET` in `box/src/tobibox/sim.py` hält fest, welche Eingänge wirken; AP 4.8 und
-  AP 3.7 setzen die Einträge auf `True`. Die Antwort auf `anzeige` nennt sie im Feld `verdrahtet`, daran graut die Seite
+  entsteht kein Ereignis. Die Tabelle `VERDRAHTET` in `box/src/tobibox/sim.py` hält fest, welche Eingänge wirken; AP 3.7 hat
+  `strom` und `netz` auf `True` gesetzt, AP 4.8 folgt mit `hauptknopf_lang`. Die Antwort auf `anzeige` nennt sie im Feld `verdrahtet`, daran graut die Seite
   die Knöpfe aus.
 - `anzeige.anzeige.figur` ist der Tobie, den der Kern als liegend kennt (`uid` oder `null` bei gesperrt, `vorgang`, `art`).
   Gleicht seine `vorgang` dem Feld `simuliert.vorgang`, kommt er von der Seite („simuliert“), sonst vom Leser („echt“).

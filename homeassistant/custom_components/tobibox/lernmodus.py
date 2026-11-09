@@ -160,20 +160,11 @@ class Lernmodus:
 
     # --- Start ----------------------------------------------------------------------------
 
-    def _pruefe_ziel(self, ziel: dict[str, Any]) -> dict[str, Any]:
-        typ = ziel.get("typ")
-        if typ not in ("serie", "folge"):
+    async def _pruefe_ziel(self, ziel: dict[str, Any]) -> dict[str, Any]:
+        """Aktionskarten gehen nicht über den Lernmodus; sonst gilt dieselbe Prüfung wie bei ``zuordnung/set``."""
+        if not isinstance(ziel, dict) or ziel.get("typ") not in ("serie", "folge"):
             raise TobiboxFehler("ziel_ungueltig")
-        info = self.hub.medien.serien.get(ziel.get("serie"))
-        if info is None:
-            raise TobiboxFehler("serie_nicht_gefunden")
-        if info.serie.typ == "ueberraschung":
-            raise TobiboxFehler("ziel_ungueltig")
-        if typ == "folge":
-            if ziel.get("folge") not in info.serie.folgen:
-                raise TobiboxFehler("folge_nicht_gefunden")
-            return {"typ": "folge", "serie": ziel["serie"], "folge": ziel["folge"]}
-        return {"typ": "serie", "serie": ziel["serie"]}
+        return await self.hub.pruefe_ziel(ziel)
 
     async def start(
         self, box: str, ziel: dict[str, Any], name: Any = None, auto_ueberschreiben: bool | None = None
@@ -182,8 +173,7 @@ class Lernmodus:
         z = mqtt.boxen.get(box)
         if z is None:
             raise TobiboxFehler("box_unbekannt")
-        await self.hub.medien._stelle_geprueft_sicher()
-        ziel = self._pruefe_ziel(ziel)
+        ziel = await self._pruefe_ziel(ziel)
         name_neu: str | None = None
         if name is not None:
             name_neu = name_pruefen(name, TOBIE_NAME_MAX)

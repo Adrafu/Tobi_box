@@ -20,7 +20,7 @@ Seit AP 4.9 (Simulations-Oberfläche im Browser, ``tobibox gui``) kommen dazu: `
 ``strom``, ``netz``, ``tobie_auflegen``, ``tobie_gesperrt``, ``tobie_abheben`` und ``anzeige`` (alles Weitere:
 ``docs/betrieb/mac-prototyp.md``, Abschnitt „Simulations-Oberfläche“). Welche Eingänge wirken, steht in ``VERDRAHTET``:
 Ein Eingang, dessen Modul der Dienst noch nicht kennt, wird geprüft und mit ``{"ok": false, "fehler":
-"noch_nicht_verdrahtet"}`` beantwortet. AP 4.8 und AP 3.7 setzen ihn auf ``True``, am Format ändert sich nichts.
+"noch_nicht_verdrahtet"}`` beantwortet. AP 3.7 hat ``strom`` und ``netz`` auf ``True`` gesetzt, AP 4.8 folgt mit dem Rest; am Format ändert sich nichts.
 
 Wer nach dem Lernen die Zuordnung schreibt und bestätigt, steht in ``ha_ersatz.py``.
 
@@ -74,7 +74,9 @@ NOCH_NICHT_VERDRAHTET = "noch_nicht_verdrahtet"
 
 #: Wirkt der Eingang heute im Dienst? ``False``: der Befehl wird geprüft und mit ``noch_nicht_verdrahtet`` beantwortet.
 #: ``taste``: ``hauptknopf_lang`` gehört dem Teilautomat ``idle`` (AP 4.3, eingehängt in AP 4.8).
-#: ``strom`` und ``netz``: ``power`` und ``net`` hängen erst in AP 3.7 und AP 4.8 im Dienst.
+#: ``strom`` und ``netz``: wirken seit AP 3.7. Im Dienst setzt ``sim`` Akku und Lader am Treiber ``SimStrom`` und das WLAN an
+#: ``SimSsid`` und lässt ``power`` und ``net`` sofort messen; die Ereignisse kommen dann von diesen Modulen. Fehlt das Modul
+#: (kein ``[strom]`` oder ``[netz]`` in der Konfiguration), gibt ``sim`` die Ereignisse selbst aus.
 VERDRAHTET: dict[str, bool] = {
     "hauptknopf_kurz": True,
     "weiter": True,
@@ -82,8 +84,8 @@ VERDRAHTET: dict[str, bool] = {
     "hauptknopf_lang": False,
     "regler": True,
     "kopfhoerer": True,
-    "strom": False,
-    "netz": False,
+    "strom": True,
+    "netz": True,
 }
 
 TASTEN = ("hauptknopf_kurz", "hauptknopf_lang", "weiter", "zurueck")
@@ -133,6 +135,10 @@ class Sim:
         self.liegt: dict[str, Any] | None = None
         self._seq = 0
         self._konfig = konfig_store or KonfigStore(self.zustand)
+        #: Haken des Dienstes (AP 3.7). ``strom_haken(lader, akku)`` und ``netz_haken(klasse)`` stellen den Treiber ein und lassen
+        #: ``power`` bzw. ``net`` sofort messen. ``None``: ``sim`` gibt ``LaderGeaendert``, ``AkkuStand`` und ``NetzKlasse`` selbst aus.
+        self.strom_haken: Callable[[bool | None, int | None], Any] | None = None
+        self.netz_haken: Callable[[str], Any] | None = None
         self._server: asyncio.AbstractServer | None = None
 
     # -- Zeile -> Ereignis ---------------------------------------------------
@@ -261,42 +267,45 @@ class Sim:
         vorgang, self.liegt = self.liegt["vorgang"], None
         return {"ok": True, "vorgang": vorgang}, [ev.Abgehoben(self._naechste_seq(), vorgang)]
 
-    def _eingang(self, d: dict[str, Any]) -> tuple[dict[str, Any], list[ev.Ereignis]] | None:
-        """Befehle der Oberfläche. ``None``: kein solcher Befehl. Wirft ``Ungueltig``."""
+    def _eingang(self, d: dict[str, Any]) -> tuple[dict[str, Any], list[ev.Ereignis], Callable[[], Any] | None] | None:
+        """Befehle der Oberfläche. ``None``: kein solcher Befehl. Wirft ``Ungueltig``.
+
+        Dritter Wert: ein Aufruf, den ``verarbeite`` nach den Ereignissen ausführt (``strom`` und ``netz`` mit Haken: Treiber
+        einstellen und messen lassen; dann gibt es keine Ereignisse von ``sim``)."""
         befehl = d.get("befehl")
         if befehl == "tobie_auflegen":
-            return self._tobie_auflegen(d)
+            return (*self._tobie_auflegen(d), None)
         if befehl == "tobie_gesperrt":
-            return self._tobie_gesperrt()
+            return (*self._tobie_gesperrt(), None)
         if befehl == "tobie_abheben":
-            return self._tobie_abheben()
+            return (*self._tobie_abheben(), None)
         if befehl == "taste":
             taste = d.get("taste")
             if taste not in TASTEN:
                 raise Ungueltig("taste ungueltig")
             if not VERDRAHTET[taste]:
-                return {"ok": False, "fehler": NOCH_NICHT_VERDRAHTET}, []
+                return {"ok": False, "fehler": NOCH_NICHT_VERDRAHTET}, [], None
             e: ev.Ereignis = {
                 "hauptknopf_kurz": ev.Hauptknopf("kurz"),
                 "hauptknopf_lang": ev.Hauptknopf("lang"),
                 "weiter": ev.Weiter(),
                 "zurueck": ev.Zurueck(),
             }[taste]
-            return {"ok": True}, [e]
+            return {"ok": True}, [e], None
         if befehl == "regler":
             delta = d.get("delta")
             if isinstance(delta, bool) or not isinstance(delta, int) or delta == 0 or abs(delta) > REGLER_MAX:
                 raise Ungueltig("delta ungueltig")
             if not VERDRAHTET["regler"]:
-                return {"ok": False, "fehler": NOCH_NICHT_VERDRAHTET}, []
-            return {"ok": True}, [ev.LautstaerkeDrehen(delta)]
+                return {"ok": False, "fehler": NOCH_NICHT_VERDRAHTET}, [], None
+            return {"ok": True}, [ev.LautstaerkeDrehen(delta)], None
         if befehl == "kopfhoerer":
             steckt = d.get("steckt")
             if not isinstance(steckt, bool):
                 raise Ungueltig("steckt ungueltig")
             if not VERDRAHTET["kopfhoerer"]:
-                return {"ok": False, "fehler": NOCH_NICHT_VERDRAHTET}, []
-            return {"ok": True}, [ev.Kopfhoerer(steckt)]
+                return {"ok": False, "fehler": NOCH_NICHT_VERDRAHTET}, [], None
+            return {"ok": True}, [ev.Kopfhoerer(steckt)], None
         if befehl == "strom":
             lader, akku = d.get("lader"), d.get("akku")
             if lader is None and akku is None:
@@ -306,20 +315,24 @@ class Sim:
             if akku is not None and (isinstance(akku, bool) or not isinstance(akku, int) or not 0 <= akku <= 100):
                 raise Ungueltig("akku ungueltig")
             if not VERDRAHTET["strom"]:
-                return {"ok": False, "fehler": NOCH_NICHT_VERDRAHTET}, []
+                return {"ok": False, "fehler": NOCH_NICHT_VERDRAHTET}, [], None
+            if self.strom_haken is not None:
+                return {"ok": True}, [], lambda: self.strom_haken(lader, akku)  # type: ignore[misc]
             aus: list[ev.Ereignis] = []
             if lader is not None:
                 aus.append(ev.LaderGeaendert(lader))
             if akku is not None:
                 aus.append(ev.AkkuStand(akku))
-            return {"ok": True}, aus
+            return {"ok": True}, aus, None
         if befehl == "netz":
             klasse = d.get("klasse")
             if klasse not in ("home", "hotspot", "offline"):
                 raise Ungueltig("klasse ungueltig")
             if not VERDRAHTET["netz"]:
-                return {"ok": False, "fehler": NOCH_NICHT_VERDRAHTET}, []
-            return {"ok": True}, [ev.NetzKlasse(klasse)]
+                return {"ok": False, "fehler": NOCH_NICHT_VERDRAHTET}, [], None
+            if self.netz_haken is not None:
+                return {"ok": True}, [], lambda: self.netz_haken(klasse)  # type: ignore[misc]
+            return {"ok": True}, [ev.NetzKlasse(klasse)], None
         return None
 
     def _anzeige(self) -> dict[str, Any]:
@@ -348,15 +361,23 @@ class Sim:
             return self._anzeige()
         eingang = self._eingang(d)
         if eingang is not None:
-            antwort, ereignisse = eingang
+            antwort, ereignisse, danach = eingang
             for e in ereignisse:
                 logge("sim", "INFO", "eingang", str(befehl), daten={"ereignis": type(e).__name__})
                 await self._abliefern(e)
+            if danach is not None:
+                logge("sim", "INFO", "eingang", str(befehl), daten={"ueber": "treiber"})
+                await self._abliefern_haken(danach)
             return antwort
         await self._abliefern(await self.zeile_zu_ereignis_async(zeile))
         return {"ok": True}
 
     # -- Server --------------------------------------------------------------
+
+    async def _abliefern_haken(self, haken: Callable[[], Any]) -> None:
+        r = haken()
+        if inspect.isawaitable(r):
+            await r
 
     async def _abliefern(self, e: ev.Ereignis) -> None:
         r = self.ausgabe(e)

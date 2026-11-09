@@ -13,9 +13,13 @@ Ablauf eines Syncs:
 3. Trockenlauf (``--dry-run --itemize-changes --stats``): Zeilen ``*deleting`` zählen. Mehr als 20 % der
    vorhandenen Dateien: ``zu_viele_loeschungen``. Reicht der freie Platz (übertragene Größe plus Reserve) nicht:
    ``kein_platz``.
-4. Echter Lauf mit ``--delete``, ``--delay-updates``, ``--partial-dir`` und ``--temp-dir`` (absolut, außerhalb
-   des Medienordners, gleiches Dateisystem). rsync schreibt eine Datei sonst zuerst als ``.name.XXXXXX`` in den
-   Zielordner; ``--temp-dir`` verhindert das. Halbe Dateien liegen nur außerhalb, MPD sieht sie nie.
+4. Echter Lauf mit ``--delete``, ``--partial-dir`` und ``--temp-dir`` (absolut, außerhalb des Medienordners, gleiches
+   Dateisystem). rsync schreibt eine Datei sonst zuerst als ``.name.XXXXXX`` in den Zielordner; ``--temp-dir`` verhindert das.
+   Halbe Dateien liegen nur außerhalb, MPD sieht sie nie; jede Datei wird erst fertig an ihren Platz umbenannt (atomar).
+   **Kein ``--delay-updates``** (AP 3.7, Fund aus CUJ 9): Mit einem absoluten ``--partial-dir`` hält rsync die zurückgestellten
+   Dateien flach unter ihrem Dateinamen. Zwei Serien mit je einer ``serie.json`` stoßen dort zusammen, der Sync bricht mit
+   ``rsync_fehler`` ab. Ein relatives ``--partial-dir`` (in jedem Ordner) wäre dafür sicher, läge aber im Medienordner, wo MPD
+   es sehen könnte. Ohne ``--delay-updates`` ist je Datei höchstens eine halbe Datei unterwegs, und zwar außerhalb.
    Die gerade spielende Datei (MPD ``currentsong``) ist per ``--exclude`` ausgenommen; das schützt sie auch
    vor ``--delete``. Ihre Änderung wartet auf den nächsten Abgleich.
 5. MPD neu einlesen lassen (nicht beim Start), dann ``SyncFertig``.
@@ -46,9 +50,10 @@ from typing import Any
 from . import events as ev
 from .config import SyncKonfig
 from .eventlog import logge
+from .syncregel import HOTSPOT_AKKU_MIN_PROZENT, sync_erlaubt
 
-#: Im Hotspot ist der Sync erlaubt, wenn der Akku über dieser Grenze liegt (oder ein Lader dran ist).
-AKKU_GRENZE_HOTSPOT = 50
+#: Im Hotspot ist der Sync erlaubt, wenn der Akku über dieser Grenze liegt (oder ein Lader dran ist). Eine Quelle: ``syncregel``.
+AKKU_GRENZE_HOTSPOT = HOTSPOT_AKKU_MIN_PROZENT
 #: Mehr als dieser Anteil an Löschungen (in Prozent der vorhandenen Dateien) bricht den Sync ab.
 MAX_LOESCHEN_PROZENT = 20
 IO_TIMEOUT_S = 60  # rsync ``--timeout``: so lange darf keine Daten fließen
@@ -59,6 +64,10 @@ MPD_EINLESEN_MAX_S = 300.0
 
 #: Dinge, die der QNAP selbst anlegt und die nie auf die Box gehören.
 AUSSCHLUESSE = ("@*", "#recycle", ".@__thumb", "$RECYCLE.BIN", ".DS_Store", "Thumbs.db")
+
+#: Ordner der HA-Medienverwaltung, die nie auf die Box gehören (Entscheidung M6, 09.11.): Upload-Zwischenablage, Papierkorb
+#: und Eingang. Am Anfang des Moduls verankert. ``--exclude`` schützt sie auch vor ``--delete``: Was die Box davon hätte, bleibt.
+NIE_AUF_DIE_BOX = ("/_upload", "/_papierkorb", "/eingang")
 
 #: rsync-Rückgabewerte, die auf ein weggefallenes Netz hindeuten (Socket, Datenstrom, Timeout, Verbindungs-Timeout).
 _NETZ_CODES = {10, 12, 30, 35}
@@ -85,13 +94,9 @@ class SyncFortschritt(ev.Ereignis):
     dateien: int
 
 
-def regel_erlaubt(klasse: str | None, am_lader: bool, akku: int | None) -> bool:
-    """Netz-Regel: ``home`` immer; ``hotspot`` am Lader oder bei Akku über 50 %; sonst nie."""
-    if klasse == "home":
-        return True
-    if klasse == "hotspot":
-        return am_lader or (akku is not None and akku > AKKU_GRENZE_HOTSPOT)
-    return False
+def regel_erlaubt(klasse: str | None, am_lader: bool | None, akku: int | None) -> bool:
+    """Netz-Regel: ``home`` immer; ``hotspot`` am Lader oder bei Akku über 50 %; sonst nie. Die Regel steht in ``syncregel``."""
+    return sync_erlaubt(klasse, am_lader, akku)[0]
 
 
 def zu_viele_loeschungen(geloescht: int, vorhanden: int) -> bool:
@@ -149,7 +154,7 @@ class Sync:
         self._mono = mono
         self._umgebung = umgebung  # None: ``os.environ`` beim Start
         self._netz: str | None = None
-        self._am_lader = False
+        self._am_lader: bool | None = None  # unbekannt, bis ``setze_lader`` es sagt
         self._akku: int | None = None
         self._aufgabe: asyncio.Task | None = None
         self._prozess: asyncio.subprocess.Process | None = None
@@ -160,13 +165,23 @@ class Sync:
     # --- Eingaben ---------------------------------------------------------------------------------
 
     def setze_netz(self, klasse: str) -> None:
-        """``home``, ``hotspot`` oder ``offline``. Fällt das Netz während des Syncs weg, bricht er ab."""
+        """``home``, ``hotspot`` oder ``offline``. Fällt das Netz während des Syncs weg, bricht er ab.
+
+        Kommt die Box neu in ein Netz, in dem ein Sync erlaubt ist (CUJ 12: heim oder in den Hotspot), gilt das Intervall des
+        Takts nicht mehr: Der nächste ``takt`` startet sofort einen Sync, auch nach einem Abbruch durch den Netzverlust."""
+        war_erlaubt = self.erlaubt()
         self._netz = klasse
         if klasse == "offline" and self.laeuft:
             self._abbrechen_anfordern("netz_weg")
+        if not war_erlaubt and self.erlaubt():
+            self.letzter_start = None
 
     def setze_lader(self, am_lader: bool) -> None:
+        """Lader dran oder weg. Ein neu angeschlossener Lader macht im Hotspot einen Sync möglich (wie bei ``setze_netz``)."""
+        war_erlaubt = self.erlaubt()
         self._am_lader = am_lader
+        if not war_erlaubt and self.erlaubt():
+            self.letzter_start = None
 
     def setze_akku(self, prozent: int) -> None:
         self._akku = prozent
@@ -305,7 +320,7 @@ class Sync:
 
         # 3. Echter Lauf. Die spielende Datei kann sich seit dem Trockenlauf geändert haben: neu fragen.
         ausnahmen = sorted(set(ausnahmen) | set(await self._spielende_ausnahmen()))
-        optionen = ["-i", "--info=progress2", "--delete", "--delay-updates", f"--partial-dir={self.partial_dir}", f"--temp-dir={self.temp_dir}"]
+        optionen = ["-i", "--info=progress2", "--delete", f"--partial-dir={self.partial_dir}", f"--temp-dir={self.temp_dir}"]
         neu = geloescht = 0
         letzte_meldung = self._mono() - FORTSCHRITT_ABSTAND_S
         letzte_prozent = -1
@@ -392,7 +407,7 @@ class Sync:
         if k.passwort_datei is not None:
             cmd.append(f"--password-file={k.passwort_datei}")
         cmd += list(optionen)
-        for a in AUSSCHLUESSE:
+        for a in AUSSCHLUESSE + NIE_AUF_DIE_BOX:
             cmd.append(f"--exclude={a}")
         for a in ausnahmen:
             cmd.append(f"--exclude={a}")

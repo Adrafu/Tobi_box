@@ -339,3 +339,109 @@ def test_sim_mit_zu_langem_socket_pfad_gibt_verstaendlichen_fehler_statt_traceba
     code = cli.main(["sim", "--config", str(toml), "learn-abort"])
     err = capsys.readouterr().err
     assert code == 2 and "Socket-Pfad zu lang" in err and "Traceback" not in err
+
+
+# --- AP 3.7: sim power, sim net, status mit HA, Netz, Akku und Sync -------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "argv, erwartet",
+    [
+        (["power", "--charger", "on", "--battery", "40"], {"befehl": "strom", "lader": True, "akku": 40}),
+        (["power", "--charger", "off"], {"befehl": "strom", "lader": False}),
+        (["power", "--battery", "0"], {"befehl": "strom", "akku": 0}),
+        (["power", "--battery", "100"], {"befehl": "strom", "akku": 100}),
+        (["net", "home"], {"befehl": "netz", "klasse": "home"}),
+        (["net", "hotspot"], {"befehl": "netz", "klasse": "hotspot"}),
+        (["net", "offline"], {"befehl": "netz", "klasse": "offline"}),
+    ],
+)
+def test_sim_power_und_net_bauen_die_zeile_im_format_von_ap_4_9(box, monkeypatch, argv, erwartet):
+    _, toml = box
+    gesendet = []
+    monkeypatch.setattr(cli, "_frage_socket", lambda pfad, zeile: gesendet.append(zeile) or {"ok": True})
+    assert cli.main(["sim", "--config", str(toml), *argv], io.StringIO()) == 0
+    assert gesendet == [erwartet]
+
+
+@pytest.mark.parametrize(
+    "argv", [["power"], ["power", "--battery", "101"], ["power", "--battery", "-1"], ["power", "--charger", "vielleicht"], ["net", "mobil"], ["net"]]
+)
+def test_sim_power_und_net_lehnen_falsche_eingaben_ab(box, argv, capsys):
+    _, toml = box
+    with pytest.raises(SystemExit) as e:
+        cli.main(["sim", "--config", str(toml), *argv], io.StringIO())
+    assert e.value.code == 2
+
+
+def test_sim_net_antwort_des_dienstes_noch_nicht_verdrahtet_ist_exitcode_1(box, monkeypatch, capsys):
+    _, toml = box
+    monkeypatch.setattr(cli, "_frage_socket", lambda pfad, zeile: {"ok": False, "fehler": "noch_nicht_verdrahtet"})
+    assert cli.main(["sim", "--config", str(toml), "net", "home"], io.StringIO()) == 1
+    assert "noch_nicht_verdrahtet" in capsys.readouterr().err
+
+
+def live_mit(verbindungen):
+    return {
+        "status": {
+            "zustand": "pausiert", "serie": None, "folge": None, "lernmodus": False, "leser": "ok", "firmware": "1.0.0",
+            "netz": "home", "zeitquelle": "ntp", "zeit_ok": True, "konfig": {"revision": 2, "liste_id": "a3f9c1e07b2d4856"},
+            "speicher_frei_mb": 900, "letzter_fehler": None,
+        },
+        "pruefpunkte": {"punkte": [{"name": "leser", "ok": True, "detail": "ok"}]},
+        "verbindungen": verbindungen,
+    }
+
+
+def test_status_zeigt_ha_netz_akku_und_sync():
+    v = {
+        "ha": {"eingerichtet": True, "verbunden": True},
+        "netz": {"eingerichtet": True, "klasse": "hotspot"},
+        "strom": {"eingerichtet": True, "akku_prozent": 76, "lader": False},
+        "sync": {"eingerichtet": True, "zustand": "idle", "letzter_ende": "2026-11-09T07:00:12Z", "ergebnis": "ok", "grund": None,
+                 "neu": 3, "fortschritt": None},
+    }
+    text = "\n".join(cli._live_zeilen(live_mit(v)))
+    assert "HA: verbunden; Netz: hotspot; Akku: 76 %, nicht am Lader" in text
+    assert "Sync: idle, zuletzt 2026-11-09T07:00:12Z: ok, 3 neu" in text
+
+
+def test_status_zeigt_getrennte_ha_unbekannten_akku_und_laufenden_sync():
+    v = {
+        "ha": {"eingerichtet": True, "verbunden": False},
+        "netz": {"eingerichtet": True, "klasse": "offline"},
+        "strom": {"eingerichtet": True, "akku_prozent": None, "lader": None},
+        "sync": {"eingerichtet": True, "zustand": "laeuft", "letzter_ende": None, "ergebnis": None, "grund": None, "neu": 0,
+                 "fortschritt": {"prozent": 45, "dateien": 2}},
+    }
+    text = "\n".join(cli._live_zeilen(live_mit(v)))
+    assert "HA: getrennt; Netz: offline; Akku: unbekannt, Lader unbekannt" in text
+    assert "Sync: läuft, 45 % (2 Dateien)" in text
+
+
+def test_status_zeigt_fehlende_abschnitte_und_abgebrochenen_sync():
+    v = {
+        "ha": {"eingerichtet": False, "verbunden": False},
+        "netz": {"eingerichtet": False, "klasse": "offline"},
+        "strom": {"eingerichtet": False, "akku_prozent": None, "lader": None},
+        "sync": {"eingerichtet": True, "zustand": "idle", "letzter_ende": "2026-11-09T07:00:12Z", "ergebnis": "abgebrochen",
+                 "grund": "regel", "neu": 0, "fortschritt": None},
+    }
+    text = "\n".join(cli._live_zeilen(live_mit(v)))
+    assert "HA: nicht eingerichtet ([mqtt] fehlt); Netz: offline ([netz] fehlt); Akku: nicht eingerichtet ([strom] fehlt)" in text
+    assert "Sync: idle, zuletzt 2026-11-09T07:00:12Z: abgebrochen (regel)" in text
+    v["sync"]["eingerichtet"] = False
+    assert "Sync: nicht eingerichtet ([sync] fehlt)" in "\n".join(cli._live_zeilen(live_mit(v)))
+
+
+def test_status_ohne_dienst_nennt_die_eingerichteten_abschnitte(box):
+    _, toml = box
+    assert "Eingerichtet: HA -, Netz -, Strom -, Sync -" in lauf("status", "--config", str(toml))[1]
+    toml.write_text(
+        toml.read_text() + '[mqtt]\nbox_id = "box1"\nhost = "broker.example.ts.net"\n[netz]\n[strom]\n'
+        '[sync]\nhost = "qnap.example.ts.net"\n',
+        encoding="utf-8",
+    )
+    text = lauf("status", "--config", str(toml))[1]
+    assert "Eingerichtet: HA box1@broker.example.ts.net:1883, Netz sim, Strom sim, Sync qnap.example.ts.net/medien" in text
+    assert "passwort" not in text

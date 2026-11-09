@@ -2,13 +2,14 @@
 
 ``Power`` ist die Fassade für den Dienst. Dahinter steht ein Treiber:
 
-* ``SimStrom`` (Mac und Test): Akku und Lader werden vorgegeben (``tobibox sim power --charger on --battery 40``,
-  Eingang in ``sim`` und ``cli`` trägt AP 3.7 ein). „Herunterfahren“ wird nur protokolliert.
+* ``SimStrom`` (Mac und Test): Akku und Lader werden vorgegeben (``tobibox sim power --charger on --battery 40``;
+  ``sim`` ruft ``SimStrom.setze`` und danach ``Power.pruefe``). „Herunterfahren“ wird nur protokolliert.
 * ``PiSugarStrom`` (Pi): spricht mit ``pisugar-server`` (TCP, Text: ``get battery`` -> ``battery: 79.2``).
 
 ``power`` sendet ``AkkuStand``, ``LaderGeaendert``, ``AkkuTiefstand``, ``Hauptknopf`` (Taste des PiSugar, als Tastenereignis)
 und ``ZeitquelleGeaendert`` (RTC beim Start gelesen). Es führt den Befehl ``Herunterfahren`` aus. Die Regel für den Sync
-im Hotspot (Lader oder Akku über 50 %) steht als reine Funktion ``sync_erlaubt`` hier, weil sie nur Akku und Lader braucht.
+im Hotspot (Lader oder Akku über 50 %) steht in ``syncregel`` (eine Quelle für ``power`` und ``sync``); ``sync_erlaubt``
+wird hier nur wieder angeboten.
 """
 
 from __future__ import annotations
@@ -24,36 +25,13 @@ from . import events as ev
 from .config import StromKonfig
 from .eventlog import logge
 from .net import Zeitquelle
+from .syncregel import HOTSPOT_AKKU_MIN_PROZENT, sync_erlaubt  # noqa: F401  (die eine Regel, hier nur wieder angeboten)
 
-#: Im Hotspot läuft der Sync nur, wenn der Lader dran ist oder der Akku **über** diesem Wert liegt (Design „Netz, Sync, Strom“).
-HOTSPOT_AKKU_MIN_PROZENT = 50
 #: Der Tiefstand gilt wieder als „nicht erreicht“, wenn der Akku um so viel über der Grenze liegt (kein Flattern).
 TIEFSTAND_ABSTAND_PROZENT = 3
 #: Eine RTC vor diesem Zeitpunkt hat ihre Zeit verloren (leerer Akku): sie gilt nicht als vertrauenswürdig.
 RTC_FRUEHESTENS = datetime(2026, 1, 1, tzinfo=timezone.utc)
 PISUGAR_FRIST_S = 3.0
-
-
-# --------------------------------------------------------------------------
-# Regel (rein)
-# --------------------------------------------------------------------------
-
-
-def sync_erlaubt(klasse: str, am_lader: bool | None, akku_prozent: int | None) -> tuple[bool, str]:
-    """Darf ein Sync laufen? Gibt ``(erlaubt, grund)``; ``grund`` ist der Wert für ``SyncAbgebrochen`` (sonst ``"ok"``).
-
-    * ``home``: immer.
-    * ``hotspot``: wenn der Lader dran ist oder der Akku über ``HOTSPOT_AKKU_MIN_PROZENT`` liegt. Ist beides unbekannt
-      (``None``), gilt es als nicht erfüllt: lieber kein Sync als ein leerer Akku.
-    * ``offline``: nie (``netz_weg``).
-    """
-    if klasse == "home":
-        return True, "ok"
-    if klasse == "hotspot":
-        if am_lader is True or (akku_prozent is not None and akku_prozent > HOTSPOT_AKKU_MIN_PROZENT):
-            return True, "ok"
-        return False, "regel"
-    return False, "netz_weg"
 
 
 # --------------------------------------------------------------------------

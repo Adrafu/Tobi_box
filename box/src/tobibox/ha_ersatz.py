@@ -58,7 +58,9 @@ def schreibe_zuordnung(store: KonfigStore, uid: str, ziel: Mapping[str, Any]) ->
         alt = store.konfig
         roh["liste_id"] = alt.liste_id or LISTE_ID_STUFE_2
         roh["revision"] = alt.revision + 1
-        roh["zuordnungen"][uid] = {"ziel": dict(ziel)}
+        # Nur ``ziel`` ändert sich: Name und unbekannte Zusatzfelder dieser Kennung bleiben, wie HA sie geschrieben hat
+        vorher = roh["zuordnungen"].get(uid)
+        roh["zuordnungen"][uid] = {**(vorher if isinstance(vorher, dict) else {}), "ziel": dict(ziel)}
         a = store.annehmen(roh)
         if not a.angenommen:
             raise Abgelehnt(a.grund)

@@ -10,7 +10,8 @@ CUJ-Tests 7a und 7b diesen Code und keinen Nachbau.
 * Ereignisse, die ``sim`` oder der HA-Ersatz erzeugen, werden gemerkt (``war_sim``), damit ``app`` ihre
   Protokollzeilen mit ``sim=true`` schreibt (Abschnitt 6.5, Punkt 4).
 
-Stufe 3a ersetzt ``sim`` und den HA-Ersatz durch MQTT; ``Outbox`` bleibt.
+Ist ``[mqtt]`` eingerichtet, setzt ``app`` ``self.ha`` (das Modul ``ha``): Dann veröffentlicht ``ha`` jeden Eintrag, und der
+HA-Ersatz bleibt stumm (Stufe 3a; AP 3.7). Ohne ``ha`` (Mac ohne Broker, Testaufbau) bleibt alles wie in Stufe 2. ``Outbox`` bleibt.
 """
 
 from __future__ import annotations
@@ -46,6 +47,7 @@ class Ausgang:
         self.outbox = Outbox(zustand, asynchron=asynchron)
         self.sim = Sim(zustand, self._von_sim, uhr, konfig_store, auskunft, anzeige)
         self.ha_ersatz = HaErsatz(self.sim, konfig_store, self._von_sim)
+        self.ha: Any = None  # das Modul ``ha`` (``melde(eintrag)``); ``None``: HA-Ersatz der Stufe 2
 
     def _von_sim(self, e: ev.Ereignis) -> None:
         self._sim_ereignisse.add(id(e))
@@ -82,11 +84,15 @@ class Ausgang:
     def melde(self, b: ev.Melden, jetzt: ev.Jetzt) -> None:
         """``Melden`` ausführen (ohne Ereignisschleife: Testaufbau)."""
         eintrag = self._buche(b, jetzt)
-        if b.art == "gelernt":
+        if self.ha is not None:
+            self.ha.melde(eintrag)
+        elif b.art == "gelernt":
             self.ha_ersatz.gelernt(eintrag)
 
     async def melde_async(self, b: ev.Melden, jetzt: ev.Jetzt) -> None:
         """``Melden`` ausführen (im Dienst: das Schreiben der Zuordnung blockiert die Schleife nicht)."""
         eintrag = self._buche(b, jetzt)
-        if b.art == "gelernt":
+        if self.ha is not None:
+            self.ha.melde(eintrag)  # HA schreibt die Zuordnung und bestätigt mit ``…/ack``; nicht dieser Dienst
+        elif b.art == "gelernt":
             await self.ha_ersatz.gelernt_async(eintrag)

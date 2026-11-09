@@ -80,6 +80,9 @@ class Zuordnung:
     serie_id: str | None = None
     folge: str | None = None  # Name der Folge bei ``typ="folge"``
     aktion: Literal["status", "gute_nacht"] | None = None
+    #: Tobie-Name für die HA-Seite (optionales Feld ``name`` in ``config.json``, Entscheidung M7). Die Box spielt nichts
+    #: danach; er zählt nicht zum Vergleich: Ein anderer Name ist keine andere Zuordnung (kein Wechsel der Wiedergabe).
+    name: str | None = field(default=None, compare=False)
 
 
 @dataclass(frozen=True, slots=True)
