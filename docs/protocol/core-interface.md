@@ -200,6 +200,8 @@ Alle HA-Befehle tragen eine Ablaufzeit. Der Kern prüft sie mit `jetzt.wall` und
 | `LautstaerkeDrehen` | `delta: int` | Drehregler, in Prozentpunkten (positiv lauter). |
 | `Kopfhoerer` | `steckt: bool` | Stecker erkannt (`True`) oder gezogen. |
 
+Quellen am Pi (09.11., AP 4.8): `Hauptknopf` (kurz und lang) kommt von `power` (Taste des PiSugar) oder von `controls` (Knopf am GPIO, `pin_haupt` in `[tasten]`). `Kopfhoerer` kommt von der Buchse (`headphones`) und wird über 2 Messungen entprellt: Ein neuer Wert gilt erst, wenn zwei Messungen hintereinander ihn zeigen.
+
 ### 3.6 Strom, Netz, Sync, Update
 
 | Ereignis | Felder | Quelle | Bedeutung |
@@ -210,7 +212,7 @@ Alle HA-Befehle tragen eine Ablaufzeit. Der Kern prüft sie mit `jetzt.wall` und
 | `NetzKlasse` | `klasse: Literal["home","hotspot","offline"]` | `net` | bei Änderung und einmal beim Start. |
 | `SyncGestartet` | – | `sync` | |
 | `SyncFertig` | `neu: int`, `geloescht: int` | `sync` | `neu` = übertragene Dateien. |
-| `SyncAbgebrochen` | `grund: str` | `sync` | z. B. `quelle_leer`, `zu_viele_loeschungen`, `kein_platz`, `akku_tiefstand`, `netz_weg`, `regel`. |
+| `SyncAbgebrochen` | `grund: str` | `sync` | z. B. `quelle_leer`, `zu_viele_loeschungen`, `kein_platz`, `akku_tiefstand`, `netz_weg`, `regel`, `nicht_eingerichtet` (09.11., AP 4.8: aus `app`, wenn `[sync]` fehlt; keine Wiederholung am Lader, Abschnitt 9, Punkt 9). |
 | `UpdateGestartet` | `version: str` | `update` | |
 | `SelbsttestErgebnis` | `bestanden: bool`, `grund: str \| None` | `selftest` | |
 
@@ -295,7 +297,7 @@ nennt, wer sie ausführt.
 | `TonSpielen` | `ton: Literal["start","unbekannt","fehler","hinweis","lernen_beginn","lernen_ende","akku_leer","pruef_ok","pruef_fehler"]` | `sounds` | kurzer Rückmeldeton (Datei `box/sounds/<ton>.wav`, `pruef_*` in AP 2.3). Töne laufen nacheinander und nie gleichzeitig; ein `Abspielen` derselben Ausgabe startet erst nach dem Ende der Töne (Abschnitt 6.5, Punkt 6; Entscheidung L, 09.11.). Die Status-Karte spielt außerdem die Prüfpunkt-Töne `pruef_<punkt>_ok` und `pruef_<punkt>_fehler` mit `<punkt>` ∈ {`leser`, `medien`, `netz`, `speicher`} sowie `pruef_leser_simulation` (09.11., Sprach-Töne für Tests); sie stehen nicht in `TonSpielen`, sondern in der Tonfolge von `selftest`. Fehlt eine solche Datei im Tonordner, spielt `sounds` stattdessen `pruef_ok` bzw. `pruef_fehler`. |
 | `StatusPruefen` | `vorgang: str \| None` | `selftest` | Prüfpunkte Leser, Medien, Netz, Speicher in dieser Reihenfolge nach den Kriterien aus Abschnitt 12.3 prüfen und je Punkt einen Ton spielen (`pruef_<punkt>_ok` oder `pruef_<punkt>_fehler`, Leser in der Simulation `pruef_leser_simulation`; Rückfall auf `pruef_ok`/`pruef_fehler`, siehe `TonSpielen`; 09.11., Sprach-Töne für Tests) (Status-Admin-Karte, CUJ 11). `selftest` wertet aus und lässt `sounds` die Töne spielen; ausgeführt wird der Befehl nur von `selftest`. |
 | `Melden` | `art: Literal["unbekannt","gelernt"]`, `uid: str`, `befehl_id: str \| None` | `outbox` | Eintrag in `unknown.json`, Veröffentlichung an HA, Löschen erst nach Bestätigung (Abschnitt 7). `befehl_id` ist bei `gelernt` die ID des Lernbefehls, sonst `None`. |
-| `EreignisSenden` | `art: Literal["fehler","befehl_abgelehnt"]`, `daten: Mapping[str, str \| int \| bool \| None]` | `ha` | Meldung an HA ohne Bestätigung (`…/event`). `befehl_abgelehnt` hat `daten = {"befehl": <lernen\|sync\|update>, "befehl_id": <str>, "grund": <bedingung\|zeit_unsicher>}` und optional `"detail"`; `lernen_abbrechen` wird nie abgelehnt. Die Meldungen `liste_abgelehnt`, `v_unbekannt` und `befehl_unbekannt` entstehen **nicht** im Kern, sondern direkt in `ha` (Abschnitt 9, Punkt 9). |
+| `EreignisSenden` | `art: Literal["fehler","befehl_abgelehnt"]`, `daten: Mapping[str, str \| int \| bool \| None]` | `ha` | Meldung an HA ohne Bestätigung (`…/event`). `befehl_abgelehnt` hat `daten = {"befehl": <lernen\|sync\|update>, "befehl_id": <str>, "grund": <bedingung\|zeit_unsicher>}` und optional `"detail"` (09.11., AP 4.8; Texte in Abschnitt 9, Punkt 9: „Die Box ist nicht im Heimnetz.“, „Die Box hängt nicht am Lader.“, „Es läuft gerade ein Hörspiel.“, „Es läuft gerade ein Sync.“, „Es läuft schon ein Update.“); `lernen_abbrechen` wird nie abgelehnt. Die Meldungen `liste_abgelehnt`, `v_unbekannt` und `befehl_unbekannt` entstehen **nicht** im Kern, sondern direkt in `ha` (Abschnitt 9, Punkt 9). |
 | `ZustandMelden` | `sitzung: str`, `strom: Literal["aktiv","leerlauf","herunterfahren"]`, `serie_id: str \| None`, `lernmodus: bool`, `ruhe: Literal["normal","leiser","stumm"]`, `gute_nacht: Literal["aus","laeuft","ausblenden"]`, `figur_liegt: bool`, `folge: str \| None = None`, `track: int \| None = None` (Name der aktuellen Folge und Nummer des Tracks, für das optionale Statusfeld `folge`, 12.1) (Entscheidung F, 05.11.) | `ha` (Statussammler, Abschnitt 12), `led` | Sammelzustand für Status-Sensoren und LED-Ring. `core` erzeugt ihn bei jeder Änderung (6.1, Schritt 6). Den Status-JSON baut nicht der Kern, sondern der Statussammler in `ha` (Abschnitt 12). |
 | `LeserPing` | – | `reader` | `PING` an den Leser senden. |
 | `SyncStarten` | `grund: Literal["ha","start_lader"]` | `sync` | Sync anfordern. `sync` entscheidet nach der Netz-Regel (Heim / Hotspot und Akku), ob er läuft; wenn nicht, meldet er `SyncAbgebrochen(grund="regel")`. |
@@ -335,7 +337,7 @@ kennzeichen(zustand: Zustand) -> str                # kurzer Name des Zustands f
 | `session.py` | Wiedergabe-Sitzung | `leer`, `spielt`, `pausiert`, `beendet`, `gehalten`, `unbekannt` | `GeraeteEinstellungen`, `KonfigGeladen`, `BibliothekGeladen`, `ResumeGeladen`, `Bereit`, `Aufgelegt`, `Gesperrt`, `Abgehoben`, `LeserHallo`, `LeserAlarm`, `LeserHerzschlag`, `LautstaerkeGeaendert`, `TrackWechsel`, `FolgeZuEnde`, `PlayerPosition`, `PlayerFehler`, `PlayerVerbindung`, `Hauptknopf`, `Weiter`, `Zurueck`, `Kopfhoerer`, `Takt`, `StummBeginnt`, `StummEndet`, `LernenGeaendert`, `Bestaetigt` (nur `art="gelernt"`, Entscheidung H, 07.11.), `GuteNachtEnde`, `HerunterfahrenAngefordert`, `DienstEndet` | `Abspielen`, `Pausieren`, `ZeigerSpeichern`, `TonSpielen`, `Melden`, `AusgangWaehlen`, `LeserPing`, `Protokoll`; intern `SitzungGeaendert`, `AktionAusgeloest`, `GrenzeGesetzt` (`kopfhoerer`, `ausblenden`) |
 | `learn.py` | Lernmodus | `aus`, `lernt` | `HaLernmodus`, `HaLernmodusAbbruch`, `Aufgelegt`, `Gesperrt`, `Takt` | `TonSpielen`, `Melden`, `EreignisSenden`, `Protokoll`; intern `LernenGeaendert` |
 | `quiet.py` und `bedtime.py` | Ruhe-Regeln | `quiet`: `normal`, `leiser`, `stumm`; `bedtime`: `aus`, `laeuft`, `ausblenden` | `KonfigGeladen`, `Takt`, `ZeitquelleGeaendert`, `LautstaerkeGeaendert` (`quiet`); `KonfigGeladen`, `Takt`, `AktionAusgeloest`, `Abgehoben`, `LautstaerkeGeaendert` (`bedtime`) | `Protokoll`; intern `StummBeginnt`, `StummEndet`, `GrenzeGesetzt` (`leise_zeit`, `ausblenden` aus `quiet`; `gute_nacht` aus `bedtime`), `GuteNachtEnde` (aus `bedtime`) |
-| `idle.py` | Strom / Leerlauf | `aktiv`, `leerlauf`, `herunterfahren` | `SitzungGeaendert`, `LernenGeaendert`, `Takt`, `Hauptknopf` (lang), `AkkuTiefstand`, `LaderGeaendert`, `NetzKlasse`, `SyncGestartet`, `SyncFertig`, `SyncAbgebrochen`, `UpdateGestartet`, `SelbsttestErgebnis`, `HaSyncAnstossen`, `HaUpdateAnstossen`, `Bereit` | `SyncStarten`, `SyncAbbrechen`, `UpdateStarten`, `EreignisSenden`, `Protokoll`; intern `HerunterfahrenAngefordert` |
+| `idle.py` | Strom / Leerlauf | `aktiv`, `leerlauf`, `herunterfahren` | `SitzungGeaendert`, `LernenGeaendert`, `Takt`, `Hauptknopf` (lang), `Hauptknopf` (kurz), `Weiter`, `Zurueck`, `LautstaerkeDrehen`, `Kopfhoerer` (09.11., AP 4.8: Bedienung setzt den Leerlauf-Zähler zurück), `AkkuTiefstand`, `LaderGeaendert`, `NetzKlasse`, `SyncGestartet`, `SyncFertig`, `SyncAbgebrochen`, `UpdateGestartet`, `SelbsttestErgebnis`, `HaSyncAnstossen`, `HaUpdateAnstossen`, `Bereit` | `SyncStarten`, `SyncAbbrechen`, `UpdateStarten`, `EreignisSenden`, `Protokoll`; intern `HerunterfahrenAngefordert` |
 
 Hinweise:
 
@@ -1083,7 +1085,7 @@ gekennzeichneten sind von Tobias oder der Projektleitung entschieden
     | `tobibox/config`: Schema, Listen-ID, Revision | `ha` mit `store` (Revisionsregel `mqtt-v1.md` 5.2) | angenommen: `KonfigGeladen`; abgelehnt: `event` `liste_abgelehnt`, von `ha` direkt. Diese Regel liegt **außerhalb des Kerns**. |
     | Ablaufzeit (`jetzt.wall > gueltig_bis`) | Kern: `learn` (`HaLernmodus`, `HaLernmodusAbbruch`), `idle` (`HaSyncAnstossen`, `HaUpdateAnstossen`) | abgelaufen: ignoriert, nur `Protokoll` (kein `EreignisSenden`) |
     | Uhr (`jetzt.zeit_ok`) | Kern: `learn` (nur `HaLernmodus`), `idle` | `False`: Befehl abgelehnt, `Protokoll(WARNING)` und `EreignisSenden("befehl_abgelehnt", {"befehl":…, "befehl_id":…, "grund":"zeit_unsicher"})`. Gilt für `lernen`, `sync`, `update` |
-    | Bedingungen für `HaUpdateAnstossen` | Kern: `idle` | verlangt Netz-Klasse `home`, Lader an, Zustand der Sitzung nicht `spielt`, kein Sync und kein Update aktiv. Sonst `EreignisSenden("befehl_abgelehnt", {…, "grund":"bedingung", "detail": <welche>})` |
+    | Bedingungen für `HaUpdateAnstossen` | Kern: `idle` | verlangt Netz-Klasse `home`, Lader an, Zustand der Sitzung nicht `spielt`, kein Sync und kein Update aktiv. Sonst `EreignisSenden("befehl_abgelehnt", {…, "grund":"bedingung", "detail": <welche>})` (heute nur für `update`). Geprüft in dieser Reihenfolge, die erste nicht erfüllte Bedingung steht im `detail` (09.11., AP 4.8): „Die Box ist nicht im Heimnetz.“ (Netz-Klasse nicht `home`), „Die Box hängt nicht am Lader.“, „Es läuft gerade ein Hörspiel.“, „Es läuft gerade ein Sync.“ (auch eine offene Sync-Antwort), „Es läuft schon ein Update.“ |
     | Sync-Regel (Heim / Hotspot, Akku) | `sync` | `HaSyncAnstossen` wird durchgereicht (`SyncStarten("ha")`); ob er läuft, entscheidet `sync` (sonst `SyncAbgebrochen(grund="regel")`) |
 
     *   `HaLernmodusAbbruch` hat eine Ablaufzeit (`gueltig_bis`, 30 s), aber
@@ -1097,6 +1099,15 @@ gekennzeichneten sind von Tobias oder der Projektleitung entschieden
         Ereignis `befehl_abgelehnt` mit `grund="zeit_unsicher"` wird als
         Benachrichtigung im Klartext angezeigt, und der Sensor „Zeitquelle“ trägt
         `zeit_ok` als Attribut.
+    *   Bedienung setzt den Zähler zurück. Wer an der Box spielt, will nicht,
+        dass sie ausgeht. HA-Befehle setzen ihn nicht zurück. (09.11., AP 4.8;
+        Bedienung sind Hauptknopf kurz, `Weiter`, `Zurueck`, `LautstaerkeDrehen`
+        und `Kopfhoerer`, Teilautomat `idle`.)
+    *   **Start am Lader** (09.11., AP 4.8). Bricht der Start-Sync mit
+        `netz_weg` oder `regel` ab, versucht `idle` es erneut, solange die Box am
+        Lader hängt: alle 10 min, höchstens 6-mal. Währenddessen wird nicht
+        abgeschaltet. Danach, bei Erfolg, anderem Abbruchgrund oder ohne Lader
+        gilt wieder die 20-min-Regel (Zähler abgelaufen: sofort).
 10. **Fehler des Players:**
     *   `PlayerFehler` im Zustand `spielt`: `TonSpielen("fehler")`,
         `Pausieren("fehler")`, `Protokoll(ERROR)`. Bei `datei_fehlt` oder
@@ -1289,6 +1300,8 @@ Modulkonstanten mit genau diesen Namen. Es gibt keine eigene Konstanten-Datei.
 | `LERN_FRIST_S` | 120 | `learn.py` |
 | `LERN_ANTWORT_FRIST_S` | 10 | `session.py` (Wartezeit auf HA, wenn im Lernmodus ein Tobie aufgelegt wird, `mono`, Punkt 9.8) (Entscheidung H, 07.11.) |
 | `LEERLAUF_S` | 1200 (20 min) | `idle.py` |
+| `START_WIEDERHOLUNG_S` | 600 (10 min) | `idle.py` (Start am Lader: Abstand bis zum nächsten Versuch nach `netz_weg` oder `regel`, Abschnitt 9, Punkt 9; 09.11., AP 4.8) |
+| `START_WIEDERHOLUNGEN` | 6 | `idle.py` (höchstens so viele Wiederholungen des Start-Syncs am Lader; 09.11., AP 4.8) |
 | `STUMM_AUSBLENDEN_S` | 3,0 | `session.py` |
 | `LEISER_ABSENKEN_S` | 3,0 | `quiet.py` |
 | `LESER_FEHLER_FENSTER_S` | 10 | `ha.py` (Statussammler: Prüfpunkt Leser auf `fehler`, Abschnitt 12.2) |
@@ -1317,7 +1330,7 @@ Feld:
 | `akku_prozent` | letztes `AkkuStand`; `null` bis zum ersten |
 | `lader` | letztes `LaderGeaendert`; `null` bis zum ersten |
 | `netz` | letztes `NetzKlasse` (bis zum ersten: `offline`) |
-| `sync` | `SyncGestartet` → `zustand="laeuft"`. `SyncFertig` → `idle`, `ergebnis="ok"`, `neu`, `letzter_ende` = `jetzt.wall`. `SyncAbgebrochen` mit `grund="regel"` → `idle`, `ergebnis="abgebrochen"`, `grund`; mit anderem Grund → `fehler`, `ergebnis="abgebrochen"`, `grund` |
+| `sync` | `SyncGestartet` → `zustand="laeuft"`. `SyncFertig` → `idle`, `ergebnis="ok"`, `neu`, `letzter_ende` = `jetzt.wall`. `SyncAbgebrochen` mit `grund="regel"` oder `grund="nicht_eingerichtet"` → `idle`, `ergebnis="abgebrochen"`, `grund` (09.11., AP 4.8: `nicht_eingerichtet` zählt wie `regel`, kein Fehler); mit anderem Grund → `fehler`, `ergebnis="abgebrochen"`, `grund` |
 | `speicher_frei_mb` | `ha` fragt bei jeder Veröffentlichung das Dateisystem des Medienordners ab (freier Platz, ganze MB abgerundet) |
 | `version` | `manifest.json` der laufenden Version, beim Start gelesen |
 | `firmware` | `fw` des letzten gültigen `LeserHallo`; `null` ab einem `LeserAlarm` bis zum nächsten `LeserHallo` und vor dem ersten |

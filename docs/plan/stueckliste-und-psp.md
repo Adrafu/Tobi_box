@@ -1,6 +1,6 @@
 # Tobi Box — Stückliste & Projektstrukturplan
 
-Rev. 3.15 · 09.11.2026 · Pi 3 Model A+ · eigene Box-Software auf MPD · zwei baugleiche, mobile Boxen
+Rev. 3.16 · 09.11.2026 · Pi 3 Model A+ · eigene Box-Software auf MPD · zwei baugleiche, mobile Boxen
 
 **Änderungen gegenüber Rev. 2**
 - Software-Basis: Phoniebox V3 + eigene Plugins statt Eigenbau
@@ -22,6 +22,7 @@ Rev. 3.15 · 09.11.2026 · Pi 3 Model A+ · eigene Box-Software auf MPD · zwei 
 - **3.13:** Entscheidung L (09.11.) aus `docs/designs/box-software.md`: Es spielen nie zwei Sachen gleichzeitig. Anlass am Mac mit den Sprach-Tönen: „Lernmodus beendet.“ überlappte sich mit „Test-Serie, Folge drei.“, und „Diesen Tobie kenne ich noch nicht …“ mit der Überraschungs-Serie. Neu: Töne laufen einzeln über eine Spur; enthält eine Ausgabe Töne und einen Wiedergabestart, spielen erst die Töne bis zum Ende, dann startet das Hörspiel. Ein Ton während das Hörspiel läuft hält es kurz an und setzt es an derselben Stelle fort (kein Zeiger, kein Rücksprung, Status bleibt „spielt“). Abheben oder Pause während eines Tons verwirft den wartenden Start; der Ton läuft zu Ende. Ein Ton ist auf 10 s begrenzt. Beim normalen Auflegen eines bekannten Tobies ändert sich nichts (kein Ton, kein Verzug). Der Kern bleibt unverändert. Verträge `core-interface.md` (Abschnitt 6.5 Punkt 6, 8.1, Punkt 32), Design und `mac-prototyp.md` angepasst. `data-model.md` ist nachgezogen: `ton_pegel` ohne Wirkung (J), `hinweis_pegel` mit Untergrenze 10 statt 5.
 - **3.14:** Entscheidung M (09.11.) aus `docs/designs/box-software.md`: **Einsortieren nach Metadaten, vollautomatisch mit Korrektur.** Tobias legt Hörbücher und Hörspiele in einen Eingangsordner auf dem NAS (`tobibox/eingang/`); die HA-Integration liest die Tags (Album, Album-Interpret, Serien-Tags, Track/Disc, Titel, Folgen-Nummer im Albumnamen), macht aus einem Album eine Folge (mehrere Dateien: Folgen-Ordner), bestimmt die Serie, führt Alben derselben Serie zusammen, ordnet nach Folgen-Nummer, Erscheinungsdatum oder Eingangsreihenfolge und legt `serie.json` samt Anzeigenamen an. Die Seite zeigt das Erkannte, Tobias korrigiert (Serie wechseln, Namen ändern, Reihenfolge, Serien zusammenführen); fehlende Tags heißen „bitte prüfen“. Kopiergeschütztes und Defektes bleibt im Eingang, Doppelte (Prüfsumme) kommen in den Papierkorb. Upload über die Seite geht ebenfalls in den Eingang. Die Box bleibt unverändert; `eingang/`, `_upload/` und `_papierkorb/` werden nicht gesynct. Dazu die **Vorgaben der Projektleitung zu Vertrag W** (Tabelle unten und `docs/protocol/ha-websocket-v1.md`, Überarbeitung nach Goldfisch-Report W-01 bis W-28): Seite nur für Administratoren, Tobie-Namen, Serie löschen mit Rückfrage, Upload-Grenze zunächst 500 MiB, Schutz gegen das Ausrollen einer leeren Liste und Rückholen aus dem Export. **Festgelegte Versionen:** Home Assistant **2026.11.x** (Tobias aktualisiert darauf; die genaue Patch-Version kommt beim Start von AP 3.1), Mosquitto-Add-on **7.1.3**, NAS **QNAP TS-464eU-8G** (Celeron N5095, **amd64**). Verträge `ha-websocket-v1.md` (Befehle 24 bis 32, Abschnitte 11 bis 13), `data-model.md` (Tobie-Name, `folgen_info`, `meta.json`, Eingang) und `mqtt-v1.md` (`name` im Beispiel; ACL-Korrektur `pattern read`) sowie das Design (AP 3.1, 3.2, 3.4, 3.5) angepasst.
 - **3.15:** Entscheidung N (09.11.) aus `docs/designs/box-software.md`: **Lesezeichen je Tobie mit Ablauf.** Jeder Tobie (jeder Zeiger) behält seine eigene Stelle, auch wenn zwischendurch andere Tobies gespielt haben (wie bisher). Neu: Wurde ein Zeiger länger als `lesezeichen_tage` nicht benutzt (Vorgabe 14 Tage, in HA einstellbar, `0` = nie), beginnt beim Fortsetzen die Folge von vorn (Position 0, erster Track); bei einer Serie bleibt die Folge dieselbe, bei einem Folgen-Tobie beginnt dieselbe Folge von vorn. Die Regel gilt nur bei sicherer Uhr, nur für Zeiger mit Zeitstempel (`resume.json`: neues optionales Feld `benutzt_am`, ein alter Zeiger ohne Stempel läuft nie ab), an denselben Stellen wie die Restregel (Auflegen, Einschalten, Hauptknopf, nach Dienst-Neustart) und vor ihr. Protokoll `lesezeichen_abgelaufen` mit `alter_tage`. Das Feld `lesezeichen_tage` ist in `config.json` additiv (Version 2 bleibt) und im Vertrag W reserviert; die Seitenbedienung kommt mit den Einstellungen in Stufe 4. Dazu der Abgleich von `mqtt-v1.md` 5.1 mit Vertrag W, Abschnitt 13 (Zustände `ok`, `leer_neu`, `export_neuer`). Verträge: `core-interface.md` 6.3 und 9 Punkt 33, `data-model.md` Abschnitte 2 und 3, `mqtt-v1.md` 3.1 und 5.1, `ha-websocket-v1.md` Abschnitt 10.
+- **3.16 (09.11., AP 4.8):** Änderungen der Projektleitung in Verträge und Design eingetragen: Bedienung an der Box setzt den Leerlauf-Zähler zurück (HA-Befehle nicht). Start am Lader: Bricht der Start-Sync mit `netz_weg` oder `regel` ab, wiederholt `idle` ihn alle 10 min, höchstens 6-mal, solange die Box am Lader hängt. Neuer Abbruchgrund `nicht_eingerichtet` (kein `[sync]`). `befehl_abgelehnt` mit `detail`-Texten. LED-Ring: Lernmodus, Gute Nacht und Stumm als **Vorschlag** zur Ansicht in der Simulation (5.5.2). Konfiguration `[kopfhoerer]` und `[tasten]`. Geändert: `core-interface.md` (3.5, 3.6, 5.2, 9 Punkt 9, 11, 12.1), `mqtt-v1.md` (3.4), `box-software.md` (Strom / Leerlauf, CUJ 16, CUJ 18, AP 4.8), dieser Plan (5.5.2, Entscheidungen).
 - **Nachtrag zu Rev. 3.15 (09.11., Befund AP 3.1; keine neue Revisionsnummer):** Test-Pin von Home Assistant. Die HA-Tests laufen vorerst gegen **2026.10.4**, weil `pytest-homeassistant-custom-component` für 2026.11 noch nicht erschienen ist. Die Integration ist statisch gegen 2026.11.0 geprüft. Die Pins (`homeassistant/requirements-test.txt`, CI) werden nachgezogen, sobald das Plugin da ist.
 
 ---
@@ -569,6 +570,12 @@ Stand 3.8: Aufteilung neu. V3 entfällt, die Firmware macht den Leser, Home Assi
 - **5.5 Plugin LED-Ring**
   - 5.5.1 APA102-Treiber per Bit-Bang
   - 5.5.2 Zustände: läuft, Pause, Akku, unbekannte Karte, Aufwachen
+    - **Vorschlag, Tobias entscheidet nach Ansicht in der Simulation** (09.11., AP 4.8):
+      - Lernmodus: blaues Atmen, 3 s, 8 bis 25 %
+      - Gute Nacht, nur während der Wiedergabe: warm-oranges Glimmen, 4 s, 3 bis 8 %, mit dem Ausblende-Faktor multipliziert; danach normale Pause
+      - Stumm: Zustand bleibt, Helligkeit ×0,4
+      - Übrige Zustände: läuft grünes Atmen (12 bis 25 %); Pause bernstein (10 %); unbekannte Karte magenta blinkend; Aufwachen weißes Lauflicht; Akku als Füllstand
+      - Farben und Muster sind benannte Konstanten oben in `box/src/tobibox/led.py`
   - 5.5.3 Helligkeitsdeckel fest ~25 % (40 LEDs)
 - **5.6 Plugin PiSugar & Energie**
   - 5.6.1 Akkustand an V3 und LED-Ring
@@ -670,7 +677,7 @@ Stand 3.8: Aufteilung neu. V3 entfällt, die Firmware macht den Leser, Home Assi
 
 CAD (4.2) startet erst, wenn 3.2 auf dem Breadboard läuft.
 
-## Entscheidungen (12.10.2026, ergänzt 17.10., 04.11., 05.11. für Rev. 3.8, 06.11. für Rev. 3.9, 07.11. für Rev. 3.10, 09.11. für Rev. 3.11, 3.12, 3.13, 3.14 und 3.15)
+## Entscheidungen (12.10.2026, ergänzt 17.10., 04.11., 05.11. für Rev. 3.8, 06.11. für Rev. 3.9, 07.11. für Rev. 3.10, 09.11. für Rev. 3.11, 3.12, 3.13, 3.14, 3.15 und 3.16)
 
 | Frage | Entscheidung |
 |---|---|
@@ -715,6 +722,10 @@ CAD (4.2) startet erst, wenn 3.2 auf dem Breadboard läuft.
 | **Schutz der Konfiguration (3.14, W-01/W-02/W-06)** | Ist der HA-Speicher leer oder der Export neuer, veröffentlicht die Integration nichts, bis Tobias entscheidet (aus dem Export holen oder neu ausrollen); erst veröffentlichen, dann exportieren; Boxen mit neuerem Stand (`voraus`) werden gemeldet, die Revision wird nie von selbst erhöht |
 | **Feste Versionen (3.14)** | Home Assistant **2026.11.x** (Patch-Version beim Start von AP 3.1), Mosquitto-Add-on **7.1.3**, NAS **QNAP TS-464eU-8G** (Celeron N5095, amd64) |
 | **Mosquitto-ACL (3.14)** | In der `pattern`-Form müssen auch `tobibox/config` und `homeassistant/status` `pattern read` heißen (Test gegen Mosquitto 2.0.18); `mqtt-v1.md`, Abschnitt 7 korrigiert |
+| **Leerlauf-Zähler (3.16, 09.11., AP 4.8)** | Bedienung an der Box (Hauptknopf kurz, Vor, Zurück, Drehregler, Kopfhörer) setzt den Leerlauf-Zähler neu. HA-Befehle (Sync, Update) setzen ihn nicht zurück. Wer an der Box spielt, will nicht, dass sie ausgeht. `core-interface.md`, Abschnitt 9 Punkt 9; Design „Strom / Leerlauf“ |
+| **Start am Lader (3.16, 09.11., AP 4.8)** | Bricht der Start-Sync mit `netz_weg` oder `regel` ab, wiederholt `idle` ihn alle 10 min, höchstens 6-mal, solange die Box am Lader hängt; währenddessen keine Abschaltung. Ohne Lader, bei anderem Abbruch oder Erfolg gilt die 20-min-Regel. Fehlt `[sync]`: Grund `nicht_eingerichtet`, keine Wiederholung |
+| **LED-Ring-Zustände (3.16, 09.11., AP 4.8)** | Vorschlag, Tobias entscheidet nach Ansicht in der Simulation: Lernmodus blau atmend, Gute Nacht warm-oranges Glimmen (nur bei Wiedergabe), Stumm dimmt auf ×0,4. Werte in `led.py` (benannte Konstanten), Plan 5.5.2 |
+| **Konfiguration Tasten und Kopfhörer (3.16, 09.11., AP 4.8)** | `[kopfhoerer]` und `[tasten]` in `tobibox.toml`; `pin_haupt` ist optional (am Pi kommt der Hauptknopf über den PiSugar) |
 
 ## Bewusst nicht enthalten
 

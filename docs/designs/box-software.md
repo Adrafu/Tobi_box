@@ -822,9 +822,11 @@ Zustände, Übergänge und Konflikte: siehe „Kern-Zustände“.
 *   **Then**: Die Box fährt herunter — außer es läuft ein Sync, ein Update
     oder der Lernmodus: dann wartet sie. Am Lader schaltet sie erst ab, wenn
     Sync und Update fertig sind. Beim Start am Lader prüft sie, ob ein Sync
-    ansteht. In der Simulation wird das Herunterfahren nur protokolliert.
-    Später (Stufe 4) kann der PiSugar-Wecker die Box am Lader nachts zum Sync
-    wecken.
+    ansteht. Bedienung an der Box (Taste, Drehregler, Hauptknopf kurz,
+    Kopfhörer) beginnt die 20 min neu; HA-Befehle (Sync, Update) tun das nicht
+    (09.11., AP 4.8). In der Simulation wird das Herunterfahren nur
+    protokolliert. Später (Stufe 4) kann der PiSugar-Wecker die Box am Lader
+    nachts zum Sync wecken.
 
 ### CUJ 17: Kopfhörer
 
@@ -842,6 +844,17 @@ Zustände, Übergänge und Konflikte: siehe „Kern-Zustände“.
 *   **When**: Der Zustand der Box wechselt.
 *   **Then**: Der Ring zeigt den passenden Zustand. Die Helligkeit liegt nie
     über 25 %. Am Mac zeigen Terminal und Protokoll denselben Zustand.
+*   **Vorschlag, Tobias entscheidet nach Ansicht in der Simulation** (09.11.,
+    AP 4.8). Die Farben und Muster stehen als benannte Konstanten oben in
+    `box/src/tobibox/led.py`.
+    *   Lernmodus: blaues Atmen, 3 s, 8 bis 25 %.
+    *   Gute Nacht, nur während der Wiedergabe: warm-oranges Glimmen, 4 s, 3 bis
+        8 %, mit dem Ausblende-Faktor multipliziert; danach normale Pause.
+    *   Stumm: Der Zustand bleibt, die Helligkeit ×0,4.
+    *   Übrige Zustände: läuft grünes Atmen (12 bis 25 %, 6 s); Pause bernstein
+        (10 %); unbekannte Karte magenta blinkend (1 s); Aufwachen weißes
+        Lauflicht (2 s); Akku als Füllstand (40 LEDs, grün, gelb oder rot, am
+        Lader blau, bei Tiefstand rot blinkend).
 
 ### CUJ 19: Tasten und Drehregler
 
@@ -1327,12 +1340,12 @@ Zustände: `aktiv`, `leerlauf` (Zähler für 20 min läuft), `herunterfahren`.
 | Zustand | Ereignis | Befehl | neuer Zustand |
 |---|---|---|---|
 | `aktiv` | keine Wiedergabe und kein Tobie | Leerlauf-Zähler starten (monotone Uhr) | `leerlauf` |
-| `leerlauf` | Wiedergabe oder Tobie | Zähler verwerfen | `aktiv` |
+| `leerlauf` | Wiedergabe oder Tobie → Zähler verwerfen; oder Bedienung (Taste, Drehregler, Hauptknopf kurz, Kopfhörer) → Zähler beginnt neu (09.11., AP 4.8) | Zähler verwerfen (bei Wiedergabe oder Tobie); bei Bedienung Zähler neu starten | `aktiv` (bei Wiedergabe oder Tobie); `leerlauf` (bei Bedienung) |
 | `leerlauf` | 20 min um, Sync, Update oder Lernmodus läuft (am Lader auch: Sync oder Update noch offen) | warten, Zähler neu; nach Ende des Syncs oder Updates erneut prüfen | `leerlauf` |
 | `leerlauf` | 20 min um, nichts läuft | Zeiger speichern, Herunterfahren | `herunterfahren` |
 | `aktiv` | Hauptknopf lang | Zeiger speichern, Herunterfahren | `herunterfahren` |
 | `aktiv`, `leerlauf` | Akku-Tiefstand (nicht am Lader) | Sync abbrechen, Zeiger speichern, Herunterfahren | `herunterfahren` |
-| beim Start | am Lader | prüfen, ob ein Sync ansteht | `aktiv` |
+| beim Start | am Lader | prüfen, ob ein Sync ansteht. Bricht er mit `netz_weg` oder `regel` ab, versucht `idle` es erneut, solange die Box am Lader hängt: alle 10 min, höchstens 6-mal. Währenddessen wird nicht abgeschaltet. Danach, bei Erfolg, anderem Abbruchgrund oder ohne Lader gilt wieder die 20-min-Regel (Zähler abgelaufen: sofort) (09.11., AP 4.8) | `aktiv` |
 
 In der Simulation wird „Herunterfahren“ nur protokolliert. Am Lader nachts
 wecken (PiSugar-Wecker) ist eine Option für Stufe 4.
@@ -2841,7 +2854,8 @@ Simulation vorführbar.
 | `box/src/tobibox/core.py` | änd. | `quiet`, `bedtime`, `idle` in die Liste der Teilautomaten eintragen; Konflikt-Tabelle vollständig. |
 | `box/src/tobibox/app.py` | änd. | `led`, `controls`, `headphones`, `idle` verdrahten. |
 | `box/src/tobibox/sim.py` | änd. | Ausgang „Ring-Zustand“ (Terminal, Protokoll); Eingänge Tasten und Drehregler per Tastatur, Eingang „Stecker“. |
-| `box/src/tobibox/cli.py` | änd. | `tobibox sim key`, `tobibox sim headphones`, `tobibox sim time`. |
+| `box/src/tobibox/cli.py` | änd. | `tobibox sim key`, `tobibox sim headphones`, `tobibox sim time`. Der sim-Befehl `zeit` (`tobibox sim time`, ISO oder now) stellt die simulierte Wanduhr; Beschreibung in `docs/betrieb/mac-prototyp.md` (09.11., AP 4.8). |
+| `box/src/tobibox/config.py` | änd. | `[kopfhoerer]` und `[tasten]` in der Konfiguration (Vorgabe `sim`). `pin_haupt` ist optional: Am Pi kommt der Hauptknopf über die Taste des PiSugar (09.11., AP 4.8). |
 | `box/tests/cuj/test_cuj14_gute_nacht.py` | neu | Karte auflegen nach Abheben der Serien-Tobie, Timer, Ausblenden, Ende. |
 | `box/tests/cuj/test_cuj15_leise_zeiten.py` | neu | Leise-Zeiten über die Konfiguration. |
 | `box/tests/cuj/test_cuj16_leerlauf.py` | neu | Leerlauf-Abschaltung. |

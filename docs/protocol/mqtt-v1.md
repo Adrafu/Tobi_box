@@ -214,7 +214,7 @@ Einmalige Meldungen ohne Bestätigung.
 |---|---|
 | `liste_abgelehnt` | `liste_id`, `revision` (der abgelehnten Liste), `gespeichert_liste_id`, `gespeichert_revision` (was die Box hat), `grund` ∈ `revision_zu_niedrig`, `schema_ungueltig`, `schema_zu_neu` |
 | `fehler` | `baustein` (string), `code` (string), `text` (string). Beispiel: der Update-Rückfall nach `failed` meldet `baustein="update"`, `code="rueckfall"`, `text=<Grund>` |
-| `befehl_abgelehnt` | `befehl` ∈ `lernen`, `sync`, `update`, `befehl_id`, `grund` ∈ `bedingung`, `zeit_unsicher`, optional `detail` |
+| `befehl_abgelehnt` | `befehl` ∈ `lernen`, `sync`, `update`, `befehl_id`, `grund` ∈ `bedingung`, `zeit_unsicher`, optional `detail` (Texte für `detail` im Abschnitt darunter; 09.11., AP 4.8) |
 
 Beispiel:
 
@@ -249,6 +249,8 @@ hat <Befehl> abgelehnt: ihre Uhr ist nicht vertrauenswürdig (Zeitquelle:
 <zeitquelle>). Lernmodus, Sync und Update gehen wieder, sobald die Box die
 Uhrzeit sicher kennt.“ Bei `grund="bedingung"`: der Text aus `detail`. Der
 Sensor „Zeitquelle“ (6.2) zeigt dazu `zeit_ok`.
+
+Beispiele für `detail` (09.11., AP 4.8; heute nur bei `befehl` = `update`, Bedingungen in `core-interface.md`, Abschnitt 9, Punkt 9): „Die Box ist nicht im Heimnetz.“, „Die Box hängt nicht am Lader.“, „Es läuft gerade ein Hörspiel.“, „Es läuft gerade ein Sync.“, „Es läuft schon ein Update.“ Es wird die erste nicht erfüllte Bedingung genannt.
 
 ### 3.5 `tobibox/<box>/unknown/<uid>` (retained)
 
