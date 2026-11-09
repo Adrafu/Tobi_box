@@ -10,6 +10,7 @@
 *   **Änderung 09.11.:** Entscheidung J eingearbeitet (Töne folgen der Lautstärke des Hörspiels). Die Änderungen sind mit „(Entscheidung J, 09.11.)“ markiert.
 *   **Änderung 09.11.:** Entscheidung L eingearbeitet (nie zwei Sachen gleichzeitig). Die Änderungen sind mit „(Entscheidung L, 09.11.)“ markiert.
 *   **Änderung 09.11.:** Entscheidung M eingearbeitet (Einsortieren nach Metadaten, vollautomatisch mit Korrektur) und die Vorgaben der Projektleitung zu Vertrag W (`docs/protocol/ha-websocket-v1.md`). Die Änderungen sind mit „(Entscheidung M, 09.11.)“ markiert.
+*   **Änderung 09.11.:** Entscheidung N eingearbeitet (Lesezeichen je Tobie mit Ablauf). Die Änderungen sind mit „(Entscheidung N, 09.11.)“ markiert.
 *   **Grundlage:** `concepts_brief.md` (gleicher Ordner) inkl. Entscheidungen
     Runde 1 und 2
 
@@ -526,6 +527,34 @@ Alternativen“.
         heißt jetzt „in den Eingang“. Die Überraschungs-Serie kann die Seite anlegen, wenn
         es keine gibt; als Ziel einer Zuordnung ist sie verboten.
 
+*   **Entscheidung N — Lesezeichen je Tobie mit Ablauf (09.11.):** Jeder Tobie (genauer: jeder
+    Zeiger) behält seine eigene Stelle, auch wenn zwischendurch andere Tobies gespielt haben;
+    das war schon so (CUJ 4, `resume.json`). Neu (Entscheidung N, 09.11.); die Regeln stehen
+    testbar in `docs/protocol/core-interface.md`, Abschnitt 6.3:
+    *   **N1 — Ablauf:** Wurde ein Zeiger länger als `lesezeichen_tage` nicht benutzt, beginnt
+        beim Fortsetzen die **Folge** wieder von vorn: Track 0, Position 0. Bei einem
+        Serien-Zeiger bleibt die Folge dieselbe, es geht nicht zurück auf Folge 1. Bei einem
+        Folgen-Tobie beginnt dieselbe Folge von vorn. „Länger als“ heißt: genau 14 Tage sind noch
+        nicht abgelaufen.
+    *   **N2 — Einstellung:** Vorgabe 14 Tage, in HA einstellbar, deshalb ein Feld der
+        Konfiguration (`config.json`, `lesezeichen_tage`, ganze Zahl 0 bis 365, additiv, Version 2
+        bleibt, alte Dateien laden unverändert). `0` heißt: läuft nie ab. Fehlt das Feld, gilt 14.
+        Eine eigene Bedienung auf der HA-Seite kommt mit den Einstellungen in Stufe 4; Vertrag W
+        reserviert das Feld dafür.
+    *   **N3 — Nur bei sicherer Uhr:** Die Regel gilt nur, wenn die Uhr sicher ist
+        (`jetzt.zeit_ok`, siehe „Uhr und Zeitquelle“). Ist die Uhr unsicher, läuft nichts ab.
+        Der Kern bleibt rein: Die Wanduhr kommt über `jetzt`.
+    *   **N4 — Gemessen ab der letzten Benutzung:** Jeder Zeiger in `resume.json` trägt den
+        Zeitpunkt seiner letzten Benutzung (`benutzt_am`, UTC, optional). Benutzung heißt: zuletzt
+        gespeichert beim Spielen (alle 30 s), Pausieren oder Abheben. Ein alter Zeiger ohne
+        `benutzt_am` läuft nie ab; er bekommt den Zeitstempel beim nächsten Speichern. Bei unsicherer
+        Uhr wird kein neuer Zeitstempel geschrieben, ein vorhandener bleibt.
+    *   **N5 — Ort der Regel:** Dieselbe Stelle wie die Restregel (Entscheidung I), also bei allen
+        Wegen des Fortsetzens: Auflegen, Einschalten, Hauptknopf kurz in `pausiert`, nach einem
+        Dienst-Neustart. **Reihenfolge:** zuerst der Ablauf. Ist der Zeiger abgelaufen, beginnt
+        die Folge von vorn, und die Restregel entfällt.
+    *   **N6 — Protokoll:** Eine INFO-Zeile `lesezeichen_abgelaufen` mit `alter_tage`.
+
 - **Nachtrag 05.11. (Stufe-0-Verträge):** Ein Leser-Neustart startet nie von selbst eine Wiedergabe; nach einem bestätigten Leserverlust (> 3 s) bleibt die Box pausiert, auch wenn der Tobie danach wieder gemeldet wird – das Kind legt neu auf. Lesefehler gelten bis 5 s als „Tobie liegt“; fehlende Serie → Überraschungs-Serie; „stumm“ sperrt auch Knöpfe; MPD-Verlust bis 5 s wird überbrückt. Maßgeblich sind die Verträge in `docs/protocol/` und `docs/data-model.md`.
 
 ## Offene Fragen
@@ -549,7 +578,7 @@ Alternativen“.
 Erledigt: Medienformate und Lautheitsangleich (siehe D5 und D6), Ende der
 letzten Folge und Ende eines „stumm“-Fensters (Entscheidungen A und B),
 Datenvolumen im Hotspot (Entscheidung C), Hauptknopf nach Folgenende
-(Entscheidung E), Tobies als Folge oder Serie (Entscheidung F), Lernmodus wartet still (Entscheidung H), kleiner Rest gilt als fertig gehört (Entscheidung I), Töne folgen der Lautstärke (Entscheidung J), nie zwei Sachen gleichzeitig (Entscheidung L), Einsortieren nach Metadaten (Entscheidung M), Schnittstellen und Datenformate (Stufe 0), die Befunde R1 bis
+(Entscheidung E), Tobies als Folge oder Serie (Entscheidung F), Lernmodus wartet still (Entscheidung H), kleiner Rest gilt als fertig gehört (Entscheidung I), Töne folgen der Lautstärke (Entscheidung J), nie zwei Sachen gleichzeitig (Entscheidung L), Einsortieren nach Metadaten (Entscheidung M), Lesezeichen mit Ablauf (Entscheidung N), Schnittstellen und Datenformate (Stufe 0), die Befunde R1 bis
 R18 des Reviews Stufe 9.
 
 ## Risiken
@@ -628,6 +657,13 @@ Zustände, Übergänge und Konflikte: siehe „Kern-Zustände“.
     Folge 1). Das gilt beim Auflegen, beim Einschalten, beim Hauptknopf in `pausiert` und
     nach einem Dienst-Neustart. Folgen unter 60 s und Folgen mit unbekannter Dauer sind
     ausgenommen.
+*   **Lesezeichen mit Ablauf (Entscheidung N, 09.11.)**: Wurde der Zeiger länger als
+    `lesezeichen_tage` (Vorgabe 14) nicht benutzt, beginnt die Folge von vorn: Track 0,
+    Position 0, ohne Rücksprung. Ein Serien-Tobie bleibt in derselben Folge (nicht zurück auf
+    Folge 1), ein Folgen-Tobie beginnt dieselbe Folge von vorn. `0` heißt: läuft nie ab. Die
+    Regel gilt nur bei sicherer Uhr und nur für Zeiger mit Zeitstempel, an denselben Stellen wie
+    die Restregel (Auflegen, Einschalten, Hauptknopf kurz, nach Dienst-Neustart) und geht ihr
+    voran. Protokoll: `lesezeichen_abgelaufen` mit `alter_tage`.
 
 ### CUJ 4: Anderen Tobie auflegen
 
@@ -639,6 +675,11 @@ Zustände, Übergänge und Konflikte: siehe „Kern-Zustände“.
     ihrem Ende: von vorn). Ohne Zeiger beginnt eine Serie bei Folge 1, eine
     Folge am Anfang, jeweils beim ersten Track (Zeigerregeln: siehe „Datenmodell
     und Dateien“) (Entscheidung F, 05.11.).
+*   **Lesezeichen je Tobie (Entscheidung N, 09.11.)**: Jeder Zeiger behält seine eigene Stelle,
+    auch wenn andere Tobies dazwischen gespielt haben, und er altert für sich: Ob die Folge
+    beim Auflegen von vorn beginnt, hängt allein davon ab, wie lange **dieser** Zeiger nicht
+    benutzt wurde (mehr als `lesezeichen_tage`, Vorgabe 14). Serien-Zeiger und Folgen-Zeiger
+    derselben Folge laufen getrennt ab.
 
 ### CUJ 5: NFC-Karte
 
@@ -1189,6 +1230,7 @@ wegen „stumm“ nicht gespielt), `unbekannt` (Leser-Zustand unbekannt).
 |---|---|---|---|
 | `leer`, `pausiert` | `PLACED`, Ziel `serie` oder `folge` bekannt, nicht stumm (Entscheidung F, 05.11.) | Lautstärke setzen, Zeiger des Ziels laden (Serie: Zeiger der Serie; Folge: Zeiger der Folge), Abspielen ab Track und Position | `spielt` |
 | `leer`, `pausiert` | `PLACED`, Ziel `serie` oder `folge` bekannt, nicht stumm, am Zeiger fehlen bis zum Ende der ganzen Folge weniger als 15 s (Dauer bekannt, Folge mindestens 60 s) (Entscheidung I, 09.11.) | wie die Zeile oben, aber die Folge gilt als fertig: `serie` → nächste Folge von vorn (nach der letzten Folge 1), `folge` → dieselbe Folge von vorn; Zeiger beim Start nicht speichern; Protokoll `rest_regel` mit `rest_s` | `spielt` |
+| `leer`, `pausiert` | `PLACED`, Ziel `serie` oder `folge` bekannt, nicht stumm, sichere Uhr, der Zeiger wurde länger als `lesezeichen_tage` nicht benutzt (Zeitstempel vorhanden, `lesezeichen_tage` > 0) (Entscheidung N, 09.11.) | wie die erste Zeile, aber dieselbe Folge von vorn (Track 0, Position 0, ohne Rücksprung); Vorrang vor der Restregel (die dann entfällt); Zeiger beim Start nicht speichern; Protokoll `lesezeichen_abgelaufen` mit `alter_tage` | `spielt` |
 | `leer`, `pausiert` | `PLACED`, Kennung unbekannt | Kennung in `unknown.json`, Überraschungs-Serie abspielen, Ton | `spielt` |
 | `leer`, `pausiert` | `LOCKED` | Überraschungs-Serie abspielen | `spielt` |
 | `leer`, `pausiert` | `PLACED`, Ziel `aktion` | Aktion auslösen (Status: Tonfolge; Gute Nacht: an Ruhe-Regeln) | unverändert |
@@ -1209,7 +1251,7 @@ wegen „stumm“ nicht gespielt), `unbekannt` (Leser-Zustand unbekannt).
 | `beendet` (Tobie liegt) | Hauptknopf kurz oder `Vor` | Lautstärke setzen, ab Zeiger abspielen (Entscheidung E): `serie` → nächste Folge, `folge` → dieselbe Folge von vorn (Entscheidung F, 05.11.) | `spielt` |
 | `beendet` (Tobie liegt) | `Zurück` (Entscheidung F, 05.11.) | Lautstärke setzen, die eben beendete Folge von vorn abspielen (beide Typen); einzige Quelle ist die gemerkte, eben beendete Folge; `index` per Nachschlagen in `Serie.folgen`; Zeiger auf diese Folge, Track 0, Position 0, speichern mit Grund `zurueck`. `beendet` wird nicht gespeichert: nach einem Neustart des Dienstes beginnt die Sitzung ohne Wiedergabe mit dem gespeicherten Zeiger | `spielt` |
 | `spielt` | Hauptknopf kurz | Pause, Zeiger speichern | `pausiert` |
-| `pausiert` (Tobie liegt) | Hauptknopf kurz | Abspielen am Zeiger; die Restregel (Entscheidung I, 09.11.) gilt wie beim Auflegen, auch nach einem Dienst-Neustart (Entscheidung G) | `spielt` |
+| `pausiert` (Tobie liegt) | Hauptknopf kurz | Abspielen am Zeiger; der Ablauf des Lesezeichens (Entscheidung N, 09.11.) und danach die Restregel (Entscheidung I, 09.11.) gelten wie beim Auflegen, auch nach einem Dienst-Neustart (Entscheidung G) | `spielt` |
 | `spielt` | Wächter-Alarm (kein `HB`) | Frist 1,5 s starten | `unbekannt` |
 | `unbekannt` | `HELLO` und `PLACED` mit derselben Kennung innerhalb der Frist | nichts, Wiedergabe läuft weiter | `spielt` |
 | `unbekannt` | `PLACED` mit neuer Vorgangs-ID (andere Kennung, oder dieselbe nach verlorenem `REMOVED`), Lernmodus `lernt` (Entscheidung H, 07.11.) | Pause (`leser_unbekannt`), Zeiger speichern, dann wie in der Zeile „wartet“ unten: Frist 10 s starten, nichts abspielen | `pausiert` (wartet) |
@@ -1330,8 +1372,8 @@ möglichst abwärtskompatibel sein.
 
 | Datei | Inhalt | Wer schreibt | Sync |
 |---|---|---|---|
-| `config.json` | Konfiguration von HA mit **einer** Revision und **einer** Listen-ID: Zuordnungen `uid → Eintrag` mit einem Feld `ziel`: `{"typ":"serie","serie":id}`, `{"typ":"folge","serie":id,"folge":name}` oder `{"typ":"aktion",…}` (z. B. Status oder Gute Nacht) (Entscheidung F, 05.11.), Leise-Zeiten, Gute-Nacht-Einstellungen (Timer-Dauer, Ausblendzeit) | nur aus HA übernommen | holt von HA |
-| `resume.json` | je Serie der Zeiger (aktuelle Folge als Name, Track, Position in s) + Zähler, und je (Serie, Folge) ein Zeiger für Folgen-Tobies (Track, Position, Zähler) (Entscheidung F, 05.11.); `schema_version` 2 | Box | nie |
+| `config.json` | Konfiguration von HA mit **einer** Revision und **einer** Listen-ID: Zuordnungen `uid → Eintrag` mit einem Feld `ziel`: `{"typ":"serie","serie":id}`, `{"typ":"folge","serie":id,"folge":name}` oder `{"typ":"aktion",…}` (z. B. Status oder Gute Nacht) (Entscheidung F, 05.11.), Leise-Zeiten, Gute-Nacht-Einstellungen (Timer-Dauer, Ausblendzeit), optional `lesezeichen_tage` (Vorgabe 14, 0 = nie; Entscheidung N, 09.11.) | nur aus HA übernommen | holt von HA |
+| `resume.json` | je Serie der Zeiger (aktuelle Folge als Name, Track, Position in s) + Zähler, und je (Serie, Folge) ein Zeiger für Folgen-Tobies (Track, Position, Zähler) (Entscheidung F, 05.11.); `schema_version` 2; je Zeiger optional `benutzt_am` (Zeitpunkt der letzten Benutzung, UTC; Entscheidung N, 09.11.) | Box | nie |
 | `unknown.json` | unbekannte Kennungen mit Zeitpunkt, noch nicht von HA bestätigt | Box | an HA; Eintrag erst löschen, wenn HA bestätigt hat (`…/ack`) |
 
 - **Serie** = Ordner im Medienordner; Folgen darin sind **Audiodateien (D5)
@@ -2109,6 +2151,8 @@ das AP ändert sie nicht.
 | `box/tests/unit/test_store.py`, `box/tests/unit/test_core.py` | änd. | Erwartungen an die neuen Typen angepasst (Zeiger-Schlüssel, Schema 2, `ZustandMelden`); `test_core.py` zusätzlich Tracks im Kern. |
 | `box/tests/integration/test_app_e2e.py` | änd. | Kettentest mit echtem MPD: Folgen-Tobie mit drei Tracks. |
 | `box/tests/unit/test_session_restregel.py`, `box/tests/unit/test_audiodauer.py` | neu (Entscheidung I, 09.11.) | Restregel: Rest unter, an und über 15 s, Folge unter 60 s, unbekannte Dauer, mehrere Tracks, Serie in der Mitte und am Ende, Folgen-Tobie, Hauptknopf, Dienst-Neustart, Einschalten, Überraschungs-Serie. Dauer aus Kopfdaten und in der Bibliothek. |
+| `box/src/tobibox/session.py`, `box/src/tobibox/pointer.py`, `box/src/tobibox/store.py`, `box/src/tobibox/events.py` | änd. (Entscheidung N, 09.11.) | Lesezeichen mit Ablauf: `Zeiger.benutzt_wall`, `ZeigerSpeichern.wall`, `Konfig.lesezeichen_tage`; `session._lesezeichen` vor `_rest_regel` in `_start`; `pointer.lesezeichen_abgelaufen` und `stempel_faellig`; `resume.json` mit optionalem `benutzt_am`, `validiere_konfig` prüft `lesezeichen_tage` (ganze Zahl 0 bis 365, Vorgabe 14). |
+| `box/tests/unit/test_session_lesezeichen.py`, `box/tests/unit/test_store_lesezeichen.py` | neu (Entscheidung N, 09.11.) | Abgelaufen, nicht abgelaufen, genau 14 Tage, 0 = nie, unsichere Uhr, Zeiger ohne Zeitstempel, Serie gegen Folge, Zusammenspiel mit der Restregel, alle Wege des Fortsetzens, Zeitstempel beim Speichern; `benutzt_am` und `lesezeichen_tage` lesen, prüfen, schreiben. |
 | `box/tests/unit/test_library.py` | änd. | Folge als Datei und als Ordner, Track-Reihenfolge, Dotfiles, leerer Folgen-Ordner, Serie „Einzelfolgen“. |
 | `box/tests/unit/test_pointer.py` | änd. | Folgenende für `serie` und `folge`, Vor / Zurück nach Track (3-s-Grenze, erster und letzter Track), fehlender Track. |
 | `box/tests/unit/test_session.py` | änd. | Neue Zeilen der Tabelle „Wiedergabe-Sitzung“: `TrackWechsel`, Folgenende je Ziel, Vor, Zurück, `beendet` mit Hauptknopf und Zurück, `PlayerPosition` nur bei passendem Zeiger, `TrackWechsel` und Folgenende in allen Zuständen mit laufendem MPD, Zuordnung auf fehlende Serie oder Folge (`serie_fehlt`, `folge_fehlt`). **Enthält auch die Tests „Hauptknopf kurz je Zustand“** (früher als eigene Datei `test_session_hauptknopf.py` in AP 4.2 vorgesehen; zusammengeführt). |
@@ -2183,8 +2227,8 @@ wird in AP 2.4 behoben.
 
 | Datei | Neu/Änd. | Inhalt und Grund |
 |---|---|---|
-| `box/tests/cuj/test_cuj03_resume.py` | neu (Entscheidung I, 09.11.: ergänzt um die Restregel) | CUJ 3: Resume mit 3-s-Rücksprung, auch nach Neustart; Folge zu Ende bei liegendem Tobie (Pause, Zeiger auf die nächste Folge, nichts passiert bis Abheben und Auflegen; nach der letzten Folge Zeiger auf Folge 1); Resume mitten im zweiten Track einer Folge; Folgen-Tobie spielt nach dem Ende von vorn (Entscheidung F, 05.11.). |
-| `box/tests/cuj/test_cuj04_andere_figur.py` | neu | CUJ 4: Zeiger der alten Serie bleibt, neue Serie läuft an ihrem Zeiger oder bei Folge 1. |
+| `box/tests/cuj/test_cuj03_resume.py` | neu (Entscheidung I, 09.11.: ergänzt um die Restregel) | CUJ 3: Resume mit 3-s-Rücksprung, auch nach Neustart; Folge zu Ende bei liegendem Tobie (Pause, Zeiger auf die nächste Folge, nichts passiert bis Abheben und Auflegen; nach der letzten Folge Zeiger auf Folge 1); Resume mitten im zweiten Track einer Folge; Folgen-Tobie spielt nach dem Ende von vorn (Entscheidung F, 05.11.). Entscheidung N, 09.11.: Lesezeichen mit Ablauf (14 Tage, Serie bleibt in der Folge, 0 = nie, unsichere Uhr, Zeiger ohne Zeitstempel, vor der Restregel, alle Wege des Fortsetzens). |
+| `box/tests/cuj/test_cuj04_andere_figur.py` | neu | CUJ 4: Zeiger der alten Serie bleibt, neue Serie läuft an ihrem Zeiger oder bei Folge 1. Entscheidung N, 09.11.: jeder Zeiger altert für sich, andere Tobies dazwischen halten ihn nicht am Leben. |
 | `box/tests/cuj/test_cuj20_figur_beim_start.py` | neu | CUJ 20: Tobie liegt beim Start (bekannt: Zeiger; unbekannt: Überraschungs-Serie); Dienst-Neustart mit liegendem Tobie bleibt `pausiert`, Hauptknopf spielt am Zeiger (Entscheidung G, 06.11.). |
 | `box/tests/integration/test_resume_neustart.py` | neu | Dienst hart beenden und neu starten; Zeiger ist da, höchstens 30 s Wiedergabe verloren. |
 

@@ -5,6 +5,12 @@
     „Auflösung“ am Ende des Reports), mit Entscheidung M (Einsortieren nach Metadaten)
     und den Vorgaben der Projektleitung vom 09.11. (Abschnitt „Vorgaben der
     Projektleitung“ am Ende). Wartet auf die Freigabe durch Tobias.
+*   **Änderung 09.11. (Entscheidung N, 09.11.):** Das Feld `lesezeichen_tage` der Konfiguration
+    (Lesezeichen laufen nach so vielen Tagen ohne Benutzung ab, Vorgabe 14, `0` = nie;
+    `data-model.md`, Abschnitt 2) ist **reserviert**: Das Backend schreibt es unverändert fort und
+    exportiert es; die Einstellungen in Stufe 4 (`tobibox/einstellungen/get` und `set`, Abschnitt 10)
+    bekommen es dazu. Eine eigene Seitenbedienung gibt es in Version 1 nicht; kein neuer Befehl,
+    kein neuer Fehlercode, Version bleibt 1.
 *   **Grundlage:** `docs/designs/box-software.md` (Baustein 4 „Speicher und
     Medien“, „Aktionen und Seite“, „MQTT-Schnittstelle Box ↔ HA“; D1, D2, D4,
     D5, D6; Entscheidungen D, F, H, M; CUJ 7a, 7b, 9, 10, 11, 12; AP 3.1, AP 3.2,
@@ -783,7 +789,8 @@ Boxen übernehmen nach der Revisionsregel (`mqtt-v1.md`, 5.2); liegt der Tobie g
 auf, wechselt die Box auf das neue Ziel (`mqtt-v1.md`, 4.1, Schritt 6). Nebenwirkung:
 Steht die Kennung in „Neue Tobies“, wird sie dort entfernt (Ereignis `neue_tobies`,
 `art="entfernt"`, `grund="zugeordnet"`). Das Backend schreibt `leise_zeiten`,
-`gute_nacht`, `ton_pegel` und `hinweis_pegel` unverändert fort.
+`gute_nacht`, `ton_pegel`, `hinweis_pegel` und `lesezeichen_tage` unverändert fort
+(Entscheidung N, 09.11.: Fehlt `lesezeichen_tage`, bleibt es weg; die Box rechnet dann mit 14).
 
 #### 17. `tobibox/zuordnung/remove`
 
@@ -1044,7 +1051,7 @@ gilt nur, wenn die Prüfung selbst scheitert). Rechte: alle. Idempotent: ja. MQT
 #### 32. `tobibox/konfig/aus_export`
 
 Holt die Konfiguration aus dem Export zurück (Zuordnungen **mit Tobie-Namen**,
-Leise-Zeiten, Gute-Nacht-Einstellungen, `ton_pegel`, `hinweis_pegel`) und verteilt
+Leise-Zeiten, Gute-Nacht-Einstellungen, `ton_pegel`, `hinweis_pegel`, `lesezeichen_tage`) und verteilt
 sie mit **neuer Listen-ID** und Revision 1 (damit keine Box sie wegen einer niedrigeren
 Revision ablehnt). Erlaubt in jedem Zustand; Weg heraus aus `leer_neu` und
 `export_neuer`.
@@ -1614,8 +1621,8 @@ sind seit dem 09.11. Teil von Version 1: Nr. 24 und 25.)
 
 | Befehl | Stufe | Skizze (Vorschlag, keine Festlegung) |
 |---|---|---|
-| `tobibox/einstellungen/get` | 4 (AP 4.7) | Liest `leise_zeiten` (`zeitzone`, `fenster`), `gute_nacht` (`timer_min`, `ausblenden_s`) und optional `hinweis_pegel`: dieselben Schemas und Wertebereiche wie in `data-model.md`, Abschnitt 2; dazu `konfig`. Rechte: alle. |
-| `tobibox/einstellungen/set` | 4 (AP 4.7) | Setzt `leise_zeiten` und/oder `gute_nacht` als **ganze Objekte**; Prüfung wie die Box (ungültig: ganze Änderung abgelehnt, Fehlercode `einstellung_ungueltig` mit Pfad in `message`). Rechte: Admin. Idempotent. MQTT: `tobibox/config` (Revision + 1). Fähigkeit `einstellungen`. Die **Leise-Zeiten bleiben in Stufe 4** (Vorgabe der Projektleitung 09.11.). |
+| `tobibox/einstellungen/get` | 4 (AP 4.7) | Liest `leise_zeiten` (`zeitzone`, `fenster`), `gute_nacht` (`timer_min`, `ausblenden_s`) und optional `hinweis_pegel` und `lesezeichen_tage` (Entscheidung N, 09.11.): dieselben Schemas und Wertebereiche wie in `data-model.md`, Abschnitt 2; dazu `konfig`. Rechte: alle. |
+| `tobibox/einstellungen/set` | 4 (AP 4.7) | Setzt `leise_zeiten` und/oder `gute_nacht` als **ganze Objekte** und/oder `lesezeichen_tage` (ganze Zahl 0 bis 365, `0` = nie; Entscheidung N, 09.11.; das Feld ist dafür **reserviert**, die Seitenbedienung kommt in Stufe 4); Prüfung wie die Box (ungültig: ganze Änderung abgelehnt, Fehlercode `einstellung_ungueltig` mit Pfad in `message`). Rechte: Admin. Idempotent. MQTT: `tobibox/config` (Revision + 1). Fähigkeit `einstellungen`. Die **Leise-Zeiten bleiben in Stufe 4** (Vorgabe der Projektleitung 09.11.). |
 | `tobibox/box/update` | 3b (AP 3.8/3.11) | `{"box", "version"?}`; Backend nimmt ohne Angabe die neueste Version aus `releases/`. Rechte: Admin. MQTT: `cmd` `update`, 300 s (`mqtt-v1.md`, 3.7). Ergebnis über `status.update` (Ereignis `boxen`). Fehler wie bei `box/sync`, dazu `keine_version`. Fähigkeit `update`. |
 | `tobibox/releases/list` | 3b | Liest die vorhandenen Pakete auf `releases/` (nur Name und Version). Rechte: alle. |
 | `tobibox/eingang/track_anhaengen` | offen | Nachlieferung einzelner Tracks zu einer schon einsortierten Folge (11.3: in Version 1 nicht vorgesehen) |
@@ -1623,7 +1630,9 @@ sind seit dem 09.11. Teil von Version 1: Nr. 24 und 25.)
 **Schon in Stufe 3a nötig:** Das Backend legt `leise_zeiten` (`zeitzone`
 `Europe/Berlin`, `fenster` leer) und `gute_nacht` (`timer_min` 30, `ausblenden_s` 60,
 die Vorschläge des Designs) in der Konfiguration an, weil `config.json` sie als Pflicht
-verlangt, und schreibt sie bei jeder Änderung unverändert fort. **Lautheit (D6)** hat
+verlangt, und schreibt sie bei jeder Änderung unverändert fort. Dasselbe gilt für die
+optionalen Felder `ton_pegel`, `hinweis_pegel` und `lesezeichen_tage` (Entscheidung N, 09.11.):
+Das Backend legt sie nicht an, **verliert sie aber nie** beim Schreiben einer neuen Revision. **Lautheit (D6)** hat
 keinen Befehl: Der Container läuft nach Zeitplan, ohne Auslöser aus HA (Design).
 Sichtbar wird sie höchstens später als optionales Feld an der Folge.
 
@@ -2134,6 +2143,9 @@ widerspricht.
 23. **Export nach dem Veröffentlichen** mit Wiederholung und sichtbarem Fehler (W-06).
 24. **Namen werden bereinigt statt abgelehnt** (Abschnitt 12); die Namensgleichheit prüft
     ohne Rücksicht auf Groß-/Kleinschreibung und NFC, unter der Sperre.
+25. **Entscheidung N: Feld `lesezeichen_tage` reserviert** (Abschnitt 10, `data-model.md` Abschnitt 2).
+    Das Backend schreibt und exportiert es unverändert; eine Seitenbedienung gibt es erst mit den
+    Einstellungen in Stufe 4. Kein neuer Befehl, Version 1 bleibt.
 
 ## Vorgaben der Projektleitung (09.11.)
 

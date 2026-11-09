@@ -335,6 +335,52 @@ def sim(args: argparse.Namespace, ausgabe: TextIO) -> int:
     return 0
 
 
+def gui(args: argparse.Namespace, ausgabe: TextIO) -> int:
+    """``tobibox gui``: Simulations-Oberfläche im Browser (AP 4.9), nur auf 127.0.0.1."""
+    import asyncio
+    import webbrowser
+
+    from .gui import server
+
+    try:
+        kfg = konfig_modul.lade(_konfig_pfad(args.config))
+    except konfig_modul.KonfigFehler as e:
+        print(f"tobibox gui: {e}", file=sys.stderr)
+        return 2
+    zustand = kfg.pfade.zustand
+    try:
+        pruefe_socket_pfad(zustand / SOCKET_NAME)
+    except SocketPfadZuLang as e:
+        print(f"tobibox gui: {e}", file=sys.stderr)
+        return 2
+    datei = kfg.protokoll.datei if kfg.protokoll.ziel == "datei" else None
+    ober = server.Oberflaeche(server.unix_frage(zustand / SOCKET_NAME), zustand, kfg.pfade.medien, datei)
+    srv = server.Server(ober, server.VORGABE_HOST, args.port)
+
+    async def lauf() -> None:
+        await srv.start()
+        url = f"http://{srv.host}:{srv.port}"
+        print(f"Simulations-Oberfläche: {url} (beenden mit Strg+C)", file=ausgabe, flush=True)
+        if not (zustand / SOCKET_NAME).exists():
+            print(f"Hinweis: {zustand / SOCKET_NAME} fehlt, der Dienst läuft noch nicht (die Seite verbindet sich von selbst).",
+                  file=sys.stderr)
+        if not args.kein_browser:
+            webbrowser.open(url)
+        try:
+            await asyncio.Event().wait()
+        finally:
+            await srv.stop()
+
+    try:
+        asyncio.run(lauf())
+    except KeyboardInterrupt:
+        pass
+    except OSError as e:
+        print(f"tobibox gui: Port {args.port} nicht nutzbar: {e}", file=sys.stderr)
+        return 1
+    return 0
+
+
 def main(argv: Sequence[str] | None = None, ausgabe: TextIO | None = None) -> int:
     p = argparse.ArgumentParser(prog="tobibox")
     p.add_argument("--version", action="version", version=f"tobibox {__version__}")
@@ -367,6 +413,11 @@ def main(argv: Sequence[str] | None = None, ausgabe: TextIO | None = None) -> in
     karte.add_argument("--serie", help="Serien-ID (Ziel Serie, mit --folge Ziel Folge)")
     karte.add_argument("--folge", help="Name der Folge")
     karte.add_argument("--aktion", choices=("status", "gute_nacht"), help="Aktionskarte")
+    g = sub.add_parser("gui", help="Simulations-Oberfläche im Browser (Client von sim.sock, nur localhost)")
+    g.add_argument("--config", help=f"tobibox.toml (sonst ${ENV_KONFIG} oder ./{STANDARD_KONFIG})")
+    g.add_argument("--port", type=int, default=8765, help="Port auf 127.0.0.1 (Vorgabe 8765)")
+    g.add_argument("--kein-browser", action="store_true", help="Seite nicht automatisch öffnen")
+    g.set_defaults(func=gui)
     args = p.parse_args(argv)
     if getattr(args, "sim_befehl", None) == "card" and not (args.aktion or args.serie):
         p.error("card: --serie oder --aktion angeben")

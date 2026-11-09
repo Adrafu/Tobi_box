@@ -457,3 +457,183 @@ def test_unbekannte_dauer_regel_gilt_nicht_und_steht_im_protokoll(tmp_path):
     assert a.datei == "a.opus" and a.position_s == pytest.approx(65.0, abs=0.2)
     (z,) = regel(box)
     assert z.ergebnis == "dauer_unbekannt"
+
+
+# --- Lesezeichen mit Ablauf (Entscheidung N, 09.11.) -------------------------------------------------
+
+TAG = 86400.0
+
+
+def abgelaufen(box) -> list:
+    return [p for p in box.protokoll if p.ereignis == "lesezeichen_abgelaufen"]
+
+
+def test_lesezeichen_nach_14_tagen_beginnt_die_folge_von_vorn(box):
+    box.auflege(UID_SERIE)
+    box.laufe(6.0)
+    box.hebe_ab()
+    assert "benutzt_am" in serien_zeiger(box)  # die Benutzung steht in resume.json
+    box.uhr.vor(15 * TAG)
+    n = len(box.log)
+    box.auflege(UID_SERIE, "v2")
+    (a,) = box.befehle(ev.Abspielen, n)
+    assert (a.datei, a.track, a.position_s) == ("a.wav", 0, 0.0)  # kein Rücksprung auf 3,0
+    (z,) = abgelaufen(box)
+    assert z.ebene == "INFO" and z.daten["alter_tage"] == pytest.approx(15.0, abs=0.1)
+
+
+def test_lesezeichen_nach_13_tagen_setzt_mit_ruecksprung_fort(box):
+    box.auflege(UID_SERIE)
+    box.laufe(6.0)
+    box.hebe_ab()
+    box.uhr.vor(13 * TAG)
+    n = len(box.log)
+    box.auflege(UID_SERIE, "v2")
+    (a,) = box.befehle(ev.Abspielen, n)
+    assert (a.datei, a.position_s) == ("a.wav", 3.0)
+    assert abgelaufen(box) == []
+
+
+def test_lesezeichen_serie_bleibt_in_der_folge(box):
+    box.auflege(UID_SERIE)
+    box.sende(ev.Weiter())  # Folge b
+    box.laufe(6.0)
+    box.hebe_ab()
+    box.uhr.vor(30 * TAG)
+    n = len(box.log)
+    box.auflege(UID_SERIE, "v2")
+    (a,) = box.befehle(ev.Abspielen, n)
+    assert (a.datei, a.position_s) == ("b.wav", 0.0)  # nicht zurück auf Folge 1
+
+
+def test_lesezeichen_folgen_tobie_beginnt_dieselbe_folge_von_vorn(box):
+    box.auflege(UID_FOLGE)
+    box.laufe(6.0)
+    box.hebe_ab()
+    box.uhr.vor(20 * TAG)
+    n = len(box.log)
+    box.auflege(UID_FOLGE, "v2")
+    (a,) = box.befehle(ev.Abspielen, n)
+    assert (a.datei, a.track, a.position_s) == ("b.wav", 0, 0.0)
+
+
+def test_lesezeichen_nach_einschalten_und_ueber_den_neustart_hinweg(box):
+    box.auflege(UID_SERIE)
+    box.laufe(6.0)
+    box.hebe_ab()
+    box.neustart_nach_einschalten()  # das Gerät war aus; der Zeitstempel steht in der Datei
+    box.uhr.vor(16 * TAG)
+    n = len(box.log)
+    box.auflege(UID_SERIE, "v2")
+    (a,) = box.befehle(ev.Abspielen, n)
+    assert (a.datei, a.position_s) == ("a.wav", 0.0)
+    assert len(abgelaufen(box)) == 1
+
+
+def test_lesezeichen_liegender_tobie_nach_dienst_neustart_erst_der_hauptknopf(box):
+    box.auflege(UID_SERIE)
+    box.laufe(6.0)
+    box.sende(ev.DienstEndet())  # Dienst-Neustart ohne Abheben (Entscheidung G)
+    box.neustart()
+    box.uhr.vor(16 * TAG)
+    n = len(box.log)
+    box.auflege(UID_SERIE, "v2")
+    assert box.modus == "pausiert" and abgelaufen(box) == [] and box.befehle(ev.Abspielen, n) == []
+    box.sende(ev.Hauptknopf("kurz"))
+    (a,) = box.befehle(ev.Abspielen, n)
+    assert (a.datei, a.position_s) == ("a.wav", 0.0)
+    assert len(abgelaufen(box)) == 1
+
+
+def test_lesezeichen_hauptknopf_nach_pause(box):
+    box.auflege(UID_SERIE)
+    box.laufe(6.0)
+    box.sende(ev.Hauptknopf("kurz"))
+    assert box.modus == "pausiert"
+    box.uhr.vor(15 * TAG)
+    n = len(box.log)
+    box.sende(ev.Hauptknopf("kurz"))
+    (a,) = box.befehle(ev.Abspielen, n)
+    assert (a.datei, a.position_s) == ("a.wav", 0.0)
+
+
+def test_lesezeichen_null_tage_heisst_nie(tmp_path):
+    zuordnungen = {UID_SERIE: ev.Zuordnung("serie", SERIE)}
+    box = CujBox(tmp_path, zuordnungen, aufbau)
+    box.lesezeichen_tage = 0
+    box.neustart()
+    box.auflege(UID_SERIE)
+    box.laufe(6.0)
+    box.hebe_ab()
+    box.uhr.vor(1000 * TAG)
+    n = len(box.log)
+    box.auflege(UID_SERIE, "v2")
+    (a,) = box.befehle(ev.Abspielen, n)
+    assert (a.datei, a.position_s) == ("a.wav", 3.0)
+    assert abgelaufen(box) == []
+
+
+def test_lesezeichen_unsichere_uhr_nichts_laeuft_ab(box):
+    box.auflege(UID_SERIE)
+    box.laufe(6.0)
+    box.hebe_ab()
+    box.uhr.vor(30 * TAG)
+    box.uhr.setze_zeit("system", False)
+    n = len(box.log)
+    box.auflege(UID_SERIE, "v2")
+    (a,) = box.befehle(ev.Abspielen, n)
+    assert (a.datei, a.position_s) == ("a.wav", 3.0)
+    assert abgelaufen(box) == []
+
+
+def test_lesezeichen_zeiger_ohne_zeitstempel_in_alter_datei_laeuft_nie_ab(box):
+    import json
+
+    box.auflege(UID_SERIE)
+    box.laufe(6.0)
+    box.hebe_ab()
+    pfad = box.zustand / "resume.json"
+    roh = json.loads(pfad.read_text(encoding="utf-8"))
+    del roh["serien"][SERIE]["benutzt_am"]  # eine Datei von vor Entscheidung N
+    pfad.write_text(json.dumps(roh), encoding="utf-8")
+    box.neustart_nach_einschalten()
+    box.uhr.vor(1000 * TAG)
+    n = len(box.log)
+    box.auflege(UID_SERIE, "v2")
+    (a,) = box.befehle(ev.Abspielen, n)
+    assert (a.datei, a.position_s) == ("a.wav", 3.0)
+    assert abgelaufen(box) == []
+    # nach dem Benutzen bekommt der Zeiger einen Stempel und läuft dann ab
+    box.laufe(4.0)
+    box.hebe_ab("v2")
+    assert "benutzt_am" in serien_zeiger(box)
+    box.uhr.vor(15 * TAG)
+    n = len(box.log)
+    box.auflege(UID_SERIE, "v3")
+    assert box.befehle(ev.Abspielen, n)[0].position_s == 0.0
+
+
+def test_lesezeichen_geht_der_restregel_voran(lang):
+    # Rest 2 s: ohne Ablauf spielte die nächste Folge (Entscheidung I). Abgelaufen: dieselbe Folge von vorn.
+    lang.auflege(UID_LANG)
+    lang.laufe(68.0)
+    lang.hebe_ab()
+    lang.uhr.vor(20 * TAG)
+    n = len(lang.log)
+    lang.auflege(UID_LANG, "v2")
+    (a,) = lang.befehle(ev.Abspielen, n)
+    assert (a.datei, a.position_s) == ("a.wav", 0.0)
+    assert regel(lang) == []
+    assert len([p for p in lang.protokoll if p.ereignis == "lesezeichen_abgelaufen"]) == 1
+
+
+def test_lesezeichen_nicht_abgelaufen_gilt_die_restregel_weiter(lang):
+    lang.auflege(UID_LANG)
+    lang.laufe(68.0)
+    lang.hebe_ab()
+    lang.uhr.vor(2 * TAG)
+    n = len(lang.log)
+    lang.auflege(UID_LANG, "v2")
+    (a,) = lang.befehle(ev.Abspielen, n)
+    assert (a.datei, a.position_s) == ("b.wav", 0.0)
+    assert regel(lang)[0].ergebnis == "naechste_folge"

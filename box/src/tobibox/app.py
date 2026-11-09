@@ -109,7 +109,8 @@ class App:
         # ``leser.geraet = "sim"``: kein Leser, die Leser-Ereignisse kommen aus ``sim`` (12.2: ``simulation``)
         self.status = Statussammler(leser_simulation=konfig.leser.simulation)
         self.ausgang = Ausgang(
-            zustand, self.uhr, self.ereignisse_ein, self.konfig_store, self.status_auskunft, asynchron=True
+            zustand, self.uhr, self.ereignisse_ein, self.konfig_store, self.status_auskunft, self.anzeige_auskunft,
+            asynchron=True
         )
         self.outbox = self.ausgang.outbox
         self.sim = self.ausgang.sim
@@ -399,6 +400,39 @@ class App:
             "status": self.status.als_dict(jetzt, self.bibliothek.serien, frei),
             "pruefpunkte": self.pruefbericht(jetzt).als_dict(),
             "offen": [dataclasses.asdict(e) for e in self.outbox.offen()],
+        }
+
+    def anzeige_auskunft(self) -> dict:
+        """Antwort auf ``sim`` ``anzeige`` (Oberfläche, AP 4.9): leicht genug für eine Abfrage alle 300 ms.
+
+        ``status`` wie ``status_auskunft`` (ohne freien Speicher und Prüfpunkte) und ``anzeige`` mit Lautstärke,
+        Grenzen, Position, Kopfhörer und dem liegenden Tobie. ``ring`` ist ``None``, bis ``led`` (AP 4.1) in AP 4.8 verdrahtet ist.
+        """
+        jetzt = self.uhr.jetzt()
+        k = self.kern
+        z = k.session
+        figur = None if z.figur is None else {"uid": z.figur.uid, "vorgang": z.figur.vorgang, "art": z.figur.art}
+        zeile = k.gemeldet
+        return {
+            "status": self.status.als_dict(jetzt, self.bibliothek.serien, None),
+            "offen": [dataclasses.asdict(e) for e in self.outbox.offen()],
+            "anzeige": {
+                "lautstaerke": k.wirksam_gemeldet if k.wirksam_gemeldet is not None else self.lautstaerke,
+                "wunsch": k.wunsch,
+                "grenze": wirksame_grenze(k.grenzen),
+                "grenzen": dict(k.grenzen),
+                "serie_id": z.serie_id,
+                "folge": z.datei,
+                "track": z.track,
+                "position_s": round(z.position_s, 1),
+                "kopfhoerer": z.kopfhoerer_steckt,
+                "stumm": z.stumm,
+                "ruhe": zeile.ruhe if zeile is not None else "normal",
+                "gute_nacht": zeile.gute_nacht if zeile is not None else "aus",
+                "strom": zeile.strom if zeile is not None else "aktiv",
+                "figur": figur,
+                "ring": None,
+            },
         }
 
     def _vorgang(self) -> str | None:

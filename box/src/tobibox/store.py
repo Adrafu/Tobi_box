@@ -273,13 +273,13 @@ def _pruefe_benutzt_am(e: dict[str, Any], wo: str) -> float | None:
     """Optionales Feld ``benutzt_am`` (Entscheidung N, 09.11.): fehlt = ``None`` (der Zeiger läuft nie ab)."""
     if "benutzt_am" not in e or e["benutzt_am"] is None:
         return None
-    try:
-        text = e["benutzt_am"]
-        if not isinstance(text, str):
-            raise ValueError
-        return iso_zu_wall(text)
-    except (ValueError, OverflowError):
-        raise Ungueltig("schema_ungueltig", f"{wo}.benutzt_am") from None
+    text = e["benutzt_am"]
+    if isinstance(text, str):
+        try:
+            return iso_zu_wall(text)
+        except (ValueError, OverflowError):
+            pass
+    raise Ungueltig("schema_ungueltig", f"{wo}.benutzt_am")
 
 
 def _gueltiger_name(x: Any) -> bool:

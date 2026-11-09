@@ -100,6 +100,7 @@ class Player:
 
         self._prozent: int | None = None  # zuletzt gewünschte Lautstärke (nach Klemmung)
         self._grenze: int = 100
+        self._ausgang_wunsch: str | None = None  # zuletzt gewünschter Ausgang; gilt auch nach einem Neuverbinden
         # aktuelle Folge
         self._serie: str | None = None
         self._datei: str | None = None  # Name der Folge
@@ -160,12 +161,26 @@ class Player:
             await self._schutz(self._setze_lautstaerke(), None, None)
 
     async def ausgang_waehlen(self, ausgang: str) -> None:
-        """``AusgangWaehlen``: nur wirksam, wenn Ausgabenamen konfiguriert sind (Pi)."""
+        """``AusgangWaehlen``: nur wirksam, wenn Ausgabenamen konfiguriert sind (Pi).
+
+        Reihenfolge beim Wechsel (CUJ 17, AP 4.4): **erst die Grenze, dann der Ausgang.** Der Kern liefert die neue
+        Grenze mit ``LautstaerkeSetzen`` vor ``AusgangWaehlen`` (Rang 1 vor 2). Der Player setzt die zuletzt bekannte
+        Lautstärke unter der Grenze hier noch einmal, direkt vor dem Umschalten, und erst danach den Ausgang. Der
+        Wunsch wird gemerkt: Ist MPD gerade nicht verbunden, gilt er nach dem Verbinden, wieder erst hinter der
+        Lautstärke (``_verbinde``).
+        """
+        self._ausgang_wunsch = ausgang
         if not self._ausgaenge or not self._verbunden:
-            logge("player", "DEBUG", "ausgang", "ohne_wirkung", daten={"ausgang": ausgang})
+            logge("player", "DEBUG", "ausgang", "ohne_wirkung" if not self._ausgaenge else "gemerkt",
+                  daten={"ausgang": ausgang})
             return
         async with self._lock:
-            await self._schutz(self._waehle_ausgang(ausgang), None, None)
+            await self._schutz(self._wechsle_ausgang(ausgang), None, None)
+
+    async def _wechsle_ausgang(self, ausgang: str) -> None:
+        if self._prozent is not None:
+            await self._setze_lautstaerke()  # zuerst die Grenze ...
+        await self._waehle_ausgang(ausgang)  # ... dann der Ausgang
 
     def _vorhandene_tracks(self, b: ev.Abspielen) -> list[int]:
         """Nummern der Tracks, die im Medienordner liegen (ohne Medienordner: alle)."""
@@ -592,6 +607,8 @@ class Player:
                 else:
                     await self._setze_lautstaerke()
                 await self._grundeinstellung()
+                if self._ausgang_wunsch is not None and self._ausgaenge:
+                    await self._waehle_ausgang(self._ausgang_wunsch)  # erst Grenze (oben, ohne Grenze: Lautstärke 0), dann Ausgang
                 # Rennen mit lautstaerke_setzen: ab hier gilt "verbunden"; der zuletzt
                 # gewünschte Wert wird noch einmal gesetzt (ohne Unterbrechung dazwischen).
                 self._verbunden = True

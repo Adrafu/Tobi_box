@@ -372,6 +372,7 @@ class CujBox:
         if serien_aufbau is not None:
             serien_aufbau(self.medien)
         self.uhr = SimUhr()
+        self.lesezeichen_tage = 14  # Feld der Konfiguration (Entscheidung N, 09.11.); vor ``neustart()`` ändern
         self.log: list = []  # alle Befehle in Reihenfolge
         self.protokoll: list = []
         self._library = library
@@ -400,7 +401,7 @@ class CujBox:
             self.sende(e)
 
     def _lade_konfig(self) -> ev.KonfigGeladen:
-        return ev.KonfigGeladen(mk_konfig(self.zuordnungen))
+        return ev.KonfigGeladen(mk_konfig(self.zuordnungen, lesezeichen_tage=self.lesezeichen_tage))
 
     neustart = start
 

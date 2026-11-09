@@ -24,6 +24,12 @@
     Ordnernamen in `medien/`; neuer Abschnitt 9 (Papierkorb-Eintrag `meta.json`) und
     Abschnitt 10 (Eingang `eingang/`). Die Box-Software ändert sich dadurch nicht.
 
+*   **Änderung 09.11. (Entscheidung N, 09.11.; alles additiv, `schema_version` bleibt):**
+    Lesezeichen je Tobie mit Ablauf. `config.json` bekommt das optionale Feld `lesezeichen_tage`
+    (ganze Zahl 0 bis 365, Vorgabe 14, `0` = läuft nie ab); `resume.json` bekommt je Zeiger das
+    optionale Feld `benutzt_am` (Zeitstempel der letzten Benutzung). Ein Zeiger ohne `benutzt_am`
+    läuft nie ab. Die Regeln stehen in `core-interface.md`, Abschnitt 6.3.
+
 ## 1. Allgemeine Regeln
 
 ### 1.1 Format
@@ -149,6 +155,9 @@ Datei bedeutet Einschalten (CUJ 20). Kein `schema_version`, nicht im Sync, nicht
 
 ### 1.7 Schreibbudget
 
+*   `resume.json` (Entscheidung N, 09.11.): Der Zeitstempel `benutzt_am` verlangt keine zusätzlichen Schreibungen,
+    außer bei einem **unveränderten** Zeiger, dessen Zeitstempel fehlt oder mindestens eine Stunde alt ist
+    (höchstens eine Schreibung je Zeiger und Stunde, nur bei Benutzung; die Zahl unten bleibt eine Obergrenze).
 *   `resume.json`: höchstens eine Schreibung je Pause, Folgen- und
     Track-Wechsel, Tobie-Wechsel, Herunterfahren und alle 30 s während der Wiedergabe, und nur
     bei Änderung (`reader-v1`/`core-interface`). **Neu gerechnet (Entscheidung F,
@@ -191,6 +200,7 @@ Struktur ist die Nachricht auf dem Thema `tobibox/config` (`mqtt-v1.md`).
 | `gute_nacht` | object | ja | |
 | `gute_nacht.timer_min` | int 1–240 | ja | Dauer des Timers (Vorschlag 30) |
 | `gute_nacht.ausblenden_s` | int 5–600 | ja | Dauer des Ausblendens (Vorschlag 60) |
+| `lesezeichen_tage` | int 0–365 | nein | **(09.11., Entscheidung N)** Wurde ein Zeiger (Lesezeichen) länger als so viele Tage nicht benutzt, beginnt beim Fortsetzen die Folge wieder von vorn (Track 0, Position 0); bei einer Serie bleibt die Folge dieselbe. Vorgabe **14**, wenn das Feld fehlt. `0` heißt: läuft nie ab. Gilt nur bei sicherer Uhr und nur für Zeiger mit `benutzt_am` (`core-interface.md`, 6.3). Ein Wert außerhalb von 0 bis 365 oder keine ganze Zahl macht die ganze Liste ungültig (`schema_ungueltig`). Eine Seitenbedienung kommt mit den Einstellungen in Stufe 4; Vertrag W reserviert das Feld (`protocol/ha-websocket-v1.md`, Abschnitt 10). Additiv, `schema_version` bleibt 2. |
 | `ton_pegel` | int 0–100 | nein | **Ohne Wirkung** (seit Entscheidung J, 09.11.). Die Box liest das Feld nicht; Töne folgen der aktuellen Lautstärke der Sitzung (`core-interface.md`, Abschnitt 8.1). Das Feld bleibt gültig, alte Dateien laden unverändert. |
 | `hinweis_pegel` | int 0–100 | nein | Pegel des leisen Hinweistons unter „stumm“ in Prozent; Vorgabe 15 (Feld fehlt). Der Hinweiston spielt mit `min(Grenze, max(10, min(hinweis_pegel, Lautstärke)))`, also nie leiser als die Untergrenze 10 (`HINWEIS_MINDEST`; vor Entscheidung J war sie 5) und sonst nie lauter als die aktuelle Lautstärke. **Die wirksame Grenze gewinnt immer** (Gehörschutz): Liegt sie unter 10 (zum Beispiel Kopfhörer-Grenze 5), spielt der Hinweiston mit der Grenze (`core-interface.md`, Abschnitt 8.1). |
 
@@ -275,7 +285,8 @@ Beispiel:
   },
   "gute_nacht": { "timer_min": 30, "ausblenden_s": 60 },
   "ton_pegel": 40,
-  "hinweis_pegel": 15
+  "hinweis_pegel": 15,
+  "lesezeichen_tage": 14
 }
 ```
 
@@ -295,10 +306,12 @@ Ein Zeiger ist (Folge, Track, Position) (Entscheidung F, 05.11.). Es gibt zwei A
 | `serien.<id>.track` | int ≥ 0 | ja (Version 1: fehlt, gilt als 0) | Nummer des Tracks in der Folge, ab 0 (bei einer Folge aus einer Datei immer 0) |
 | `serien.<id>.position_s` | number ≥ 0 | ja | Position in Sekunden **im Track**, **ohne** den Rücksprung von 3 s (den rechnet die Box beim Abspielen), auf 1 Nachkommastelle **abgerundet**. 0 heißt: der Track beginnt vorn (z. B. nach einem Folgenende). |
 | `serien.<id>.zaehler` | int ≥ 1 | ja | Anzahl der Schreibungen dieses Zeigers; wird bei jedem Speichern um 1 erhöht. Dient der Fehlersuche und der Kontrolle des Schreibbudgets. |
+| `serien.<id>.benutzt_am` | string (Zeitstempel, UTC, `…Z`, auf die Sekunde) | nein | **(09.11., Entscheidung N)** Wann der Zeiger zuletzt benutzt wurde: zuletzt gespeichert beim Spielen (alle 30 s), Pausieren oder Abheben. Die Box schreibt ihn nur bei sicherer Uhr (`jetzt.zeit_ok`); bei unsicherer Uhr bleibt ein vorhandener Wert stehen. **Fehlt das Feld** (alte Datei, Uhr nie sicher), läuft der Zeiger nie ab; er bekommt den Zeitstempel beim nächsten Speichern mit sicherer Uhr. Ein Wert, der kein Zeitstempel dieser Form ist, macht die Datei ungültig (Rückfall auf `.bak`, 1.3). Additiv, `schema_version` bleibt 2. |
 | `folgen` | object | ja (darf leer sein; Version 1: fehlt, gilt als leer) | Folgen-Zeiger. Schlüssel = Serien-ID, Wert = Objekt mit Schlüssel = Name der Folge |
 | `folgen.<id>.<folge>.track` | int ≥ 0 | ja | wie `serien.<id>.track` |
 | `folgen.<id>.<folge>.position_s` | number ≥ 0 | ja | wie `serien.<id>.position_s` |
 | `folgen.<id>.<folge>.zaehler` | int ≥ 1 | ja | wie `serien.<id>.zaehler` |
+| `folgen.<id>.<folge>.benutzt_am` | string (Zeitstempel) | nein | wie `serien.<id>.benutzt_am` (Entscheidung N, 09.11.) |
 
 Regeln der Zeiger (Folgenende, fehlende Folge, fehlender Track, Rücksprung,
 kleiner Rest gilt als fertig gehört (Entscheidung I, 09.11.), Vor / Zurück): siehe `core-interface.md`, Abschnitt 6.3. Die Namen der
@@ -330,7 +343,8 @@ Beispiel:
       "index": 1,
       "track": 0,
       "position_s": 412.5,
-      "zaehler": 37
+      "zaehler": 37,
+      "benutzt_am": "2026-11-09T17:42:10Z"
     },
     "8c21d5e9a0b7": {
       "folge": "CD Die Schatzinsel",
@@ -831,3 +845,7 @@ Projektleitung (P) entschieden oder aus dem Goldfisch-Review übernommen
 29. **Bestätigt (09.11., P, Entscheidung M): Eingang `eingang/` neben `medien/`;**
     `_…`-Ordner und `eingang` in `medien/` sind keine Serien; Eingang, `_upload/` und
     `_papierkorb/` werden nicht gesynct (Abschnitte 5 und 10).
+30. **Bestätigt (09.11., T, Entscheidung N): Lesezeichen mit Ablauf.** `config.json` hat das optionale Feld
+    `lesezeichen_tage` (0 bis 365, Vorgabe 14, `0` = nie), `resume.json` je Zeiger das optionale Feld
+    `benutzt_am`. Ein Zeiger ohne `benutzt_am` läuft nie ab. Beides additiv, `schema_version` bleibt 2
+    (Abschnitte 2 und 3, `core-interface.md` 6.3 und 9 Punkt 33).

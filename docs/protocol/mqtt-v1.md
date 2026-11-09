@@ -9,6 +9,12 @@
 *   **Änderung 09.11. (Tobie-Namen, Vertrag W):** Jede Zuordnung in `tobibox/config` darf
     ein optionales Feld `name` tragen (3.1). Die Box ignoriert es; sie liest nur `ziel`.
     Rückwärtskompatibel: kein neues `schema_version`, keine neue Revisionsregel.
+*   **Änderung 09.11. (Entscheidung N, 09.11.):** `tobibox/config` darf das optionale Feld
+    `lesezeichen_tage` tragen (3.1; `data-model.md`, Abschnitt 2). Rückwärtskompatibel: kein
+    neues `schema_version`, keine neue Revisionsregel.
+*   **Änderung 09.11. (Abgleich mit Vertrag W, Abschnitt 13):** 5.1 beschreibt die Listen-ID jetzt
+    nach den Zuständen `ok`, `leer_neu` und `export_neuer`; ein leerer Speicher setzt nicht mehr von
+    selbst eine neue Listen-ID.
 *   **Änderung 09.11.:** Abschnitt 7 (ACL) korrigiert: In der Form mit
     `pattern` müssen auch die Leserechte für `tobibox/config` und
     `homeassistant/status` `pattern read` heißen; ein `topic read` ohne `user`
@@ -82,6 +88,12 @@ Box mit Entscheidung F nimmt auch Listen der Version 1 an (5.2).
     `ziel`; ein vorhandenes `name` macht die Liste nie ungültig) und schreibt es nicht in
     ihre `config.json`. Eine Box ohne diese Änderung ignoriert es ebenso (unbekannte Felder
     werden ignoriert, Abschnitt 1). Auch eine Änderung nur des Namens erhöht die Revision.
+*   **Lesezeichen-Frist (Entscheidung N, 09.11.):** Die Liste darf ein optionales Feld
+    `lesezeichen_tage` tragen (ganze Zahl 0 bis 365, `0` = Lesezeichen laufen nie ab; fehlt es, gilt 14).
+    Anders als `name` **liest die Box es** (`validiere_konfig`, Anzeige und Wirkung in
+    `core-interface.md`, 6.3). Ein ungültiger Wert macht die ganze Liste ungültig (`schema_ungueltig`).
+    Eine Box ohne Entscheidung N ignoriert das Feld (sie kennt keinen Ablauf). Auch eine Änderung nur
+    dieses Feldes erhöht die Revision.
 *   HA veröffentlicht nach **jeder** Änderung der Konfiguration (Revision + 1)
     und bei „Liste neu ausrollen“ (neue `liste_id`).
 *   Der Broker liefert die dauerhafte Nachricht bei jedem Abonnieren erneut. Die
@@ -102,7 +114,8 @@ Beispiel (gekürzt):
     "04ffeedd": { "ziel": { "typ": "aktion", "aktion": "status" } }
   },
   "leise_zeiten": { "zeitzone": "Europe/Berlin", "fenster": [] },
-  "gute_nacht": { "timer_min": 30, "ausblenden_s": 60 }
+  "gute_nacht": { "timer_min": 30, "ausblenden_s": 60 },
+  "lesezeichen_tage": 14
 }
 ```
 
@@ -495,9 +508,19 @@ Reihenfolge bei jedem Verbinden der Box:
     Leise-Zeiten, Gute-Nacht-Einstellungen). HA erhöht sie bei jeder Änderung
     um 1.
 *   **Listen-ID:** zufällige Kennung des HA-Speichers (16 Zeichen `[0-9a-f]`). Sie
-    ändert sich, wenn HA die Konfiguration neu aufsetzt (Speicher leer), bei der
-    HA-Aktion **„Liste neu ausrollen“** und wenn die Integration beim Start
-    feststellt, dass der Speicher leer ist.
+    ändert sich nur in diesen Fällen (Vertrag W, Abschnitt 13):
+    *   **Erststart:** Es gibt weder einen Export noch eine Box, die eine `liste_id` meldet. Die
+        Integration legt eine neue Liste an (Revision 1) und veröffentlicht sie (Zustand `ok`).
+    *   **HA-Aktion „Liste neu ausrollen“** (`liste/neu_ausrollen`): neue Listen-ID aus dem Stand in HA.
+        Das ist auch der Weg aus dem Zustand `leer_neu` (dann mit einer **leeren** Liste; die
+        Seite warnt vorher).
+    *   **„Aus dem Export holen“** (`konfig/aus_export`): neue Listen-ID und Revision 1.
+
+    **Ein leerer Speicher setzt nicht von selbst eine neue Listen-ID.** Ist der HA-Speicher leer,
+    obwohl es schon einmal eine Konfiguration gab (Zustand `leer_neu`), veröffentlicht die Integration
+    **nichts**, bis Tobias entscheidet; ebenso nicht, wenn der Export neuer ist als der Speicher
+    (Zustand `export_neuer`). Im Normalbetrieb (`ok`) bleibt die Listen-ID gleich, und HA erhöht
+    nur die Revision. So überschreibt nie eine leere oder alte Liste die Zuordnungen der Boxen.
 
 ### 5.2 Regel auf der Box
 

@@ -36,6 +36,7 @@ class Ausgang:
         ereignisse_ein: Callable[[ev.Ereignis], Any],
         konfig_store: KonfigStore,
         auskunft: Callable[[], dict[str, Any]] | None = None,
+        anzeige: Callable[[], dict[str, Any]] | None = None,
         *,
         asynchron: bool = False,
     ) -> None:
@@ -43,7 +44,7 @@ class Ausgang:
         self._sim_ereignisse: set[int] = set()  # ``id`` der Ereignisse von ``sim``, solange sie in der Schlange liegen
         self._lernbefehl: str | None = None  # Befehls-ID des Lernlaufs, den ``sim`` schon kennt
         self.outbox = Outbox(zustand, asynchron=asynchron)
-        self.sim = Sim(zustand, self._von_sim, uhr, konfig_store, auskunft)
+        self.sim = Sim(zustand, self._von_sim, uhr, konfig_store, auskunft, anzeige)
         self.ha_ersatz = HaErsatz(self.sim, konfig_store, self._von_sim)
 
     def _von_sim(self, e: ev.Ereignis) -> None:

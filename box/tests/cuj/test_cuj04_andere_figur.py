@@ -167,3 +167,65 @@ def test_unbekannter_tobie_beruehrt_die_zeiger_nicht(box):
     box.laufe(1.0)
     box.hebe_ab("v2")
     assert serie(box, S_RABE) == vorher
+
+
+# --- Lesezeichen je Tobie mit Ablauf (Entscheidung N, 09.11.) ------------------------------------------
+
+TAG = 86400.0
+
+
+def test_jeder_tobie_behaelt_sein_lesezeichen_aber_nur_14_tage(box):
+    box.auflege(UID_RABE)
+    box.laufe(6.0)  # Rabe wird am Tag 0 benutzt
+    box.auflege(UID_BAER, "v2")  # Wechsel ohne Abheben speichert den Rabe-Zeiger
+    box.uhr.vor(10 * TAG)
+    box.laufe(5.0)  # Bär wird am Tag 10 benutzt
+    box.hebe_ab("v2")
+    box.uhr.vor(6 * TAG)  # Tag 16: Rabe 16 Tage alt, Bär 6 Tage alt
+    n = len(box.log)
+    box.auflege(UID_RABE, "v3")
+    (a,) = box.befehle(ev.Abspielen, n)
+    assert (a.serie_id, a.datei, a.position_s) == (S_RABE, "a.wav", 0.0)  # abgelaufen: Folge von vorn
+    box.hebe_ab("v3")
+    n = len(box.log)
+    box.auflege(UID_BAER, "v4")
+    (a,) = box.befehle(ev.Abspielen, n)
+    assert (a.serie_id, a.datei, a.position_s) == (S_BAER, "x.wav", 2.0)  # nicht abgelaufen: eigene Stelle
+    ablauf = [p for p in box.protokoll if p.ereignis == "lesezeichen_abgelaufen"]
+    assert len(ablauf) == 1 and ablauf[0].daten["serie"] == S_RABE
+
+
+def test_anderer_tobie_dazwischen_haelt_das_lesezeichen_nicht_am_leben(box):
+    # Das Alter zählt je Zeiger: Der Bär läuft jeden Tag, der Rabe wird 15 Tage nicht aufgelegt
+    box.auflege(UID_RABE)
+    box.laufe(6.0)
+    box.hebe_ab()
+    for tag in range(15):
+        box.uhr.vor(TAG)
+        box.auflege(UID_BAER, f"b{tag}")
+        box.laufe(1.0)
+        box.hebe_ab(f"b{tag}")
+    n = len(box.log)
+    box.auflege(UID_RABE, "v9")
+    (a,) = box.befehle(ev.Abspielen, n)
+    assert (a.datei, a.position_s) == ("a.wav", 0.0)
+
+
+def test_folgen_tobie_und_serie_laufen_getrennt_ab(box):
+    box.auflege(UID_RABE_FOLGE)  # Folge b.wav am Tag 0
+    box.laufe(6.0)
+    box.hebe_ab()
+    box.uhr.vor(10 * TAG)
+    box.auflege(UID_RABE, "v2")  # Serien-Zeiger des Rabe am Tag 10
+    box.laufe(5.0)
+    box.hebe_ab("v2")
+    box.uhr.vor(6 * TAG)  # Tag 16
+    n = len(box.log)
+    box.auflege(UID_RABE_FOLGE, "v3")
+    (a,) = box.befehle(ev.Abspielen, n)
+    assert (a.datei, a.position_s) == ("b.wav", 0.0)  # Folgen-Zeiger 16 Tage alt
+    box.hebe_ab("v3")
+    n = len(box.log)
+    box.auflege(UID_RABE, "v4")
+    (a,) = box.befehle(ev.Abspielen, n)
+    assert (a.datei, a.position_s) == ("a.wav", 2.0)  # Serien-Zeiger 6 Tage alt

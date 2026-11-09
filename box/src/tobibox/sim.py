@@ -16,6 +16,12 @@ Ereignisse daraus, die er an ``ausgabe`` übergibt. Befehle in Stufe 2 (Schlüss
 * ``learn_abort``: ``{"befehl":"learn_abort"}`` -> ``HaLernmodusAbbruch`` (Ablaufzeit 30 s).
 * ``status``: ``{"befehl":"status"}`` -> Antwort mit dem Status des Dienstes (``auskunft``), kein Ereignis.
 
+Seit AP 4.9 (Simulations-Oberfläche im Browser, ``tobibox gui``) kommen dazu: ``taste``, ``regler``, ``kopfhoerer``,
+``strom``, ``netz``, ``tobie_auflegen``, ``tobie_gesperrt``, ``tobie_abheben`` und ``anzeige`` (alles Weitere:
+``docs/betrieb/mac-prototyp.md``, Abschnitt „Simulations-Oberfläche“). Welche Eingänge wirken, steht in ``VERDRAHTET``:
+Ein Eingang, dessen Modul der Dienst noch nicht kennt, wird geprüft und mit ``{"ok": false, "fehler":
+"noch_nicht_verdrahtet"}`` beantwortet. AP 4.8 und AP 3.7 setzen ihn auf ``True``, am Format ändert sich nichts.
+
 Wer nach dem Lernen die Zuordnung schreibt und bestätigt, steht in ``ha_ersatz.py``.
 
 Ungültige Zeilen werden protokolliert und ignoriert. Jede Zeile wird mit einer JSON-Zeile beantwortet
@@ -29,6 +35,8 @@ import errno
 import inspect
 import json
 import os
+import re
+import secrets
 import socket
 import sys
 import uuid
@@ -61,6 +69,27 @@ def pruefe_socket_pfad(pfad: Path) -> None:
             "ein kürzeres Zustandsverzeichnis wählen ([pfade] zustand in tobibox.toml)",
         )
 MAX_ZEILE = 64 * 1024
+
+NOCH_NICHT_VERDRAHTET = "noch_nicht_verdrahtet"
+
+#: Wirkt der Eingang heute im Dienst? ``False``: der Befehl wird geprüft und mit ``noch_nicht_verdrahtet`` beantwortet.
+#: ``taste``: ``hauptknopf_lang`` gehört dem Teilautomat ``idle`` (AP 4.3, eingehängt in AP 4.8).
+#: ``strom`` und ``netz``: ``power`` und ``net`` hängen erst in AP 3.7 und AP 4.8 im Dienst.
+VERDRAHTET: dict[str, bool] = {
+    "hauptknopf_kurz": True,
+    "weiter": True,
+    "zurueck": True,
+    "hauptknopf_lang": False,
+    "regler": True,
+    "kopfhoerer": True,
+    "strom": False,
+    "netz": False,
+}
+
+TASTEN = ("hauptknopf_kurz", "hauptknopf_lang", "weiter", "zurueck")
+ANZEIGE_KARENZ_S = 2.0
+REGLER_MAX = 20  # Prozentpunkte je Befehl; eine Raste sind in der Oberfläche 2
+_UID_RE = re.compile(r"^(?:[0-9a-f]{8}|[0-9a-f]{14}|[0-9a-f]{16}|[0-9a-f]{20})$")
 MAX_VORGEMERKT = 8  # ``learn``-Befehle, die die Box noch nicht angenommen hat
 
 
@@ -88,6 +117,7 @@ class Sim:
         uhr: Uhr,
         konfig_store: KonfigStore | None = None,
         auskunft: Callable[[], dict[str, Any]] | None = None,
+        anzeige: Callable[[], dict[str, Any]] | None = None,
     ) -> None:
         self.zustand = Path(zustand)
         self.pfad = self.zustand / SOCKET_NAME
@@ -98,6 +128,10 @@ class Sim:
         self.ueberschreiben = False  # darf der HA-Ersatz eine bestehende Zuordnung ersetzen?
         self._vorgemerkt: dict[str, tuple[dict[str, str], bool]] = {}  # befehl_id -> (Ziel, ueberschreiben)
         self.auskunft = auskunft  # Antwort auf ``status`` (der Dienst gibt sie herein)
+        self.anzeige = anzeige  # Antwort auf ``anzeige`` (leicht genug für 300 ms; Vorgabe: ``auskunft``)
+        # Der Tobie, den ``sim`` aufgelegt hat (wie der Entpreller des Lesers: ID bis zum Abheben, ``reader-v1.md`` 9)
+        self.liegt: dict[str, Any] | None = None
+        self._seq = 0
         self._konfig = konfig_store or KonfigStore(self.zustand)
         self._server: asyncio.AbstractServer | None = None
 
@@ -179,24 +213,155 @@ class Sim:
         except Abgelehnt as e:
             raise Ungueltig(f"card abgelehnt: {e}") from e
 
+    # -- Eingänge der Oberfläche (AP 4.9) ---------------------------------------------
+
+    def _naechste_seq(self) -> int:
+        n = self._seq
+        self._seq += 1
+        return n
+
+    def _merke(self, uid: str | None, vorgang: str) -> None:
+        self.liegt = {"uid": uid, "vorgang": vorgang, "mono": self.uhr.jetzt().mono}
+
+    def _tobie_auflegen(self, d: dict[str, Any]) -> tuple[dict[str, Any], list[ev.Ereignis]]:
+        """Wie ``PLACED``: neue Vorgangs-ID. Wechsel: erst ``Abgehoben``, dann ``Aufgelegt`` (``core-interface.md``, 9.4).
+
+        Derselbe Tobie liegt schon: Wiedermeldung, kein Ereignis (9.1; Entprellen: ein Tobie liegt oder nicht).
+        """
+        uid = d.get("uid")
+        if d.get("zufall") is True:
+            uid = "04" + secrets.token_hex(6)  # 7 Bytes wie eine NTAG-Karte; nicht in der Zuordnung
+        if not isinstance(uid, str) or not _UID_RE.match(uid):
+            raise Ungueltig("uid ungueltig")
+        if self.liegt is not None and self.liegt["uid"] == uid:
+            return {"ok": True, "uid": uid, "vorgang": self.liegt["vorgang"], "hinweis": "liegt_schon"}, []
+        aus: list[ev.Ereignis] = []
+        if self.liegt is not None:
+            aus.append(ev.Abgehoben(self._naechste_seq(), self.liegt["vorgang"]))
+        iso = len(uid) == 16
+        vorgang = secrets.token_hex(4)
+        aus.append(ev.Aufgelegt(uid, "iso15693" if iso else "ntag", iso and uid.startswith("e004"), self._naechste_seq(), vorgang))
+        self._merke(uid, vorgang)
+        return {"ok": True, "uid": uid, "vorgang": vorgang}, aus
+
+    def _tobie_gesperrt(self) -> tuple[dict[str, Any], list[ev.Ereignis]]:
+        if self.liegt is not None and self.liegt["uid"] is None:
+            return {"ok": True, "vorgang": self.liegt["vorgang"], "hinweis": "liegt_schon"}, []
+        aus: list[ev.Ereignis] = []
+        if self.liegt is not None:
+            aus.append(ev.Abgehoben(self._naechste_seq(), self.liegt["vorgang"]))
+        vorgang = secrets.token_hex(4)
+        aus.append(ev.Gesperrt(self._naechste_seq(), vorgang))
+        self._merke(None, vorgang)
+        return {"ok": True, "vorgang": vorgang}, aus
+
+    def _tobie_abheben(self) -> tuple[dict[str, Any], list[ev.Ereignis]]:
+        if self.liegt is None:
+            return {"ok": False, "fehler": "kein_simulierter_tobie"}, []
+        vorgang, self.liegt = self.liegt["vorgang"], None
+        return {"ok": True, "vorgang": vorgang}, [ev.Abgehoben(self._naechste_seq(), vorgang)]
+
+    def _eingang(self, d: dict[str, Any]) -> tuple[dict[str, Any], list[ev.Ereignis]] | None:
+        """Befehle der Oberfläche. ``None``: kein solcher Befehl. Wirft ``Ungueltig``."""
+        befehl = d.get("befehl")
+        if befehl == "tobie_auflegen":
+            return self._tobie_auflegen(d)
+        if befehl == "tobie_gesperrt":
+            return self._tobie_gesperrt()
+        if befehl == "tobie_abheben":
+            return self._tobie_abheben()
+        if befehl == "taste":
+            taste = d.get("taste")
+            if taste not in TASTEN:
+                raise Ungueltig("taste ungueltig")
+            if not VERDRAHTET[taste]:
+                return {"ok": False, "fehler": NOCH_NICHT_VERDRAHTET}, []
+            e: ev.Ereignis = {
+                "hauptknopf_kurz": ev.Hauptknopf("kurz"),
+                "hauptknopf_lang": ev.Hauptknopf("lang"),
+                "weiter": ev.Weiter(),
+                "zurueck": ev.Zurueck(),
+            }[taste]
+            return {"ok": True}, [e]
+        if befehl == "regler":
+            delta = d.get("delta")
+            if isinstance(delta, bool) or not isinstance(delta, int) or delta == 0 or abs(delta) > REGLER_MAX:
+                raise Ungueltig("delta ungueltig")
+            if not VERDRAHTET["regler"]:
+                return {"ok": False, "fehler": NOCH_NICHT_VERDRAHTET}, []
+            return {"ok": True}, [ev.LautstaerkeDrehen(delta)]
+        if befehl == "kopfhoerer":
+            steckt = d.get("steckt")
+            if not isinstance(steckt, bool):
+                raise Ungueltig("steckt ungueltig")
+            if not VERDRAHTET["kopfhoerer"]:
+                return {"ok": False, "fehler": NOCH_NICHT_VERDRAHTET}, []
+            return {"ok": True}, [ev.Kopfhoerer(steckt)]
+        if befehl == "strom":
+            lader, akku = d.get("lader"), d.get("akku")
+            if lader is None and akku is None:
+                raise Ungueltig("lader oder akku fehlt")
+            if lader is not None and not isinstance(lader, bool):
+                raise Ungueltig("lader ungueltig")
+            if akku is not None and (isinstance(akku, bool) or not isinstance(akku, int) or not 0 <= akku <= 100):
+                raise Ungueltig("akku ungueltig")
+            if not VERDRAHTET["strom"]:
+                return {"ok": False, "fehler": NOCH_NICHT_VERDRAHTET}, []
+            aus: list[ev.Ereignis] = []
+            if lader is not None:
+                aus.append(ev.LaderGeaendert(lader))
+            if akku is not None:
+                aus.append(ev.AkkuStand(akku))
+            return {"ok": True}, aus
+        if befehl == "netz":
+            klasse = d.get("klasse")
+            if klasse not in ("home", "hotspot", "offline"):
+                raise Ungueltig("klasse ungueltig")
+            if not VERDRAHTET["netz"]:
+                return {"ok": False, "fehler": NOCH_NICHT_VERDRAHTET}, []
+            return {"ok": True}, [ev.NetzKlasse(klasse)]
+        return None
+
+    def _anzeige(self) -> dict[str, Any]:
+        quelle = self.anzeige or self.auskunft
+        if quelle is None:
+            raise Ungueltig("anzeige nicht verfuegbar")
+        a = quelle()
+        # Hat ein echter Leser den Tobie gewechselt, gehört der gemerkte Vorgang nicht mehr zu uns.
+        # Kurz nach dem Auflegen kennt der Kern den Tobie noch nicht (Ereignis in der Schlange): kurze Karenz.
+        figur = (a.get("anzeige") or {}).get("figur")
+        if self.liegt is not None and (figur is None or figur.get("vorgang") != self.liegt["vorgang"]):
+            if self.uhr.jetzt().mono - self.liegt["mono"] > ANZEIGE_KARENZ_S:
+                self.liegt = None
+        simuliert = {k: v for k, v in self.liegt.items() if k != "mono"} if self.liegt is not None else None
+        return {"ok": True, **a, "verdrahtet": dict(VERDRAHTET), "simuliert": simuliert}
+
+    async def verarbeite(self, zeile: str | bytes) -> dict[str, Any]:
+        """Eine Zeile bearbeiten und die Antwort liefern (Ereignisse gehen an ``ausgabe``). Wirft ``Ungueltig``."""
+        d = self._lies(zeile)
+        befehl = d.get("befehl")
+        if befehl == "status":
+            if self.auskunft is None:
+                raise Ungueltig("status nicht verfuegbar")
+            return {"ok": True, **self.auskunft()}
+        if befehl == "anzeige":
+            return self._anzeige()
+        eingang = self._eingang(d)
+        if eingang is not None:
+            antwort, ereignisse = eingang
+            for e in ereignisse:
+                logge("sim", "INFO", "eingang", str(befehl), daten={"ereignis": type(e).__name__})
+                await self._abliefern(e)
+            return antwort
+        await self._abliefern(await self.zeile_zu_ereignis_async(zeile))
+        return {"ok": True}
+
     # -- Server --------------------------------------------------------------
 
     async def _abliefern(self, e: ev.Ereignis) -> None:
         r = self.ausgabe(e)
         if inspect.isawaitable(r):
             await r
-
-    def _auskunft(self, zeile: bytes) -> dict[str, Any] | None:
-        """``status``: der Dienst antwortet mit seinem Status; es entsteht kein Ereignis."""
-        try:
-            d = json.loads(zeile)
-        except ValueError:
-            return None
-        if not isinstance(d, dict) or d.get("befehl") != "status":
-            return None
-        if self.auskunft is None:
-            raise Ungueltig("status nicht verfuegbar")
-        return {"ok": True, **self.auskunft()}
 
     async def _client(self, leser: asyncio.StreamReader, schreiber: asyncio.StreamWriter) -> None:
         try:
@@ -211,10 +376,7 @@ class Sim:
                 if not zeile.strip():
                     continue
                 try:
-                    antwort = self._auskunft(zeile)
-                    if antwort is None:
-                        await self._abliefern(await self.zeile_zu_ereignis_async(zeile))
-                        antwort = {"ok": True}
+                    antwort = await self.verarbeite(zeile)
                 except Ungueltig as ex:
                     logge("sim", "WARNING", "zeile", "ungueltig", daten={"grund": str(ex)})
                     antwort = {"ok": False, "fehler": str(ex)}

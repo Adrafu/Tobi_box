@@ -1054,3 +1054,103 @@ tobibox sim card <UID-KARTE> --serie 5e1a0c7d9b31 --folge folge-02.mp3
 
 - [ ] Lege die Karte auf.
       **Was du hörst:** „Test-Serie, Folge zwei.“ von vorn.
+
+## Simulations-Oberfläche im Browser (AP 4.9)
+
+Eine kleine Seite im Browser, mit der du alle Eingaben der fertigen Box per Mausklick simulierst: Tasten, Drehregler,
+Kopfhörer, Ladegerät, Akku, Netz und Tobies. Sie zeigt dazu, was die Box gerade tut. Die Seite ist ein weiterer Client
+von `sim.sock`, genau wie `tobibox sim`. Sie ersetzt nichts: Ein echter NFC-Leser funktioniert parallel weiter, und die
+Box selbst ändert sich durch die Seite nicht.
+
+### Starten
+
+Der Dienst läuft (Abschnitt 7). In einem zweiten Terminal:
+
+```bash
+cd ~/Tobi_box && source .venv/bin/activate
+tobibox gui
+```
+
+`tobibox gui` öffnet `http://127.0.0.1:8765` im Browser. Beenden mit `Ctrl+C`. Der Server hört nur auf dem eigenen Mac
+(`127.0.0.1`), nicht im Netz. Der Dienst muss beim Start der Seite noch nicht laufen: Die Seite zeigt „Dienst nicht
+erreichbar“ und verbindet sich von selbst. Mit `--port 9000` wählst du einen anderen Port, mit `--kein-browser` öffnet
+sich kein Browserfenster. Wie bei `tobibox status` gilt die Konfiguration aus `--config`, `$TOBIBOX_CONFIG` oder
+`./tobibox.toml`.
+
+### Was die Seite zeigt und kann
+
+- **LED-Ring:** 40 Punkte aus dem Ring-Zustand des Dienstes. Solange der Dienst keinen Ring meldet, steht dort ein grauer
+  Ring mit „Ring noch nicht verdrahtet“.
+- **Tasten:** Hauptknopf kurz, Hauptknopf lang, Zurück, Vor.
+- **Drehregler:** „− Raste“ und „+ Raste“ (eine Raste sind 2 Prozentpunkte), dazu die Lautstärke und die wirksame Grenze.
+- **Schalter:** Kopfhörer eingesteckt, Ladegerät dran, Akku 0 bis 100 %, Netz (Heim, Hotspot, Offline; nie die echten
+  Namen deiner WLANs).
+- **Tobies:** alle zugeordneten Tobies aus `config.json` mit Name (Feld `name`, sonst die Kennung) und Ziel, je mit
+  „auflegen“ und „abheben“. Dazu „Unbekannter Tobie (neue Zufallskennung)“ und „Gesperrter Tonie“. Die Marke „simuliert“
+  oder „echt“ sagt, ob der liegende Tobie von der Seite oder vom Leser kommt.
+- **Lernmodus und Meldungen:** Serie und Folge wählen, „Lernmodus starten“ (`sim learn`), „Abbrechen“ (`sim learn-abort`),
+  „bestätigen“ für jede offene Meldung (`sim ack`).
+- **Zustand:** Serie, Folge, Track, Position, Sitzung, Lautstärke und Grenze, Ruhe, Gute Nacht, Netz, Akku, letzter Fehler
+  und die letzten Protokollzeilen (nur bei `[protokoll] ziel = "datei"`).
+
+Eingänge, die der Dienst noch nicht kennt, sind grau mit dem Hinweis „in der Box noch nicht verdrahtet“ (siehe Tabelle
+unten). Sie bekommen später ohne Änderung der Seite Leben.
+
+### Wie die Tobies funktionieren (simulierter Leser)
+
+Die Seite spielt den Leser. Ihre Ereignisse sind genau die des echten Lesers (`core-interface.md`, 3.1 und Abschnitt 9):
+
+- Jedes „auflegen“ sendet `Aufgelegt` (oder `Gesperrt`) mit einer **neuen Vorgangs-ID** (8 Zeichen `[0-9a-f]`, zufällig)
+  und einer fortlaufenden `seq`.
+- Liegt schon ein simulierter Tobie und du legst einen anderen auf, kommt wie beim echten Leser erst `Abgehoben`
+  (mit der alten ID), dann `Aufgelegt` (mit neuer ID).
+- Legst du **denselben** Tobie noch einmal auf, während er liegt, passiert nichts (`"hinweis": "liegt_schon"`). Das ist
+  die Wiedermeldung aus 9.1 und das Entprellen: Ein Tobie liegt oder er liegt nicht.
+- „abheben“ sendet `Abgehoben` mit der ID des Auflegens. Ohne simulierten Tobie lehnt `sim` es ab
+  (`kein_simulierter_tobie`): Die Seite hebt nie einen Tobie ab, der auf dem echten Leser liegt.
+- Liegt ein echter Tobie und du legst einen simulierten auf, ist das ein Tobie-Wechsel wie am echten Leser. Der Leser
+  merkt davon nichts und meldet erst bei seinem nächsten Auflegen wieder.
+
+### Die Socket-Befehle (Format seit AP 4.9)
+
+Jede Zeile auf `sim.sock` ist ein JSON-Objekt mit dem Schlüssel `befehl` und wird mit einer JSON-Zeile beantwortet:
+`{"ok": true, …}` oder `{"ok": false, "fehler": "…"}`. Die Namen sind fest; AP 4.8 und AP 3.7 ändern sie nicht.
+
+| Befehl | Felder | Wirkung (Ereignis) | Heute |
+|---|---|---|---|
+| `taste` | `taste`: `hauptknopf_kurz`, `hauptknopf_lang`, `weiter`, `zurueck` | `Hauptknopf("kurz")`, `Hauptknopf("lang")`, `Weiter`, `Zurueck` | kurz, weiter, zurueck wirken; `hauptknopf_lang` wartet auf `idle` (AP 4.3, AP 4.8) |
+| `regler` | `delta`: ganze Zahl, nicht 0, höchstens 20 in Betrag (Prozentpunkte) | `LautstaerkeDrehen(delta)` | wirkt (der Kern klemmt an der Grenze) |
+| `kopfhoerer` | `steckt`: `true` oder `false` | `Kopfhoerer(steckt)` | wirkt (Grenze und Ausgang der Sitzung) |
+| `strom` | `lader`: bool und/oder `akku`: 0 bis 100 | `LaderGeaendert`, `AkkuStand` | `noch_nicht_verdrahtet` bis AP 4.8 |
+| `netz` | `klasse`: `home`, `hotspot`, `offline` | `NetzKlasse(klasse)` | `noch_nicht_verdrahtet` bis AP 3.7 und AP 4.8 |
+| `tobie_auflegen` | `uid` (Kennung wie in `config.json`) oder `"zufall": true` | `Aufgelegt` (vorher `Abgehoben`, wenn schon einer liegt); Antwort mit `uid` und `vorgang` | wirkt |
+| `tobie_gesperrt` | – | `Gesperrt` (vorher `Abgehoben`, wenn schon einer liegt) | wirkt |
+| `tobie_abheben` | – | `Abgehoben` mit der ID des simulierten Tobies | wirkt |
+| `anzeige` | – | kein Ereignis; Antwort: `status` (Status-JSON), `offen`, `anzeige` (Lautstärke, Grenze, Position, Kopfhörer, Ruhe, Gute Nacht, liegender Tobie `figur`, `ring`), `verdrahtet`, `simuliert` | wirkt |
+| `learn`, `learn_abort`, `ack`, `card`, `status` | wie bisher (siehe `tobibox sim`) | wie bisher | wirkt |
+
+Regeln:
+
+- Ungültige Felder lehnt `sim` immer mit `{"ok": false, "fehler": "<Feld> ungueltig"}` ab, auch wenn der Eingang noch
+  nicht verdrahtet ist. Danach erst kommt die Prüfung der Verdrahtung.
+- Ist ein Eingang noch nicht verdrahtet, lautet die Antwort `{"ok": false, "fehler": "noch_nicht_verdrahtet"}`, und es
+  entsteht kein Ereignis. Die Tabelle `VERDRAHTET` in `box/src/tobibox/sim.py` hält fest, welche Eingänge wirken; AP 4.8 und
+  AP 3.7 setzen die Einträge auf `True`. Die Antwort auf `anzeige` nennt sie im Feld `verdrahtet`, daran graut die Seite
+  die Knöpfe aus.
+- `anzeige.anzeige.figur` ist der Tobie, den der Kern als liegend kennt (`uid` oder `null` bei gesperrt, `vorgang`, `art`).
+  Gleicht seine `vorgang` dem Feld `simuliert.vorgang`, kommt er von der Seite („simuliert“), sonst vom Leser („echt“).
+- `anzeige.anzeige.ring`: `null` oder `{"farben": [...40 Farben...], "helligkeit": <0 bis 100>}`; eine Farbe ist `"#rrggbb"`
+  oder `[r, g, b]`. Das Feld füllt der Dienst, sobald `led` (AP 4.1) in AP 4.8 verdrahtet ist.
+- `tobibox gui` leitet nur diese Befehle weiter: `taste`, `regler`, `kopfhoerer`, `strom`, `netz`, `tobie_auflegen`,
+  `tobie_gesperrt`, `tobie_abheben`, `learn`, `learn_abort`, `ack`. `card` und `status` bleiben bei `tobibox sim`.
+
+### Die HTTP-Schnittstelle der Seite
+
+| Aufruf | Antwort |
+|---|---|
+| `GET /` | die Seite |
+| `GET /api/anzeige` | alles für die Anzeige: `dienst` (`laeuft`, `nicht_erreichbar`, `keine_berechtigung`), `status`, `anzeige`, `offen`, `verdrahtet`, `simuliert`, `tobies`, `serien`, `protokoll` |
+| `POST /api/befehl` | Körper: eine Zeile wie oben (`Content-Type: application/json`); Antwort: die Antwort des Dienstes. Nicht erlaubter Befehl: 400; Dienst nicht erreichbar: 503 |
+
+Die Seite fragt `/api/anzeige` alle 300 ms. Der Server prüft `Host` und `Origin`, damit keine fremde Webseite in deinem
+Browser Tobies auflegen kann.

@@ -891,7 +891,9 @@ def test_folge_zu_ende_fremde_folge_wird_ignoriert():
 
 
 def test_zeiger_wird_nur_bei_aenderung_geschrieben():
-    h = SitzungsHarnisch(zeiger=(zeiger("s1", "a.mp3", 0, 10.0, 1),))
+    # Der Zeiger trägt einen frischen Zeitstempel (Entscheidung N, 09.11.); ohne Stempel oder mit altem würde
+    # auch ein unveränderter Zeiger neu geschrieben (siehe ``test_session_lesezeichen.py``).
+    h = SitzungsHarnisch(zeiger=(zeiger("s1", "a.mp3", 0, 10.0, 1, benutzt_wall=1_700_000_000.0),))
     h.auflegen()
     h.position("s1", "a.mp3", 10.0)
     assert h.sende(ev.Abgehoben(1, "v1")) == [ev.Pausieren("abgehoben")]

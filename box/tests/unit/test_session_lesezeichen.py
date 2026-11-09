@@ -8,7 +8,18 @@ und nur für Zeiger mit Zeitstempel. Sie greift in ``session._start`` und geht d
 from __future__ import annotations
 
 import pytest
-from conftest import UID_CD, UID_FOLGE, UID_S1, UID_S3, UID_UNBEKANNT, ZUORDNUNGEN, SitzungsHarnisch, mk_konfig, ppos, zeiger
+from conftest import (
+    UID_CD,
+    UID_FOLGE,
+    UID_S1,
+    UID_S3,
+    UID_UNBEKANNT,
+    ZUORDNUNGEN,
+    SitzungsHarnisch,
+    mk_konfig,
+    ppos,
+    zeiger,
+)
 
 from tobibox import events as ev
 from tobibox import pointer, session

@@ -1,0 +1,417 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tobi Box Simulation</title>
+<link rel="icon" href="data:,">
+<style>
+  :root {
+    --hg: #f4f1ea; --karte: #fffdf8; --text: #23211c; --leise: #6b665b; --linie: #d9d3c4;
+    --akzent: #1f6f5c; --akzent-text: #fff; --warn: #a15c00; --fehler: #a32020; --grau: #b8b2a4;
+    --led-aus: #3a3a3a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --hg: #1d1c19; --karte: #272622; --text: #eeeae0; --leise: #a9a396; --linie: #403e37;
+      --akzent: #4fb69a; --akzent-text: #10201b; --warn: #e0a44a; --fehler: #ee7b7b; --grau: #5d5a50; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--hg); color: var(--text); font: 16px/1.45 system-ui, sans-serif; }
+  header { padding: 14px 16px; border-bottom: 1px solid var(--linie); display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; }
+  h1 { font-size: 1.25rem; margin: 0; }
+  #dienst { font-weight: 600; }
+  #dienst.ok { color: var(--akzent); } #dienst.aus { color: var(--fehler); }
+  main { max-width: 1100px; margin: 0 auto; padding: 16px; display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+  section { background: var(--karte); border: 1px solid var(--linie); border-radius: 10px; padding: 14px 16px; }
+  h2 { font-size: 1rem; margin: 0 0 10px; text-transform: none; }
+  .breit { grid-column: 1 / -1; }
+  button { font: inherit; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--akzent); background: var(--akzent); color: var(--akzent-text); cursor: pointer; margin: 0 6px 6px 0; }
+  button.zweit { background: transparent; color: var(--akzent); }
+  button:disabled, button.grau { background: transparent; color: var(--grau); border-color: var(--grau); cursor: not-allowed; }
+  button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid var(--warn); outline-offset: 2px; }
+  .zeile { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .leise { color: var(--leise); font-size: .9rem; }
+  .gross { font-size: 1.5rem; font-weight: 600; }
+  dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; margin: 0; }
+  dt { color: var(--leise); } dd { margin: 0; }
+  #ring { display: block; margin: 0 auto; width: min(100%, 300px); height: auto; }
+  #ringtext { text-align: center; margin-top: 6px; }
+  .tobie { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; padding: 8px 0; border-top: 1px solid var(--linie); align-items: center; }
+  .tobie:first-child { border-top: 0; }
+  .marke { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: .8rem; border: 1px solid var(--linie); margin-left: 6px; }
+  .marke.echt { border-color: var(--warn); color: var(--warn); } .marke.sim { border-color: var(--akzent); color: var(--akzent); }
+  #meldung { min-height: 1.4em; color: var(--warn); }
+  #protokoll { font: .8rem/1.35 ui-monospace, monospace; white-space: pre-wrap; word-break: break-all; max-height: 260px; overflow: auto; margin: 0; }
+  input[type=range] { width: min(100%, 320px); }
+  input:disabled { opacity: .45; cursor: not-allowed; }
+  select { font: inherit; padding: 6px; max-width: 100%; }
+  .balken { height: 10px; background: var(--linie); border-radius: 5px; position: relative; margin: 6px 0; }
+  .balken i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--akzent); border-radius: 5px; }
+  .balken b { position: absolute; top: -3px; bottom: -3px; width: 3px; background: var(--warn); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Tobi Box: Simulation</h1>
+  <span id="dienst" class="aus">verbinde &hellip;</span>
+  <span class="leise">Ein echter Leser funktioniert parallel weiter.</span>
+</header>
+<div id="meldung" role="status" aria-live="polite" style="max-width:1100px;margin:8px auto 0;padding:0 16px"></div>
+<main>
+
+  <section>
+    <h2>LED-Ring</h2>
+    <svg id="ring" viewBox="-110 -110 220 220" role="img" aria-label="LED-Ring mit 40 Punkten"></svg>
+    <div id="ringtext" class="leise"></div>
+  </section>
+
+  <section>
+    <h2>Was gerade läuft</h2>
+    <dl id="laeuft"></dl>
+  </section>
+
+  <section>
+    <h2>Tasten</h2>
+    <div class="zeile">
+      <button data-eingang="hauptknopf_kurz">Hauptknopf kurz</button>
+      <button data-eingang="hauptknopf_lang">Hauptknopf lang</button>
+    </div>
+    <div class="zeile">
+      <button data-eingang="zurueck" class="zweit">&laquo; Zurück</button>
+      <button data-eingang="weiter" class="zweit">Vor &raquo;</button>
+    </div>
+    <div class="leise" id="hinweis-taste"></div>
+  </section>
+
+  <section>
+    <h2>Drehregler</h2>
+    <div class="zeile">
+      <button data-regler="-2" class="zweit" aria-label="Leiser, eine Raste">&minus; Raste</button>
+      <span class="gross" id="laut">&ndash;</span>
+      <button data-regler="2" class="zweit" aria-label="Lauter, eine Raste">+ Raste</button>
+    </div>
+    <div class="balken" aria-hidden="true"><i id="laut-balken"></i><b id="grenz-marke"></b></div>
+    <div class="leise" id="grenze-text"></div>
+  </section>
+
+  <section>
+    <h2>Schalter</h2>
+    <div class="zeile"><label><input type="checkbox" id="kopfhoerer" data-eingang="kopfhoerer"> Kopfhörer eingesteckt</label></div>
+    <div class="zeile"><label><input type="checkbox" id="lader" data-eingang="strom"> Ladegerät dran</label></div>
+    <div class="zeile">
+      <label for="akku">Akku</label>
+      <input type="range" id="akku" min="0" max="100" step="1" value="80" data-eingang="strom">
+      <span id="akku-wert">80 %</span>
+    </div>
+    <div class="zeile" id="netz-knoepfe">
+      <span>Netz:</span>
+      <button class="zweit" data-netz="home">Heim</button>
+      <button class="zweit" data-netz="hotspot">Hotspot</button>
+      <button class="zweit" data-netz="offline">Offline</button>
+    </div>
+    <div class="leise" id="hinweis-schalter"></div>
+  </section>
+
+  <section class="breit">
+    <h2>Tobies</h2>
+    <div id="liegt" class="leise" style="margin-bottom:8px"></div>
+    <div id="tobies"></div>
+    <div class="zeile" style="margin-top:10px">
+      <button class="zweit" id="unbekannt">Unbekannter Tobie (neue Zufallskennung)</button>
+      <button class="zweit" id="gesperrt">Gesperrter Tonie</button>
+      <button class="zweit" id="abheben-sim">Simulierten Tobie abheben</button>
+    </div>
+    <div class="leise">Diese Knöpfe senden Ereignisse wie der echte Leser. &bdquo;Echt&ldquo; liegt auf dem Leser, &bdquo;simuliert&ldquo; kommt von dieser Seite.</div>
+  </section>
+
+  <section>
+    <h2>Lernmodus</h2>
+    <div class="zeile">
+      <label>Serie <select id="lern-serie"></select></label>
+      <label>Folge <select id="lern-folge"></select></label>
+    </div>
+    <div class="zeile" style="margin-top:6px">
+      <button id="lern-start">Lernmodus starten</button>
+      <button id="lern-ende" class="zweit">Abbrechen</button>
+    </div>
+    <div class="leise" id="lern-text"></div>
+  </section>
+
+  <section>
+    <h2>Offene Meldungen</h2>
+    <div id="offen" class="leise">keine</div>
+    <div class="leise">&bdquo;Bestätigen&ldquo; entspricht <code>sim ack</code> und löscht die Meldung.</div>
+  </section>
+
+  <section class="breit">
+    <h2>Zustand</h2>
+    <dl id="zustand"></dl>
+  </section>
+
+  <section class="breit">
+    <h2>Letzte Protokollzeilen</h2>
+    <pre id="protokoll">&ndash;</pre>
+  </section>
+
+</main>
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+let letzte = null;          // letzte Antwort von /api/anzeige
+let verdrahtet = {};        // vom Dienst: welche Eingänge wirken
+let akkuZiehen = false;     // Regler wird gerade bewegt: nicht überschreiben
+
+const NS = "http://www.w3.org/2000/svg";
+const leds = [];
+(function bauRing() {
+  const r = $("ring");
+  for (let i = 0; i < 40; i++) {
+    const w = (i / 40) * 2 * Math.PI - Math.PI / 2;
+    const c = document.createElementNS(NS, "circle");
+    c.setAttribute("cx", (95 * Math.cos(w)).toFixed(2));
+    c.setAttribute("cy", (95 * Math.sin(w)).toFixed(2));
+    c.setAttribute("r", "6.5");
+    c.setAttribute("fill", "var(--led-aus)");
+    c.setAttribute("opacity", "0.45");
+    r.appendChild(c); leds.push(c);
+  }
+})();
+
+function farbe(f, hell) {
+  let rgb;
+  if (Array.isArray(f)) rgb = f.map(Number);
+  else if (typeof f === "string" && /^#[0-9a-fA-F]{6}$/.test(f)) rgb = [1, 3, 5].map((k) => parseInt(f.slice(k, k + 2), 16));
+  else return null;
+  return "rgb(" + rgb.map((x) => Math.max(0, Math.min(255, Math.round(x * hell)))).join(",") + ")";
+}
+
+function zeichneRing(ring) {
+  if (!ring || !Array.isArray(ring.farben) || ring.farben.length !== 40) {
+    leds.forEach((c) => { c.setAttribute("fill", "#8a8a8a"); c.setAttribute("opacity", "0.35"); });
+    $("ringtext").textContent = "Ring noch nicht verdrahtet";
+    return;
+  }
+  let h = Number(ring.helligkeit); if (!(h >= 0)) h = 100;
+  if (h > 1) h = h / 100;
+  ring.farben.forEach((f, i) => {
+    const c = farbe(f, 1);
+    leds[i].setAttribute("fill", farbe(f, h) || "var(--led-aus)");
+    leds[i].setAttribute("opacity", c ? "1" : "0.45");
+  });
+  $("ringtext").textContent = "Helligkeit " + Math.round(h * 100) + " %";
+}
+
+async function senden(zeile) {
+  try {
+    const r = await fetch("/api/befehl", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(zeile) });
+    const a = await r.json();
+    if (a.ok) { $("meldung").textContent = ""; }
+    else if (a.fehler === "noch_nicht_verdrahtet") { $("meldung").textContent = "Dieser Eingang ist in der Box noch nicht verdrahtet."; }
+    else { $("meldung").textContent = "Abgelehnt: " + (a.fehler || "unbekannter Grund"); }
+    holen();
+    return a;
+  } catch (e) {
+    $("meldung").textContent = "Keine Verbindung zum Server der Seite.";
+    return { ok: false };
+  }
+}
+
+function zeile(dl, name, wert) {
+  const dt = document.createElement("dt"); dt.textContent = name;
+  const dd = document.createElement("dd"); dd.textContent = wert;
+  dl.append(dt, dd);
+}
+
+const DIENST = {
+  laeuft: "Dienst läuft", nicht_erreichbar: "Dienst nicht erreichbar (läuft tobiboxd?)",
+  keine_berechtigung: "Keine Berechtigung auf sim.sock", fehler: "Dienst meldet einen Fehler",
+};
+const SITZUNG = { leer: "leer", spielt: "spielt", pausiert: "pausiert", beendet: "Folge zu Ende", gehalten: "gehalten (stumm)",
+  unbekannt: "Leser unterbrochen", herunterfahren: "fährt herunter" };
+const RUHE = { normal: "normal", leiser: "leiser", stumm: "stumm" };
+const GUTE_NACHT = { aus: "aus", laeuft: "Timer läuft", ausblenden: "blendet aus" };
+const NETZ = { home: "Heim", hotspot: "Hotspot", offline: "offline" };
+
+function zeitText(s) { s = Math.floor(s || 0); return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); }
+
+function zeigeLaeuft(d) {
+  const dl = $("laeuft"); dl.replaceChildren();
+  const s = d.status || {}, a = d.anzeige || {};
+  if (!s.serie) { zeile(dl, "Serie", "nichts"); return; }
+  zeile(dl, "Serie", s.serie.name);
+  zeile(dl, "Folge", s.folge ? s.folge.name : "–");
+  zeile(dl, "Track", s.folge ? String(s.folge.track + 1) : "–");
+  zeile(dl, "Position", zeitText(a.position_s) + " im Track");
+}
+
+function zeigeZustand(d) {
+  const dl = $("zustand"); dl.replaceChildren();
+  const s = d.status || {}, a = d.anzeige || {};
+  zeile(dl, "Sitzung", SITZUNG[s.zustand] || s.zustand || "–");
+  zeile(dl, "Lautstärke", a.lautstaerke != null ? a.lautstaerke + " % (Grenze " + a.grenze + " %)" : "–");
+  zeile(dl, "Ruhe", (RUHE[a.ruhe] || "–") + (a.stumm ? " (stumm)" : ""));
+  zeile(dl, "Gute Nacht", GUTE_NACHT[a.gute_nacht] || "–");
+  zeile(dl, "Lernmodus", s.lernmodus ? "an" : "aus");
+  zeile(dl, "Netz", NETZ[s.netz] || "–");
+  zeile(dl, "Akku", s.akku_prozent != null ? s.akku_prozent + " %" + (s.lader ? ", am Lader" : "") : "unbekannt");
+  zeile(dl, "Leser", s.leser || "–");
+  zeile(dl, "Letzter Fehler", s.letzter_fehler ? s.letzter_fehler.text : "keiner");
+}
+
+function zeigeLautstaerke(d) {
+  const a = d.anzeige || {};
+  const l = a.lautstaerke;
+  $("laut").textContent = l != null ? l + " %" : "–";
+  $("laut-balken").style.width = (l || 0) + "%";
+  $("grenz-marke").style.left = (a.grenze != null ? a.grenze : 100) + "%";
+  const namen = Object.entries(a.grenzen || {}).map(([k, v]) => k + " " + v + " %").join(", ");
+  $("grenze-text").textContent = a.grenze != null ? "Wirksame Grenze: " + a.grenze + " %" + (namen ? " (" + namen + ")" : "") : "";
+}
+
+function grauSetzen(el, ok, name) {
+  el.classList.toggle("grau", !ok);
+  el.title = ok ? "" : "In der Box noch nicht verdrahtet";
+  if (el.tagName === "INPUT") el.disabled = !ok;
+}
+
+function zeigeEingaenge(d) {
+  verdrahtet = d.verdrahtet || {};
+  document.querySelectorAll("[data-eingang]").forEach((el) => {
+    const n = el.dataset.eingang;
+    grauSetzen(el, verdrahtet[n] !== false);
+  });
+  document.querySelectorAll("[data-netz]").forEach((el) => grauSetzen(el, verdrahtet.netz !== false));
+  const taste = verdrahtet.hauptknopf_lang === false ? "Hauptknopf lang: in der Box noch nicht verdrahtet." : "";
+  $("hinweis-taste").textContent = taste;
+  const teile = [];
+  if (verdrahtet.strom === false) teile.push("Ladegerät, Akku");
+  if (verdrahtet.netz === false) teile.push("Netz");
+  $("hinweis-schalter").textContent = teile.length ? teile.join(" und ") + ": in der Box noch nicht verdrahtet (wirkt später ohne Änderung dieser Seite)." : "";
+  const a = d.anzeige || {};
+  if (typeof a.kopfhoerer === "boolean" && document.activeElement !== $("kopfhoerer")) $("kopfhoerer").checked = a.kopfhoerer;
+  const s = d.status || {};
+  document.querySelectorAll("[data-netz]").forEach((el) => { el.classList.toggle("zweit", el.dataset.netz !== s.netz); });
+  if (!akkuZiehen && s.akku_prozent != null) { $("akku").value = s.akku_prozent; $("akku-wert").textContent = s.akku_prozent + " %"; }
+  if (typeof s.lader === "boolean" && document.activeElement !== $("lader")) $("lader").checked = s.lader;
+}
+
+function zeigeTobies(d) {
+  const a = d.anzeige || {}, figur = a.figur, sim = d.simuliert;
+  const liegtSim = !!(figur && sim && figur.vorgang === sim.vorgang);
+  const liegtText = !figur ? "Es liegt kein Tobie."
+    : (liegtSim ? "Simuliert liegt: " : "Echt liegt: ") + (figur.uid ? (namenVon(d, figur.uid) || figur.uid) : "gesperrter Tonie");
+  $("liegt").textContent = liegtText;
+  const box = $("tobies"); box.replaceChildren();
+  if (!(d.tobies || []).length) { box.textContent = "Keine Tobies in der Konfiguration."; }
+  for (const t of d.tobies || []) {
+    const z = document.createElement("div"); z.className = "tobie";
+    const links = document.createElement("div");
+    const name = document.createElement("strong"); name.textContent = t.name || t.uid;
+    links.append(name);
+    if (figur && figur.uid === t.uid) {
+      const m = document.createElement("span"); m.className = "marke " + (liegtSim ? "sim" : "echt"); m.textContent = liegtSim ? "simuliert" : "echt";
+      links.append(m);
+    }
+    const sub = document.createElement("div"); sub.className = "leise";
+    sub.textContent = (t.name ? t.uid + " → " : "→ ") + t.ziel;
+    links.append(sub);
+    const rechts = document.createElement("div");
+    const auf = document.createElement("button"); auf.textContent = "auflegen";
+    auf.onclick = () => senden({ befehl: "tobie_auflegen", uid: t.uid });
+    const ab = document.createElement("button"); ab.className = "zweit"; ab.textContent = "abheben";
+    ab.disabled = !(liegtSim && figur.uid === t.uid);
+    ab.onclick = () => senden({ befehl: "tobie_abheben" });
+    rechts.append(auf, ab);
+    z.append(links, rechts); box.append(z);
+  }
+  $("abheben-sim").disabled = !sim;
+}
+function namenVon(d, uid) { const t = (d.tobies || []).find((x) => x.uid === uid); return t && t.name; }
+
+function zeigeOffen(d) {
+  const box = $("offen"); box.replaceChildren();
+  const offen = d.offen || [];
+  if (!offen.length) { box.textContent = "keine"; return; }
+  for (const m of offen) {
+    const z = document.createElement("div"); z.className = "zeile";
+    const t = document.createElement("span");
+    t.textContent = m.uid + " (" + (m.art === "gelernt" ? "gelernt" : "unbekannt") + ", " + m.anzahl + "x)";
+    const b = document.createElement("button"); b.className = "zweit"; b.textContent = "bestätigen";
+    b.onclick = () => senden({ befehl: "ack", uid: m.uid, zuletzt: m.zuletzt, art: m.art });
+    z.append(t, b); box.append(z);
+  }
+}
+
+function zeigeLernauswahl(d) {
+  const serien = d.serien || [];
+  const s = $("lern-serie"), f = $("lern-folge");
+  const alt = s.value, altKey = serien.map((x) => x.id).join();
+  if (s.dataset.key !== altKey) {
+    s.replaceChildren(...serien.map((x) => { const o = document.createElement("option"); o.value = x.id; o.textContent = x.name; return o; }));
+    if (serien.some((x) => x.id === alt)) s.value = alt;
+    s.dataset.key = altKey; fuelleFolgen();
+  }
+  const status = d.status || {};
+  $("lern-text").textContent = status.lernmodus ? "Lernmodus ist an. Jetzt einen Tobie auflegen." : "Lernmodus ist aus.";
+}
+function fuelleFolgen() {
+  const serie = ((letzte && letzte.serien) || []).find((x) => x.id === $("lern-serie").value);
+  const f = $("lern-folge");
+  const o0 = document.createElement("option"); o0.value = ""; o0.textContent = "ganze Serie";
+  f.replaceChildren(o0, ...((serie && serie.folgen) || []).map((n) => { const o = document.createElement("option"); o.value = n; o.textContent = n; return o; }));
+}
+
+function zeigeProtokoll(d) {
+  const p = d.protokoll || {};
+  const el = $("protokoll");
+  const unten = el.scrollTop + el.clientHeight >= el.scrollHeight - 8;
+  el.textContent = (p.zeilen || []).length ? p.zeilen.join("\n") : (p.hinweis || "–");
+  if (unten) el.scrollTop = el.scrollHeight;
+}
+
+function zeige(d) {
+  letzte = d;
+  const el = $("dienst");
+  el.textContent = DIENST[d.dienst] || d.dienst;
+  el.className = d.dienst === "laeuft" ? "ok" : "aus";
+  if (d.dienst === "laeuft") {
+    zeichneRing(d.anzeige && d.anzeige.ring);
+    zeigeLaeuft(d); zeigeZustand(d); zeigeLautstaerke(d); zeigeEingaenge(d); zeigeTobies(d); zeigeOffen(d); zeigeLernauswahl(d);
+  } else {
+    zeichneRing(null);
+  }
+  zeigeProtokoll(d);
+}
+
+let laeuftAbfrage = false;
+async function holen() {
+  if (laeuftAbfrage) return;
+  laeuftAbfrage = true;
+  try { zeige(await (await fetch("/api/anzeige")).json()); }
+  catch (e) { $("dienst").textContent = "Server der Seite nicht erreichbar"; $("dienst").className = "aus"; }
+  finally { laeuftAbfrage = false; }
+}
+
+document.querySelectorAll("button[data-eingang]").forEach((b) => { b.onclick = () => senden({ befehl: "taste", taste: b.dataset.eingang }); });
+document.querySelectorAll("[data-regler]").forEach((b) => { b.onclick = () => senden({ befehl: "regler", delta: Number(b.dataset.regler) }); });
+document.querySelectorAll("[data-netz]").forEach((b) => { b.onclick = () => senden({ befehl: "netz", klasse: b.dataset.netz }); });
+$("kopfhoerer").onchange = (e) => senden({ befehl: "kopfhoerer", steckt: e.target.checked });
+$("lader").onchange = (e) => senden({ befehl: "strom", lader: e.target.checked });
+$("akku").oninput = (e) => { akkuZiehen = true; $("akku-wert").textContent = e.target.value + " %"; };
+$("akku").onchange = async (e) => { await senden({ befehl: "strom", akku: Number(e.target.value) }); akkuZiehen = false; };
+$("unbekannt").onclick = () => senden({ befehl: "tobie_auflegen", zufall: true });
+$("gesperrt").onclick = () => senden({ befehl: "tobie_gesperrt" });
+$("abheben-sim").onclick = () => senden({ befehl: "tobie_abheben" });
+$("lern-serie").onchange = fuelleFolgen;
+$("lern-start").onclick = () => {
+  const serie = $("lern-serie").value, folge = $("lern-folge").value;
+  if (!serie) { $("meldung").textContent = "Keine Serie vorhanden."; return; }
+  senden(folge ? { befehl: "learn", typ: "folge", serie, folge, ttl: 120 } : { befehl: "learn", typ: "serie", serie, ttl: 120 });
+};
+$("lern-ende").onclick = () => senden({ befehl: "learn_abort" });
+
+holen();
+setInterval(holen, 300);
+</script>
+</body>
+</html>

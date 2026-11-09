@@ -46,6 +46,14 @@
     kommt, wartet auf den Start (6.5 Punkt 6e). `audiodauer` meldet MP3 mit wechselnder Bitrate ohne Kopf als
     „Dauer unbekannt“, und die Restregel gilt nicht bei einer Position hinter dem Ende des Tracks (6.3).
 
+*   **Änderung 09.11. (Entscheidung N, 09.11.):** Lesezeichen je Tobie mit Ablauf. Wurde ein Zeiger länger als
+    `Konfig.lesezeichen_tage` (Vorgabe 14, `0` = nie) nicht benutzt, beginnt beim Fortsetzen dieselbe Folge von
+    vorn (Track 0, Position 0). Dafür trägt `Zeiger` den Zeitpunkt der letzten Benutzung (`benutzt_wall`,
+    `resume.json`: `benutzt_am`, optional), `ZeigerSpeichern` die Wanduhr (`wall`) und `Konfig` das Feld
+    `lesezeichen_tage`. Die Regel gilt nur bei sicherer Uhr, an derselben Stelle wie die Restregel und geht ihr
+    voran. Der Kern bleibt rein: Die Wanduhr kommt über `jetzt`. Siehe Abschnitt 6.3 und Abschnitt 9, Punkt 33.
+    Alle Änderungen sind additiv; `schema_version` bleibt 2.
+
 Die **Tabellen „Wiedergabe-Sitzung“, „Lernmodus“, „Ruhe-Regeln“ und
 „Strom / Leerlauf“** in „Kern-Zustände“ des Designs sind Teil dieses Vertrags
 und gelten unverändert. Dieses Dokument legt fest, **wie** die Teilautomaten
@@ -218,12 +226,12 @@ Alle HA-Befehle tragen eine Ablaufzeit. Der Kern prüft sie mit `jetzt.wall` und
 | Typ | Felder |
 |---|---|
 | `Serie` | `id: str`, `name: str`, `typ: Literal["normal","ueberraschung"]`, `ordner: str` (Pfad relativ zum Medienordner), `folgen: tuple[str, ...]` (Namen der Folgen in maßgeblicher Reihenfolge, nur vorhandene: Dateiname oder Ordnername), `tracks: Mapping[str, tuple[str, ...]]` (Name der Folge → Pfade ihrer Tracks **relativ zum Serien-Ordner** in Reihenfolge; eine Folge aus einer Datei hat genau einen Track, nämlich ihren eigenen Namen, ein Folgen-Ordner `Ordnername/Dateiname`; so stehen sie unverändert in `Abspielen.tracks`) (Entscheidung F, 05.11.), `dauern: Mapping[str, tuple[float \| None, ...]]` (Name der Folge → Dauer jedes Tracks in Sekunden, parallel zu `tracks`; `None` oder fehlender Eintrag: Dauer unbekannt; Standard leer) (Entscheidung I, 09.11.) |
-| `Zeiger` | `art: Literal["serie","folge"]` (Serien-Zeiger oder Folgen-Zeiger) (Entscheidung F, 05.11.), `serie_id: str`, `datei: str` (Name der Folge), `index: int \| None` (Nummer der Folge in `folgen`, ab 0, Hinweis für den Fall einer fehlenden Folge; `None` bei `art="folge"`), `track: int` (≥ 0, Nummer des Tracks in der Folge), `position_s: float` (≥ 0, Sekunden im Track, ohne Rücksprung), `zaehler: int` |
+| `Zeiger` | `art: Literal["serie","folge"]` (Serien-Zeiger oder Folgen-Zeiger) (Entscheidung F, 05.11.), `serie_id: str`, `datei: str` (Name der Folge), `index: int \| None` (Nummer der Folge in `folgen`, ab 0, Hinweis für den Fall einer fehlenden Folge; `None` bei `art="folge"`), `track: int` (≥ 0, Nummer des Tracks in der Folge), `position_s: float` (≥ 0, Sekunden im Track, ohne Rücksprung), `zaehler: int`, `benutzt_wall: float \| None` (Wanduhr der letzten Benutzung in Unix-Sekunden; `None` = unbekannt, der Zeiger läuft nie ab; Standard `None`) (Entscheidung N, 09.11.) |
 | `Zuordnung` | `typ: Literal["serie","folge","aktion"]`, `serie_id: str \| None`, `folge: str \| None` (Name der Folge bei `typ="folge"`), `aktion: Literal["status","gute_nacht"] \| None` (Entscheidung F, 05.11.) |
 | `Fenster` | `id: str`, `tage: tuple[int, ...]` (1 = Montag bis 7 = Sonntag), `von: str`, `bis: str` (`"HH:MM"`, Ortszeit), `wirkung: Literal["leiser","stumm"]`, `grenze: int \| None` |
 | `LeiseZeiten` | `zeitzone: str` (IANA), `fenster: tuple[Fenster, ...]` |
 | `GuteNacht` | `timer_min: int`, `ausblenden_s: int` |
-| `Konfig` | `revision: int`, `liste_id: str`, `zuordnungen: Mapping[str, Zuordnung]` (Schlüssel = Kennung), `leise_zeiten: LeiseZeiten`, `gute_nacht: GuteNacht` |
+| `Konfig` | `revision: int`, `liste_id: str`, `zuordnungen: Mapping[str, Zuordnung]` (Schlüssel = Kennung), `leise_zeiten: LeiseZeiten`, `gute_nacht: GuteNacht`, `lesezeichen_tage: int` (0 bis 365, Standard 14; `0` = Lesezeichen laufen nie ab) (Entscheidung N, 09.11.) |
 | `Eintrag` (von `outbox.offen()`) | `uid: str`, `art: Literal["unbekannt","gelernt"]`, `zuerst: str`, `zuletzt: str`, `anzahl: int`, `zeit_ok: bool`, `befehl_id: str \| None` (die Felder von `unknown.json`, `data-model.md` Abschnitt 4, plus der Schlüssel `uid`) |
 
 Wertebereiche und Bedeutung der Felder: `data-model.md`. `events.py` übernimmt
@@ -236,18 +244,21 @@ werden so abgebildet:
 | `serien.<id>` (Schlüssel) bzw. `folgen.<id>` (Schlüssel) | `Zeiger.serie_id` |
 | `serien.<id>.folge` bzw. `folgen.<id>.<folge>` (Schlüssel) | `Zeiger.datei` |
 | `serien.<id>.index`, `.track`, `.position_s`, `.zaehler` | `Zeiger.index`, `.track`, `.position_s`, `.zaehler` (gleiche Namen); bei `folgen` ist `index` = `None` |
+| `serien.<id>.benutzt_am` bzw. `folgen.<id>.<folge>.benutzt_am` (Zeitstempel, optional) | `Zeiger.benutzt_wall` (Unix-Sekunden; fehlt das Feld: `None`) (Entscheidung N, 09.11.) |
 | `config.json`: `zuordnungen.<uid>.ziel.serie` / `.folge` | `Zuordnung.serie_id` / `Zuordnung.folge` (und `ziel.typ` → `typ`, `ziel.aktion` → `aktion`) (Entscheidung F, 05.11.) |
 | `zuordnungen` (Objekt, Schlüssel = Kennung) | `Konfig.zuordnungen: Mapping[str, Zuordnung]` |
 | `leise_zeiten.fenster[].tage / von / bis / wirkung / grenze / id` | `Fenster.tage / von / bis / wirkung / grenze / id` (gleiche Namen; `tage` als `tuple`) |
 | `leise_zeiten.zeitzone` (fehlt: `Europe/Berlin`) | `LeiseZeiten.zeitzone` (immer gesetzt) |
 | `gute_nacht.timer_min`, `.ausblenden_s` | `GuteNacht.timer_min`, `.ausblenden_s` |
+| `config.json`: `lesezeichen_tage` (fehlt: 14) | `Konfig.lesezeichen_tage` (immer gesetzt) (Entscheidung N, 09.11.) |
 | `config.json`: `erzeugt_am`, `schema_version` | kein Feld in `Konfig` (nur Anzeige bzw. Format) |
 | `serie.json`: `id`, `name`, `typ`, `ordner` (aus dem Pfad), `folgen` | `Serie.id`, `.name`, `.typ`, `.ordner`, `.folgen`; `Serie.tracks` liest `library` aus dem Dateisystem (Folgen-Ordner), nicht aus `serie.json` |
 
 `position_s` wird beim Speichern auf **eine Nachkommastelle abgerundet**
 (`floor(x · 10) / 10`), damit der gespeicherte Zeiger nie weiter vorn liegt als
 die tatsächliche Position. „Unverändert“ im Sinne von `ZeigerSpeichern` heißt: gleiche Art, gleiche Folge,
-gleicher Index, gleicher Track und gleiche so abgerundete Position.
+gleicher Index, gleicher Track und gleiche so abgerundete Position (und kein Zeitstempel, der erneuert werden müsste,
+siehe `ZeigerSpeichern`, Entscheidung N, 09.11.).
 
 ### 3.9 Interne Ereignisse (zwischen Teilautomaten)
 
@@ -280,7 +291,7 @@ nennt, wer sie ausführt.
 | `AusgangWaehlen` | `ausgang: Literal["lautsprecher","kopfhoerer"]` | `player` | Ausgang umschalten (Mac: nur protokolliert). |
 | `Abspielen` | `serie_id: str`, `ordner: str`, `datei: str` (Name der Folge), `tracks: tuple[str, ...]` (Pfade der Tracks relativ zu `ordner`, in Reihenfolge), `track: int`, `position_s: float`, `vorgang: str \| None`, `gen: int` (06.11.) | `player` | Warteschlange leeren, **alle Tracks dieser Folge und nur diese** laden, auf Track `track` und `position_s` springen (`seek`), spielen (Entscheidung F, 05.11.). `position_s` ist die Position im Track und enthält schon den Rücksprung (Abschnitt 6.3). Der Pfad für MPD ist `ordner + "/" + tracks[i]`; bei einer Folge aus einer Datei ist `tracks = (datei,)`, bei einem Folgen-Ordner `tracks = (datei + "/" + trackname, …)`. |
 | `Pausieren` | `grund: Literal["abgehoben","folgenende","knopf","stumm","gute_nacht","leser_unbekannt","fehler","herunterfahren"]` | `player` | Pause. Ist MPD schon gestoppt (Folgenende), ist der Befehl wirkungslos. Danach sendet der Player sofort `PlayerPosition`. |
-| `ZeigerSpeichern` | `art: Literal["serie","folge"]`, `serie_id: str`, `datei: str`, `index: int \| None`, `track: int`, `position_s: float`, `grund: Literal["pause","folgenende","trackwechsel","zurueck","figurwechsel","periodisch","herunterfahren"]` (`zurueck`: Zurück in `beendet`, 9.12) (Entscheidung F, 05.11.) | `store` (`resume.json`) | Zeiger schreiben (`art="serie"` in `serien`, `art="folge"` in `folgen`), `zaehler` dieses Zeigers um 1 erhöhen (Entscheidung F, 05.11.). `position_s` ist abgerundet auf 1 Nachkommastelle (Abschnitt 3.8). `store` schreibt nicht, wenn Art, Folge, Index, Track und Position unverändert sind. |
+| `ZeigerSpeichern` | `art: Literal["serie","folge"]`, `serie_id: str`, `datei: str`, `index: int \| None`, `track: int`, `position_s: float`, `grund: Literal["pause","folgenende","trackwechsel","zurueck","figurwechsel","periodisch","herunterfahren"]` (`zurueck`: Zurück in `beendet`, 9.12) (Entscheidung F, 05.11.), `wall: float \| None` (Wanduhr der Benutzung in Unix-Sekunden, aus `jetzt.wall` und nur bei `jetzt.zeit_ok`, sonst `None`; Standard `None`; zählt beim Vergleich zweier Befehle nicht mit) (Entscheidung N, 09.11.) | `store` (`resume.json`) | Zeiger schreiben (`art="serie"` in `serien`, `art="folge"` in `folgen`), `zaehler` dieses Zeigers um 1 erhöhen (Entscheidung F, 05.11.). `position_s` ist abgerundet auf 1 Nachkommastelle (Abschnitt 3.8). `store` schreibt nicht, wenn Art, Folge, Index, Track und Position unverändert sind, **außer** der Zeitstempel fehlt oder ist mindestens `STEMPEL_ERNEUERN_S` = 3600 s alt und `wall` ist gesetzt: Dann wird der Zeiger mit neuem `benutzt_am` geschrieben (Benutzung ohne neue Position, zum Beispiel Auflegen und gleich Abheben; Entscheidung N, 09.11.). Ist `wall` `None`, bleibt ein vorhandener Zeitstempel stehen, und ein Zeiger ohne Zeitstempel bekommt keinen. |
 | `TonSpielen` | `ton: Literal["start","unbekannt","fehler","hinweis","lernen_beginn","lernen_ende","akku_leer","pruef_ok","pruef_fehler"]` | `sounds` | kurzer Rückmeldeton (Datei `box/sounds/<ton>.wav`, `pruef_*` in AP 2.3). Töne laufen nacheinander und nie gleichzeitig; ein `Abspielen` derselben Ausgabe startet erst nach dem Ende der Töne (Abschnitt 6.5, Punkt 6; Entscheidung L, 09.11.). Die Status-Karte spielt außerdem die Prüfpunkt-Töne `pruef_<punkt>_ok` und `pruef_<punkt>_fehler` mit `<punkt>` ∈ {`leser`, `medien`, `netz`, `speicher`} sowie `pruef_leser_simulation` (09.11., Sprach-Töne für Tests); sie stehen nicht in `TonSpielen`, sondern in der Tonfolge von `selftest`. Fehlt eine solche Datei im Tonordner, spielt `sounds` stattdessen `pruef_ok` bzw. `pruef_fehler`. |
 | `StatusPruefen` | `vorgang: str \| None` | `selftest` | Prüfpunkte Leser, Medien, Netz, Speicher in dieser Reihenfolge nach den Kriterien aus Abschnitt 12.3 prüfen und je Punkt einen Ton spielen (`pruef_<punkt>_ok` oder `pruef_<punkt>_fehler`, Leser in der Simulation `pruef_leser_simulation`; Rückfall auf `pruef_ok`/`pruef_fehler`, siehe `TonSpielen`; 09.11., Sprach-Töne für Tests) (Status-Admin-Karte, CUJ 11). `selftest` wertet aus und lässt `sounds` die Töne spielen; ausgeführt wird der Befehl nur von `selftest`. |
 | `Melden` | `art: Literal["unbekannt","gelernt"]`, `uid: str`, `befehl_id: str \| None` | `outbox` | Eintrag in `unknown.json`, Veröffentlichung an HA, Löschen erst nach Bestätigung (Abschnitt 7). `befehl_id` ist bei `gelernt` die ID des Lernbefehls, sonst `None`. |
@@ -506,6 +517,28 @@ Die Funktionen stehen in `pointer.py` (rein). `session` benutzt sie so:
         Eine solche Datei, die in den ersten 256 KiB gleichbleibend kodiert ist und erst später wechselt, bleibt
         unerkannt; die Position-hinter-Dauer-Prüfung fängt sie nur, wenn der Zeiger weit genug hinter der
         geschätzten Dauer liegt.
+*   **Lesezeichen mit Ablauf (Entscheidung N, 09.11.):** Jeder Zeiger behält seine eigene Stelle, auch wenn
+    zwischendurch andere Tobies gespielt haben. Wurde ein Zeiger länger als `Konfig.lesezeichen_tage` nicht benutzt,
+    beginnt beim Fortsetzen die **Folge** wieder von vorn: Track 0, Position 0, ohne Rücksprung. Die Regel greift an
+    derselben Stelle wie die Restregel (`session._start`), also bei allen Wegen des Fortsetzens: Auflegen (auch beim
+    Einschalten mit liegendem Tobie und nach dem Warten im Lernmodus), Hauptknopf kurz in `pausiert`, nach einem
+    Dienst-Neustart (Entscheidung G), Zuordnung per neuer Konfiguration bei liegendem Tobie.
+    *   **Reihenfolge:** Zuerst der Ablauf, dann die Restregel. Ist der Zeiger abgelaufen, beginnt die Folge von vorn,
+        und die Restregel wird nicht mehr geprüft.
+    *   **Serien-Zeiger:** Die Folge bleibt dieselbe (`Zeiger.datei`); es geht nicht zurück auf Folge 1 und nicht auf die
+        nächste Folge. **Folgen-Zeiger:** dieselbe Folge von vorn.
+    *   **Alter:** `alter = jetzt.wall − Zeiger.benutzt_wall`. Abgelaufen heißt `alter > lesezeichen_tage · 86400 s`; genau
+        `lesezeichen_tage` Tage sind noch nicht abgelaufen. `lesezeichen_tage = 0` heißt: läuft nie ab. Fehlt eine
+        Konfiguration, gilt `LESEZEICHEN_TAGE` = 14. Ein Zeitstempel in der Zukunft (Uhr zurückgestellt) ergibt kein Ablaufen.
+    *   **Nur bei sicherer Uhr:** Ist `jetzt.zeit_ok` falsch, läuft nichts ab. Ein Zeiger ohne Zeitstempel (`benutzt_wall`
+        ist `None`; alte Datei) läuft nie ab. Ohne Zeiger, bei fehlender Folge und bei fehlendem Track gibt es keine Prüfung.
+    *   **Zeitstempel:** `Benutzung` heißt: zuletzt gespeichert beim Spielen (`periodisch`), Pausieren, Abheben, Track- und
+        Folgenwechsel. `ZeigerSpeichern.wall` ist `jetzt.wall`, wenn `jetzt.zeit_ok`, sonst `None` (der Zeitstempel ändert
+        sich dann nicht). Beim Start eines Ziels wird nichts gespeichert; ein abgelaufener Zeiger bekommt seine neue Stelle und
+        seinen neuen Zeitstempel beim nächsten Speichern.
+    *   **Protokoll:** Greift die Regel und stand der Zeiger nicht schon vorn: `Protokoll(INFO, ereignis="lesezeichen_abgelaufen",
+        ergebnis="von_vorn", daten={"uid", "art", "serie", "folge", "alter_tage", "tage"})`; `alter_tage` ist das Alter auf
+        1 Nachkommastelle, `tage` die Einstellung `lesezeichen_tage`.
 *   **Track-Wechsel (`TrackWechsel`) (Entscheidung F, 05.11.):** Der Zeiger wird auf den neuen Track,
     Position 0 gesetzt; `ZeigerSpeichern(grund="trackwechsel")`. **Keine Pause**,
     der Zustand bleibt. Die Pause nach jeder Folge (Entscheidung A)
@@ -1245,6 +1278,8 @@ Modulkonstanten mit genau diesen Namen. Es gibt keine eigene Konstanten-Datei.
 | `RUECKSPRUNG_S` | 3,0 | `pointer.py` |
 | `ZURUECK_NEU_S` | 3,0 | `pointer.py` (Zurück in den ersten 3 s eines Tracks → voriger Track, sonst aktuellen Track neu starten; Entscheidung F, 05.11.) |
 | `SPEICHERN_PERIODISCH_S` | 30 | `session.py` |
+| `LESEZEICHEN_TAGE` | 14 | `session.py` (Vorgabe für `Konfig.lesezeichen_tage`, wenn keine Konfiguration geladen ist; Obergrenze der Prüfung 365; Entscheidung N, 09.11.) |
+| `STEMPEL_ERNEUERN_S` | 3600 | `pointer.py` (ein unveränderter Zeiger bekommt seinen Zeitstempel erst nach dieser Zeit neu; Entscheidung N, 09.11.) |
 | `REST_FERTIG_S` | 15 | `session.py` (Rest bis zum Ende der ganzen Folge, unter dem sie beim Fortsetzen als fertig gehört gilt; Entscheidung I, 09.11.) |
 | `REST_REGEL_MIN_FOLGE_S` | 60 | `session.py` (kürzere Folgen sind von der Restregel ausgenommen; Entscheidung I, 09.11.) |
 | `TON_MINDEST` | 10 | `sounds.py` (Untergrenze der Ton-Lautstärke in Prozent, Entscheidung J, 09.11.) |
@@ -1487,3 +1522,12 @@ Projektleitung (P) entschieden oder aus dem Goldfisch-Review übernommen
     „pausiert“); Abheben und `Pausieren` verwerfen einen wartenden Start, der Ton läuft zu Ende; ein hängender
     Ton wird nach 10 s beendet. Der Kern, sein Rang (6.4) und seine Tests bleiben unverändert; die Regel gilt in
     `app.py`, `sounds.py` und `player.py`.
+33. **Bestätigt (09.11., Entscheidung N, T): Lesezeichen je Tobie mit Ablauf.**
+    Jeder Zeiger behält seine eigene Stelle (so war es schon: CUJ 4, `resume.json`). Neu: Wurde ein Zeiger länger als
+    `lesezeichen_tage` (Vorgabe 14, einstellbar in HA, `0` = nie) nicht benutzt, beginnt beim Fortsetzen die Folge von
+    vorn (Position 0, erster Track); bei einer Serie bleibt die Folge dieselbe, bei einem Folgen-Tobie beginnt dieselbe
+    Folge von vorn. Die Regel gilt nur bei sicherer Uhr (`jetzt.zeit_ok`), nur für Zeiger mit Zeitstempel
+    (`resume.json`: `benutzt_am`, optional, additiv; ein alter Zeiger ohne Stempel läuft nie ab) und an denselben Stellen
+    wie die Restregel; der Ablauf geht der Restregel voran (6.3). Das Feld `lesezeichen_tage` in `config.json` ist
+    additiv, `schema_version` bleibt 2; eine Seitenbedienung kommt mit den Einstellungen in Stufe 4. Der Kern bleibt
+    rein: Die Wanduhr kommt über `jetzt`.
