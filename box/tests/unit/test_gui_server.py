@@ -189,7 +189,7 @@ async def test_server_lauscht_nur_auf_localhost(welt):
     assert [s.getsockname()[0] for s in srv._server.sockets] == ["127.0.0.1"]
 
 
-def test_befehl_gui_ohne_konfiguration_ist_exit_2(tmp_path, capsys):
+async def test_befehl_gui_ohne_konfiguration_ist_exit_2(tmp_path):
     from tobibox import cli
 
     assert cli.main(["gui", "--config", str(tmp_path / "gibt-es-nicht.toml"), "--kein-browser"]) == 2
