@@ -19,6 +19,7 @@ from tobibox.config import (
     STANDARD_TON_KOMMANDO_PI,
 )
 from tobibox.sounds import (
+    FOLGE_PAUSE_S,
     HINWEIS_MINDEST,
     HINWEIS_PEGEL_VORGABE,
     TON_MINDEST,
@@ -294,24 +295,78 @@ async def test_fehlendes_programm_wirft_nicht(tmp_path):
     await t.warte()  # kein Fehler
 
 
-async def test_spiele_folge_spielt_nacheinander_in_der_gegebenen_reihenfolge(tmp_path):
+async def test_tonfolge_ist_genau_ein_prozess_mit_pausen_in_der_datei(tmp_path):
+    """Eine Folge (Status-Karte) wird zu einer Datei zusammengefügt: ein Prozess, keine Lücke durch einen Neustart."""
     g: list = []
-    laufend = {"n": 0, "max": 0}
+    gesehen: list = []
 
     async def starter(k):
-        laufend["n"] += 1
-        laufend["max"] = max(laufend["max"], laufend["n"])
-        g.append(k[-1])
-        await asyncio.sleep(0.01)
-        laufend["n"] -= 1
+        g.append(list(k))
+        gesehen.append(lies_samples(k[-1]))
 
-    schreibe_wav(tmp_path / "pruef_ok.wav")
-    schreibe_wav(tmp_path / "pruef_fehler.wav")
+    laut = [1000, -1000, 2000, -2000]
+    leise = [10, -10, 20, -20]
+    schreibe_wav(tmp_path / "pruef_ok.wav", laut)
+    schreibe_wav(tmp_path / "pruef_fehler.wav", leise)
     t = Toene(tmp_path, STANDARD_TON_KOMMANDO, starter=starter)
-    assert t.spiele_folge(["pruef_ok", "pruef_fehler", "pruef_ok", "pruef_fehler"], 50)
+    assert t.spiele_folge(["pruef_ok", "pruef_fehler", "pruef_ok", "pruef_fehler"], 100)
     await t.warte()
-    assert len(g) == 4 and laufend["max"] == 1  # nie zwei Töne gleichzeitig
-    assert [Path(x).name.split("-")[2] for x in g] == ["pruef_ok", "pruef_fehler", "pruef_ok", "pruef_fehler"]
+    assert len(g) == 1  # genau ein Prozess für vier Töne
+    luecke = [0] * round(8000 * FOLGE_PAUSE_S)
+    assert gesehen[0] == laut + luecke + leise + luecke + laut + luecke + leise  # Reihenfolge wie gegeben
+    assert 0 < FOLGE_PAUSE_S <= 0.2  # die Lücke bleibt weit unter den gewünschten 0,3 s
+    import os
+
+    assert not any(os.path.exists(k[-1]) for k in g)  # Temp-Datei aufgeräumt
+    assert not t._temp
+
+
+async def test_toene_einer_folge_haben_je_ihren_pegel(tmp_path):
+    """``hinweis`` ist leiser als die anderen Töne, auch wenn er in derselben Datei liegt."""
+    gesehen: list = []
+
+    async def starter(k):
+        gesehen.append(lies_samples(k[-1]))
+
+    schreibe_wav(tmp_path / "start.wav", [10000, -10000])
+    schreibe_wav(tmp_path / "hinweis.wav", [10000, -10000])
+    t = Toene(tmp_path, STANDARD_TON_KOMMANDO, starter=starter)
+    t.spiele_folge(["start", "hinweis"], 100, 100, 20)
+    await t.warte()
+    assert len(gesehen) == 1
+    luecke = round(8000 * FOLGE_PAUSE_S)
+    erster, zweiter = gesehen[0][:2], gesehen[0][2 + luecke:]
+    assert erster == [10000, -10000]  # 100 %
+    assert 0 < zweiter[0] < 10000  # Hinweis bei 20 %
+
+
+async def test_zeitlimit_einer_folge_ist_das_limit_je_ton(tmp_path):
+    """Das Zeitlimit gilt je Ton: eine Folge aus drei Tönen darf höchstens dreimal so lang hängen, dann wird der Prozess beendet."""
+    schreibe_wav(tmp_path / "start.wav")
+    t = Toene(tmp_path, ["sleep", "31"], ton_max_s=0.2)
+    t0 = time.monotonic()
+    t.spiele_folge(["start", "start", "start"], 50)
+    await t.warte_leer()
+    assert 0.55 <= time.monotonic() - t0 < 3.0
+    assert not subprocess.run(["pgrep", "-f", "^sleep 31$"], capture_output=True).returncode == 0
+
+
+async def test_tonfolge_mit_anderem_format_bricht_in_zwei_dateien(tmp_path):
+    g: list = []
+
+    async def starter(k):
+        g.append(k[-1])
+
+    schreibe_wav(tmp_path / "start.wav")
+    with wave.open(str(tmp_path / "hinweis.wav"), "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(16000)
+        w.writeframes(array.array("h", SAMPLES).tobytes())
+    t = Toene(tmp_path, STANDARD_TON_KOMMANDO, starter=starter)
+    t.spiele_folge(["start", "hinweis"], 50)
+    await t.warte()
+    assert len(g) == 2  # Rate verschieden: nicht in dieselbe Datei
 
 
 async def test_spiele_folge_leer_und_mit_fehlender_datei(tmp_path):
@@ -366,14 +421,17 @@ async def test_spiele_folge_mit_rueckfall_spielt_jeden_punkt(tmp_path):
     g: list = []
 
     async def starter(k):
-        g.append(Path(k[-1]).name.split("-")[2])
+        g.append(lies_samples(k[-1]))
 
-    schreibe_wav(tmp_path / "pruef_ok.wav")
-    schreibe_wav(tmp_path / "pruef_fehler.wav")
+    schreibe_wav(tmp_path / "pruef_ok.wav", [1000, -1000])
+    schreibe_wav(tmp_path / "pruef_fehler.wav", [30, -30])
     t = Toene(tmp_path, STANDARD_TON_KOMMANDO, starter=starter)
-    assert t.spiele_folge(["pruef_leser_ok", "pruef_medien_fehler", "pruef_netz_ok", "pruef_speicher_fehler"], 50)
+    assert t.spiele_folge(["pruef_leser_ok", "pruef_medien_fehler", "pruef_netz_ok", "pruef_speicher_fehler"], 100)
     await t.warte()
-    assert g == ["pruef_leser_ok", "pruef_medien_fehler", "pruef_netz_ok", "pruef_speicher_fehler"]  # alle vier gespielt
+    assert len(g) == 1
+    luecke = [0] * round(8000 * FOLGE_PAUSE_S)
+    ok, fehler = [1000, -1000], [30, -30]
+    assert g[0] == ok + luecke + fehler + luecke + ok + luecke + fehler  # alle vier, jeder mit dem Rückfall-Ton
 
 
 # --- Eine Spur: nie zwei Töne gleichzeitig (Entscheidung L, 09.11.) ---------------------------------
@@ -405,7 +463,7 @@ async def test_toene_aus_verschiedenen_aufrufen_laufen_nacheinander(tmp_path):
     assert not t.beschaeftigt
     assert laufend["max"] == 1
     assert ereignisse == [
-        "start:start", "start:ende", "hinweis:start", "hinweis:ende", "fehler:start", "fehler:ende", "start:start", "start:ende"
+        "start:start", "start:ende", "hinweis:start", "hinweis:ende", "start:start", "start:ende"  # hinweis+fehler: ein Prozess
     ]
 
 
@@ -516,7 +574,8 @@ async def test_unerwartete_ausnahme_beim_start_haelt_die_spur_nicht_an(tmp_path)
     schreibe_wav(tmp_path / "start.wav")
     schreibe_wav(tmp_path / "hinweis.wav")
     t = Toene(tmp_path, STANDARD_TON_KOMMANDO, starter=starter, vor=vor, nach=nach)
-    t.spiele_folge(["start", "hinweis"])
+    t.spiele("start")
+    t.spiele("hinweis")
     await asyncio.wait_for(t.warte_leer(), 2.0)
     assert len(gespielt) == 2  # auch der zweite Ton spielt
     assert haken == ["vor", "nach"]
@@ -537,7 +596,7 @@ async def test_nach_haken_laeuft_auch_wenn_die_spur_unerwartet_abbricht(tmp_path
     schreibe_wav(tmp_path / "start.wav")
     t = Toene(tmp_path, STANDARD_TON_KOMMANDO, starter=starter, nach=nach)
 
-    async def kaputt(ton, werte):
+    async def kaputt(gruppe):
         raise RuntimeError("Fehler in der Spur selbst")
 
     t._lauf = kaputt  # type: ignore[method-assign]
@@ -605,11 +664,11 @@ async def test_pegel_wird_erst_beim_abspielen_berechnet(tmp_path):
     werte.update(grenze=20, laut=20)  # Kopfhörer gesteckt, während die Töne warten
     tor.set()
     await asyncio.wait_for(t.warte_leer(), 2.0)
-    assert len(gesehen) == 3
+    assert len(gesehen) == 2  # der einzelne Ton, dann die Folge als eine Datei
     hoch = max(abs(x) for x in gesehen[0])
     assert hoch == round(max(abs(x) for x in SAMPLES) * mpd_software(60))
-    for g in gesehen[1:]:
-        assert max(abs(x) for x in g) == round(max(abs(x) for x in SAMPLES) * mpd_software(20))
+    assert max(abs(x) for x in gesehen[1]) == round(max(abs(x) for x in SAMPLES) * mpd_software(20))
+    assert len(gesehen[1]) == 2 * len(SAMPLES) + round(8000 * FOLGE_PAUSE_S)
 
 
 async def test_feste_werte_gelten_weiter_und_haben_vorrang_vor_der_quelle(tmp_path):

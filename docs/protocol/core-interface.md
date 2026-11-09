@@ -762,6 +762,12 @@ aller aktiven Grenzen**, und keine Lautstärke liegt darüber.
     kehrt sofort zurück; die Dauer ist das Ende des Abspielprogramms; ein Ton dauert höchstens `TON_MAX_S` = 10 s;
     zu Beginn und am Ende einer zusammenhängenden Tonfolge ruft `sounds` zwei Haken auf, mit denen `app.py` ein
     laufendes Hörspiel kurz anhält und fortsetzt.
+*   **Eine Tonfolge ist ein Prozess (09.11., Befund Mac „Abstand sehr lang“):** Die Töne eines
+    `spiele_folge`-Aufrufs (Status-Karte: vier Ansagen) skaliert `sounds` einzeln (jeder mit seinem Pegel) und
+    fügt sie mit `FOLGE_PAUSE_S` = 0,15 s Stille zu **einer** WAV-Datei zusammen, die **ein** `afplay`/`aplay`
+    spielt. So liegt kein Prozessstart zwischen den Ansagen. Das Zeitlimit gilt weiter je Ton: Die Folge darf
+    höchstens `TON_MAX_S` mal Anzahl der Töne dauern, dann wird das Programm beendet. Töne mit anderem Format
+    (Rate, Kanäle) kommen in eine eigene Datei. Die Rand-Stille jeder Tondatei ist höchstens 0,1 s (Test).
 *   **Gleicher Ausgang wie MPD:** Alle Töne gehen über denselben Audioausgang wie
     die Wiedergabe. Auf dem Pi spielt `sounds` über das ALSA-`softvol`-Gerät, das
     auch MPD benutzt; die **harte Kappe** (`lautstaerke_max`) gilt damit auch für

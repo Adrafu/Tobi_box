@@ -12,8 +12,8 @@ import sys
 import time
 from pathlib import Path
 
-from integration.test_toene_mpd import UID_NEU, _bereit, _welt  # noqa: F401  (Fixtures: welt)
-from integration.test_toene_mpd import welt  # noqa: F401
+from integration.test_toene_mpd import UID_NEU, _bereit
+from integration.test_toene_mpd import welt  # noqa: F401  (Fixture)
 from mpd.asyncio import MPDClient
 
 from tobibox import config as konfig_modul
@@ -22,10 +22,10 @@ from tobibox.app import App
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools"))
 import fake_reader  # noqa: E402
 
-# Schranke: Weg Tonende -> `play` in MPD. Gemessen (Container, Null-Ausgabe) liegt er bei wenigen
-# Millisekunden bis rund 40 ms (Warteschlange leeren, `add`, `play`, ein Abfragezyklus). Auf dem
-# Pi 3A+ rechnen wir mit dem Fünf- bis Zehnfachen; die Schranke 0,25 s lässt dafür Raum und bleibt
-# deutlich unter den gewünschten 0,3 s Gesamtabstand.
+# Schranke: Weg Tonende -> `play` in MPD. Gemessen (Container, Null-Ausgabe, 09.11.) sind es 3 ms
+# (Warteschlange leeren, `add`, `play`). Auf dem Pi 3A+ und bei einer vollen CI rechnen wir mit dem
+# Zehn- bis Dreißigfachen; 0,25 s lässt dafür Raum und bleibt unter den gewünschten 0,3 s Gesamtabstand.
+# Ein fest eingebautes Warten (zum Beispiel 0,5 s) würde der Test sicher fangen.
 SCHRANKE_S = 0.25
 
 

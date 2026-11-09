@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import array
 import importlib.util
 import shutil
 import wave
@@ -42,6 +43,31 @@ def test_sprach_ordner_hat_alle_namen_des_melodie_ordners_und_die_pruefpunkte():
     assert namen(MELODIE) <= namen(SPRACHE)
     assert PRUEF_NAMEN <= namen(SPRACHE)
     assert namen(SPRACHE) == namen(MELODIE) | PRUEF_NAMEN
+
+
+RAND_SCHWELLE_DBFS = -50.0
+RAND_STILLE_MAX_S = 0.1  # Befund Mac 09.11.: zwischen zwei Ansagen höchstens etwa 0,3 s Stille, davon die Ränder
+
+
+def rand_stille_s(datei: Path) -> tuple[float, float]:
+    """Stille am Anfang und am Ende (Sekunden) unter ``RAND_SCHWELLE_DBFS``."""
+    with wave.open(str(datei)) as w:
+        s = array.array("h")
+        s.frombytes(w.readframes(w.getnframes()))
+        rate = w.getframerate()
+    schwelle = 32768 * 10 ** (RAND_SCHWELLE_DBFS / 20)
+    laut = [i for i, x in enumerate(s) if abs(x) > schwelle]
+    assert laut, f"{datei.name}: ganz still"
+    return laut[0] / rate, (len(s) - 1 - laut[-1]) / rate
+
+
+@pytest.mark.parametrize("ordner", [MELODIE, SPRACHE], ids=["melodie", "sprache"])
+def test_rand_stille_aller_toene_hoechstens_0_1_s(ordner):
+    dateien = sorted(ordner.glob("*.wav"))
+    assert dateien
+    for d in dateien:
+        vorn, hinten = rand_stille_s(d)
+        assert vorn <= RAND_STILLE_MAX_S and hinten <= RAND_STILLE_MAX_S, (d.name, vorn, hinten)
 
 
 def test_sprach_toene_haben_das_format_der_melodie_toene(tmp_path):

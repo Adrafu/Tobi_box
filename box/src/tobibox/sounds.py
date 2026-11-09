@@ -39,6 +39,7 @@ import os
 import re
 import sys
 import tempfile
+import time
 import wave
 from collections import deque
 from collections.abc import Awaitable, Callable, Sequence
@@ -52,6 +53,7 @@ TON_MINDEST = 10  # Untergrenze der Ton-Lautstärke in Prozent: ein Ton bleibt h
 HINWEIS_PEGEL_VORGABE = 15
 HINWEIS_MINDEST = 10  # unter „stumm“ (Lautstärke 0) bleibt der Hinweiston hörbar; wie TON_MINDEST
 TON_MAX_S = 10.0  # ein hängendes Abspielprogramm wird danach beendet; die Wiedergabe wartet nie länger auf einen Ton
+FOLGE_PAUSE_S = 0.15  # Stille zwischen zwei Tönen einer Tonfolge (in der einen Datei, kein Prozess dazwischen)
 _PRUEF_PUNKT = re.compile(r"^pruef_[a-z]+_(ok|simulation|fehler)$")
 
 
@@ -124,10 +126,11 @@ class Kennlinie:
 MPD_SOFTWARE = Kennlinie()
 
 
-def skaliere_wav(quelle: Path, pegel_prozent: int, ziel: Path, kennlinie: Kennlinie = MPD_SOFTWARE) -> None:
-    """16-Bit-PCM-WAV auf den Pegel ``pegel_prozent`` (0 bis 100) nach ``kennlinie`` herunterskalieren.
+def lies_skaliert(quelle: Path, pegel_prozent: int, kennlinie: Kennlinie = MPD_SOFTWARE) -> tuple[wave._wave_params, array.array]:
+    """16-Bit-PCM-WAV lesen und auf den Pegel ``pegel_prozent`` (0 bis 100) nach ``kennlinie`` herunterskalieren.
 
-    Schreibt das Ergebnis nach ``ziel``. Wirft ``ValueError``, wenn die Datei kein 16-Bit-PCM ist.
+    Gibt Kopfdaten und Samples (Maschinenreihenfolge) zurück. Wirft ``ValueError``, wenn die Datei kein
+    16-Bit-PCM ist.
     """
     faktor = kennlinie.verstaerkung(max(0, min(100, int(pegel_prozent))))
     with wave.open(str(quelle), "rb") as r:
@@ -139,12 +142,25 @@ def skaliere_wav(quelle: Path, pegel_prozent: int, ziel: Path, kennlinie: Kennli
     samples.frombytes(roh[: len(roh) - len(roh) % 2])
     if sys.byteorder == "big":
         samples.byteswap()
-    leise = array.array("h", (max(-32768, min(32767, round(x * faktor))) for x in samples))
+    return params, array.array("h", (max(-32768, min(32767, round(x * faktor))) for x in samples))
+
+
+def schreibe_samples(ziel: Path, params: wave._wave_params, samples: array.array) -> None:
     if sys.byteorder == "big":
-        leise.byteswap()
+        samples = array.array("h", samples)
+        samples.byteswap()
     with wave.open(str(ziel), "wb") as w:
         w.setparams(params)
-        w.writeframes(leise.tobytes())
+        w.writeframes(samples.tobytes())
+
+
+def skaliere_wav(quelle: Path, pegel_prozent: int, ziel: Path, kennlinie: Kennlinie = MPD_SOFTWARE) -> None:
+    """16-Bit-PCM-WAV auf den Pegel ``pegel_prozent`` (0 bis 100) nach ``kennlinie`` herunterskalieren.
+
+    Schreibt das Ergebnis nach ``ziel``. Wirft ``ValueError``, wenn die Datei kein 16-Bit-PCM ist.
+    """
+    params, leise = lies_skaliert(quelle, pegel_prozent, kennlinie)
+    schreibe_samples(ziel, params, leise)
 
 
 def baue_kommando(vorlage: Sequence[str], datei: Path, pegel_prozent: int) -> list[str]:
@@ -217,7 +233,8 @@ class Toene:
         self._vor = vor
         self._nach = nach
         self._pegel_quelle = pegel_quelle
-        self._eintraege: deque[tuple[str, _Werte | None]] = deque()  # Ton, feste Pegel-Werte oder ``None`` (Quelle)
+        # je Aufruf von ``spiele`` / ``spiele_folge`` eine Gruppe aus (Ton, feste Pegel-Werte oder ``None`` für die Quelle)
+        self._eintraege: deque[list[tuple[str, _Werte | None]]] = deque()
         self._arbeiter: asyncio.Task | None = None
         self._leer = asyncio.Event()
         self._leer.set()
@@ -260,7 +277,7 @@ class Toene:
     def kommando_fuer(
         self, ton: str, grenze: int, lautstaerke: int | None = None, hinweis_pegel: int | None = None
     ) -> list[str] | None:
-        """Das fertige Kommando, oder ``None`` ohne Datei."""
+        """Das fertige Kommando für einen einzelnen Ton, oder ``None`` ohne Datei (Prüfung und Tests)."""
         d = self.datei(ton)
         if not d.is_file():
             logge("sounds", "WARNING", "ton", "datei_fehlt", daten={"ton": ton, "datei": str(d)})
@@ -284,8 +301,8 @@ class Toene:
                 tmp.unlink(missing_ok=True)
                 self._temp.discard(tmp)
 
-    def _reihe_ein(self, eintraege: Sequence[tuple[str, list[str]]]) -> None:
-        self._eintraege.extend(eintraege)
+    def _reihe_ein(self, gruppe: list[tuple[str, _Werte | None]]) -> None:
+        self._eintraege.append(gruppe)
         self._leer.clear()
         if self._arbeiter is None:
             self._arbeiter = asyncio.get_running_loop().create_task(self._arbeit(), name="tobibox-ton-spur")
@@ -313,7 +330,11 @@ class Toene:
         lautstaerke: int | None = None,
         hinweis_pegel: int | None = None,
     ) -> bool:
-        """Töne nacheinander einreihen (Status-Karte: ein Ton je Prüfpunkt). ``False`` bei leerer Folge."""
+        """Töne einer Folge einreihen (Status-Karte: ein Ton je Prüfpunkt). ``False`` bei leerer Folge.
+
+        Die Töne einer Folge werden zu **einer** Datei mit ``FOLGE_PAUSE_S`` Stille dazwischen zusammengefügt
+        und von **einem** Abspielprogramm gespielt: Zwischen den Ansagen liegt so kein Prozessstart.
+        """
         if not toene:
             return False
         werte = self._werte(grenze, lautstaerke, hinweis_pegel)
@@ -338,8 +359,7 @@ class Toene:
                 await self._haken(self._vor, "vor")
                 try:
                     while self._eintraege:
-                        ton, werte = self._eintraege.popleft()
-                        await self._lauf(ton, werte)
+                        await self._lauf(self._eintraege.popleft())
                 finally:
                     await self._haken(self._nach, "nach")  # das Ende der Tonfolge kommt in jedem Fall (B3)
         finally:
@@ -350,27 +370,83 @@ class Toene:
                 self._eintraege.clear()
             self._leer.set()  # erst hier, und nur bei wirklich leerer Spur
 
-    async def _lauf(self, ton: str, werte: _Werte | None) -> None:
-        kommando: list[str] | None = None
+    def _baue_folge(self, gruppe: list[tuple[str, _Werte | None]]) -> list[tuple[list[str], Path, int]]:
+        """Die Töne einer Gruppe skalieren und zu je einer Datei zusammenfügen.
+
+        Gibt je Datei (Kommando, Datei, Anzahl der Töne) zurück. Töne mit anderem Format (Rate, Kanäle) können
+        nicht in dieselbe Datei und bilden eine eigene; im Normalfall ist es genau eine Datei. Der Pegel jedes
+        Tons entsteht jetzt (B6), mit den festen Werten des Tons oder aus der ``pegel_quelle``.
+        """
+        quelle: _Werte | None = None
+        teile: list[tuple[str, wave._wave_params, array.array, int]] = []
+        for ton, werte in gruppe:
+            if werte is None:
+                if quelle is None:
+                    quelle = self._pegel_quelle() if self._pegel_quelle is not None else (100, None, None)
+                werte = quelle
+            d = self.datei(ton)
+            if not d.is_file():
+                logge("sounds", "WARNING", "ton", "datei_fehlt", daten={"ton": ton, "datei": str(d)})
+                continue
+            p = pegel(ton, *werte)
+            try:
+                params, samples = lies_skaliert(d, p, self.kennlinie)
+            except (ValueError, wave.Error, EOFError, OSError) as e:
+                logge("sounds", "WARNING", "ton", "nicht_skalierbar", daten={"ton": ton, "detail": str(e)})
+                continue  # lieber still als unbegrenzt laut
+            teile.append((ton, params, samples, p))
+        laeufe: list[list[tuple[str, wave._wave_params, array.array, int]]] = []
+        for t in teile:
+            if laeufe and laeufe[-1][0][1][:3] == t[1][:3]:
+                laeufe[-1].append(t)
+            else:
+                laeufe.append([t])
+        dateien: list[tuple[list[str], Path, int]] = []
+        for lauf in laeufe:
+            params = lauf[0][1]
+            luecke = array.array("h", bytes(2 * params.nchannels * int(round(params.framerate * FOLGE_PAUSE_S))))
+            gesamt = array.array("h")
+            for i, (_ton, _params, samples, _p) in enumerate(lauf):
+                if i:
+                    gesamt.extend(luecke)
+                gesamt.extend(samples)
+            fd, name = tempfile.mkstemp(prefix=f"tobibox-ton-{lauf[0][0]}-", suffix=".wav")
+            os.close(fd)
+            tmp = Path(name)
+            self._temp.add(tmp)
+            schreibe_samples(tmp, params, gesamt)
+            dateien.append((baue_kommando(self.kommando, tmp, lauf[0][3]), tmp, len(lauf)))
+        return dateien
+
+    async def _lauf(self, gruppe: list[tuple[str, _Werte | None]]) -> None:
+        """Eine Tonfolge spielen: ein Prozess für alle Töne (Zeitlimit: ``ton_max_s`` je Ton der Folge)."""
+        namen = "+".join(t for t, _ in gruppe)
+        dateien: list[tuple[list[str], Path, int]] = []
         try:
-            if werte is None:  # Pegel erst jetzt berechnen: Kopfhörer oder Drehregler seit dem Einreihen zählen (B6)
-                werte = self._pegel_quelle() if self._pegel_quelle is not None else (100, None, None)
-            kommando = self.kommando_fuer(ton, *werte)
-            if kommando is None:
-                return
-            await asyncio.wait_for(self._starter(kommando), self.ton_max_s)
-            logge("sounds", "DEBUG", "ton", "gespielt", daten={"ton": ton, "kommando": kommando[0]})
-        except asyncio.TimeoutError:
-            logge("sounds", "WARNING", "ton", "zeitueberschreitung", daten={"ton": ton, "kommando": kommando[0] if kommando else ""})
-        except FileNotFoundError:
-            logge("sounds", "WARNING", "ton", "programm_fehlt", daten={"ton": ton, "kommando": kommando[0] if kommando else ""})
-        except OSError as e:
-            logge("sounds", "WARNING", "ton", "start_fehler", daten={"ton": ton, "detail": str(e)})
+            dateien = self._baue_folge(gruppe)
         except Exception as e:  # was auch kommt: die Tonspur darf nicht sterben (CancelledError läuft durch)
-            logge("sounds", "WARNING", "ton", "unerwartet", daten={"ton": ton, "detail": repr(e)})
+            logge("sounds", "WARNING", "ton", "unerwartet", daten={"ton": namen, "detail": repr(e)})
+        try:
+            for kommando, _tmp, anzahl in dateien:
+                await self._spiele_datei(namen, kommando, anzahl)
         finally:
-            if kommando is not None:
+            for kommando, _tmp, _anzahl in dateien:
                 self._aufraeumen(kommando)
+
+    async def _spiele_datei(self, namen: str, kommando: list[str], anzahl: int) -> None:
+        try:
+            t0 = time.monotonic()
+            await asyncio.wait_for(self._starter(kommando), self.ton_max_s * anzahl)
+            logge("sounds", "DEBUG", "ton", "gespielt",
+                  daten={"ton": namen, "kommando": kommando[0], "prozess_ms": round((time.monotonic() - t0) * 1000)})
+        except asyncio.TimeoutError:
+            logge("sounds", "WARNING", "ton", "zeitueberschreitung", daten={"ton": namen, "kommando": kommando[0]})
+        except FileNotFoundError:
+            logge("sounds", "WARNING", "ton", "programm_fehlt", daten={"ton": namen, "kommando": kommando[0]})
+        except OSError as e:
+            logge("sounds", "WARNING", "ton", "start_fehler", daten={"ton": namen, "detail": str(e)})
+        except Exception as e:  # was auch kommt: die Tonspur darf nicht sterben (CancelledError läuft durch)
+            logge("sounds", "WARNING", "ton", "unerwartet", daten={"ton": namen, "detail": repr(e)})
 
     async def warte_leer(self) -> None:
         """Warten, bis kein Ton mehr läuft oder wartet (auch nicht einer, der unterdessen dazukam)."""

@@ -640,6 +640,12 @@ Die gibt es im neuen Ordner nicht; solche Tobies spielen dann die Überraschung.
 „Medien in Ordnung.“, „Netz: Fehler.“, „Speicher in Ordnung.“. Fehlt in einem Tonordner die Datei eines
 Prüfpunkts, spielt die Box den allgemeinen Ton `pruef_ok` oder `pruef_fehler`.
 
+Die vier Ansagen der Status-Karte spielen als **eine** Datei mit einem einzigen `afplay` und je 0,15 s
+Stille dazwischen (09.11.). Vorher startete jede Ansage einen eigenen `afplay`-Prozess; der Start kostet am Mac
+Zeit. Wie lange `afplay` wirklich braucht, steht im Protokoll: Die Zeile `ton gespielt` (Stufe DEBUG) nennt
+`prozess_ms`. Ist das deutlich länger als die Dauer der Ansage, ist der Rest der Start und das Ende von
+`afplay`.
+
 Die Töne kommen aus `box/tools/make_sprache.py`; neu erzeugen geht nur im Container, nicht am Mac.
 
 ## Lautstärke der Töne und des Hörspiels (Entscheidung J, 09.11.)

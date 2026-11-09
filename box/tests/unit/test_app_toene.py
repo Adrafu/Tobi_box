@@ -266,12 +266,12 @@ async def test_mehrere_toene_nacheinander_dann_der_start(welt):
     await welt.warte(lambda: welt.hat("ton:hinweis:start"))
     await welt.ruhe(0.2)
     assert welt.journal == ["ton:hinweis:start"]  # nur einer zur Zeit
-    for n in range(3):
+    for n in range(2):  # hinweis, dann die Folge start+fehler als ein Prozess
         await welt.warte(lambda n=n: len(welt.ton.offen) > n, f"Ton {n} beginnt")
         welt.ton.beende(n)
         await welt.ruhe(0.05)
-    await welt.warte(lambda: welt.hat(f"abspielen {BAER}"), "Start nach dem dritten Ton")
-    assert [z for z in welt.journal if z.endswith(":start")] == ["ton:hinweis:start", "ton:start:start", "ton:fehler:start"]
+    await welt.warte(lambda: welt.hat(f"abspielen {BAER}"), "Start nach der Tonfolge")
+    assert [z for z in welt.journal if z.endswith(":start")] == ["ton:hinweis:start", "ton:start:start"]  # start+fehler: ein Prozess
     assert welt.journal[-1] == f"abspielen {BAER}"
     assert welt.ton.hoechstens == 1
     nie_gleichzeitig(welt.journal)
