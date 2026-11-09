@@ -12,3 +12,5 @@ die Prüfpunkt-Töne der Status-Karte (`pruef_<punkt>_ok`, `pruef_<punkt>_fehler
 - **Erzeugen:** `python box/tools/make_sprache.py` (im Container; Texte stehen als Tabelle im Skript).
   Ersatz ohne Piper: `--engine espeak` (`espeak-ng`, Stimme `de`).
 - Dieselben Texte und Stimme erzeugen auch `box/medien-sprache/`.
+- **Lautheit (Entscheidung J, 09.11.):** Jeder Satz liegt bei -18 LUFS (Zielwert von ReplayGain 2.0 und
+  `rsgain`), gemessen mit `box/tools/lautheit.py`; Werte und Prüfsummen in `box/lautheit.json`.

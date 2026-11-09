@@ -19,6 +19,10 @@ geraet = "/dev/cu.usbmodem*"
 # Gesprochene Töne ("Tobi Box ist bereit." usw.). Zurück zu den Piepsern: die Zeile löschen
 # oder auf "../sounds" setzen. Relative Pfade gelten ab dem Ordner dieser Datei.
 ordner = "../sounds/sprache"
+# Töne folgen der Lautstärke des Hörspiels (Entscheidung J). Dafür rechnet die Box mit derselben
+# Kurve wie MPD. Am Mac (MPD-Software-Mixer) ist das die Vorgabe und braucht keine Zeile.
+# Auf dem Pi (ALSA-softvol): kennlinie = "alsa_softvol" und softvol_bereich_db = max_dB - min_dB.
+# kennlinie = "mpd_software"
 
 [mpd]
 host = "localhost"
@@ -26,6 +30,8 @@ port = 6600                        # Muss zu "port" in mpd.mac.example.conf pass
 
 [lautstaerke]
 # Am Mac klemmt nur der Dienst (MPD kennt keine Maximal- und Startlautstärke).
+# Achtung: MPD setzt die Prozent nicht linear um. 20 sind rund -33 dB, 40 rund -23 dB
+# gegenüber der Datei (docs/betrieb/mac-prototyp.md). Zu leise? start/max erhöhen.
 # Start darf nicht über max liegen (sonst Fehler beim Laden).
 max = 40
 start = 20

@@ -4,6 +4,7 @@
     python tools/lautheit.py DATEI [DATEI ...]      # Messwert je Datei
     python tools/lautheit.py --ordner box/sounds     # alle WAV und MP3 darin
     python tools/lautheit.py --manifest              # box/lautheit.json neu schreiben (nach make_sounds/make_sprache)
+    python tools/lautheit.py --normalisiere DATEI    # Kopie DATEI-normalisiert.mp3 bei -18 LUFS mit ReplayGain-Tags
 
 ``box/lautheit.json`` hält je Datei die Prüfsumme (SHA-256) und den Messwert fest. So prüft ein Test
 auch dort, wo ``ffmpeg`` fehlt, dass die Dateien noch zu den gemessenen passen.
@@ -28,6 +29,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 ZIEL_LUFS = -18.0  # ReplayGain 2.0 / rsgain-Vorgabe
@@ -81,14 +83,21 @@ def spitze(pfad: str | Path) -> float:
     return max((abs(x) for x in a), default=0) / 32768
 
 
-#: Ordner (ab ``box/``), deren Audiodateien am Zielwert liegen müssen
-MANIFEST_ORDNER = ("sounds", "sounds/sprache", "medien-sprache")
+#: Ordner (ab ``box/``), deren Audiodateien am Zielwert liegen müssen. Von ``medien-sprache`` nur die
+#: erzeugten Serien: eigene Ordner dort bleiben lokal (``.gitignore``) und gehören nicht dazu.
+MANIFEST_ORDNER = (
+    "sounds",
+    "medien-sprache/test-serie",
+    "medien-sprache/lange-serie",
+    "medien-sprache/track-test",
+    "medien-sprache/ueberraschung",
+)
 WURZEL = Path(__file__).resolve().parents[1]
 MANIFEST = WURZEL / "lautheit.json"
 
 
 def manifest_dateien() -> list[Path]:
-    """Alle Audiodateien der ``MANIFEST_ORDNER``; ``sounds/sprache`` nur einmal (nicht zusätzlich unter ``sounds``)."""
+    """Alle Audiodateien der ``MANIFEST_ORDNER`` (``sounds`` enthält ``sounds/sprache``)."""
     gefunden: dict[Path, None] = {}
     for o in MANIFEST_ORDNER:
         for d in dateien(WURZEL / o):
@@ -113,6 +122,31 @@ def schreibe_manifest(ziel: Path = MANIFEST) -> dict:
     return daten
 
 
+def normalisiere(ein: Path, aus: Path) -> float:
+    """``ein`` auf ``ZIEL_LUFS`` bringen und als MP3 nach ``aus`` schreiben (für eigene Hörspiele am Mac).
+
+    Die Verstärkung kommt aus der Messung; ein Limiter (Obergrenze 0,95) verhindert Übersteuern. Die MP3
+    bekommt ReplayGain-Tags wie von ``rsgain`` (Rest zum Ziel und Spitze), damit MPD sie nicht um
+    ``replaygain_missing_preamp`` dämpft. Gibt den Messwert der Kopie zurück.
+    """
+    gain = ZIEL_LUFS - messe(ein)
+    with tempfile.TemporaryDirectory() as t:
+        roh = Path(t) / "roh.mp3"
+        subprocess.run(
+            ["ffmpeg", "-v", "error", "-y", "-i", str(ein), "-vn", "-map_metadata", "0",
+             "-af", f"volume={gain:.2f}dB,alimiter=limit=0.95", "-c:a", "libmp3lame", "-q:a", "2", str(roh)],
+            check=True,
+        )
+        neu = messe(roh)
+        subprocess.run(
+            ["ffmpeg", "-v", "error", "-y", "-i", str(roh), "-c", "copy", "-map_metadata", "0", "-id3v2_version", "3",
+             "-metadata", f"REPLAYGAIN_TRACK_GAIN={ZIEL_LUFS - neu:+.2f} dB",
+             "-metadata", f"REPLAYGAIN_TRACK_PEAK={spitze(roh):.6f}", str(aus)],
+            check=True,
+        )
+    return neu
+
+
 def dateien(ordner: Path) -> list[Path]:
     return sorted(p for p in ordner.rglob("*") if p.suffix.lower() in (".wav", ".mp3"))
 
@@ -123,12 +157,22 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--ordner", type=Path, action="append", default=[], help="alle WAV und MP3 darin messen")
     p.add_argument("--json", action="store_true", help="Ausgabe als JSON {Pfad: LUFS}")
     p.add_argument("--manifest", action="store_true", help=f"{MANIFEST.name} neu schreiben")
+    p.add_argument("--normalisiere", action="store_true",
+                   help="von jeder Datei eine Kopie NAME-normalisiert.mp3 bei -18 LUFS mit ReplayGain-Tags schreiben")
     a = p.parse_args(argv)
     if not ffmpeg_da():
         p.error("ffmpeg/ffprobe fehlen")
     if a.manifest:
         daten = schreibe_manifest()
         print(f"{MANIFEST}: {len(daten['dateien'])} Dateien")
+        return 0
+    if a.normalisiere:
+        if not a.dateien:
+            p.error("--normalisiere braucht Dateien")
+        for d in a.dateien:
+            aus = d.with_name(f"{d.stem}-normalisiert.mp3")
+            wert = normalisiere(d, aus)
+            print(f"{aus}  ({wert:.1f} LUFS)")
         return 0
     liste = list(a.dateien)
     for o in a.ordner:

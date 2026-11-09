@@ -17,10 +17,10 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: MPD installieren und Systemdienst aus
+      - name: MPD und ffmpeg installieren, Systemdienst aus
         run: |
           sudo apt-get update
-          sudo apt-get install -y mpd
+          sudo apt-get install -y mpd ffmpeg
           sudo systemctl stop mpd mpd.socket || true
           sudo systemctl disable mpd mpd.socket || true
 
