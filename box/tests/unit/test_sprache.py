@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import importlib.util
+import shutil
 import wave
 from pathlib import Path
 
@@ -19,9 +21,21 @@ MEDIEN = WURZEL / "medien-sprache"
 PUNKTE = ("leser", "medien", "netz", "speicher")
 PRUEF_NAMEN = {f"pruef_{p}_{z}" for p in PUNKTE for z in ("ok", "fehler")} | {"pruef_leser_simulation"}
 
+# Die versioniert erzeugten Serien: dieselbe Quelle wie tools/make_sprache.py (und .gitignore).
+# Eigene Ordner in box/medien-sprache/ (lokal, nicht versioniert) gehören nicht dazu.
+_spec = importlib.util.spec_from_file_location("make_sprache", WURZEL / "tools" / "make_sprache.py")
+make_sprache = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(make_sprache)
+VERSIONIERTE_SERIEN = tuple(make_sprache.SERIEN)
+
 
 def namen(ordner: Path) -> set[str]:
     return {p.stem for p in ordner.glob("*.wav")}
+
+
+def versionierte_dateien(pattern: str = "*") -> list[Path]:
+    """Dateien der versionierten Serien in box/medien-sprache/ (ohne lokale Zusatzordner)."""
+    return [p for s in VERSIONIERTE_SERIEN for p in (MEDIEN / s).rglob(pattern) if p.is_file()]
 
 
 def test_sprach_ordner_hat_alle_namen_des_melodie_ordners_und_die_pruefpunkte():
@@ -70,7 +84,8 @@ def test_melodie_ordner_bleibt_gueltig_durch_den_rueckfall():
 
 
 @pytest.fixture
-def bib():
+def bib(tmp_path):
+    """Lädt nur die versionierten Serien: sie werden in ein tmp_path kopiert, lokale Ordner bleiben außen vor."""
     import logging
 
     zeilen: list[logging.LogRecord] = []
@@ -79,12 +94,16 @@ def bib():
         def emit(self, record):
             zeilen.append(record)
 
+    kopie = tmp_path / "medien-sprache"
+    for s in VERSIONIERTE_SERIEN:
+        shutil.copytree(MEDIEN / s, kopie / s)
+
     log = logging.getLogger("tobibox")
     alt, level = log.handlers[:], log.level
     log.handlers = [H()]
     log.setLevel(logging.DEBUG)
     try:
-        b = library.lade_bibliothek(MEDIEN)
+        b = library.lade_bibliothek(kopie)
     finally:
         log.handlers = alt
         log.setLevel(level)
@@ -127,7 +146,7 @@ def test_aufbau_der_serien(bib):
 
 
 def test_mp3_sind_mono_und_klein():
-    for mp3 in MEDIEN.rglob("*.mp3"):
+    for mp3 in versionierte_dateien("*.mp3"):
         roh = mp3.read_bytes()
         start = 0
         if roh[:3] == b"ID3":  # ID3-Kopf überspringen (Größe als 4 x 7 Bit)
@@ -135,7 +154,7 @@ def test_mp3_sind_mono_und_klein():
         kopf = roh[start:start + 4]
         assert kopf[0] == 0xFF and (kopf[1] & 0xE0) == 0xE0 and (kopf[3] >> 6) == 3, mp3  # Kanalmodus 3 = mono
         assert audiodauer.dauer_s(mp3) is not None
-    assert sum(p.stat().st_size for p in MEDIEN.rglob("*") if p.is_file()) < 2_000_000
+    assert sum(p.stat().st_size for p in versionierte_dateien()) < 2_000_000
 
 
 def test_die_lange_serie_faellt_unter_die_restregel(bib):
