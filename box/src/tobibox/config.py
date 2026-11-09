@@ -59,10 +59,22 @@ STANDARD_TON_KOMMANDO: tuple[str, ...] = ("afplay", "{datei}")
 STANDARD_TON_KOMMANDO_PI: tuple[str, ...] = ("aplay", "-q", "{datei}")
 
 
+#: Kennlinien: wie MPD eine Lautstärke in Prozent in eine Verstärkung umsetzt (Entscheidung J, 09.11.).
+#: ``mpd_software``: Software-Mixer von MPD (Mac, ``mixer_type "software"``); ``alsa_softvol``: ALSA-``softvol``
+#: über den ALSA-Mixer von MPD (Pi). Quellen und Formeln: ``core-interface.md``, 8.1.
+KENNLINIE_MPD_SOFTWARE = "mpd_software"
+KENNLINIE_ALSA_SOFTVOL = "alsa_softvol"
+KENNLINIEN = (KENNLINIE_MPD_SOFTWARE, KENNLINIE_ALSA_SOFTVOL)
+#: Bereich min_dB bis max_dB des ALSA-``softvol`` in dB; die Vorgabe von ALSA ist -51 dB bis 0 dB.
+STANDARD_SOFTVOL_BEREICH_DB = 51.0
+
+
 @dataclass(frozen=True, slots=True)
 class TonKonfig:
     kommando: tuple[str, ...] = STANDARD_TON_KOMMANDO
     ordner: Path | None = None  # None: ``box/sounds`` neben dem Quellbaum
+    kennlinie: str = KENNLINIE_MPD_SOFTWARE  # Mac; Pi: "alsa_softvol"
+    softvol_bereich_db: float = STANDARD_SOFTVOL_BEREICH_DB  # nur bei "alsa_softvol": max_dB - min_dB
 
 
 @dataclass(frozen=True, slots=True)
@@ -95,7 +107,7 @@ _BEKANNT = {
     "mpd": {"host", "port"},
     "lautstaerke": {"max", "start", "kopfhoerer"},
     "protokoll": {"ziel", "datei", "ebene", "max_bytes", "anzahl"},
-    "toene": {"kommando", "ordner"},
+    "toene": {"kommando", "ordner", "kennlinie", "softvol_bereich_db"},
 }
 
 
@@ -161,6 +173,12 @@ def pruefe(roh: dict[str, Any], basis: Path | None = None) -> BoxKonfig:
     ):
         raise KonfigFehler("[toene] kommando muss eine nicht leere Liste von Texten sein")
     ton_ordner = _text(ton, "toene", "ordner", None)
+    kennlinie = _text(ton, "toene", "kennlinie", KENNLINIE_MPD_SOFTWARE)
+    if kennlinie not in KENNLINIEN:
+        raise KonfigFehler(f"[toene] kennlinie muss {' oder '.join(repr(k) for k in KENNLINIEN)} sein")
+    bereich = ton.get("softvol_bereich_db", STANDARD_SOFTVOL_BEREICH_DB)
+    if isinstance(bereich, bool) or not isinstance(bereich, (int, float)) or not 1 <= bereich <= 120:
+        raise KonfigFehler("[toene] softvol_bereich_db muss eine Zahl von 1 bis 120 sein")
 
     maximum = _ganz(vol, "lautstaerke", "max", 50, 0, 100)
     # Nur ``max`` gegeben: die Vorgaben werden auf ``max`` gekappt. Ausdrücklich
@@ -200,7 +218,9 @@ def pruefe(roh: dict[str, Any], basis: Path | None = None) -> BoxKonfig:
             max_bytes=_ganz(prot, "protokoll", "max_bytes", 1_000_000, 10_000, 100_000_000),
             anzahl=_ganz(prot, "protokoll", "anzahl", 5, 1, 50),
         ),
-        toene=TonKonfig(tuple(kommando), _pfad(ton_ordner, basis) if ton_ordner else None),
+        toene=TonKonfig(
+            tuple(kommando), _pfad(ton_ordner, basis) if ton_ordner else None, kennlinie, float(bereich)
+        ),
     )
 
 
