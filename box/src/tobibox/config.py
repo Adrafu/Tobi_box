@@ -161,6 +161,162 @@ def _pruefe_sync(roh: dict[str, Any], basis: Path, medien: Path) -> SyncKonfig |
     )
 # --- Ende [sync] -------------------------------------------------------------------------------------
 
+# --- [mqtt], [netz], [strom] (AP 3.3): Home Assistant, Netz-Klasse, Strom -------------------------------
+BOX_ID_MUSTER = re.compile(r"^[a-z0-9][a-z0-9_-]{1,23}$")  # mqtt-v1.md, Abschnitt 1
+_HOST_MUSTER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]*$")
+
+
+@dataclass(frozen=True, slots=True)
+class MqttKonfig:
+    """``[mqtt]``: Broker in Home Assistant und eigenes Konto der Box. Ohne den Abschnitt: kein HA.
+
+    Das Konto heißt wie die Box (``box_id``). Das Passwort steht nur in der lokalen ``tobibox.toml`` (gitignored).
+    """
+
+    box_id: str
+    host: str
+    port: int = 1883
+    benutzer: str = ""  # leer: wie box_id
+    passwort: str | None = field(default=None, repr=False)
+    anzeigename: str = ""  # leer: wie box_id
+
+    def __post_init__(self) -> None:
+        if not self.benutzer:
+            object.__setattr__(self, "benutzer", self.box_id)
+        if not self.anzeigename:
+            object.__setattr__(self, "anzeigename", self.box_id)
+
+
+#: ``[netz] quelle``: ``sim`` (Mac, Test: Netz und Zeit werden vorgegeben) oder ``networkmanager`` (Pi)
+NETZ_QUELLEN = ("sim", "networkmanager")
+
+
+@dataclass(frozen=True, slots=True)
+class NetzKonfig:
+    """``[netz]``: Namen (SSIDs) von Heim-WLAN und Handy-Hotspot. Sie stehen nie im Repo."""
+
+    quelle: str = "sim"
+    heim_ssid: str | None = None
+    hotspot_ssid: str | None = None
+    nas_host: str | None = None  # ``home`` gilt nur, wenn der NAS erreichbar ist (ohne Eintrag: Heim-SSID genügt)
+    nas_port: int = 873
+    intervall_s: int = 10
+
+    @property
+    def simulation(self) -> bool:
+        return self.quelle == "sim"
+
+
+STROM_QUELLEN = ("sim", "pisugar")
+STANDARD_ABSCHALT_KOMMANDO: tuple[str, ...] = ("systemctl", "poweroff")
+
+
+@dataclass(frozen=True, slots=True)
+class StromKonfig:
+    """``[strom]``: Akku, Lader, Taste und Uhr des PiSugar (``pisugar-server``) oder Simulation."""
+
+    quelle: str = "sim"
+    pisugar_host: str = "127.0.0.1"
+    pisugar_port: int = 8423
+    tiefstand_prozent: int = 5
+    intervall_s: int = 10
+    abschalt_kommando: tuple[str, ...] = STANDARD_ABSCHALT_KOMMANDO
+
+    @property
+    def simulation(self) -> bool:
+        return self.quelle == "sim"
+
+
+_MQTT_SCHLUESSEL = {"box_id", "host", "port", "benutzer", "passwort", "anzeigename"}
+_NETZ_SCHLUESSEL = {"quelle", "heim_ssid", "hotspot_ssid", "nas_host", "nas_port", "intervall_s"}
+_STROM_SCHLUESSEL = {
+    "quelle", "pisugar_host", "pisugar_port", "tiefstand_prozent", "intervall_s", "abschalt_kommando",
+}
+
+
+def _pruefe_mqtt(roh: dict[str, Any]) -> MqttKonfig | None:
+    a = roh.get("mqtt")
+    if a is None:
+        return None
+    a = _abschnitt(roh, "mqtt")
+    box_id = _text(a, "mqtt", "box_id", None)
+    if box_id is None or not BOX_ID_MUSTER.match(box_id):
+        raise KonfigFehler("[mqtt] box_id fehlt oder passt nicht zu [a-z0-9][a-z0-9_-]{1,23} (z. B. 'box1')")
+    host = _text(a, "mqtt", "host", None)
+    if host is None or not _HOST_MUSTER.match(host):
+        raise KonfigFehler("[mqtt] host fehlt (Name oder Tailscale-Adresse des Brokers)")
+    benutzer = _text(a, "mqtt", "benutzer", box_id) or box_id
+    if benutzer != box_id:
+        # mqtt-v1.md, Abschnitt 1: Der Benutzername ist der Box-Name (die Rechte im Broker hängen daran).
+        raise KonfigFehler("[mqtt] benutzer muss gleich box_id sein (ein Konto je Box)")
+    anzeige = _text(a, "mqtt", "anzeigename", box_id) or box_id
+    if len(anzeige) > 40 or any(ord(c) < 32 for c in anzeige):
+        raise KonfigFehler("[mqtt] anzeigename darf höchstens 40 Zeichen haben und keine Steuerzeichen")
+    return MqttKonfig(
+        box_id=box_id,
+        host=host,
+        port=_ganz(a, "mqtt", "port", 1883, 1, 65535),
+        benutzer=benutzer,
+        passwort=_text(a, "mqtt", "passwort", None),
+        anzeigename=anzeige,
+    )
+
+
+def _pruefe_ssid(a: dict[str, Any], schluessel: str) -> str | None:
+    wert = _text(a, "netz", schluessel, None)
+    if wert is not None and len(wert.encode("utf-8")) > 32:
+        raise KonfigFehler(f"[netz] {schluessel} darf höchstens 32 Bytes lang sein (WLAN-Name)")
+    return wert
+
+
+def _pruefe_netz(roh: dict[str, Any]) -> NetzKonfig | None:
+    if roh.get("netz") is None:
+        return None
+    a = _abschnitt(roh, "netz")
+    quelle = _text(a, "netz", "quelle", "sim")
+    if quelle not in NETZ_QUELLEN:
+        raise KonfigFehler(f"[netz] quelle muss {' oder '.join(repr(q) for q in NETZ_QUELLEN)} sein")
+    heim, hotspot = _pruefe_ssid(a, "heim_ssid"), _pruefe_ssid(a, "hotspot_ssid")
+    if heim is not None and heim == hotspot:
+        raise KonfigFehler("[netz] heim_ssid und hotspot_ssid müssen verschieden sein")
+    if quelle == "networkmanager" and heim is None and hotspot is None:
+        raise KonfigFehler("[netz] quelle='networkmanager' braucht 'heim_ssid' und/oder 'hotspot_ssid'")
+    nas = _text(a, "netz", "nas_host", None)
+    if nas is not None and not _HOST_MUSTER.match(nas):
+        raise KonfigFehler("[netz] nas_host muss ein Name oder eine Adresse sein")
+    return NetzKonfig(
+        quelle=quelle or "sim",
+        heim_ssid=heim,
+        hotspot_ssid=hotspot,
+        nas_host=nas,
+        nas_port=_ganz(a, "netz", "nas_port", 873, 1, 65535),
+        intervall_s=_ganz(a, "netz", "intervall_s", 10, 1, 3600),
+    )
+
+
+def _pruefe_strom(roh: dict[str, Any]) -> StromKonfig | None:
+    if roh.get("strom") is None:
+        return None
+    a = _abschnitt(roh, "strom")
+    quelle = _text(a, "strom", "quelle", "sim")
+    if quelle not in STROM_QUELLEN:
+        raise KonfigFehler(f"[strom] quelle muss {' oder '.join(repr(q) for q in STROM_QUELLEN)} sein")
+    kommando = a.get("abschalt_kommando", list(STANDARD_ABSCHALT_KOMMANDO))
+    if not isinstance(kommando, list) or not kommando or not all(isinstance(k, str) and k for k in kommando):
+        raise KonfigFehler("[strom] abschalt_kommando muss eine nicht leere Liste von Texten sein")
+    host = _text(a, "strom", "pisugar_host", "127.0.0.1")
+    if host is None or not _HOST_MUSTER.match(host):
+        raise KonfigFehler("[strom] pisugar_host muss ein Name oder eine Adresse sein")
+    return StromKonfig(
+        quelle=quelle or "sim",
+        pisugar_host=host,
+        pisugar_port=_ganz(a, "strom", "pisugar_port", 8423, 1, 65535),
+        tiefstand_prozent=_ganz(a, "strom", "tiefstand_prozent", 5, 1, 50),
+        intervall_s=_ganz(a, "strom", "intervall_s", 10, 1, 3600),
+        abschalt_kommando=tuple(kommando),
+    )
+# --- Ende [mqtt], [netz], [strom] ----------------------------------------------------------------------
+
 
 @dataclass(frozen=True, slots=True)
 class BoxKonfig:
@@ -171,6 +327,9 @@ class BoxKonfig:
     protokoll: ProtokollKonfig = field(default_factory=ProtokollKonfig)
     toene: TonKonfig = field(default_factory=TonKonfig)
     sync: SyncKonfig | None = None  # [sync]; None: kein Medien-Sync
+    mqtt: MqttKonfig | None = None  # [mqtt]; None: kein Home Assistant
+    netz: NetzKonfig | None = None  # [netz]; None: keine Netz-Klasse
+    strom: StromKonfig | None = None  # [strom]; None: keine Strom-Schnittstelle
 
     def geraete_einstellungen(self) -> ev.GeraeteEinstellungen:
         """Das erste Ereignis des Kerns (``core-interface.md``, 3.3)."""
@@ -186,6 +345,9 @@ _BEKANNT = {
     "protokoll": {"ziel", "datei", "ebene", "max_bytes", "anzahl"},
     "toene": {"kommando", "ordner", "kennlinie", "softvol_bereich_db"},
     "sync": _SYNC_SCHLUESSEL,
+    "mqtt": _MQTT_SCHLUESSEL,
+    "netz": _NETZ_SCHLUESSEL,
+    "strom": _STROM_SCHLUESSEL,
 }
 
 
@@ -300,6 +462,9 @@ def pruefe(roh: dict[str, Any], basis: Path | None = None) -> BoxKonfig:
             tuple(kommando), _pfad(ton_ordner, basis) if ton_ordner else None, kennlinie, float(bereich)
         ),
         sync=_pruefe_sync(roh, basis, _pfad(medien, basis)),
+        mqtt=_pruefe_mqtt(roh),
+        netz=_pruefe_netz(roh),
+        strom=_pruefe_strom(roh),
     )
 
 

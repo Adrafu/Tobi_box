@@ -180,3 +180,123 @@ def test_toene_kennlinie_vorgabe_und_eigene_werte():
 def test_toene_kennlinie_ungueltig(toene):
     with pytest.raises(KonfigFehler):
         config.pruefe({"pfade": {"zustand": "v", "medien": "m"}, "toene": toene}, Path("/b"))
+
+
+# --- [mqtt], [netz], [strom] (AP 3.3) ---------------------------------------------------------
+
+
+def test_ohne_mqtt_netz_strom_laeuft_alles_wie_heute(tmp_path):
+    k = config.lade(schreibe(tmp_path, MINIMAL))
+    assert k.mqtt is None and k.netz is None and k.strom is None
+
+
+def test_mqtt_netz_strom_voll(tmp_path):
+    k = config.lade(schreibe(tmp_path, MINIMAL + """
+[mqtt]
+box_id = "box1"
+host = "100.64.0.7"
+port = 1884
+passwort = "geheim-nur-im-test"
+anzeigename = "Küche"
+
+[netz]
+quelle = "networkmanager"
+heim_ssid = "MeinHeim"
+hotspot_ssid = "MeinHandy"
+nas_host = "nas.example.ts.net"
+nas_port = 874
+intervall_s = 5
+
+[strom]
+quelle = "pisugar"
+pisugar_port = 8424
+tiefstand_prozent = 8
+intervall_s = 20
+abschalt_kommando = ["sudo", "poweroff"]
+"""))
+    m = k.mqtt
+    assert (m.box_id, m.host, m.port, m.benutzer, m.passwort, m.anzeigename) == (
+        "box1", "100.64.0.7", 1884, "box1", "geheim-nur-im-test", "Küche")
+    assert "geheim" not in repr(m)  # das Passwort steht nie in einer Ausgabe der Konfiguration
+    n = k.netz
+    assert (n.quelle, n.heim_ssid, n.hotspot_ssid, n.nas_host, n.nas_port, n.intervall_s) == (
+        "networkmanager", "MeinHeim", "MeinHandy", "nas.example.ts.net", 874, 5)
+    assert not n.simulation
+    s = k.strom
+    assert (s.quelle, s.pisugar_host, s.pisugar_port, s.tiefstand_prozent, s.intervall_s) == (
+        "pisugar", "127.0.0.1", 8424, 8, 20)
+    assert s.abschalt_kommando == ("sudo", "poweroff")
+
+
+def test_mqtt_vorgaben(tmp_path):
+    k = config.lade(schreibe(tmp_path, MINIMAL + '\n[mqtt]\nbox_id = "box2"\nhost = "broker"\n'))
+    assert (k.mqtt.port, k.mqtt.benutzer, k.mqtt.anzeigename, k.mqtt.passwort) == (1883, "box2", "box2", None)
+
+
+@pytest.mark.parametrize(
+    "mqtt",
+    [
+        'host = "broker"',  # box_id fehlt
+        'box_id = "Box 1"\nhost = "broker"',  # Muster
+        'box_id = "b"\nhost = "broker"',  # zu kurz
+        'box_id = "box1"',  # host fehlt
+        'box_id = "box1"\nhost = "broker"\nport = 0',
+        'box_id = "box1"\nhost = "broker"\nbenutzer = "anderer"',  # ein Konto je Box
+        'box_id = "box1"\nhost = "broker"\npasswort = ""',
+        'box_id = "box1"\nhost = "broker"\nanzeigename = "' + "x" * 41 + '"',
+    ],
+)
+def test_mqtt_ungueltig(tmp_path, mqtt):
+    with pytest.raises(KonfigFehler, match=r"\[mqtt\]"):
+        config.lade(schreibe(tmp_path, MINIMAL + "\n[mqtt]\n" + mqtt + "\n"))
+
+
+def test_netz_vorgaben_sind_simulation(tmp_path):
+    k = config.lade(schreibe(tmp_path, MINIMAL + "\n[netz]\n"))
+    assert k.netz.simulation and k.netz.heim_ssid is None and k.netz.nas_host is None
+    assert (k.netz.nas_port, k.netz.intervall_s) == (873, 10)
+
+
+@pytest.mark.parametrize(
+    "netz",
+    [
+        'quelle = "wlan"',
+        'quelle = "networkmanager"',  # ohne SSID
+        'heim_ssid = "A"\nhotspot_ssid = "A"',
+        'heim_ssid = "' + "x" * 33 + '"',
+        'heim_ssid = ""',
+        'nas_host = "nas; rm -rf"',
+        "intervall_s = 0",
+    ],
+)
+def test_netz_ungueltig(tmp_path, netz):
+    with pytest.raises(KonfigFehler, match=r"\[netz\]"):
+        config.lade(schreibe(tmp_path, MINIMAL + "\n[netz]\n" + netz + "\n"))
+
+
+@pytest.mark.parametrize(
+    "strom",
+    [
+        'quelle = "usv"',
+        "tiefstand_prozent = 0",
+        "tiefstand_prozent = 60",
+        "abschalt_kommando = []",
+        'abschalt_kommando = "poweroff"',
+        'pisugar_host = "a b"',
+    ],
+)
+def test_strom_ungueltig(tmp_path, strom):
+    with pytest.raises(KonfigFehler, match=r"\[strom\]"):
+        config.lade(schreibe(tmp_path, MINIMAL + "\n[strom]\n" + strom + "\n"))
+
+
+def test_strom_vorgaben(tmp_path):
+    k = config.lade(schreibe(tmp_path, MINIMAL + "\n[strom]\n"))
+    assert k.strom.simulation and k.strom.tiefstand_prozent == 5 and k.strom.abschalt_kommando == ("systemctl", "poweroff")
+
+
+def test_mqtt_passwort_wird_nicht_protokolliert():
+    """Der Protokollfilter ersetzt Passwort-Schlüssel (``eventlog``), auch in verschachtelten Daten."""
+    from tobibox import eventlog
+
+    assert eventlog._bereinige({"mqtt": {"passwort": "x", "host": "h"}}) == {"mqtt": {"passwort": "***", "host": "h"}}

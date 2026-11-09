@@ -34,6 +34,9 @@ class Statussammler:
         self.zustand: ev.ZustandMelden | None = None
         self.konfig: ev.Konfig | None = None
         self.letzter_fehler: dict[str, Any] | None = None
+        # 12.1: ``sync`` aus ``SyncGestartet`` / ``SyncFertig`` / ``SyncAbgebrochen``, ``update`` aus ``UpdateGestartet`` / ``SelbsttestErgebnis``
+        self.sync: dict[str, Any] = {"zustand": "idle", "letzter_ende": None, "ergebnis": None, "grund": None, "neu": 0}
+        self.update: dict[str, Any] = {"zustand": "ok", "version": __version__, "grund": None}
         self.jetzt: Jetzt | None = None
 
     # -- füttern ---------------------------------------------------------------------
@@ -57,6 +60,18 @@ class Statussammler:
             self.lader = e.am_lader
         elif isinstance(e, ev.KonfigGeladen):
             self.konfig = e.konfig
+        elif isinstance(e, ev.SyncGestartet):
+            self.sync = {**self.sync, "zustand": "laeuft"}
+        elif isinstance(e, ev.SyncFertig):
+            self.sync = {"zustand": "idle", "letzter_ende": zeitstempel(jetzt.wall), "ergebnis": "ok", "grund": None, "neu": e.neu}
+        elif isinstance(e, ev.SyncAbgebrochen):
+            # ``regel``: die Regel hat den Sync nicht zugelassen, das ist kein Fehler (12.1)
+            zustand = "idle" if e.grund == "regel" else "fehler"
+            self.sync = {**self.sync, "zustand": zustand, "letzter_ende": zeitstempel(jetzt.wall), "ergebnis": "abgebrochen", "grund": e.grund}
+        elif isinstance(e, ev.UpdateGestartet):
+            self.update = {"zustand": "testing", "version": e.version, "grund": None}
+        elif isinstance(e, ev.SelbsttestErgebnis):
+            self.update = {**self.update, "zustand": "ok" if e.bestanden else "failed", "grund": None if e.bestanden else e.grund}
 
     def befehl(self, b: ev.Befehl, jetzt: Jetzt) -> None:
         """Die vom Kern ausgegebenen Befehle: ``ZustandMelden`` und ``Protokoll`` mit Ebene ERROR."""
@@ -81,7 +96,7 @@ class Statussammler:
         return "ok"
 
     def als_dict(self, jetzt: Jetzt, serien: Sequence[ev.Serie], frei_mb: int | None) -> dict[str, Any]:
-        """Status-JSON nach ``mqtt-v1.md`` 3.3 (``sync`` und ``update`` in Stufe 2 fest: kein Sync, kein Update)."""
+        """Status-JSON nach ``mqtt-v1.md`` 3.3 (``sync`` und ``update`` folgen den Ereignissen von ``sync`` und ``update``; ohne sie: kein Sync, kein Update)."""
         z = self.zustand
         serie = None
         if z is not None and z.serie_id is not None:
@@ -100,7 +115,7 @@ class Statussammler:
             "akku_prozent": self.akku,
             "lader": self.lader,
             "netz": self.netz,
-            "sync": {"zustand": "idle", "letzter_ende": None, "ergebnis": None, "grund": None, "neu": 0},
+            "sync": dict(self.sync),
             "speicher_frei_mb": frei_mb,
             "version": __version__,
             "firmware": self.hallo.fw if self.hallo is not None else None,
@@ -110,6 +125,6 @@ class Statussammler:
             "zeitquelle": jetzt.zeit_quelle,
             "zeit_ok": jetzt.zeit_ok,
             "konfig": {"revision": k.revision, "liste_id": k.liste_id} if k is not None else {"revision": 0, "liste_id": ""},
-            "update": {"zustand": "ok", "version": __version__, "grund": None},
+            "update": dict(self.update),
         }
 
