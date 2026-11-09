@@ -15,17 +15,17 @@ from tobibox.store import KonfigStore, ResumeStore
 
 
 @pytest.fixture
-def box(tmp_path):
-    medien = erzeuge_medien(tmp_path / "medien")
-    zustand = tmp_path / "var"
+def box(kurz):  # kurzer Pfad: ``sim.sock`` liegt im Zustandsverzeichnis (macOS)
+    medien = erzeuge_medien(kurz / "medien")
+    zustand = kurz / "var"
     zustand.mkdir()
-    toml = tmp_path / "tobibox.toml"
+    toml = kurz / "tobibox.toml"
     toml.write_text(
         f'[pfade]\nzustand = "{zustand}"\nmedien = "{medien}"\n'
-        f'[protokoll]\nziel = "datei"\ndatei = "{tmp_path / "log" / "tobibox.log"}"\n',
+        f'[protokoll]\nziel = "datei"\ndatei = "{kurz / "log" / "tobibox.log"}"\n',
         encoding="utf-8",
     )
-    return tmp_path, toml
+    return kurz, toml
 
 
 def lauf(*argv):
@@ -227,7 +227,7 @@ def test_sim_ohne_rechte_auf_den_socket_ist_exitcode_4_und_nicht_nicht_erreichba
     assert "keine Berechtigung" in fehler and "nicht erreichbar" not in fehler
 
 
-def test_frage_socket_reicht_permission_error_weiter_und_meldet_sonst_none(tmp_path, monkeypatch):
+def test_frage_socket_reicht_permission_error_weiter_und_meldet_sonst_none(kurz, monkeypatch):
     import socket
 
     class Verboten:
@@ -248,9 +248,9 @@ def test_frage_socket_reicht_permission_error_weiter_und_meldet_sonst_none(tmp_p
 
     monkeypatch.setattr(socket, "socket", Verboten)
     with pytest.raises(PermissionError):
-        cli._frage_socket(tmp_path / "sim.sock", {"befehl": "status"})
+        cli._frage_socket(kurz / "sim.sock", {"befehl": "status"})
     monkeypatch.undo()
-    assert cli._frage_socket(tmp_path / "gibt-es-nicht.sock", {"befehl": "status"}) is None
+    assert cli._frage_socket(kurz / "gibt-es-nicht.sock", {"befehl": "status"}) is None
 
 
 def test_status_ohne_rechte_auf_den_socket_sagt_es(box, monkeypatch):
