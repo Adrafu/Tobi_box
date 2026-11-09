@@ -65,9 +65,10 @@ def messe(pfad: str | Path) -> float:
     if lauf.returncode != 0:
         raise RuntimeError(f"{pfad.name}: ffmpeg-Fehler: {lauf.stderr.strip()[-300:]}")
     treffer = _INTEGRIERT.findall(lauf.stdout + lauf.stderr)
-    if not treffer or treffer[-1] == "-inf":
+    wert = float(treffer[-1]) if treffer else float("-inf")
+    if wert <= -70.0:  # unter dem absoluten Gate von R128: nichts messbar
         raise RuntimeError(f"{pfad.name}: keine Lautheit messbar (Stille?)")
-    return float(treffer[-1])
+    return wert
 
 
 def spitze(pfad: str | Path) -> float:
