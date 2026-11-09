@@ -23,6 +23,11 @@ ordner = "../sounds/sprache"
 # Kurve wie MPD. Am Mac (MPD-Software-Mixer) ist das die Vorgabe und braucht keine Zeile.
 # Auf dem Pi (ALSA-softvol): kennlinie = "alsa_softvol" und softvol_bereich_db = max_dB - min_dB.
 # kennlinie = "mpd_software"
+# Abspielprogramm für Töne am Mac (empfohlen, braucht "brew install sox"):
+# 1. Grund: afplay braucht je Ton rund 1 s Leerlauf, play (sox) nur etwa 0,15 s.
+# 2. "pad 0 0.15" hängt 0,15 s Stille an. Ohne sie schneidet play das Ende ab (das letzte "f" fehlt).
+# 3. Zurück zu afplay: die Zeile kommando unten löschen.
+kommando = ["play", "-q", "{datei}", "pad", "0", "0.15"]
 
 [mpd]
 host = "localhost"

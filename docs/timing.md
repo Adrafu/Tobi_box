@@ -201,6 +201,8 @@ Eine Zeile je Schritt, ein Wert je Schritt (Median und Höchstwert über mindest
 | Lücken 0,8 s und 1,0 s: Pausen in 20 Versuchen | 0 | | – | |
 | Zyklen mit mehr als 200 ms (`cycle_ms` in `HB`) | selten | | – | |
 
+Vorab-Messung am Mac (09.11.), Ansage 1,2 s: `afplay` braucht 2,2 s insgesamt (rund 1 s Leerlauf je Ton), `play` (sox) nur etwa 0,15 s Leerlauf mit `pad 0 0.15` (ohne `pad` fehlt das Ende). Die Beispielkonfiguration für den Mac nutzt `play`, siehe `docs/betrieb/mac-prototyp.md`.
+
 Messung am: ______ · Mac-Modell: ______ · Ausgabe (Lautsprecher/Kopfhörer): ______ ·
 Version `tobiboxd`: ______ · Firmware (`HELLO fw=`/`build=`): ______
 

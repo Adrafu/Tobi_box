@@ -27,7 +27,7 @@ Homebrew muss installiert sein (Prüfen: `brew --version`).
 brew install mpd python@3.11 sox
 ```
 
-`sox` brauchst du nur für die Messung in 11.7 (`rec`, `sox`).
+`sox` brauchst du für die Messung in 11.7 (`rec`, `sox`) und für die Töne am Mac (`play`, siehe Abschnitt „Sprach-Töne und gesprochene Testmedien“).
 
 Prüfen:
 
@@ -645,6 +645,13 @@ Stille dazwischen (09.11.). Vorher startete jede Ansage einen eigenen `afplay`-P
 Zeit. Wie lange `afplay` wirklich braucht, steht im Protokoll: Die Zeile `ton gespielt` (Stufe DEBUG) nennt
 `prozess_ms`. Ist das deutlich länger als die Dauer der Ansage, ist der Rest der Start und das Ende von
 `afplay`.
+
+**Töne und Pausen am Mac (Messung 09.11.).** Mit `afplay` vergehen bei einer Ansage von 1,2 s insgesamt
+2,2 s, also rund 1 s Leerlauf je Ton. Mit `play` aus sox (`brew install sox`) sind es nur etwa 0,15 s.
+`play` schneidet aber das Ende ab: Das letzte „f“ in „Leg den neuen Tobie auf.“ fehlt. Deshalb steht in
+`tobibox.mac.example.toml` `kommando = ["play", "-q", "{datei}", "pad", "0", "0.15"]`: `pad 0 0.15`
+hängt 0,15 s Stille an, dann ist die Ansage vollständig. Willst du wieder `afplay`, lösche diese Zeile.
+Auf dem Pi nutzt die Box `aplay`, dort wird dieses Problem nicht erwartet. Das messen wir beim Pi-Probelauf.
 
 Die Töne kommen aus `box/tools/make_sprache.py`; neu erzeugen geht nur im Container, nicht am Mac.
 
