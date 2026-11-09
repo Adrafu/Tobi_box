@@ -205,3 +205,19 @@ Lauf der Tests: `pytest -q tests/unit tests/cuj` ist grün. `tests/integration/t
 - **Skalierung der Töne:** `skaliere_wav` rundet und klemmt auf 16 Bit; Dauer je Datei hier höchstens 16 ms
   (auf dem Pi 3A+ grob das 10- bis 15-fache, also unter 0,3 s; blockiert den Event-Loop kurz, ohne Befund).
 - **Lautheit der Töne und Testmedien:** `pytest tests/unit/test_lautheit.py` mit echtem `ffmpeg`: 90 Tests grün.
+
+## Auflösung
+
+Entscheidungen der Projektleitung, umgesetzt am 09.11. Die Belege des Prüfers (`tonrace`, `fade`, `tod`, `pausrace`)
+sind als Tests nachgebaut (`tests/integration/test_toene_player_mpd.py`, `tests/unit/test_app.py`, `tests/unit/test_sounds.py`).
+
+- **B1 behoben:** Ton-Epoche in `player.py` (`pausieren` und `abspielen` erhöhen sie vor der Sperre, `ton_pause_beginn` beginnt nur bei gleicher Epoche); das Flag löschen `_pausieren` und `abspielen` unter der Sperre. Integrationstest mit echtem `Player` und echtem MPD.
+- **B2 behoben:** `app.py` führt Grenze und Lautstärke für Töne aus dem Kern nach, ohne die Rampen `ausblenden` und `gute_nacht`; Test mit echtem Kern und echter Rampe (Pegel 40 statt 1).
+- **B3 behoben:** `_lauf` fängt `except Exception`; `nach` liegt in `try/finally`; `_leer` wird nur bei leerer Spur gesetzt (Reste werden verworfen); `warte_leer` gibt dem Loop immer die Kontrolle ab. Tests dazu.
+- **B4 behoben:** `pausieren` prüft `_serie` erst unter der Sperre; Test mit gehaltener Sperre (MPD pausiert).
+- **B5 behoben:** `_trenne`/`_verbindung_weg` und `_klemme` beenden die Ton-Pause; `ton_pause_ende` verlangt Phase `spielt`. Tests mit echtem MPD-Neustart und mit Fake-Client.
+- **B6 behoben:** `Toene` bekommt `pegel_quelle`; Pegel und Skalierung entstehen erst beim Abspielen jedes Tons. Test mit Wechsel der Lautstärke zwischen Einreihen und Abspielen.
+- **B7 behoben:** Die Grenze gewinnt immer, auch beim Hinweiston (`min(grenze, …)` als letzter Schritt); 8.1 und `data-model.md` angepasst. Test: Grenze 5 → `hinweis` mit 5.
+- **B8 behoben:** Ein Ton mitten in einem Start wartet auf den Start (Haken `vor` wartet auf die Sperre) und hält das Hörspiel danach an; `ton_pause_ende` befragt `fortsetzen` und `halten` erst unter der Sperre, damit zwischen zwei Tonfolgen oder bei einem `Abspielen` am Ende nichts aufblitzt. Verbleibende Grenze (wenige Millisekunden, wenn `pause 0` schon gesendet ist) steht in 6.5 Punkt 6e.
+- **B9 behoben:** `audiodauer` meldet MP3 mit wechselnder Bitrate in den ersten 256 KiB ohne Xing-/VBRI-Kopf als `None`; die Restregel gilt nicht, wenn `position_s` mehr als 2 s hinter der Trackdauer liegt (Protokoll `dauer_unbekannt`, `grund=position_hinter_dauer`). Test mit echter `ffmpeg`-Datei. Bekannte Grenze: VBR ohne Kopf, die erst nach 256 KiB wechselt, bleibt unerkannt.
+- **Testlücken geschlossen:** Integrationstests mit echtem MPD für MPD-Neustart im Ton, Tobie-Wechsel im Ton und `stop()` mitten im Ton (`test_toene_mpd.py`).

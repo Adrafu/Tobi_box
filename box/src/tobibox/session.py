@@ -37,7 +37,8 @@ STUMM_AUSBLENDEN_S = 3.0
 REST_FERTIG_S = 15.0
 #: Folgen unter dieser Gesamtdauer sind von der Restregel ausgenommen (Entscheidung I, 09.11.)
 REST_REGEL_MIN_FOLGE_S = 60.0
-
+#: So weit darf ``position_s`` über der Trackdauer liegen, damit die Restregel noch gilt (falsche Dauer, B9)
+REST_TOLERANZ_S = 2.0
 _EPS = 1e-9
 
 Modus = Literal["leer", "spielt", "pausiert", "beendet", "gehalten", "unbekannt"]
@@ -158,7 +159,8 @@ def _rest_regel(
     Gemessen am gespeicherten Zeiger (vor dem Rücksprung) bis zum Ende der ganzen Folge (alle Tracks).
     Unter ``REST_FERTIG_S``: Folgen-Tobie beginnt die Folge von vorn, Serie spielt die nächste Folge von vorn
     (wie bei ``folgenende``, nach der letzten Folge Folge 1). Folgen unter ``REST_REGEL_MIN_FOLGE_S`` und
-    Folgen mit unbekannter Dauer sind ausgenommen.
+    Folgen mit unbekannter Dauer sind ausgenommen, ebenso ein Zeiger, dessen Position mehr als
+    ``REST_TOLERANZ_S`` hinter dem Ende seines Tracks liegt (die Dauer stimmt dann nicht).
     """
     if ort.folge_fehlte or ort.track_fehlte:
         return ort, []
@@ -173,6 +175,11 @@ def _rest_regel(
     gesamt = sum(dauern)
     if gesamt < REST_REGEL_MIN_FOLGE_S - _EPS:
         return ort, []
+    if zeiger.track >= len(dauern) or zeiger.position_s > dauern[zeiger.track] + REST_TOLERANZ_S:
+        # Die Position liegt hinter dem Ende ihres Tracks: die Dauer stimmt nicht (zum Beispiel falsch geschätzt
+        # bei MP3 mit variabler Bitrate ohne Kopf). Wie „Dauer unbekannt“ behandeln, nichts überspringen.
+        return ort, [_prot("INFO", "rest_regel", "dauer_unbekannt", vorgang, uid=uid, art=art, serie=serie.id, folge=ort.datei,
+                           grund="position_hinter_dauer")]
     rest = gesamt - (sum(dauern[: zeiger.track]) + zeiger.position_s)
     if rest >= REST_FERTIG_S - _EPS:
         return ort, []

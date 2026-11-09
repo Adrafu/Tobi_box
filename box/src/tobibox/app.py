@@ -41,6 +41,7 @@ from .player import Player
 from .reader import Leser
 from .sounds import Kennlinie, Toene
 from .status import Statussammler
+from .volume import GRENZE_AUSBLENDEN, GRENZE_GUTE_NACHT, klemmen, wirksame_grenze
 from .store import KonfigStore, ResumeStore, raeume_auf
 
 TAKT_S = 0.1
@@ -127,10 +128,13 @@ class App:
             kennlinie=Kennlinie(konfig.toene.kennlinie, konfig.toene.softvol_bereich_db),
             vor=self._ton_vor,
             nach=self._ton_nach,
+            pegel_quelle=self._ton_pegel,
         )
         self._start: _Start | None = None  # verzögerter Start, solange er auf die Töne wartet
-        self.grenze = konfig.lautstaerke.max  # zuletzt ausgegebene wirksame Grenze
-        # zuletzt ausgegebene wirksame Lautstärke der Sitzung; ein Ton folgt ihr (Entscheidung J, 09.11.)
+        # Pegel der Töne (Entscheidung J, 09.11.): die **dauerhafte** wirksame Grenze und Lautstärke des Kerns, ohne die
+        # Rampen „ausblenden“ und „gute_nacht“ (sonst wären Töne nach dem Ausblenden unhörbar, B2). Sie werden nach
+        # jedem Kern-Schritt nachgeführt (``_ton_pegel_nachfuehren``); vor dem ersten Befehl gilt die Konfiguration.
+        self.grenze = konfig.lautstaerke.max
         self.lautstaerke = min(konfig.lautstaerke.start, konfig.lautstaerke.max)
         self.bereit = asyncio.Event()
         self._stopp = asyncio.Event()
@@ -160,6 +164,7 @@ class App:
         if isinstance(e, (ev.Aufgelegt, ev.Gesperrt)) or (isinstance(e, ev.Abgehoben) and e.vorgang):
             self._letzter_vorgang = e.vorgang
         self.kern, befehle = core.step(self.kern, e, jetzt)
+        self._ton_pegel_nachfuehren()
         self.ausgang.nach_kern(self.kern)
         auszufuehren: list[ev.Befehl] = []
         for b in befehle:
@@ -174,6 +179,19 @@ class App:
             self.befehle.put_nowait((b, jetzt.mono))
         self._marker_nachfuehren()
         return befehle
+
+    def _ton_pegel_nachfuehren(self) -> None:
+        """``grenze`` und ``lautstaerke`` für Töne aus dem Zustand des Kerns (ohne Ausblende-Rampen)."""
+        k = self.kern
+        if k.ausgegeben is None:
+            return  # noch kein ``LautstaerkeSetzen``: die Werte aus der Konfiguration gelten
+        dauerhaft = {n: w for n, w in k.grenzen.items() if n not in (GRENZE_AUSBLENDEN, GRENZE_GUTE_NACHT)}
+        self.grenze = wirksame_grenze(dauerhaft)
+        self.lautstaerke = klemmen(k.wunsch, dauerhaft)
+
+    def _ton_pegel(self) -> tuple[int, int, int | None]:
+        """Die Werte für den Pegel eines Tons, im Augenblick, in dem er an der Reihe ist (B6)."""
+        return self.grenze, self.lautstaerke, self._hinweis_pegel()
 
     @staticmethod
     def _toene_vor_start(befehle: Sequence[ev.Befehl]) -> list[ev.Befehl]:
@@ -233,8 +251,6 @@ class App:
 
     async def _fuehre_aus(self, b: ev.Befehl, mono: float) -> None:
         if isinstance(b, ev.LautstaerkeSetzen):
-            self.grenze = b.grenze
-            self.lautstaerke = max(0, min(b.prozent, b.grenze))
             await self.player.lautstaerke_setzen(b.prozent, b.grenze)
         elif isinstance(b, ev.AusgangWaehlen):
             await self.player.ausgang_waehlen(b.ausgang)
@@ -250,7 +266,7 @@ class App:
         elif isinstance(b, ev.ZeigerSpeichern):
             await asyncio.to_thread(self.resume.speichern, b, mono)
         elif isinstance(b, ev.TonSpielen):
-            self.toene.spiele(b.ton, self.grenze, self.lautstaerke, self._hinweis_pegel())
+            self.toene.spiele(b.ton)
         elif isinstance(b, ev.Protokoll):
             eventlog.logge_befehl(b)  # normalerweise schon in ``verarbeite`` geschrieben
         elif isinstance(b, ev.LeserPing):
@@ -342,8 +358,12 @@ class App:
 
     async def _ton_nach(self) -> None:
         """Ende einer Tonfolge: an derselben Stelle fortsetzen, außer ein neuer Start wartet schon."""
-        s = self._start
-        await self.player.ton_pause_ende(fortsetzen=not (s is not None and s.wartet))
+        # Beides wird erst unter der Sperre des Players befragt, kurz vor dem Fortsetzen (B8): kommt ein neuer Start
+        # oder ein weiterer Ton in diesem Augenblick, blitzt das alte Hörspiel nicht noch einmal auf.
+        await self.player.ton_pause_ende(
+            fortsetzen=lambda: not (self._start is not None and self._start.wartet),
+            halten=lambda: bool(getattr(self.toene, "folge_wartet", False)),
+        )
 
     async def _melde(self, b: ev.Melden) -> None:
         """Unbekannten oder gelernten Tobie in ``unknown.json`` eintragen (``outbox``)."""
@@ -369,7 +389,7 @@ class App:
             "ok" if bericht.alles_ok else "fehler", b.vorgang,
             daten={p.name: ("ok" if p.ok else f"FEHLER {p.detail}") for p in bericht.punkte},
         )
-        self.toene.spiele_folge(bericht.toene, self.grenze, self.lautstaerke, self._hinweis_pegel())
+        self.toene.spiele_folge(bericht.toene)
 
     def status_auskunft(self) -> dict:
         """Antwort auf ``sim`` ``status`` (für ``tobibox status``): Status-JSON, Prüfpunkte, offene Meldungen."""

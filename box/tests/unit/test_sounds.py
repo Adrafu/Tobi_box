@@ -49,6 +49,11 @@ from tobibox.sounds import (
         ("hinweis", 100, 40, 25, 25),
         ("hinweis", 100, 0, None, HINWEIS_MINDEST),  # unter „stumm“ (Lautstärke 0): Untergrenze
         ("hinweis", 100, 40, 2, HINWEIS_MINDEST),
+        ("hinweis", 5, 5, None, 5),  # B7: Kopfhörer-Grenze 5 → der Hinweiston spielt mit 5, nicht mit 10
+        ("hinweis", 5, 0, None, 5),
+        ("hinweis", 0, 0, None, 0),
+        ("hinweis", 10, 0, None, 10),  # die Untergrenze 10 gilt, solange sie unter der Grenze liegt
+        ("hinweis", 12, 40, 30, 12),
     ],
 )
 def test_pegel(ton, grenze, lautstaerke, hinweis_pegel, erwartet):
@@ -65,8 +70,9 @@ def test_pegel_regel_gilt_fuer_alle_werte():
                 assert p <= grenze
                 assert p == min(grenze, max(TON_MINDEST, laut))
             h = pegel("hinweis", grenze, laut)
+            assert h <= grenze  # B7: die Grenze gewinnt immer, auch für den Hinweiston
             assert h <= max(laut, HINWEIS_MINDEST)
-            assert h >= HINWEIS_MINDEST
+            assert h == min(grenze, max(HINWEIS_MINDEST, min(HINWEIS_PEGEL_VORGABE, laut)))
 
 
 def test_konstanten_der_pegelregel():
@@ -486,3 +492,162 @@ async def test_stop_bricht_ab_und_ruft_keinen_haken(tmp_path):
     await t.stop()
     assert haken == [] and not t.beschaeftigt
     assert not _sleep30_laeuft()
+
+
+# --- B3: Die Tonspur stirbt an keiner Ausnahme -----------------------------------------------------------
+
+
+async def test_unerwartete_ausnahme_beim_start_haelt_die_spur_nicht_an(tmp_path):
+    """B3: ``ValueError`` statt ``OSError``: ``nach`` läuft, der nächste Ton spielt, ``warte_leer`` kehrt zurück."""
+    haken: list[str] = []
+    gespielt: list[str] = []
+
+    async def vor():
+        haken.append("vor")
+
+    async def nach():
+        haken.append("nach")
+
+    async def starter(k):
+        gespielt.append(Path(k[-1]).name)
+        if len(gespielt) == 1:
+            raise ValueError("unerwartet")
+
+    schreibe_wav(tmp_path / "start.wav")
+    schreibe_wav(tmp_path / "hinweis.wav")
+    t = Toene(tmp_path, STANDARD_TON_KOMMANDO, starter=starter, vor=vor, nach=nach)
+    t.spiele_folge(["start", "hinweis"])
+    await asyncio.wait_for(t.warte_leer(), 2.0)
+    assert len(gespielt) == 2  # auch der zweite Ton spielt
+    assert haken == ["vor", "nach"]
+    assert not t.beschaeftigt and t._leer.is_set() and not t._eintraege
+    assert not t._temp  # keine Temp-Dateien liegengeblieben
+
+
+async def test_nach_haken_laeuft_auch_wenn_die_spur_unerwartet_abbricht(tmp_path):
+    """B3: Der Haken ``nach`` liegt in ``finally``; ``_leer`` wird nur bei leerer Spur gesetzt."""
+    haken: list[str] = []
+
+    async def nach():
+        haken.append("nach")
+
+    async def starter(k):
+        pass
+
+    schreibe_wav(tmp_path / "start.wav")
+    t = Toene(tmp_path, STANDARD_TON_KOMMANDO, starter=starter, nach=nach)
+
+    async def kaputt(ton, werte):
+        raise RuntimeError("Fehler in der Spur selbst")
+
+    t._lauf = kaputt  # type: ignore[method-assign]
+    t.spiele_folge(["start", "start", "start"])
+    await asyncio.wait_for(t.warte_leer(), 2.0)
+    assert haken == ["nach"]  # trotz der Ausnahme
+    assert not t.beschaeftigt and not t._eintraege and t._leer.is_set()
+
+
+async def test_warte_leer_blockiert_den_event_loop_nie(tmp_path):
+    """B3: Auch bei gesetztem ``_leer`` und wartenden Einträgen blockiert ``warte_leer`` den Loop nicht."""
+    schreibe_wav(tmp_path / "start.wav")
+    t = Toene(tmp_path, STANDARD_TON_KOMMANDO)
+    t._eintraege.append(("start", None))  # künstlicher Zustand: beschäftigt, aber kein Arbeiter, ``_leer`` gesetzt
+    assert t.beschaeftigt and t._leer.is_set()
+    lief = []
+
+    async def anderer():
+        await asyncio.sleep(0.05)
+        lief.append(1)
+        t._eintraege.clear()
+
+    a = asyncio.create_task(anderer())
+    await asyncio.wait_for(t.warte_leer(), 2.0)  # früher: Endlosschleife ohne ``await``
+    await a
+    assert lief == [1]
+
+
+async def test_ausnahme_der_pegel_quelle_wird_aufgefangen(tmp_path):
+    gespielt: list = []
+
+    async def starter(k):
+        gespielt.append(k)
+
+    def kaputt():
+        raise RuntimeError("quelle kaputt")
+
+    schreibe_wav(tmp_path / "start.wav")
+    t = Toene(tmp_path, STANDARD_TON_KOMMANDO, starter=starter, pegel_quelle=kaputt)
+    t.spiele("start")
+    await asyncio.wait_for(t.warte_leer(), 2.0)
+    assert gespielt == [] and not t.beschaeftigt
+
+
+# --- B6: Der Pegel entsteht erst beim Abspielen ----------------------------------------------------------
+
+
+async def test_pegel_wird_erst_beim_abspielen_berechnet(tmp_path):
+    """B6: Ein wartender Ton hört auf die Lautstärke von jetzt, nicht auf die vom Einreihen."""
+    gesehen: list[list[int]] = []
+    tor = asyncio.Event()
+    werte = {"grenze": 60, "laut": 60}
+
+    async def starter(k):
+        gesehen.append(lies_samples(k[-1]))
+        if len(gesehen) == 1:
+            await tor.wait()  # der erste Ton läuft; die anderen warten
+
+    schreibe_wav(tmp_path / "start.wav")
+    t = Toene(tmp_path, STANDARD_TON_KOMMANDO, starter=starter, pegel_quelle=lambda: (werte["grenze"], werte["laut"], None))
+    t.spiele("start")
+    t.spiele_folge(["start", "start"])
+    await asyncio.sleep(0.05)
+    assert len(gesehen) == 1
+    werte.update(grenze=20, laut=20)  # Kopfhörer gesteckt, während die Töne warten
+    tor.set()
+    await asyncio.wait_for(t.warte_leer(), 2.0)
+    assert len(gesehen) == 3
+    hoch = max(abs(x) for x in gesehen[0])
+    assert hoch == round(max(abs(x) for x in SAMPLES) * mpd_software(60))
+    for g in gesehen[1:]:
+        assert max(abs(x) for x in g) == round(max(abs(x) for x in SAMPLES) * mpd_software(20))
+
+
+async def test_feste_werte_gelten_weiter_und_haben_vorrang_vor_der_quelle(tmp_path):
+    g: list = []
+    t = mk(tmp_path, g)
+    t._pegel_quelle = lambda: (100, 100, None)
+    t.spiele("start", 25, 25)
+    await t.warte()
+    assert t.gesehen[0] == [round(x * mpd_software(25)) for x in SAMPLES]
+
+
+# --- B7: Die Grenze gewinnt immer ------------------------------------------------------------------------
+
+
+async def test_hinweis_spielt_unter_der_grenze_auch_wenn_sie_unter_der_untergrenze_liegt(tmp_path):
+    """Kopfhörer-Grenze 5: der Hinweiston spielt mit 5, nicht mit 10."""
+    g: list = []
+    t = mk(tmp_path, g)
+    t.spiele("hinweis", 5, 0)
+    await t.warte()
+    assert t.gesehen[0] == [round(x * mpd_software(5)) for x in SAMPLES]
+
+
+async def test_folge_wartet_zeigt_weitere_toene(tmp_path):
+    """B8: ``folge_wartet`` sagt dem Player, dass gleich noch ein Ton kommt (die Pause bleibt)."""
+    tor = asyncio.Event()
+
+    async def starter(k):
+        await tor.wait()
+
+    schreibe_wav(tmp_path / "start.wav")
+    t = Toene(tmp_path, STANDARD_TON_KOMMANDO, starter=starter)
+    assert not t.folge_wartet
+    t.spiele("start", 50)
+    await asyncio.sleep(0.02)
+    assert not t.folge_wartet  # der einzige Ton läuft
+    t.spiele("start", 50)
+    assert t.folge_wartet
+    tor.set()
+    await t.warte_leer()
+    assert not t.folge_wartet

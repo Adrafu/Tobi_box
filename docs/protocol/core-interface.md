@@ -37,6 +37,15 @@
     Stelle fort, ohne Zeiger. Der Kern bleibt unverändert und rein; die Regel steht in Abschnitt 6.5 und 8.1,
     Punkt 32. `data-model.md` ist nachgezogen (`ton_pegel`, `hinweis_pegel`).
 
+*   **Änderung 09.11. (Befunde des Code-Reviews zu I, J und L, `docs/egm/software-prototyp/code_review_ijl.md`):**
+    Die **Grenze gewinnt immer**: Für alle Töne, auch `hinweis`, ist `min(grenze, …)` der letzte Schritt; die
+    Untergrenze 10 gilt nur, solange sie unter der Grenze liegt (8.1). Töne richten sich nach der **dauerhaften**
+    Grenze und Lautstärke des Kerns, ohne die Rampen „ausblenden“ und „gute_nacht“, und der Pegel entsteht erst,
+    wenn ein Ton an der Reihe ist (8.1). Die kurze Pause für einen Ton endet verlässlich bei einem echten
+    `Pausieren`, bei `Abspielen`, bei Verbindungsverlust und bei der Klemmung; ein Ton, der mitten in einem Start
+    kommt, wartet auf den Start (6.5 Punkt 6e). `audiodauer` meldet MP3 mit wechselnder Bitrate ohne Kopf als
+    „Dauer unbekannt“, und die Restregel gilt nicht bei einer Position hinter dem Ende des Tracks (6.3).
+
 Die **Tabellen „Wiedergabe-Sitzung“, „Lernmodus“, „Ruhe-Regeln“ und
 „Strom / Leerlauf“** in „Kern-Zustände“ des Designs sind Teil dieses Vertrags
 und gelten unverändert. Dieses Dokument legt fest, **wie** die Teilautomaten
@@ -489,6 +498,14 @@ Die Funktionen stehen in `pointer.py` (rein). `session` benutzt sie so:
         die fast fertig gehörte Folge, `rest_s` der Rest auf 1 Nachkommastelle, `naechste` die Folge, die spielt.
         Ist die Dauer unbekannt und gibt es einen Zeiger: `Protokoll(INFO, ereignis="rest_regel",
         ergebnis="dauer_unbekannt", daten={"uid", "art", "serie", "folge"})`. Bei Folgen unter 60 s keine Zeile.
+    *   **Position hinter dem Track (Review B9):** Liegt `Zeiger.position_s` mehr als `REST_TOLERANZ_S` = 2 s hinter
+        der Dauer ihres Tracks (oder gibt es den Track in `Serie.dauern` nicht), stimmt die Dauer nicht (zum Beispiel
+        falsch geschätzt). Die Regel wird dann nicht angewendet, wie bei unbekannter Dauer; die Zeile hat
+        `ergebnis="dauer_unbekannt"` und zusätzlich `grund="position_hinter_dauer"`. `audiodauer` meldet MP3 mit
+        wechselnder Bitrate in den ersten Frames und ohne Xing-/VBRI-Kopf als unbekannt (`None`). *Bekannte Grenze:*
+        Eine solche Datei, die in den ersten 256 KiB gleichbleibend kodiert ist und erst später wechselt, bleibt
+        unerkannt; die Position-hinter-Dauer-Prüfung fängt sie nur, wenn der Zeiger weit genug hinter der
+        geschätzten Dauer liegt.
 *   **Track-Wechsel (`TrackWechsel`) (Entscheidung F, 05.11.):** Der Zeiger wird auf den neuen Track,
     Position 0 gesetzt; `ZeigerSpeichern(grund="trackwechsel")`. **Keine Pause**,
     der Zustand bleibt. Die Pause nach jeder Folge (Entscheidung A)
@@ -617,6 +634,31 @@ des Kerns unverändert.
         echtes `Pausieren` oder `Abspielen`, endet die kurze Pause, und nach dem Ton wird nichts fortgesetzt.
         Wartet nach den Tönen schon ein neuer Start, wird das alte Hörspiel nicht noch einmal fortgesetzt. Beim
         Beenden des Dienstes setzt nichts fort.
+        *Wie der Player das sicherstellt (Review B1, B4, B5, B8):*
+        *   **Ton-Epoche.** `pausieren` und `abspielen` erhöhen beim Eintritt (vor der Sperre des Players) einen
+            Zähler. `ton_pause_beginn` merkt ihn sich, bevor es auf die Sperre wartet, und beginnt die kurze Pause
+            nur, wenn er gleich geblieben ist. So kann ein echtes `Pausieren`, das zwischen dem Aufruf und der
+            Sperre kommt, die kurze Pause nicht mehr nachträglich setzen. Das Flag der kurzen Pause löschen außerdem
+            `_pausieren` und `abspielen` **unter** der Sperre.
+        *   **`Pausieren` prüft unter der Sperre.** Ob schon eine Folge gesetzt ist, wird erst nach dem Erhalt der
+            Sperre geprüft: Ein Start, der die Sperre noch hat, setzt die Folge, und das `Pausieren` dahinter wirkt
+            dann (es überholt den Start nicht und geht auch nicht verloren).
+        *   **Ende der kurzen Pause.** Auch ein Verbindungsverlust (`_trenne`, `_verbindung_weg`) und die Klemmung
+            (`_klemme` hält MPD an) beenden sie. `ton_pause_ende` setzt nur fort, wenn der Player die Phase
+            `spielt` kennt.
+        *   **Ton mitten in einem Start (Review B8).** Läuft ein Start (Phase `aus`, `abspielen` hält die Sperre),
+            wartet `ton_pause_beginn` auf die Sperre und hält das Hörspiel danach an. Der Ton beginnt erst, wenn
+            der Haken zurückgekehrt ist, und überlagert den Start so nicht. Begründung: Der Haken `vor` ruft der
+            Tonspur-Arbeiter vor dem Ton auf; ihn auf den Start warten zu lassen ist der kleinste sichere Eingriff,
+            weil keine zweite Zustandsmaschine zwischen `app.py` und Player nötig wird (ein Zurückhalten des Starts
+            ginge nicht, denn der Start läuft schon).
+        *   **Kein Aufblitzen (Review B8).** `ton_pause_ende` bekommt zwei Funktionen, die der Player erst **unter der
+            Sperre**, kurz vor dem Fortsetzen, aufruft: `fortsetzen` (ein neuer Start wartet: nicht fortsetzen)
+            und `halten` (gleich folgt ein weiterer Ton der Spur: die kurze Pause bleibt bestehen, nichts wird
+            fortgesetzt, und `ton_pause_beginn` hält dann nicht noch einmal an). Weder zwischen zwei Tonfolgen noch bei
+            einem `Abspielen`, das genau am Ende der Tonfolge ankommt, setzt das alte Hörspiel noch kurz fort.
+            *Bekannte Grenze:* Kommt das `Abspielen` erst, nachdem `pause 0` gesendet wurde, spielt das alte Hörspiel
+            bis zum Ersetzen durch den neuen Start einen Moment (wenige Millisekunden); das ist kein Fehler.
     f.  **Zeitbudget.** Ein bekannter Tobie ohne Ton (Normalfall) hat keine Tonspur im Weg: `Abspielen` läuft sofort
         im Ausführer, ohne eigene Aufgabe und ohne Warten. Die Zeit bis zum Hörspiel (Ziel unter 1,0 s,
         `docs/timing.md`) ändert sich dort nicht. Wo ein Ton kommt (unbekannter Tobie, Lernmodus, Status-Karte),
@@ -729,24 +771,30 @@ aller aktiven Grenzen**, und keine Lautstärke liegt darüber.
     die skalierte Datei mit `afplay {datei}` (Mac) bzw. `aplay -q {datei}` (Pi). Es gibt kein
     `afplay -v`. Die Skalierung benutzt **dieselbe Kennlinie wie MPD** (unten), damit ein Ton bei
     gleicher Lautstärke so laut klingt wie das Hörspiel.
-*   **Pegel in Prozent** (Entscheidung J, 09.11.). Der Pegel steht auf der Skala der
-    MPD-Lautstärke (0 bis 100). `app.py` gibt `sounds` beim Ausführen zwei Werte aus dem zuletzt
-    ausgegebenen `LautstaerkeSetzen(prozent, grenze)` mit (`TonSpielen` bekommt kein Feld, der Kern
-    bleibt rein und kennt keine Tonpegel):
-    *   `grenze`: die **wirksame Grenze** aus Abschnitt 8;
-    *   `lautstaerke = max(0, min(prozent, grenze))`: die **aktuelle Lautstärke der Sitzung** nach
-        allen Grenzen. Vor dem ersten Befehl gilt `min(lautstaerke_start, lautstaerke_max)`.
-        Sie ändert sich mit dem Drehregler, mit Rampen (Ausblenden, Absenken) und mit jeder Grenze;
-        ein Ton folgt ihr.
+*   **Pegel in Prozent** (Entscheidung J, 09.11.; geändert nach dem Code-Review, B2, B6, B7). Der Pegel steht auf der Skala der
+    MPD-Lautstärke (0 bis 100). `app.py` führt nach jedem Schritt des Kerns zwei Werte nach, die `sounds` verwendet
+    (`TonSpielen` bekommt kein Feld, der Kern bleibt rein und kennt keine Tonpegel):
+    *   `grenze`: die **dauerhafte wirksame Grenze** aus Abschnitt 8, also das Minimum aller Grenzen **ohne** die
+        Rampen `ausblenden` und `gute_nacht` (Review B2: Ohne diese Ausnahme blieben Töne nach dem Ausblenden
+        hängen bei 1 % und wären nicht zu hören; „stumm“ senkt damit nicht die Töne, sondern hält nur das Hörspiel an);
+    *   `lautstaerke = max(0, min(wunsch, grenze))`: die **Lautstärke der Sitzung** nach den dauerhaften Grenzen, mit
+        dem Wunsch des Kerns (`KernZustand.wunsch`). Vor dem ersten `LautstaerkeSetzen` gilt
+        `min(lautstaerke_start, lautstaerke_max)`. Sie ändert sich mit dem Drehregler und mit jeder dauerhaften Grenze
+        (Kopfhörer, „leiser“, Maximum); ein Ton folgt ihr.
+    *   **Zeitpunkt (Review B6):** Der Pegel und die Skalierung entstehen **erst, wenn der Ton an der Reihe ist**
+        (`Toene` ruft dafür `pegel_quelle` von `app.py` auf), nicht beim Einreihen. Ein Ton, der hinter einem anderen
+        oder in einer Status-Karte wartet, hört auf einen Kopfhörer oder auf den Regler, den es seit dem Einreihen gibt.
+    *   **Die Grenze gewinnt immer (Review B7, Gehörschutz).** Für **alle** Töne, auch `hinweis`, ist
+        `min(grenze, …)` der letzte Schritt.
     *   Alle Töne außer `hinweis`: `pegel = min(grenze, max(TON_MINDEST, lautstaerke))`
         mit `TON_MINDEST` = 10. Der Ton spielt also so laut wie das Hörspiel; die Untergrenze 10
-        hält ihn hörbar (z. B. bei Lautstärke 0 nach einem Ausblenden); **die Grenze gilt
-        weiter** (Kopfhörer, „leiser“, Maximum) und steht über der Untergrenze.
+        hält ihn hörbar (z. B. bei Lautstärke 0), **gilt aber nur, solange sie unter der Grenze liegt**.
+        Bei einer Kopfhörer-Grenze 5 spielt jeder Ton mit 5.
     *   `hinweis` (der leise Hinweiston unter „stumm“, 6.2 Regel 2):
-        `pegel = max(HINWEIS_MINDEST, min(hinweis_pegel, lautstaerke))` mit `hinweis_pegel` =
+        `pegel = min(grenze, max(HINWEIS_MINDEST, min(hinweis_pegel, lautstaerke)))` mit `hinweis_pegel` =
         Vorgabe 15 (`HINWEIS_PEGEL_VORGABE`) und `HINWEIS_MINDEST` = 10. Er ist leiser als die
         Lautstärke und übersteigt sie nur durch die Untergrenze (unter „stumm“ ist die Lautstärke
-        meist 0). Die Untergrenze war vor Entscheidung J 5; auf der Kennlinie von MPD sind 5 % rund
+        meist 0), nie aber die Grenze. Die Untergrenze war vor Entscheidung J 5; auf der Kennlinie von MPD sind 5 % rund
         −48 dB und nicht mehr zu hören, 10 % sind rund −41 dB.
     *   `ton_pegel` (`config.json`) hat **keine Wirkung mehr**: `app.py` liest es nicht. Das Feld bleibt
         im Schema gültig (alte Dateien laden unverändert); `data-model.md` ist am 09.11. nachgezogen.
@@ -1195,6 +1243,7 @@ Modulkonstanten mit genau diesen Namen. Es gibt keine eigene Konstanten-Datei.
 | `REST_REGEL_MIN_FOLGE_S` | 60 | `session.py` (kürzere Folgen sind von der Restregel ausgenommen; Entscheidung I, 09.11.) |
 | `TON_MINDEST` | 10 | `sounds.py` (Untergrenze der Ton-Lautstärke in Prozent, Entscheidung J, 09.11.) |
 | `HINWEIS_PEGEL_VORGABE`, `HINWEIS_MINDEST` | 15, 10 | `sounds.py` (Hinweiston, Entscheidung J, 09.11.; die Untergrenze war 5) |
+| `REST_TOLERANZ_S` | 2 | `session.py` (so weit darf die Position hinter der Trackdauer liegen, damit die Restregel noch gilt; Review B9) |
 | `ZIEL_LUFS`, `TOLERANZ_LU` | −18, 1 | `box/tools/lautheit.py` (Lautheit der Töne und Testmedien, Entscheidung J, 09.11.) |
 | `LERN_FRIST_S` | 120 | `learn.py` |
 | `LERN_ANTWORT_FRIST_S` | 10 | `session.py` (Wartezeit auf HA, wenn im Lernmodus ein Tobie aufgelegt wird, `mono`, Punkt 9.8) (Entscheidung H, 07.11.) |
@@ -1420,7 +1469,9 @@ Projektleitung (P) entschieden oder aus dem Goldfisch-Review übernommen
     (−8 dB), das Hörspiel mit der MPD-Lautstärke 20 % auf der **exponentiellen** Kennlinie des
     MPD-Software-Mixers (−33 dB), also rund 25 dB leiser. Neu: Pegelregel und Kennlinie wie in 8.1,
     Untergrenze 10, Töne und Testmedien bei −18 LUFS, Testmedien mit ReplayGain-Tags. Der Kern bleibt
-    rein; `app.py` leitet die Lautstärke aus dem zuletzt ausgegebenen `LautstaerkeSetzen` ab.
+    rein; `app.py` führt die Lautstärke aus dem Zustand des Kerns nach. *Nachtrag (Code-Review, 09.11.):* ohne die
+    Rampen `ausblenden` und `gute_nacht`; der Pegel entsteht erst beim Abspielen des Tons; die Grenze gewinnt immer,
+    auch beim Hinweiston (8.1).
 32. **Bestätigt (09.11., Entscheidung L, T): Es spielen nie zwei Sachen gleichzeitig.**
     Anlass am Mac mit den Sprach-Tönen: Im Lernmodus kam „Lernmodus beendet.“ gleichzeitig mit „Test-Serie,
     Folge drei.“, und „Diesen Tobie kenne ich noch nicht …“ überlappte sich mit der Überraschungs-Serie. Töne

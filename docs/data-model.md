@@ -14,7 +14,8 @@
     historischen Gründen `figur`.
 *   **Änderung 09.11. (Entscheidung J, 09.11.; nachgezogen mit Entscheidung L, 09.11.):** `ton_pegel` hat
     keine Wirkung mehr; `hinweis_pegel` hat die Untergrenze 10 statt 5 (Tabelle in Abschnitt 3,
-    Punkt 20 der Festlegungen). Entscheidung L (nie zwei Sachen gleichzeitig) ändert kein Schema.
+    Punkt 20 der Festlegungen). Entscheidung L (nie zwei Sachen gleichzeitig) ändert kein Schema. Nach dem Code-Review (09.11.): Die Grenze
+    gewinnt immer, auch für den Hinweiston (Zeile `hinweis_pegel`, Abschnitt 3).
 
 ## 1. Allgemeine Regeln
 
@@ -179,7 +180,7 @@ Struktur ist die Nachricht auf dem Thema `tobibox/config` (`mqtt-v1.md`).
 | `gute_nacht.timer_min` | int 1–240 | ja | Dauer des Timers (Vorschlag 30) |
 | `gute_nacht.ausblenden_s` | int 5–600 | ja | Dauer des Ausblendens (Vorschlag 60) |
 | `ton_pegel` | int 0–100 | nein | **Ohne Wirkung** (seit Entscheidung J, 09.11.). Die Box liest das Feld nicht; Töne folgen der aktuellen Lautstärke der Sitzung (`core-interface.md`, Abschnitt 8.1). Das Feld bleibt gültig, alte Dateien laden unverändert. |
-| `hinweis_pegel` | int 0–100 | nein | Pegel des leisen Hinweistons unter „stumm“ in Prozent; Vorgabe 15 (Feld fehlt). Der Hinweiston spielt mit `max(10, min(hinweis_pegel, Lautstärke))`, also nie leiser als die Untergrenze 10 (`HINWEIS_MINDEST`; vor Entscheidung J war sie 5) und sonst nie lauter als die aktuelle Lautstärke; die wirksame Grenze gilt weiter (`core-interface.md`, Abschnitt 8.1). |
+| `hinweis_pegel` | int 0–100 | nein | Pegel des leisen Hinweistons unter „stumm“ in Prozent; Vorgabe 15 (Feld fehlt). Der Hinweiston spielt mit `min(Grenze, max(10, min(hinweis_pegel, Lautstärke)))`, also nie leiser als die Untergrenze 10 (`HINWEIS_MINDEST`; vor Entscheidung J war sie 5) und sonst nie lauter als die aktuelle Lautstärke. **Die wirksame Grenze gewinnt immer** (Gehörschutz): Liegt sie unter 10 (zum Beispiel Kopfhörer-Grenze 5), spielt der Hinweiston mit der Grenze (`core-interface.md`, Abschnitt 8.1). |
 
 Regeln:
 

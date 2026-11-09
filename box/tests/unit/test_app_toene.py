@@ -109,11 +109,15 @@ class AufnahmePlayer:
         self.journal.append("ton_pause_beginn")
         return True
 
-    async def ton_pause_ende(self, fortsetzen=True):
+    async def ton_pause_ende(self, fortsetzen=True, halten=None):
         """Wie der echte Player: nur fortsetzen, wenn die kurze Pause noch gilt."""
         if not self.ton_pause:
             return False
+        if halten is not None and halten():
+            return False
         self.ton_pause = False
+        if callable(fortsetzen):
+            fortsetzen = fortsetzen()
         if fortsetzen:
             self.journal.append("ton_pause_ende fortsetzen")
         else:

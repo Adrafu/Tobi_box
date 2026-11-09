@@ -111,6 +111,9 @@ class Player:
         self._nichts_zu_spielen = False  # Start hinter dem letzten spielbaren Track
         self._phase = "aus"  # "aus" | "spielt" | "pause"
         self._ton_pause = False  # MPD ist nur für einen Ton angehalten (Entscheidung L); kein echtes Pausieren
+        # Ton-Epoche: ``abspielen`` und ``pausieren`` erhöhen sie sofort beim Eintritt (ohne Sperre). Wer die kurze
+        # Pause beginnen will, merkt sie sich vor dem Warten auf die Sperre und beginnt nur, wenn sie gleich blieb.
+        self._ton_epoche = 0
         self._elapsed = 0.0
         self._dauer = 0.0
         self._letzte_pos_mono = 0.0
@@ -186,8 +189,9 @@ class Player:
         if not self._verbunden:
             self._fehler(b.serie_id, b.datei, "mpd_fehler", "nicht mit MPD verbunden")
             return
-        self._ton_pause = False  # ein neuer Start gewinnt gegen die kurze Pause für einen Ton
+        self._ton_epoche += 1  # ein neuer Start gewinnt gegen eine kurze Pause für einen Ton, die noch wartet
         async with self._lock:
+            self._ton_pause = False  # ... und gegen eine, die schon gilt (unter der Sperre: kein Wettlauf, B1)
             self._serie, self._datei = b.serie_id, b.datei
             self._gen = b.gen
             self._phase = "aus"
@@ -214,18 +218,31 @@ class Player:
 
     async def pausieren(self, b: ev.Pausieren) -> None:
         """Pause. Ist MPD schon gestoppt (Folgenende), geschieht nichts am Player."""
-        self._ton_pause = False  # eine echte Pause gewinnt: nach dem Ton wird nichts fortgesetzt
-        if not self._verbunden or self._serie is None or self._datei is None:
+        # Eine echte Pause gewinnt: nach dem Ton wird nichts fortgesetzt. Die Epoche hält eine wartende
+        # ``ton_pause_beginn`` auf; ein schon gesetztes Flag löscht ``_pausieren`` unter der Sperre (B1).
+        self._ton_epoche += 1
+        self._ton_pause = False
+        if not self._verbunden:
             return
         async with self._lock:
+            # erst unter der Sperre: ein Start, der die Sperre noch hat, setzt die Folge (B4)
+            if self._serie is None or self._datei is None:
+                return
             await self._schutz(self._pausieren(), self._serie, self._datei)
 
     async def ton_pause_beginn(self) -> bool:
-        """Vor einem Ton: spielt MPD gerade, anhalten (nicht als echte Pause). ``True``, wenn angehalten."""
-        if not self._verbunden or self._phase != "spielt" or self._ton_pause:
+        """Vor einem Ton: spielt MPD gerade, anhalten (nicht als echte Pause). ``True``, wenn angehalten.
+
+        Läuft gerade ein Start (Phase „aus“, ``abspielen`` hält die Sperre), wartet der Aufruf auf ihn und
+        hält das Hörspiel danach an: der Ton überlagert den Start nie (B8).
+        """
+        if not self._verbunden or self._phase not in ("spielt", "aus") or self._ton_pause:
             return False
+        epoche = self._ton_epoche
         async with self._lock:
-            if not self._verbunden or self._phase != "spielt" or self._client is None:
+            if epoche != self._ton_epoche:
+                return False  # ein echtes ``Pausieren`` oder ein neues ``Abspielen`` kam dazwischen (B1)
+            if not self._verbunden or self._phase != "spielt" or self._client is None or self._ton_pause:
                 return False
             try:
                 if (await self._status()).get("state") != "play":
@@ -242,10 +259,15 @@ class Player:
         logge("player", "DEBUG", "ton_pause", "beginn")
         return True
 
-    async def ton_pause_ende(self, fortsetzen: bool = True) -> bool:
+    async def ton_pause_ende(
+        self, fortsetzen: bool | Callable[[], bool] = True, halten: Callable[[], bool] | None = None
+    ) -> bool:
         """Nach dem Ton: MPD an derselben Stelle fortsetzen (``pause 0``), wenn die kurze Pause noch gilt.
 
-        ``fortsetzen=False`` beendet die kurze Pause, ohne MPD fortzusetzen (ein neuer Start folgt).
+        ``fortsetzen=False`` beendet die kurze Pause, ohne MPD fortzusetzen (ein neuer Start folgt). Eine
+        Funktion wird erst unter der Sperre befragt, kurz vor dem Fortsetzen (B8: ein Start, der unterdessen
+        kam, lässt das alte Hörspiel nicht noch einmal aufblitzen). ``halten`` liefert ``True``, wenn gleich
+        ein weiterer Ton folgt: die kurze Pause bleibt dann bestehen, nichts wird fortgesetzt.
         ``True``, wenn fortgesetzt wurde.
         """
         if not self._ton_pause:
@@ -253,8 +275,18 @@ class Player:
         async with self._lock:
             if not self._ton_pause:  # ``Pausieren`` oder ``Abspielen`` kam dazwischen
                 return False
+            if halten is not None and halten():
+                return False  # die Pause gilt weiter; der nächste Aufruf setzt fort
             self._ton_pause = False
-            if not fortsetzen or self._stopp or not self._verbunden or self._client is None:
+            if callable(fortsetzen):
+                fortsetzen = fortsetzen()
+            if (
+                not fortsetzen
+                or self._stopp
+                or not self._verbunden
+                or self._client is None
+                or self._phase != "spielt"  # B5: nur ein Hörspiel, das der Player noch als spielend kennt
+            ):
                 return False
             try:
                 if (await self._status()).get("state") != "pause":
@@ -425,6 +457,7 @@ class Player:
 
     async def _pausieren(self) -> None:
         assert self._client is not None and self._serie is not None and self._datei is not None
+        self._ton_pause = False  # unter der Sperre: eine echte Pause beendet die kurze Pause verlässlich (B1)
         st = await self._status()
         zustand = st.get("state")
         if zustand == "play":
@@ -523,6 +556,7 @@ class Player:
     # ------------------------------------------------------------------
 
     def _trenne(self) -> None:
+        self._ton_pause = False  # B5: nach einem Verbindungsverlust gilt keine kurze Pause mehr
         c, self._client = self._client, None
         if c is not None:
             with contextlib.suppress(Exception):
@@ -616,6 +650,7 @@ class Player:
             if not self._klemmfehler_gemeldet:
                 self._klemmfehler_gemeldet = True
                 logge("player", "ERROR", "lautstaerke_geklemmt", "fehler", daten={"detail": str(e), "grenze": self._grenze})
+            self._ton_pause = False  # B5: MPD ist jetzt wirklich angehalten, nichts darf es nach dem Ton fortsetzen
             try:
                 await self._mpd(self._client.pause(1))
             except CommandError:

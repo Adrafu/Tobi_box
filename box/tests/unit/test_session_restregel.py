@@ -145,6 +145,28 @@ def test_unbekannte_dauer_ist_ausgenommen_und_kommt_ins_protokoll():
     assert z.ergebnis == "dauer_unbekannt" and z.ebene == "INFO" and z.daten["folge"] == "z.mp3"
 
 
+@pytest.mark.parametrize("pos, gilt", [(125.5, True), (125.6, True), (125.7, False), (300.0, False)])
+def test_position_hinter_der_trackdauer_wendet_die_regel_nicht_an(pos, gilt):
+    """B9: Ist die Dauer falsch (zum Beispiel zu klein geschätzt), liegt die Position hinter dem Ende des Tracks.
+    Mehr als 2 s darüber: wie „Dauer unbekannt“, die Folge wird nicht übersprungen."""
+    h = harnisch([zeiger("s1", "a.mp3", 0, pos, 3)])  # a.mp3: 123,6 s
+    a = start(auflegen(h))
+    (z,) = regel_zeilen(h)
+    if gilt:
+        assert (a.datei, a.position_s) == ("b.mp3", 0.0) and z.ergebnis == "naechste_folge"
+    else:
+        assert (a.datei, a.position_s) == ("a.mp3", pos - 3.0)
+        assert z.ergebnis == "dauer_unbekannt" and z.daten["grund"] == "position_hinter_dauer"
+
+
+def test_position_hinter_dem_track_im_mehrtrack_zeiger_wird_je_track_gemessen():
+    # Folge „cd“: 3 Tracks zu 50 s. Track 1 bei 52,5 s (2,5 s über seiner Dauer): keine Regel, auch wenn der Rest klein wäre
+    h = harnisch([zeiger("s3", "cd", 0, 52.5, 1, track=1)])
+    a = start(auflegen(h, UID_S3))
+    assert (a.datei, a.track) == ("cd", 1)
+    assert regel_zeilen(h)[0].ergebnis == "dauer_unbekannt"
+
+
 def test_ein_track_mit_unbekannter_dauer_macht_die_ganze_folge_unbekannt():
     s = ev.Serie("s7", "S7", "normal", "s7", ("a.mp3",), {"a.mp3": ("a/1.mp3", "a/2.mp3")}, {"a.mp3": (100.0, None)})
     from conftest import ZUORDNUNGEN, mk_konfig

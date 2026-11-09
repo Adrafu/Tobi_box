@@ -11,8 +11,10 @@ Pegeloption nie lauter als die Grenze.
 
 Pegel in Prozent (Entscheidung J, 09.11.): alle Töne außer ``hinweis``:
 ``min(grenze, max(TON_MINDEST, lautstaerke))``, also die aktuelle Lautstärke der Sitzung,
-nie über der wirksamen Grenze und nie unter der Untergrenze 10; ``hinweis``:
-``max(HINWEIS_MINDEST, min(hinweis_pegel, lautstaerke))`` (Vorgabe 15, Untergrenze 10). Ohne Tondatei, oder
+nie über der wirksamen Grenze und nie unter der Untergrenze 10, solange diese unter der Grenze liegt;
+``hinweis``: ``min(grenze, max(HINWEIS_MINDEST, min(hinweis_pegel, lautstaerke)))`` (Vorgabe 15, Untergrenze 10).
+Die Grenze ist für alle Töne der letzte Schritt: sie gewinnt immer (Gehörschutz). Den Pegel berechnet die Tonspur
+erst, wenn der Ton wirklich an der Reihe ist (``pegel_quelle``), nicht beim Einreihen. Ohne Tondatei, oder
 wenn die Datei kein 16-Bit-PCM ist (nicht sicher skalierbar), wird nichts gestartet.
 
 Töne nie gleichzeitig (Entscheidung L, 09.11.): Alle Töne laufen über **eine** Spur, einer nach dem
@@ -63,7 +65,7 @@ def pegel(ton: str, grenze: int, lautstaerke: int | None = None, hinweis_pegel: 
     laut = grenze if lautstaerke is None else max(0, min(100, int(lautstaerke), grenze))
     if ton == "hinweis":
         h = HINWEIS_PEGEL_VORGABE if hinweis_pegel is None else hinweis_pegel
-        return max(HINWEIS_MINDEST, min(h, laut))
+        return min(grenze, max(HINWEIS_MINDEST, min(h, laut)))  # die Grenze gewinnt immer (Gehörschutz, B7)
     return min(grenze, max(TON_MINDEST, laut))
 
 
@@ -183,6 +185,9 @@ async def _starte_prozess(kommando: Sequence[str]) -> None:
 
 
 Haken = Callable[[], Awaitable[None]]
+# liefert (grenze, lautstaerke, hinweis_pegel); wird erst aufgerufen, wenn ein Ton an der Reihe ist
+Pegelquelle = Callable[[], tuple[int, int | None, int | None]]
+_Werte = tuple[int, int | None, int | None]
 
 
 class Toene:
@@ -202,6 +207,7 @@ class Toene:
         vor: Haken | None = None,
         nach: Haken | None = None,
         ton_max_s: float | None = None,
+        pegel_quelle: Pegelquelle | None = None,
     ) -> None:
         self.ordner = Path(ordner)
         self.kommando = tuple(kommando)
@@ -210,7 +216,8 @@ class Toene:
         self._starter = starter or _starte_prozess
         self._vor = vor
         self._nach = nach
-        self._eintraege: deque[tuple[str, list[str]]] = deque()
+        self._pegel_quelle = pegel_quelle
+        self._eintraege: deque[tuple[str, _Werte | None]] = deque()  # Ton, feste Pegel-Werte oder ``None`` (Quelle)
         self._arbeiter: asyncio.Task | None = None
         self._leer = asyncio.Event()
         self._leer.set()
@@ -222,6 +229,11 @@ class Toene:
         """``True``, solange ein Ton läuft oder wartet."""
         return bool(self._eintraege) or self._arbeiter is not None
 
+    @property
+    def folge_wartet(self) -> bool:
+        """``True``, wenn noch ein Ton eingereiht ist, der nicht läuft (dann endet die Tonfolge noch nicht)."""
+        return bool(self._eintraege)
+
     def datei(self, ton: str) -> Path:
         """Tondatei; fehlt ein Prüfpunkt-Ton, die Datei des allgemeinen Tons (``pruef_ok``/``pruef_fehler``)."""
         d = self.ordner / f"{ton}.wav"
@@ -229,6 +241,21 @@ class Toene:
         if m and not d.is_file():
             return self.ordner / f"{'pruef_fehler' if m.group(1) == 'fehler' else 'pruef_ok'}.wav"
         return d
+
+    def _brauchbar(self, ton: str) -> bool:
+        """Gibt es die Datei und ist sie 16-Bit-PCM? Sonst wird der Ton gar nicht erst eingereiht."""
+        d = self.datei(ton)
+        if not d.is_file():
+            logge("sounds", "WARNING", "ton", "datei_fehlt", daten={"ton": ton, "datei": str(d)})
+            return False
+        try:
+            with wave.open(str(d), "rb") as r:
+                if r.getsampwidth() != 2 or r.getcomptype() != "NONE":
+                    raise ValueError("nur 16-Bit-PCM wird unterstützt")
+        except (ValueError, wave.Error, EOFError, OSError) as e:
+            logge("sounds", "WARNING", "ton", "nicht_skalierbar", daten={"ton": ton, "detail": str(e)})
+            return False
+        return True
 
     def kommando_fuer(
         self, ton: str, grenze: int, lautstaerke: int | None = None, hinweis_pegel: int | None = None
@@ -263,25 +290,34 @@ class Toene:
         if self._arbeiter is None:
             self._arbeiter = asyncio.get_running_loop().create_task(self._arbeit(), name="tobibox-ton-spur")
 
-    def spiele(self, ton: str, grenze: int, lautstaerke: int | None = None, hinweis_pegel: int | None = None) -> bool:
-        """Ton einreihen (spielt nach allen früheren Tönen). ``False``, wenn nichts eingereiht wurde."""
-        k = self.kommando_fuer(ton, grenze, lautstaerke, hinweis_pegel)
-        if k is None:
+    @staticmethod
+    def _werte(grenze: int | None, lautstaerke: int | None, hinweis_pegel: int | None) -> _Werte | None:
+        return None if grenze is None else (grenze, lautstaerke, hinweis_pegel)
+
+    def spiele(
+        self, ton: str, grenze: int | None = None, lautstaerke: int | None = None, hinweis_pegel: int | None = None
+    ) -> bool:
+        """Ton einreihen (spielt nach allen früheren Tönen). ``False``, wenn nichts eingereiht wurde.
+
+        Ohne ``grenze`` holt die Spur Grenze und Lautstärke erst beim Abspielen aus der ``pegel_quelle`` (B6).
+        """
+        if not self._brauchbar(ton):
             return False
-        self._reihe_ein([(ton, k)])
+        self._reihe_ein([(ton, self._werte(grenze, lautstaerke, hinweis_pegel))])
         return True
 
     def spiele_folge(
-        self, toene: Sequence[str], grenze: int, lautstaerke: int | None = None, hinweis_pegel: int | None = None
+        self,
+        toene: Sequence[str],
+        grenze: int | None = None,
+        lautstaerke: int | None = None,
+        hinweis_pegel: int | None = None,
     ) -> bool:
         """Töne nacheinander einreihen (Status-Karte: ein Ton je Prüfpunkt). ``False`` bei leerer Folge."""
         if not toene:
             return False
-        eintraege = []
-        for ton in toene:  # eine fehlende Datei stoppt die Folge nicht
-            k = self.kommando_fuer(ton, grenze, lautstaerke, hinweis_pegel)
-            if k is not None:
-                eintraege.append((ton, k))
+        werte = self._werte(grenze, lautstaerke, hinweis_pegel)
+        eintraege = [(ton, werte) for ton in toene if self._brauchbar(ton)]  # eine fehlende Datei stoppt die Folge nicht
         if eintraege:
             self._reihe_ein(eintraege)
         return True
@@ -300,33 +336,48 @@ class Toene:
         try:
             while self._eintraege:
                 await self._haken(self._vor, "vor")
-                while self._eintraege:
-                    ton, k = self._eintraege.popleft()
-                    await self._lauf(ton, k)
-                await self._haken(self._nach, "nach")
+                try:
+                    while self._eintraege:
+                        ton, werte = self._eintraege.popleft()
+                        await self._lauf(ton, werte)
+                finally:
+                    await self._haken(self._nach, "nach")  # das Ende der Tonfolge kommt in jedem Fall (B3)
         finally:
             self._arbeiter = None
-            if self._beendet:
+            if self._beendet or self._eintraege:
+                # beim Beenden, oder wenn die Spur unerwartet endet: nichts liegen lassen, sonst bliebe
+                # ``beschaeftigt`` wahr und ``warte_leer`` hinge ohne Ende
                 self._eintraege.clear()
-            self._leer.set()
+            self._leer.set()  # erst hier, und nur bei wirklich leerer Spur
 
-    async def _lauf(self, ton: str, kommando: list[str]) -> None:
+    async def _lauf(self, ton: str, werte: _Werte | None) -> None:
+        kommando: list[str] | None = None
         try:
+            if werte is None:  # Pegel erst jetzt berechnen: Kopfhörer oder Drehregler seit dem Einreihen zählen (B6)
+                werte = self._pegel_quelle() if self._pegel_quelle is not None else (100, None, None)
+            kommando = self.kommando_fuer(ton, *werte)
+            if kommando is None:
+                return
             await asyncio.wait_for(self._starter(kommando), self.ton_max_s)
             logge("sounds", "DEBUG", "ton", "gespielt", daten={"ton": ton, "kommando": kommando[0]})
         except asyncio.TimeoutError:
-            logge("sounds", "WARNING", "ton", "zeitueberschreitung", daten={"ton": ton, "kommando": kommando[0]})
+            logge("sounds", "WARNING", "ton", "zeitueberschreitung", daten={"ton": ton, "kommando": kommando[0] if kommando else ""})
         except FileNotFoundError:
-            logge("sounds", "WARNING", "ton", "programm_fehlt", daten={"ton": ton, "kommando": kommando[0]})
+            logge("sounds", "WARNING", "ton", "programm_fehlt", daten={"ton": ton, "kommando": kommando[0] if kommando else ""})
         except OSError as e:
             logge("sounds", "WARNING", "ton", "start_fehler", daten={"ton": ton, "detail": str(e)})
+        except Exception as e:  # was auch kommt: die Tonspur darf nicht sterben (CancelledError läuft durch)
+            logge("sounds", "WARNING", "ton", "unerwartet", daten={"ton": ton, "detail": repr(e)})
         finally:
-            self._aufraeumen(kommando)
+            if kommando is not None:
+                self._aufraeumen(kommando)
 
     async def warte_leer(self) -> None:
         """Warten, bis kein Ton mehr läuft oder wartet (auch nicht einer, der unterdessen dazukam)."""
         while self.beschaeftigt:
             await self._leer.wait()
+            if self.beschaeftigt:
+                await asyncio.sleep(0.01)  # nie den Event-Loop festhalten, auch bei gesetztem ``_leer`` (B3)
 
     async def warte(self) -> None:
         """Auf laufende Töne warten (Tests, sauberes Beenden)."""

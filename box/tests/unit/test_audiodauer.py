@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import shutil
 import struct
+import subprocess
 
 import pytest
 from fixtures import audio
@@ -114,3 +116,54 @@ def test_bibliothek_unbekanntes_format_gibt_none(tmp_path):
     audio.erzeuge_serie(tmp_path, "ueb", ["u.wav"], serie_id="c07d2e91a45b", typ="ueberraschung")
     (s,) = [x for x in library.lade_bibliothek(tmp_path, leise=True).serien if x.id == "3f9a1c07b2d4"]
     assert s.dauern["b.ogg"] == (None,)
+
+
+# --- B9: variable Bitrate ohne Xing-/VBRI-Kopf ---------------------------------------------------------------
+
+
+def _frame_128():
+    return bytes([0xFF, 0xFB, 0x90, 0x00]) + bytes(413)  # 417 Bytes
+
+
+def _frame_64():
+    # MPEG-1 Layer III, 64 kbit/s (Index 5), 44,1 kHz: 144 * 64000 // 44100 = 208 Bytes
+    return bytes([0xFF, 0xFB, 0x50, 0x00]) + bytes(204)
+
+
+def test_mp3_mit_wechselnder_bitrate_ohne_kopf_hat_keine_dauer(tmp_path):
+    p = tmp_path / "vbr.mp3"
+    p.write_bytes(_frame_128() * 5 + _frame_64() * 10 + _frame_128() * 5000)
+    assert audiodauer.dauer_s(p) is None  # besser keine als eine falsche Dauer
+
+
+def test_mp3_mit_gleicher_bitrate_hat_weiter_eine_dauer(tmp_path):
+    p = tmp_path / "cbr.mp3"
+    mp3_cbr(p, 100.0, id3=True)
+    assert audiodauer.dauer_s(p) == pytest.approx(100.0, abs=0.1)
+
+
+def test_mp3_mit_wechselnder_bitrate_und_xing_kopf_behaelt_die_dauer(tmp_path):
+    erster = bytearray(_frame_128())
+    erster[36:40] = b"Xing"
+    erster[40:44] = struct.pack(">I", 1)
+    erster[44:48] = struct.pack(">I", 1000)
+    p = tmp_path / "vbr_xing.mp3"
+    p.write_bytes(bytes(erster) + _frame_64() * 10 + _frame_128() * 100)
+    assert audiodauer.dauer_s(p) == pytest.approx(1000 * 1152 / 44100)
+
+
+@pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg fehlt")
+def test_echte_vbr_datei_ohne_kopf_hat_keine_dauer_mit_kopf_die_richtige(tmp_path):
+    """Mit ``ffmpeg`` erzeugt: Rauschen, dann Sinus, variable Bitrate (``-q:a 4``)."""
+    quelle = tmp_path / "q.wav"
+    ohne, mit = tmp_path / "ohne.mp3", tmp_path / "mit.mp3"
+    filt = "anoisesrc=d=2:c=pink:r=44100,volume=0.5[a];sine=f=440:d=8:r=44100[b];[a][b]concat=n=2:v=0:a=1"
+    for ziel, xing in ((ohne, "0"), (mit, "1")):
+        r = subprocess.run(
+            ["ffmpeg", "-v", "error", "-y", "-filter_complex", filt, "-ac", "2", "-c:a", "libmp3lame", "-q:a", "4",
+             "-write_xing", xing, "-id3v2_version", "0", str(ziel)],
+            capture_output=True,
+        )
+        assert r.returncode == 0, r.stderr.decode()
+    assert audiodauer.dauer_s(ohne) is None
+    assert audiodauer.dauer_s(mit) == pytest.approx(10.0, abs=0.2)

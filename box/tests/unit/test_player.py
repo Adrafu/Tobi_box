@@ -111,3 +111,26 @@ async def test_verbinden_pausiert_zuerst_und_setzt_lautstaerke_0_ohne_grenze(mon
     p = Player(lambda e: None)
     await p._verbinde()
     assert c.aufrufe[:3] == ["connect", "pause", "setvol 0"]
+
+
+async def test_klemmung_beendet_die_ton_pause_nichts_setzt_danach_fort():
+    """B5: Hat ``_klemme`` MPD angehalten, darf das Ende des Tons es nicht fortsetzen."""
+    c = FakeClient(zustaende=("pause",), setvol_fehler=True, volume=80)
+    p, _ = mk(c)
+    p._prozent, p._grenze = 30, 40
+    p._ton_pause = True  # MPD ist für einen Ton angehalten
+    await p._klemme()
+    assert p._ton_pause is False and p._phase == "pause"
+    assert await p.ton_pause_ende(True) is False
+    assert "pause" in c.aufrufe and c.aufrufe.count("pause") == 1  # nur die Klemmung, kein ``pause 0``
+
+
+async def test_verbindungsverlust_beendet_die_ton_pause():
+    """B5: ``_verbindung_weg`` und ``_trenne`` löschen das Flag."""
+    p, _ = mk(FakeClient())
+    p._ton_pause = True
+    p._verbindung_weg("test")
+    assert p._ton_pause is False and p._phase == "aus"
+    p._ton_pause = True
+    p._trenne()
+    assert p._ton_pause is False

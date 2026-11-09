@@ -391,7 +391,9 @@ Alternativen“.
         Überraschungs-Serie: ebenso (sie verhält sich wie ein Ziel `serie`).
     *   **I2 — Ausnahme:** Folgen, die insgesamt kürzer als `REST_REGEL_MIN_FOLGE_S` =
         60 s sind, sind ausgenommen. Kennt die Box die Dauer einer Folge nicht, gilt die
-        Regel auch nicht; das steht im Protokoll (`rest_regel`, Ergebnis `dauer_unbekannt`).
+        Regel auch nicht; das steht im Protokoll (`rest_regel`, Ergebnis `dauer_unbekannt`). Ebenso, wenn die
+        Position des Zeigers mehr als 2 s hinter dem Ende ihres Tracks liegt (die Dauer stimmt dann nicht;
+        Code-Review, 09.11.).
     *   **I3 — Unverändert:** Die Regel ändert nichts am Speichern des Zeigers. Pause nach
         jeder Folge (Entscheidung A), Dienst-Neustart bleibt pausiert (Entscheidung G, erst
         der Hauptknopf oder neues Auflegen setzt fort, dann greift die Regel) und
@@ -400,7 +402,7 @@ Alternativen“.
         mit `rest_s` (Rest in Sekunden), der Folge und der Folge, die spielt.
     *   **I5 — Woher die Dauer kommt:** Die Bibliothek liest die Dauer jedes Tracks beim
         Laden aus den Kopfdaten der Dateien (WAV, MP3, M4A/M4B, FLAC; Baustein
-        `audiodauer`). Andere Formate: Dauer unbekannt. Die Sitzung bleibt rein: Die Dauern
+        `audiodauer`). Andere Formate: Dauer unbekannt, ebenso MP3 mit wechselnder Bitrate ohne Xing-/VBRI-Kopf. Die Sitzung bleibt rein: Die Dauern
         stehen in `Serie.dauern`. MPD wird dafür nicht gefragt.
 
 *   **Entscheidung J — Die Töne folgen der Lautstärke des Hörspiels (09.11.):** Anlass beim
@@ -416,15 +418,18 @@ Alternativen“.
     *   **J1 — Pegel:** Ein Ton spielt mit der **aktuellen Lautstärke der Sitzung** nach allen
         Grenzen, mindestens 10 (`TON_MINDEST`): `pegel = min(grenze, max(10, lautstaerke))`.
         Die Grenzen (Kopfhörer, „leiser“, Maximum) gelten weiter und stehen über der Untergrenze.
-        `hinweis`: `max(10, min(hinweis_pegel, lautstaerke))`, Vorgabe `hinweis_pegel` 15.
+        `hinweis`: `min(grenze, max(10, min(hinweis_pegel, lautstaerke)))`, Vorgabe `hinweis_pegel` 15.
+        *Nachtrag (Code-Review, 09.11.):* Die Grenze gewinnt immer (Gehörschutz); die Untergrenze 10 gilt nur,
+        solange sie unter der Grenze liegt, auch beim Hinweiston.
         Die Untergrenze des Hinweistons steigt von 5 auf 10, weil 5 % auf der Kennlinie von MPD
         rund −48 dB sind und nicht mehr zu hören.
     *   **J2 — Gleiche Kennlinie:** Die Skalierung der Tondateien in Python (`skaliere_wav`) benutzt
         dieselbe Kennlinie wie die Wiedergabe des Hörspiels. Sie ist je Plattform verschieden und
         steht in der Konfiguration (`[toene] kennlinie`, `softvol_bereich_db`): Mac
         `mpd_software` (Vorgabe), Pi `alsa_softvol`. Formeln und Quellen: `core-interface.md`, 8.1.
-    *   **J3 — Pfad des Pegels:** `app.py` leitet die Lautstärke aus dem zuletzt ausgegebenen
-        `LautstaerkeSetzen` ab (`min(prozent, grenze)`), das der Kern ohnehin erzeugt. Der Kern
+    *   **J3 — Pfad des Pegels:** `app.py` führt Grenze und Lautstärke aus dem Zustand des Kerns nach, **ohne** die
+        Rampen `ausblenden` und `gute_nacht` (Code-Review, 09.11.: sonst wären Töne nach dem Ausblenden unhörbar).
+        Der Pegel entsteht erst, wenn ein Ton an der Reihe ist, nicht beim Einreihen. Der Kern
         bleibt rein und kennt keine Tonpegel. `ton_pegel` in `config.json` hat keine Wirkung
         mehr (das Feld bleibt gültig); `hinweis_pegel` gilt weiter.
     *   **J4 — Lautheit der Töne und Testmedien:** Die Box-Töne (`box/sounds/`,
@@ -474,6 +479,9 @@ Alternativen“.
         `TonSpielen`) und Konfliktregeln bleiben. Die Regel gilt in `app.py` (Reihenfolge der Ausführung,
         wartender Start), `sounds.py` (eine Spur, Haken am Anfang und Ende einer Tonfolge) und `player.py`
         (kurze Pause für einen Ton). Verträge: `core-interface.md`, 6.5 Punkt 6, 8.1 und Punkt 32.
+        *Nachtrag (Code-Review, 09.11.):* Die kurze Pause endet verlässlich bei `Pausieren`, `Abspielen`, Verbindungsverlust
+        und Klemmung; ein Ton mitten in einem Start wartet auf den Start; zwischen zwei Tonfolgen blitzt das alte
+        Hörspiel nicht auf (`core-interface.md`, 6.5 Punkt 6e).
 
 - **Nachtrag 05.11. (Stufe-0-Verträge):** Ein Leser-Neustart startet nie von selbst eine Wiedergabe; nach einem bestätigten Leserverlust (> 3 s) bleibt die Box pausiert, auch wenn der Tobie danach wieder gemeldet wird – das Kind legt neu auf. Lesefehler gelten bis 5 s als „Tobie liegt“; fehlende Serie → Überraschungs-Serie; „stumm“ sperrt auch Knöpfe; MPD-Verlust bis 5 s wird überbrückt. Maßgeblich sind die Verträge in `docs/protocol/` und `docs/data-model.md`.
 
@@ -1956,7 +1964,8 @@ Ergebnis: Der Dienst spielt über MPD und lässt sich mit Leser (oder
 | `box/tests/integration/test_player_mpd.py` | neu | Gegen echtes MPD: Start, Pause, Position, Resume per `seek`, Folgenende (MPD stoppt, nichts spielt weiter), Lautstärke nie über der Grenze (auch nach Neustart des Dienstes; das ist die Klemmung im Dienst, die harte Kappung folgt im Pi-Probelauf). |
 | `box/tests/unit/test_sounds.py` | neu | Kommando wird korrekt zusammengesetzt; kein Aufruf ohne Datei. (Entscheidung L, 09.11.: ergänzt um die eine Spur: Töne aus verschiedenen Aufrufen nacheinander, Dauer = Ende des Prozesses, Zeitlimit beendet das Programm, Haken, Beenden ohne Haken.) |
 | `box/tests/unit/test_app_toene.py` | neu (Entscheidung L, 09.11.) | Echte `App` mit gesteuertem Ton-Ersatz: Ton + Abspielen in einer Ausgabe (unbekannter Tobie, Lernmodus-Ende), mehrere Töne nacheinander, Ton während der Wiedergabe (Pause, Fortsetzen, kein Zeiger), Abheben und `Pausieren` während des Tons, veralteter Start (`gen`, Zustand), neuer Start ersetzt den alten, hängender Ton (Zeitlimit), normales Auflegen ohne Ton ohne Verzug. |
-| `box/tests/integration/test_toene_mpd.py` | neu (Entscheidung L, 09.11.) | Gegen echtes MPD mit `fake_reader`; das Ton-Kommando ist `sleep 1.5`: Start erst nach dem Ton, Abheben im Ton, Ton während der Wiedergabe (MPD pausiert und setzt an derselben Stelle fort, kein Zeiger), Abheben bei angehaltenem Hörspiel, hängender Ton. |
+| `box/tests/integration/test_toene_mpd.py` | neu (Entscheidung L, 09.11.) | Gegen echtes MPD mit `fake_reader`; das Ton-Kommando ist `sleep 1.5`: Start erst nach dem Ton, Abheben im Ton, Ton während der Wiedergabe (MPD pausiert und setzt an derselben Stelle fort, kein Zeiger), Abheben bei angehaltenem Hörspiel, hängender Ton. Ergänzt nach dem Code-Review: Tobie-Wechsel im Ton, `stop()` mitten im Ton, MPD-Neustart im Ton. |
+| `box/tests/integration/test_toene_player_mpd.py` | neu (Code-Review, 09.11.) | Echter `Player` gegen echtes MPD, Wettläufe mit gehaltener Sperre: Abheben genau beim Tonbeginn (MPD bleibt pausiert), `Pausieren` hinter dem ersten Start, Verbindungsverlust im Ton, Ton mitten in einem Start, Pause bleibt bei weiterem Ton. |
 
 Abnahme AP 1.3:
 

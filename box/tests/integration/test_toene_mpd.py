@@ -30,14 +30,36 @@ UID_NEU = "04ffeedd"  # unbekannt: Ton ``unbekannt`` und Überraschungs-Serie
 TON_S = 1.5
 
 
-@pytest.fixture
-def welt(mpd, tmp_path):
-    w = app_welt(mpd, tmp_path, {UID_FOLGE: ev.Zuordnung("folge", SERIE, "folge-01.wav")})
+FUCHS = "5b2e8d1f0a37"
+UID_FUCHS = "04a1b2c4"  # Serien-Tobie: Serie fuchs (Folge f1.wav)
+
+
+def _welt(mpd, tmp_path):
+    w = app_welt(
+        mpd,
+        tmp_path,
+        {UID_FOLGE: ev.Zuordnung("folge", SERIE, "folge-01.wav"), UID_FUCHS: ev.Zuordnung("serie", FUCHS)},
+        {
+            "rabe": (SERIE, ["folge-01.wav", "folge-02.wav"], 30.0),
+            "fuchs": (FUCHS, ["f1.wav"], 30.0),
+        },
+    )
     toml = w["toml"]
     text = toml.read_text()
     assert '[toene]\nkommando = ["true", "{datei}"]\n' in text
     toml.write_text(text.replace('kommando = ["true", "{datei}"]', f'kommando = ["sleep", "{TON_S}"]'))
     return w
+
+
+@pytest.fixture
+def welt(mpd, tmp_path):
+    return _welt(mpd, tmp_path)
+
+
+@pytest.fixture
+def welt_mit_zustand(mpd_mit_zustand, tmp_path):
+    """Wie ``welt``, aber mit einem MPD, das nach dem Neustart von selbst weiterspielen könnte."""
+    return _welt(mpd_mit_zustand, tmp_path)
 
 
 async def _bereit(app: App, fr) -> None:
@@ -173,3 +195,84 @@ async def _zustand_ist(port: int, soll: str) -> bool:
 async def _elapsed_ab(port: int, sek: float) -> bool:
     st = await mpd_status(port)
     return st["state"] == "play" and float(st.get("elapsed", 0)) >= sek
+
+
+async def _aktuelle_datei(mpd) -> str:
+    zeilen = mpd.frage("currentsong").splitlines()
+    return next((z.split(": ", 1)[1] for z in zeilen if z.startswith("file: ")), "")
+
+
+async def test_tobie_wechsel_waehrend_des_tons_altes_hoerspiel_setzt_nicht_fort_neues_startet_nach_dem_ton(welt):
+    mpd = welt["mpd"]
+    with fake_reader.FakeReader(welt["link"], hb_intervall_s=0.5) as fr:
+        app = App(konfig_modul.lade(welt["toml"]), melde_bereit=False)
+        await app.starte()
+        try:
+            await _bereit(app, fr)
+            fr.place(UID_FOLGE)
+            await warte(lambda: _elapsed_ab(mpd.port, 2.0), 10.0, "(2 s gespielt)")
+            assert "folge-01.wav" in await _aktuelle_datei(mpd)
+            app.ereignisse.put_nowait(ev.Weiter())  # letzter Track: Hinweiston, MPD wird für den Ton angehalten
+            await warte(lambda: _zustand_ist(mpd.port, "pause"), 3.0, "(MPD für den Ton angehalten)")
+            t0 = time.monotonic()
+            fr.remove()
+            await asyncio.sleep(0.2)
+            fr.place(UID_FUCHS)  # anderer Tobie, mitten im Ton
+            while app.toene.beschaeftigt and time.monotonic() - t0 < TON_S + 1.0:
+                assert await _zustand(mpd.port) != "play"  # weder das alte noch das neue Hörspiel überlagert den Ton
+                await asyncio.sleep(0.05)
+            assert not app.toene.beschaeftigt
+            await warte(lambda: _spielt(mpd.port), 6.0, "(neues Hörspiel spielt)")
+            assert "fuchs/f1.wav" in await _aktuelle_datei(mpd)  # das alte setzte nie fort
+            assert app.kern.session.serie_id == FUCHS
+        finally:
+            await app.beende()
+
+
+async def test_stop_mitten_im_ton_beendet_den_ton_und_laesst_mpd_pausiert(welt):
+    mpd = welt["mpd"]
+    with fake_reader.FakeReader(welt["link"], hb_intervall_s=0.5) as fr:
+        app = App(konfig_modul.lade(welt["toml"]), melde_bereit=False)
+        await app.starte()
+        beendet = False
+        try:
+            await _bereit(app, fr)
+            fr.place(UID_FOLGE)
+            await warte(lambda: _elapsed_ab(mpd.port, 2.0), 10.0, "(2 s gespielt)")
+            app.ereignisse.put_nowait(ev.Weiter())
+            await warte(lambda: _zustand_ist(mpd.port, "pause"), 3.0, "(MPD für den Ton angehalten)")
+            await warte(lambda: app.toene.beschaeftigt, 1.0, "(Ton läuft)")
+            await app.toene.stop()  # mitten im Ton
+            assert not app.toene.beschaeftigt
+            await app.beende()
+            beendet = True
+            await asyncio.sleep(TON_S + 0.5)  # über das Ende des Tons hinaus
+            assert await _zustand(mpd.port) != "play"  # der Haken ``nach`` setzte nicht fort
+        finally:
+            if not beendet:
+                await app.beende()
+    assert subprocess.run(["pgrep", "-f", f"^sleep {TON_S}$"], capture_output=True).returncode != 0  # Programm beendet
+
+
+async def test_mpd_neustart_waehrend_des_tons_nichts_spielt_ungemeldet(welt_mit_zustand):
+    mpd = welt_mit_zustand["mpd"]
+    with fake_reader.FakeReader(welt_mit_zustand["link"], hb_intervall_s=0.5) as fr:
+        app = App(konfig_modul.lade(welt_mit_zustand["toml"]), melde_bereit=False)
+        await app.starte()
+        try:
+            await _bereit(app, fr)
+            fr.place(UID_FOLGE)
+            await warte(lambda: _elapsed_ab(mpd.port, 2.0), 10.0, "(2 s gespielt)")
+            app.ereignisse.put_nowait(ev.Weiter())
+            await warte(lambda: _zustand_ist(mpd.port, "pause"), 3.0, "(MPD für den Ton angehalten)")
+            mpd.stop()  # MPD fällt während des Tons aus ...
+            await asyncio.sleep(0.5)
+            mpd.start()  # ... und kommt zurück, bevor der Ton zu Ende ist
+            await warte(lambda: not app.toene.beschaeftigt, TON_S + 3.0, "(Ton zu Ende)")
+            await warte(lambda: app.player.verbunden, 8.0, "(Player wieder verbunden)")
+            await asyncio.sleep(1.5)
+            # Es gilt: MPD spielt genau dann, wenn der Kern „spielt“ glaubt. Nichts läuft ungemeldet weiter.
+            spielt = await _zustand(mpd.port) == "play"
+            assert spielt == (app.kern.session.modus == "spielt"), (spielt, app.kern.session.modus)
+        finally:
+            await app.beende()

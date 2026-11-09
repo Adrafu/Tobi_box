@@ -8,6 +8,7 @@ import json
 import logging
 
 import pytest
+from conftest import UID_S1, KernHarnisch
 from fixtures.audio import erzeuge_medien
 
 from tobibox import app as app_modul
@@ -392,17 +393,17 @@ async def test_status_auskunft_enthaelt_status_pruefpunkte_und_offene_meldungen(
 
 
 class TonSpion:
-    """Merkt sich, mit welchen Pegel-Angaben ``App`` einen Ton ausführt."""
+    """Merkt sich, was ``App`` an die Tonspur übergibt."""
 
     def __init__(self) -> None:
         self.aufrufe: list[tuple] = []
         self.gestoppt = False
 
-    def spiele(self, ton, grenze, lautstaerke=None, hinweis_pegel=None) -> bool:
+    def spiele(self, ton, grenze=None, lautstaerke=None, hinweis_pegel=None) -> bool:
         self.aufrufe.append((ton, grenze, lautstaerke, hinweis_pegel))
         return True
 
-    def spiele_folge(self, toene, grenze, lautstaerke=None, hinweis_pegel=None) -> bool:
+    def spiele_folge(self, toene, grenze=None, lautstaerke=None, hinweis_pegel=None) -> bool:
         self.aufrufe.append((tuple(toene), grenze, lautstaerke, hinweis_pegel))
         return True
 
@@ -410,31 +411,68 @@ class TonSpion:
         self.gestoppt = True
 
 
-async def test_ton_bekommt_die_zuletzt_ausgegebene_lautstaerke_und_grenze(app):
+def mit_echtem_kern(app) -> KernHarnisch:
+    """Der Dienst arbeitet mit dem Zustand eines echten Kerns (Gerätewerte 60/40/25, Tobie ``UID_S1`` bekannt)."""
+    k = KernHarnisch()
+    app.kern, app.uhr = k.z, k.uhr
+    return k
+
+
+async def test_ton_wird_ohne_feste_pegelwerte_uebergeben_der_pegel_kommt_erst_beim_abspielen(app):
+    # B6: ``App`` übergibt nur den Ton; die Tonspur holt Grenze und Lautstärke aus ``pegel_quelle``, wenn er dran ist
+    assert App(app.konfig, melde_bereit=False).toene._pegel_quelle is not None
     app.toene = TonSpion()
-    # vor dem ersten Befehl: die Startlautstärke (20), gekappt auf das Maximum
-    assert app.lautstaerke == min(app.konfig.lautstaerke.start, app.konfig.lautstaerke.max)
-    await app._fuehre_aus(ev.LautstaerkeSetzen(35, 40), 0.0)
     await app._fuehre_aus(ev.TonSpielen("start"), 0.0)
-    assert app.toene.aufrufe[-1] == ("start", 40, 35, None)
-    await app._fuehre_aus(ev.LautstaerkeSetzen(12, 30), 0.0)  # Grenze sinkt (Kopfhörer, „leiser“, Ausblenden)
-    await app._fuehre_aus(ev.TonSpielen("unbekannt"), 0.0)
-    assert app.toene.aufrufe[-1] == ("unbekannt", 30, 12, None)
+    assert app.toene.aufrufe[-1] == ("start", None, None, None)
 
 
-async def test_ton_lautstaerke_liegt_nie_ueber_der_grenze(app):
-    app.toene = TonSpion()
-    await app._fuehre_aus(ev.LautstaerkeSetzen(80, 30), 0.0)  # der Player klemmt ebenso
-    await app._fuehre_aus(ev.TonSpielen("fehler"), 0.0)
-    assert app.toene.aufrufe[-1][1:3] == (30, 30)
+def test_ton_pegel_vor_dem_ersten_befehl_aus_der_konfiguration(app):
+    assert app._ton_pegel() == (
+        app.konfig.lautstaerke.max,
+        min(app.konfig.lautstaerke.start, app.konfig.lautstaerke.max),
+        None,
+    )
 
 
-async def test_hinweis_pegel_kommt_aus_der_konfiguration_ton_pegel_wird_ignoriert(app):
-    app.toene = TonSpion()
+def test_ton_pegel_folgt_dem_echten_kern_ueber_alle_grenzen(app):
+    k = mit_echtem_kern(app)
+    app.verarbeite(ev.GeraeteEinstellungen(60, 40, 25))
+    assert app._ton_pegel() == (60, 40, None)
+    app.verarbeite(ev.Kopfhoerer(True))  # Kopfhörer-Grenze 25 senkt die Lautstärke
+    assert app._ton_pegel() == (25, 25, None)
+    app.verarbeite(ev.LautstaerkeDrehen(-10))  # 40 - 10 klemmt auf 25, dann 25 - 10
+    app.verarbeite(ev.LautstaerkeDrehen(-10))
+    assert app._ton_pegel() == (25, 15, None)
+    app.verarbeite(ev.Kopfhoerer(False))
+    assert app._ton_pegel()[0] == 60
+    assert k.z is not app.kern  # der Dienst führt den Kern selbst weiter
+
+
+def test_ton_pegel_nach_stumm_ausblenden_bleibt_hoerbar(app):
+    """B2: Der Weg Kern → ``App.lautstaerke``/``App.grenze`` → Pegel, mit echtem Kern und echter Rampe."""
+    from tobibox.sounds import pegel
+
+    k = mit_echtem_kern(app)
+    app.verarbeite(ev.Aufgelegt(UID_S1, "ntag", False, 0, "v1"))
+    soll = app._ton_pegel()
+    assert soll[:2] == (60, 40)
+    app.verarbeite(ev.StummBeginnt())
+    sah_rampe = False
+    for _ in range(40):  # 4 s Takt: die Rampe (3 s) läuft ab, die Grenze „ausblenden“ wird gelöscht
+        app.uhr.vor(0.1)
+        for b in app.verarbeite(ev.Takt()):
+            sah_rampe = sah_rampe or isinstance(b, ev.LautstaerkeSetzen) and b.grenze < 40
+        assert app._ton_pegel()[:2] == soll[:2]  # die Rampe berührt den Ton-Pegel nie
+    assert sah_rampe  # der Kern hat die Rampe wirklich ausgegeben
+    assert app.kern.session.modus == "gehalten"  # stumm: Hörspiel angehalten, Anstieg zurückgehalten
+    assert pegel("pruef_ok", *app._ton_pegel()) == 40  # nicht 1
+
+
+def test_hinweis_pegel_kommt_aus_der_konfiguration_ton_pegel_wird_ignoriert(app):
     app.konfig_store.roh = {**app.konfig_store.roh, "ton_pegel": 90, "hinweis_pegel": 22}
-    await app._fuehre_aus(ev.LautstaerkeSetzen(20, 40), 0.0)
-    await app._fuehre_aus(ev.TonSpielen("hinweis"), 0.0)
-    assert app.toene.aufrufe[-1] == ("hinweis", 40, 20, 22)  # kein ton_pegel in der Übergabe
+    mit_echtem_kern(app)
+    app.verarbeite(ev.GeraeteEinstellungen(60, 40, 25))
+    assert app._ton_pegel() == (60, 40, 22)  # kein ton_pegel in der Übergabe
 
 
 def test_app_baut_die_kennlinie_aus_der_konfiguration(app):

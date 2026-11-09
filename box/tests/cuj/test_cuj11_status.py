@@ -108,7 +108,7 @@ class Tonfang:
     def __init__(self) -> None:
         self.folgen: list[list[str]] = []
 
-    def spiele_folge(self, toene, grenze, lautstaerke=None, hinweis_pegel=None) -> bool:
+    def spiele_folge(self, toene, grenze=None, lautstaerke=None, hinweis_pegel=None) -> bool:
         self.folgen.append(list(toene))
         return True
 

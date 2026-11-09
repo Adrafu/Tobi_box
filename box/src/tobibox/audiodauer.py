@@ -21,6 +21,7 @@ _BITRATEN = {
     (2, 2): (0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160),
     (2, 3): (0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160),
 }
+_MP3_PRUEF_BYTES = 256 * 1024  # so viel von den ersten Frames wird auf wechselnde Bitrate geprüft
 _RATEN = {1: (44100, 48000, 32000), 2: (22050, 24000, 16000), 3: (11025, 12000, 8000)}
 
 
@@ -60,7 +61,7 @@ def _mp3(pfad: Path) -> float | None:
         if kopf[:3] == b"ID3" and len(kopf) == 10:
             start = 10 + ((kopf[6] & 0x7F) << 21 | (kopf[7] & 0x7F) << 14 | (kopf[8] & 0x7F) << 7 | (kopf[9] & 0x7F))
         f.seek(start)
-        puffer = f.read(64 * 1024)
+        puffer = f.read(_MP3_PRUEF_BYTES)
         f.seek(max(0, groesse - 128))
         id3v1 = f.read(128)[:3] == b"TAG" and groesse >= 128
     i = 0
@@ -84,10 +85,52 @@ def _mp3(pfad: Path) -> float | None:
                 if kopf_x[:4] in (b"Xing", b"Info") and kopf_x[7] & 1:
                     frames = struct.unpack(">I", kopf_x[8:12])[0]
                     return _positiv(frames * samples / rate)
+                if _bitrate_wechselt(puffer, i):
+                    return None  # variable Bitrate ohne Kopf: die Dauer ist nicht zu berechnen
                 ende = groesse - (128 if id3v1 else 0)
                 return _positiv((ende - (start + i)) * 8 / (kbit * 1000))
         i += 1
     return None
+
+
+def _frame_kopf(puffer: bytes, i: int) -> tuple[int, int, int, int, int] | None:
+    """(Version, Schicht, Bitrate in kbit/s, Abtastrate, Füllbyte) der Frame bei ``i``, sonst ``None``."""
+    if i + 4 > len(puffer) or puffer[i] != 0xFF or (puffer[i + 1] & 0xE0) != 0xE0:
+        return None
+    b1, b2 = puffer[i + 1], puffer[i + 2]
+    version = {3: 1, 2: 2, 0: 3}.get((b1 >> 3) & 3)
+    schicht = {3: 1, 2: 2, 1: 3}.get((b1 >> 1) & 3)
+    bi, ri = b2 >> 4, (b2 >> 2) & 3
+    if not (version and schicht and 0 < bi < 15 and ri < 3):
+        return None
+    kbit = _BITRATEN[(1 if version == 1 else 2, schicht)][bi]
+    return version, schicht, kbit, _RATEN[version][ri], (b2 >> 1) & 1
+
+
+def _bitrate_wechselt(puffer: bytes, erste: int) -> bool:
+    """Zeigen die Frames ab ``erste`` (soweit im Puffer) unterschiedliche Bitraten?
+
+    Die Frames werden über ihre Länge abgeschritten. Bricht die Kette ab (kein Sync, Pufferende), zählt, was bis
+    dahin gesehen wurde.
+    """
+    bitraten: set[int] = set()
+    i = erste
+    while True:
+        k = _frame_kopf(puffer, i)
+        if k is None:
+            break
+        version, schicht, kbit, rate, fuell = k
+        bitraten.add(kbit)
+        if len(bitraten) > 1:
+            return True
+        if schicht == 1:
+            laenge = (12 * kbit * 1000 // rate + fuell) * 4
+        else:
+            laenge = (144 if (schicht == 2 or version == 1) else 72) * kbit * 1000 // rate + fuell
+        if laenge < 4:
+            break
+        i += laenge
+    return False
 
 
 def _mp4(pfad: Path) -> float | None:
