@@ -12,8 +12,8 @@ def test_ohne_socket_ohne_wirkung(monkeypatch):
     assert notify.bereit() is False
 
 
-def test_sendet_ready(tmp_path, monkeypatch):
-    pfad = str(tmp_path / "notify.sock")
+def test_sendet_ready(kurz, monkeypatch):
+    pfad = str(kurz / "notify.sock")
     with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as srv:
         srv.bind(pfad)
         monkeypatch.setenv("NOTIFY_SOCKET", pfad)

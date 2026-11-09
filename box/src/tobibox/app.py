@@ -337,7 +337,7 @@ class App:
             eventlog.logge(
                 "app", "ERROR", "sim_start", "fehler",
                 meldung="sim.sock konnte nicht geöffnet werden; die Box läuft ohne Simulations-Treiber weiter",
-                daten={"pfad": str(self.sim.pfad), "detail": repr(e)},
+                daten={"pfad": str(self.sim.pfad), "detail": str(e) or repr(e)},
             )
         self._aufgaben.append(asyncio.create_task(self._taktgeber(), name="tobibox-takt"))
         self.bereit.set()

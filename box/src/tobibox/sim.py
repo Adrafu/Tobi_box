@@ -25,10 +25,12 @@ Ungültige Zeilen werden protokolliert und ignoriert. Jede Zeile wird mit einer 
 from __future__ import annotations
 
 import asyncio
+import errno
 import inspect
 import json
 import os
 import socket
+import sys
 import uuid
 from collections.abc import Callable
 from pathlib import Path
@@ -41,6 +43,23 @@ from .ha_ersatz import Abgelehnt, schreibe_zuordnung
 from .store import KonfigStore
 
 SOCKET_NAME = "sim.sock"
+
+# Längster Unix-Socket-Pfad in Bytes: macOS/BSD 104, Linux 108 (jeweils mit abschließendem Nullbyte)
+SOCKET_PFAD_MAX = 103 if sys.platform != "linux" else 107
+
+
+class SocketPfadZuLang(OSError):
+    """Der Pfad von ``sim.sock`` passt nicht in ``sockaddr_un``; die Meldung nennt Länge, Grenze und Abhilfe."""
+
+
+def pruefe_socket_pfad(pfad: Path) -> None:
+    n = len(os.fsencode(pfad))
+    if n > SOCKET_PFAD_MAX:
+        raise SocketPfadZuLang(
+            errno.ENAMETOOLONG,
+            f"Socket-Pfad zu lang ({n} Bytes, erlaubt höchstens {SOCKET_PFAD_MAX} für Unix-Sockets): {pfad}; "
+            "ein kürzeres Zustandsverzeichnis wählen ([pfade] zustand in tobibox.toml)",
+        )
 MAX_ZEILE = 64 * 1024
 MAX_VORGEMERKT = 8  # ``learn``-Befehle, die die Box noch nicht angenommen hat
 
@@ -209,6 +228,7 @@ class Sim:
 
     async def start(self) -> None:
         """Socket öffnen. Wirft ``OSError`` (Pfad zu lang, keine Rechte, Verzeichnis nicht beschreibbar)."""
+        pruefe_socket_pfad(self.pfad)
         self.zustand.mkdir(parents=True, exist_ok=True)
         try:
             self.pfad.unlink()

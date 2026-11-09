@@ -28,7 +28,7 @@ from . import __version__
 from . import config as konfig_modul
 from . import library, outbox, selftest, store
 from .protocol import PROTO_UNTERSTUETZT
-from .sim import SOCKET_NAME
+from .sim import SOCKET_NAME, SocketPfadZuLang, pruefe_socket_pfad
 
 ENV_KONFIG = "TOBIBOX_CONFIG"
 STANDARD_KONFIG = "tobibox.toml"
@@ -74,8 +74,10 @@ def _frage_socket(pfad: Path, zeile: dict) -> dict | None:
     """Eine JSON-Zeile an ``sim.sock`` senden, die Antwortzeile lesen.
 
     ``None``: Dienst nicht erreichbar. Fehlende Rechte (``PermissionError``) werden weitergereicht:
-    Der Dienst läuft dann, gehört aber einem anderen Benutzer.
+    Der Dienst läuft dann, gehört aber einem anderen Benutzer. ``SocketPfadZuLang``, wenn der Pfad
+    für einen Unix-Socket zu lang ist.
     """
+    pruefe_socket_pfad(pfad)
     try:
         with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
             s.settimeout(SOCKET_TIMEOUT_S)
@@ -138,13 +140,18 @@ def sammle_status(kfg: konfig_modul.BoxKonfig) -> dict:
     try:
         live = frage_dienst(zustand)
         keine_rechte = False
+        pfad_fehler = None
     except PermissionError:
         live, keine_rechte = None, True
+    except SocketPfadZuLang as e:
+        live, keine_rechte, pfad_fehler = None, False, str(e)
 
     folgen = sum(len(s.folgen) for s in bib.serien)
     medien_ok = selftest.pruefe_medien(messung.serien).ok
     if live is not None:
         dienst = "läuft (Status vom Dienst über sim.sock)"
+    elif pfad_fehler:
+        dienst = f"nicht erreichbar: {pfad_fehler}"
     elif keine_rechte:
         dienst = "keine Berechtigung auf sim.sock (gehört dem Dienst-Benutzer): Zustand aus Dateien"
     else:
@@ -315,6 +322,9 @@ def sim(args: argparse.Namespace, ausgabe: TextIO) -> int:
             file=sys.stderr,
         )
         return 4
+    except SocketPfadZuLang as e:
+        print(f"tobibox sim: {e}", file=sys.stderr)
+        return 2
     if antwort is None:
         print(f"tobibox sim: Dienst nicht erreichbar ({zustand / SOCKET_NAME}); läuft tobiboxd?", file=sys.stderr)
         return 3

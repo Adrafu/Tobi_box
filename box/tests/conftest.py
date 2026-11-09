@@ -5,6 +5,9 @@ from __future__ import annotations
 import io
 import json
 import logging
+import shutil
+import tempfile
+from pathlib import Path
 
 import pytest
 from integration.conftest import mpd  # noqa: F401  (Fixture ``mpd``: echtes MPD, übersprungen ohne ``mpd``)
@@ -12,6 +15,31 @@ from integration.conftest import mpd  # noqa: F401  (Fixture ``mpd``: echtes MPD
 from tobibox import core, eventlog, session
 from tobibox import events as ev
 from tobibox.clock import SimUhr
+
+# Unix-Sockets: macOS erlaubt höchstens 104 Bytes Pfad (Linux 108), ``tmp_path`` ist dort deutlich länger
+# (``/private/var/folders/...``). Tests mit Socket legen ihr Zustandsverzeichnis daher hier an.
+_KURZE_VERZEICHNISSE: list[Path] = []
+
+
+def kurzes_verzeichnis() -> Path:
+    """Ein neues, kurzes Verzeichnis (``/tmp/tbXXXXXXXX``), das nach dem Test aufgeräumt wird."""
+    pfad = Path(tempfile.mkdtemp(prefix="tb", dir="/tmp"))
+    _KURZE_VERZEICHNISSE.append(pfad)
+    return pfad
+
+
+@pytest.fixture(autouse=True)
+def _kurze_verzeichnisse_aufraeumen():
+    yield
+    while _KURZE_VERZEICHNISSE:
+        shutil.rmtree(_KURZE_VERZEICHNISSE.pop(), ignore_errors=True)
+
+
+@pytest.fixture
+def kurz() -> Path:
+    """Kurzes Verzeichnis für Unix-Sockets (``sim.sock``, ``NOTIFY_SOCKET``)."""
+    return kurzes_verzeichnis()
+
 
 # Kennungen (erfundene Testwerte)
 UID_S1 = "04a1b2c3"  # Serie s1
@@ -564,7 +592,7 @@ def app_welt(mpd, tmp_path, zuordnungen: dict, serien: dict | None = None) -> di
         audio.erzeuge_serie(mpd.medien, name, folgen, serie_id=serie_id, name=name, dauer_s=dauer_s)
     audio.erzeuge_serie(mpd.medien, "ueberraschung", ["ton.wav"], serie_id="c07d2e91a45b", typ="ueberraschung", dauer_s=2.0)
     mpd.aktualisiere()
-    zustand = tmp_path / "var"
+    zustand = kurzes_verzeichnis() / "var"  # ``sim.sock`` liegt darin: kurzer Pfad (macOS)
     zustand.mkdir()
     k = ev.Konfig(1, "a3f9c1e07b2d4856", dict(zuordnungen), ev.LeiseZeiten("Europe/Berlin", ()), ev.GuteNacht(30, 60))
     store.schreibe_atomar(zustand / "config.json", {**store.konfig_zu_json(k), "ton_pegel": 40, "hinweis_pegel": 15})

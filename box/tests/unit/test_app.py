@@ -72,9 +72,9 @@ class FakeToene:
 
 
 @pytest.fixture
-def app(tmp_path, monkeypatch):
+def app(tmp_path, kurz, monkeypatch):
     medien = erzeuge_medien(tmp_path / "medien")
-    zustand = tmp_path / "var"
+    zustand = kurz / "var"  # ``sim.sock`` liegt darin: kurzer Pfad (macOS)
     zustand.mkdir()
     toml = tmp_path / "tobibox.toml"
     toml.write_text(f'[pfade]\nzustand = "{zustand}"\nmedien = "{medien}"\n', encoding="utf-8")

@@ -19,9 +19,9 @@ pytestmark = pytest.mark.asyncio
 
 
 @pytest.fixture
-async def sim(tmp_path):
+async def sim(kurz):
     got: list = []
-    s = Sim(tmp_path, got.append, SimUhr())
+    s = Sim(kurz, got.append, SimUhr())
     s.got = got
     await s.start()
     yield s
@@ -66,13 +66,13 @@ async def test_ack(sim):
     assert sim.got == [ev.Bestaetigt("04a1b2c3", "sim", "2026-11-05T09:12:03.412Z", "unbekannt")]
 
 
-async def test_card_schreibt_config_und_meldet(sim, tmp_path):
+async def test_card_schreibt_config_und_meldet(sim, kurz):
     (a,) = await sende(sim, {"befehl": "card", "uid": "04a1b2c3", "ziel": {"typ": "aktion", "aktion": "status"}})
     assert a == {"ok": True}
     (e,) = sim.got
     assert isinstance(e, ev.KonfigGeladen)
     assert e.konfig.zuordnungen["04a1b2c3"] == ev.Zuordnung("aktion", aktion="status")
-    k = KonfigStore(tmp_path)
+    k = KonfigStore(kurz)
     k.laden()
     assert k.konfig.revision == 1 and "04a1b2c3" in k.konfig.zuordnungen
     # zweite Karte: Revision steigt, erste bleibt
@@ -119,14 +119,14 @@ async def test_mehrere_zeilen_und_leerzeilen(sim):
     assert [e.id for e in sim.got] == ["a", "b"]
 
 
-async def test_async_ausgabe_und_alter_socket(tmp_path):
+async def test_async_ausgabe_und_alter_socket(kurz):
     got = []
 
     async def aus(e):
         got.append(e)
 
-    (tmp_path / "sim.sock").write_text("alt")
-    s = Sim(tmp_path, aus, SimUhr())
+    (kurz / "sim.sock").write_text("alt")
+    s = Sim(kurz, aus, SimUhr())
     await s.start()
     try:
         await sende(s, {"befehl": "ack", "uid": "a", "zuletzt": "z", "art": "gelernt"})
@@ -173,9 +173,9 @@ async def test_learn_abort(sim):
     assert isinstance(e, ev.HaLernmodusAbbruch) and e.befehl_id and e.gueltig_bis == SimUhr().wall + 30
 
 
-async def test_status_antwortet_mit_der_auskunft_des_dienstes_und_macht_kein_ereignis(tmp_path):
+async def test_status_antwortet_mit_der_auskunft_des_dienstes_und_macht_kein_ereignis(kurz):
     got: list = []
-    s = Sim(tmp_path, got.append, SimUhr(), auskunft=lambda: {"status": {"zustand": "leer"}, "offen": []})
+    s = Sim(kurz, got.append, SimUhr(), auskunft=lambda: {"status": {"zustand": "leer"}, "offen": []})
     await s.start()
     try:
         (a,) = await sende(s, {"befehl": "status"})
@@ -189,9 +189,9 @@ async def test_status_ohne_auskunft_ist_ungueltig(sim):
     assert a["ok"] is False and sim.got == []
 
 
-async def test_card_nutzt_den_gemeinsamen_konfig_store(tmp_path):
-    k = KonfigStore(tmp_path)
-    s = Sim(tmp_path, lambda e: None, SimUhr(), k)
+async def test_card_nutzt_den_gemeinsamen_konfig_store(kurz):
+    k = KonfigStore(kurz)
+    s = Sim(kurz, lambda e: None, SimUhr(), k)
     await s.start()
     try:
         await sende(s, {"befehl": "card", "uid": "04a1b2c3", "ziel": {"typ": "folge", "serie": "s1", "folge": "a.mp3"}})
@@ -200,10 +200,10 @@ async def test_card_nutzt_den_gemeinsamen_konfig_store(tmp_path):
     assert k.konfig.zuordnungen["04a1b2c3"] == ev.Zuordnung("folge", "s1", "a.mp3")  # derselbe Store sieht es sofort
 
 
-async def test_socket_wird_ohne_umask_aenderung_mit_0600_angelegt(tmp_path):
+async def test_socket_wird_ohne_umask_aenderung_mit_0600_angelegt(kurz):
     vorher = os.umask(0o022)
     try:
-        s = Sim(tmp_path, lambda e: None, SimUhr())
+        s = Sim(kurz, lambda e: None, SimUhr())
         await s.start()
         try:
             assert stat.S_IMODE(os.stat(s.pfad).st_mode) == 0o600
@@ -214,19 +214,19 @@ async def test_socket_wird_ohne_umask_aenderung_mit_0600_angelegt(tmp_path):
         os.umask(vorher)
 
 
-async def test_zu_langer_pfad_wirft_oserror_und_hinterlaesst_nichts(tmp_path):
-    s = Sim(tmp_path / ("x" * 100), lambda e: None, SimUhr())
+async def test_zu_langer_pfad_wirft_oserror_und_hinterlaesst_nichts(kurz):
+    s = Sim(kurz / ("x" * 100), lambda e: None, SimUhr())
     with pytest.raises(OSError):
         await s.start()
     await s.stop()  # darf nichts werfen
 
 
-async def test_stop_ohne_start_laesst_ein_fremdes_sock_in_ruhe(tmp_path):
-    (tmp_path / "sim.sock").write_text("fremd")
-    await Sim(tmp_path, lambda e: None, SimUhr()).stop()
-    assert (tmp_path / "sim.sock").exists()
+async def test_stop_ohne_start_laesst_ein_fremdes_sock_in_ruhe(kurz):
+    (kurz / "sim.sock").write_text("fremd")
+    await Sim(kurz, lambda e: None, SimUhr()).stop()
+    assert (kurz / "sim.sock").exists()
 
 
-async def test_card_laeuft_in_einem_thread_und_schreibt_trotzdem_die_zuordnung(sim, tmp_path):
+async def test_card_laeuft_in_einem_thread_und_schreibt_trotzdem_die_zuordnung(sim, kurz):
     await sende(sim, {"befehl": "card", "uid": "04a1b2c3", "ziel": {"typ": "serie", "serie": "s1"}})
     assert isinstance(sim.got[0], ev.KonfigGeladen)
