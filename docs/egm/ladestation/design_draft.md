@@ -1,207 +1,177 @@
-# Design: Ladesockel Tobi Box (Kontakte, feste Richtung)
+# Design: Ladesockel Tobi Box (USB-C-Stecker im Sockel)
 
 * **Autor:** Tobias (Projektleitung: Claude als „Elefant“)
-* **Datum:** 2026-11-09
-* **Stand:** **Rev. 3** (billiger), nach R5/R6 in `resolve.md`
-* **Grundlage:** `concepts_brief.md` (D1, D3–D6), `resolve.md` (R3–R6),
-  `review_elektrik.md`, `review_mechanik.md`, `research_qi.md`,
-  `docs/plan/stueckliste-und-psp.md` (Rev. 3.16), `docs/designs/box-software.md`
-* **Frühere Stände:** Rev. 1 und Rev. 2 (jede Drehlage, eFuse-Platine) im
-  Git-Verlauf dieser Datei
+* **Datum:** 2026-11-10
+* **Stand:** **Rev. 4**, nach Review der Rev. 3 und den Entscheidungen R7–R9
+  in `resolve.md`
+* **Grundlage:** `concepts_brief.md`, `resolve.md`, `review_rev3.md`,
+  `research_qi.md`, `docs/plan/stueckliste-und-psp.md` (Rev. 3.16),
+  `docs/designs/box-software.md`
+* **Frühere Stände:** Rev. 1 bis Rev. 3 im Git-Verlauf dieser Datei
 
-Werte mit **(R)** sind Richtwerte, gemessen oder geprüft wird am Muster. In
-eckigen Klammern steht der Befund aus den Reviews, der eine Regel begründet.
-
----
-
-## 1. Was sich gegenüber Rev. 2 ändert
-
-| Rev. 2 | Rev. 3 | Warum |
-|---|---|---|
-| jede der vier Drehlagen | **eine feste Richtung**, Steg und Nut führen | R5: spart Hartgold-Scheibe, Zapfen, Toleranzkette |
-| Kontaktscheibe Hartgold, 6 Pogo-Pins, konischer Zapfen | **fertiger Magnet-Pogo-Stecker** (4-polig, je 2 Pins parallel) | R5 |
-| 4 Magnete in der Box | **2 Magnete** | nur eine Lage muss passen |
-| eigene eFuse-Platine | **fertige Module**: Pololu #2810, PTC, USB-C-Breakout, kleine Lochrasterplatine | R6 |
-| A6 voll erfüllt | **A6 mit bewusstem Restrisiko** (Abschnitt 4.4) | R6 |
-
-Gleich bleiben: zwei Einzelsockel, je ein Markennetzteil (R3), keine LED am
-Sockel, zwei Reeds in Reihe, Ablauf für Flüssigkeit, Tobias testet (R4).
+Werte mit **(R)** sind Richtwerte, ein Druckmuster und das CAD klären sie.
 
 ---
 
-## 2. Anforderungen
+## 1. Idee in einem Satz
+
+Der Sockel ist eine Mulde, in deren Mitte ein USB-C-Stecker nach oben steht,
+wie bei einem Handy-Dock. Die Box hat unten eine USB-C-Buchse und wird darauf
+gesteckt.
+
+**Warum (Review G1):** Bei offenen Kontakten kann Metall zwischen Box und Sockel
+Plus und Masse überbrücken, und keine elektrische Erkennung bemerkt das, weil
+die Box ja aufsitzt. Beim USB-C-Stecker liegen die Kontakte im Inneren des
+Steckers. Münze, Löffel und Klammer erreichen sie nicht. Das ist dasselbe
+Schutzprinzip wie bei jedem USB-C-Kabel, das auf dem Boden liegt.
+
+## 2. Was gegenüber Rev. 3 wegfällt
+
+| Rev. 3 | Rev. 4 |
+|---|---|
+| Magnet-Pogo-Stecker, offene Pins | USB-C-Stecker, Kontakte geschützt im Stecker |
+| 2 Reeds, Pololu #2810, PTC, TVS, RC-Glied, Lochraster | **keine Elektronik im Sockel** |
+| 2 Magnete in der Box | **keine Magnete** für den Sockel (Punkt 13 entschärft) |
+| Restrisiko Metall auf den Pins | entfällt |
+| neues Risiko | **Stecker oder Buchse brechen, wenn ein Kind die Box seitlich hebelt** (Abschnitt 5) |
+
+---
+
+## 3. Anforderungen
 
 | # | Anforderung | Herkunft |
 |---|---|---|
-| A1 | Box lädt in **einer** festen Richtung. Falsch herum lädt sie nicht, und es passiert nichts. | R5 |
-| A2 | Kind stellt die Box ab, die Mulde führt sie. Die richtige Richtung findet es am Bedienfeld vorne und am fühlbaren Einrasten. | D1 (eingeschränkt) |
-| A3 | Kind hebt die Box einhändig ab, der Sockel bleibt stehen. | D1 |
-| A4 | Ohne aufsitzende Box sind die Sockel-Pins spannungslos. Ein einzelner fremder Magnet ändert daran nichts. | E4 |
-| A5 | Beim USB-C-Laden ist der Stecker der Box spannungslos. | Punkt 7 |
-| A6 | Ein Metallteil auf den Pins wird nicht heiß, solange die Reeds offen sind. **Restrisiko:** sind beide Reeds durch fremde Magnete geschlossen, begrenzt nur PTC und Netzteil. | R6 |
-| A7 | Andocken weckt die Box nicht. | Punkt 3, E9 |
-| A8 | Ladestrom am Sockel ≥ 90 % des Ladestroms am USB-C. | E7 |
-| A9 | Keine Magnete oder Kleinteile, die ein Kind herauslösen kann, auch nach einem Sturz. | Punkte 13–15 |
-| A10 | Zuleitungen ≥ 3 cm von der NFC-Antenne. | Punkt 10, M18 |
-| A11 | Keine Anzeige am Sockel. Ob die Box lädt, zeigt ihr LED-Ring (blau). | D6 |
-| A12 | Kein Signal vom Sockel zur Box. | box-software.md |
-| A13 | Verschüttete Flüssigkeit läuft ab. | M9 |
+| A1 | Box lädt in zwei Lagen (0° und 180°, USB-C ist drehbar). In 90° und 270° setzt sie nicht auf dem Stecker auf. | R9 |
+| A2 | Die Mulde führt die Box so genau, dass der Stecker ohne Zielen in die Buchse findet. | D1 |
+| A3 | Kind hebt die Box einhändig ab, der Sockel bleibt stehen, obwohl der Stecker hält. | D1 |
+| A4 | Seitliches Hebeln an der aufgesteckten Box bricht weder Buchse noch Stecker. Wenn doch, bricht das billige, tauschbare Teil im Sockel, nie die Buchse in der Box. | R9, neu |
+| A5 | Beim USB-C-Laden unterwegs liegt an der Boden-Buchse keine Spannung (#5398 bleibt). | Punkt 7 |
+| A6 | Kein Metallteil kann Plus und Masse überbrücken. | G1 |
+| A7 | **Andocken weckt die Box kurz**: Ton und LED-Ring zeigen einige Sekunden Laden und Ladestand. | R8 |
+| A8 | Ladestrom am Sockel wie am USB-C-Kabel. | E7 |
+| A9 | Keine Kleinteile, die ein Kind herauslösen kann. | Punkte 14–15 |
+| A10 | Flüssigkeit in der Mulde läuft ab und erreicht den Stecker nicht. | M9 |
+| A11 | Keine Anzeige am Sockel. | D6 |
 
 ---
 
-## 3. Aufbau
+## 4. Aufbau
 
 ```
- Steckdose        Sockel                                                       Box
- ─────────        ─────────────────────────────────────────────────            ────────────────────────
- Netzteil ─USB-C─► Breakout ─► PTC ─► TVS, Elko ─► #2810 ─► Stecker 2× +5V ═══► Stecker ─► #5398 A ─┐
- 5,1 V/3 A         5,1 kΩ CC                        ▲ ON                                            ├─► PiSugar
-                                                    │ RC-Verzögerung              USB-C ─► #5398 B ─┘
-                                  Reed 1 ── Reed 2 ─┘
-                   GND ─────────────────────────────── Stecker 2× GND ═══► GND
+ Steckdose          Sockel                                   Box
+ ─────────          ───────────────────────────              ───────────────────────────────
+ Netzteil 5,1 V/3 A ─ festes Kabel ─► USB-C-Stecker ═══════► USB-C-Buchse unten ─► #5398 A ─┐
+ (Raspberry Pi 15 W)  durch den Sockel   (schwimmend          (5,1 kΩ an CC)                  ├─► PiSugar
+                                          gelagert)           USB-C seitlich ─────► #5398 B ─┘
 ```
 
-### 3.1 Elektrik Sockel
+### 4.1 Sockel
 
-| Teil | Vorgabe |
-|---|---|
-| USB-C-Breakout | nur 5 V, 5,1 kΩ an CC1/CC2 (wie in der Box) |
-| PTC, bedrahtet | Haltestrom ≥ 1,3 × gemessener Ladestrom (T2), z. B. 2,5 A Halte (R) [E2] |
-| TVS bedrahtet (z. B. P6KE6V8A) und Elko 100 µF | am Eingang des #2810 [E6] |
-| Pololu #2810 | Load-Switch. **Schieber auf „off“ und verklebt**, rote LED abgelötet [E12, A11] |
-| ON-Pin | Reed 1 und Reed 2 in Reihe von 5 V über 100 kΩ an ON, 100 kΩ von ON nach GND, 10 µF von ON nach GND. Damit schaltet der #2810 etwa 0,2–0,3 s nach dem Andocken ein und ebenso schnell wieder aus. Prellen der Kontakte fällt in diese Zeit [M1, E5] (R) |
-| Aufbau | kleine Lochrasterplatine, nur bedrahtete Teile, Tobias lötet |
+- **Kein eigener Elektronik-Teil.** Das fest angeschlossene Kabel des
+  Netzteils (Raspberry Pi 15 W, R3) läuft hinten in den Sockel. Sein Stecker
+  steht in der Mitte der Mulde nach oben.
+- **Schwimmende Lagerung:** Der Stecker sitzt in einem TPU-Halter, der ±1 mm
+  seitlich und einige Grad Kippen erlaubt (R). Kleine Ungenauigkeiten nimmt
+  der Halter auf, nicht der Stecker.
+- **Sollbruchstelle im Sockel:** Bricht etwas, dann der Stecker oder der
+  TPU-Halter. Tausch = neues Netzteil (~10 €) oder neuer Halter, ohne die Box
+  zu öffnen.
+- **Kabelführung:** Das Kabel ist im Sockel mit Zugentlastung geklemmt. Zug am
+  Kabel geht nie auf den Stecker.
 
-### 3.2 Magnet-Pogo-Stecker (R5)
+### 4.2 Box
 
-Fertiges Paar: Federhälfte im Sockel, flache Hälfte in der Box. Die Magnete im
-Stecker ziehen die Hälften auf den letzten Millimetern zusammen und richten sie
-aus.
+- **USB-C-Buchse unten**, auf einem kleinen Sink-Breakout mit 5,1 kΩ an CC1
+  und CC2. Das Breakout ist mit dem Box-Boden verschraubt und umgossen, die
+  Buchse von einer Wand im Boden umfasst. Die Buchse muss stärker sein als der
+  Stecker im Sockel (A4).
+- Buchse → #5398 Eingang A. Die seitliche USB-C-Buchse für unterwegs → Eingang
+  B. Unverändert gegenüber dem Plan, nur der Eingang A kommt jetzt von einer
+  Buchse statt von Pogo-Pins.
+- Zuleitung ≥ 3 cm von der NFC-Antenne (Punkt 10).
+- **Keine Magnete** für den Sockel.
 
-**Anforderungen an den Stecker** (Typ wird am Muster gewählt, siehe T0):
+### 4.3 Wecken und Rückmeldung (R8)
 
-- 4-polig, je 2 Pins parallel für Plus und Masse. Je Pin ≥ 1,5 A Dauerstrom
-  laut Datenblatt.
-- Magnete im Gehäuse eingeschlossen, nicht offen.
-- Vergoldet, ≥ 10.000 Steckzyklen laut Hersteller.
-- Verpolsicher durch die Magnetpolung (ein falsch gedrehter Stecker stößt ab).
-  Das ist eine zweite Sicherung neben der festen Richtung.
-- Federweg ≥ 1 mm, Fangbereich der Magnete ≥ 1,5 mm (R).
-
-**Kandidaten aus der Recherche (09.11.), alle unvollständig belegt:**
-Promax NF6266 (2 A je Pin, 10.000 Zyklen, 3-A-Variante soll es geben),
-Mill-Max Maxnetic 878 (9 A je Pin in freier Luft), Multicomp Pro MP011967/68
-(Farnell, 2 A), ATTEND 303D (DigiKey, ~6 $). Dazu billige 4-polige Paare von
-AliExpress als Vergleich.
-
-**Einbau:**
-- Sockel: Federhälfte im Mulden-Boden, Pins stehen so weit vor, wie der
-  Stecker es vorsieht. Von unten eingesetzt, mit Epoxy vergossen, dicht zum
-  Elektronikfach.
-- Box: flache Hälfte bündig im Boden, von innen eingesetzt und vergossen. Von
-  außen nicht herausziehbar [M15].
-- **Abweichung von PSP 3.5.3 („Kontakte 3–4 mm versenkt“):** Die Pins im
-  Sockel stehen vor, die Pads der Box sind bündig. Das ist vertretbar, weil
-  beide Seiten ohne aufsitzende Box spannungslos sind (A4, A5).
-
-### 3.3 Box
-
-- Stecker: Plus → #5398 Eingang A, Masse → GND. USB-C → Eingang B
-  (unverändert). 20-mΩ-Jumper am #5398 überbrückt [E7].
-- Zwei Magnete 8×3 mm im Boden, eingeschlossen (≥ 1,2 mm PETG) und eingeklebt.
-- Zuleitung am Boden und an der Rückwand entlang, ≥ 3 cm von der Antenne.
+- Am PiSugar wird „Einschalten bei Strom am Eingang“ aktiviert.
+- Nach dem Start am Lader: Ton (nachts nicht, Leise-Zeiten), LED-Ring zeigt
+  einige Sekunden Laden und Ladestand, Sync prüfen, ohne Wiedergabe zügig
+  wieder herunterfahren.
+- Rückmeldung nach ~20–30 s (Startzeit des Pi 3A+, am Muster messen).
+- Läuft die Box schon beim Andocken, kommt die Rückmeldung sofort.
+- Das ist Arbeit für das Box-Software-Design (eigenes Thema). Die Verträge
+  bleiben unverändert, bis Tobias dort entscheidet.
 
 ---
 
-## 4. Mechanik
+## 5. Mechanik: Führung und Hebelschutz
 
-### 4.1 Mulde und Führung
+Hier liegt das Risiko dieser Variante. Ein USB-C-Stecker verträgt kaum
+seitliche Kraft. Kleinkinder setzen schräg auf und ziehen schief ab.
 
-- Innenmaß am Boden 124 × 124 mm (2 mm Spiel je Seite). Wände durchgehend 60°
-  schräg, 20 mm hoch, ohne senkrechte Führungswand [M5]. Die Box liegt mit
-  ihrem PETG-Boden auf, Freistiche für die TPU-Ecken [M2].
-- **Steg und Nut:** Auf dem Mulden-Boden verläuft hinten ein Steg
-  (60 × 4 × 3 mm, oben gerundet). Die Box hat hinten im Boden die passende Nut
-  (5 mm breit, 4 mm tief).
-  - In der richtigen Richtung sinkt die Box ganz ab. Der Stecker schließt,
-    beide Reeds schließen.
-  - Falsch gedreht liegt die Box auf dem Steg, 3 mm zu hoch. Der Stecker
-    trifft nicht, mindestens ein Reed bleibt offen. Es passiert nichts.
-- **Wie das Kind die Richtung findet:** Das Bedienfeld zeigt nach vorne zum
-  Kind. Richtig herum sinkt die Box ab und rastet mit einem leichten Klack der
-  Stecker-Magnete ein, der LED-Ring zeigt blau. Ob Kinder das ohne Hilfe
-  schaffen, zeigt der Alltag. Kindertests vor der Abnahme gibt es keine (R4).
+### 5.1 Drei Stufen Führung
 
-### 4.2 Reeds und Magnete
+```
+Schnitt (seitlich, nicht maßstäblich)
 
-- Zwei gekapselte Reeds unter dem Mulden-Boden, beide **hinten** bei
-  (+35/+35) und (−35/+35) mm, in Reihe.
-- Die zwei Box-Magnete sitzen an denselben Stellen.
-- Bei 90°, 180° oder 270° Drehung liegt höchstens ein Box-Magnet über einem
-  Reed, die Reihe bleibt offen. Zusammen mit dem Steg ist das doppelt
-  gesichert.
-- Ein einzelner fremder Magnet schließt nie beide Reeds, sie liegen 70 mm
-  auseinander.
-- Die Magnete im Stecker sitzen in der Mitte, ≥ 40 mm von den Reeds entfernt,
-  und lösen sie nicht aus (Schätzung aus der Recherche, T1 prüft).
-- Der Reed muss im Endstand mit Reserve schließen: Schaltabstand
-  ≥ 1,5 × Abstand Magnet–Reed (R) [M1, M13].
+  ╲                                                   ╱   ← 1. Mulde, 60°, 2 mm Spiel
+   ╲    Box                                           ╱
+    ╲   ┌──────┐      ┌──Buchse──┐      ┌──────┐    ╱
+     ╲  │ Nut  │      │  Tasche  │      │ Nut  │   ╱
+      ╲_│Rippe │______│ ▲Stecker │______│Rippe │__╱     ← 2. Rippen + Nuten (nur 0°/180°)
+        └──────┘      └─Kragen───┘      └──────┘          3. konischer Kragen + Tasche
+   │ Kabel mit Zugentlastung, Gewicht im Boden             │
+   └──────────────────────────────────────────────────────┘
+```
 
-### 4.3 Sockel
+1. **Mulde (grob):** 124 × 124 mm, Wände 60°, ±2 mm Spiel, wie Rev. 3.
+2. **Rippen und Nuten (Lage):** Zwei Rippen vorne und hinten auf dem
+   Mulden-Boden, parallel zur langen Seite des Steckers. In der Box liegen
+   passende Nuten mit Fase.
+   - Bei 0° und 180° sinkt die Box ab. Das ist symmetrisch, und USB-C ist
+     drehbar.
+   - Bei 90° und 270° liegt die Box auf den Rippen auf. Die Rippen sind
+     **höher als die Steckerspitze**, die Box berührt den Stecker nicht.
+3. **Kragen und Tasche (fein):** Der Stecker steht in einem konischen,
+   rechteckigen Kragen. Die Box hat um die Buchse eine passende konische
+   Tasche. Der Kragen fängt ±3 mm und führt auf ±0,3 mm, **bevor** der
+   Stecker die Buchse berührt (R).
 
-- Außen ~155 × 155 mm, Höhe ~35 mm (R).
-- Gewicht 200–300 g im Boden (Stahlscheiben), wenn T5 es verlangt. Der Halt
-  der Stecker-Magnete ist klein (Größenordnung 50–100 g), die Box hebt sich
-  leicht ab.
-- Mulden-Boden mit 2° Gefälle zu einer Rinne, 4 Ablaufbohrungen ins Freie.
-  Elektronikfach getrennt und dicht.
-- USB-C-Kabel des Netzteils hinten, mit Zugentlastung im Gehäuse.
-- Boden mit Torx verschraubt, vier eingeklebte TPU-Füße.
+### 5.2 Hebelschutz
 
-### 4.4 Restrisiko (R6, bewusst akzeptiert)
+- **Tiefe Führung:** Rippen und Kragen greifen schon 5–8 mm vor dem Stecken.
+  Wird die steckende Box seitlich gedrückt, stützen Kragen und Rippen die
+  Kraft ab, nicht der Stecker (R).
+- **Schwimmender Halter:** Er gibt bei Überlast nach, statt dass der Stecker
+  bricht.
+- **Steckkraft:** Ein USB-C-Stecker hält mit etwa 8–20 N (Richtwert der Norm,
+  am Muster messen). Das Gewicht der Box reicht zum Stecken. Beim Abheben muss
+  das Kind diese Kraft überwinden. **Der Sockel muss deshalb deutlich schwerer
+  sein** (Gewicht ≥ 1 kg im Boden, R) oder rutschfest stehen. Sonst hebt er
+  mit ab (A3).
 
-Gefährlich wird es nur, wenn alles gleichzeitig zutrifft: Zwei fremde Magnete
-liegen genau über beiden Reeds (70 mm auseinander, in der Mulde), dazu liegt
-ein Metallteil mit schlechtem Kontakt quer über Plus- und Masse-Pins.
+### 5.3 Flüssigkeit
 
-Dann begrenzt nur der PTC oder das Netzteil. Ein Übergangswiderstand von
-1–2 Ω kann mehrere Watt Wärme erzeugen, ohne dass beide auslösen [E1].
-
-T6 misst genau diesen Fall. Liegt die Temperatur am Stecker oder an der Last
-über 60 °C, kommt die eFuse-Platine aus Rev. 2 zurück.
+Der Kragen steht erhöht. Der Mulden-Boden fällt zur Rinne mit Ablauf hin ab.
+Im Stecker kann sich trotzdem Feuchtigkeit sammeln. Das ist dasselbe wie bei
+jedem USB-C-Kabel. T7 prüft es.
 
 ---
 
-## 5. Wecken und Software
-
-- Auto-Power-On am PiSugar bleibt aus (PSP 5.6.5). Die Quelle dazu wird vor
-  der Bestellung belegt. Ein Erfahrungsbericht mit Qi zeigt, dass ein PiSugar
-  beim Laden den Pi starten kann (`research_qi.md`, #168). T3 prüft das
-  besonders.
-- Hinweis an die Box-Software: „am Lader“ etwa 10 s entprellen, bevor Sync oder
-  Update starten [M10]. Kein Vertragsthema, Prüfpunkt bei AP Strom/Leerlauf.
-
----
-
-## 6. Tests
-
-Alle durch Tobias (R4), im geschlossenen Sockel bei ≥ 25 °C Raumtemperatur.
+## 6. Tests (Tobias, R4)
 
 | # | Test | Bestanden, wenn |
 |---|---|---|
-| T0 | Stecker-Auswahl: 2–3 Typen kaufen. Je Typ Strom 2,7 A für 1 h über 2+2 Pins, Temperatur, Fangbereich, Haltekraft | ein Typ bleibt < 50 °C, fängt ≥ 1,5 mm, Magnete fest im Gehäuse |
-| T1 | Reeds: Schalt- und Rückfallabstand; Box in 0/90/180/270°; Fremdmagnete (Tonie, Magnetbaustein, Handyhülle) einzeln; Stecker-Magnet neben einem Reed | Nur bei 0° beide geschlossen. Kein einzelner Fremdmagnet, kein Stecker-Magnet schaltet frei |
-| T2 | Ladestrom Sockel gegen USB-C, Box aus und Box läuft. Spannung am PiSugar | A8 erfüllt. Daraus folgt der PTC-Wert |
-| T3 | Wecken: 20× andocken bei Box aus; leerer Akku; Netzteil einstecken mit aufsitzender Box; wackeln | Box bleibt aus und lädt |
-| T4 | Andocken: richtig herum 20× mit Versatz und leichter Schräglage; falsch herum in allen drei Lagen | richtig: lädt jedes Mal, LED-Ring blau. Falsch: liegt auf dem Steg, 0 V an den Pins |
-| T5 | Abheben einhändig, auch schräg; Seitenstoß | Sockel hebt sich nicht und kippt nicht |
-| T6 | Kurzschluss: ohne Box Münze, Löffel, Alufolie auf den Pins. Dann beide Reeds mit Magneten schließen, Widerstände 0,2 / 0,5 / 1 / 2 / 3 Ω über Plus und Masse, je 5 min, den heißesten Wert 1 h | Ohne Magnete 0 V. Mit Magneten: Stecker, Last und Module < 60 °C. Sonst eFuse-Platine aus Rev. 2 |
-| T7 | Box am USB-C: Spannung am Box-Stecker mit 1 kΩ Last | < 0,1 V |
-| T8 | USB-C und Sockel gleichzeitig, eine Quelle unter Last abziehen | kein Neustart, keine Rückspeisung |
-| T9 | Wärme: Laden leer → voll, Messung an #2810, PTC, Stecker | alles < 50 °C |
-| T10 | Krümel, Wasser, Saft in die Mulde und auf den Stecker; Box auf Teppich, dann andocken | Wasser läuft ab, Elektronikfach trocken, Stecker mit einem Wisch sauber |
-| T11 | 300× andocken, Kontaktwiderstand Anfang und Ende | Anstieg < 50 % |
-| T12 | Sturz der Box aus 1 m (PSP 4.3.2), Zug an Stecker und Füßen | nichts lose, kein Magnet zugänglich |
+| T1 | Druckmuster der Führung ohne Elektronik: Box 50× aufsetzen, auch schräg, verdreht, mit Versatz, aus 5–10 cm | Bei 0°/180° steckt sie jedes Mal, ohne Kraft. Bei 90°/270° liegt sie auf den Rippen, der Stecker bleibt frei |
+| T2 | Hebeltest: steckende Box seitlich mit 20, 40, 60 N kippen (Federwaage), in alle Richtungen | nichts bricht, Stecker sitzt danach normal |
+| T3 | Abheben einhändig, senkrecht und schräg, Abzugskraft messen | Sockel hebt sich nicht, Kraft < 20 N (R) |
+| T4 | Ladestrom Sockel gegen Kabel an der Seitenbuchse | gleich (±10 %) |
+| T5 | Wecken (R8): Andocken bei Box aus, bei laufender Box, bei leerem Akku; Leise-Zeit | Ton/Ring wie in 4.3, nachts kein Ton |
+| T6 | Münze, Löffel, Klammer, Alufolie in Mulde und auf den Stecker, dann Box aufsetzen | nichts wird warm, Box steckt nicht oder lädt normal |
+| T7 | Wasser, Saft in die Mulde, Krümel auf den Kragen | läuft ab, Stecker trocknet, kein Fehler. Kragen mit einem Wisch sauber |
+| T8 | USB-C seitlich und Sockel gleichzeitig, eine Quelle abziehen | kein Neustart, keine Rückspeisung |
+| T9 | Zyklen: 500× stecken (USB-C ist für ≥ 10.000 ausgelegt) | Steckkraft und Kontakt unverändert |
+| T10 | Sturz der Box aus 1 m (PSP 4.3.2), danach Boden-Buchse prüfen | Buchse fest, kein Teil lose |
 
 ---
 
@@ -209,49 +179,38 @@ Alle durch Tobias (R4), im geschlossenen Sockel bei ≥ 25 °C Raumtemperatur.
 
 | Teil | Stk | ca. € |
 |---|---|---|
-| Netzteil Raspberry Pi 15 W USB-C (5,1 V/3 A, Kabel fest) | 2 | 20 |
-| Magnet-Pogo-Stecker 4-polig, Paare (2 für den Einbau, 2–3 Typen für T0) | 5 | 15 |
-| Pololu #2810 | 2 | 10 |
-| USB-C-Breakout mit 5,1 kΩ an CC | 2 | 4 |
-| PTC, TVS, Elko, Widerstände, 10 µF, Lochraster | — | 5 |
-| Reed-Kontakt gekapselt (4 Einbau, 2 Ersatztyp für T1) | 6 | 15 |
-| Neodym-Magnete 8×3 mm (schon in Stückliste 1.1, jetzt 2 statt 4 je Box) | — | −2 |
+| Netzteil Raspberry Pi 15 W USB-C, festes Kabel (eines Ersatz bei Bruch) | 2 (+1) | 20 (+10) |
+| USB-C-Sink-Breakout mit 5,1 kΩ für die Boden-Buchse | 2 | 6 |
+| Gewicht im Sockel (Stahl, ≥ 1 kg je Sockel) | — | 6 |
+| TPU-Halter, Füße, Druck PETG/TPU | — | 8 |
+| Schrauben, Epoxy, Litze | — | 5 |
 | entfällt: Pogo-Pins in der Box (Stückliste 1.1) | — | −10 |
-| Stahlscheiben, Epoxy, Schrauben, Füße, Litze | — | 10 |
-| PETG und TPU (Druck) | — | 6 |
-| **Summe** | | **~73** |
+| entfällt: Neodym-Magnete für die Zentrierung (Stückliste 1.1, 2× 4 Stk) | — | −8 |
+| **Summe** | | **~27 (mit Ersatz-Netzteil ~37)** |
 
-Im Plan stehen 30 € (Stückliste 1.2). **Mehrkosten ~43 €** (Rev. 2: ~95 €).
+Im Plan stehen 30 € (Stückliste 1.2). **Die Rev. 4 bleibt im Budget.**
 
 ### 7.1 Abweichungen vom Plan (nach Annahme in `docs/plan/` nachtragen)
 
 | Stelle | Neu |
 |---|---|
-| Stückliste 1.1 „Pogo-Pins 2-polig“ | flache Hälfte des Magnet-Steckers in der Box |
-| Stückliste 1.1 „Neodym-Magnete 4 Stk“ | 2 Stück |
-| Stückliste 1.2 „Dual-Ladestation“, „Load-Switch + Reed“ | zwei Sockel nach dieser Rev. 3 |
-| PSP 3.5.1 Verpolschutz | feste Richtung (Steg/Nut) und Magnetpolung des Steckers |
-| PSP 3.5.3 Kontakte versenkt | Pins im Sockel stehen vor, Pads der Box bündig, beide ohne Box spannungslos |
-| PSP 3.5 neu | 3.5.5 Stecker-Auswahl (T0) |
-| PSP 3.1 neu | Ladestrom-Messung (T2) |
+| Punkt 11 (Reed) | entfällt, kein Reed |
+| Abschnitt 1.4 „Load-Switch im Dock, Ideal-Diode in der Box“ | Load-Switch entfällt, Ideal-Diode bleibt |
+| Punkt 13 / PSP 4.7.1 | keine Magnete für den Sockel |
+| Stückliste 1.1 „Pogo-Pins“, „Neodym-Magnete“ | Boden-USB-C-Buchse, keine Magnete |
+| Stückliste 1.2 | zwei Sockel nach Rev. 4 |
+| PSP 3.5.1–3.5.4 | Verpolschutz durch USB-C; kein Load-Switch; Kontakte im Stecker; Münztest bleibt (T6) |
+| PSP 3.5 neu | Druckmuster der Führung (T1), Hebeltest (T2) |
+| Punkt 3, PSP 5.6.5, 8.2.4 | Andocken weckt kurz (R8, schon in 3.16 vermerkt) |
 
 ---
 
-## 8. Vergleich
+## 8. Offen
 
-| | Rev. 2 | **Rev. 3** | Qi |
-|---|---|---|---|
-| Drehlage | jede | eine, mit Führung | jede (Mulde: 4) |
-| Kurzschlussschutz | eFuse, voll | PTC und Netzteil, Restrisiko | Fremdmetall-Erkennung im Pad |
-| Eigene Platine | ja | nein | nein |
-| Bauzeit bis Muster | Entwurf + 2–3 Wochen | sofort nach Bestellung | sofort |
-| Kosten (R) | ~125 € | **~73 €** | ~40–60 € |
-| Status | Rückfall, falls T6 durchfällt | **Vorschlag** | verworfen (Wärme am Akku, Aufwachen) |
-
-## 9. Offen bis zur Bestellung
-
-1. Stecker-Typen für T0 auswählen (Agent sucht 2–3 lieferbare 4-polige Paare
-   mit Datenblatt).
-2. Reed-Typ (gekapselt) für T1.
-3. Quelle zum Weckverhalten des PiSugar.
-4. Box-Maße nachmessen, dann Mulde, Steg und Nut festlegen.
+1. Druckmuster der Führung (T1, T2) vor allem anderen: Es entscheidet, ob B
+   kindertauglich ist. Fällt T2 durch, ist der Rückfall „versenkte
+   Federkontakte“ (Variante A aus dem Resolve).
+2. Maße von Kragen, Tasche, Rippen und Nuten erst nach CAD der Box.
+3. PiSugar-Einstellung „Einschalten bei Strom am Eingang“ am Muster
+   bestätigen.
+4. Box-Software für R8: Ablauf nach Start am Lader, Leise-Zeiten, Abschalten.

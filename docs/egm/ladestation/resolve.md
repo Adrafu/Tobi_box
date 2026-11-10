@@ -107,3 +107,18 @@ Druck, Spiel gegen Fangbereich prüfen), G6 (Reeds wieder diagonal), G8 (PTC nur
 als Leitungsschutz benennen), G11 (weggefallene Tests zurück), G12
 (Stahlgewicht nicht unter Magneten und Reeds), G14 (Versand und
 Testmaterial in die Stückliste).
+
+## R9: USB-C-Stecker im Sockel (10.11., Tobias)
+
+Recherche fertiger Lösungen: Elektrische Erkennung (auch USB-C-CC, Reeds)
+schützt nicht, wenn Metall unter der aufsitzenden Box liegt. Es hilft nur,
+dass Metall die Kontakte nicht erreicht. Zur Wahl standen versenkte
+Federkontakte (A, Empfehlung der Projektleitung) und ein USB-C-Stecker im
+Sockel wie bei Handy-Docks (B).
+
+**Entscheidung Tobias: B.** Folgen: keine Elektronik und keine Reeds im
+Sockel, keine Magnete in der Box, Kosten etwa im Plan-Budget. Neues
+Hauptrisiko: seitliches Hebeln durch Kinder bricht Stecker oder Buchse.
+Gegenmittel: dreistufige Führung, schwimmender Halter, Sollbruchstelle im
+Sockel, schwerer Sockel. Druckmuster und Hebeltest (T1, T2) entscheiden. Fällt
+T2 durch, ist A der Rückfall. Ersetzt R5, R6.
