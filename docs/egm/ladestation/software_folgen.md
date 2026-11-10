@@ -443,3 +443,27 @@ Reihenfolge: 0 zuerst (klärt Punkt 1 und die Boot-Schleife, die alles andere
 kippen könnte), dann 1 und 2 nach Tobias' Entscheidungen, dann 3 bis 7 (3 und 4
 unabhängig, 5 und 6 danach), 8, 9. Nichts davon blockiert die Mechanik der
 Ladestation (T1, T2).
+
+---
+
+## 10. Entscheidungen von Tobias (10.11.)
+
+| # | Frage | Entscheidung |
+|---|---|---|
+| S1 | Startgrund | **Gutmütig:** Jeder Start mit Strom am Eingang gilt als „Start am Lader“. Kein Merker. |
+| S2 | Kurz-Zähler | **120 s** ab Ende der Rückmeldung. Ein laufender Sync hält wach. |
+| S3 | Was beendet den Kurz-Modus | **Tobie auflegen, Hauptknopf kurz, HA-Befehl.** Nicht: Weiter, Zurück, Drehregler. Danach gilt die normale 20-min-Regel. |
+| S4 | Liegender Tobie beim Andocken | **Spielt wie bisher** (CUJ 20 unverändert). Nachts schützen die Leise-Zeiten. |
+| S5 | Leise-Zeiten | **Kein Ton** bei „leiser“ und „stumm“, Ring gedimmt (~5 % / ~3 %), Lauflicht beim Start nachts aus. |
+| S6 | Update am Lader | **Update vormerken:** HA merkt „Update beim nächsten Andocken“ vor, die Box holt es beim nächsten Start am Lader (Bedingungen wie bisher: daheim, am Lader, spielt nicht). **Abweichung von der Empfehlung, braucht eine Vertragsänderung** (`mqtt-v1.md`, `core-interface.md`). |
+| S7 | Start-Sync unterwegs | **Auch über den Hotspot** (Hotspot-Regel unverändert: „Lader dran“ erlaubt Medien-Sync). **Abweichung von der Empfehlung.** Folge: Mit Powerbank im Auto kann die Box über den Handy-Hotspot Medien laden. Tobias nimmt das in Kauf. |
+| S8 | Andocken bei laufender Box | **Sync prüfen**, einmal je Andocken, 10 s entprellt, Netz-Regel wie S7. |
+| S9 | Rückmeldung bei spielendem Hörspiel | **Nur Ring, kein Ton.** |
+| S10 | Sockel/Kabel unterscheiden (Taster) | **Jetzt nicht.** Erst mit Powerbank und Auto testen. |
+| S11 | Frühstart-Ring | **Erst messen** (Startzeit am Muster), dann entscheiden. |
+
+**Nächster Schritt:** Diese Entscheidungen in `docs/designs/box-software.md`
+und die betroffenen Verträge (Tabelle in Abschnitt 7, S6 zusätzlich: neuer
+Befehl oder Feld „Update vormerken“) einarbeiten. Das ist eine Änderung an
+einem angenommenen Design und an Verträgen. Sie läuft als eigener Schritt mit
+Entwurf und Goldfisch-Review, bevor Agents Code ändern.
