@@ -107,6 +107,37 @@ Schutzprinzip wie bei jedem USB-C-Kabel, das auf dem Boden liegt.
 - Das ist Arbeit für das Box-Software-Design (eigenes Thema). Die Verträge
   bleiben unverändert, bis Tobias dort entscheidet.
 
+### 4.4 Was das für die Software heißt (Kurzfassung)
+
+Die vollständige Analyse steht in `software_folgen.md`.
+
+- **Startgrund:** Die Box kann nicht sicher erkennen, ob der Lader sie geweckt
+  hat oder der Knopf. pisugar-server bietet dafür nichts an. Der Ablauf muss
+  deshalb ohne Startgrund auskommen. Er gilt bei jedem Start mit Strom am
+  Eingang.
+- **Ablauf „Start am Lader“:**
+  1. Rückmeldung mit Ton und Ring.
+  2. Sync prüfen.
+  3. Ein kurzer Zähler läuft, Vorschlag 120 s statt 20 min.
+  4. Ein Tobie, der Hauptknopf, das Abziehen oder ein HA-Befehl beenden den
+     Kurz-Modus, die Box bleibt dann an.
+- **Schon im Code:** `idle.py` startet den Sync am Lader, `led.py` zeigt den
+  Ladestand.
+- **Lücken im Code:**
+  - `power.py` fragt nur alle 10 s ab.
+  - Das Lauflicht beim Start (`Bereit`) ist nachts zu hell.
+  - Der Start-Sync kann scheitern, solange das WLAN noch nicht steht.
+  - Ein liegender Tobie würde beim Andocken spielen (CUJ 20).
+- **Unterwegs (R10):** Jede Powerbank weckt die Box und gilt als „Lader“.
+  Deshalb soll der Start-Sync nur im Heimnetz laufen, sonst synct die Box
+  über den Handy-Hotspot. Sockel und Kabel lassen sich elektrisch nicht
+  unterscheiden.
+- **Größtes Risiko, zuerst am Muster prüfen:** Gerät die Box in eine
+  Startschleife, wenn sie am Sockel herunterfährt, während Strom anliegt?
+- **Betroffen:** 14 Vertragsstellen, 8 Stellen in `box-software.md` und 5 im
+  Plan. Nichts davon ist geändert, Tobias entscheidet die 11 offenen Punkte in
+  `software_folgen.md`, Abschnitt 8.
+
 ---
 
 ## 5. Mechanik: Führung und Hebelschutz

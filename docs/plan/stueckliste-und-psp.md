@@ -578,7 +578,8 @@ Stand 3.8: Aufteilung neu. V3 entfällt, die Firmware macht den Leser, Home Assi
   - 5.6.2 Tastenereignisse → Phoniebox-RPC
   - 5.6.3 Idle-Shutdown nach ~20 min (V3)
   - 5.6.4 Shutdown bei Tiefstand
-  - 5.6.5 Auto-Power-On aus, Anti-Mistouch aus **NEU**
+  - 5.6.5 Auto-Power-On aus, Anti-Mistouch aus **NEU** — **3.16 (R8):** Einschalten bei Strom am Eingang **an**; Ablauf „Start am Lader“ offen, siehe `docs/egm/ladestation/software_folgen.md`
+  - 5.6.8 Start am Lader: Rückmeldung (Ton, Ring), Start-Sync nur im Heimnetz, kurzer Zähler statt 20 min, Leise-Zeiten **NEU 3.16, offen**
   - 5.6.6 WLAN-Powersave messen und entscheiden
   - 5.6.7 Kein eigener Hotspot; Handy-Hotspot als bekanntes Netz **NEU 3.8**
 - **5.7 Plugin Leise-Zeiten**

@@ -11,6 +11,7 @@
 *   **Änderung 09.11.:** Entscheidung L eingearbeitet (nie zwei Sachen gleichzeitig). Die Änderungen sind mit „(Entscheidung L, 09.11.)“ markiert.
 *   **Änderung 09.11.:** Entscheidung M eingearbeitet (Einsortieren nach Metadaten, vollautomatisch mit Korrektur) und die Vorgaben der Projektleitung zu Vertrag W (`docs/protocol/ha-websocket-v1.md`). Die Änderungen sind mit „(Entscheidung M, 09.11.)“ markiert.
 *   **Änderung 09.11.:** Entscheidung N eingearbeitet (Lesezeichen je Tobie mit Ablauf). Die Änderungen sind mit „(Entscheidung N, 09.11.)“ markiert.
+*   **Ausstehend (10.11., noch nicht eingearbeitet):** Die Ladestation ändert das Verhalten am Lader. Andocken weckt die Box kurz (R8), und es gibt nur noch eine USB-C-Buchse im Boden, auch für unterwegs (R10). Betroffen sind unter anderem CUJ 10, CUJ 16, CUJ 20, die Tabelle „Strom / Leerlauf“, die Netz-Regel, LED und Töne, Leise-Zeiten und 14 Vertragsstellen. Analyse und offene Entscheidungen: `docs/egm/ladestation/software_folgen.md`. Bis Tobias entscheidet, gilt dieses Dokument unverändert.
 *   **Grundlage:** `concepts_brief.md` (gleicher Ordner) inkl. Entscheidungen
     Runde 1 und 2
 
