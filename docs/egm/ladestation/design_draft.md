@@ -74,11 +74,11 @@ Mulden-Boden. Die lange Seite von Kragen und Tasche liegt in x.
 | Teil | Maß |
 |---|---|
 | Mulde | 124 × 124 mm innen, Wände 60°, 20 mm hoch, 2° Gefälle zur Rinne mit 4 Ablaufbohrungen |
-| Kragen (fest mit der Mulde gedruckt) | unten 36 × 18, oben 30 × 12, 14 hoch |
-| Schacht im Kragen | 12 × 7, Steckerspitze bei 12 (2 mm unter der Kante) |
-| Tasche in der Box | Öffnung 37 × 19, oben 31 × 13, 14 tief |
-| Buchsen-Zapfen in der Tasche | 11 × 6, Buchsenöffnung 5,5 mm über der Bodenfläche, ragt nicht über die Bodenfläche |
-| Kabelrinne in der Box | aus der Tasche gerade nach hinten bis zur Rückkante, 14 breit, 8 tief |
+| Kragen (fest mit der Mulde gedruckt) | unten 38 × 20, oben 32 × 14, 14 hoch |
+| Schacht im Kragen | 14 × 8, Steckerspitze bei 12 (2 mm unter der Kante) |
+| Tasche in der Box | Öffnung 39 × 21, oben 33 × 15, 14 tief |
+| Buchsen-Zapfen in der Tasche | 13 × 7, darin eine kompakte USB-C-Einbaubuchse mit Litzen (Maße nach Messung), Buchsenöffnung 5,5 mm über der Bodenfläche, ragt nicht über die Bodenfläche |
+| Kabelrinne in der Box | aus der Tasche gerade nach hinten bis zur Rückkante, 18 breit, 8 tief |
 
 ### 4.2 Was die Maße leisten
 
@@ -86,7 +86,7 @@ Mulden-Boden. Die lange Seite von Kragen und Tasche liegt in x.
 |---|---|
 | 0° / 180° | Tasche über Kragen, Zapfen im Schacht (±0,5 mm), Stecker steckt voll (Spitze 12 − Öffnung 5,5 = 6,5 mm Stecklänge) |
 | Führung vor Kontakt | Kragenhöhe 14 − 6,5 = **7,5 mm** Führung, bevor der Stecker die Buchse berührt |
-| 90° / 270° | Die Tasche ist 19 mm breit, der Kragen oben 30 mm lang. Die Box liegt 14 mm hoch auf zwei Auflagen von je **5,5 × 12 mm**. Die Zapfen-Unterseite liegt bei 19,5, die Steckerspitze bei 12, also **7,5 mm frei** |
+| 90° / 270° | Die Tasche passt nicht über den Kragen, die Box liegt auf ihm. Weil die Kabelrinne nach hinten läuft, trägt nur eine Auflage. **Die Box kippelt absichtlich** (bis ~12,8°, dann liegt sie auf dem Mulden-Boden), damit man merkt, dass sie falsch steht. Auch gekippt bleibt der Zapfen **~4,5 mm über der Steckerspitze** |
 | Box auf dem Tisch | flacher Boden, Zapfen und Buchse liegen innen |
 
 Das Druckmuster rechnet das mit Asserts nach (`hardware/ladesockel/`).
