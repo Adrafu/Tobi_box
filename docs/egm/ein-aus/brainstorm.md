@@ -25,3 +25,13 @@ Fakten: `research.md` (im selben Ordner, in Arbeit).
   bis zum Abend tragen, weil jede Nacht geladen wird.
 - Nach „ganz aus“ soll ein aufgelegter Tobie die Box wecken (NFC-Leser bleibt sparsam wach). Dann
   dauert es länger als 3 s; wie lange, entscheidet die Startzeit.
+
+## Antworten Runde 2 (10.11., nach `research.md`)
+
+| Frage | Antwort |
+|---|---|
+| Am Sockel | **Immer bereit, auch nachts.** |
+| Bereitschaft ohne Sockel | **10 min** nach dem letzten Hören, dann ganz aus. |
+| Tobie weckt die Box | **Am Breadboard ausprobieren.** Klappt es nicht, weckt der Hauptknopf. |
+| Schalter (MOSFET) für Ring und Leser | **Gleich einplanen.** (Hinweis Projektleitung: Für den Leser geht das nicht, er muss Tobies spüren; siehe `concepts_brief.md` E2.) |
+| Neuer Wunsch | **Startup-Sound:** sofortige Rückmeldung beim Hochfahren (`concepts_brief.md` E7). |
