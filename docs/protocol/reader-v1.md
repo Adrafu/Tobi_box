@@ -7,6 +7,10 @@
     beide Seiten)
 *   **Gilt für:** Firmware `tobibox-reader` (ESP32-S3 mit PN5180) und die
     Module `protocol.py` und `reader.py` des Box-Dienstes.
+*   **Änderung 10.11. (Ein/Aus, 10.11., Schritt 1):** Neue Zeile `LADER` (Strom am Eingang der
+    Box) und optionales Feld `caps` am Ende von `HELLO`. `proto` bleibt 1. Die Versionsregel
+    (Abschnitt 13) ist klargestellt. Alle Änderungen sind mit „(Ein/Aus, 10.11.)“ markiert.
+    Die Zeilen für das Wecken, den Schlaf und den Ring (Schritt 2) folgen mit Schritt 2.
 
 Dieses Dokument ist der **einzige Vertrag** zwischen Firmware und Box-Dienst.
 Wo es etwas nicht sagt, gilt: nicht erfinden, sondern die Projektleitung fragen.
@@ -71,14 +75,16 @@ Regeln:
 
 | Zeile | Felder in dieser Reihenfolge | Wann |
 |---|---|---|
-| `HELLO` | `proto` `fw` `build` `pn5180` | beim Start, und als Antwort auf `PING` |
+| `HELLO` | `proto` `fw` `build` `pn5180` `caps` (*optional*, am Ende; Ein/Aus, 10.11.) | beim Start, und als Antwort auf `PING` |
 | `PLACED` | `uid` `type` `tonie` `seq` | Figur mit Kennung liegt (entprellt) |
 | `LOCKED` | `seq` | gesperrter Tonie liegt (entprellt) |
 | `REMOVED` | `seq` | die liegende Figur ist weg |
 | `HB` | `up` `present` `polls` `hits` `rejected` `errors` `cycle_ms` | Herzschlag alle 2 s |
+| `LADER` | `in` | Strom am Eingang der Box (Ein/Aus, 10.11.): direkt nach jedem `HELLO` und bei jeder Änderung von `STROM_IN` (entprellt: hoch 200 ms, weg 1000 ms, Abschnitt 10). Nur von einer Firmware mit `caps` `strom` |
 | `ERR` | `code` `detail` | Fehler oder Hinweis |
 
-Alle Felder jeder Zeile sind **Pflicht**. Es gibt keine optionalen Felder.
+Alle Felder jeder Zeile sind **Pflicht**, außer den als *optional* gekennzeichneten
+(heute nur `caps` in `HELLO`; Ein/Aus, 10.11.).
 
 **Diagnosezeile `DBG` (keine Vertragszeile):** `DBG <schluessel>=<zahl>`, Aufbau
 nach Abschnitt 2. Sie steht nicht in der Zeilentabelle, hat kein `seq` und
@@ -97,6 +103,8 @@ später entfallen, ohne dass der Dienst etwas ändern muss.
 | `fw` | HELLO | Firmware-Version `MAJOR.MINOR.PATCH` mit optionalem `-Zusatz` (`[0-9A-Za-z.]+`), höchstens 24 Zeichen. Beispiel `1.0.0`, `1.2.10-rc1`. |
 | `build` | HELLO | Git-Hash: 7 bis 12 Zeichen `[0-9a-f]`, optional gefolgt von `-dirty`; oder `unknown`. |
 | `pn5180` | HELLO | Firmware-Version des PN5180 als `<major>.<minor>` (Dezimalzahlen, z. B. `4.2`) oder `unknown`, wenn sie nicht gelesen werden konnte. |
+| `caps` | HELLO | *optional* (Ein/Aus, 10.11.). Fähigkeiten der Firmware: Liste durch Komma, jeder Name `[a-z][a-z0-9_]{0,15}`, ohne Leerzeichen, höchstens 5 Namen, z. B. `strom`. Schritt 1 kennt `strom` (die Firmware liest `STROM_IN` und sendet `LADER`). Unbekannte Namen sind gültig und werden ignoriert. Fehlt das Feld, ist die Firmware 1.x und hat keine Fähigkeit. Weitere Namen folgen mit Schritt 2. |
+| `in` | LADER | `0` oder `1`. `1` genau dann, wenn am Eingang der Box (USB-C des PiSugar) Strom aus irgendeiner Quelle anliegt (Ein/Aus, 10.11.). |
 | `uid` | PLACED | kanonische Kennung, Abschnitt 4. |
 | `type` | PLACED | `ntag` (ISO 14443A) oder `iso15693`. |
 | `tonie` | PLACED | `1` genau dann, wenn `type=iso15693` und `uid` mit `e00403` beginnt; sonst `0`. |
@@ -127,6 +135,16 @@ und `tonie` nicht zueinander (Länge der Kennung passt nicht zum Typ, oder
 *   **`REMOVED`** — Die zuletzt gemeldete Figur (nach `PLACED` oder `LOCKED`) ist
     weg. Beim Figurwechsel kommen `REMOVED` und gleich danach `PLACED` bzw.
     `LOCKED` unmittelbar hintereinander mit aufeinanderfolgenden `seq`.
+*   **`LADER`** (Ein/Aus, 10.11.) — „So ist der Strom am Eingang der Box.“ Die Firmware
+    sendet die Zeile **unmittelbar nach jedem `HELLO`** (Start und Antwort auf `PING`; bei
+    einem `PING` noch vor der erneuten Meldung einer liegenden Figur) und danach bei jeder
+    Änderung von `STROM_IN`. So hat der Dienst nach jedem Verbindungsaufbau sofort einen
+    Wert. `LADER` hat kein `seq` (es ist ein Pegel, kein Ereignis), zählt nicht in `seq` und
+    wiederholt sich außer nach einem `HELLO` nicht ohne Änderung. Die Firmware entprellt: `in=1` erst, wenn der Pegel
+    `STROM_ENTPRELL_HOCH_MS` anliegt, `in=0` erst nach `STROM_ENTPRELL_WEG_MS` ohne Strom.
+    Eine Firmware ohne `caps` `strom` sendet keine `LADER`-Zeile; der Dienst fragt dann nur
+    `pisugar-server`. Was der Dienst aus dem Wert macht: `core-interface.md`, Abschnitt 3.6
+    (`LaderGeaendert`) und Abschnitt 9, Punkt 9.
 *   **`HB`** — Lebenszeichen und Zustandsabgleich (Abschnitt 6).
 *   **`ERR`** — Siehe Abschnitt 7.
 
@@ -474,6 +492,8 @@ Eingecheckt, ohne Geheimnisse. Die Namen sind verbindlich.
 | `ERR_MIN_INTERVAL_MS` | 2000 | Mindestabstand gleicher `ERR`-Codes | Festlegung dieses Vertrags |
 | `PN5180_INIT_RETRY_MS` | 5000 | Abstand der Startversuche, wenn der PN5180 nicht antwortet | Festlegung dieses Vertrags |
 | `PN5180_CMD_TIMEOUT_MS` | 30 | Zeitgrenze je PN5180-Befehl (heißt in `tonie_test` `COMMAND_TIMEOUT_MS`) | `firmware/tonie_test/config.example.h` |
+| `STROM_ENTPRELL_HOCH_MS` | 200 | `STROM_IN` muss so lange hoch sein, bevor `LADER in=1` kommt (Ein/Aus, 10.11.) | Design Ein/Aus, Abschnitt 4.5 |
+| `STROM_ENTPRELL_WEG_MS` | 1000 | `STROM_IN` muss so lange tief sein, bevor `LADER in=0` kommt (Ein/Aus, 10.11.) | Design Ein/Aus, Abschnitt 4.5 |
 
 Daraus folgt: Lücken aus `nichts` bis 1000 ms (= `REMOVE_AFTER_MS` − 100 ms)
 führen zu keinem `REMOVED`. `REMOVE_AFTER_MS` muss größer als 5 × `POLL_PERIOD_MS`
@@ -506,7 +526,7 @@ Meldung der Figur) die Wiedergabe nicht unterbricht.
 | über 200 Zeichen | `too_long` | verworfen, protokolliert (WARNING) |
 | Zeichen außerhalb 0x20 bis 0x7E | `not_ascii` | verworfen, protokolliert |
 | Zeile beginnt mit einem Leerzeichen (auch nur Leerzeichen) | `bad_syntax` | verworfen, protokolliert (WARNING) |
-| erstes Wort ist kein bekannter Zeilentyp (`HELLO PLACED LOCKED REMOVED HB ERR`) | `unknown_type` | verworfen, protokolliert (DEBUG, höchstens eine Meldung je Sekunde) |
+| erstes Wort ist kein bekannter Zeilentyp (`HELLO PLACED LOCKED REMOVED HB LADER ERR`; `LADER` seit Ein/Aus, 10.11.) | `unknown_type` | verworfen, protokolliert (DEBUG, höchstens eine Meldung je Sekunde) |
 | Syntaxfehler (Wort ohne `=`, doppelte Leerzeichen, Leerzeichen am Ende, leerer Wert, auch leeres `detail=`, ungültiger Schlüssel) | `bad_syntax` | verworfen, protokolliert (WARNING) |
 | Schlüssel doppelt | `duplicate_key` | verworfen, protokolliert |
 | Pflichtfeld fehlt | `missing_field` | verworfen, protokolliert |
@@ -544,6 +564,10 @@ Meldung der Figur) die Wiedergabe nicht unterbricht.
     dieselbe Figur erneut (`PLACED`/`LOCKED` mit `seq=0` nach `PING`, Abschnitt
     8, oder nach einem Neustart der Firmware), behält `reader` die bisherige
     Vorgangs-ID (`core-interface.md`, Abschnitt 3.1).
+    **(Ein/Aus, 10.11.)** Nennt `caps` im `HELLO` den Namen `strom`, folgt dem `HELLO` eine
+    `LADER`-Zeile; `reader` gibt sie als `LaderGeaendert(quelle="leser")` weiter
+    (`core-interface.md`, Abschnitt 3.6). `caps` steht im Ereignis `LeserHallo`. Eine
+    `LADER`-Zeile, die vor dem ersten gültigen `HELLO` ankommt, wird verworfen.
 5.  Verliert der Dienst die Verbindung (Lesefehler, Gerät weg) oder löst der
     Wächter aus, gilt dasselbe wie bei Schritt 2: Ausfall melden, schließen,
     neu verbinden.
@@ -577,7 +601,15 @@ Meldung der Figur) die Wiedergabe nicht unterbricht.
     erlaubt: neue **optionale** Zusatzfelder am Ende bekannter Zeilen (bei `ERR`
     **vor** `detail=`, Abschnitt 2, Regel 5), neue Zeilentypen, neue Fehlercodes.
     Alte Parser ignorieren sie (Abschnitt 11).
-    Neue Pflichtfelder gibt es in Version 1 nicht.
+    Neue Pflichtfelder gibt es in **bestehenden** Zeilen in Version 1 nicht. Eine **neue**
+    Zeile darf Pflichtfelder haben (Klarstellung Ein/Aus, 10.11.; Beispiel `LADER` mit
+    `in`): Ein alter Dienst ignoriert die ganze Zeile (Abschnitt 11, `unknown_type`).
+*   **Vom Box-Dienst gesendete Zeilen** (Abschnitt 8, Rückkanal) sind neue Zeilen im
+    Sinn der Regel oben: Eine Firmware, die sie nicht kennt, antwortet mit
+    `ERR code=bad_command`. Der Dienst sendet eine solche Zeile deshalb nur, wenn `caps`
+    im `HELLO` das zugehörige Merkmal nennt. Schritt 1 fügt keine Zeile vom Dienst hinzu.
+*   **`fw` und `proto` sind unabhängig.** Die Hauptversion von `fw` darf steigen, ohne
+    dass `proto` steigt, und umgekehrt (Klarstellung Ein/Aus, 10.11.).
 *   **Erhöhung** von `proto` ist nötig bei jeder anderen Änderung: Feld entfernen
     oder umbenennen, Bedeutung oder Wertebereich ändern, Grammatik ändern, neues
     Pflichtfeld.

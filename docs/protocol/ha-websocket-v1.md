@@ -5,6 +5,8 @@
     „Auflösung“ am Ende des Reports), mit Entscheidung M (Einsortieren nach Metadaten)
     und den Vorgaben der Projektleitung vom 09.11. (Abschnitt „Vorgaben der
     Projektleitung“ am Ende). Wartet auf die Freigabe durch Tobias.
+*   **Änderung 10.11. (Ein/Aus, 10.11.; Klarstellung):** In `tobibox/box/sync` (Abschnitt 22) heißt „Lader“ jetzt **Strom am Eingang aus jeder
+    Quelle** (Netzteil, Sockel, Kabel, Powerbank). Kein neuer Befehl, kein neues Feld, Version bleibt 1.
 *   **Änderung 09.11. (Entscheidung N, 09.11.):** Das Feld `lesezeichen_tage` der Konfiguration
     (Lesezeichen laufen nach so vielen Tagen ohne Benutzung ab, Vorgabe 14, `0` = nie;
     `data-model.md`, Abschnitt 2) ist **reserviert**: Das Backend schreibt es unverändert fort und
@@ -943,7 +945,7 @@ Rechte: alle. Idempotent: ja. MQTT: –. Fehler: keine.
 #### 22. `tobibox/box/sync`
 
 Stößt den Medien-Sync der Box an (CUJ 9: „von HA angestoßen“). Ob er läuft, entscheidet
-die Box nach der Netz-Regel (Heimnetz immer; Hotspot nur mit Lader oder über 50 %); wenn nicht,
+die Box nach der Netz-Regel (Heimnetz immer; Hotspot nur mit Lader oder über 50 %; „Lader“ = Strom am Eingang aus jeder Quelle, Ein/Aus, 10.11.); wenn nicht,
 steht es im Status (`sync.ergebnis="abgebrochen"`, `grund`). Der Sync übernimmt weder
 `_upload/` noch `_papierkorb/` noch den Eingang (Abschnitt 11.1).
 

@@ -12,6 +12,10 @@
     Ordner mit mehreren Tracks; der Zeiger hat einen Track. `config.json` und
     `resume.json` haben deshalb `schema_version` 2. Im Code heißt ein Tobie aus
     historischen Gründen `figur`.
+*   **Änderung 10.11. (Ein/Aus, 10.11.; Schritt 1; alles additiv, `schema_version` bleibt):** Neue flüchtige Datei `/run/tobibox/fruehton`
+    (Marke des Frühdienstes für den frühen Start-Ton, Abschnitt 1.6; Text, kein JSON, kein `schema_version`). Neue Tondatei
+    `box/sounds/lader.wav`; `hinweis_pegel` gilt auch für den Ton `lader`, und der frühe Start-Ton hat den Pegel eines gewöhnlichen
+    Tons (Abschnitt 2, Zeile `hinweis_pegel`). Kein Feld in `config.json`, `resume.json` oder `lauf.json` ändert sich.
 *   **Änderung 09.11. (Entscheidung J, 09.11.; nachgezogen mit Entscheidung L, 09.11.):** `ton_pegel` hat
     keine Wirkung mehr; `hinweis_pegel` hat die Untergrenze 10 statt 5 (Tabelle in Abschnitt 3,
     Punkt 20 der Festlegungen). Entscheidung L (nie zwei Sachen gleichzeitig) ändert kein Schema. Nach dem Code-Review (09.11.): Die Grenze
@@ -132,6 +136,7 @@ Beim Start (und bei jedem Lesen) in dieser Reihenfolge:
 | `config.json` | Box, Zustandsverzeichnis | Box: `ha` (über `store`), aus der angenommenen Liste von `tobibox/config`; in Stufe 2 `tobibox sim card` | `app` (lädt beim Start), `ha` | wird von HA verteilt; die Box schreibt nur die übernommene Liste |
 | `resume.json` | Box, Zustandsverzeichnis | Box: `store`, auf Befehl `ZeigerSpeichern` | `app` (beim Start) | nie |
 | `lauf.json` | Box, Zustandsverzeichnis | Box: `app` (einfaches Schreiben) (Entscheidung G, 06.11.) | `app` (beim Start) | nie |
+| `fruehton` | Box, **flüchtig**: `/run/tobibox/fruehton` (tmpfs, bei jedem Einschalten leer) (Ein/Aus, 10.11.) | Frühdienst `tobibox-fruehton.service` (`fruehton.py`); `app` löscht sie | `app` (beim Start) | nie |
 | `unknown.json` | Box, Zustandsverzeichnis | Box: `outbox` | `outbox`, `ha` | wird an HA gemeldet, nach Bestätigung gelöscht |
 | `serie.json` | NAS, `medien/<ordner>/` | HA-Integration (`media.py`) | Box: `library` (nur lesen), HA | `rsync` NAS → Box |
 | `manifest.json` | im Paket `tobibox-<version>.tar.gz` | `deploy/build_release.sh` | `update.py`, `guard.py` | liegt auf dem NAS (`releases/`) |
@@ -146,6 +151,14 @@ Beim Start (und bei jedem Lesen) in dieser Reihenfolge:
     benutzen das Verfahren aus 1.2 (`guard.py` mit der Standardbibliothek).
 *   `export/config.json` hat dasselbe Schema wie `config.json` plus das Feld
     `exportiert_am` (Zeitstempel). Die Box liest diese Datei nicht.
+
+**`fruehton` (Ein/Aus, 10.11.):** Eine Textdatei mit **genau einem** Wort und einem `\n`: `start` (der Frühdienst hat den Ton begonnen), `keiner` (er hat bewusst keinen Ton gespielt: Modus „stumm“,
+Datei oder Ausgang fehlt) oder `fertig` (der Ton ist zu Ende). Sie liegt in `/run/tobibox/` (tmpfs: nach jedem Einschalten leer, kein Eintrag im Sync, im Schreibbudget oder im Update-Paket).
+Der Frühdienst schreibt sie **zuerst** (`start` oder `keiner`), dann spielt er den Ton und ersetzt sie danach durch `fertig`, und zwar atomar (temporäre Datei im selben Verzeichnis, dann `rename`)
+und nur, wenn sie noch da ist. Die Marke sagt „entschieden“, nicht „fertig gespielt“. `app` liest sie beim Start einmal und löscht sie, sobald `fertig` oder `keiner` dasteht oder
+`FRUEHTON_WARTEN_S` um sind; war sie da, ist `Bereit.fruehton` wahr (`core-interface.md`, Abschnitt 3.3 und 6.5g). Bei einem Dienst-Neustart ohne Ausschalten
+(gleiche Boot-Kennung wie in `lauf.json`) ignoriert und löscht `app` sie. Eine fehlende, leere oder unbekannte Marke heißt: kein Frühton, der Kern spielt `start` wie bisher.
+Das Verzeichnis `/run/tobibox/` muss auch bestehen bleiben, wenn der Frühdienst endet (Umsetzung: AP E1-5).
 
 **`lauf.json` (Entscheidung G, 06.11.):** `{"boot_id": <Kennung des aktuellen Starts des Geräts>, "uid": <Kennung des liegenden Tobies oder null>}`.
 `boot_id` ist unter Linux `/proc/sys/kernel/random/boot_id`, am Mac die Systemstartzeit
@@ -205,7 +218,7 @@ Struktur ist die Nachricht auf dem Thema `tobibox/config` (`mqtt-v1.md`).
 | `gute_nacht.ausblenden_s` | int 5–600 | ja | Dauer des Ausblendens (Vorschlag 60) |
 | `lesezeichen_tage` | int 0–365 | nein | **(09.11., Entscheidung N)** Wurde ein Zeiger (Lesezeichen) länger als so viele Tage nicht benutzt, beginnt beim Fortsetzen die Folge wieder von vorn (Track 0, Position 0); bei einer Serie bleibt die Folge dieselbe. Vorgabe **14**, wenn das Feld fehlt. `0` heißt: läuft nie ab. Gilt nur bei sicherer Uhr und nur für Zeiger mit `benutzt_am` (`core-interface.md`, 6.3). Ein Wert außerhalb von 0 bis 365 oder keine ganze Zahl macht die ganze Liste ungültig (`schema_ungueltig`). Eine Seitenbedienung kommt mit den Einstellungen in Stufe 4; Vertrag W reserviert das Feld (`protocol/ha-websocket-v1.md`, Abschnitt 10). HA legt das Feld mit der Vorgabe 14 an, veröffentlicht und exportiert es und holt es mit `konfig/aus_export` zurück (09.11., Befund AP 3.1). Additiv, `schema_version` bleibt 2. |
 | `ton_pegel` | int 0–100 | nein | **Ohne Wirkung** (seit Entscheidung J, 09.11.). Die Box liest das Feld nicht; Töne folgen der aktuellen Lautstärke der Sitzung (`core-interface.md`, Abschnitt 8.1). Das Feld bleibt gültig, alte Dateien laden unverändert. |
-| `hinweis_pegel` | int 0–100 | nein | Pegel des leisen Hinweistons unter „stumm“ in Prozent; Vorgabe 15 (Feld fehlt). Der Hinweiston spielt mit `min(Grenze, max(10, min(hinweis_pegel, Lautstärke)))`, also nie leiser als die Untergrenze 10 (`HINWEIS_MINDEST`; vor Entscheidung J war sie 5) und sonst nie lauter als die aktuelle Lautstärke. **Die wirksame Grenze gewinnt immer** (Gehörschutz): Liegt sie unter 10 (zum Beispiel Kopfhörer-Grenze 5), spielt der Hinweiston mit der Grenze (`core-interface.md`, Abschnitt 8.1). |
+| `hinweis_pegel` | int 0–100 | nein | Pegel des leisen Hinweistons unter „stumm“ **und des Tons `lader`** (Ein/Aus, 10.11.; der Ton `lader` spielt nur in normalen Zeiten, mit demselben Pegelweg) in Prozent; Vorgabe 15 (Feld fehlt). **Nicht** für den frühen Start-Ton: Er hat den Pegel eines gewöhnlichen Tons, in „leiser“ mit der Grenze des Fensters, in „stumm“ gar keinen Ton (`core-interface.md`, Abschnitt 8.1). Der Hinweiston spielt mit `min(Grenze, max(10, min(hinweis_pegel, Lautstärke)))`, also nie leiser als die Untergrenze 10 (`HINWEIS_MINDEST`; vor Entscheidung J war sie 5) und sonst nie lauter als die aktuelle Lautstärke. **Die wirksame Grenze gewinnt immer** (Gehörschutz): Liegt sie unter 10 (zum Beispiel Kopfhörer-Grenze 5), spielt der Hinweiston mit der Grenze (`core-interface.md`, Abschnitt 8.1). |
 
 Regeln:
 
@@ -852,3 +865,7 @@ Projektleitung (P) entschieden oder aus dem Goldfisch-Review übernommen
     `lesezeichen_tage` (0 bis 365, Vorgabe 14, `0` = nie), `resume.json` je Zeiger das optionale Feld
     `benutzt_am`. Ein Zeiger ohne `benutzt_am` läuft nie ab. Beides additiv, `schema_version` bleibt 2
     (Abschnitte 2 und 3, `core-interface.md` 6.3 und 9 Punkt 33).
+31. **Bestätigt (10.11., Tobias, Ein/Aus R4, R10): Tondatei `lader.wav` und Marke des Frühtons.** Neue Tondatei `box/sounds/lader.wav`
+    (kurz, −18 LUFS wie die übrigen Töne, mit Eintrag in `box/lautheit.json`; erzeugt von `box/tools/make_sounds.py`). Der Ton `lader` hat den Pegel von
+    `hinweis` (`hinweis_pegel`); der frühe Start-Ton `start.wav` des Frühdienstes den eines gewöhnlichen Tons (R10). Die flüchtige Marke
+    `/run/tobibox/fruehton` ist in Abschnitt 1.6 beschrieben. Kein Schema ändert sich, `schema_version` bleibt.

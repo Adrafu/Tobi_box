@@ -12,7 +12,7 @@
 *   **Änderung 09.11.:** Entscheidung M eingearbeitet (Einsortieren nach Metadaten, vollautomatisch mit Korrektur) und die Vorgaben der Projektleitung zu Vertrag W (`docs/protocol/ha-websocket-v1.md`). Die Änderungen sind mit „(Entscheidung M, 09.11.)“ markiert.
 *   **Änderung 09.11.:** Entscheidung N eingearbeitet (Lesezeichen je Tobie mit Ablauf). Die Änderungen sind mit „(Entscheidung N, 09.11.)“ markiert.
 *   **Änderung 09.11.:** Entscheidungen O und P eingearbeitet (Leerlauf zählt auch mit liegendem Tobie; nicht lesbarer Kopfhörer-Kontakt gilt als „Kopfhörer steckt“ für die Grenze) und die Befunde des Code-Reviews zu AP 3.7 und 4.8 (`docs/egm/software-prototyp/code_review_stufe3a_4.md`). Die Änderungen sind mit „(Entscheidung O, 09.11.)“, „(Entscheidung P, 09.11.)“ bzw. „(Befund B…, 09.11.)“ markiert.
-*   **Ausstehend (10.11., wird eingearbeitet):** Ein- und Ausschalten neu (EGM `docs/egm/ein-aus/`, Entscheidungen R1–R11 in `resolve.md`). Es ersetzt die Ladestations-Folgen aus `docs/egm/ladestation/software_folgen.md` und das ruhende EGM `docs/egm/start-am-lader/`. Schritt 1 (Frist, am Strom immer bereit, Lader-Ton, früher Start-Ton) ist freigegeben und wird gerade eingearbeitet; Schritt 2 folgt nach den Messungen am Breadboard.
+*   **Änderung 10.11.:** Ein- und Ausschalten, **Schritt 1** eingearbeitet (EGM `docs/egm/ein-aus/`, Entwurf Rev. 2, Entscheidungen R1–R11 in `resolve.md`; es ersetzt die Ladestations-Folgen aus `docs/egm/ladestation/software_folgen.md` und das ruhende EGM `docs/egm/start-am-lader/`). Neu: Zustände *Spielt / Bereit / Aus* (Namen für die Pi-Zustände `aktiv` / `leerlauf` / ausgeschaltet), Frist 10 min nur ohne Strom und ab dem Abnehmen, am Strom immer bereit (Sockel, Kabel, Powerbank), „Lader“ = Strom aus jeder Quelle (Leser-Zeile `LADER`, Vorrang Leser), Ton `lader` beim Andocken, früher Start-Ton durch einen Frühdienst (unter „stumm“ gar nicht, unter „leiser“ mit der Grenze des Fensters, R10). Es entfällt die Wiederholung des Start-Syncs am Lader (AP 4.8). Betroffen: Entscheidung O, CUJ 10, 15, 16, 18, 20, neu 21 bis 25, Baustein 2, Tabelle „Strom / Leerlauf“, „Netz, Sync, Strom“, AP 4.3 und neue Arbeitspakete E1-0 bis E1-8. Die Änderungen sind mit „(Ein/Aus, 10.11.)“ markiert. **Schritt 2** (Wecken durch Tobie, Magnet und Strom über den ESP32, Lauflicht, Ring-Weiche, Schlaf, LPCD, `WAKE`, `SLEEP`, `CFG`, `RING_PI`) folgt nach den Messungen am Breadboard und ist hier nicht eingearbeitet; wo ein Satz darauf verweist, steht „folgt mit Schritt 2“.
 *   **Grundlage:** `concepts_brief.md` (gleicher Ordner) inkl. Entscheidungen
     Runde 1 und 2
 
@@ -532,7 +532,8 @@ Alternativen“.
 *   **Entscheidung O — Leerlauf zählt auch mit liegendem Tobie (09.11.):** Leerlauf heißt: 20 min lang wird nichts
     gespielt, **egal ob ein Tobie liegt**. Anlass (Review, B5): Nach „Gute Nacht“ oder einem „stumm“-Fenster liegt der
     Tobie noch, und die Box blieb die ganze Nacht an, bis der Akku am Morgen leer war. Es gelten weiter die Ausnahmen
-    Sync, Update und Lernmodus (die Box wartet), und Bedienung an der Box setzt den Zähler zurück. Morgens beim
+    Sync, Update und Lernmodus (die Box wartet), und Bedienung an der Box setzt den Zähler zurück. (Ein/Aus, 10.11.: Die Frist ist jetzt
+    10 min statt 20 min und zählt nur ohne Strom, siehe „Ein/Aus, Schritt 1“ unten.) Morgens beim
     Einschalten spielt ein liegender Tobie wie bisher sofort weiter (Entscheidung G). Der Ring zeigt die Pause bei
     liegendem Tobie auch im Leerlauf weiter. Vertrag: `core-interface.md`, Abschnitt 9, Punkt 9.
 
@@ -594,6 +595,25 @@ Alternativen“.
 
 - **Nachtrag 05.11. (Stufe-0-Verträge):** Ein Leser-Neustart startet nie von selbst eine Wiedergabe; nach einem bestätigten Leserverlust (> 3 s) bleibt die Box pausiert, auch wenn der Tobie danach wieder gemeldet wird – das Kind legt neu auf. Lesefehler gelten bis 5 s als „Tobie liegt“; fehlende Serie → Überraschungs-Serie; „stumm“ sperrt auch Knöpfe; MPD-Verlust bis 5 s wird überbrückt. Maßgeblich sind die Verträge in `docs/protocol/` und `docs/data-model.md`.
 
+*   **Ein/Aus, Schritt 1 (10.11.), Entscheidungen von Tobias R4, R8, R9, R10, R11 und Festlegungen der Projektleitung** (`docs/egm/ein-aus/resolve.md`;
+    Vertrag: `core-interface.md` Abschnitt 9, Punkt 9; `reader-v1.md`; `data-model.md`):
+    *   **Drei Zustände.** *Spielt* (Pi-Zustand `aktiv`, Hörspiel läuft), *Bereit* (`leerlauf`: nichts wird gespielt, der Dienst läuft), *Aus* (Pi stromlos). Die
+        technischen Namen in `ZustandMelden.strom` bleiben.
+    *   **Frist 10 min, nur ohne Strom (R9).** Bereit läuft ohne Frist, solange Strom am Eingang liegt (Sockel, Kabel, Powerbank). Ohne Strom fährt die Box
+        10 min nach dem letzten Spielen oder Bedienen herunter; nach dem Abnehmen vom Strom beginnt die Frist **ab dem Abnehmen**.
+    *   **Am Sockel immer an (R8).** `Hauptknopf` lang fährt herunter; am Sockel startet die Box gleich wieder (mit Schritt 2 durch den Leser über `STROM_IN`;
+        bis dahin hängt es an „Einschalten bei Strom“ des PiSugar). Ausschalten am Sockel heißt: abnehmen.
+    *   **„Lader“ = Strom aus jeder Quelle; zwei Quellen.** `pisugar-server` und der Leser (Zeile `LADER`); bei Widerspruch gilt der Leser. „Unbekannt“ gilt nach 60 s
+        als „kein Strom“. Die erste bekannte Messung löst nur den Sync-Check aus, nie Ton oder Ring.
+    *   **Ton `lader` beim Andocken einer laufenden Box (R4).** Kurz; nicht in Leise-Zeiten („leiser“, „stumm“), nicht bei unsicherer Uhr, nicht im Lernmodus,
+        nicht beim Hören (dann nur der Ring, Entscheidung L). Sperre 10 s für jede Rückmeldung (Ring, Ton, Sync) gegen Wackelkontakt.
+    *   **Früher Start-Ton (R10, Abweichung von Rev. 2 des Entwurfs).** Ein Frühdienst spielt `start`, sobald der Ton-Ausgang da ist, ohne den Box-Dienst
+        aufzuhalten. Er klingt wie heute: unter „stumm“ gar nicht, unter „leiser“ leise (mit der Grenze des Fensters), sonst normal. Nie zwei Töne zugleich: eine
+        Marke unter `/run` und eine feste Reihenfolge. Nach einem Dienst-Neustart ohne Ausschalten spielt der Kern `start` wie bisher (Entscheidung G).
+    *   **Entfällt:** die Wiederholung des Start-Syncs am Lader (alle 10 min, höchstens 6-mal, AP 4.8); am Sockel ist die Box ohnehin bereit,
+        den nächsten Sync-Anstoß geben der Takt, das Andocken und HA. Einen „Kurz-Modus“ am Lader (Vorschlag im ruhenden EGM `start-am-lader`) gibt es nicht.
+    *   **Schritt 1 ist freigegeben (R11).** Schritt 2 (Verträge B1 bis B15, Arbeitspakete E2-x) erst nach den Messungen.
+
 ## Offene Fragen
 
 *   **Leser-Rückkanal:** Soll der Box-Dienst dem ESP32 etwas
@@ -615,7 +635,7 @@ Alternativen“.
 Erledigt: Medienformate und Lautheitsangleich (siehe D5 und D6), Ende der
 letzten Folge und Ende eines „stumm“-Fensters (Entscheidungen A und B),
 Datenvolumen im Hotspot (Entscheidung C), Hauptknopf nach Folgenende
-(Entscheidung E), Tobies als Folge oder Serie (Entscheidung F), Lernmodus wartet still (Entscheidung H), kleiner Rest gilt als fertig gehört (Entscheidung I), Töne folgen der Lautstärke (Entscheidung J), nie zwei Sachen gleichzeitig (Entscheidung L), Einsortieren nach Metadaten (Entscheidung M), Lesezeichen mit Ablauf (Entscheidung N), Leerlauf mit liegendem Tobie (Entscheidung O), nicht lesbarer Kopfhörer-Kontakt (Entscheidung P), Schnittstellen und Datenformate (Stufe 0), die Befunde R1 bis
+(Entscheidung E), Tobies als Folge oder Serie (Entscheidung F), Lernmodus wartet still (Entscheidung H), kleiner Rest gilt als fertig gehört (Entscheidung I), Töne folgen der Lautstärke (Entscheidung J), nie zwei Sachen gleichzeitig (Entscheidung L), Einsortieren nach Metadaten (Entscheidung M), Lesezeichen mit Ablauf (Entscheidung N), Leerlauf mit liegendem Tobie (Entscheidung O), nicht lesbarer Kopfhörer-Kontakt (Entscheidung P), Ein- und Ausschalten Schritt 1 (R4, R8 bis R11, 10.11.), Schnittstellen und Datenformate (Stufe 0), die Befunde R1 bis
 R18 des Reviews Stufe 9.
 
 ## Risiken
@@ -789,7 +809,8 @@ Zustände, Übergänge und Konflikte: siehe „Kern-Zustände“.
 ### CUJ 10: Software-Update
 
 *   **Given**: Box daheim, am Lader, spielt nicht (Bedingungen: siehe
-    „Update“).
+    „Update“). **(Ein/Aus, 10.11.)** „Am Lader“ heißt Strom am Eingang aus jeder Quelle; am Sockel ist die Box immer bereit,
+    HA kann das Update also jederzeit schicken.
 *   **When**: Tobias stößt in HA das Update an.
 *   **Then**: Das signierte Paket wird geprüft, neu daneben installiert,
     umgeschaltet, der Selbsttest läuft. Bestanden → bleibt. Nicht bestanden
@@ -851,21 +872,33 @@ Zustände, Übergänge und Konflikte: siehe „Kern-Zustände“.
     auflegen. Ohne Netz gilt die letzte Kopie. Ist die Uhrzeit nicht
     vertrauenswürdig, gilt die kleinste „leiser“-Grenze aller Fenster, nie
     stumm (siehe „Uhr und Zeitquelle“).
+*   **Töne und Anzeige beim Ein- und Ausschalten (Ein/Aus, 10.11.):**
+    *   Der Ton `lader` (Box wird angedockt, CUJ 25) entfällt unter „leiser“, unter „stumm“, bei unsicherer Uhr und im Lernmodus.
+    *   Der **frühe Start-Ton** (CUJ 21) klingt wie heute (R10): unter „stumm“ **gar nicht**, unter „leiser“ **leise** (mit der Grenze des Fensters),
+        sonst normal. Bei unsicherer Uhr gilt wie im Kern die kleinste „leiser“-Grenze, nie „stumm“. Anders als heute spielt die Box unter „stumm“
+        beim Einschalten auch keinen Hinweiston; der Hinweiston gehört weiter zum Auflegen eines Tobies.
+    *   Die **Akku-Anzeige** am Ring ist normal 15 % hell, unter „leiser“ 5 %, unter „stumm“ 3 % (mindestens die erste der 31 Stufen des Rings);
+        für sie gilt der Faktor 0,4 von „stumm“ nicht.
+    *   Das Lauflicht beim Wecken (tags normal, nachts gedimmt) folgt mit Schritt 2.
 
-### CUJ 16: Leerlauf-Abschaltung
+### CUJ 16: Leerlauf-Abschaltung (Bereit und Aus; Ein/Aus, 10.11.)
 
-*   **Given**: Es läuft keine Wiedergabe und kein Tobie liegt.
-*   **When**: 20 min vergehen.
-*   **Then**: Die Box fährt herunter — außer es läuft ein Sync, ein Update
-    oder der Lernmodus: dann wartet sie. Am Lader schaltet sie erst ab, wenn
-    Sync und Update fertig sind. Beim Start am Lader prüft sie, ob ein Sync
-    ansteht. Bedienung an der Box (Taste, Drehregler, Hauptknopf kurz,
-    Kopfhörer) beginnt die 20 min neu; HA-Befehle (Sync, Update) tun das nicht
-    (09.11., AP 4.8). **Auch ein liegender Tobie hält die Box nicht an:** Wird 20 min lang nichts gespielt, schaltet sie ab
-    (Entscheidung O, 09.11.). Schlägt das Herunterfahren fehl, läuft die Box weiter, der Zähler beginnt neu und HA
+*   **Given**: Es läuft keine Wiedergabe (die Box ist *Bereit*), und es liegt **kein Strom** am Eingang der Box. Ein liegender Tobie ändert daran nichts.
+*   **When**: 10 min vergehen, ohne dass etwas gespielt oder bedient wird.
+*   **Then**: Die Box fährt herunter (Zeiger gespeichert) — außer es läuft ein Sync, ein Update oder der Lernmodus: dann wartet sie.
+    **Mit Strom bleibt die Box bereit**, solange er anliegt (Sockel, Kabel, Powerbank, Auto): Die Frist gibt es dort nicht, die Box schaltet nie von selbst ab.
+    **Kommt Strom, wird die Frist verworfen. Wird die Box abgenommen, beginnt die Frist ab dem Abnehmen** (R9), auch wenn vorher schon lange nichts
+    gespielt wurde. Beim Andocken prüft die Box, ob ein Sync ansteht (CUJ 25); eine Wiederholung dieses Syncs gibt es nicht mehr.
+    Bedienung an der Box (Taste, Drehregler, Hauptknopf kurz, Kopfhörer) beginnt die 10 min neu; HA-Befehle (Sync, Update) tun das nicht
+    (09.11., AP 4.8). **Auch ein liegender Tobie hält die Box nicht an:** Wird 10 min lang nichts gespielt, schaltet sie ab
+    (Entscheidung O, 09.11.; Frist 10 statt 20 min). Schlägt das Herunterfahren fehl, läuft die Box weiter, der Zähler beginnt neu und HA
     bekommt einen Hinweis (Befund B1). In der Simulation wird das Herunterfahren nur
-    protokolliert; nach 10 s ist die Box wieder im normalen Zustand. Später (Stufe 4) kann der PiSugar-Wecker die Box am Lader
-    nachts zum Sync wecken.
+    protokolliert; nach 10 s ist die Box wieder im normalen Zustand.
+*   **Hauptknopf lang** fährt immer herunter, auch am Sockel (R8). Am Sockel startet die Box danach gleich wieder: Ausschalten heißt dort abnehmen.
+    Wer die Box aus *Aus* holt: Hauptknopf (PiSugar). Das Wecken durch Tobie, Magnet und Strom über den ESP32 folgt mit Schritt 2; bis dahin hängt
+    „Einschalten bei Strom“ am PiSugar.
+*   Der Wecker des PiSugar zum nächtlichen Sync am Lader (früher geplant für Stufe 4) wird damit nicht gebraucht: Am Sockel ist die Box ohnehin bereit
+    (`docs/betrieb/pisugar-wecker.md` wird nachgezogen).
 
 ### CUJ 17: Kopfhörer
 
@@ -896,6 +929,12 @@ Zustände, Übergänge und Konflikte: siehe „Kern-Zustände“.
         (10 %); unbekannte Karte magenta blinkend (1 s); Aufwachen weißes
         Lauflicht (2 s); Akku als Füllstand (40 LEDs, grün, gelb oder rot, am
         Lader blau, bei Tiefstand rot blinkend).
+    *   **Akku-Anzeige (Ein/Aus, 10.11.):** Sie erscheint 5 s lang beim Andocken und beim Abziehen (spielt ein Hörspiel: 3 s) und auf Anforderung.
+        Helligkeit 15 %; unter „leiser“ und solange „Gute Nacht“ läuft 5 %; unter „stumm“ 3 % (mindestens Stufe 1 der 31 Stufen des Rings). Der Faktor
+        0,4 von „stumm“ gilt für sie nicht.
+    *   **Folgt mit Schritt 2:** Der Ring ist in *Bereit* dunkel (Weiche und Ring-Schalter am ESP32, `led.py` gibt den Ring über `RING_PI` an die Weiche);
+        das weiße Lauflicht beim Wecken kommt vom ESP32, danach übernimmt `led.py`; der Deckel 25 % gilt dann in Pi **und** ESP32. Bis dahin
+        bleibt der Ring wie oben beschrieben (in *Bereit* mit liegendem Tobie zeigt er weiter die Pause).
 
 ### CUJ 19: Tasten und Drehregler
 
@@ -925,13 +964,62 @@ Zustände, Übergänge und Konflikte: siehe „Kern-Zustände“.
     frisches Auflegen behandelt (CUJ 1 bis 3): bekanntes Ziel spielt am
     Zeiger weiter, unbekannter Tobie startet die Überraschungs-Serie. Die Zeit
     bis „bereit“ hat einen Soll-Wert (Pi-Probelauf).
+    **(Ein/Aus, 10.11.)** Der frühe Start-Ton (CUJ 21) ist dann schon gespielt oder bewusst unterlassen; der Kern spielt keinen zweiten `start`
+    (`Bereit.fruehton`). Unter „stumm“ startet der liegende Tobie nicht (CUJ 15). Dass der Tobie selbst die ausgeschaltete Box geweckt hat, folgt mit Schritt 2.
 *   **Ausnahme: Dienst-Neustart (Entscheidung G, 06.11.)**: Nach einem Neustart des
     Box-Dienstes, ohne dass die Box ausgeschaltet war (Update, Absturz,
     `systemctl restart`), startet ein liegender Tobie **nie** von selbst. Die
     Sitzung bleibt `pausiert` (kein Ton) mit dem Zeiger seines Ziels; Hauptknopf kurz
     (oder Abheben und erneutes Auflegen) spielt am gespeicherten Zeiger. Erkannt
     wird das am Marker `lauf.json` (gleiche Kennung des Starts, siehe Datenmodell).
-    Leerer Akku und Stromausfall zählen als Einschalten.
+    Leerer Akku und Stromausfall zählen als Einschalten. **(Ein/Aus, 10.11.)** Bei einem Dienst-Neustart
+    klingt der Start-Ton wie heute aus dem Kern; es gibt dann keine Marke des Frühdienstes, keine Lader-Rückmeldung und kein Wecken.
+
+### CUJ 21: Hochfahren mit frühem Start-Ton (Ein/Aus, 10.11.)
+
+*   **Given**: Die Box ist *Aus*.
+*   **When**: Sie wird eingeschaltet: Hauptknopf (PiSugar), Strom am Eingang (mit „Einschalten bei Strom“ des PiSugar); Tobie auflegen und Magnet folgen mit Schritt 2.
+*   **Then**: (1) Das weiße Lauflicht des ESP32 sofort beim Wecken **folgt mit Schritt 2**. (2) Der Frühdienst spielt `start`, sobald der Ton-Ausgang da ist
+    (Ziel höchstens 5 s nach 5 V am Pi), ohne den Box-Dienst aufzuhalten. Er klingt wie heute (R10): unter „stumm“ gar nicht, unter „leiser“ mit der Grenze
+    des Fensters, sonst normal (CUJ 15). (3) *Bereit* (Ziel höchstens 8,5 s) übernimmt und spielt **keinen zweiten** Start-Ton; Frühton und Töne des Kerns
+    überlagern sich nie. (4) Liegt ein Tobie, spielt er (CUJ 20); unter „stumm“ startet nichts.
+*   **Ausnahme Frühdienst fehlt, zu langsam oder gescheitert:** Dann gibt es keine Marke, und der Kern spielt `start` wie bisher.
+*   **Ausnahme Dienst-Neustart:** wie in CUJ 20 (Kern-Ton, keine Marke).
+*   **Ausnahme Pi kommt nicht hoch** (kein Lauflicht-Ende, `host_timeout`, Zwangs-Aus): folgt mit Schritt 2.
+
+### CUJ 22: Tobie weckt die ausgeschaltete Box (Ein/Aus, 10.11.)
+
+Folgt mit Schritt 2 (Tobie auflegen und Tonie-Magnet wecken über den ESP32; nur eine Änderung weckt, R3, R6). Entwurf: `docs/egm/ein-aus/design_draft.md`, CUJ 22.
+
+### CUJ 23: Box steht am Sockel bereit (Ein/Aus, 10.11.)
+
+*   **Given**: Strom liegt am Eingang der Box an (Sockel, Kabel, Powerbank, Auto).
+*   **When**: Zeit vergeht, nichts wird gespielt.
+*   **Then**: Die Box ist *Bereit*, ohne Frist, und fährt **nie von selbst** herunter (nur Hauptknopf lang und Akku-Tiefstand ohne Strom). Ein Tobie, der aufgelegt wird,
+    spielt wie sonst (Ziel höchstens 3 s). Das gilt auch, wenn `pisugar-server` hängt, weil der Leser (`LADER`) den Wert liefert; liefert keine Quelle einen Wert, gilt der
+    Strom nach 60 s als „kein Strom“. Kommt der Strom, während die Box herunterfährt, startet sie wieder: folgt mit Schritt 2 (Leser); bis dahin entscheidet
+    „Einschalten bei Strom“ des PiSugar.
+
+### CUJ 24: Pause ohne Sockel, nach 10 min aus (Ein/Aus, 10.11.)
+
+*   **Given**: Die Box hat keinen Strom am Eingang; nichts wird gespielt oder bedient; kein Lernmodus, kein Sync, kein Update.
+*   **When**: 10 min vergehen.
+*   **Then**: Zeiger gespeichert, Herunterfahren (CUJ 16). Wird in den 10 min ein Tobie aufgelegt oder etwas bedient, spielt die Box (Tobie: höchstens 3 s) bzw. die Frist
+    beginnt neu. Dass der ESP32 danach schläft und ein anderer Tobie während des Herunterfahrens später weckt, folgt mit Schritt 2.
+
+### CUJ 25: Andocken und Abziehen (Ein/Aus, 10.11.)
+
+| Lage | Andocken | Abziehen |
+|---|---|---|
+| **Aus** | Die Box startet, wenn der PiSugar es kann („Einschalten bei Strom“); mit Schritt 2 durch den ESP32 (`STROM_IN`). Frühton `start` (CUJ 21), nach *Bereit* Ring Ladestand 5 s, Sync prüfen. **Kein** Lader-Ton (erste Messung) | – |
+| **Bereit** | Ring Ladestand 5 s, **Ton `lader`** (nicht in „leiser“, „stumm“, bei unsicherer Uhr, im Lernmodus), Sync prüfen (einmal); die Frist wird verworfen | Ring Akku 5 s, kein Ton, kein Sync; die Frist beginnt (10 min **ab jetzt**) |
+| **Spielt** | nur Ring 3 s (Entscheidung L: kein Ton neben dem Hörspiel); Sync prüfen | nur Ring 3 s |
+| Update läuft | nur Ring, kein Sync, kein Ton | nur Ring |
+
+*   Die **Sperre** `LADER_SPERRE_S` = 10 s gilt für jede Rückmeldung (Ring, Ton, Sync), gerechnet ab der letzten Rückmeldung **oder ab *Bereit***. Ein Wackelkontakt
+    löst höchstens eine Rückmeldung je 10 s aus; Strom in den ersten 10 s nach *Bereit* gibt keinen Ton.
+*   Die **erste bekannte Messung** des Stroms im laufenden Dienst (auch eine späte) und ein Dienst-Neustart lösen nur den Sync-Check aus, nie Ton oder Ring.
+*   Liegt beim Andocken aus *Aus* ein Tobie, spielt er (CUJ 20); nachts schützt „stumm“.
 
 ## Technischer Plan
 
@@ -1092,7 +1180,8 @@ Eigenes Dokument `docs/protocol/reader-v1.md` (Stufe 0). Grundzüge:
 
 | Zeile | Bedeutung |
 |---|---|
-| `HELLO proto=1 fw=<version> build=<git-hash> pn5180=<fw-version>` | nach Start und auf `PING` |
+| `HELLO proto=1 fw=<version> build=<git-hash> pn5180=<fw-version> [caps=<liste>]` | nach Start und auf `PING`; `caps` (optional, Ein/Aus, 10.11.) nennt Fähigkeiten der Firmware, Schritt 1: `strom` |
+| `LADER in=<0\|1>` (Ein/Aus, 10.11.) | Strom am Eingang der Box, direkt nach jedem `HELLO` und bei jeder Änderung (entprellt); nur bei `caps` `strom` |
 | `PLACED uid=<hex> type=<ntag\|iso15693> tonie=<0\|1> seq=<n>` | Tobie mit Kennung liegt (entprellt) |
 | `LOCKED seq=<n>` | gesperrter Tonie liegt |
 | `REMOVED seq=<n>` | liegender Tobie ist weg |
@@ -1136,7 +1225,7 @@ Ein Prozess, `asyncio`, ein Paket `tobibox` mit klar getrennten Modulen:
 | `ha` | MQTT-Anbindung (paho-mqtt ≥ 2, eigener Thread mit `loop_start`, Übergabe per `call_soon_threadsafe`), HA-Discovery, Zuordnungen empfangen, Status senden, Bestätigungen empfangen | Netz |
 | `sync` | rsync vom NAS nach den Regeln, danach MPD-Bibliothek aktualisieren | Prozess, Netz |
 | `update`, `selftest` | Update mit Rückfall und eingebaute Prüfroutine (siehe „Update“) | Prozess, Dateisystem |
-| `net`, `power` | Netz-Klasse (Heim / Hotspot / offline), Lader, Akkustand, Zeitquelle | System bzw. Simulation |
+| `net`, `power` | Netz-Klasse (Heim / Hotspot / offline), Lader (Strom am Eingang, aus jeder Quelle; Ein/Aus, 10.11.), Akkustand, Zeitquelle | System bzw. Simulation |
 | `eventlog` | dünne Einrichtung von Python `logging`: JSON-Format; Pi: JSON-Zeilen nach stdout, vom Dienst-Manager in journald übernommen (dauerhaft), Mac: rotierende Datei (Konfiguration) | Dateisystem, journald |
 | `cli` | `tobibox status`, `tobibox sim …` (ein eigener Prozess, der Befehle an `sim` schickt) | Unix-Socket (nur `sim`) |
 | Hardware-Module: `power` (ab Stufe 3a), `controls` (Tasten, Drehregler), `headphones`, `led` (Stufe 4) | je eine Schnittstelle; **ein** gemeinsamer Simulations-Treiber `sim` liefert alle Eingänge. Er entsteht in Stufe 2 und lauscht auf einem Unix-Socket (`sim.sock` im Zustandsverzeichnis) auf JSON-Zeilen; `tobibox sim …` schreibt dorthin, die Tastatur und das Terminal sind Clients desselben Sockets. Später kommen nur Eingänge dazu. der Ring zeigt seinen Zustand im Terminal und im Protokoll; die echte Hardware ersetzt später nur den Treiber | Treiber (Simulation oder Hardware) |
@@ -1160,13 +1249,13 @@ Abhängigkeiten sind reines Python (Update-Paket, siehe „Update“).
 
 | Quelle | Ereignisse (Beispiele) |
 |---|---|
-| Leser (`reader`) | `PLACED`, `LOCKED`, `REMOVED`, `HELLO`, Wächter-Alarm, Leser-Fehler |
+| Leser (`reader`) | `PLACED`, `LOCKED`, `REMOVED`, `HELLO`, `LADER` (Ein/Aus, 10.11.), Wächter-Alarm, Leser-Fehler |
 | Player (`player`) | Track-Wechsel, Folge zu Ende, Wiedergabe-Fehler, MPD nicht erreichbar (Felder: `core-interface.md`) (Entscheidung F, 05.11.) |
 | HA (`ha`) | neue Konfiguration (Zuordnungen, Leise-Zeiten, Gute-Nacht), Lernmodus starten/abbrechen, Leise-Zeiten, Sync/Update anstoßen |
 | Zeitgeber | Takt (mit Zeitstempel), Fristen laufen ab |
 | Bedienung (`controls`) | Vor, Zurück, Lautstärke, Hauptknopf kurz/lang |
 | Kopfhörer (`headphones`) | Stecker erkannt / gezogen |
-| Strom (`power`) | Lader an/aus, Akkustand, Tiefstand, Zeitquelle geändert |
+| Strom (`power`, Leser) | Lader (Strom am Eingang) an/aus aus zwei Quellen (`pisugar-server`, Leser-Zeile `LADER`; Ein/Aus, 10.11.), Akkustand, Tiefstand, Zeitquelle geändert |
 | Netz (`net`) | Netz-Klasse geändert |
 | Sync (`sync`) | gestartet, fertig, abgebrochen |
 | Update (`update`) | gestartet, Selbsttest bestanden / durchgefallen |
@@ -1379,22 +1468,28 @@ Gute Nacht — Zustände: `aus`, `läuft`, `ausblenden`.
 
 **4. Strom / Leerlauf** (`idle`, `power`)
 
-Zustände: `aktiv`, `leerlauf` (Zähler für 20 min läuft), `herunterfahren`.
+Zustände (Ein/Aus, 10.11.): `aktiv` (*Spielt*), `leerlauf` (*Bereit*: nichts wird gespielt, der Dienst läuft; der Zähler für 10 min läuft nur **ohne Strom**),
+`herunterfahren` (auf dem Weg zu *Aus*). „Strom“ heißt Strom am Eingang der Box aus jeder Quelle (`pisugar-server` und Leser; bei Widerspruch gilt der Leser;
+ohne Wert 60 s „unbekannt“, danach „kein Strom“). Vertrag: `core-interface.md`, Abschnitt 9, Punkt 9.
 
 | Zustand | Ereignis | Befehl | neuer Zustand |
 |---|---|---|---|
-| `aktiv` | keine Wiedergabe (ein liegender Tobie zählt nicht, Entscheidung O, 09.11.) | Leerlauf-Zähler starten (monotone Uhr) | `leerlauf` |
-| `leerlauf` | Wiedergabe → Zähler verwerfen; oder Bedienung (Taste, Drehregler, Hauptknopf kurz, Kopfhörer) → Zähler beginnt neu (09.11., AP 4.8) | Zähler verwerfen (bei Wiedergabe); bei Bedienung Zähler neu starten | `aktiv` (bei Wiedergabe); `leerlauf` (bei Bedienung) |
-| `leerlauf` | 20 min um, Sync, Update oder Lernmodus läuft (am Lader auch: Sync oder Update noch offen) | warten, Zähler neu; nach Ende des Syncs oder Updates erneut prüfen | `leerlauf` |
-| `leerlauf` | 20 min um, nichts läuft | Zeiger speichern, Herunterfahren | `herunterfahren` |
-| `aktiv` | Hauptknopf lang | Zeiger speichern, Herunterfahren | `herunterfahren` |
-| `aktiv`, `leerlauf` | Akku-Tiefstand (nicht am Lader) | Sync abbrechen, Ton `akku_leer` (einmal), Zeiger speichern, Herunterfahren (Befund B12, 09.11.) | `herunterfahren` |
-| `herunterfahren` | das Kommando hat nicht gewirkt (`HerunterfahrenFehlgeschlagen`: Rückgabecode ungleich 0, Kommando fehlt, Frist 60 s) | Protokoll, Hinweis an HA (`herunterfahren_fehlgeschlagen`), Zähler neu | `aktiv`, dann `leerlauf` (Befund B1, 09.11.) |
+| `aktiv` | keine Wiedergabe (ein liegender Tobie zählt nicht, Entscheidung O, 09.11.) | Leerlauf-Zähler starten (monotone Uhr, `LEERLAUF_S` = 10 min), **nur wenn kein Strom anliegt** (Ein/Aus, 10.11.) | `leerlauf` |
+| `leerlauf` | Wiedergabe → Zähler verwerfen; oder Bedienung (Taste, Drehregler, Hauptknopf kurz, Kopfhörer) → Zähler beginnt neu (09.11., AP 4.8; nur ohne Strom) | Zähler verwerfen (bei Wiedergabe); bei Bedienung Zähler neu starten | `aktiv` (bei Wiedergabe); `leerlauf` (bei Bedienung) |
+| `leerlauf` | **Strom kommt** (Andocken, nach der ersten bekannten Messung; Ein/Aus, 10.11.) | Zähler verwerfen. Rückmeldung, wenn die Sperre `LADER_SPERRE_S` = 10 s frei ist: Ring Ladestand 5 s, Ton `lader` (nicht in „leiser“, „stumm“, bei unsicherer Uhr, im Lernmodus), Sync prüfen (`SyncStarten("start_lader")`, einmal, nicht während eines Updates) | `leerlauf` |
+| `aktiv` | Strom kommt (Ein/Aus, 10.11.) | nur Ring 3 s und Sync prüfen; kein Ton (Entscheidung L) | `aktiv` |
+| `leerlauf` | **Strom geht** (Abnehmen, Abziehen; Ein/Aus, 10.11.) | Zähler **ab jetzt** neu (10 min, R9); Ring Akku 5 s, kein Ton, kein Sync | `leerlauf` |
+| `leerlauf` | 10 min um (kein Strom), Sync, Update oder Lernmodus läuft (auch: Sync oder Update noch offen) | warten, Zähler neu; nach Ende des Syncs oder Updates erneut prüfen | `leerlauf` |
+| `leerlauf` | 10 min um (kein Strom), nichts läuft | Zeiger speichern, Herunterfahren | `herunterfahren` |
+| `leerlauf` | mit Strom, beliebig lange | nichts: am Strom ist die Box immer bereit (Ein/Aus, 10.11.) | `leerlauf` |
+| `aktiv`, `leerlauf` | Hauptknopf lang (auch mit Strom; am Sockel startet die Box danach wieder, R8) | Zeiger speichern, Herunterfahren | `herunterfahren` |
+| `aktiv`, `leerlauf` | Akku-Tiefstand (nicht am Lader, also ohne Strom) | Sync abbrechen, Ton `akku_leer` (einmal), Zeiger speichern, Herunterfahren (Befund B12, 09.11.) | `herunterfahren` |
+| `herunterfahren` | das Kommando hat nicht gewirkt (`HerunterfahrenFehlgeschlagen`: Rückgabecode ungleich 0, Kommando fehlt, Frist 60 s) | Protokoll, Hinweis an HA (`herunterfahren_fehlgeschlagen`), Zähler neu (ohne Strom) | `aktiv`, dann `leerlauf` (Befund B1, 09.11.) |
 | `herunterfahren` | Simulation (Mac oder ohne `[strom]`): nur protokolliert, 10 s vergangen | Zähler neu (kein Hinweis an HA) | `aktiv`, dann `leerlauf` (Befund B1, 09.11.) |
-| beim Start | am Lader | prüfen, ob ein Sync ansteht. Bricht er mit `netz_weg` oder `regel` ab, versucht `idle` es erneut, solange die Box am Lader hängt: alle 10 min, höchstens 6-mal. Währenddessen wird nicht abgeschaltet. Danach, bei Erfolg, anderem Abbruchgrund oder ohne Lader gilt wieder die 20-min-Regel (Zähler abgelaufen: sofort) (09.11., AP 4.8) | `aktiv` |
+| beim Start (`Bereit`) | erste bekannte Messung des Stroms (auch spät; auch nach einem Dienst-Neustart) ist „Strom“ | prüfen, ob ein Sync ansteht (`SyncStarten("start_lader")`, einmal; wartet höchstens 30 s auf die erste Netz-Klasse, B7). **Kein Ton, keine Andock-Rückmeldung.** Die Wiederholung des Start-Syncs (alle 10 min, höchstens 6-mal; 09.11., AP 4.8) **entfällt** (Ein/Aus, 10.11.) | `aktiv` |
+| beim Start | keine Quelle liefert einen Wert | 60 s lang nichts (kein Ton, kein Ring, Zähler zählt noch nicht), danach gilt „kein Strom“ (Zähler beginnt) | `aktiv` |
 
-In der Simulation wird „Herunterfahren“ nur protokolliert. Am Lader nachts
-wecken (PiSugar-Wecker) ist eine Option für Stufe 4.
+In der Simulation wird „Herunterfahren“ nur protokolliert. Das Wecken aus *Aus* durch Tobie, Magnet und Strom (ESP32) folgt mit Schritt 2.
 
 **Konflikte → erwartetes Ergebnis.** Jede Zeile ist zugleich ein Abnahmetest
 (Stufe 4; Zeilen ohne Stufe-4-Teile laufen schon früher).
@@ -1700,7 +1795,7 @@ Skripte, Automationen) liegt als Dateien im Repo unter `homeassistant/`.
   (Intervall in `tobibox.toml`, Vorschlag 1 h) und auf den HA-Knopf, jeweils
   nur wenn die Netz-Regel es erlaubt:
   - `home`: immer erlaubt.
-  - `hotspot`: erlaubt, wenn Lader dran oder Akku > 50 %.
+  - `hotspot`: erlaubt, wenn Lader dran (Strom am Eingang, aus jeder Quelle; Ein/Aus, 10.11.) oder Akku > 50 %.
   - Dateien landen erst nach vollständiger Übertragung sichtbar im
     Medienordner: `--partial-dir` mit **absolutem Pfad außerhalb des
     Medienordners, aber auf demselben Dateisystem**
@@ -1734,13 +1829,19 @@ Skripte, Automationen) liegt als Dateien im Repo unter `homeassistant/`.
 - **Strom:** Schnittstelle und Simulation komplett ab Stufe 3a (AP 3.3). Im
   Prototyp Simulation über den gemeinsamen Treiber (`sim`, ab Stufe 2) (`tobibox sim power
   --charger on --battery 40`); die echte PiSugar-Anbindung ersetzt nur den
-  Treiber. Abschalt- und Lader-Regeln: CUJ 16 und Tabelle „Strom / Leerlauf“.
+  Treiber. Abschalt- und Lader-Regeln: CUJ 16, 23 bis 25 und Tabelle „Strom / Leerlauf“.
+  **(Ein/Aus, 10.11.)** „Lader“ heißt **Strom am Eingang der Box aus jeder Quelle**. Zwei Quellen liefern ihn: `pisugar-server` (`battery_power_plugged`)
+  und der Leser (Zeile `LADER`, ab Firmware mit `caps` `strom`); bei Widerspruch gilt der Leser. Am Strom ist die Box immer bereit; ohne Strom fährt sie
+  nach 10 min Leerlauf herunter, gerechnet ab dem Abnehmen. Beim Andocken einer laufenden Box (nach der ersten bekannten Messung) gibt es Ring, Ton `lader`
+  und einen Sync-Check (Sperre 10 s); die erste bekannte Messung und ein Dienst-Neustart lösen nur den Sync-Check aus. Anders als bis 09.11. gibt es **keine
+  Wiederholung** des Start-Syncs: Ein abgebrochener Sync (`netz_weg`, `regel`) hält die Abschaltung nicht auf, den nächsten Anstoß geben der Takt (Intervall
+  in `tobibox.toml`), das Andocken und HA.
 - **Uhr:** siehe „Uhr und Zeitquelle“ in Baustein 3.
 
 ### Update
 
 - **Auslöser:** HA-Knopf.
-- **Bedingungen:** Box daheim (`home`), am Lader, spielt nicht, kein Sync.
+- **Bedingungen:** Box daheim (`home`), am Lader (Strom am Eingang, aus jeder Quelle; Ein/Aus, 10.11.), spielt nicht, kein Sync.
 - **Paket:** Tarball `tobibox-<version>.tar.gz` mit Code, den **fertig
   gebauten** Python-Abhängigkeiten und `manifest.json`, dazu eine
   **Signatur**. Die Abhängigkeiten werden beim Bauen mit `pip install --target`
@@ -2818,7 +2919,7 @@ Ergebnis: Teilautomat Strom / Leerlauf.
 
 | Datei | Neu/Änd. | Inhalt und Grund |
 |---|---|---|
-| `box/src/tobibox/idle.py` | neu | Teilautomat Strom / Leerlauf: Abschaltung nach 20 min, nie während Sync, Update oder Lernmodus. Am Lader wird nicht abgeschaltet, solange Sync oder Update laufen; ist keines aktiv, gilt die 20-min-Regel. Beim Start am Lader Sync prüfen. Nutzt `power.py` aus AP 3.3. |
+| `box/src/tobibox/idle.py` | neu | Teilautomat Strom / Leerlauf: Abschaltung nach 20 min, nie während Sync, Update oder Lernmodus. Am Lader wird nicht abgeschaltet, solange Sync oder Update laufen; ist keines aktiv, gilt die 20-min-Regel. Beim Start am Lader Sync prüfen. Nutzt `power.py` aus AP 3.3. **(Ein/Aus, 10.11.: Frist jetzt 10 min und nur ohne Strom, Andocken und Abziehen, zwei Strom-Quellen, keine Wiederholung des Start-Syncs; siehe Nachtrag E1-1.)** |
 | `box/tests/unit/test_idle.py` | neu | 20-min-Leerlauf und Lader-Regel (mit simulierter Uhr). |
 | `docs/betrieb/pisugar-wecker.md` | neu | Beschreibung der PiSugar-Anbindung und Option: nächtliches Wecken am Lader über den PiSugar-Wecker (nur Beschreibung, Umsetzung nach Tobias' Entscheidung). |
 
@@ -2930,6 +3031,23 @@ Abnahme AP 4.8:
   - Tiefstand während Sync
   - mehrere Grenzen
 - Die echte Hardware ersetzt später nur den Simulations-Treiber; dann folgt die **Messung der Lautstärke am Verstärker**.
+
+### Nachtrag 10.11.: Ein/Aus, Schritt 1 (Arbeitspakete E1-0 bis E1-8)
+
+Freigegeben durch Tobias am 10.11. (R11). Quelle: `docs/egm/ein-aus/design_draft.md`, Abschnitt 10.1. Alles läuft am Mac und in der Simulation; Modelle nach `CLAUDE.md`.
+Schritt 2 (Arbeitspakete E2-x: Firmware-Logik, `WAKE`, `SLEEP`, `CFG`, `RING_PI`, CUJ-Tests 21, 22 und 24 mit Herunterfahren, Gesamtprobelauf) folgt nach den Messungen.
+
+| AP | Modell | Inhalt | Abhängig von |
+|---|---|---|---|
+| **E1-0** | Sonnet | Verträge A1 bis A19 einarbeiten (erledigt am 10.11.); Gegenlesen durch einen Goldfisch | Freigabe |
+| **E1-1** | Sonnet | `idle.py` und `test_idle.py`: Frist 600 s nur ohne Strom; Strom verwirft, Abziehen beginnt neu; zwei Strom-Quellen mit Vorrang Leser; unbekannt 60 s; erste Messung ohne Rückmeldung; Sperre ab `Bereit`; Wiederholung und `start_wdh` entfernen | E1-0 |
+| **E1-2** | Sonnet | `core.py` Regel 2a, `events.py` (Ton `lader`, `Bereit.fruehton`, `LaderGeaendert.quelle`, `LeserHallo.caps`), `session.py` (kein `start` bei `fruehton`), `app.py` (Marke lesen, Wartereihenfolge), Konfiguration | E1-0 |
+| **E1-3** | Haiku | Ton `lader.wav` (`tools/make_sounds.py`, −18 LUFS, `lautheit.json`) | E1-0 |
+| **E1-4** | Sonnet | `led.py`: Akku-Anzeige 15/5/3 %, Stufe ≥ 1, Ausnahme vom Faktor 0,4, Entprellen, 5 % während Gute Nacht; `test_led.py`; Freigabe der Ring-Rückmeldung von `idle` | E1-0, E1-1 |
+| **E1-5** | Sonnet | gemeinsames Uhr-Modul, `fruehton.py`, `deploy/pi/tobibox-fruehton.service`, Test mit simulierter Uhr | E1-0 |
+| **E1-6** | Sonnet | `reader.py` (`LADER`, `caps`, `LaderGeaendert(quelle="leser")`), Sim-Leser sendet `LADER` | E1-0 |
+| **E1-7** | Sonnet | CUJ-Tests 16, 23, 24, 25 und die Fälle der Tabelle „Lader-Ton und Doppel-Ton“ im Entwurf (Doppel-Ton, Wackelkontakt, `pisugar-server` hängt, Strom kommt beim Herunterfahren), simulierte Uhr | E1-1 bis E1-6 |
+| **E1-8** | Haiku | Doku nachziehen (`pisugar-wecker.md`, `mac-prototyp.md`, `docs/timing.md`, Plan); Messskript Bootzeit und Prüfliste | E1-7 |
 
 ### Dokumente, die am Ende nachgezogen werden
 

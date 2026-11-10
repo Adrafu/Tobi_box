@@ -6,6 +6,9 @@
 *   **Gilt für:** Modul `ha` des Box-Dienstes und `mqtt.py` der
     HA-Integration `tobibox`. Schemas der Inhalte: `data-model.md`. Ereignisse
     und Befehle im Kern: `core-interface.md`.
+*   **Änderung 10.11. (Ein/Aus, 10.11.; Klarstellung):** Das Statusfeld `lader` (3.3) und der Sensor „Lader“ (6.2) bedeuten ab jetzt
+    **Strom am Eingang der Box aus jeder Quelle** (Netzteil, Sockel, Kabel, Powerbank), nicht mehr nur „Ladegerät“; bei zwei Quellen gilt der Leser
+    (`core-interface.md`, Abschnitt 9, Punkt 9). Name, Typ und `v` bleiben, kein neues Feld.
 *   **Änderung 09.11. (Befunde des Code-Reviews zu AP 3.7 und 4.8, Entscheidung P, Rev. 3.17):** `event` `fehler` bekommt zwei
     Codes der Box (3.4): `kopfhoerer_unlesbar` (Entscheidung P: der Kopfhörer-Kontakt ist nicht lesbar, es gilt die Kopfhörer-Grenze)
     und `herunterfahren_fehlgeschlagen` (B1). `befehl_abgelehnt` für `update` nennt bis Stufe 3b `detail` „Update kommt mit Stufe 3b.“ (B16).
@@ -153,7 +156,7 @@ und woher jedes Feld stammt (einschließlich der Abbildung von `leser`), steht i
 | `serie` | object oder `null` | aktuelle Serie `{"id": …, "name": …}`; `null`, wenn keine |
 | `folge` (optional) | object | aktuelle Folge `{"name": <Name der Folge>, "track": <int ab 0>}` (Entscheidung F, 05.11.); fehlt oder `null`, wenn keine Folge gewählt ist. Optionales Feld, `v` bleibt `1` |
 | `akku_prozent` | int 0–100 oder `null` | `null`, wenn unbekannt (z. B. am Mac ohne Simulation) |
-| `lader` | bool oder `null` | Lader angeschlossen |
+| `lader` | bool oder `null` | Strom am Eingang der Box, aus jeder Quelle (Netzteil, Sockel, Kabel, Powerbank; Ein/Aus, 10.11.); `null`, solange keine Quelle einen Wert geliefert hat |
 | `netz` | string | `home`, `hotspot` oder `offline` |
 | `sync` | object | `{"zustand": "idle"\|"laeuft"\|"fehler", "letzter_ende": <Zeitstempel oder null>, "ergebnis": "ok"\|"abgebrochen"\|null, "grund": <Text oder null>, "neu": <int>}` |
 | `speicher_frei_mb` | int | freier Platz auf dem Medien-Dateisystem in MB |
@@ -598,7 +601,7 @@ mit `value_template` aus.
 | `sensor` | `zustand` | Zustand | `{{ value_json.zustand }}` | |
 | `sensor` | `serie` | Läuft gerade | `{{ value_json.serie.name if value_json.serie else 'keine' }}` | |
 | `sensor` | `akku` | Akku | `{{ value_json.akku_prozent }}` | `device_class` `battery`, Einheit `%`, `state_class` `measurement` |
-| `binary_sensor` | `lader` | Lader | `{% if value_json.lader is none %}None{% else %}{{ 'ON' if value_json.lader else 'OFF' }}{% endif %}` (bei `null` also „unbekannt“, nicht `OFF`; Home Assistant liest den Text `None` als unbekannt) | `device_class` `battery_charging` |
+| `binary_sensor` | `lader` | Lader | `{% if value_json.lader is none %}None{% else %}{{ 'ON' if value_json.lader else 'OFF' }}{% endif %}` (bei `null` also „unbekannt“, nicht `OFF`; Home Assistant liest den Text `None` als unbekannt). Bedeutung „Strom am Eingang, jede Quelle“ (Ein/Aus, 10.11.) | `device_class` `battery_charging` |
 | `sensor` | `netz` | Netz | `{{ value_json.netz }}` | `device_class` `enum`, Optionen `home`, `hotspot`, `offline` |
 | `sensor` | `sync` | Sync-Stand | `{{ value_json.sync.zustand }}` | `json_attributes_topic` = Status, `json_attributes_template` `{{ value_json.sync \| tojson }}` (zeigt Zeitpunkt, Ergebnis, Grund) |
 | `sensor` | `speicher_frei` | Freier Speicher | `{{ value_json.speicher_frei_mb }}` | Einheit `MB`, `device_class` `data_size`, `state_class` `measurement` |
