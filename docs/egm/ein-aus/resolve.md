@@ -38,6 +38,17 @@ Entscheidungen von Tobias sind mit **(Tobias)** markiert, technische Festlegunge
 - **Breadboard/Muster:** die Messliste aus `design_draft.md` Abschnitt 10 und `review_hardware.md`, ergänzt um Hall-Schalter mit Tonie-Fuß, Rückspeisung über D+, TVDD und Reichweite.
 - Noch nicht gefragt und unverändert als Vorschlag: E3 (Akku dauernd voll am Sockel), E4 (Neustart am Sockel nach Hauptknopf lang, durch `STROM_IN` entschärft), E9 (10-min-Frist ab Abziehen), E10 (ESP32 schaltet einen hängenden Start nach 120 s aus), E13 (Startziel 10 s, Rückfall 15 s), E14 (Frühton nur außerhalb der Leise-Zeiten).
 
+## 3a. Entscheidungen von Tobias zu Rev. 2 (10.11.)
+
+| # | Frage | Entscheidung |
+|---|---|---|
+| R8 | E4: Hauptknopf lang am Sockel | **Am Sockel immer an (Tobias).** Wegen `STROM_IN` startet die Box dort gleich wieder; ausschalten geht nur durch Abnehmen (dann 10 min bis aus). |
+| R9 | E9: Ab wann zählt die 10-min-Frist nach dem Abnehmen | **Ab dem Abnehmen (Tobias).** |
+| R10 | E14: Früher Start-Ton unter „leiser“ | **Leise wie heute (Tobias).** Unter „stumm“ kein Ton, unter „leiser“ mit der Grenze des Fensters, sonst normal. **Abweichung von Rev. 2** (dort nur im Modus „normal“): Der Frühdienst braucht die Leise-Zeiten und die Grenze. |
+| R11 | Freigabe Schritt 1 | **Freigegeben (Tobias, 10.11.):** Vertragsstellen A1–A19 aus `design_draft.md` Rev. 2, Abschnitt 8.1, mit R10, und die Arbeitspakete E1-0 bis E1-8. Schritt 2 erst nach den Messungen. |
+
+E10 (ESP32 schaltet einen hängenden Start nach 120 s aus) und E13 (Startziel 10 s, Rückfall 15 s) legt die Projektleitung wie in Rev. 2 vorgeschlagen fest; sie gehören zu Schritt 2 bzw. zur Messung. E3 klärt Messung M9.
+
 ## 4. Nächster Schritt
 
 Design-Entwurf Rev. 2 mit allen Punkten oben. Danach Freigabe durch Tobias, dann Schritt 1 der Verträge und des Codes (am Mac in der Simulation prüfbar), parallel die Breadboard-Messungen.
