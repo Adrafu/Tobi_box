@@ -129,3 +129,17 @@ Die Boden-Buchse dient für den Sockel und unterwegs (jedes USB-C-Kabel). Die
 seitliche Buchse, der Pololu #5398 und die TPU-Lasche entfallen, Punkt 7 des
 Plans (zwei Ladeeingänge) ist damit erledigt. Unterwegs: gewinkeltes
 USB-C-Kabel in einer Kabelrinne im Boden, die Box steht aufrecht.
+
+## Resolve Review Rev. 4, Hardware-Blocker (10.11., Tobias)
+
+Grundlage: `review_rev4.md` (5 Blocker) und das OpenSCAD-Druckmuster
+(`hardware/ladesockel/`). Das Modell bestätigt H2: Rippen für die 90°-Lage
+müssten 27 mm hoch sein, die Nuten in der Box 24,5 mm tief.
+
+| Befund | Entscheidung |
+|---|---|
+| H1 Abheben: Stecker hält 8–20 N, Sockel 1 kg wiegt ~10 N | **Erst messen.** Abzugskraft des echten Pi-Netzteil-Steckers mit Federwaage. Unter ~8 N reicht ~1 kg, sonst wird der Sockel befestigt (Klebepads oder Schrauben). |
+| H2 Falsch herum (90°): Rippen zu hoch | **Offen.** Tobias vergleicht im 3D-Artefakt zwei Lösungen: 4a hoher Kragen (Box liegt bei 90° auf dem Kragen) und 4b Mulde mit Nasen (Box liegt bei 90° auf den Nasen). Rippen und Nuten entfallen in beiden. |
+| H3 Kabelrinne gegen Nut | **Erledigt** mit H2: Ohne Nuten läuft die Kabelrinne mittig nach hinten. Abgangsrichtung des gewinkelten Steckers bei der Bestellung prüfen. |
+| H4 Offene Steckermündung | **Akzeptiert wie bei jedem USB-C-Kabel.** Kein Zusatzaufwand. T6 prüft Draht und Flüssigkeit. |
+| H5 Buchse in der Box | **Fest und robust**: verschraubt und verklebt, Tausch nur mit geöffneter Box. Kein tauschbares Modul. |
