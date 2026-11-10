@@ -39,5 +39,9 @@ EGM artifact directory: docs/egm
 - Das Tonie-Passwort wird **nie** committet. Firmware liest es aus
   `config.h` (gitignored), im Repo liegt nur `config.example.h`.
 - Entscheidungen und Revisionsstand gehören in `docs/plan/`, nicht nur in den Chat.
+- **Abnahmen und Tests mit Tobias** (am Mac, Breadboard, Pi) gehen wir **gemeinsam im Chat Schritt für
+  Schritt** durch: ein Schritt mit Befehlen und dem, was er sehen oder hören soll; Tobias meldet das
+  Ergebnis; erst dann der nächste Schritt. Keine ganze Liste zum Selbst-Abarbeiten schicken. Die
+  Anleitungen in `docs/betrieb/` bleiben die Grundlage.
 - Sprache der Dokumente: Deutsch, einfach und direkt.
 - Begriff (Entscheidung F, 05.11.): Tonies und NFC-Karten zusammen heißen **Tobie** (Mehrzahl Tobies), in Dokumenten und Texten für Eltern. Im Code heißt ein Tobie aus historischen Gründen `figur`.
