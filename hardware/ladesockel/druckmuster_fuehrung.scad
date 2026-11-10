@@ -1,7 +1,9 @@
 // Tobi Box, Ladesockel Variante 4a "hoher Kragen": Druckmuster der Führung
 // Alle Maße in mm. Werte mit (R) sind Richtwerte, mit (messen!) vor dem Druck prüfen.
 // Auswahl: teil = "sockel" | "boxboden" | "halter" | "kragenprobe" | "alle"
-//          Hilfsteile zum Ansehen: "baugruppe0" | "baugruppe90" (Schnitt in y = 0)
+//          Hilfsteile zum Ansehen: "baugruppe0" | "baugruppe90" (Schnitt in y = 0;
+//          baugruppe90 zeigt die Box gekippt, so wie sie bei 90 Grad liegt)
+//          Pruefteil: "kippcheck" = Schnittmenge Sockel/gekippte Box (muss leer sein)
 // Koordinaten: x = lange Seite des Kragens, y = vorne (-) nach hinten (+), z = oben.
 // Höhen im Kragen-Bereich zählen ab der Bezugsebene z0 = Boxboden, wenn die Box
 // bei 0 Grad gesteckt ist. z0 liegt sitz_h über dem Mulden-Boden in der Mitte
@@ -63,24 +65,26 @@ bef_kopf_t   = 3;     // Senkung, Tiefe unter dem Muldenboden
 
 // ---------- Kragen (Sockel, fest mit der Mulde gedruckt) ----------
 kragen_h     = 14;    // Kragenhöhe über z0
-kragen_b_u   = 36;    // unten, lange Seite (x)
-kragen_d_u   = 18;    // unten, kurze Seite (y)
-kragen_b_o   = 30;    // oben, lange Seite
-kragen_d_o   = 12;    // oben, kurze Seite
-schacht_b    = 12;    // Schacht oben, x
-schacht_d    = 7;     // Schacht oben, y
+kragen_b_u   = 38;    // unten, lange Seite (x)
+kragen_d_u   = 20;    // unten, kurze Seite (y)
+kragen_b_o   = 32;    // oben, lange Seite
+kragen_d_o   = 14;    // oben, kurze Seite
+schacht_b    = 14;    // Schacht oben, x (Zapfen 13 + 2 x 0,5)
+schacht_d    = 8;     // Schacht oben, y (Zapfen 7 + 2 x 0,5)
 schacht_fase = 1;     // Einlauf-Fase am Schacht
 spitze_unter = 2;     // Metallspitze liegt so weit unter der Kragenoberkante
 
 // ---------- Tasche und Zapfen (Boxboden) ----------
-zapfen_b     = 11;    // Buchsen-Zapfen, x (Feinführung: 0,5 je Seite im Schacht)
-zapfen_d     = 6;     // Buchsen-Zapfen, y
+zapfen_b     = 13;    // Buchsen-Zapfen, x (Feinführung: 0,5 je Seite im Schacht)
+zapfen_d     = 7;     // Buchsen-Zapfen, y
 zapfen_fase  = 0.6;   // Fase an der Zapfen-Unterkante
 buchse_h     = 5.5;   // Buchsen-Öffnung (Zapfen-Unterseite) über der Boxbodenfläche
 wand         = 2.4;   // Wandstärke im Boxboden
 min_eingriff = 6;     // Kragen führt die Tasche mindestens so tief, bevor die Spitze berührt
-min_auflage  = 4;     // bei 90 Grad: Auflage je Seite mindestens
-min_abstand90= 5;     // bei 90 Grad: Zapfen-Unterseite mindestens so weit über der Spitze
+min_abstand90= 5;     // bei 90 Grad flach: Zapfen-Unterseite mindestens so weit über der Spitze
+min_abstand_kipp = 3; // bei 90 Grad, maximal gekippt: Zapfen mindestens so weit über der Spitze
+min_fuehrung = 6;     // bei 0/180 Grad: Führungsfläche der Tasche neben der Rinne mindestens (x je Seite)
+min_band     = 4;     // bei 0/180 Grad: durchgehendes Wandband über der Rinne mindestens (z)
 
 // ---------- Stecker und Halter (TPU 95A) ----------
 stecker_b    = 12.5;  // Umspritzkörper Breite (messen!)
@@ -102,26 +106,30 @@ steckkraft   = 20;    // N, Steckkraft; wird von der Schulter aufgenommen, nicht
 // ---------- Boxboden ----------
 box_boden    = 3;     // Bodenstärke
 box_wand_h   = 25;    // Wandhöhe über dem Boden
-rinne_achse  = "x";   // Richtung der Kabelrinne (Box-Koordinaten): "x" oder "y"
-                      // "y" = gerade nach hinten wie in der Aufgabe. Dann liegt bei 90 Grad
-                      // die Rinne (14) quer über der Kragen-Auflage (12) und frisst die
-                      // eine Auflage; der assert schlägt an. "x" läuft entlang der langen Seite.
-kabelrinne_b = 14;    // Kabelrinne, Breite
+box_r        = 4;     // Eckenradius außen
+dach_h       = 4;     // Taschendach (Material über der Tasche, trägt Zapfen und Litzenführung)
+kabelrinne_b = 18;    // Kabelrinne nach hinten (+y), Breite. Mindestens so breit, dass der
+                      // Kragen bei 90 Grad (Box gekippt) hineintaucht, ohne an den Rinnenkanten
+                      // anzuliegen (Prüfung: assert "Rinne zu schmal fuer den Kragen")
 kabelrinne_t = 8;     // Kabelrinne, Tiefe ab Unterseite
-rinne_fase   = 1;     // Fase am Rinnenrand (klein halten, sonst frisst sie die Auflage)
+rinne_fase   = 1;     // Fase am Rinnenrand
 winkel_b     = 12;    // Winkelstecker: Körper quer zum Kabel
 winkel_h     = 6;     // Winkelstecker: Körperhöhe unter der Buchsen-Öffnung
 winkel_l     = 20;    // Winkelstecker: Körperlänge in Kabelrichtung
 ecke_b       = 18;    // Aussparung für TPU-Ecke, Kantenlänge
-schraube     = "M2";  // "M2" oder "M2.5" für das Breakout
-rec_b        = 8.94;  // USB-C-Buchse Breite
-rec_d        = 3.26;  // USB-C-Buchse Dicke
-rec_l        = 7.35;  // USB-C-Buchse Länge (Tiefe)
-pcb_b        = 15;    // Breakout-Platine Breite (messen!)
-pcb_h        = 12;    // Platine Höhe (steht senkrecht)
-pcb_t        = 1.6;   // Platinendicke
-loch_dx      = 5.5;   // Schraublöcher bei x = +/- loch_dx
-loch_z       = 4;     // Schraubloch-Höhe über der Platinen-Unterkante
+
+// ---------- Buchseneinsatz im Zapfen (austauschbares Modul, erst die gekaufte Buchse messen!) ----------
+buchse_b     = 9.0;   // Buchse samt Platine/Gehäuse, Breite (x)         (R, messen!)
+buchse_t     = 3.3;   // Buchse, Dicke (y)                                (R, messen!)
+buchse_l     = 7.4;   // Buchse, Länge (Einbautiefe, z)                   (R, messen!)
+buchse_spiel = 0.15;  // Spiel je Seite im Buchsenraum
+buchse_befest= "kleben"; // "kleben" | "schrauben" (2 x M2)
+zapfen_wand_min = 1.2; // Mindestwand des Zapfens um den Buchsenraum, je Seite
+litze_d      = 4;     // Litzenführung (Bohrung vom Buchsenraum nach oben ins Box-Innere)
+schr_dx      = 3;     // Schrauben M2: Bohrungen bei x = +/- schr_dx
+schr_z       = 4;     // Schrauben M2: Höhe über der Buchsen-Öffnung
+schr_d       = 1.7;   // Schrauben M2: Bohrung für selbstschneidende Schraube
+schr_wand_min= 1.5;   // Schrauben M2: Wand, in die geschraubt wird, mindestens
 
 // ================= Abgeleitete Werte =================
 zc          = unterteil_h + (mulde_boden/2)*tan(gefaelle); // Mulden-Boden Mitte (abs.)
@@ -151,34 +159,85 @@ kn_x = stecker_b + 2*(halter_spiel + 0.3);  kn_y = stecker_d + 2*(halter_spiel +
 tasche_oeff_x = kx_u + 2*spiel;   tasche_oeff_y = ky_u + 2*spiel;      // an der Bodenfläche
 tasche_oben_x = kx_o + 2*spiel;   tasche_oben_y = ky_o + 2*spiel;      // am Taschendach
 
-// Lage bei 90 Grad: Box liegt mit der Bodenfläche auf der Kragen-Oberkante
-auflage_geo   = kx_o/2 - tasche_oeff_y/2;       // je Seite, in x
-rinne_frisst  = (rinne_achse == "y") && (kabelrinne_b >= ky_o);
-auflage       = rinne_frisst ? 0 : auflage_geo;
-zapfen_abst90 = (kragen_h + z_open) - tip;      // Zapfen-Unterseite über Steckerspitze
+// Lage bei 90 Grad flach (ohne Kippen), nur als Bezug
+zapfen_abst90 = (kragen_h + z_open) - tip;      // Zapfen-Unterseite über Steckerspitze (flach)
 eingriff      = kragen_h - einsteck;            // Kragen-Führung, wenn Spitze die Buchse erreicht
 zapfen_im_schacht = kragen_h - tip;             // Zapfen taucht schon so tief ein (Spitze berührt)
-pcb_z0        = tasche_t;                       // Platinen-Unterkante: Taschendach
 winkel_unten  = z_open - winkel_h;              // Unterkante Winkelstecker über Bodenfläche
 gewicht_kap   = 2*(hohl_x_aussen-hohl_x_innen)*hohl_y*(hohl_h-0.4)/1000 * stahl_dichte * fuellgrad;
 
+// Buchsenraum im Zapfen
+bc_b          = buchse_b + 2*buchse_spiel;      // Buchsenraum, x
+bc_t          = buchse_t + 2*buchse_spiel;      // Buchsenraum, y
+bc_top        = z_open + buchse_l + 0.3;        // Decke des Buchsenraums (ab Boxbodenfläche)
+schr_wand     = (zapfen_d - bc_t)/2;            // Wand, in die die Schrauben greifen
+dach_top      = tasche_t + dach_h;              // Oberkante Taschendach / Stütze
+
+// Bei 90 Grad gekippt (Rinne zeigt nach -x, Box wird um y gedreht).
+// Auflage: Die Rinne frisst die eine Kragen-Auflage, die Box liegt mit dem Tasche-Rand (+x)
+// auf der Kragen-Oberkante (Drehpunkt P) und kippt zur Rinnenseite, bis eine Bodenecke
+// (TPU-Ecke, ragt ecke_unter unter die Bodenflaeche) am Mulden-Boden anliegt.
+// Ebene (x = Sockel-x, z ab z0): P = (kipp_px, kragen_h); Bodenflaeche dreht um P mit Winkel w.
+kipp_px       = tasche_oeff_y/2;                       // Drehpunkt, Sockel-x
+kipp_s        = kipp_px + box_b/2;                     // von P bis zur Aussenkante, entlang der Bodenflaeche
+kipp_yc       = box_b/2 - box_r;                       // Ecke liegt bei diesem y (gerade Kante endet vor dem Radius)
+kipp_boden    = unterteil_h + (kipp_yc + mulde_boden/2)*tan(gefaelle) - z0
+                - freistich_t;                          // Mulden-Boden an der Ecke ab z0, Ecke taucht in den Freistich
+kipp_c        = kragen_h - kipp_boden;                 // = s*sin(w) + ecke_unter*cos(w)
+kipp_R        = sqrt(kipp_s*kipp_s + ecke_unter*ecke_unter);
+kipp_phi      = atan2(ecke_unter, kipp_s);
+kipp_w        = asin(kipp_c/kipp_R) - kipp_phi;        // Kippwinkel in Grad
+kipp_ecke_x   = kipp_px - kipp_s*cos(kipp_w) + ecke_unter*sin(kipp_w);   // Sockel-x der Ecke
+kipp_ecke_z   = kragen_h - kipp_s*sin(kipp_w) - ecke_unter*cos(kipp_w);  // (= kipp_boden, Kontrolle)
+// Unterseite des Zapfens (Abstand z_open von der Bodenflaeche) an seiner tiefsten Kante (Sockel-x = -zapfen_d/2)
+kipp_zapfen_z = kragen_h + z_open*cos(kipp_w) + tan(kipp_w)*(-zapfen_d/2 - kipp_px + z_open*sin(kipp_w));
+kipp_abstand  = kipp_zapfen_z - tip;                   // Rest-Abstand Zapfen ueber Steckerspitze
+// Kragen taucht auf der Rinnenseite in die Rinne ein: Tiefe senkrecht zur Bodenflaeche und Breite
+kipp_tiefe    = (kragen_b_o/2 + kipp_px)*sin(kipp_w);  // Kragen-Oberkante ragt so weit in die Rinne
+kipp_kr_halb  = ky_o/2 + (ky_u - ky_o)/2 * (kipp_tiefe/cos(kipp_w))/kragen_h; // halbe Kragenbreite auf Hoehe der Bodenflaeche
+
+// Bei 0/180 Grad: Rinne laeuft ab y = rinne_y0 nach hinten und schneidet die Hinterwand der Tasche an
+rinne_y0      = zapfen_d/2 + 0.5;
+fuehr_rest    = (tasche_oeff_x - (tasche_oeff_x - tasche_oben_x)*kabelrinne_t/tasche_t)/2
+                - kabelrinne_b/2;                               // Rest der Hinterwand je Seite (oben an der Rinne)
+fuehr_rest_u  = tasche_oeff_x/2 - kabelrinne_b/2 - rinne_fase;  // Rest an der Bodenflaeche (Fase)
+fuehr_band    = tasche_t - kabelrinne_t;                        // durchgehendes Wandband ueber der Rinne
+
 // ================= Nachrechnen =================
-assert(auflage >= min_auflage,
-  "Auflage bei 90 Grad zu schmal (oder die Kabelrinne frisst eine Auflage, rinne_achse pruefen)");
+// (a) 0 und 180 Grad: Die Rinne kreuzt keine Fuehrungsflaeche, die zum Stecken noetig ist
+assert(rinne_y0 >= zapfen_d/2 + 0.25 && rinne_y0 >= schacht_d/2 - 0.01,
+  "Rinne beginnt zu nah am Zapfen/Schacht (Feinfuehrung)");
+assert(min(fuehr_rest, fuehr_rest_u) >= min_fuehrung,
+  "Rinne schneidet die Hinterwand der Tasche zu breit auf (Fuehrungsflaeche zu klein)");
+assert(fuehr_band >= min_band, "Rinne zu tief: kein durchgehendes Wandband ueber der Rinne");
+// (b) 90 Grad, maximal gekippt: Zapfen bleibt min_abstand_kipp ueber der Steckerspitze
+assert(kipp_c/kipp_R < 1, "Kippwinkel: Box erreicht den Mulden-Boden nicht (Rechnung ungueltig)");
+assert(kipp_ecke_x >= -mulde_boden/2, "Bodenecke trifft bei Kippung die Muldenwand, Rechnung anpassen");
+assert(kipp_abstand >= min_abstand_kipp,
+  "Zapfen bei 90 Grad und maximaler Kippung zu nah an der Steckerspitze: kragen_h erhoehen oder spitze_unter senken");
+// Voraussetzung der Kipp-Rechnung: der Kragen taucht frei in die Rinne ein (sonst stuetzt die Rinnenkante)
+assert(kipp_tiefe + 1 <= kabelrinne_t, "Rinne zu flach fuer den Kragen bei maximaler Kippung");
+assert(kabelrinne_b/2 >= kipp_kr_halb + 0.3, "Rinne zu schmal fuer den Kragen bei maximaler Kippung");
 assert(zapfen_abst90 >= min_abstand90,
   "Zapfen bei 90 Grad zu nah an der Steckerspitze");
 assert(eingriff >= min_eingriff,
   "Kragen fuehrt die Tasche zu kurz, bevor die Steckerspitze die Buchse beruehrt");
 assert(zapfen_im_schacht >= 1, "Zapfen taucht bei Kontakt noch nicht in den Schacht ein");
-assert(einsteck <= stecker_schale && einsteck <= rec_l, "Stecklaenge passt nicht zu Schale/Buchse");
+assert(einsteck <= stecker_schale && einsteck <= buchse_l, "Stecklaenge passt nicht zu Schale/Buchse");
 assert(z_open >= 1, "Zapfen ragt ueber die Bodenflaeche hinaus");
 assert(winkel_unten >= -ecke_unter,
   "Winkelstecker ragt weiter unter die Bodenflaeche als die TPU-Ecken");
 assert(winkel_b + 0.4 <= kabelrinne_b && z_open <= kabelrinne_t,
   "Winkelstecker passt nicht in die Kabelrinne");
-assert(zapfen_b < schacht_b && zapfen_d < schacht_d && schacht_b - zapfen_b <= 1.01,
+assert(zapfen_b < schacht_b && zapfen_d < schacht_d && schacht_b - zapfen_b <= 1.01 && schacht_d - zapfen_d <= 1.01,
   "Zapfen/Schacht: Feinfuehrung nicht +/- 0,5");
-assert(zapfen_b - rec_b >= 1.4 && zapfen_d - rec_d >= 2, "Zapfen-Wand um die Buchse zu duenn");
+assert((zapfen_b - bc_b)/2 >= zapfen_wand_min && (zapfen_d - bc_t)/2 >= zapfen_wand_min,
+  "Zapfen-Wand um die Buchse zu duenn");
+assert(bc_top + 0.5 <= tasche_t + dach_h && litze_d < zapfen_d - 2*zapfen_wand_min + 1 && litze_d >= 3,
+  "Buchsenraum/Litzenfuehrung passt nicht ins Taschendach");
+assert(buchse_befest == "kleben" || buchse_befest == "schrauben", "buchse_befest: kleben oder schrauben");
+assert(buchse_befest != "schrauben" || (schr_wand >= schr_wand_min && schr_dx + 1 <= bc_b/2),
+  "Schrauben M2: Wand zu duenn oder Bohrung ausserhalb des Buchsenraums");
 assert(sitz_h - tan(gefaelle)*box_b/2 >= boden_luft,
   "Boxboden streift am schraegen Mulden-Boden");
 assert(kragen_kegel > 5 && kragen_kegel < 30, "Kegelwinkel des Kragens unplausibel");
@@ -191,11 +250,15 @@ assert(ky_o/2 - schacht_d/2 >= 2, "Kragen-Wand oben um den Schacht zu duenn");
 assert(bohr_d > kabel_d + 1 && halter_bohr > kabel_d + 1, "Kabelloch zu klein");
 assert(gewicht_kap >= gewicht_soll, "Gewichtsraum fasst nicht gewicht_soll Stahl");
 assert(unterteil_h - (hohl_u + hohl_h) >= 3, "Decke ueber dem Gewichtsraum zu duenn");
-assert(pcb_z0 + pcb_h + 1 <= box_h, "Platine ragt ueber den Boxrand");
+assert(dach_top + 1 <= box_h, "Taschendach ragt ueber den Boxrand");
 assert(!befestigung || (bef_x + bef_kopf/2 <= mulde_boden/2 - freistich_b && bef_y - bef_kopf/2 > hohl_y/2),
   "Befestigungsloch liegt im Freistich");
+echo(str("KIPPEN 90 Grad: Winkel = ", kipp_w, " Grad | Rest-Abstand Zapfen ueber Spitze = ", kipp_abstand,
+         " | Zapfen-Unterkante z = ", kipp_zapfen_z, " | Ecke x = ", kipp_ecke_x, ", z = ", kipp_ecke_z,
+         " | Kragen taucht in Rinne = ", kipp_tiefe, ", halbe Breite dort = ", kipp_kr_halb,
+         " | Rinne-Rest 0/180 Grad: ", fuehr_rest, " / ", fuehr_rest_u, ", Band ", fuehr_band));
 echo(str("z0 = ", z0, " | Spitze = ", tip, " | Stecklaenge = ", einsteck,
-         " | Auflage 90 Grad = ", auflage, " | Zapfen-Unterseite 90 Grad ueber Spitze = ", zapfen_abst90,
+         " | Zapfen-Unterseite 90 Grad flach ueber Spitze = ", zapfen_abst90,
          " | Eingriff = ", eingriff, " | Zapfen im Schacht bei Kontakt = ", zapfen_im_schacht,
          " | Winkelstecker-Unterkante = ", winkel_unten, " | Kegel = ", kragen_kegel,
          " | Gewichtsraum fasst ca. ", gewicht_kap, " g Stahl"));
@@ -360,36 +423,27 @@ module rinne_profil(b, t, f) {
   polygon([[-(b/2 + f), -1], [b/2 + f, -1], [b/2 + f, 0], [b/2, f], [b/2, t],
            [-b/2, t], [-b/2, f], [-(b/2 + f), 0]]);
 }
-module rinne_strang(b, t, f, laenge) {   // vom Zapfen weg bis über die Kante hinaus
-  if (rinne_achse == "x")
-    translate([zapfen_b/2 + 0.5, 0, 0]) rotate([90, 0, 90])
-      linear_extrude(height = laenge) rinne_profil(b, t, f);
-  else
-    translate([0, zapfen_d/2 + 0.5 + laenge, 0]) rotate([90, 0, 0])
-      linear_extrude(height = laenge) rinne_profil(b, t, f);
+module rinne_strang(b, t, f, laenge) {   // vom Zapfen weg nach hinten (+y) bis über die Kante hinaus
+  translate([0, rinne_y0 + laenge, 0]) rotate([90, 0, 0])
+    linear_extrude(height = laenge) rinne_profil(b, t, f);
 }
 module rinne_cut() { rinne_strang(kabelrinne_b, kabelrinne_t, rinne_fase, box_b/2 + 5); }
 module rinne_huelle() {   // Wandmaterial um die Rinne, damit sie ein Tunnel bleibt
   intersection() {
-    rrect(box_b, 4, box_h);
+    rrect(box_b, box_r, box_h);
     rinne_strang(kabelrinne_b + 2*wand, kabelrinne_t + wand, 0, box_b/2 + 5);
   }
 }
 
-module platinenraum(mit_platine = true) {
-  yb = -(rec_d/2 + pcb_t + 0.3);
-  // Buchsenkörper im Zapfen, Öffnung nach unten
-  translate([-(rec_b/2 + 0.3), -(rec_d/2 + 0.3), z_open - 0.01])
-    cube([rec_b + 0.6, rec_d + 0.6, pcb_z0 - z_open + 1]);
-  if (mit_platine) {
-    // Platine steht senkrecht über dem Zapfen (Ebene xz), Buchse auf der +y-Seite
-    translate([-(pcb_b/2 + 0.3), yb, pcb_z0 - 0.01]) cube([pcb_b + 0.6, pcb_t + 0.3 + 0.2, 40]);
-    // Schrauben-Vorbohrung (M2: 1.7, M2.5: 2.1), waagrecht in die Stützwand
-    pilot = (schraube == "M2") ? 1.7 : 2.1;
+// Buchseneinsatz: austauschbares Modul. Buchsenraum von unten (offen), Litzenführung nach oben,
+// bei buchse_befest = "schrauben" zwei Bohrungen M2 quer durch die +y-Wand in den Buchsenraum.
+module buchseneinsatz() {
+  translate([-bc_b/2, -bc_t/2, z_open - 0.01]) cube([bc_b, bc_t, bc_top - z_open + 0.01]);
+  translate([0, 0, bc_top - 0.01]) cylinder(d = litze_d, h = dach_top - bc_top + 1);
+  if (buchse_befest == "schrauben")
     for (s = [-1, 1])
-      translate([s*loch_dx, yb + 0.01, pcb_z0 + loch_z]) rotate([90, 0, 0])
-        cylinder(d = pilot, h = 5, $fn = 20);
-  }
+      translate([s*schr_dx, bc_t/2 - 0.01, z_open + schr_z]) rotate([-90, 0, 0])
+        cylinder(d = schr_d, h = schr_wand + 1, $fn = 20);
 }
 
 module ecken_aussparung() {
@@ -399,17 +453,17 @@ module ecken_aussparung() {
 }
 
 module boxboden() {
-  stuetz_top = min(pcb_z0 + pcb_h + 1, box_h);
+  stuetz_top = dach_top;
   difference() {
     union() {
       difference() {
         union() {
           difference() {
-            rrect(box_b, 4, box_h);
+            rrect(box_b, box_r, box_h);
             translate([0, 0, box_boden]) rrect(box_b - 2*wand, 2, box_h);
           }
           intersection() {
-            rrect(box_b, 4, box_h);
+            rrect(box_b, box_r, box_h);
             union() { rinne_huelle(); tasche_huelle(stuetz_top); }
           }
         }
@@ -419,7 +473,7 @@ module boxboden() {
       }
       zapfen();
     }
-    platinenraum();
+    buchseneinsatz();
   }
 }
 
@@ -427,7 +481,7 @@ module boxboden() {
 module kragenprobe() {
   h = -ledge_rel + 2;   // Sockelstumpf unter z0
   // Kragen mit Aufnahme auf einem Stumpf (Stumpf-Oberkante = z0 - sitz_h - 3 wie im Sockel)
-  translate([-34, 0, 0]) difference() {
+  translate([-36, 0, 0]) difference() {
     union() {
       translate([-kx_u/2 - 4, -ky_u/2 - 4, 0]) cube([kx_u + 8, ky_u + 8, h]);
       translate([0, 0, h]) kragen_aussen();
@@ -436,15 +490,15 @@ module kragenprobe() {
     translate([0, 0, -1]) cylinder(d = bohr_d, h = h + 1.1);
   }
   // Gegenstück, zum Druck gedreht (Taschendach unten, Zapfen nach oben, keine Stützen)
-  translate([34, 0, tasche_t + 3]) rotate([180, 0, 0]) difference() {
+  translate([36, 0, dach_top]) rotate([180, 0, 0]) difference() {
     union() {
       difference() {
-        tasche_huelle(tasche_t + 3);
+        tasche_huelle(dach_top);
         tasche_cut();
       }
       zapfen();
     }
-    platinenraum(false);
+    buchseneinsatz();
   }
 }
 
@@ -456,16 +510,29 @@ module stecker_modell() {
     translate([-schale_b/2, -schale_d/2, z0 + body_top]) cube([schale_b, schale_d, stecker_schale]);
   }
 }
+module tpu_ecken() {   // TPU-Ecken: sitzen in der Aussparung, ragen ecke_unter unter die Bodenflaeche
+  for (sx = [-1, 1], sy = [-1, 1])
+    translate([sx*(box_b/2 - ecke_b/2) - ecke_b/2, sy*(box_b/2 - ecke_b/2) - ecke_b/2, -ecke_unter])
+      cube([ecke_b, ecke_b, 2*ecke_unter]);
+}
+module box_komplett() { boxboden(); tpu_ecken(); }
+module box_gekippt() {   // Box bei 90 Grad: Drehpunkt P (Tasche-Rand auf der Kragen-Oberkante), Rinne zeigt nach -x
+  translate([kipp_px, 0, z0 + kragen_h]) rotate([0, -kipp_w, 0]) translate([-kipp_px, 0, 0])
+    rotate([0, 0, 90]) box_komplett();
+}
 module baugruppe(grad) {
   difference() {
     union() {
       color("lightsteelblue") sockel();
-      if (grad == 0) color("khaki") translate([0, 0, z0]) boxboden();
-      else color("khaki") translate([0, 0, z0 + kragen_h]) rotate([0, 0, grad]) boxboden();
+      if (grad == 0) color("khaki") translate([0, 0, z0]) box_komplett();
+      else color("khaki") box_gekippt();
       stecker_modell();
     }
     translate([-300, -300, -1]) cube([600, 300, 300]);   // hintere Hälfte (y >= 0) bleibt, Blick von -y auf die Schnittfläche
   }
+}
+module kippcheck() {   // Schnittmenge Sockel / gekippte Box inkl. TPU-Ecken: muss leer sein
+  intersection() { sockel(); box_gekippt(); }
 }
 
 // ---------- Auswahl ----------
@@ -475,9 +542,10 @@ else if (teil == "halter") halter();
 else if (teil == "kragenprobe") kragenprobe();
 else if (teil == "baugruppe0") baugruppe(0);
 else if (teil == "baugruppe90") baugruppe(90);
+else if (teil == "kippcheck") kippcheck();
 else if (teil == "alle") {
   color("lightsteelblue") sockel();
   color("khaki") translate([155, 0, 0]) boxboden();
   color("tomato") translate([240, 0, 0]) halter();
   color("palegreen") translate([240, -80, 0]) kragenprobe();
-} else assert(false, "teil muss sockel, boxboden, halter, kragenprobe, baugruppe0, baugruppe90 oder alle sein");
+} else assert(false, "teil muss sockel, boxboden, halter, kragenprobe, baugruppe0, baugruppe90, kippcheck oder alle sein");
