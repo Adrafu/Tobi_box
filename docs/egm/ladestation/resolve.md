@@ -76,3 +76,34 @@ Laden, siehe `research_qi.md`) bleibt es bei Kontakten, aber billiger.
 
 Ziel: ~75 € für beide Boxen statt ~125 €. Die Netzteile (R3) und Tests durch
 Tobias (R4) bleiben.
+
+## Review Rev. 3 und Entscheidungen für Rev. 4 (10.11.)
+
+Goldfisch-Review `review_rev3.md`: 3 Blocker, 9 wichtig, 2 Hinweise.
+Hauptbefund **G1**: Die Magnete im Magnet-Pogo-Stecker ziehen Stahl (Cent-Münzen,
+Büroklammern) auf die Pins. Steht die eigene Box darauf, schließen die Reeds,
+und das Metall überbrückt Plus und Masse. Im Bereich 1–3 Ω (Strom unter dem
+Ladestrom) greift weder PTC noch Netzteil noch eine eFuse. R6 hatte den
+falschen Fall beschrieben.
+
+| # | Entscheidung | Ersetzt |
+|---|---|---|
+| R7 | **Kontakte: zuerst Recherche nach fertigen Lösungen** (wie kommerzielle Docks und Bauteile das Problem lösen, z. B. Erkennung über einen dritten Kontakt mit USB-C-Logik, versenkte Kontakte). Kein Eigenbau-Rad. | R5 (Magnet-Stecker), R6 |
+| R8 | **Rückmeldung beim Andocken:** Ton und LED-Ring zeigen einige Sekunden lang Laden und Ladestand. **Andocken weckt die Box dafür kurz**, auch wenn sie aus ist. | Plan Punkt 3 („Andocken darf nicht wecken“), PSP 5.6.5 (Auto-Power-On aus), PSP 8.2.4, A7 |
+
+**Folgen von R8 (offen für das Box-Software-Design, Verträge unverändert):**
+- PiSugar: Einschalten bei Strom am Eingang aktivieren (Einstellung im
+  pisugar-server, am Muster bestätigen).
+- Ablauf nach dem Start am Lader: Ton und Ladestand am Ring, Sync prüfen
+  (wie CUJ 16), dann ohne Wiedergabe zügig wieder herunterfahren statt erst
+  nach 20 min (Wert festlegen).
+- Leise-Zeiten (PSP 5.7): nachts kein Ton, Ring nur gedimmt.
+- Ein Pi 3A+ braucht ~20–30 s bis zur Rückmeldung (Schätzung, am Muster messen).
+- Strom: jedes Andocken kostet einen Startvorgang. Unkritisch am Lader.
+
+**Ohne Rückfrage übernommen:** G2 (Diode parallel zum oberen RC-Widerstand,
+schnelles Ausschalten), G4 (Fase an der Nut, Steg und Mulden-Boden aus einem
+Druck, Spiel gegen Fangbereich prüfen), G6 (Reeds wieder diagonal), G8 (PTC nur
+als Leitungsschutz benennen), G11 (weggefallene Tests zurück), G12
+(Stahlgewicht nicht unter Magneten und Reeds), G14 (Versand und
+Testmaterial in die Stückliste).

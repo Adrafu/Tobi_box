@@ -36,7 +36,7 @@ passt mit allen vier Löchern. Preis: höherer Ruheverbrauch, siehe 1.5.
 
 **2. Resume** — Phoniebox V3 hat keines, wird eigenes Plugin nach Toniebox-Logik (5.4).
 
-**3. Andocken darf nicht wecken** — Auto-Power-On aus (5.6.5), Test in 8.2.4.
+**3. Andocken darf nicht wecken** — Auto-Power-On aus (5.6.5), Test in 8.2.4. **Überholt (R8, 10.11.):** Andocken weckt kurz für Ton und Ladestand, siehe Entscheidungen.
 
 ## Hardware
 
@@ -722,6 +722,8 @@ CAD (4.2) startet erst, wenn 3.2 auf dem Breadboard läuft.
 | **Ladestation: Kontakte (3.16, R2)** | Kontaktscheibe als Leiterplatte mit Hartgold, Zyklentest |
 | **Ladestation: Netzteile (3.16, R3)** | Zwei neue Markennetzteile USB-C 5 V/3 A, CE, Schutzklasse II, C-auf-C-Kabel. Kurzschlusstest mit genau diesen |
 | **Ladestation billiger (3.16, R5/R6, 09.11.)** | Feste Einsteckrichtung mit fertigen Magnet-Pogo-Steckern, 2 Magnete in der Box. Fertige Module (Pololu #2810, PTC) statt eFuse-Platine, zwei Reeds in Reihe bleiben. Restrisiko „zwei Fremdmagnete plus Metallteil“ bewusst akzeptiert. Ersetzt D2, R1, R2. Qi verworfen (Wärme am Akku, Aufwachen; Berichte in `research_qi.md`) |
+| **Ladestation: Andocken weckt kurz (3.16, R8, 10.11.)** | **Ersetzt Punkt 3 und PSP 5.6.5/8.2.4:** Andocken startet die Box. Sie zeigt mit Ton und LED-Ring einige Sekunden Laden und Ladestand, prüft den Sync und fährt ohne Wiedergabe zügig wieder herunter. Nachts kein Ton (Leise-Zeiten). Details im Box-Software-Design nachzuziehen |
+| **Ladestation: Kontakte (3.16, R7, 10.11.)** | Magnet-Pogo-Stecker (R5) verworfen: Seine Magnete ziehen Münzen und Klammern auf die Pins (Review G1). Nächster Schritt: fertige Lösungen recherchieren (Erkennung über dritten Kontakt, versenkte Kontakte) |
 | **Ladestation: Tests (3.16, R4)** | Tobias testet allein, mit den verschärften Vorgaben aus dem Review. Kein Kindertest vor der Abnahme |
 | **Mosquitto-ACL (3.14)** | In der `pattern`-Form müssen auch `tobibox/config` und `homeassistant/status` `pattern read` heißen (Test gegen Mosquitto 2.0.18); `mqtt-v1.md`, Abschnitt 7 korrigiert |
 
