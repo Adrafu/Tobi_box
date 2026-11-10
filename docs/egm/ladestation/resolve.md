@@ -139,7 +139,7 @@ müssten 27 mm hoch sein, die Nuten in der Box 24,5 mm tief.
 | Befund | Entscheidung |
 |---|---|
 | H1 Abheben: Stecker hält 8–20 N, Sockel 1 kg wiegt ~10 N | **Erst messen.** Abzugskraft des echten Pi-Netzteil-Steckers mit Federwaage. Unter ~8 N reicht ~1 kg, sonst wird der Sockel befestigt (Klebepads oder Schrauben). |
-| H2 Falsch herum (90°): Rippen zu hoch | **Offen.** Tobias vergleicht im 3D-Artefakt zwei Lösungen: 4a hoher Kragen (Box liegt bei 90° auf dem Kragen) und 4b Mulde mit Nasen (Box liegt bei 90° auf den Nasen). Rippen und Nuten entfallen in beiden. |
+| H2 Falsch herum (90°): Rippen zu hoch | **4a hoher Kragen.** Rippen und Nuten entfallen. Der rechteckige Kragen ist höher als die Steckerspitze (Spitze 2 mm unter der Kante), der Stecker steht in einem Schacht. Bei 90° liegt die Box auf dem Kragen. Die Taschenöffnung wird so gewählt, dass sie dabei breit aufliegt und nicht kippelt (im 3D-Modell bleiben nur ~0,5 mm je Seite). Die Buchse sitzt in einem Zapfen in der Tasche, der nicht über die Bodenfläche ragt. Verglichen im 3D-Artefakt mit 4b (Nasen). |
 | H3 Kabelrinne gegen Nut | **Erledigt** mit H2: Ohne Nuten läuft die Kabelrinne mittig nach hinten. Abgangsrichtung des gewinkelten Steckers bei der Bestellung prüfen. |
 | H4 Offene Steckermündung | **Akzeptiert wie bei jedem USB-C-Kabel.** Kein Zusatzaufwand. T6 prüft Draht und Flüssigkeit. |
 | H5 Buchse in der Box | **Fest und robust**: verschraubt und verklebt, Tausch nur mit geöffneter Box. Kein tauschbares Modul. |
