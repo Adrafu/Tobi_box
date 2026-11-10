@@ -1,127 +1,77 @@
-# Übergabe: Box-Software für die Ladestation
+# Übergabe an die Software-Sitzung: Entscheidungen zur Ladestation
 
-Prompt für eine neue Sitzung (Stand 10.11.2026). Zum Einfügen in den neuen
-Chat.
+Stand 10.11.2026. Kurzfassung der Entscheidungen aus der Ladestation-Sitzung,
+für die Sitzung, die die Box-Software gebaut hat. Wie das in Design, Verträge
+und Code kommt, entscheidet die Software-Sitzung.
 
 ---
 
-Du hilfst Tobias bei der Tobi Box: zwei baugleiche, mobile NFC-Audioboxen für
-seine Zwillinge (Raspberry Pi 3A+, PiSugar 3 Plus, PN5180 an ESP32-S3, eigene
-Box-Software in Python auf MPD, Home Assistant als Oberfläche). Sprich Deutsch,
-einfach und direkt.
+In der Ladestation-Sitzung (Branch `claude/ladestation-dock`, Ordner
+`docs/egm/ladestation/`) haben Tobias und ich Hardware und Verhalten am Lader
+entschieden. Hier ist alles, was die Software betrifft. Die Begründungen
+stehen in `docs/egm/ladestation/resolve.md`, die Software-Entscheidungen im
+Wortlaut in `docs/egm/ladestation/software_folgen.md`, Abschnitt 10. Den Rest
+dieser Datei brauchst du nicht, die Analyse darin stammt von einem Agent ohne
+deine Code-Kenntnis.
 
-**Thema dieser Sitzung:** Die Entscheidungen zur Ladestation (Andocken weckt
-die Box, eine USB-C-Buchse für Sockel und unterwegs, Software-Entscheidungen
-S1–S11) in das Software-Design und die Verträge einarbeiten. Danach setzen
-Agents den Code um. Vorgehen nach dem Elephant-Goldfish-Model aus `CLAUDE.md`.
-Ordner für die EGM-Dokumente: `docs/egm/start-am-lader/`.
+## Hardware (was sich an der Box ändert)
 
-## Wo die Informationen liegen
+- **Ladesockel:** Mulde mit einem USB-C-Stecker in der Mitte, wie ein
+  Handy-Dock. Der Stecker gehört zum fest angeschlossenen Kabel eines
+  Raspberry-Pi-Netzteils (15 W, 5,1 V/3 A). Im Sockel ist keine Elektronik,
+  der Sockel sendet kein Signal an die Box.
+- **Eine einzige USB-C-Buchse, unten in der Box** (5,1 kΩ an CC). Sie dient
+  für den Sockel **und** unterwegs (Powerbank, Auto, beliebiges Netzteil, mit
+  gewinkeltem Kabel).
+- **Entfallen:** die seitliche USB-C-Buchse, der Pololu #5398 (Ideal-Diode),
+  die Pogo-Pins, die Magnete und Reeds. Die Buchse geht direkt an den
+  Ladeeingang des PiSugar 3 Plus.
+- Die Box steckt nur bei 0° oder 180°. Bei 90° kippelt sie absichtlich auf
+  dem Kragen und lädt nicht.
 
-Alle Dateien liegen auf dem Branch **`claude/ladestation-dock`** (noch nicht
-gemergt). Hole ihn zuerst: `git fetch origin claude/ladestation-dock`. Lies
-von dort aus, und arbeite auf deinem eigenen Sitzungs-Branch, der von diesem
-Branch abzweigt.
+## Verhalten (Entscheidungen von Tobias)
 
-Lies in dieser Reihenfolge:
+- **R8, Andocken weckt die Box:** Am PiSugar wird „Einschalten bei Strom am
+  Eingang“ aktiviert. Das ersetzt Plan-Punkt 3 („Andocken darf nicht wecken“)
+  und PSP 5.6.5 und 8.2.4.
+- **S1:** Jeder Start mit Strom am Eingang gilt als „Start am Lader“. Es gibt
+  keinen Merker. Dass ein Knopfstart am Lader gleich behandelt wird, ist in
+  Ordnung.
+- **S2:** Nach dem Start am Lader kommt eine Rückmeldung (Ton und LED-Ring mit
+  Ladestand), dann die Sync-Prüfung, dann wird die Box nach **120 s** wieder
+  ausgeschaltet, statt nach 20 min. Ein laufender Sync hält sie wach.
+- **S3:** Ein aufgelegter Tobie, der Hauptknopf (kurz) oder ein HA-Befehl
+  beenden diesen Kurz-Modus, danach gilt die normale 20-min-Regel. Weiter,
+  Zurück und der Drehregler beenden ihn nicht.
+- **S4:** Liegt beim Start schon ein Tobie, spielt er wie bisher (CUJ 20
+  unverändert).
+- **S5:** In den Leise-Zeiten („leiser“ und „stumm“) kommt beim Andocken kein
+  Ton. Der Ring leuchtet gedimmt (etwa 5 % bzw. 3 %), das Lauflicht beim
+  Start ist nachts aus.
+- **S6: Update vormerken.** In HA lässt sich „Update beim nächsten Andocken“
+  vormerken. Die Box holt das Update beim nächsten Start am Lader, wenn die
+  bisherigen Bedingungen erfüllt sind (daheim, am Lader, spielt nicht).
+- **S7:** Der Start-Sync läuft auch über den Handy-Hotspot. Die bestehende
+  Hotspot-Regel („Lader dran“ erlaubt Medien-Sync) bleibt. Weil jetzt jede
+  Powerbank als Lader gilt, kann die Box im Auto über den Hotspot laden.
+  Tobias nimmt das in Kauf.
+- **S8:** Wird die Box angedockt, während sie läuft, prüft sie ebenfalls den
+  Sync, einmal je Andocken, 10 s entprellt.
+- **S9:** Läuft dabei ein Hörspiel, zeigt nur der Ring den Ladestand, es kommt
+  kein Ton.
+- **S10:** Es gibt keinen Taster, der Sockel und Kabel unterscheidet. Die
+  Software behandelt jede Stromquelle gleich.
+- **S11:** Ob der Ring schon früh beim Hochfahren leuchtet, entscheiden wir
+  erst nach einer Messung der Startzeit am Muster.
 
-1. `CLAUDE.md`: Rollen (Koordinator schreibt keinen Code, Agents mit dem
-   billigsten passenden Modell), EGM-Vorgehen, Regeln. **Verträge in
-   `docs/protocol/` und `docs/data-model.md` ändern Agents nicht
-   eigenmächtig.** Hier hat Tobias entschieden. Die Änderung läuft als Entwurf
-   mit Goldfisch-Review, danach gibt Tobias sie frei.
-2. `docs/egm/ladestation/software_folgen.md`: **die Hauptquelle.**
-   - Abschnitt 1–6: Analyse (Startgrund, Ablauf, Leise-Zeiten, unterwegs, Wegfall #5398)
-   - Abschnitt 7: Tabelle aller betroffenen Stellen (14 Vertragsstellen, 8 in
-     `box-software.md`, 5 im Plan)
-   - Abschnitt 9: Arbeitspakete
-   - **Abschnitt 10: Entscheidungen S1–S11 von Tobias**
-3. `docs/egm/ladestation/resolve.md`: Hardware-Entscheidungen, vor allem
-   **R8** (Andocken weckt kurz) und **R10** (nur eine USB-C-Buchse im Boden,
-   kein Pololu #5398, unterwegs mit gewinkeltem Kabel)
-4. `docs/egm/ladestation/design_draft.md` (Rev. 5): Abschnitt 6 (Software,
-   Kurzfassung), Abschnitt 7 (Test T5 Wecken und Startschleife)
-5. `docs/plan/stueckliste-und-psp.md`:
-   - Rev. 3.16 in der Änderungsliste
-   - Punkt 3 (überholt durch R8)
-   - PSP 5.6.5 und 5.6.8 (neu)
-   - Entscheidungstabelle: Zeilen „Ladestation …“, „Eine USB-C-Buchse …“, „Start am Lader, Software …“
-6. `docs/designs/box-software.md`: das angenommene Design. Oben steht der
-   Hinweis „Ausstehend (10.11.)“.
-   - Betroffen: CUJ 10 (Update), CUJ 16 (Leerlauf), CUJ 20 (liegender Tobie beim Start)
-   - Tabelle „Strom / Leerlauf“, Netz-Regel (Hotspot), LED-Zustände, Töne, Leise-Zeiten, PiSugar-Wecker
-7. Verträge:
-   - `docs/protocol/core-interface.md` (`LaderGeaendert`, `SyncStarten(grund="start_lader")`, Zeile `idle.py`, Bedingungen `HaUpdateAnstossen`)
-   - `docs/protocol/mqtt-v1.md` (Feld `lader`, Befehle)
-   - `docs/protocol/ha-websocket-v1.md` (falls HA-Seite „Update vormerken“ zeigt)
-   - `docs/data-model.md` (Töne, Konfiguration)
-8. Code `box/src/tobibox/`: `power.py`, `idle.py`, `led.py`, `sounds.py`,
-   `quiet.py`, `sync.py`, `syncregel.py`, `app.py` und die Tests in
-   `box/tests/`. HA-Integration: `homeassistant/custom_components/tobibox/`.
+## Noch nicht geklärt (Messungen am Muster)
 
-## Die Entscheidungen in Kürze (Details in `software_folgen.md`, Abschnitt 10)
+- Gerät die Box in eine Startschleife, wenn sie herunterfährt, während Strom
+  anliegt (Einschalten bei Strom aktiv)?
+- Meldet pisugar-server an der einzigen Buchse den Lader weiterhin richtig?
+- Wie lange dauert der Start bis zur Rückmeldung?
 
-- **R8:** Andocken weckt die Box. Am PiSugar wird „Einschalten bei Strom am
-  Eingang“ aktiviert.
-- **R10:** Eine USB-C-Buchse im Boden für Sockel **und** unterwegs. Jede
-  Powerbank weckt die Box und gilt als „Lader“.
-- **S1:** Jeder Start mit Strom am Eingang gilt als „Start am Lader“. Ohne
-  Merker, denn den Startgrund kann die Box nicht sicher erkennen.
-- **S2:** Danach kommen Rückmeldung (Ton, Ring mit Ladestand) und Sync-Prüfung,
-  dann ein **Kurz-Zähler von 120 s** statt 20 min. Ein laufender Sync hält wach.
-- **S3:** Tobie auflegen, Hauptknopf kurz oder ein HA-Befehl beenden den
-  Kurz-Modus. Danach gilt die normale 20-min-Regel. Weiter, Zurück und der
-  Drehregler beenden ihn nicht.
-- **S4:** Ein liegender Tobie spielt beim Start wie bisher (CUJ 20 unverändert).
-- **S5:** In den Leise-Zeiten („leiser“ und „stumm“) kein Ton. Der Ring ist
-  gedimmt (~5 % bzw. ~3 %), das Lauflicht beim Start ist nachts aus.
-- **S6:** **Update vormerken.** HA merkt „Update beim nächsten Andocken“ vor.
-  Die Box holt es beim nächsten Start am Lader, wenn die bisherigen
-  Bedingungen gelten (daheim, am Lader, spielt nicht). **Dafür ist eine
-  Vertragsänderung nötig** (neuer Befehl oder neues Feld).
-- **S7:** Der Start-Sync läuft **auch über den Handy-Hotspot**. Die
-  Hotspot-Regel bleibt unverändert: Ist ein Lader dran, ist Medien-Sync
-  erlaubt. Tobias nimmt mobile Daten im Auto in Kauf.
-- **S8:** Dockt die laufende Box an, prüft sie den Sync ebenfalls, einmal je
-  Andocken und 10 s entprellt.
-- **S9:** Spielt gerade ein Hörspiel, kommt die Rückmeldung nur über den
-  Ring, ohne Ton.
-- **S10:** Kein Taster im Box-Boden, der Sockel und Kabel unterscheidet.
-- **S11:** Ob der Ring schon in den ersten Startsekunden leuchtet
-  (Frühstart-Ring), wird erst nach einer Messung am Muster entschieden.
+## Regeln
 
-## Bekannte Lücken im Code (aus der Analyse)
-
-- `power.py` fragt den Lader nur alle 10 s ab.
-- `Bereit` löst nachts ein helles Lauflicht aus.
-- Der Start-Sync kann scheitern, solange das WLAN noch nicht steht
-  (`netz_weg`).
-- `idle.py` kennt keinen Kurz-Modus.
-- `led.py` zeigt den Ladestand bei `LaderGeaendert` bereits an. `idle.py` löst
-  `SyncStarten("start_lader")` bereits aus.
-
-## Offen und am Muster zu messen (nicht in dieser Sitzung lösbar)
-
-- **Größtes Risiko:** Gerät die Box am Sockel in eine Startschleife, wenn sie
-  herunterfährt, während Strom anliegt? Plan B im Design vorsehen.
-- Startzeit des Pi 3A+ bis zur Rückmeldung (für S11).
-- Meldet `battery_power_plugged` des pisugar-server an der einzigen Buchse
-  weiter `true`?
-
-## Vorgehen
-
-1. Kurzer Stand und Rückfragen an Tobias, nur wenn etwas unklar ist. Die
-   Entscheidungen sind gefallen.
-2. Entwurf der Änderungen an `box-software.md` und an den Verträgen als
-   `docs/egm/start-am-lader/design_draft.md`, mit Markierung „(Start am Lader,
-   10.11.)“.
-3. Goldfisch-Review durch frische Agents. Report im selben Ordner.
-4. Resolve mit Tobias, dann Design und Verträge ändern und in `docs/plan/`
-   vermerken.
-5. Erst danach setzen Agents den Code um, mit Tests.
-
-Regeln:
-- Du bist Koordinator und schreibst keinen Code.
-- Nichts bestellen.
-- Commits nur auf deinen eigenen Sitzungs-Branch.
-- Das Tonie-Passwort nie committen.
+Es gelten die Regeln aus `CLAUDE.md`: Das EGM-Vorgehen gilt für Änderungen
+an Design und Verträgen, Tobias gibt Vertragsänderungen frei.
