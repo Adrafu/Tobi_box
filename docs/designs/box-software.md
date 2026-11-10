@@ -13,6 +13,7 @@
 *   **Änderung 09.11.:** Entscheidung N eingearbeitet (Lesezeichen je Tobie mit Ablauf). Die Änderungen sind mit „(Entscheidung N, 09.11.)“ markiert.
 *   **Änderung 09.11.:** Entscheidungen O und P eingearbeitet (Leerlauf zählt auch mit liegendem Tobie; nicht lesbarer Kopfhörer-Kontakt gilt als „Kopfhörer steckt“ für die Grenze) und die Befunde des Code-Reviews zu AP 3.7 und 4.8 (`docs/egm/software-prototyp/code_review_stufe3a_4.md`). Die Änderungen sind mit „(Entscheidung O, 09.11.)“, „(Entscheidung P, 09.11.)“ bzw. „(Befund B…, 09.11.)“ markiert.
 *   **Änderung 10.11.:** Ein- und Ausschalten, **Schritt 1** eingearbeitet (EGM `docs/egm/ein-aus/`, Entwurf Rev. 2, Entscheidungen R1–R11 in `resolve.md`; es ersetzt die Ladestations-Folgen aus `docs/egm/ladestation/software_folgen.md` und das ruhende EGM `docs/egm/start-am-lader/`). Neu: Zustände *Spielt / Bereit / Aus* (Namen für die Pi-Zustände `aktiv` / `leerlauf` / ausgeschaltet), Frist 10 min nur ohne Strom und ab dem Abnehmen, am Strom immer bereit (Sockel, Kabel, Powerbank), „Lader“ = Strom aus jeder Quelle (Leser-Zeile `LADER`, Vorrang Leser), Ton `lader` beim Andocken, früher Start-Ton durch einen Frühdienst (unter „stumm“ gar nicht, unter „leiser“ mit der Grenze des Fensters, R10). Es entfällt die Wiederholung des Start-Syncs am Lader (AP 4.8). Betroffen: Entscheidung O, CUJ 10, 15, 16, 18, 20, neu 21 bis 25, Baustein 2, Tabelle „Strom / Leerlauf“, „Netz, Sync, Strom“, AP 4.3 und neue Arbeitspakete E1-0 bis E1-8. Die Änderungen sind mit „(Ein/Aus, 10.11.)“ markiert. **Schritt 2** (Wecken durch Tobie, Magnet und Strom über den ESP32, Lauflicht, Ring-Weiche, Schlaf, LPCD, `WAKE`, `SLEEP`, `CFG`, `RING_PI`) folgt nach den Messungen am Breadboard und ist hier nicht eingearbeitet; wo ein Satz darauf verweist, steht „folgt mit Schritt 2“.
+*   **Änderung 10.11.:** Entscheidung Q eingearbeitet (ohne aufliegenden Tobie startet nichts: Hauptknopf kurz, Vor und Zurück geben dann nur den Hinweiston; es entfällt „ohne Tobie gilt Play / Pause“). Die Änderungen sind mit „(Entscheidung Q, 10.11.)“ markiert.
 *   **Grundlage:** `concepts_brief.md` (gleicher Ordner) inkl. Entscheidungen
     Runde 1 und 2
 
@@ -311,8 +312,17 @@ Alternativen“.
 *   **Entscheidung E — Hauptknopf nach Folgenende (05.11.):** Ist eine Folge zu
     Ende und der Tobie liegt noch auf der Box, spielt ein **kurzer Druck auf den
     Hauptknopf die nächste Folge** (der Zeiger zeigt schon darauf; bei einem
-    Folgen-Tobie dieselbe Folge noch einmal von vorn, F6). Ohne Tobie
-    auf der Box behält der Hauptknopf seine normale Funktion (Play / Pause).
+    Folgen-Tobie dieselbe Folge noch einmal von vorn, F6). ~~Ohne Tobie
+    auf der Box behält der Hauptknopf seine normale Funktion (Play / Pause).~~
+    **Ersetzt durch Entscheidung Q (10.11.):** Ohne aufliegenden Tobie startet
+    nichts, nur der Hinweiston.
+*   **Entscheidung Q — Ohne aufliegenden Tobie startet nichts (10.11.):**
+    Hauptknopf kurz, Vor und Zurück starten **ohne aufliegenden Tobie** keine
+    Wiedergabe, auch kein Fortsetzen nach dem Abheben und auch nicht in
+    `beendet`, `pausiert` oder `leer`. Stattdessen spielt der Hinweiston
+    `hinweis` (unter „stumm“ gilt die bestehende stumm-Regel). Die Lautstärke
+    wirkt weiter, Abheben pausiert wie bisher. Gilt für echte und simulierte
+    Tobies.
 *   **Entscheidung F — Tobies: Folge oder Serie (05.11.):** Die meisten Tobies
     spielen eine einzelne Folge, manche eine ganze Serie. Tobias hat entschieden (Entscheidung F, 05.11.):
     *   **F1 — Begriff:** Tonies und NFC-Karten zusammen heißen **Tobie**
@@ -951,7 +961,8 @@ Zustände, Übergänge und Konflikte: siehe „Kern-Zustände“.
     Drehregler ändert die Lautstärke innerhalb der wirksamen Grenze (Regel:
     „Lautstärke“ in Baustein 3). Der Hauptknopf kurz: Play / Pause. Ist eine
     Folge zu Ende und liegt der Tobie noch auf der Box, spielt ein kurzer Druck
-    die nächste Folge (Entscheidung E); ohne Tobie auf der Box gilt Play / Pause.
+    die nächste Folge (Entscheidung E); ohne Tobie auf der Box startet nichts,
+    es gibt nur den Hinweiston (Entscheidung Q, 10.11.).
     In `beendet` spielt der Hauptknopf kurz bei einem Serien-Tobie die nächste
     Folge, bei einem Folgen-Tobie dieselbe Folge von vorn; Zurück spielt in
     beiden Fällen die eben beendete Folge von vorn (Entscheidung F, 05.11.). Im „stumm“-Fenster startet
@@ -1399,6 +1410,7 @@ wegen „stumm“ nicht gespielt), `unbekannt` (Leser-Zustand unbekannt).
 | `beendet` (Tobie liegt) | Hauptknopf kurz oder `Vor` | Lautstärke setzen, ab Zeiger abspielen (Entscheidung E): `serie` → nächste Folge, `folge` → dieselbe Folge von vorn (Entscheidung F, 05.11.) | `spielt` |
 | `beendet` (Tobie liegt) | `Zurück` (Entscheidung F, 05.11.) | Lautstärke setzen, die eben beendete Folge von vorn abspielen (beide Typen); einzige Quelle ist die gemerkte, eben beendete Folge; `index` per Nachschlagen in `Serie.folgen`; Zeiger auf diese Folge, Track 0, Position 0, speichern mit Grund `zurueck`. `beendet` wird nicht gespeichert: nach einem Neustart des Dienstes beginnt die Sitzung ohne Wiedergabe mit dem gespeicherten Zeiger | `spielt` |
 | `spielt` | Hauptknopf kurz | Pause, Zeiger speichern | `pausiert` |
+| `leer`, `pausiert`, `beendet`, `gehalten` (**kein Tobie liegt**) (Entscheidung Q, 10.11.) | Hauptknopf kurz, `Vor`, `Zurück` | nur Hinweiston (`TonSpielen("hinweis")`), nichts startet, auch kein Fortsetzen nach dem Abheben; Lautstärke wirkt weiter | unverändert |
 | `pausiert` (Tobie liegt) | Hauptknopf kurz | Abspielen am Zeiger; der Ablauf des Lesezeichens (Entscheidung N, 09.11.) und danach die Restregel (Entscheidung I, 09.11.) gelten wie beim Auflegen, auch nach einem Dienst-Neustart (Entscheidung G) | `spielt` |
 | `spielt` | Wächter-Alarm (kein `HB`) | Frist 1,5 s starten | `unbekannt` |
 | `unbekannt` | `HELLO` und `PLACED` mit derselben Kennung innerhalb der Frist | nichts, Wiedergabe läuft weiter | `spielt` |
@@ -1421,8 +1433,10 @@ wegen „stumm“ nicht gespielt), `unbekannt` (Leser-Zustand unbekannt).
 Kommt nach der Frist dieselbe Kennung wieder, ist das ein normales Auflegen
 mit Resume am gespeicherten Zeiger (erste Zeile).
 
-Ohne Tobie auf der Box (Zustände `leer`, `pausiert` nach Abheben) behält der
-Hauptknopf kurz seine normale Funktion (Play / Pause, CUJ 19). Im Zustand
+**Ohne Tobie auf der Box (Zustände `leer`, `pausiert` nach Abheben, `beendet`)
+startet Hauptknopf kurz, `Vor` und `Zurück` nichts (Entscheidung Q, 10.11.):**
+nur `TonSpielen("hinweis")`, der Zustand bleibt (unter „stumm“ gilt dieselbe
+Regel). `spielt` pausiert wie bisher. Im Zustand
 `beendet` liegt der Tobie immer noch auf der Box; deshalb spielt dort der
 Hauptknopf die nächste Folge (bei einem Folgen-Tobie dieselbe Folge von
 vorn) (Entscheidung F, 05.11.).
@@ -1499,7 +1513,7 @@ In der Simulation wird „Herunterfahren“ nur protokolliert. Das Wecken aus *A
 | Situation | Erwartetes Ergebnis |
 |---|---|
 | Folge zu Ende (nach dem letzten Track, nicht nach jedem Track), Tobie liegt noch (Entscheidung F, 05.11.) | `serie`: Zeiger auf die nächste Folge (nach der letzten auf Folge 1), Track 0, Position 0; `folge`: Zeiger dieser Folge auf Track 0, Position 0; die Box pausiert und wartet im Zustand `beendet`. Es passiert nichts, bis der Tobie abgehoben und wieder aufgelegt wird (Entscheidung A) oder der Hauptknopf kurz gedrückt wird (Entscheidung E). |
-| Hauptknopf kurz, Folge ist zu Ende, Tobie liegt noch | Es spielt ab dem Zeiger (Track 0, Position 0): bei `serie` die nächste Folge, bei `folge` dieselbe Folge von vorn (Entscheidung F, 05.11.). Ohne Tobie auf der Box behält der Hauptknopf seine normale Funktion (Play / Pause). |
+| Hauptknopf kurz, Folge ist zu Ende, Tobie liegt noch | Es spielt ab dem Zeiger (Track 0, Position 0): bei `serie` die nächste Folge, bei `folge` dieselbe Folge von vorn (Entscheidung F, 05.11.). Ohne Tobie auf der Box startet nichts, nur der Hinweiston (Entscheidung Q, 10.11.; vorher: normale Funktion Play / Pause). |
 | `Zurück`, Folge ist zu Ende, Tobie liegt noch (Entscheidung F, 05.11.) | Die eben beendete Folge spielt von vorn (Track 0, Position 0), bei `serie` und `folge`. |
 | `Vor` beim letzten Track (Entscheidung F, 05.11.) | `serie`: erster Track der nächsten Folge (nach der letzten auf Folge 1); `folge`: Hinweiston, nichts ändert sich. |
 | Stumm gegen Lernmodus | Die Box lernt trotzdem, bestätigt mit dem leisen Ton und spielt nicht. |
@@ -2912,7 +2926,7 @@ Abnahme AP 4.2:
 - Vor / Zurück springt nach Track innerhalb der Folge (Zurück in den ersten 3 s: voriger Track); beim letzten Track geht Vor bei `serie` zur nächsten Folge, bei `folge` gibt es den Hinweiston (Entscheidung F, 05.11.).
 - Der Drehregler ändert die Lautstärke nie über die wirksame Grenze.
 - Die Tests „Hauptknopf kurz je Zustand“ stehen schon in `test_session.py` (AP 1.7, zusammengeführt, keine eigene Datei `test_session_hauptknopf.py`); `controls.py` liefert nur das Ereignis.
-- Hauptknopf kurz: Play / Pause; ist eine Folge zu Ende und liegt der Tobie noch auf der Box, spielt er die nächste Folge (Entscheidung E); ohne Tobie gilt Play / Pause.
+- Hauptknopf kurz: Play / Pause; ist eine Folge zu Ende und liegt der Tobie noch auf der Box, spielt er die nächste Folge (Entscheidung E); ohne Tobie startet nichts, nur der Hinweiston (Entscheidung Q, 10.11.).
 - Hauptknopf lang: Zeiger speichern und herunterfahren.
 
 #### AP 4.3 Leerlauf und PiSugar-Beschreibung (Sonnet), umsetzt CUJ 16
@@ -3023,7 +3037,7 @@ Abnahme AP 4.8:
 - Jede Funktion ist am Mac per Simulation vorführbar.
 - Die Konflikt-Tabelle aus „Kern-Zustände“ ist als Tests grün, mit diesen Fällen:
   - Folge zu Ende bei liegendem Tobie
-  - Hauptknopf kurz bei beendeter Folge mit liegendem Tobie (nächste Folge spielt) und ohne Tobie (normale Funktion)
+  - Hauptknopf kurz bei beendeter Folge mit liegendem Tobie (nächste Folge spielt) und ohne Tobie (nur Hinweiston, Entscheidung Q, 10.11.); Hauptknopf kurz, Vor und Zurück ohne Tobie in `pausiert`, `beendet`, `leer` und unter „stumm“ starten nichts
   - stumm gegen Lernmodus
   - Stumm-Beginn und Stumm-Ende
   - Gute Nacht mit neuem Tobie

@@ -142,15 +142,15 @@ def test_hauptknopf_kurz_bei_beendeter_folge_folgen_tobie_dieselbe_folge_von_vor
     assert (a.datei, a.position_s) == ("b.wav", 0.0)
 
 
-def test_hauptknopf_kurz_ohne_tobie_hat_die_normale_funktion_play_pause(box):
+def test_entscheidung_q_hauptknopf_kurz_ohne_tobie_startet_nichts_nur_hinweiston(box):
+    """Entscheidung Q (10.11.): vorher Play am Zeiger, jetzt nur der Hinweiston."""
     box.auflege(UID)
     box.laufe(10.0)
     box.hebe_ab()
     n = len(box.log)
-    box.sende(ev.Hauptknopf("kurz"))  # Play am Zeiger
-    assert box.modus == "spielt" and box.befehle(ev.Abspielen, n)[0].datei == "a.wav"
-    box.sende(ev.Hauptknopf("kurz"))  # Pause
-    assert box.modus == "pausiert" and [p.grund for p in box.befehle(ev.Pausieren, n)] == ["knopf"]
+    box.sende(ev.Hauptknopf("kurz"))
+    assert box.modus == "pausiert" and box.befehle(ev.Abspielen, n) == []
+    assert [t.ton for t in box.befehle(ev.TonSpielen, n)] == ["hinweis"]
 
 
 # --- Zurück und Vor ------------------------------------------------------------------------------

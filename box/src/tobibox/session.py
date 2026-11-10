@@ -724,8 +724,10 @@ def _hauptknopf(z: Zustand, e: ev.Hauptknopf, jetzt: Jetzt) -> tuple[Zustand, Au
         return z, [_prot("INFO", "hauptknopf", "ignoriert", z.figur.vorgang if z.figur else None, grund="lern_warten")]
     if z.modus == "spielt":
         return _pausiere(z, "knopf", "pause", jetzt)
+    if z.modus == "leer" and z.figur is None:
+        return z, [ev.TonSpielen("hinweis")]  # Entscheidung Q (10.11.): ohne Tobie startet nichts
     if z.modus in ("pausiert", "beendet", "gehalten"):
-        if z.stumm:
+        if z.stumm or z.figur is None:  # ohne aufliegenden Tobie startet nichts (Entscheidung Q, 10.11.)
             return z, [ev.TonSpielen("hinweis")]
         if z.modus == "gehalten":
             return z, []
@@ -741,10 +743,12 @@ def _springen(z: Zustand, delta: int, jetzt: Jetzt) -> tuple[Zustand, Ausgabe]:
     if z.modus == "spielt" and (z.ausblenden is not None or z.mpd_bis is not None):
         # während des Ausblendens und der MPD-Frist ignoriert (9.10, 9.12)
         return z, [_prot("INFO", "springen", "ignoriert", vorgang, delta=delta)]
+    if z.modus == "leer" and z.figur is None:
+        return z, [ev.TonSpielen("hinweis")]  # Entscheidung Q (10.11.): ohne Tobie startet nichts
     if z.modus not in ("spielt", "pausiert", "beendet", "gehalten"):
         return z, []
-    if z.modus in ("pausiert", "beendet", "gehalten") and z.stumm:
-        return z, [ev.TonSpielen("hinweis")]
+    if z.modus in ("pausiert", "beendet", "gehalten") and (z.stumm or z.figur is None):
+        return z, [ev.TonSpielen("hinweis")]  # ohne aufliegenden Tobie startet nichts (Entscheidung Q, 10.11.)
     if z.modus == "gehalten":
         return z, []
     serie = _serie(z, z.serie_id)

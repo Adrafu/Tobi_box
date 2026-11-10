@@ -183,15 +183,22 @@ def test_hauptknopf_kurz_ist_play_pause(box):
     assert box.modus == "spielt" and abspielen(box, n)[0].position_s == pytest.approx(2.0, abs=0.2)  # 3 s Rücksprung
 
 
-def test_hauptknopf_kurz_ohne_tobie_behaelt_play_pause(box):
+def test_entscheidung_q_hauptknopf_kurz_ohne_tobie_startet_nichts(box):
+    """Entscheidung Q (10.11.): ohne aufliegenden Tobie nur der Hinweiston, auch nicht für Vor und Zurück."""
     box.auflege(UID_SERIE)
     box.laufe(5.0)
     box.hebe_ab()
     assert box.modus == "pausiert"
-    n = len(box.log)
-    box.bedienung.haupt_runter(0.0)
-    box.bedienung.haupt_hoch(0.1)
-    assert box.modus == "spielt" and abspielen(box, n)  # normale Funktion: weiter am Zeiger
+    for taste in ("haupt", "vor", "zurueck"):
+        n = len(box.log)
+        if taste == "haupt":
+            box.bedienung.haupt_runter(0.0)
+            box.bedienung.haupt_hoch(0.1)
+        elif taste == "vor":
+            box.bedienung.vor()
+        else:
+            box.bedienung.zurueck()
+        assert box.modus == "pausiert" and abspielen(box, n) == [] and toene(box, n) == ["hinweis"], taste
 
 
 def test_entscheidung_e_hauptknopf_nach_dem_ende_der_folge_spielt_die_naechste(box):

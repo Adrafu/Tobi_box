@@ -1315,11 +1315,16 @@ gekennzeichneten sind von Tobias oder der Projektleitung entschieden
 12. **Abspielen-Auslöser und „stumm“ (bestätigt 05.11., Tobias).**
     *   **Hauptknopf kurz** je Zustand (Tabelle plus): `spielt` → Pause, Zeiger
         speichern, `pausiert`; `pausiert` mit liegendem Tobie → Abspielen am
-        Zeiger (mit Rücksprung, oder Restregel nach 6.3); `pausiert` ohne Tobie → Abspielen am Zeiger der
-        zuletzt gespielten Serie (normale Play/Pause-Funktion); `beendet` mit
+        Zeiger (mit Rücksprung, oder Restregel nach 6.3); `pausiert` ohne Tobie → nur `TonSpielen("hinweis")`, Zustand unverändert
+        (Entscheidung Q, 10.11.; vorher: Abspielen am Zeiger, Play/Pause); `beendet` ohne Tobie und `leer`
+        → ebenso nur Hinweiston (Entscheidung Q, 10.11.); `beendet` mit
         liegendem Tobie → ab Zeiger abspielen (Entscheidung E): Ziel `serie` die
         nächste Folge, Ziel `folge` dieselbe Folge von vorn (der Zeiger steht auf
-        Track 0, Position 0) (Entscheidung F, 05.11.); `gehalten`, `leer`, `unbekannt` → keine Wirkung.
+        Track 0, Position 0) (Entscheidung F, 05.11.); `gehalten` → keine Wirkung (ohne Tobie: Hinweiston); `unbekannt` → keine Wirkung.
+    *   **Ohne aufliegenden Tobie (Entscheidung Q, 10.11.)** (`figur is None`, auch ein simulierter Tobie
+        zählt als liegend) wirken `Weiter` und `Zurueck` wie der Hauptknopf kurz: in `leer`, `pausiert`, `beendet`
+        und `gehalten` nur `TonSpielen("hinweis")`, kein `Abspielen`, Zustand und Zeiger unverändert. In `spielt`
+        gibt es keinen Tobie-losen Fall außer der Pause nach dem Abheben; `unbekannt` bleibt ohne Wirkung.
     *   **`Weiter` / `Zurueck` springen nach Track (Entscheidung F, 05.11.)** innerhalb der Folge, nur im
         Zustand `spielt` oder `pausiert` mit Ziel `serie` oder `folge` (die
         Überraschungs-Serie zählt als `serie`). Der Sprung startet die Wiedergabe am
@@ -1582,8 +1587,10 @@ Projektleitung (P) entschieden oder aus dem Goldfisch-Review übernommen
     Abweichung vom Design bei „Frist abgelaufen“. **Bestätigt (05.11., T):
     MPD weg** (9.10): zurück innerhalb 5 s und Tobie liegt → weiter am
     gespeicherten Zeiger mit 3-s-Rücksprung; sonst Pause und neu auflegen.
-12. **Hauptknopf kurz bei `pausiert` ohne Tobie** spielt weiter (Play/Pause),
-    wie CUJ 19 es für „ohne Tobie“ beschreibt. **Bestätigt (05.11., T):** Im
+12. **Hauptknopf kurz bei `pausiert` ohne Tobie** ~~spielt weiter (Play/Pause)~~ startet
+    nichts, nur `TonSpielen("hinweis")` (**Entscheidung Q, 10.11.**: ohne aufliegenden Tobie
+    starten Hauptknopf kurz, `Weiter` und `Zurueck` nie eine Wiedergabe, auch in `beendet`
+    und `leer`; `figur is None` ist das Kriterium). **Bestätigt (05.11., T):** Im
     „stumm“-Fenster startet nichts (Hauptknopf kurz, Weiter, Zurück, Auflegen,
     Wechsel nach `KonfigGeladen`); es gibt nur den Hinweiston (9.12).
 13. **Zweite Gute-Nacht-Karte** startet den Timer neu.

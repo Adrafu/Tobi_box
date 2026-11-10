@@ -642,9 +642,10 @@ HAUPTKNOPF = [
     # (Zustand, stumm, erwartete Befehle, neuer Zustand)
     ("spielt", False, [ev.Pausieren("knopf"), ZEIGER_S1_PAUSE], "pausiert"),
     ("pausiert", False, [abspielen("s1", "s1", "a.mp3", 7.0, "v1")], "spielt"),
-    ("pausiert_ohne_figur", False, [abspielen("s1", "s1", "a.mp3", 7.0, None)], "spielt"),
+    # Entscheidung Q (10.11.): ohne aufliegenden Tobie startet nichts, nur der Hinweiston
+    ("pausiert_ohne_figur", False, [ev.TonSpielen("hinweis")], "pausiert"),
     ("beendet", False, [abspielen("s1", "s1", "b.mp3", 0.0, "v1")], "spielt"),
-    ("leer", False, [], "leer"),
+    ("leer", False, [ev.TonSpielen("hinweis")], "leer"),
     ("unbekannt", False, [], "unbekannt"),
     ("pausiert", True, [ev.TonSpielen("hinweis")], "pausiert"),
     ("pausiert_ohne_figur", True, [ev.TonSpielen("hinweis")], "pausiert"),
@@ -668,11 +669,15 @@ WEITER = [
     # Zurück nach Track (Entscheidung F): Position 10 s >= 3 s -> aktueller Track von vorn (vorher: vorige Folge)
     ("spielt", ev.Zurueck(), False, [zeiger_speichern("s1", "a.mp3", 0, 0.0, "trackwechsel"), abspielen("s1", "s1", "a.mp3", 0.0, "v1")], "spielt"),
     ("pausiert", ev.Weiter(), False, [zeiger_speichern("s1", "b.mp3", 1, 0.0, "folgenende"), abspielen("s1", "s1", "b.mp3", 0.0, "v1")], "spielt"),
-    ("pausiert_ohne_figur", ev.Zurueck(), False, [zeiger_speichern("s1", "a.mp3", 0, 0.0, "trackwechsel"), abspielen("s1", "s1", "a.mp3", 0.0, None)], "spielt"),
+    # Entscheidung Q (10.11.): ohne aufliegenden Tobie startet nichts
+    ("pausiert_ohne_figur", ev.Zurueck(), False, [ev.TonSpielen("hinweis")], "pausiert"),
+    ("pausiert_ohne_figur", ev.Weiter(), False, [ev.TonSpielen("hinweis")], "pausiert"),
+    ("pausiert_ohne_figur", ev.Weiter(), True, [ev.TonSpielen("hinweis")], "pausiert"),
     ("beendet", ev.Weiter(), False, [abspielen("s1", "s1", "b.mp3", 0.0, "v1")], "spielt"),
     # Zurueck in beendet: die eben beendete Folge (vor dem Zeiger), Position 0 (05.11.)
     ("beendet", ev.Zurueck(), False, [zeiger_speichern("s1", "a.mp3", 0, 0.0, "zurueck"), abspielen("s1", "s1", "a.mp3", 0.0, "v1")], "spielt"),
-    ("leer", ev.Weiter(), False, [], "leer"),
+    ("leer", ev.Weiter(), False, [ev.TonSpielen("hinweis")], "leer"),
+    ("leer", ev.Zurueck(), False, [ev.TonSpielen("hinweis")], "leer"),
     ("unbekannt", ev.Zurueck(), False, [], "unbekannt"),
     ("pausiert", ev.Weiter(), True, [ev.TonSpielen("hinweis")], "pausiert"),
     ("beendet", ev.Zurueck(), True, [ev.TonSpielen("hinweis")], "beendet"),
@@ -1625,9 +1630,11 @@ def test_weiter_zurueck_in_pausiert_starten_die_wiedergabe_am_neuen_track():
 
 
 def test_weiter_zurueck_springen_nur_nach_dem_zustand_wie_im_vertrag():
-    for zustand in ("leer", "unbekannt"):
-        h = zustand_s3(zustand)
-        assert h.sende(ev.Weiter()) == [] and h.sende(ev.Zurueck()) == []
+    # „leer“ ohne Tobie: nur der Hinweiston (Entscheidung Q, 10.11.); „unbekannt“: keine Wirkung
+    h = zustand_s3("leer")
+    assert h.sende(ev.Weiter()) == [ev.TonSpielen("hinweis")] and h.sende(ev.Zurueck()) == [ev.TonSpielen("hinweis")]
+    h = zustand_s3("unbekannt")
+    assert h.sende(ev.Weiter()) == [] and h.sende(ev.Zurueck()) == []
 
 
 # --- beendet: Hauptknopf, Weiter, Zurück je Ziel ---------------------------------------
@@ -1705,7 +1712,8 @@ def test_beendet_wird_nicht_gespeichert_nach_neustart_beginnt_die_sitzung_ohne_w
     gespeichert = tuple(h.z.zeiger.values())
     neu = SitzungsHarnisch(zeiger=gespeichert)
     assert neu.modus == "leer" and neu.z.ende is None
-    assert neu.sende(ev.Zurueck()) == [] and neu.sende(ev.Hauptknopf("kurz")) == []
+    # ohne Tobie nur der Hinweiston (Entscheidung Q, 10.11.)
+    assert neu.sende(ev.Zurueck()) == [ev.TonSpielen("hinweis")] and neu.sende(ev.Hauptknopf("kurz")) == [ev.TonSpielen("hinweis")]
     assert neu.auflegen(UID_S3) == [abspielen("s3", "s3", "z.mp3", 0.0, "v1")]
 
 
@@ -1830,10 +1838,10 @@ HAUPTKNOPF_FOLGE = [
     # (Zustand, Tobie, erwartete Befehle, neuer Zustand)
     ("spielt", UID_CD, [ev.Pausieren("knopf"), zeiger_speichern("s3", "cd", None, 10.0, "pause", art="folge")], "pausiert"),
     ("pausiert", UID_CD, [ab_cd(7.0, 0)], "spielt"),
-    ("pausiert_ohne_figur", UID_CD, [ab_cd(7.0, 0, None)], "spielt"),
+    ("pausiert_ohne_figur", UID_CD, [ev.TonSpielen("hinweis")], "pausiert"),  # Entscheidung Q, 10.11.
     ("beendet", UID_CD, [ab_cd(0.0, 0)], "spielt"),
     ("beendet", UID_S3, [abspielen("s3", "s3", "z.mp3", 0.0, "v1")], "spielt"),
-    ("leer", UID_CD, [], "leer"),
+    ("leer", UID_CD, [ev.TonSpielen("hinweis")], "leer"),  # Entscheidung Q, 10.11.
     ("unbekannt", UID_CD, [], "unbekannt"),
     ("gehalten", UID_CD, [ev.TonSpielen("hinweis")], "gehalten"),  # „gehalten“ gibt es nur unter stumm
 ]
