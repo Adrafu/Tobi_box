@@ -14,6 +14,7 @@
 *   **Änderung 09.11.:** Entscheidungen O und P eingearbeitet (Leerlauf zählt auch mit liegendem Tobie; nicht lesbarer Kopfhörer-Kontakt gilt als „Kopfhörer steckt“ für die Grenze) und die Befunde des Code-Reviews zu AP 3.7 und 4.8 (`docs/egm/software-prototyp/code_review_stufe3a_4.md`). Die Änderungen sind mit „(Entscheidung O, 09.11.)“, „(Entscheidung P, 09.11.)“ bzw. „(Befund B…, 09.11.)“ markiert.
 *   **Änderung 10.11.:** Ein- und Ausschalten, **Schritt 1** eingearbeitet (EGM `docs/egm/ein-aus/`, Entwurf Rev. 2, Entscheidungen R1–R11 in `resolve.md`; es ersetzt die Ladestations-Folgen aus `docs/egm/ladestation/software_folgen.md` und das ruhende EGM `docs/egm/start-am-lader/`). Neu: Zustände *Spielt / Bereit / Aus* (Namen für die Pi-Zustände `aktiv` / `leerlauf` / ausgeschaltet), Frist 10 min nur ohne Strom und ab dem Abnehmen, am Strom immer bereit (Sockel, Kabel, Powerbank), „Lader“ = Strom aus jeder Quelle (Leser-Zeile `LADER`, Vorrang Leser), Ton `lader` beim Andocken, früher Start-Ton durch einen Frühdienst (unter „stumm“ gar nicht, unter „leiser“ mit der Grenze des Fensters, R10). Es entfällt die Wiederholung des Start-Syncs am Lader (AP 4.8). Betroffen: Entscheidung O, CUJ 10, 15, 16, 18, 20, neu 21 bis 25, Baustein 2, Tabelle „Strom / Leerlauf“, „Netz, Sync, Strom“, AP 4.3 und neue Arbeitspakete E1-0 bis E1-8. Die Änderungen sind mit „(Ein/Aus, 10.11.)“ markiert. **Schritt 2** (Wecken durch Tobie, Magnet und Strom über den ESP32, Lauflicht, Ring-Weiche, Schlaf, LPCD, `WAKE`, `SLEEP`, `CFG`, `RING_PI`) folgt nach den Messungen am Breadboard und ist hier nicht eingearbeitet; wo ein Satz darauf verweist, steht „folgt mit Schritt 2“.
 *   **Änderung 10.11.:** Entscheidung Q eingearbeitet (ohne aufliegenden Tobie startet nichts: Hauptknopf kurz, Vor und Zurück geben dann nur den Hinweiston; es entfällt „ohne Tobie gilt Play / Pause“). Die Änderungen sind mit „(Entscheidung Q, 10.11.)“ markiert.
+*   **Änderung 10.11.:** Entscheidung R eingearbeitet (Durchsage beim Auflegen der Gute-Nacht-Karte, neuer Ton `gute_nacht`: „Gute Nacht! Ich spiele noch ein bisschen.“; unter „stumm“ keine Durchsage, die Karte wirkt trotzdem). Betroffen: CUJ 14, Tabelle „Gute Nacht“. Die Änderungen sind mit „(Entscheidung R, 10.11.)“ markiert.
 *   **Grundlage:** `concepts_brief.md` (gleicher Ordner) inkl. Entscheidungen
     Runde 1 und 2
 
@@ -864,6 +865,14 @@ Zustände, Übergänge und Konflikte: siehe „Kern-Zustände“.
     Ablauf blendet die Lautstärke aus (Regel: „Lautstärke“ in Baustein 3),
     dann endet die Wiedergabe (Pause mit gespeichertem Zeiger). Das funktioniert auch am Mac. Konflikte mit anderen
     Regeln: siehe „Kern-Zustände“.
+*   **Durchsage (Entscheidung R, 10.11.):** Beim Auflegen der Karte spielt die Box den Ton `gute_nacht`
+    („Gute Nacht! Ich spiele noch ein bisschen.“). Es gelten die Regeln aller Töne: normaler Ton-Pegel
+    (Entscheidung J), unter „leiser“ mit der Grenze des Fensters, unter „stumm“ **keine** Durchsage (auch kein
+    Hinweiston als Ersatz); die Karte wirkt trotzdem, der Timer startet. Spielt gerade etwas, hält der Ton das
+    Hörspiel kurz an (Entscheidung L; die Karte ist ein Tobie, die Serie wird beim Auflegen ohnehin pausiert);
+    nie zwei Töne gleichzeitig. Legt man die Karte bei laufendem Timer noch einmal auf, kommt die Durchsage noch
+    einmal; beim Ausblenden wird die Karte ignoriert, dann gibt es auch keine Durchsage. Im Lernmodus bleibt alles
+    wie bisher (die Karte wartet still, die Aktion und mit ihr die Durchsage folgen erst nach dem Warten).
 
 ### CUJ 15: Leise-Zeiten
 
@@ -1476,7 +1485,7 @@ Gute Nacht — Zustände: `aus`, `läuft`, `ausblenden`.
 
 | Zustand | Ereignis | Befehl | neuer Zustand |
 |---|---|---|---|
-| `aus` | Gute-Nacht-Karte aufgelegt | Timer starten (Dauer aus der Konfiguration, Vorschlag 30 min) | `läuft` |
+| `aus` | Gute-Nacht-Karte aufgelegt | Timer starten (Dauer aus der Konfiguration, Vorschlag 30 min); `TonSpielen("gute_nacht")` (Entscheidung R, 10.11.; unter „stumm“ streicht `core` ihn, Regel 6.2.2b) | `läuft` |
 | `läuft` | anderer Tobie aufgelegt | nichts; der Timer läuft für den neuen Tobie weiter | `läuft` |
 | `läuft` | Timer abgelaufen | Ausblenden starten (Grenze sinkt über die Ausblendzeit, Vorschlag 60 s) | `ausblenden` |
 | `ausblenden` | Lautstärke bei null | Pause, Zeiger speichern, Lautstärke zurücksetzen | `aus` |

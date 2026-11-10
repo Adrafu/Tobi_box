@@ -12,6 +12,10 @@
     Ordner mit mehreren Tracks; der Zeiger hat einen Track. `config.json` und
     `resume.json` haben deshalb `schema_version` 2. Im Code heißt ein Tobie aus
     historischen Gründen `figur`.
+*   **Änderung 10.11. (Entscheidung R, 10.11.):** Neue Tondatei `box/sounds/gute_nacht.wav` (Piepser) und `box/sounds/sprache/gute_nacht.wav`
+    (Sprache: „Gute Nacht! Ich spiele noch ein bisschen.“), beide −18 LUFS, Einträge in `box/lautheit.json`. Der Ton hat den Pegel eines gewöhnlichen
+    Tons (`ton_pegel` und `hinweis_pegel` gelten nicht für ihn); unter „leiser“ gilt die Grenze, unter „stumm“ spielt er nicht
+    (`core-interface.md`, Regel 6.2.2b). Kein Feld in `config.json`, `resume.json` oder `lauf.json` ändert sich.
 *   **Änderung 10.11. (Ein/Aus, 10.11.; Schritt 1; alles additiv, `schema_version` bleibt):** Neue flüchtige Datei `/run/tobibox/fruehton`
     (Marke für den frühen Start-Ton, Abschnitt 1.6; Text, kein JSON, kein `schema_version`). Neue Tondatei
     `box/sounds/lader.wav`; `hinweis_pegel` gilt auch für den Ton `lader`, und der frühe Start-Ton hat den Pegel eines gewöhnlichen

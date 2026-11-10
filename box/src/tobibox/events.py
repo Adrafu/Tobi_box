@@ -595,6 +595,7 @@ class TonSpielen(Befehl):
         "lernen_ende",
         "akku_leer",
         "lader",
+        "gute_nacht",
         "pruef_ok",
         "pruef_fehler",
     ]

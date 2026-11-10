@@ -46,6 +46,10 @@
       "sha256": "82353d21f10d6e96b52c03af9026f027e9a65337a5c3444562702219deef456d",
       "lufs": -17.98
     },
+    "sounds/gute_nacht.wav": {
+      "sha256": "63f92862a300e902b44629167e8fe613f8ba8063170498cdffd88d755b1d3f44",
+      "lufs": -18.0
+    },
     "sounds/hinweis.wav": {
       "sha256": "937437ffef93c6d0086f025094fadaa8e6aa9f81ab9601f55d0b0e0396f24cfd",
       "lufs": -18.02
@@ -76,6 +80,10 @@
     },
     "sounds/sprache/fehler.wav": {
       "sha256": "453cfe5fcdae0bceab9492f2140f15293b332dc76041bb24c273f5d2f0ca5167",
+      "lufs": -18.0
+    },
+    "sounds/sprache/gute_nacht.wav": {
+      "sha256": "daefaec9559a0c285b963227a54813957d6b7019915b52549af84965736c11bc",
       "lufs": -18.0
     },
     "sounds/sprache/hinweis.wav": {

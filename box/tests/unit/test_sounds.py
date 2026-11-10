@@ -719,3 +719,11 @@ def test_lader_hat_den_pegel_von_hinweis_ein_aus_10_11():
     for grenze, laut, hp in [(50, 40, None), (50, 0, None), (50, 40, 30), (5, 40, None), (50, 8, 15), (30, 100, 90)]:
         assert pegel("lader", grenze, laut, hp) == pegel("hinweis", grenze, laut, hp)
     assert pegel("lader", 50, 40) == 15 and pegel("lader", 50, 0) == 10 and pegel("lader", 5, 40) == 5
+
+
+def test_gute_nacht_ist_ein_normaler_ton_mit_der_grenze_entscheidung_r():
+    """Der Ton ``gute_nacht`` (Entscheidung R, 10.11.) hat den Pegel der normalen Töne und bleibt unter „leiser“ an der Grenze."""
+    from tobibox.sounds import pegel
+
+    assert pegel("gute_nacht", 60, 40) == 40 and pegel("gute_nacht", 60, 0) == 10
+    assert pegel("gute_nacht", 25, 40) == 25 and pegel("gute_nacht", 5, 40) == 5  # „leiser“: nie über der Grenze

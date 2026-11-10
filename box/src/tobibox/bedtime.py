@@ -71,7 +71,11 @@ def step(zustand: Zustand, ereignis: ev.Ereignis | ev.InternesEreignis, jetzt: J
             return z, (_prot("INFO", "gute_nacht", "ignoriert", ereignis.vorgang, grund="ausblenden"),)
         neu = replace(z, modus="laeuft", frist_bis=jetzt.mono + z.timer_min * 60.0)
         ergebnis = "neu_gestartet" if z.modus == "laeuft" else "gestartet"
-        return neu, (_prot("INFO", "gute_nacht", ergebnis, ereignis.vorgang, timer_min=z.timer_min),)
+        # Entscheidung R (10.11.): Durchsage beim Auflegen; unter „stumm“ streicht ``core`` sie (Regel 2), die Karte wirkt trotzdem
+        return neu, (
+            ev.TonSpielen("gute_nacht"),
+            _prot("INFO", "gute_nacht", ergebnis, ereignis.vorgang, timer_min=z.timer_min),
+        )
 
     if isinstance(ereignis, ev.Abgehoben):
         if z.modus != "ausblenden":

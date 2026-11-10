@@ -213,3 +213,69 @@ def test_gute_nacht_ohne_wiedergabe_blendet_aus_und_pausiert_nichts_neues(box):
     assert stufe4.zeile(box).gute_nacht == "aus"
     assert box.befehle(ev.Abspielen, n) == []
     assert box.modus == "pausiert" or box.modus == "leer"
+
+
+# --- Durchsage beim Auflegen der Karte (Entscheidung R, 10.11.) ------------------------------------------
+
+
+def toene_ab(box, n):
+    return [t.ton for t in box.befehle(ev.TonSpielen, n)]
+
+
+def test_karte_ohne_wiedergabe_spielt_die_durchsage_und_startet_den_timer(box):
+    n = len(box.log)
+    box.auflege(UID_NACHT, "v1")
+    assert toene_ab(box, n) == ["gute_nacht"]
+    assert stufe4.zeile(box).gute_nacht == "laeuft" and not box.player.spielt
+
+
+def test_karte_bei_laufender_wiedergabe_spielt_die_durchsage_ton_regel_l(box):
+    """Die Karte ist ein Tobie: Die Serie wird pausiert (gespeichert), der Ton läuft über die eine Ton-Spur (Entscheidung L)."""
+    box.auflege(UID, "v1")
+    box.laufe(5.0)
+    n = len(box.log)
+    box.auflege(UID_NACHT, "v2")
+    assert toene_ab(box, n) == ["gute_nacht"]
+    assert stufe4.zeile(box).gute_nacht == "laeuft" and box.modus == "pausiert" and not box.player.spielt
+    assert [p.grund for p in box.befehle(ev.Pausieren, n)] == ["abgehoben"]
+
+
+def test_zweite_karte_im_laufenden_timer_spielt_die_durchsage_noch_einmal_nie_zwei_gleichzeitig(box):
+    box.auflege(UID_NACHT, "v1")
+    box.hebe_ab("v1")
+    n = len(box.log)
+    box.auflege(UID_NACHT, "v2")
+    assert toene_ab(box, n) == ["gute_nacht"]  # genau ein Ton je Auflegen
+
+
+def test_karte_unter_leiser_spielt_den_ton_der_pegel_begrenzt_die_grenze(box):
+    from tobibox.sounds import pegel
+
+    stufe4.setze_konfig(box, gute_nacht=ev.GuteNacht(1, 10), fenster_liste=(stufe4.fenster("f", "leiser", "00:00", "23:59", 25),), revision=3)
+    box.laufe(4.0)
+    assert stufe4.zeile(box).ruhe == "leiser"
+    n = len(box.log)
+    box.auflege(UID_NACHT, "v1")
+    assert toene_ab(box, n) == ["gute_nacht"]
+    grenze = box.kern.grenzen
+    assert pegel("gute_nacht", 25, START) == 25 and "leise_zeit" in grenze and grenze["leise_zeit"] == 25
+
+
+def test_karte_unter_stumm_keine_durchsage_aber_der_timer_laeuft(box):
+    stufe4.setze_konfig(box, gute_nacht=ev.GuteNacht(1, 10), fenster_liste=(stufe4.fenster("f", "stumm", "00:00", "23:59"),), revision=3)
+    box.laufe(4.0)
+    assert stufe4.zeile(box).ruhe == "stumm"
+    n = len(box.log)
+    box.auflege(UID_NACHT, "v1")
+    assert toene_ab(box, n) == []  # auch kein Hinweiston als Ersatz
+    assert stufe4.zeile(box).gute_nacht == "laeuft"
+
+
+def test_karte_im_lernmodus_wartet_still_ohne_durchsage_und_ohne_timer(box):
+    """Unverändert: Im Lernmodus wartet die Aktionskarte (nur der Lernton); die Aktion folgt erst nach dem Warten."""
+    box.sende(ev.LernenGeaendert(True))
+    n = len(box.log)
+    box.auflege(UID_NACHT, "v1")
+    assert "gute_nacht" not in toene_ab(box, n) and stufe4.zeile(box).gute_nacht == "aus"
+    box.laufe(11.0)  # Frist des Wartens (10 s) um: die Karte wirkt wie sonst
+    assert stufe4.zeile(box).gute_nacht == "laeuft"

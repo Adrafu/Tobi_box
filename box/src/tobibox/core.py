@@ -117,7 +117,8 @@ def _konflikte(befehle: list, ruhe: str, zeit_ok: bool = True, lernt: bool = Fal
     # 2. Töne unter „stumm“
     if ruhe == "stumm":
         # der Start-Ton entfällt unter „stumm“ ganz, auch ohne Frühdienst (V5, Ein/Aus, 10.11.; R10): kein ``hinweis`` als Ersatz
-        befehle = [b for b in befehle if not (isinstance(b, ev.TonSpielen) and b.ton == "start")]
+        # ``gute_nacht`` (Entscheidung R, 10.11.): ebenso ganz weg, die Karte wirkt trotzdem
+        befehle = [b for b in befehle if not (isinstance(b, ev.TonSpielen) and b.ton in ("start", "gute_nacht"))]
         befehle = [
             ev.TonSpielen("hinweis") if isinstance(b, ev.TonSpielen) and b.ton in _TOENE_UNTER_STUMM else b
             for b in befehle

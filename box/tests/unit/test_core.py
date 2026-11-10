@@ -319,7 +319,7 @@ def test_herunterfahren_mit_laufender_wiedergabe_pausiert_zuerst(monkeypatch):
     ]
 
 
-ALLE_TOENE = ["start", "unbekannt", "fehler", "hinweis", "lernen_beginn", "lernen_ende", "akku_leer", "lader", "pruef_ok", "pruef_fehler"]
+ALLE_TOENE = ["start", "unbekannt", "fehler", "hinweis", "lernen_beginn", "lernen_ende", "akku_leer", "lader", "gute_nacht", "pruef_ok", "pruef_fehler"]
 
 
 @pytest.mark.parametrize(
@@ -329,10 +329,18 @@ ALLE_TOENE = ["start", "unbekannt", "fehler", "hinweis", "lernen_beginn", "lerne
 def test_regel2_toene_unter_stumm(monkeypatch, ton, erwartet):
     k = baue(monkeypatch, ("quiet", fake_teil({ev.Takt: [ev.TonSpielen(ton)]}, kennzeichen="stumm")))
     aus = ohne_meldung(k.sende(ev.Takt()))
-    if ton in ("start", "lader"):
-        assert aus == []  # ``start`` entfällt unter „stumm“ ganz (V5), ``lader`` wird gestrichen (Regel 2a), beides ohne ``hinweis``
+    if ton in ("start", "lader", "gute_nacht"):
+        # ``start`` entfällt unter „stumm“ ganz (V5), ``lader`` wird gestrichen (Regel 2a), ``gute_nacht`` entfällt (Entscheidung R), alle ohne ``hinweis``
+        assert aus == []
     else:
         assert aus == [ev.TonSpielen(erwartet)]
+
+
+@pytest.mark.parametrize("ruhe", ["normal", "leiser"])
+def test_gute_nacht_ton_bleibt_unter_normal_und_leiser(monkeypatch, ruhe):
+    """Entscheidung R (10.11.): nur unter „stumm“ entfällt die Durchsage; unter „leiser“ gilt die Grenze beim Abspielen."""
+    k = baue(monkeypatch, ("quiet", fake_teil({ev.Takt: [ev.TonSpielen("gute_nacht")]}, kennzeichen=ruhe)))
+    assert ohne_meldung(k.sende(ev.Takt())) == [ev.TonSpielen("gute_nacht")]
 
 
 @pytest.mark.parametrize("ruhe", ["normal", "leiser"])

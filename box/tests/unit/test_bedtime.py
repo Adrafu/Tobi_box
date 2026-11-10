@@ -57,6 +57,32 @@ def test_aus_karte_aufgelegt_startet_timer(uhr):
     assert not any(isinstance(o, (ev.Pausieren, ev.Abspielen, ev.GrenzeGesetzt)) for o in out)
 
 
+def toene(out):
+    return [o.ton for o in out if isinstance(o, ev.TonSpielen)]
+
+
+def test_karte_spielt_die_durchsage_gute_nacht_entscheidung_r(uhr):
+    """Entscheidung R (10.11.): Beim Auflegen der Karte kommt der Ton ``gute_nacht``, auch bei erneutem Auflegen im Zustand ``laeuft``."""
+    z = bereit(uhr)
+    z, out = bedtime.step(z, KARTE, uhr.jetzt())
+    assert toene(out) == ["gute_nacht"]
+    z, out = bedtime.step(z, ev.AktionAusgeloest("gute_nacht", "v9"), uhr.jetzt())
+    assert toene(out) == ["gute_nacht"]
+
+
+def test_karte_beim_ausblenden_ignoriert_ohne_ton(uhr):
+    z = ausblenden(uhr)
+    _, out = bedtime.step(z, ev.AktionAusgeloest("gute_nacht", "v9"), uhr.jetzt())
+    assert toene(out) == []
+
+
+def test_andere_aktion_und_takt_ohne_ton(uhr):
+    z = bereit(uhr)
+    assert toene(bedtime.step(z, ev.AktionAusgeloest("status", "v4"), uhr.jetzt())[1]) == []
+    z = laeuft(uhr)
+    assert toene(bedtime.step(z, ev.Takt(), uhr.jetzt())[1]) == []
+
+
 def test_laeuft_anderer_tobie_aufgelegt_nichts(uhr):
     z = laeuft(uhr)
     frist = z.frist_bis
