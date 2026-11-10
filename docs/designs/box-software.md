@@ -12,6 +12,7 @@
 *   **Änderung 09.11.:** Entscheidung M eingearbeitet (Einsortieren nach Metadaten, vollautomatisch mit Korrektur) und die Vorgaben der Projektleitung zu Vertrag W (`docs/protocol/ha-websocket-v1.md`). Die Änderungen sind mit „(Entscheidung M, 09.11.)“ markiert.
 *   **Änderung 09.11.:** Entscheidung N eingearbeitet (Lesezeichen je Tobie mit Ablauf). Die Änderungen sind mit „(Entscheidung N, 09.11.)“ markiert.
 *   **Änderung 09.11.:** Entscheidungen O und P eingearbeitet (Leerlauf zählt auch mit liegendem Tobie; nicht lesbarer Kopfhörer-Kontakt gilt als „Kopfhörer steckt“ für die Grenze) und die Befunde des Code-Reviews zu AP 3.7 und 4.8 (`docs/egm/software-prototyp/code_review_stufe3a_4.md`). Die Änderungen sind mit „(Entscheidung O, 09.11.)“, „(Entscheidung P, 09.11.)“ bzw. „(Befund B…, 09.11.)“ markiert.
+*   **Ausstehend (10.11., noch nicht eingearbeitet):** Die Ladestation ändert das Verhalten am Lader. Andocken weckt die Box kurz (R8), und es gibt nur noch eine USB-C-Buchse im Boden, auch für unterwegs (R10). Tobias hat die Software-Folgen am 10.11. entschieden (S1–S11, `docs/egm/ladestation/software_folgen.md`, Abschnitt 10). Die Einarbeitung in dieses Dokument und die Verträge läuft im EGM `docs/egm/start-am-lader/`. Bis dahin gilt dieses Dokument unverändert.
 *   **Grundlage:** `concepts_brief.md` (gleicher Ordner) inkl. Entscheidungen
     Runde 1 und 2
 

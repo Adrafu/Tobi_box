@@ -1,6 +1,6 @@
 # Tobi Box — Stückliste & Projektstrukturplan
 
-Rev. 3.17 · 09.11.2026 · Pi 3 Model A+ · eigene Box-Software auf MPD · zwei baugleiche, mobile Boxen
+Rev. 3.18 · 10.11.2026 · Pi 3 Model A+ · eigene Box-Software auf MPD · zwei baugleiche, mobile Boxen
 
 **Änderungen gegenüber Rev. 2**
 - Software-Basis: Phoniebox V3 + eigene Plugins statt Eigenbau
@@ -24,6 +24,7 @@ Rev. 3.17 · 09.11.2026 · Pi 3 Model A+ · eigene Box-Software auf MPD · zwei 
 - **3.15:** Entscheidung N (09.11.) aus `docs/designs/box-software.md`: **Lesezeichen je Tobie mit Ablauf.** Jeder Tobie (jeder Zeiger) behält seine eigene Stelle, auch wenn zwischendurch andere Tobies gespielt haben (wie bisher). Neu: Wurde ein Zeiger länger als `lesezeichen_tage` nicht benutzt (Vorgabe 14 Tage, in HA einstellbar, `0` = nie), beginnt beim Fortsetzen die Folge von vorn (Position 0, erster Track); bei einer Serie bleibt die Folge dieselbe, bei einem Folgen-Tobie beginnt dieselbe Folge von vorn. Die Regel gilt nur bei sicherer Uhr, nur für Zeiger mit Zeitstempel (`resume.json`: neues optionales Feld `benutzt_am`, ein alter Zeiger ohne Stempel läuft nie ab), an denselben Stellen wie die Restregel (Auflegen, Einschalten, Hauptknopf, nach Dienst-Neustart) und vor ihr. Protokoll `lesezeichen_abgelaufen` mit `alter_tage`. Das Feld `lesezeichen_tage` ist in `config.json` additiv (Version 2 bleibt) und im Vertrag W reserviert; die Seitenbedienung kommt mit den Einstellungen in Stufe 4. Dazu der Abgleich von `mqtt-v1.md` 5.1 mit Vertrag W, Abschnitt 13 (Zustände `ok`, `leer_neu`, `export_neuer`). Verträge: `core-interface.md` 6.3 und 9 Punkt 33, `data-model.md` Abschnitte 2 und 3, `mqtt-v1.md` 3.1 und 5.1, `ha-websocket-v1.md` Abschnitt 10.
 - **3.16 (09.11., AP 4.8):** Änderungen der Projektleitung in Verträge und Design eingetragen: Bedienung an der Box setzt den Leerlauf-Zähler zurück (HA-Befehle nicht). Start am Lader: Bricht der Start-Sync mit `netz_weg` oder `regel` ab, wiederholt `idle` ihn alle 10 min, höchstens 6-mal, solange die Box am Lader hängt. Neuer Abbruchgrund `nicht_eingerichtet` (kein `[sync]`). `befehl_abgelehnt` mit `detail`-Texten. LED-Ring: Lernmodus, Gute Nacht und Stumm als **Vorschlag** zur Ansicht in der Simulation (5.5.2). Konfiguration `[kopfhoerer]` und `[tasten]`. Geändert: `core-interface.md` (3.5, 3.6, 5.2, 9 Punkt 9, 11, 12.1), `mqtt-v1.md` (3.4), `box-software.md` (Strom / Leerlauf, CUJ 16, CUJ 18, AP 4.8), dieser Plan (5.5.2, Entscheidungen).
 - **3.17 (09.11., Befunde des Code-Reviews zu AP 3.7 und 4.8):** Zwei neue Entscheidungen von Tobias und die Auflösung des Reviews `docs/egm/software-prototyp/code_review_stufe3a_4.md`. **Entscheidung O:** Leerlauf zählt auch mit liegendem Tobie (20 min lang wird nichts gespielt; Ausnahmen Sync, Update, Lernmodus; Bedienung setzt zurück; beim Einschalten spielt ein liegender Tobie wie bisher sofort weiter). **Entscheidung P:** Ist der Kopfhörer-Kontakt nicht lesbar, gilt die Kopfhörer-Grenze (auch beim Start), HA bekommt `fehler` mit `code="kopfhoerer_unlesbar"`. Dazu: Ein fehlgeschlagenes Herunterfahren ist nicht endgültig (B1, `herunterfahren_fehlgeschlagen`, am Mac Rückkehr nach 10 s); Hauptknopf über den PiSugar hinter `[strom] taste_befehl` (B2, **am Pi zu prüfen**, 3.2.4); Kopfhörer-Kontakt mit gpiozero oder `gpioget --bias` (B4); Ton `akku_leer` (B12); `UpdateStarten` wird bis Stufe 3b abgelehnt (B16); `[sim] erlauben` (B9). Geändert: `core-interface.md` (Kopf, 3.5, 3.6, 4, 5.2, 8.1, 9 Punkte 9 und 15, 11), `mqtt-v1.md` (3.4), `box-software.md` (Entscheidungen O und P, Strom / Leerlauf, CUJ 16 und 17, Uhr und Zeitquelle), `docs/betrieb/pisugar-wecker.md`, `docs/betrieb/mac-prototyp.md`, dieser Plan (3.2.4, Entscheidungen).
+- **3.18:** Ladestation (09.11. bis 10.11., EGM `docs/egm/ladestation/`, Brief, Draft, zwei Goldfisch-Reviews, Resolve): **zwei Einzelsockel statt Dual-Dock**, je Sockel ein eigenes Marken-USB-C-Netzteil 5 V/3 A. Die Box passt in **jeder Drehlage**: Kontaktscheibe unten (Plus Mitte, Masse Ring, Hartgold-Leiterplatte), gefederte Pins im Sockel, Verpolung durch die Form ausgeschlossen. Zentrierung über Fangmulde und konischen Zapfen. Schutz: **zwei Reeds in Reihe** und eine **eigene Sockel-Platine mit eFuse** (Stromgrenze, Übertemperatur, Softstart, vom Hersteller bestückt). Keine LED am Sockel. Design noch im Draft. **Sanity Check (09.11.):** Rev. 2 angehalten, zuerst wird induktives Laden (Qi) geprüft; R1–R4 gelten nur, falls es bei Kontakten bleibt. Stückliste wird danach neu gerechnet.
 - **Nachtrag zu Rev. 3.15 (09.11., Befund AP 3.1; keine neue Revisionsnummer):** Test-Pin von Home Assistant. Die HA-Tests laufen vorerst gegen **2026.10.4**, weil `pytest-homeassistant-custom-component` für 2026.11 noch nicht erschienen ist. Die Integration ist statisch gegen 2026.11.0 geprüft. Die Pins (`homeassistant/requirements-test.txt`, CI) werden nachgezogen, sobald das Plugin da ist.
 
 ---
@@ -37,7 +38,7 @@ passt mit allen vier Löchern. Preis: höherer Ruheverbrauch, siehe 1.5.
 
 **2. Resume** — Phoniebox V3 hat keines, wird eigenes Plugin nach Toniebox-Logik (5.4).
 
-**3. Andocken darf nicht wecken** — Auto-Power-On aus (5.6.5), Test in 8.2.4.
+**3. Andocken darf nicht wecken** — Auto-Power-On aus (5.6.5), Test in 8.2.4. **Überholt (R8, 10.11.):** Andocken weckt kurz für Ton und Ladestand, siehe Entscheidungen.
 
 ## Hardware
 
@@ -78,7 +79,9 @@ Antenne. Ob eine Stahlscheibe in der Feldmitte das Lesen stört, klärt Test 5b
 des Tonie-Tests. Stört sie, hält die Figur nur über die Mulde im Deckel.
 
 **11. Dock-Erkennung ohne dritten Pin.** Reed-Kontakt im Dock, ausgelöst vom
-Zentriermagnet der Box. Spart einen Pogo-Pin.
+Zentriermagnet der Box. Spart einen Pogo-Pin. **Stand 3.18:** zwei Reeds in
+Reihe im Sockel; zentriert wird über Mulde und Zapfen, die Magnete der Box
+lösen nur noch die Reeds aus.
 
 **12. UART freihalten.** GPIO 14/15 als serielle Konsole — bei einem Gerät ohne
 Bildschirm der einzige Weg, Bootprobleme zu sehen.
@@ -310,7 +313,7 @@ Preise sind Richtwerte (AT/DE) und vor dem Bestellen zu prüfen.
 | Posten | ca. € |
 |---|---|
 | NTAG215 Karten, 50 Stk. | 20 |
-| Dual-Ladestation (Netzteil 5 V/4 A, Buchse, Druckteil) | 22 |
+| Dual-Ladestation (Netzteil 5 V/4 A, Buchse, Druckteil) — **3.18: wird zwei Einzelsockel, neu gerechnet nach Rev. 2 des Designs** | 22 |
 | Load-Switch + Reed-Kontakt je Ladeplatz | 8 |
 | NFC-Leser beide Boxen: 2× PN5180 + 2× ESP32-S3 SuperMini (bestellt 12.10.) | 26 |
 | Reserveteile (Pi 3A+, SD, PN5180, ESP32-S3, MAX98357A) | 55 |
@@ -505,7 +508,7 @@ Stand 3.8: Aufteilung neu. V3 entfällt, die Firmware macht den Leser, Home Assi
 - **3.3 Verdrahtungsplan & Kabelbaum** — inkl. Pufferelko am Verstärker
 - **3.4 Löten & Endmontage**
 - **3.5 Ladekontakte & Dock**
-  - 3.5.1 Verpolschutz
+  - 3.5.1 Verpolschutz — **3.18:** durch die Form (Plus Mitte, Masse Ring)
   - 3.5.2 Load-Switch mit Reed-Erkennung
   - 3.5.3 Kontakte 3–4 mm versenkt
   - 3.5.4 Kurzschlusstest mit Münze und Löffel — an Dock **und** Box
@@ -529,7 +532,7 @@ Stand 3.8: Aufteilung neu. V3 entfällt, die Firmware macht den Leser, Home Assi
 - **4.3 Druck & Iterationen**
   - 4.3.1 Passung Gewindeeinsätze
   - 4.3.2 Sturztest mit TPU-Ecken
-- **4.4 Dual-Ladestation**
+- **4.4 Ladesockel (2×)** — **3.18:** zwei Einzelsockel statt Dual-Station, Design `docs/egm/ladestation/`
 - **4.5 Audiokammer abdichten**
   - 4.5.1 Volumen 0,5–0,8 l festlegen
   - 4.5.2 Treiber mit Dichtband
@@ -583,7 +586,8 @@ Stand 3.8: Aufteilung neu. V3 entfällt, die Firmware macht den Leser, Home Assi
   - 5.6.2 Tastenereignisse → Phoniebox-RPC
   - 5.6.3 Idle-Shutdown nach ~20 min (V3)
   - 5.6.4 Shutdown bei Tiefstand
-  - 5.6.5 Auto-Power-On aus, Anti-Mistouch aus **NEU**
+  - 5.6.5 Auto-Power-On aus, Anti-Mistouch aus **NEU** — **3.18 (R8):** Einschalten bei Strom am Eingang **an**; Ablauf „Start am Lader“ siehe 5.6.8
+  - 5.6.8 Start am Lader: Rückmeldung (Ton, Ring), Sync prüfen (auch über Hotspot, S7), 120 s Kurz-Zähler statt 20 min, Leise-Zeiten **NEU 3.18** — Entscheidungen S1–S11 gefallen, Design-Änderung im EGM `docs/egm/start-am-lader/`
   - 5.6.6 WLAN-Powersave messen und entscheiden
   - 5.6.7 Kein eigener Hotspot; Handy-Hotspot als bekanntes Netz **NEU 3.8**
 - **5.7 Plugin Leise-Zeiten**
@@ -678,7 +682,7 @@ Stand 3.8: Aufteilung neu. V3 entfällt, die Firmware macht den Leser, Home Assi
 
 CAD (4.2) startet erst, wenn 3.2 auf dem Breadboard läuft.
 
-## Entscheidungen (12.10.2026, ergänzt 17.10., 04.11., 05.11. für Rev. 3.8, 06.11. für Rev. 3.9, 07.11. für Rev. 3.10, 09.11. für Rev. 3.11, 3.12, 3.13, 3.14, 3.15, 3.16 und 3.17)
+## Entscheidungen (12.10.2026, ergänzt 17.10., 04.11., 05.11. für Rev. 3.8, 06.11. für Rev. 3.9, 07.11. für Rev. 3.10, 09.11. für Rev. 3.11, 3.12, 3.13, 3.14, 3.15, 3.16, 3.17, 10.11. für Rev. 3.18)
 
 | Frage | Entscheidung |
 |---|---|
@@ -722,6 +726,17 @@ CAD (4.2) startet erst, wenn 3.2 auf dem Breadboard läuft.
 | **Papierkorb-Metadaten, Listen, Box-Meldungen, Leise-Zeiten (3.14)** | Ordner `_papierkorb/<id>/` mit `meta.json`; `limit`/`offset` schon in v1; die letzten 20 Box-Meldungen je Box im HA-Speicher; Leise-Zeiten bleiben in Stufe 4 |
 | **Schutz der Konfiguration (3.14, W-01/W-02/W-06)** | Ist der HA-Speicher leer oder der Export neuer, veröffentlicht die Integration nichts, bis Tobias entscheidet (aus dem Export holen oder neu ausrollen); erst veröffentlichen, dann exportieren; Boxen mit neuerem Stand (`voraus`) werden gemeldet, die Revision wird nie von selbst erhöht |
 | **Feste Versionen (3.14)** | Home Assistant **2026.11.x** (Patch-Version beim Start von AP 3.1), Mosquitto-Add-on **7.1.3**, NAS **QNAP TS-464eU-8G** (Celeron N5095, amd64) |
+| **Ladestation: Form (3.18, D1–D6)** | Zwei Einzelsockel, je Sockel ein USB-C-Netzteil. Kinder docken selbst und blind an, in jeder der vier Drehlagen. Gefederte Pins im Sockel, flache Kontaktscheibe in der Box (Plus Mitte, Masse Ring). Keine LED am Sockel. Details: `docs/egm/ladestation/concepts_brief.md` |
+| **Ladestation: Kurzschlussschutz (3.18, R1)** | Eigene Sockel-Platine mit eFuse (Stromgrenze ~2,7 A, Übertemperatur, Softstart), vom Hersteller bestückt, Pins direkt auf der Platine. Zwei Reeds in Reihe an gegenüberliegenden Ecken. Ersetzt die fertigen Module (D7) |
+| **Ladestation: Kontakte (3.18, R2)** | Kontaktscheibe als Leiterplatte mit Hartgold, Zyklentest |
+| **Ladestation: Netzteile (3.18, R3)** | Zwei neue Markennetzteile USB-C 5 V/3 A, CE, Schutzklasse II, C-auf-C-Kabel. Kurzschlusstest mit genau diesen |
+| **Ladestation billiger (3.18, R5/R6, 09.11.)** | Feste Einsteckrichtung mit fertigen Magnet-Pogo-Steckern, 2 Magnete in der Box. Fertige Module (Pololu #2810, PTC) statt eFuse-Platine, zwei Reeds in Reihe bleiben. Restrisiko „zwei Fremdmagnete plus Metallteil“ bewusst akzeptiert. Ersetzt D2, R1, R2. Qi verworfen (Wärme am Akku, Aufwachen; Berichte in `research_qi.md`) |
+| **Ladestation: Andocken weckt kurz (3.18, R8, 10.11.)** | **Ersetzt Punkt 3 und PSP 5.6.5/8.2.4:** Andocken startet die Box. Sie zeigt mit Ton und LED-Ring einige Sekunden Laden und Ladestand, prüft den Sync und fährt ohne Wiedergabe zügig wieder herunter. Nachts kein Ton (Leise-Zeiten). Details im Box-Software-Design nachzuziehen |
+| **Ladestation: Kontakte (3.18, R7, 10.11.)** | Magnet-Pogo-Stecker (R5) verworfen: Seine Magnete ziehen Münzen und Klammern auf die Pins (Review G1). Nächster Schritt: fertige Lösungen recherchieren (Erkennung über dritten Kontakt, versenkte Kontakte) |
+| **Ladestation: USB-C-Stecker im Sockel (3.18, R9, 10.11.)** | Wie ein Handy-Dock: Stecker des Netzteils steht schwimmend gelagert in der Mulde, Box hat unten eine USB-C-Buchse (am #5398). Keine Elektronik, keine Reeds im Sockel, keine Magnete in der Box. Kontakte im Stecker geschützt (Münze, Löffel). Risiko Hebeln durch Kinder: Druckmuster und Hebeltest entscheiden, Rückfall versenkte Federkontakte. Ersetzt R5/R6. Design: `docs/egm/ladestation/design_draft.md` Rev. 4 |
+| **Eine USB-C-Buchse, im Boden (3.18, R10, 10.11.)** | Die Box hat nur noch eine USB-C-Buchse, unten. Sie dient für den Sockel und unterwegs (gewinkeltes Kabel in einer Kabelrinne im Boden). **Ersetzt Punkt 7, PSP 3.2.5, 3.6 und 4.2.7:** Pololu #5398, seitliche Buchse und TPU-Lasche entfallen. Stückliste wird nach Annahme der Rev. 4 neu gerechnet |
+| **Start am Lader, Software (3.18, S1–S11, 10.11.)** | Jeder Start mit Strom gilt als Start am Lader. Rückmeldung (Ton, Ring; nachts ohne Ton, gedimmt; bei spielendem Hörspiel nur Ring), Sync prüfen (auch über Hotspot, auch beim Andocken der laufenden Box), danach 120 s Kurz-Zähler; Tobie, Hauptknopf oder HA-Befehl halten wach. Liegender Tobie spielt wie bisher. Update aus HA wird vorgemerkt und beim nächsten Andocken geholt (Vertragsänderung nötig). Kein Taster für Sockel/Kabel. Frühstart-Ring erst nach Messung. Details: `docs/egm/ladestation/software_folgen.md`, Abschnitt 10 |
+| **Ladestation: Tests (3.18, R4)** | Tobias testet allein, mit den verschärften Vorgaben aus dem Review. Kein Kindertest vor der Abnahme |
 | **Mosquitto-ACL (3.14)** | In der `pattern`-Form müssen auch `tobibox/config` und `homeassistant/status` `pattern read` heißen (Test gegen Mosquitto 2.0.18); `mqtt-v1.md`, Abschnitt 7 korrigiert |
 | **Leerlauf-Zähler (3.16, 09.11., AP 4.8)** | Bedienung an der Box (Hauptknopf kurz, Vor, Zurück, Drehregler, Kopfhörer) setzt den Leerlauf-Zähler neu. HA-Befehle (Sync, Update) setzen ihn nicht zurück. Wer an der Box spielt, will nicht, dass sie ausgeht. `core-interface.md`, Abschnitt 9 Punkt 9; Design „Strom / Leerlauf“ |
 | **Start am Lader (3.16, 09.11., AP 4.8)** | Bricht der Start-Sync mit `netz_weg` oder `regel` ab, wiederholt `idle` ihn alle 10 min, höchstens 6-mal, solange die Box am Lader hängt; währenddessen keine Abschaltung. Ohne Lader, bei anderem Abbruch oder Erfolg gilt die 20-min-Regel. Fehlt `[sync]`: Grund `nicht_eingerichtet`, keine Wiederholung |

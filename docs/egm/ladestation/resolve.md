@@ -1,0 +1,153 @@
+# Resolve Ladestation (09.11.2026)
+
+Befunde aus `review_elektrik.md` (E1–E17) und `review_mechanik.md` (M1–M21),
+mit Tobias durchgegangen. Grundlage für Rev. 2 von `design_draft.md`.
+
+## Entscheidungen von Tobias
+
+| # | Frage | Entscheidung | Befunde |
+|---|---|---|---|
+| R1 | Kurzschlussschutz bei Fremdmagnet + Metallteil | **Eigene Sockel-Platine mit eFuse** (z. B. TPS25947: Stromgrenze ~2,7 A, Übertemperatur-Abschaltung, Softstart). Vom Hersteller bestückt, kein SMD-Löten. Pogo-Pins direkt auf der Platine (FR4, hitzefest). Gleiche Bestellung wie die Kontaktscheiben. Dazu in jedem Fall **zwei Reeds in Reihe** an gegenüberliegenden Ecken. **Ersetzt D7** (fertige Module). | E1, E2, E4, E6, M20 |
+| R2 | Material der Kontaktscheibe | **Leiterplatte mit Hartgold** (dicke Goldschicht wie bei Steckkontakten). Zyklentest prüft. | M8, E10 |
+| R3 | Netzteile | **Zwei neue Markennetzteile** USB-C 5 V/3 A, CE, Schutzklasse II, mit C-auf-C-Kabel. Typ wird im Design festgelegt, T6 wird genau damit gemacht. | E3, E13 |
+| R4 | Wer testet | **Nur Tobias**, mit den verschärften Vorgaben aus dem Review (Drehversatz, Schräglage, Aufsetzen mit Schwung). Kein Kindertest vor der Abnahme. | M16 |
+
+### Vorrecherche zu R1 (Haiku, 09.11.)
+
+Kein fertiges Modul passt sauber. TPS25947EVM: Daten passen (0,5–6 A per
+Jumper, Übertemperatur, Latch- oder Auto-Retry-Variante, Enable aktiv high mit
+~1,2 V Schwelle, Softstart über dV/dt-Kondensator), aber große Testplatine
+ohne Pogo-Anschluss, Preis offen. FlexTrip (Tindie, ~20 €): Stufen und Enable
+nicht dokumentiert. TPS25200-Modul: Grenze 2,9 A, Eingang nur bis 5 V, Reset
+per Taster. Adafruit, Pololu, SparkFun: nichts Passendes.
+
+## Ohne Rückfrage übernommen (Korrekturen)
+
+| Thema | Übernahme | Befunde |
+|---|---|---|
+| Reihenfolge Pin-Kontakt vor Strom | Elektrisch statt über die Geometrie: Einschaltverzögerung 0,1–0,5 s nach Reed-Schluss (Enable der eFuse über RC), dazu Softstart der eFuse. Reed sitzt im Endstand mit Reserve (Abstand ≤ 1/1,5 des Schaltabstands). „Restabstand“ wird definiert (Magnet–Reed). | M1, E5, E6 |
+| Masse zuerst | Ring-Pins (GND) länger als der Mittel-Pin: GND schließt zuerst, trennt zuletzt. | E5 |
+| Strom am Mittel-Pin | 2–3 Pins parallel in der Mitte, Mittelfläche entsprechend größer, Pin mit belegtem Dauerstrom aus dem Datenblatt. | E8 |
+| Schutzbauteile | Eingangs-Kondensator und TVS-Diode auf der Sockel-Platine. | E6 |
+| Spannungsbudget | Tabelle je Stufe in 4.4. 20-mΩ-Jumper am #5398 überbrücken. Kriterium statt fester 4,75 V: Ladestrom am Sockel ≥ 90 % des Ladestroms am USB-C. | E7, E16 |
+| Höhenkette und Federweg | Pins mit ≥ 1,5 mm Hub, Arbeitspunkt ~50 % Hub. Höhenkette Min/Max rechnen. Box liegt auf festen PETG-Anschlägen im Sockel auf, nicht auf den TPU-Ecken. Federkraft aus dem Datenblatt. | M2 |
+| Zentrierung | Hauptzentrierung über **konischen Zapfen** mit großem Fangbereich und Fase an der Tasche. Mulde mit mehr Spiel (2–3 mm je Seite) und durchgehender Schräge ohne parallele Führungswand; Schräge steiler (≥ 55–60°) oder glatte Gleitflächen, mit echter TPU-Ecke messen. Toleranzkette: Mulden-Spiel nie größer als der Fangbereich des Zapfens. Höhen konsistent. | M3, M4, M5 |
+| Maße | Kontaktscheibe, Tasche, Zapfen und Pin-Kreis einmal durchgerechnet und als Zeichnung/Tabelle. | M6, E14 |
+| Münze in der Tasche | Satz „Münze erreicht die Kontakte nicht“ gestrichen. Stege in der Tasche prüfen, damit keine Münze flach aufliegt. Box-Seite bleibt durch #5398 spannungslos. | M7 |
+| Flüssigkeit und Schmutz | Ablauf und Gefälle in der Mulde, Elektronikfach dicht getrennt, Pins mit Dichtung. Reinigungshinweis für Eltern. | M9, E10, M21 |
+| Halt und Standfestigkeit | Gewicht im Sockelboden einplanen (~300–400 g), Kabelzug mit Zugentlastung, messbare Kriterien für Abheben und Stoß. Software-Hinweis: „am Lader“ entprellen. | M10, M11, M19 |
+| Magnete | Lage 20–25 mm von den Kanten in der PETG-Bodenplatte, nicht in den TPU-Ecken. Abdeckung ≥ 1,2 mm. Reed-Lage und seitlicher Versatz im Test. | M12, M13 |
+| Kleinteile | Pogo-Pins auf der Platine gelötet, Platine verschraubt. Kontaktscheibe mit Flansch und Epoxy. Füße mit Zapfen und Kleber. Zugtests. | M15 |
+| Schieber #2810 | entfällt mit R1. | E12 |
+| Wecken | Quelle zu Auto-Power-On belegen (docs.pisugar.com). T3 erweitert: leerer Akku, laufende Box ab- und aufsetzen, Netzteil mit aufsitzender Box einstecken, Flackern, nach Akkutausch/Reset. | E9 |
+| Leitungsführung | Zuleitung Scheibe → #5398 entlang Boden/Rückwand, ≥ 3 cm von der Antennenebene. | M18 |
+| Tests | T1 mit Schalt- und Rückfallabstand, Reed-Lage, Versatz und Fremdmagnet-Liste (Tonie, Magnetbaustein, Handyhülle, Kühlschrankmagnet, zweite Box). T6 als Widerstandsreihe 0,2–3 Ω, Temperatur am Pin-Halter < 60 °C. T7 mit Last 1 kΩ, T8 mit Strommessung beider Quellen und Umschalten unter Last. Neu: Prellen/Spitzen (Oszilloskop), Flüssigkeit, Zyklen ≥ 500, Sturz und Magnet-Zugtest, Drehversatz 0–15°, Schräglage, Aufsetzen aus 5–10 cm, weicher und schräger Untergrund, Seitenstoß. T9 im geschlossenen Sockel bis Beharrung an allen Messstellen. | E11, E15, E17, M14, M16 |
+| Stückliste | ergänzt: USB-C-Kabel, Sockel-Platine (Bestückung), Reeds 2×, Kleber, Gewicht, Dichtung, Schrauben; Pogo-Pins in der Budgetzeile. Punkt 11 im Plan umformulieren. | M17 |
+
+## Nächster Schritt
+
+Rev. 2 von `design_draft.md` mit R1–R4 und den Übernahmen. Danach ein zweiter
+kurzer Goldfisch-Durchgang nur auf die geänderten Abschnitte. Die
+Sockel-Platine (Schaltplan, Layout) entsteht erst nach Annahme des Designs, als
+Auftrag an einen Sonnet-Agent.
+
+## Sanity Check (09.11., Tobias: „Geht das nicht einfacher und billiger?“)
+
+Fast der ganze Aufwand (eFuse-Platine, zwei Reeds, Hartgold, Zapfen,
+Toleranzen, Flüssigkeit, Magnete in der Box) folgt aus **offenen Kontakten**.
+Verglichen wurden: Kontakte (Stand Resolve, ~95–115 € plus viel Entwurf),
+**induktiv laden mit Qi** (~40–60 €, keine offenen Kontakte, Fremdmetall-
+Erkennung im Pad, jede Drehlage von selbst, keine Magnete; aber ~1 A, Wärme
+nah am Akku) und nur USB-C-Kabel (~0 €, nicht blind bedienbar).
+
+**Entscheidung Tobias:** Rev. 2 des Kontakt-Designs angehalten. Erst Qi prüfen
+(Recherche, dann Billigtest am PiSugar-Muster). Hält Qi, entsteht ein neuer,
+kurzer Draft. Fällt Qi durch, gilt der Resolve oben weiter.
+
+## Rev. 3: billiger (09.11., Tobias)
+
+Nach den Erfahrungsberichten zu PiSugar + Qi (Wärme am Akku, Aufwachen beim
+Laden, siehe `research_qi.md`) bleibt es bei Kontakten, aber billiger.
+
+| # | Entscheidung | Ersetzt |
+|---|---|---|
+| R5 | **Feste Einsteckrichtung.** Ein Steg im Sockel und eine Nut in der Box lassen die Box nur in einer Lage ganz absinken. Falsch herum lädt sie nicht, sonst passiert nichts. Fertige **Magnet-Pogo-Stecker** (Federhälfte im Sockel, flache Hälfte in der Box) statt Kontaktscheibe, Zapfen und Hartgold. Zwei Magnete in der Box statt vier. | D2, R2 |
+| R6 | **Fertige Module statt eFuse-Platine:** Pololu #2810, PTC, USB-C-Breakout, zwei Reeds in Reihe. **Bewusstes Restrisiko:** Zwei fremde Magnete im richtigen Abstand und gleichzeitig ein Metallteil auf den Pins werden nicht begrenzt. T6 zeigt, was dann passiert. | R1 (teilweise: die zwei Reeds bleiben) |
+
+Ziel: ~75 € für beide Boxen statt ~125 €. Die Netzteile (R3) und Tests durch
+Tobias (R4) bleiben.
+
+## Review Rev. 3 und Entscheidungen für Rev. 4 (10.11.)
+
+Goldfisch-Review `review_rev3.md`: 3 Blocker, 9 wichtig, 2 Hinweise.
+Hauptbefund **G1**: Die Magnete im Magnet-Pogo-Stecker ziehen Stahl (Cent-Münzen,
+Büroklammern) auf die Pins. Steht die eigene Box darauf, schließen die Reeds,
+und das Metall überbrückt Plus und Masse. Im Bereich 1–3 Ω (Strom unter dem
+Ladestrom) greift weder PTC noch Netzteil noch eine eFuse. R6 hatte den
+falschen Fall beschrieben.
+
+| # | Entscheidung | Ersetzt |
+|---|---|---|
+| R7 | **Kontakte: zuerst Recherche nach fertigen Lösungen** (wie kommerzielle Docks und Bauteile das Problem lösen, z. B. Erkennung über einen dritten Kontakt mit USB-C-Logik, versenkte Kontakte). Kein Eigenbau-Rad. | R5 (Magnet-Stecker), R6 |
+| R8 | **Rückmeldung beim Andocken:** Ton und LED-Ring zeigen einige Sekunden lang Laden und Ladestand. **Andocken weckt die Box dafür kurz**, auch wenn sie aus ist. | Plan Punkt 3 („Andocken darf nicht wecken“), PSP 5.6.5 (Auto-Power-On aus), PSP 8.2.4, A7 |
+
+**Folgen von R8 (offen für das Box-Software-Design, Verträge unverändert):**
+- PiSugar: Einschalten bei Strom am Eingang aktivieren (Einstellung im
+  pisugar-server, am Muster bestätigen).
+- Ablauf nach dem Start am Lader: Ton und Ladestand am Ring, Sync prüfen
+  (wie CUJ 16), dann ohne Wiedergabe zügig wieder herunterfahren statt erst
+  nach 20 min (Wert festlegen).
+- Leise-Zeiten (PSP 5.7): nachts kein Ton, Ring nur gedimmt.
+- Ein Pi 3A+ braucht ~20–30 s bis zur Rückmeldung (Schätzung, am Muster messen).
+- Strom: jedes Andocken kostet einen Startvorgang. Unkritisch am Lader.
+
+**Ohne Rückfrage übernommen:** G2 (Diode parallel zum oberen RC-Widerstand,
+schnelles Ausschalten), G4 (Fase an der Nut, Steg und Mulden-Boden aus einem
+Druck, Spiel gegen Fangbereich prüfen), G6 (Reeds wieder diagonal), G8 (PTC nur
+als Leitungsschutz benennen), G11 (weggefallene Tests zurück), G12
+(Stahlgewicht nicht unter Magneten und Reeds), G14 (Versand und
+Testmaterial in die Stückliste).
+
+## R9: USB-C-Stecker im Sockel (10.11., Tobias)
+
+Recherche fertiger Lösungen: Elektrische Erkennung (auch USB-C-CC, Reeds)
+schützt nicht, wenn Metall unter der aufsitzenden Box liegt. Es hilft nur,
+dass Metall die Kontakte nicht erreicht. Zur Wahl standen versenkte
+Federkontakte (A, Empfehlung der Projektleitung) und ein USB-C-Stecker im
+Sockel wie bei Handy-Docks (B).
+
+**Entscheidung Tobias: B.** Folgen: keine Elektronik und keine Reeds im
+Sockel, keine Magnete in der Box, Kosten etwa im Plan-Budget. Neues
+Hauptrisiko: seitliches Hebeln durch Kinder bricht Stecker oder Buchse.
+Gegenmittel: dreistufige Führung, schwimmender Halter, Sollbruchstelle im
+Sockel, schwerer Sockel. Druckmuster und Hebeltest (T1, T2) entscheiden. Fällt
+T2 durch, ist A der Rückfall. Ersetzt R5, R6.
+
+## R10: nur eine USB-C-Buchse, im Boden (10.11., Tobias)
+
+Die Boden-Buchse dient für den Sockel und unterwegs (jedes USB-C-Kabel). Die
+seitliche Buchse, der Pololu #5398 und die TPU-Lasche entfallen, Punkt 7 des
+Plans (zwei Ladeeingänge) ist damit erledigt. Unterwegs: gewinkeltes
+USB-C-Kabel in einer Kabelrinne im Boden, die Box steht aufrecht.
+
+## Resolve Review Rev. 4, Hardware-Blocker (10.11., Tobias)
+
+Grundlage: `review_rev4.md` (5 Blocker) und das OpenSCAD-Druckmuster
+(`hardware/ladesockel/`). Das Modell bestätigt H2: Rippen für die 90°-Lage
+müssten 27 mm hoch sein, die Nuten in der Box 24,5 mm tief.
+
+| Befund | Entscheidung |
+|---|---|
+| H1 Abheben: Stecker hält 8–20 N, Sockel 1 kg wiegt ~10 N | **Erst messen.** Abzugskraft des echten Pi-Netzteil-Steckers mit Federwaage. Unter ~8 N reicht ~1 kg, sonst wird der Sockel befestigt (Klebepads oder Schrauben). |
+| H2 Falsch herum (90°): Rippen zu hoch | **4a hoher Kragen.** Rippen und Nuten entfallen. Der rechteckige Kragen ist höher als die Steckerspitze (Spitze 2 mm unter der Kante), der Stecker steht in einem Schacht. Bei 90° liegt die Box auf dem Kragen. Die Taschenöffnung wird so gewählt, dass sie dabei breit aufliegt und nicht kippelt (im 3D-Modell bleiben nur ~0,5 mm je Seite). Die Buchse sitzt in einem Zapfen in der Tasche, der nicht über die Bodenfläche ragt. Verglichen im 3D-Artefakt mit 4b (Nasen). |
+| H3 Kabelrinne gegen Nut | **Erledigt** mit H2: Ohne Nuten läuft die Kabelrinne mittig nach hinten. Abgangsrichtung des gewinkelten Steckers bei der Bestellung prüfen. |
+| H4 Offene Steckermündung | **Akzeptiert wie bei jedem USB-C-Kabel.** Kein Zusatzaufwand. T6 prüft Draht und Flüssigkeit. |
+| H5 Buchse in der Box | **Fest und robust**: verschraubt und verklebt, Tausch nur mit geöffneter Box. Kein tauschbares Modul. |
+
+## Nachträge zur Rev. 5 aus dem Druckmuster (10.11., Tobias)
+
+| Punkt | Entscheidung |
+|---|---|
+| Kabelrinne | **Läuft nach hinten.** Bei 90° liegt die Box dann nur auf einer Kragen-Auflage und kippelt. **Das ist gewollt:** Falsch herum soll man merken, damit niemand glaubt, die Box lädt. Bedingung: Der Zapfen bleibt auch bei gekippter Box frei über der Steckerspitze (Assert im Modell, T1). |
+| Buchse | **Kompakte USB-C-Einbaubuchse mit Litzen** im Zapfen (11 × 6), statt Breakout-Platine (15 mm, passt nicht). Typen werden recherchiert, CC-Widerstände 5,1 kΩ müssen drin sein oder ergänzt werden. |
+| Bezugsebene (Modell) | Höhen gelten ab der Box-Bodenfläche. Sie liegt 3 mm über dem tiefsten Punkt der Mulde (2° Gefälle), das Unterteil ist dafür 22 statt 15 mm hoch. |
