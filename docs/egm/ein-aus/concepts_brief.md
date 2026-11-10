@@ -28,7 +28,7 @@ das Andocken schaltet sie wieder ein.
 | Zustand | Was läuft | Verbrauch (Schätzung, `research.md` 1) | Weiter, wenn … |
 |---|---|---|---|
 | **Spielt** | alles | ~1,6–1,9 W | Ende, Pause, Abheben → **Bereit** |
-| **Bereit** | Pi und Dienst laufen; Verstärker aus (SD_MODE), Ring stromlos (MOSFET), Leser wach | ~1,0–1,3 W | Tobie oder Knopf → **Spielt** (unter 3 s). Ohne Strom am Eingang nach 10 min → **Aus**. Mit Strom am Eingang: bleibt bereit. |
+| **Bereit** | Pi und Dienst laufen; Verstärker aus (SD_MODE), Ring stromlos (MOSFET), Leser lauscht sparsam (LPCD, wenn die Messung passt) | ~1,0–1,3 W | Tobie oder Knopf → **Spielt** (unter 3 s). Ohne Strom am Eingang nach 10 min → **Aus**. Mit Strom am Eingang: bleibt bereit. |
 | **Aus** | Pi aus, PiSugar im Ruhezustand; ESP32 im Tiefschlaf, PN5180 spürt Karten (LPCD) | Milliwatt-Bereich (am Muster messen) | Tobie aufgelegt → ESP32 „drückt“ den PiSugar-Einschalter → Pi startet → Tobie spielt (Ziel 10 s). Hauptknopf → Start. Strom an den Eingang → Start → **Bereit**. |
 
 Tagesbudget ohne Sockel (15 Wh nutzbar): Zum Beispiel 4 h Hören (~7 Wh) und 10 Pausen mit je 10 min
@@ -47,22 +47,25 @@ Bereitschaft (~2,5 Wh) brauchen knapp 10 Wh. Es bleibt Reserve für das Einschla
 - **Hardware:**
   - Der ESP32 bekommt Strom vom Akku (PiSugar-Pad BAT, Regler auf 3,3 V, Trennung zur USB-Versorgung des Pi).
   - Ein Transistor am PiSugar-Tasterpad 10 erlaubt dem ESP32 das Einschalten. Dafür muss Anti-Mistouch aus.
-  - Ein MOSFET schaltet den LED-Ring stromlos.
+  - **Der ESP32 steuert den LED-Ring** (E7): Daten- und Taktleitung des Rings wandern vom Pi an den ESP32, ein MOSFET
+    (vom ESP32 geschaltet) macht den Ring stromlos. Der Pi sagt dem ESP32 über die serielle Verbindung, was der Ring zeigt.
+    Beim Wecken startet der ESP32 sofort das weiße Lauflicht (unter 1 s), lange bevor der Pi bereit ist.
   - Die Belastbarkeit von Pad BAT und die Pegel am Pad 10 werden am Muster geprüft.
 - **Pi-seitig:** Leser-Firmware mit Tiefschlaf und LPCD. Ein neues Kommando sagt dem ESP32, wann der Pi ausgeht.
-  Ein neues Ereignis meldet „durch Tobie geweckt“. Beides ist eine Änderung am Vertrag `reader-v1`.
+  Ein neues Ereignis meldet „durch Tobie geweckt“. Neue Befehle steuern den Ring. Das alles ändert den Vertrag `reader-v1`.
+  Die Ring-Logik (`led.py`) bleibt auf dem Pi, nur die Ausgabe geht an den ESP32.
 
 ## 5. Offene Fragen
 
 | # | Frage | Vorschlag der Projektleitung |
 |---|---|---|
-| E1 | **Powerbank und Auto:** Die Box kann Sockel und Powerbank nicht unterscheiden (S10). Mit Strom am Eingang geht sie nie aus, sie leert also eine Powerbank im Auto (~1,2 W, eine 10-Ah-Powerbank in ~30 h). | Hinnehmen; wer das nicht will, zieht das Kabel. Alternativ: mit Strom am Eingang nach 2 h ohne Nutzung aus (Sockel nachts dann aus, widerspricht „immer bereit“). |
-| E2 | **Leser im Zustand Bereit:** Ein MOSFET für den Leser geht nicht, denn er muss Tobies spüren. Statt Dauerabfrage kann er auch im Zustand Bereit LPCD nutzen (spart ~0,2 W, kostet vielleicht 0,3–0,5 s). | MOSFET nur für den Ring. LPCD im Zustand Bereit am Muster ausprobieren, Messung entscheidet. |
+| E1 | **Powerbank und Auto:** Die Box kann Sockel und Powerbank nicht unterscheiden (S10). Mit Strom am Eingang geht sie nie aus, sie leert also eine Powerbank im Auto (~1,2 W, eine 10-Ah-Powerbank in ~30 h). | **Entschieden (Tobias, 10.11.): hinnehmen.** Wer das nicht will, zieht das Kabel. |
+| E2 | **Leser im Zustand Bereit:** Ein MOSFET für den Leser geht nicht, denn er muss Tobies spüren. | **Entschieden (Tobias, 10.11.):** MOSFET nur für den Ring. Der Leser lauscht in Bereit sparsam (LPCD), wenn die Messung am Muster passt (spart ~0,2 W, kostet vielleicht 0,3–0,5 s). |
 | E3 | **Akku dauerhaft voll am Sockel:** Er steht Tag und Nacht bei 100 %. | Am Muster prüfen, ob der PiSugar eine Ladegrenze kann; sonst hinnehmen (Akku ist Verschleißteil). |
 | E4 | **„Einschalten bei Strom“ ist laut Datenblatt ab Werk an** (`research.md` 4.1), der Plan ging von „aus“ aus. Herunterfahren am Sockel (Hauptknopf lang) könnte sofort neu starten. | Am Sockel ist Herunterfahren selten. Messen; startet sie neu, ist das am Sockel sogar gewollt („immer bereit“). |
 | E5 | **Wecken durch Tobie nachts** unter „stumm“: Die Box steht dann meist am Sockel und ist sowieso bereit. Ohne Sockel weckt der Tobie sie, die Leise-Zeiten gelten wie immer. | Keine Sonderregel. |
 | E6 | Was zeigt der Ring im Zustand **Bereit**? Stromlos heißt dunkel. | Dunkel. Ein kurzes Aufleuchten nur bei Bedienung, Andocken und Abziehen. |
-| E7 | **Sofortige Rückmeldung beim Hochfahren** (Wunsch Tobias, 10.11.): Der Lautsprecher hängt am Pi, er kann frühestens nach einigen Sekunden etwas spielen. | Zweistufig: (a) Ein kleiner Summer (Piezo) am ESP32 piept sofort (unter 0,5 s), wenn der ESP32 den Pi weckt oder merkt, dass die 5 V des Pi kommen (auch beim Start per Knopf oder Andocken). Nachts unter „stumm“ schweigt er; die Leise-Zeiten muss der ESP32 dafür vom Pi kennen. (b) Der Start-Ton über den Lautsprecher kommt so früh wie möglich: ein eigener früher Systemdienst, nicht erst der Box-Dienst. Startzeit am Muster messen. |
+| E7 | **Sofortige Rückmeldung beim Hochfahren** (Wunsch Tobias, 10.11.). | **Entschieden (Tobias, 10.11.):** Keine Extra-LED und kein Summer. Der ESP32 steuert den LED-Ring und zeigt beim Wecken sofort das weiße Lauflicht. Der Start-Ton kommt über den Lautsprecher, so früh der Pi es kann (früher eigener Systemdienst, Startzeit am Muster messen). |
 
 ## 6. Was aus „Start am Lader“ übernommen wird
 

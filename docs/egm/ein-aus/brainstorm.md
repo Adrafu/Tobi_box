@@ -35,3 +35,11 @@ Fakten: `research.md` (im selben Ordner, in Arbeit).
 | Tobie weckt die Box | **Am Breadboard ausprobieren.** Klappt es nicht, weckt der Hauptknopf. |
 | Schalter (MOSFET) für Ring und Leser | **Gleich einplanen.** (Hinweis Projektleitung: Für den Leser geht das nicht, er muss Tobies spüren; siehe `concepts_brief.md` E2.) |
 | Neuer Wunsch | **Startup-Sound:** sofortige Rückmeldung beim Hochfahren (`concepts_brief.md` E7). |
+
+## Antworten Runde 3 (10.11.)
+
+| Frage | Antwort |
+|---|---|
+| Powerbank und Auto (E1) | **Hinnehmen.** |
+| Leser in Bereit (E2) | **Ja:** MOSFET nur für den Ring, Leser lauscht sparsam, Messung entscheidet. |
+| Startup-Rückmeldung (E7) | Extra-LED wäre verwirrend. **Ring über den ESP32, kein Summer.** |
