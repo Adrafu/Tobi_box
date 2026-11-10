@@ -174,21 +174,26 @@ schr_wand     = (zapfen_d - bc_t)/2;            // Wand, in die die Schrauben gr
 dach_top      = tasche_t + dach_h;              // Oberkante Taschendach / Stütze
 
 // Bei 90 Grad gekippt (Rinne zeigt nach -x, Box wird um y gedreht).
-// Auflage: Die Rinne frisst die eine Kragen-Auflage, die Box liegt mit dem Tasche-Rand (+x)
-// auf der Kragen-Oberkante (Drehpunkt P) und kippt zur Rinnenseite, bis eine Bodenecke
-// (TPU-Ecke, ragt ecke_unter unter die Bodenflaeche) am Mulden-Boden anliegt.
+// Die Rinne frisst die eine Kragen-Auflage. Die Box liegt mit dem Tasche-Rand (+x) auf der
+// Kragen-Oberkante (Drehpunkt P) und kippt zur Rinnenseite, bis die Aussenkante der Bodenflaeche
+// den Mulden-Boden beruehrt. Zwei Kandidaten, der kleinere Winkel gilt:
+//  A: gerade Boxkante (ohne TPU-Ecke) an der hoechsten Stelle ausserhalb des Freistichs
+//     (der Boden steigt nach hinten, +y, mit dem Gefaelle);
+//  B: TPU-Ecke (ragt ecke_unter unter die Bodenflaeche) im Freistich, hinten an der geraden Kante.
 // Ebene (x = Sockel-x, z ab z0): P = (kipp_px, kragen_h); Bodenflaeche dreht um P mit Winkel w.
 kipp_px       = tasche_oeff_y/2;                       // Drehpunkt, Sockel-x
 kipp_s        = kipp_px + box_b/2;                     // von P bis zur Aussenkante, entlang der Bodenflaeche
-kipp_yc       = box_b/2 - box_r;                       // Ecke liegt bei diesem y (gerade Kante endet vor dem Radius)
-kipp_boden    = unterteil_h + (kipp_yc + mulde_boden/2)*tan(gefaelle) - z0
-                - freistich_t;                          // Mulden-Boden an der Ecke ab z0, Ecke taucht in den Freistich
-kipp_c        = kragen_h - kipp_boden;                 // = s*sin(w) + ecke_unter*cos(w)
+function mulden_z(y) = unterteil_h + (y + mulde_boden/2)*tan(gefaelle) - z0;   // Mulden-Boden ab z0
+kipp_yA       = min(box_b/2 - ecke_b, mulde_boden/2 - freistich_b);   // A: letzte Stelle der Kante vor Ecke/Freistich
+kipp_yB       = box_b/2 - box_r;                       // B: gerade Kante der TPU-Ecke endet vor dem Radius
+kipp_wA       = asin((kragen_h - mulden_z(kipp_yA))/kipp_s);
+kipp_cB       = kragen_h - (mulden_z(kipp_yB) - freistich_t);          // = s*sin(w) + ecke_unter*cos(w)
 kipp_R        = sqrt(kipp_s*kipp_s + ecke_unter*ecke_unter);
 kipp_phi      = atan2(ecke_unter, kipp_s);
-kipp_w        = asin(kipp_c/kipp_R) - kipp_phi;        // Kippwinkel in Grad
-kipp_ecke_x   = kipp_px - kipp_s*cos(kipp_w) + ecke_unter*sin(kipp_w);   // Sockel-x der Ecke
-kipp_ecke_z   = kragen_h - kipp_s*sin(kipp_w) - ecke_unter*cos(kipp_w);  // (= kipp_boden, Kontrolle)
+kipp_wB       = asin(kipp_cB/kipp_R) - kipp_phi;
+kipp_w        = min(kipp_wA, kipp_wB);                 // Kippwinkel in Grad
+kipp_ecke_x   = kipp_px - kipp_s*cos(kipp_w) + ecke_unter*sin(kipp_w);   // Sockel-x der Aussenkante (Ecke)
+kipp_ecke_z   = kragen_h - kipp_s*sin(kipp_w) - ecke_unter*cos(kipp_w);  // Sockel-z der Ecke ab z0
 // Unterseite des Zapfens (Abstand z_open von der Bodenflaeche) an seiner tiefsten Kante (Sockel-x = -zapfen_d/2)
 kipp_zapfen_z = kragen_h + z_open*cos(kipp_w) + tan(kipp_w)*(-zapfen_d/2 - kipp_px + z_open*sin(kipp_w));
 kipp_abstand  = kipp_zapfen_z - tip;                   // Rest-Abstand Zapfen ueber Steckerspitze
@@ -211,7 +216,7 @@ assert(min(fuehr_rest, fuehr_rest_u) >= min_fuehrung,
   "Rinne schneidet die Hinterwand der Tasche zu breit auf (Fuehrungsflaeche zu klein)");
 assert(fuehr_band >= min_band, "Rinne zu tief: kein durchgehendes Wandband ueber der Rinne");
 // (b) 90 Grad, maximal gekippt: Zapfen bleibt min_abstand_kipp ueber der Steckerspitze
-assert(kipp_c/kipp_R < 1, "Kippwinkel: Box erreicht den Mulden-Boden nicht (Rechnung ungueltig)");
+assert(kipp_cB/kipp_R < 1 && (kragen_h - mulden_z(kipp_yA))/kipp_s < 1, "Kippwinkel: Box erreicht den Mulden-Boden nicht (Rechnung ungueltig)");
 assert(kipp_ecke_x >= -mulde_boden/2, "Bodenecke trifft bei Kippung die Muldenwand, Rechnung anpassen");
 assert(kipp_abstand >= min_abstand_kipp,
   "Zapfen bei 90 Grad und maximaler Kippung zu nah an der Steckerspitze: kragen_h erhoehen oder spitze_unter senken");
@@ -253,7 +258,7 @@ assert(unterteil_h - (hohl_u + hohl_h) >= 3, "Decke ueber dem Gewichtsraum zu du
 assert(dach_top + 1 <= box_h, "Taschendach ragt ueber den Boxrand");
 assert(!befestigung || (bef_x + bef_kopf/2 <= mulde_boden/2 - freistich_b && bef_y - bef_kopf/2 > hohl_y/2),
   "Befestigungsloch liegt im Freistich");
-echo(str("KIPPEN 90 Grad: Winkel = ", kipp_w, " Grad | Rest-Abstand Zapfen ueber Spitze = ", kipp_abstand,
+echo(str("KIPPEN 90 Grad: Winkel = ", kipp_w, " Grad (A Kante ", kipp_wA, ", B Ecke ", kipp_wB, ") | Rest-Abstand Zapfen ueber Spitze = ", kipp_abstand,
          " | Zapfen-Unterkante z = ", kipp_zapfen_z, " | Ecke x = ", kipp_ecke_x, ", z = ", kipp_ecke_z,
          " | Kragen taucht in Rinne = ", kipp_tiefe, ", halbe Breite dort = ", kipp_kr_halb,
          " | Rinne-Rest 0/180 Grad: ", fuehr_rest, " / ", fuehr_rest_u, ", Band ", fuehr_band));
