@@ -143,3 +143,11 @@ müssten 27 mm hoch sein, die Nuten in der Box 24,5 mm tief.
 | H3 Kabelrinne gegen Nut | **Erledigt** mit H2: Ohne Nuten läuft die Kabelrinne mittig nach hinten. Abgangsrichtung des gewinkelten Steckers bei der Bestellung prüfen. |
 | H4 Offene Steckermündung | **Akzeptiert wie bei jedem USB-C-Kabel.** Kein Zusatzaufwand. T6 prüft Draht und Flüssigkeit. |
 | H5 Buchse in der Box | **Fest und robust**: verschraubt und verklebt, Tausch nur mit geöffneter Box. Kein tauschbares Modul. |
+
+## Nachträge zur Rev. 5 aus dem Druckmuster (10.11., Tobias)
+
+| Punkt | Entscheidung |
+|---|---|
+| Kabelrinne | **Läuft nach hinten.** Bei 90° liegt die Box dann nur auf einer Kragen-Auflage und kippelt. **Das ist gewollt:** Falsch herum soll man merken, damit niemand glaubt, die Box lädt. Bedingung: Der Zapfen bleibt auch bei gekippter Box frei über der Steckerspitze (Assert im Modell, T1). |
+| Buchse | **Kompakte USB-C-Einbaubuchse mit Litzen** im Zapfen (11 × 6), statt Breakout-Platine (15 mm, passt nicht). Typen werden recherchiert, CC-Widerstände 5,1 kΩ müssen drin sein oder ergänzt werden. |
+| Bezugsebene (Modell) | Höhen gelten ab der Box-Bodenfläche. Sie liegt 3 mm über dem tiefsten Punkt der Mulde (2° Gefälle), das Unterteil ist dafür 22 statt 15 mm hoch. |
