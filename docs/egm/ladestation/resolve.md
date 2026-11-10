@@ -122,3 +122,10 @@ Hauptrisiko: seitliches Hebeln durch Kinder bricht Stecker oder Buchse.
 Gegenmittel: dreistufige Führung, schwimmender Halter, Sollbruchstelle im
 Sockel, schwerer Sockel. Druckmuster und Hebeltest (T1, T2) entscheiden. Fällt
 T2 durch, ist A der Rückfall. Ersetzt R5, R6.
+
+## R10: nur eine USB-C-Buchse, im Boden (10.11., Tobias)
+
+Die Boden-Buchse dient für den Sockel und unterwegs (jedes USB-C-Kabel). Die
+seitliche Buchse, der Pololu #5398 und die TPU-Lasche entfallen, Punkt 7 des
+Plans (zwei Ladeeingänge) ist damit erledigt. Unterwegs: gewinkeltes
+USB-C-Kabel in einer Kabelrinne im Boden, die Box steht aufrecht.

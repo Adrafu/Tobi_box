@@ -2,7 +2,7 @@
 
 * **Autor:** Tobias (Projektleitung: Claude als „Elefant“)
 * **Datum:** 2026-11-10
-* **Stand:** **Rev. 4**, nach Review der Rev. 3 und den Entscheidungen R7–R9
+* **Stand:** **Rev. 4**, nach Review der Rev. 3 und den Entscheidungen R7–R10
   in `resolve.md`
 * **Grundlage:** `concepts_brief.md`, `resolve.md`, `review_rev3.md`,
   `research_qi.md`, `docs/plan/stueckliste-und-psp.md` (Rev. 3.16),
@@ -16,8 +16,9 @@ Werte mit **(R)** sind Richtwerte, ein Druckmuster und das CAD klären sie.
 ## 1. Idee in einem Satz
 
 Der Sockel ist eine Mulde, in deren Mitte ein USB-C-Stecker nach oben steht,
-wie bei einem Handy-Dock. Die Box hat unten eine USB-C-Buchse und wird darauf
-gesteckt.
+wie bei einem Handy-Dock. Die Box hat unten **ihre einzige** USB-C-Buchse und
+wird darauf gesteckt. Unterwegs lädt sie an derselben Buchse mit jedem
+USB-C-Kabel (R10).
 
 **Warum (Review G1):** Bei offenen Kontakten kann Metall zwischen Box und Sockel
 Plus und Masse überbrücken, und keine elektrische Erkennung bemerkt das, weil
@@ -33,6 +34,7 @@ Schutzprinzip wie bei jedem USB-C-Kabel, das auf dem Boden liegt.
 | 2 Reeds, Pololu #2810, PTC, TVS, RC-Glied, Lochraster | **keine Elektronik im Sockel** |
 | 2 Magnete in der Box | **keine Magnete** für den Sockel (Punkt 13 entschärft) |
 | Restrisiko Metall auf den Pins | entfällt |
+| USB-C seitlich + Pololu #5398 + TPU-Lasche | **eine Buchse im Boden** für Sockel und unterwegs (R10) |
 | neues Risiko | **Stecker oder Buchse brechen, wenn ein Kind die Box seitlich hebelt** (Abschnitt 5) |
 
 ---
@@ -45,7 +47,7 @@ Schutzprinzip wie bei jedem USB-C-Kabel, das auf dem Boden liegt.
 | A2 | Die Mulde führt die Box so genau, dass der Stecker ohne Zielen in die Buchse findet. | D1 |
 | A3 | Kind hebt die Box einhändig ab, der Sockel bleibt stehen, obwohl der Stecker hält. | D1 |
 | A4 | Seitliches Hebeln an der aufgesteckten Box bricht weder Buchse noch Stecker. Wenn doch, bricht das billige, tauschbare Teil im Sockel, nie die Buchse in der Box. | R9, neu |
-| A5 | Beim USB-C-Laden unterwegs liegt an der Boden-Buchse keine Spannung (#5398 bleibt). | Punkt 7 |
+| A5 | Unterwegs lädt die Box an der Boden-Buchse mit einem gewinkelten USB-C-Kabel und steht dabei aufrecht (Kabelrinne). | R10 |
 | A6 | Kein Metallteil kann Plus und Masse überbrücken. | G1 |
 | A7 | **Andocken weckt die Box kurz**: Ton und LED-Ring zeigen einige Sekunden Laden und Ladestand. | R8 |
 | A8 | Ladestrom am Sockel wie am USB-C-Kabel. | E7 |
@@ -60,9 +62,10 @@ Schutzprinzip wie bei jedem USB-C-Kabel, das auf dem Boden liegt.
 ```
  Steckdose          Sockel                                   Box
  ─────────          ───────────────────────────              ───────────────────────────────
- Netzteil 5,1 V/3 A ─ festes Kabel ─► USB-C-Stecker ═══════► USB-C-Buchse unten ─► #5398 A ─┐
- (Raspberry Pi 15 W)  durch den Sockel   (schwimmend          (5,1 kΩ an CC)                  ├─► PiSugar
-                                          gelagert)           USB-C seitlich ─────► #5398 B ─┘
+ Netzteil 5,1 V/3 A ─ festes Kabel ─► USB-C-Stecker ═══════► USB-C-Buchse unten ──► PiSugar
+ (Raspberry Pi 15 W)  durch den Sockel   (schwimmend          (5,1 kΩ an CC)
+                                          gelagert)           unterwegs: gewinkeltes Kabel
+                                                              in derselben Buchse
 ```
 
 ### 4.1 Sockel
@@ -85,9 +88,11 @@ Schutzprinzip wie bei jedem USB-C-Kabel, das auf dem Boden liegt.
   und CC2. Das Breakout ist mit dem Box-Boden verschraubt und umgossen, die
   Buchse von einer Wand im Boden umfasst. Die Buchse muss stärker sein als der
   Stecker im Sockel (A4).
-- Buchse → #5398 Eingang A. Die seitliche USB-C-Buchse für unterwegs → Eingang
-  B. Unverändert gegenüber dem Plan, nur der Eingang A kommt jetzt von einer
-  Buchse statt von Pogo-Pins.
+- Buchse → direkt an den Ladeeingang des PiSugar. **Kein #5398, keine zweite
+  Buchse, keine TPU-Lasche** (R10). Punkt 7 (zwei Ladeeingänge) entfällt.
+- **Kabelrinne:** Die hintere Nut (5.1) läuft bis zur Rückkante der Box und ist
+  so breit und tief, dass ein gewinkelter USB-C-Stecker mit Kabel darin liegt.
+  Unterwegs steht die Box so aufrecht auf dem Tisch (Maße nach CAD, R).
 - Zuleitung ≥ 3 cm von der NFC-Antenne (Punkt 10).
 - **Keine Magnete** für den Sockel.
 
@@ -169,7 +174,7 @@ jedem USB-C-Kabel. T7 prüft es.
 | T5 | Wecken (R8): Andocken bei Box aus, bei laufender Box, bei leerem Akku; Leise-Zeit | Ton/Ring wie in 4.3, nachts kein Ton |
 | T6 | Münze, Löffel, Klammer, Alufolie in Mulde und auf den Stecker, dann Box aufsetzen | nichts wird warm, Box steckt nicht oder lädt normal |
 | T7 | Wasser, Saft in die Mulde, Krümel auf den Kragen | läuft ab, Stecker trocknet, kein Fehler. Kragen mit einem Wisch sauber |
-| T8 | USB-C seitlich und Sockel gleichzeitig, eine Quelle abziehen | kein Neustart, keine Rückspeisung |
+| T8 | Unterwegs: gewinkeltes Kabel in der Kabelrinne, Box steht auf dem Tisch, Kind zieht am Kabel (Federwaage 20 N in alle Richtungen) | Box steht stabil, Buchse unbeschädigt, Kabel löst sich eher als dass die Buchse leidet |
 | T9 | Zyklen: 500× stecken (USB-C ist für ≥ 10.000 ausgelegt) | Steckkraft und Kontakt unverändert |
 | T10 | Sturz der Box aus 1 m (PSP 4.3.2), danach Boden-Buchse prüfen | Buchse fest, kein Teil lose |
 
@@ -186,16 +191,22 @@ jedem USB-C-Kabel. T7 prüft es.
 | Schrauben, Epoxy, Litze | — | 5 |
 | entfällt: Pogo-Pins in der Box (Stückliste 1.1) | — | −10 |
 | entfällt: Neodym-Magnete für die Zentrierung (Stückliste 1.1, 2× 4 Stk) | — | −8 |
-| **Summe** | | **~27 (mit Ersatz-Netzteil ~37)** |
+| entfällt: Pololu #5398 und seitliche USB-C-Buchse mit Pigtail (Stückliste 1.1, 2×) | — | −22 |
+| gewinkeltes USB-C-Kabel für unterwegs | 2 | 10 |
+| **Summe** | | **~15 (mit Ersatz-Netzteil ~25)** |
 
-Im Plan stehen 30 € (Stückliste 1.2). **Die Rev. 4 bleibt im Budget.**
+Im Plan stehen 30 € (Stückliste 1.2). **Die Rev. 4 bleibt unter dem Budget**,
+weil in der Box Teile wegfallen.
 
 ### 7.1 Abweichungen vom Plan (nach Annahme in `docs/plan/` nachtragen)
 
 | Stelle | Neu |
 |---|---|
 | Punkt 11 (Reed) | entfällt, kein Reed |
-| Abschnitt 1.4 „Load-Switch im Dock, Ideal-Diode in der Box“ | Load-Switch entfällt, Ideal-Diode bleibt |
+| Abschnitt 1.4 „Load-Switch im Dock, Ideal-Diode in der Box“ | beides entfällt |
+| Punkt 7, PSP 3.2.5 (zwei Ladeeingänge, #5398) | entfällt, eine Buchse (R10) |
+| PSP 3.6, 4.2.7 (USB-C nach außen, TPU-Lasche) | Boden-Buchse mit Kabelrinne |
+| Stückliste 1.1 „Pololu #5398“, „USB-C-Breakout + Pigtail“ | ein Sink-Breakout für die Boden-Buchse |
 | Punkt 13 / PSP 4.7.1 | keine Magnete für den Sockel |
 | Stückliste 1.1 „Pogo-Pins“, „Neodym-Magnete“ | Boden-USB-C-Buchse, keine Magnete |
 | Stückliste 1.2 | zwei Sockel nach Rev. 4 |
