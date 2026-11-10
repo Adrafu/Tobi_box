@@ -12,6 +12,11 @@
 #   - Escapes in der Spalte <zeile>: \r = CR (0x0D), \xNN = Byte NN (hex),
 #     \\ = ein Backslash. Das abschließende LF (\n) steht nie in der Spalte.
 #   - Alle Kennungen in dieser Datei sind erfundene Testwerte.
+#   - (Ein/Aus, 10.11.) Neu in Schritt 1: die Zeile LADER und das optionale Feld caps in
+#     HELLO (ein ungültiger Wert von caps gilt als fehlend, die Zeile bleibt gültig). Ein optionales Feld, das fehlt, fehlt auch in der Auslegung des Parsers
+#     (HELLO ohne caps liefert genau vier Felder). Die Abläufe in Abschnitt 3 beschreiben
+#     eine Firmware 1.x ohne caps; die Zeilen für eine Firmware mit caps=strom stehen im
+#     Ablauf "ping-resync-strom" am Ende der Datei.
 #
 # ABSCHNITT 1: Zeilen vom Leser zum Box-Dienst (Parser und Formatierer)
 #   OK|<zeile>|zeile=<TYP>|<schlüssel>=<wert>|...
@@ -98,6 +103,12 @@
 OK|HELLO proto=1 fw=1.0.0 build=a1b2c3d pn5180=4.2|zeile=HELLO|proto=1|fw=1.0.0|build=a1b2c3d|pn5180=4.2
 OK|HELLO proto=1 fw=1.2.10-rc1 build=0123456789ab-dirty pn5180=unknown|zeile=HELLO|proto=1|fw=1.2.10-rc1|build=0123456789ab-dirty|pn5180=unknown
 OK|HELLO proto=1 fw=0.1.0 build=unknown pn5180=3.9|zeile=HELLO|proto=1|fw=0.1.0|build=unknown|pn5180=3.9
+# (Ein/Aus, 10.11.) HELLO mit dem optionalen Feld caps am Ende
+OK|HELLO proto=1 fw=1.1.0 build=a1b2c3d pn5180=4.2 caps=strom|zeile=HELLO|proto=1|fw=1.1.0|build=a1b2c3d|pn5180=4.2|caps=strom
+
+# LADER (Ein/Aus, 10.11.): Strom am Eingang der Box, kein seq
+OK|LADER in=0|zeile=LADER|in=0
+OK|LADER in=1|zeile=LADER|in=1
 
 # PLACED: ISO 14443A mit 4, 7 und 10 Byte (8, 14, 20 Hexzeichen)
 OK|PLACED uid=04a1b2c3 type=ntag tonie=0 seq=0|zeile=PLACED|uid=04a1b2c3|type=ntag|tonie=0|seq=0
@@ -139,6 +150,18 @@ OKN|PLACED uid=04a1b2c3 type=ntag tonie=0 seq=1 rssi=40|zeile=PLACED|uid=04a1b2c
 OKN|HB up=2 present=0 polls=10 hits=0 rejected=0 errors=0 cycle_ms=58 temp=41|zeile=HB|up=2|present=0|polls=10|hits=0|rejected=0|errors=0|cycle_ms=58
 OKN|HELLO proto=1 fw=1.0.0 build=a1b2c3d pn5180=4.2 board=supermini|zeile=HELLO|proto=1|fw=1.0.0|build=a1b2c3d|pn5180=4.2
 OKN|REMOVED seq=7 vorgang=x|zeile=REMOVED|seq=7
+# (Ein/Aus, 10.11.) caps mit einem unbekannten Namen und mehreren Namen ist gültig; der Dienst ignoriert Unbekanntes
+OKN|HELLO proto=1 fw=1.1.0 build=a1b2c3d pn5180=4.2 caps=strom,zukunft|zeile=HELLO|proto=1|fw=1.1.0|build=a1b2c3d|pn5180=4.2|caps=strom,zukunft
+# (Ein/Aus, 10.11., V9) Ungültiges caps (Großbuchstaben, leeres Element, leerer Wert, mehr als 5 Namen) wird wie ein fehlendes behandelt:
+# die Zeile bleibt gültig, das Feld fehlt in der Auslegung des Parsers (WARNING im Dienst)
+OKN|HELLO proto=1 fw=1.1.0 build=a1b2c3d pn5180=4.2 caps=Strom|zeile=HELLO|proto=1|fw=1.1.0|build=a1b2c3d|pn5180=4.2
+OKN|HELLO proto=1 fw=1.1.0 build=a1b2c3d pn5180=4.2 caps=strom,|zeile=HELLO|proto=1|fw=1.1.0|build=a1b2c3d|pn5180=4.2
+OKN|HELLO proto=1 fw=1.1.0 build=a1b2c3d pn5180=4.2 caps=,strom|zeile=HELLO|proto=1|fw=1.1.0|build=a1b2c3d|pn5180=4.2
+OKN|HELLO proto=1 fw=1.1.0 build=a1b2c3d pn5180=4.2 caps=a,b,c,d,e,f|zeile=HELLO|proto=1|fw=1.1.0|build=a1b2c3d|pn5180=4.2
+OKN|HELLO proto=1 fw=1.1.0 build=a1b2c3d pn5180=4.2 caps=|zeile=HELLO|proto=1|fw=1.1.0|build=a1b2c3d|pn5180=4.2
+# LADER mit unbekanntem Zusatzfeld
+OKN|LADER in=1 quelle=usb|zeile=LADER|in=1
+OKN|LADER in=0\r|zeile=LADER|in=0
 # andere Feldreihenfolge
 OKN|PLACED seq=1 tonie=0 type=ntag uid=04a1b2c3|zeile=PLACED|uid=04a1b2c3|type=ntag|tonie=0|seq=1
 OKN|HELLO pn5180=4.2 build=a1b2c3d fw=1.0.0 proto=1|zeile=HELLO|proto=1|fw=1.0.0|build=a1b2c3d|pn5180=4.2
@@ -170,6 +193,8 @@ ERR|BOOT ok|unknown_type
 ERR|placed uid=04a1b2c3 type=ntag tonie=0 seq=1|unknown_type
 ERR|PLACE uid=04a1b2c3 type=ntag tonie=0 seq=1|unknown_type
 ERR|PING|unknown_type
+ERR|lader in=1|unknown_type
+ERR|LADE in=1|unknown_type
 ERR|STATISTIK Abfragen 10 Treffer 3|unknown_type
 
 # Syntax
@@ -183,6 +208,9 @@ ERR|ERR code=pn5180_timeout  detail=x|bad_syntax
 # führendes Leerzeichen und Zeilen nur aus Leerzeichen: kein Typwort
 ERR| PLACED uid=04a1b2c3 type=ntag tonie=0 seq=1|bad_syntax
 ERR| |bad_syntax
+# (Ein/Aus, 10.11.) LADER und caps: Syntaxfehler; der Typ ist groß geschrieben
+ERR|LADER in=|bad_syntax
+ERR|LADER  in=1|bad_syntax
 ERR|   |bad_syntax
 # leeres detail
 ERR|ERR code=pn5180_timeout detail=|bad_syntax
@@ -190,12 +218,16 @@ ERR|ERR code=pn5180_timeout detail=|bad_syntax
 # doppelter Schlüssel
 ERR|PLACED uid=04a1b2c3 uid=04a1b2c3 type=ntag tonie=0 seq=1|duplicate_key
 ERR|REMOVED seq=1 seq=2|duplicate_key
+ERR|LADER in=1 in=0|duplicate_key
 
 # Pflichtfeld fehlt
 ERR|PLACED uid=04a1b2c3 type=ntag tonie=0|missing_field
 ERR|LOCKED|missing_field
 ERR|REMOVED|missing_field
 ERR|HELLO proto=1 fw=1.0.0 build=a1b2c3d|missing_field
+# (Ein/Aus, 10.11.) LADER ohne Pflichtfeld in
+ERR|LADER|missing_field
+ERR|LADER quelle=usb|missing_field
 ERR|HB up=1 present=1 polls=1 hits=1 rejected=0 errors=0|missing_field
 ERR|ERR code=pn5180_timeout|missing_field
 ERR|ERR detail=x code=pn5180_timeout|missing_field
@@ -211,6 +243,10 @@ ERR|HELLO proto=0 fw=1.0.0 build=a1b2c3d pn5180=4.2|bad_value
 ERR|HELLO proto=1 fw=1.0 build=a1b2c3d pn5180=4.2|bad_value
 ERR|HELLO proto=1 fw=1.0.0 build=XYZ pn5180=4.2|bad_value
 ERR|HELLO proto=1 fw=1.0.0 build=a1b2c3d pn5180=v4|bad_value
+ERR|LADER in=2|bad_value
+ERR|LADER in=01|bad_value
+ERR|LADER in=-1|bad_value
+ERR|LADER in=ja|bad_value
 ERR|HB up=1 present=2 polls=1 hits=1 rejected=0 errors=0 cycle_ms=10|bad_value
 ERR|HB up=1 present=1 polls=1 hits=1 rejected=0 errors=0 cycle_ms=65536|bad_value
 ERR|ERR code=Bad detail=x|bad_value
@@ -657,3 +693,30 @@ STEP|1200|nichts|-
 COUNT|polls=9|hits=2|rejected=0|errors=0|present=0
 END
 
+# ===================================================================
+# (Ein/Aus, 10.11.) Firmware mit caps=strom: HELLO, danach LADER, dann die erneute Meldung
+# ===================================================================
+# Zusätzliche Zeile STROM|in=<0|1> nach PARAM: entprellter Pegel von STROM_IN für diesen
+# Ablauf (die Entprellung von STROM_IN selbst ist Sache der Firmware, Konstanten
+# STROM_ENTPRELL_*; hier steht nur das Ergebnis). Nur Abläufe mit STROM-Zeile gehören zu
+# einer Firmware mit caps=strom; ihr HELLO endet auf "caps=strom", und die Zeile LADER
+# folgt dem HELLO unmittelbar, noch vor LOCKED oder PLACED.
+
+SEQ|ping-resync-strom|Firmware mit caps=strom: PING liefert HELLO, LADER und die erneute Meldung der Figur
+PARAM|confirm_reads=2|remove_after_ms=1100|error_hold_ms=5000
+STROM|in=1
+STEP|0|uid:ntag:04a1b2c3|-
+STEP|200|uid:ntag:04a1b2c3|PLACED uid=04a1b2c3 type=ntag tonie=0 seq=0
+STEP|500|PING|HELLO proto=1 fw=* build=* pn5180=* caps=strom;LADER in=1;PLACED uid=04a1b2c3 type=ntag tonie=0 seq=0
+STEP|600|uid:ntag:04a1b2c3|-
+COUNT|polls=3|hits=3|rejected=0|errors=0|present=1
+END
+
+SEQ|ping-ohne-figur-strom-weg|Firmware mit caps=strom, kein Strom: PING liefert HELLO und LADER in=0
+PARAM|confirm_reads=2|remove_after_ms=1100|error_hold_ms=5000
+STROM|in=0
+STEP|0|nichts|-
+STEP|100|PING|HELLO proto=1 fw=* build=* pn5180=* caps=strom;LADER in=0
+STEP|200|nichts|-
+COUNT|polls=2|hits=0|rejected=0|errors=0|present=0
+END

@@ -14,10 +14,14 @@ Befehle (je eine Zeile auf stdin):
     remove                        Figur abheben (REMOVED)
     err <code> <detail>           Fehlerzeile (ERR)
     hello                         HELLO nochmals senden (setzt seq auf 0)
+    power on|off                  Strom am Eingang der Box (nur mit --strom): sendet LADER in=1|0
     quit
 
 Auf ``PING`` antwortet der Leser wie die Firmware: ``HELLO``, ``seq`` zurück auf 0 und, wenn
 ein Tobie liegt, dessen ``PLACED`` (oder ``LOCKED``) erneut mit ``seq=0``. Alle 2 s kommt ``HB``.
+
+Mit ``--strom`` spielt er eine Firmware mit ``caps=strom`` (Ein/Aus, 10.11., Schritt 1): Das ``HELLO`` endet auf ``caps=strom``, und
+unmittelbar nach jedem ``HELLO`` folgt ``LADER in=<0|1>`` (vor einer erneuten Meldung der Figur); ``power on|off`` ändert den Wert und sendet ``LADER``.
 """
 
 from __future__ import annotations
@@ -31,6 +35,7 @@ import time
 from pathlib import Path
 
 HALLO = "HELLO proto=1 fw=1.0.0 build=fa4e0000 pn5180=4.2"
+HALLO_STROM = "HELLO proto=1 fw=1.1.0 build=fa4e0000 pn5180=4.2 caps=strom"
 HB_INTERVALL_S = 2.0
 
 
@@ -38,9 +43,11 @@ class FakeReader:
     """Ein Pseudo-Terminal mit der Firmware-Seite."""
 
     def __init__(self, link: str | Path, *, hallo: str = HALLO, hb_intervall_s: float | None = HB_INTERVALL_S,
-                 antwortet_auf_ping: bool = True) -> None:
+                 antwortet_auf_ping: bool = True, strom: bool | None = None) -> None:
         self.link = Path(link)
-        self.hallo = hallo
+        #: ``None``: Firmware ohne ``caps``; ``True``/``False``: Firmware mit ``caps=strom`` und diesem Wert von ``STROM_IN``
+        self.strom = strom
+        self.hallo = HALLO_STROM if strom is not None and hallo == HALLO else hallo
         self.hb_intervall_s = hb_intervall_s
         self.antwortet_auf_ping = antwortet_auf_ping
         self.empfangen: list[str] = []
@@ -79,6 +86,13 @@ class FakeReader:
     def hello(self) -> None:
         self.seq = 0
         self.sende_zeile(self.hallo)
+        if self.strom is not None:
+            self.sende_zeile(f"LADER in={int(self.strom)}")  # unmittelbar nach jedem HELLO (reader-v1.md, Abschnitt 3)
+
+    def setze_strom(self, an: bool) -> None:
+        """``STROM_IN`` hat sich (entprellt) geändert: ``LADER`` senden."""
+        self.strom = an
+        self.sende_zeile(f"LADER in={int(an)}")
 
     def ping(self) -> None:
         """Wie die Firmware: HELLO, seq auf 0 und eine liegende Figur erneut melden."""
@@ -198,6 +212,8 @@ def befehl(leser: FakeReader, zeile: str) -> bool:
         leser.remove()
     elif wort == "hello":
         leser.hello()
+    elif wort == "power" and args in (["on"], ["off"]) and leser.strom is not None:
+        leser.setze_strom(args[0] == "on")
     elif wort == "err" and len(args) >= 2:
         leser.err(args[0], " ".join(args[1:]))
     else:
@@ -209,8 +225,10 @@ def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--link", default="/tmp/tobibox-fake/ttyACM0", help="Pfad des Symlinks auf das Pseudo-Terminal")
     p.add_argument("--kein-hb", action="store_true", help="keinen Herzschlag senden")
+    p.add_argument("--strom", choices=("an", "aus"), help="Firmware mit caps=strom spielen; Anfangswert von LADER")
     a = p.parse_args(argv)
-    with FakeReader(a.link, hb_intervall_s=None if a.kein_hb else HB_INTERVALL_S) as leser:
+    strom = None if a.strom is None else a.strom == "an"
+    with FakeReader(a.link, hb_intervall_s=None if a.kein_hb else HB_INTERVALL_S, strom=strom) as leser:
         print(f"falscher Leser auf {leser.link} -> {leser.pfad}", file=sys.stderr)
         leser.hello()
         for zeile in sys.stdin:

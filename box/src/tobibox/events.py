@@ -160,6 +160,9 @@ class LeserHallo(Ereignis):
     fw: str
     build: str
     pn5180: str
+    #: Fähigkeiten der Firmware, unverändert aus dem optionalen Feld ``caps`` (Liste durch Komma); ``""`` bei Firmware 1.x
+    #: (Ein/Aus, 10.11.).
+    caps: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -290,7 +293,9 @@ class ResumeGeladen(Ereignis):
 
 @dataclass(frozen=True, slots=True)
 class Bereit(Ereignis):
-    pass
+    #: Der Frühdienst hat den Start-Ton schon entschieden (gespielt oder bewusst unterlassen); ``session`` spielt dann keinen
+    #: ``start`` (Ein/Aus, 10.11.).
+    fruehton: bool = False
 
 
 # --------------------------------------------------------------------------
@@ -384,6 +389,8 @@ class KopfhoererLesbar(Ereignis):
 @dataclass(frozen=True, slots=True)
 class LaderGeaendert(Ereignis):
     am_lader: bool
+    #: Wer den Wert meldet (Ein/Aus, 10.11.): ``pisugar-server`` (``power``) oder der Leser (Zeile ``LADER``).
+    quelle: Literal["pisugar", "leser"] = "pisugar"
 
 
 @dataclass(frozen=True, slots=True)
@@ -587,6 +594,7 @@ class TonSpielen(Befehl):
         "lernen_beginn",
         "lernen_ende",
         "akku_leer",
+        "lader",
         "pruef_ok",
         "pruef_fehler",
     ]
@@ -642,6 +650,18 @@ class SyncAbbrechen(Befehl):
 class UpdateStarten(Befehl):
     befehl_id: str
     version: str
+
+
+@dataclass(frozen=True, slots=True)
+class AkkuAnzeigen(Befehl):
+    """Der Ring zeigt den Ladestand ``dauer_s`` lang (Ein/Aus, 10.11.): Freigabe der Andock- und Abzieh-Anzeige durch ``idle``.
+
+    ``idle`` gibt ihn aus, wenn die Sperre ``LADER_SPERRE_S`` frei ist; ``led`` setzt ihn um (``nachfuehrung.stufe_4``). Der Kern
+    befiehlt den Ring damit nicht: Er gibt nur die Erlaubnis aus der einen Stelle, die Sperre und erste Messung kennt. ``app`` führt
+    den Befehl nicht aus (kein Ausführer außer ``led``)."""
+
+    grund: Literal["andocken", "abziehen"]
+    dauer_s: float
 
 
 @dataclass(frozen=True, slots=True)

@@ -90,15 +90,18 @@ async def test_gpio_tasten_starten_mit_den_pins_und_senden_in_den_kern(tmp_path,
         # gpiozero ruft aus einem eigenen Thread: das Ereignis muss sicher in die Schleife kommen
         await asyncio.to_thread(tasten[5].when_pressed)
         await asyncio.to_thread(tasten[6].when_pressed)
+        # das Ereignis kommt über ``call_soon_threadsafe``: auf die Schleife warten, nicht nur auf eine leere Schlange (Wettlauf unter Last)
+        await dienst.warte(lambda: "Weiter" in a.gesehen and "Zurueck" in a.gesehen, text="Tasten")
         await dienst.ruhe()
-        assert "Weiter" in a.gesehen and "Zurueck" in a.gesehen
         w0 = a.kern.wunsch
         await asyncio.to_thread(tasten[12].when_rotated_clockwise)
+        await dienst.warte(lambda: a.kern.wunsch == w0 + 2, text="Drehregler")
         await dienst.ruhe()
         assert a.kern.wunsch == w0 + 2
         assert tasten[26].kw["hold_time"] == 1.0
         await asyncio.to_thread(tasten[26].when_pressed)
         await asyncio.to_thread(tasten[26].when_held)
+        await dienst.warte(lambda: a.kern.teil["idle"].modus == "herunterfahren", text="Hauptknopf lang")
         await dienst.ruhe()
         assert a.kern.teil["idle"].modus == "herunterfahren"  # Hauptknopf lang
     finally:
@@ -213,7 +216,7 @@ async def test_hauptknopf_lang_geht_als_herunterfahren_an_power(d):
     assert a.kern.teil["idle"].modus == "herunterfahren"
 
 
-async def test_leerlauf_nach_20_minuten_geht_als_herunterfahren_an_power(d):
+async def test_leerlauf_nach_10_minuten_ohne_strom_geht_als_herunterfahren_an_power(d):
     a = d.app
     gefahren: list = []
 
@@ -221,7 +224,9 @@ async def test_leerlauf_nach_20_minuten_geht_als_herunterfahren_an_power(d):
         gefahren.append(b)
 
     a.power.fuehre_aus = fuehre_aus
-    await d.zeit_vor(1190)
+    await d.sim(befehl="strom", lader=False, akku=80)  # ohne Strom am Eingang (Ein/Aus, 10.11.)
+    await d.ruhe()
+    await d.zeit_vor(590)
     assert gefahren == []
     await d.zeit_vor(20)
     assert gefahren == [ev.Herunterfahren("leerlauf")]
@@ -235,17 +240,19 @@ async def test_tobie_haelt_die_box_wach_und_bedienung_setzt_den_zaehler_zurueck(
         gefahren.append(b)
 
     a.power.fuehre_aus = fuehre_aus
-    await d.zeit_vor(1190)
+    await d.sim(befehl="strom", lader=False, akku=80)
+    await d.ruhe()
+    await d.zeit_vor(590)
     a.bedienung.drehen(1)  # Bedienung: der Zähler beginnt neu
     await d.ruhe()
     await d.zeit_vor(100)
     assert gefahren == []
-    await d.zeit_vor(1100)
+    await d.zeit_vor(520)
     assert gefahren == [ev.Herunterfahren("leerlauf")]
 
 
-async def test_start_am_lader_wiederholt_den_sync_ohne_sync_abschnitt_nicht(d):
-    """Ohne ``[sync]`` meldet ``app`` ``nicht_eingerichtet``: ``idle`` wiederholt nicht und die Box schaltet nach 20 min ab."""
+async def test_am_strom_schaltet_die_box_nie_von_selbst_ab_auch_ohne_sync_abschnitt(d):
+    """Ohne ``[sync]`` meldet ``app`` ``nicht_eingerichtet``; mit Strom am Eingang gibt es keine Frist (Ein/Aus, 10.11.)."""
     a = d.app
     gefahren: list = []
 
@@ -255,8 +262,13 @@ async def test_start_am_lader_wiederholt_den_sync_ohne_sync_abschnitt_nicht(d):
     a.power.fuehre_aus = fuehre_aus
     await d.sim(befehl="strom", lader=True, akku=80)
     await d.ruhe()
-    assert a.kern.teil["idle"].wdh_bei is None
-    await d.zeit_vor(1300)
+    await d.zeit_vor(3000)
+    assert gefahren == []
+    await d.sim(befehl="strom", lader=False)  # abgenommen: 10 min ab jetzt
+    await d.ruhe()
+    await d.zeit_vor(590)
+    assert gefahren == []
+    await d.zeit_vor(20)
     assert gefahren == [ev.Herunterfahren("leerlauf")]
 
 

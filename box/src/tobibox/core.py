@@ -41,7 +41,7 @@ TEILAUTOMATEN: tuple[tuple[str, ModuleType], ...] = (
 
 MAX_EREIGNISSE = 32
 
-_TOENE_UNTER_STUMM = frozenset({"start", "unbekannt", "lernen_beginn", "lernen_ende", "fehler", "akku_leer"})
+_TOENE_UNTER_STUMM = frozenset({"unbekannt", "lernen_beginn", "lernen_ende", "fehler", "akku_leer"})
 
 _RANG: dict[type, int] = {
     ev.LautstaerkeSetzen: 1,
@@ -55,6 +55,7 @@ _RANG: dict[type, int] = {
     ev.EreignisSenden: 7,
     ev.LeserPing: 7,
     ev.ZustandMelden: 7,
+    ev.AkkuAnzeigen: 7,
     ev.Protokoll: 7,
     ev.SyncAbbrechen: 8,
     ev.SyncStarten: 9,
@@ -107,7 +108,7 @@ def _prozent(wert: int) -> int:
     return max(0, min(100, int(wert)))
 
 
-def _konflikte(befehle: list, ruhe: str) -> list:
+def _konflikte(befehle: list, ruhe: str, zeit_ok: bool = True, lernt: bool = False) -> list:
     """Konfliktregeln 1 bis 5 (6 und 7 betreffen die Lautstärke, siehe ``step``)."""
     # 1. Herunterfahren hat Vorrang
     if any(isinstance(b, ev.Herunterfahren) for b in befehle):
@@ -115,10 +116,15 @@ def _konflikte(befehle: list, ruhe: str) -> list:
         befehle = [b for b in befehle if not isinstance(b, weg)]
     # 2. Töne unter „stumm“
     if ruhe == "stumm":
+        # der Start-Ton entfällt unter „stumm“ ganz, auch ohne Frühdienst (V5, Ein/Aus, 10.11.; R10): kein ``hinweis`` als Ersatz
+        befehle = [b for b in befehle if not (isinstance(b, ev.TonSpielen) and b.ton == "start")]
         befehle = [
             ev.TonSpielen("hinweis") if isinstance(b, ev.TonSpielen) and b.ton in _TOENE_UNTER_STUMM else b
             for b in befehle
         ]
+    # 2a. Lader-Ton (Ein/Aus, 10.11.): gestrichen, nicht ersetzt, in Leise-Zeiten, bei unsicherer Uhr und im Lernmodus
+    if ruhe != "normal" or not zeit_ok or lernt:
+        befehle = [b for b in befehle if not (isinstance(b, ev.TonSpielen) and b.ton == "lader")]
     # 3. doppelte Töne
     gesehen_ton: set[str] = set()
     ergebnis = []
@@ -228,8 +234,8 @@ def step(
         befehle.append(ev.Herunterfahren(herunterfahren))  # type: ignore[arg-type]
 
     # Konfliktregeln 1 bis 5
-    ruhe = _zusammenfassung(teil).ruhe
-    befehle = _konflikte(befehle, ruhe)
+    zus_konflikt = _zusammenfassung(teil)
+    befehle = _konflikte(befehle, zus_konflikt.ruhe, jetzt.zeit_ok, zus_konflikt.lernmodus)
 
     # Lautstärke: Nettowert am Ende (Abschnitt 8), Regeln 6 und 7
     cand = ev.LautstaerkeSetzen(klemmen(wunsch, grenzen), wirksame_grenze(grenzen))

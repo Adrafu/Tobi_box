@@ -54,7 +54,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
 
-from . import __version__, bootid, core, eventlog, lauf, library, nachfuehrung, notify, selftest, store
+from . import __version__, bootid, core, eventlog, fruehton, lauf, library, nachfuehrung, notify, selftest, store, uhrregel
 from . import config as konfig_modul
 from . import events as ev
 from .clock import SystemUhr, Uhr
@@ -85,6 +85,9 @@ SIM_HOTSPOT_SSID = "sim-hotspot"
 NETZ_KLASSE_WARTEN_S = 30.0
 #: Pi ohne ``[netz]`` und ``[strom]``: so oft prüft ``App`` die NTP-Synchronisierung der Systemuhr (B15).
 SYSTEMUHR_PRUEFEN_S = 10.0
+#: Steht die Marke des Frühtons auf ``start``, wartet ``App`` mit jedem Ton des Kerns bis ``fertig``, höchstens so lange ab ``Bereit`` (Ein/Aus, 10.11.).
+FRUEHTON_WARTEN_S = 3.0
+FRUEHTON_PRUEFEN_S = 0.1
 #: Vor dem Herunterfahren wartet ``App`` höchstens so lange auf den Ton ``akku_leer`` (B12).
 TON_VOR_HERUNTERFAHREN_S = 5.0
 UPDATE_NOCH_NICHT_TEXT = "Update kommt mit Stufe 3b."
@@ -152,11 +155,15 @@ class App:
         melde_bereit: bool = True,
         boot_id: bootid.BootId = bootid.lese,
         ring_ausgabe: Callable[[str], None] | None = None,
+        marken: Path | str | None = None,
     ) -> None:
         self.konfig = konfig
         self.uhr: Uhr = uhr or SystemUhr()
         self._melde_bereit = melde_bereit
         self._boot_id = boot_id
+        self._marken = Path(marken) if marken is not None else fruehton.MARKEN_VERZEICHNIS  # Marke des Frühtons (``fruehton.py``)
+        self._fruehton_wort: str | None = None  # ``start``, solange der Frühton noch läuft und ``app`` auf ihn wartet
+        self._fruehton_bis = 0.0
         self._marker_uid: str | None = None  # zuletzt in ``lauf.json`` festgehaltener Tobie
         self._letzter_vorgang: str | None = None
         self._herunterfahren = False  # nach Herunterfahren kein Marker mehr
@@ -190,6 +197,7 @@ class App:
             vor=self._ton_vor,
             nach=self._ton_nach,
             pegel_quelle=self._ton_pegel,
+            bevor=self._warte_fruehton,
         )
         self._start: _Start | None = None  # verzögerter Start, solange er auf die Töne wartet
         # Pegel der Töne (Entscheidung J, 09.11.): die **dauerhafte** wirksame Grenze und Lautstärke des Kerns, ohne die
@@ -224,7 +232,7 @@ class App:
             )
         if k.netz is not None or k.strom is not None:
             # Am Mac (alles ``sim``) gilt die Systemuhr; sonst bewerten NTP (``net``) und RTC (``power``) die Uhr.
-            system = all(a.simulation for a in (k.netz, k.strom) if a is not None)
+            system = uhrregel.alle_sim(k.netz, k.strom)
             self.zeitquelle = Zeitquelle(system=system)
             self._uebernimm_zeitquelle(self.zeitquelle.quelle, self.zeitquelle.vertrauenswuerdig)
         if k.netz is not None:
@@ -259,8 +267,7 @@ class App:
         ``[uhr] ntp_pflicht`` überstimmt die Vorgabe nach dem Betriebssystem (es gibt keine Abfrage „bin ich am Mac?“ im Dienst)."""
         if not isinstance(self.uhr, SystemUhr):
             return False
-        vorgabe = self.konfig.uhr.ntp_pflicht
-        return sys.platform.startswith("linux") if vorgabe is None else vorgabe
+        return uhrregel.systemuhr_pruefen_noetig(self.konfig.uhr.ntp_pflicht)
 
     def _baue_stufe_4(self, ring_ausgabe: Callable[[str], None] | None) -> None:
         """LED-Ring, Tasten und Drehregler, Kopfhörer-Buchse (AP 4.8). Ohne Abschnitt in der Konfiguration gilt ``sim``."""
@@ -473,7 +480,8 @@ class App:
             sy.setze_netz(e.klasse)
             self._netz_bekannt.set()
         elif isinstance(e, ev.LaderGeaendert):
-            sy.setze_lader(e.am_lader)
+            if self.status.lader is not None:
+                sy.setze_lader(self.status.lader)  # der zusammengeführte Wert beider Quellen (Ein/Aus, 10.11.); ``status`` hat ``e`` schon gesehen
         elif isinstance(e, ev.AkkuStand):
             sy.setze_akku(e.prozent)
         elif isinstance(e, ev.SyncFertig) and (e.neu or e.geloescht):
@@ -594,6 +602,8 @@ class App:
                 await self.power.fuehre_aus(b)
             else:  # kein ``[strom]``: nichts, was herunterfährt (Mac)
                 self.ereignisse.put_nowait(ev.HerunterfahrenFehlgeschlagen("", simuliert=True))
+        elif isinstance(b, ev.AkkuAnzeigen):
+            pass  # setzt ``led`` um (``nachfuehrung.stufe_4``), kein Ausführer
         elif isinstance(b, ev.ZustandMelden):
             pass  # der Statussammler hat sie in ``verarbeite`` schon gesehen
         elif isinstance(b, ev.Melden):
@@ -921,7 +931,7 @@ class App:
         self._loop = asyncio.get_running_loop()
         # Kopfhörer: erste Messung nach ``GeraeteEinstellungen`` (sie stehen vorn in der Schlange), vor ``Bereit``
         await self.buchse.start()
-        self.ereignisse.put_nowait(ev.Bereit())
+        self.ereignisse.put_nowait(ev.Bereit(fruehton=self._fruehton_auswerten()))
         await self._leere_ereignisse()
         if not self.konfig.leser.simulation:
             self.leser.start()
@@ -940,6 +950,33 @@ class App:
         if self._melde_bereit:
             notify.bereit()
         eventlog.logge("app", "INFO", "bereit", "ok")
+
+    def _fruehton_auswerten(self) -> bool:
+        """Die Marke des Frühtons **bei ``Bereit``** lesen (V1, Ein/Aus, 10.11.) und die Gegenmarke setzen.
+
+        Gibt es noch keine Marke, legt ``app`` ``uebernommen`` an: Ein später startender Frühdienst darf dann nicht mehr spielen
+        (nie zwei Töne). War eine Marke da, spielt der Kern keinen ``start`` (``Bereit.fruehton``). Bei einem Dienst-Neustart ohne Ausschalten
+        (gleiche Boot-Kennung wie in ``lauf.json``) wird die Marke ignoriert."""
+        neustart = lauf.gleicher_start(self.konfig.pfade.zustand, self._boot_id())
+        wort = fruehton.uebernimm_marke(self._marken, neustart=neustart)
+        eventlog.logge("app", "INFO", "fruehton", wort or ("neustart" if neustart else "keiner_da"))
+        if wort == fruehton.START:
+            self._fruehton_wort = wort
+            self._fruehton_bis = time.monotonic() + FRUEHTON_WARTEN_S
+        elif wort is not None:
+            fruehton.loesche_marke(self._marken)  # ``keiner`` oder ``fertig``: erledigt
+        return wort is not None
+
+    async def _warte_fruehton(self) -> None:
+        """Vor jedem Ton des Kerns: Läuft der Frühton noch (Marke ``start``), warten bis ``fertig``, höchstens ``FRUEHTON_WARTEN_S`` ab ``Bereit``."""
+        if self._fruehton_wort != fruehton.START:
+            return
+        while time.monotonic() < self._fruehton_bis and fruehton.lese_marke(self._marken) == fruehton.START:
+            await asyncio.sleep(FRUEHTON_PRUEFEN_S)
+        if fruehton.lese_marke(self._marken) == fruehton.START:
+            eventlog.logge("app", "WARNING", "fruehton", "frist_um", daten={"frist_s": FRUEHTON_WARTEN_S})
+        self._fruehton_wort = None
+        fruehton.loesche_marke(self._marken)
 
     async def _starte_stufe_3a(self) -> None:
         """HA, Netz und Strom starten, nachdem ``Bereit`` verarbeitet ist (ihre Ereignisse treffen einen bereiten Kern)."""

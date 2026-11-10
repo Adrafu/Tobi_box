@@ -99,7 +99,8 @@
   <section>
     <h2>Schalter</h2>
     <div class="zeile"><label><input type="checkbox" id="kopfhoerer" data-eingang="kopfhoerer"> Kopfhörer eingesteckt</label></div>
-    <div class="zeile"><label><input type="checkbox" id="lader" data-eingang="strom"> Ladegerät dran</label></div>
+    <div class="zeile"><label><input type="checkbox" id="lader" data-eingang="strom"> Strom am Eingang (pisugar-server)</label></div>
+    <div class="zeile"><label><input type="checkbox" id="lader-leser" data-eingang="strom"> Strom am Eingang (Leser, Zeile LADER; bei Widerspruch gilt der Leser)</label></div>
     <div class="zeile">
       <label for="akku">Akku</label>
       <input type="range" id="akku" min="0" max="100" step="1" value="80" data-eingang="strom">
@@ -419,6 +420,7 @@ document.querySelectorAll("[data-regler]").forEach((b) => { b.onclick = () => se
 document.querySelectorAll("[data-netz]").forEach((b) => { b.onclick = () => senden({ befehl: "netz", klasse: b.dataset.netz }); });
 $("kopfhoerer").onchange = (e) => senden({ befehl: "kopfhoerer", steckt: e.target.checked });
 $("lader").onchange = (e) => senden({ befehl: "strom", lader: e.target.checked });
+$("lader-leser").onchange = (e) => senden({ befehl: "strom", lader: e.target.checked, quelle: "leser" });
 $("akku").oninput = (e) => { akkuZiehen = true; $("akku-wert").textContent = e.target.value + " %"; };
 $("akku").onchange = async (e) => { await senden({ befehl: "strom", akku: Number(e.target.value) }); akkuZiehen = false; };
 $("unbekannt").onclick = () => senden({ befehl: "tobie_auflegen", zufall: true });

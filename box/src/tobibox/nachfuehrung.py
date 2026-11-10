@@ -31,10 +31,10 @@ def stufe_4(
     led: LedLogik, bedienung: Bedienung | None, kern: KernZustand, e: ev.Ereignis, befehle: Sequence[ev.Befehl], mono: float
 ) -> None:
     """Ring und Bedienung folgen dem Kern: jede ``ZustandMelden`` und die Strom-Ereignisse an ``led``, Lautstärke an ``controls``."""
-    led.beobachte(e, mono)  # Bereit, AkkuStand, LaderGeaendert, AkkuTiefstand
+    led.beobachte(e, mono)  # Bereit, AkkuStand, LaderGeaendert, AkkuTiefstand, LeserHallo, LeserAlarm
     for b in befehle:
-        if isinstance(b, ev.ZustandMelden):
-            led.beobachte(b, mono)
+        if isinstance(b, (ev.ZustandMelden, ev.AkkuAnzeigen)):
+            led.beobachte(b, mono)  # ``AkkuAnzeigen``: Freigabe der Andock- und Abzieh-Anzeige durch ``idle`` (Ein/Aus, 10.11.)
     if any(isinstance(b, ev.Melden) and b.art == "unbekannt" for b in befehle):
         led.unbekannter_tobie(mono)  # ein unbekannter Tobie wurde aufgelegt (auch unter „stumm“); nach dem ``ZustandMelden``: Aufwachen geht vor
     nachfuehren_lautstaerke(bedienung, kern)

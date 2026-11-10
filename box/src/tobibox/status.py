@@ -16,6 +16,7 @@ from . import events as ev
 from .events import Jetzt
 from .outbox import zeitstempel
 from .protocol import PROTO_UNTERSTUETZT
+from .stromwert import StromQuellen
 from .sync import SyncFortschritt
 
 LESER_FEHLER_FENSTER_S = 10.0  # 12.2: ein ``LeserFehler`` mit schwere ``fehler`` zählt so lange
@@ -31,7 +32,7 @@ class Statussammler:
         self.netz = "offline"
         self.ha_verbunden = False
         self.akku: int | None = None
-        self.lader: bool | None = None
+        self.strom_quellen = StromQuellen()  # Strom am Eingang: ``pisugar-server`` und Leser, bei Widerspruch der Leser (Ein/Aus, 10.11.)
         self.zustand: ev.ZustandMelden | None = None
         self.konfig: ev.Konfig | None = None
         self.letzter_fehler: dict[str, Any] | None = None
@@ -42,6 +43,11 @@ class Statussammler:
         #: bleibt Version 1). Nur für ``tobibox status`` und die Simulations-Oberfläche. ``None``, wenn kein Sync läuft.
         self.sync_fortschritt: dict[str, int] | None = None
         self.jetzt: Jetzt | None = None
+
+    @property
+    def lader(self) -> bool | None:
+        """Strom am Eingang der Box, aus jeder Quelle (Ein/Aus, 10.11.); ``None`` bis eine Quelle einen Wert geliefert hat."""
+        return self.strom_quellen.wert
 
     # -- füttern ---------------------------------------------------------------------
 
@@ -61,7 +67,7 @@ class Statussammler:
         elif isinstance(e, ev.AkkuStand):
             self.akku = e.prozent
         elif isinstance(e, ev.LaderGeaendert):
-            self.lader = e.am_lader
+            self.strom_quellen = self.strom_quellen.mit(e)
         elif isinstance(e, ev.KonfigGeladen):
             self.konfig = e.konfig
         elif isinstance(e, ev.SyncGestartet):

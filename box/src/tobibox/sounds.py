@@ -12,7 +12,7 @@ Pegeloption nie lauter als die Grenze.
 Pegel in Prozent (Entscheidung J, 09.11.): alle Töne außer ``hinweis``:
 ``min(grenze, max(TON_MINDEST, lautstaerke))``, also die aktuelle Lautstärke der Sitzung,
 nie über der wirksamen Grenze und nie unter der Untergrenze 10, solange diese unter der Grenze liegt;
-``hinweis``: ``min(grenze, max(HINWEIS_MINDEST, min(hinweis_pegel, lautstaerke)))`` (Vorgabe 15, Untergrenze 10).
+``hinweis`` und ``lader``: ``min(grenze, max(HINWEIS_MINDEST, min(hinweis_pegel, lautstaerke)))`` (Vorgabe 15, Untergrenze 10).
 Die Grenze ist für alle Töne der letzte Schritt: sie gewinnt immer (Gehörschutz). Den Pegel berechnet die Tonspur
 erst, wenn der Ton wirklich an der Reihe ist (``pegel_quelle``), nicht beim Einreihen. Ohne Tondatei, oder
 wenn die Datei kein 16-Bit-PCM ist (nicht sicher skalierbar), wird nichts gestartet.
@@ -51,6 +51,8 @@ from .eventlog import logge
 
 TON_MINDEST = 10  # Untergrenze der Ton-Lautstärke in Prozent: ein Ton bleibt hörbar (Entscheidung J)
 HINWEIS_PEGEL_VORGABE = 15
+#: Töne mit dem leisen Pegel von ``hinweis``: der Hinweiston unter „stumm“ und der Lader-Ton (Ein/Aus, 10.11.; nur in normalen Zeiten)
+HINWEIS_PEGEL_TOENE = frozenset({"hinweis", "lader"})
 HINWEIS_MINDEST = 10  # unter „stumm“ (Lautstärke 0) bleibt der Hinweiston hörbar; wie TON_MINDEST
 TON_MAX_S = 10.0  # ein hängendes Abspielprogramm wird danach beendet; die Wiedergabe wartet nie länger auf einen Ton
 FOLGE_PAUSE_S = 0.15  # Stille zwischen zwei Tönen einer Tonfolge (in der einen Datei, kein Prozess dazwischen)
@@ -65,7 +67,7 @@ def pegel(ton: str, grenze: int, lautstaerke: int | None = None, hinweis_pegel: 
     """
     grenze = max(0, min(100, int(grenze)))
     laut = grenze if lautstaerke is None else max(0, min(100, int(lautstaerke), grenze))
-    if ton == "hinweis":
+    if ton in HINWEIS_PEGEL_TOENE:
         h = HINWEIS_PEGEL_VORGABE if hinweis_pegel is None else hinweis_pegel
         return min(grenze, max(HINWEIS_MINDEST, min(h, laut)))  # die Grenze gewinnt immer (Gehörschutz, B7)
     return min(grenze, max(TON_MINDEST, laut))
@@ -224,6 +226,7 @@ class Toene:
         nach: Haken | None = None,
         ton_max_s: float | None = None,
         pegel_quelle: Pegelquelle | None = None,
+        bevor: Haken | None = None,
     ) -> None:
         self.ordner = Path(ordner)
         self.kommando = tuple(kommando)
@@ -232,6 +235,7 @@ class Toene:
         self._starter = starter or _starte_prozess
         self._vor = vor
         self._nach = nach
+        self._bevor = bevor  # läuft vor jeder Tonfolge (``app``: warten, bis der Frühton zu Ende ist, Ein/Aus, 10.11.)
         self._pegel_quelle = pegel_quelle
         # je Aufruf von ``spiele`` / ``spiele_folge`` eine Gruppe aus (Ton, feste Pegel-Werte oder ``None`` für die Quelle)
         self._eintraege: deque[list[tuple[str, _Werte | None]]] = deque()
@@ -356,6 +360,7 @@ class Toene:
     async def _arbeit(self) -> None:
         try:
             while self._eintraege:
+                await self._haken(self._bevor, "bevor")
                 await self._haken(self._vor, "vor")
                 try:
                     while self._eintraege:

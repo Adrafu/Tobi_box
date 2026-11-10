@@ -156,6 +156,22 @@ Lücken: Aussetzer bis 1,0 s liegen unter der Schwelle von 1,1 s und führen zu 
 MPD-Puffer (feste Startwerte): `audio_buffer_size` 1024 KiB, `buffer_before_play`
 nicht gesetzt (MPD-Vorgabe, die Option ist in MPD 0.23 veraltet), ALSA-`buffer_time` 100000 µs. Die Messung justiert sie.
 
+### Einschalten (Ein/Aus, Schritt 1; Ziele des Entwurfs `docs/egm/ein-aus/design_draft.md`, 6.1, [Schätzung], am Pi zu messen)
+
+Die Zeiten zählen ab **5 V am Pi**. Die Firmware des ESP32 braucht davor etwa 1,25 s (Schätzung, Messung M10); `box/tools/measure_boot.py` rechnet sie dazu (`--firmware-s`).
+Der Frühdienst (`tobibox-fruehton.service`) spielt den Start-Ton vor dem Box-Dienst; `Bereit` hängt nur an MPD.
+
+| Messpunkt | Soll (höchstens) | Rückfall |
+|---|---|---|
+| 5 V am Pi bis Frühton zu Ende | 5 s | Frühdienst entfällt (der Kern spielt `start`), wenn der Python-Start zu lang dauert (M-P2) |
+| 5 V am Pi bis `Bereit` | 8,5 s | 15 s (E13) |
+| Auflegen aus *Aus* bis Hörspiel | 10 s (Schritt 2, mit Wecken) | 15 s |
+| Auflegen in *Bereit* bis Hörspiel | 3 s (gemessen wie oben: 0,94 s im Dienst) | – |
+
+Der Frühton und die Töne des Kerns überlagern sich nie: Steht die Marke `/run/tobibox/fruehton` auf `start`, wartet der Kern mit seinem ersten Ton bis `fertig`, höchstens 3 s ab `Bereit`
+(`FRUEHTON_WARTEN_S`); das verlängert den Weg bis zum Hörspiel eines **unbekannten** Tobies in dieser Zeit um den Rest des Frühtons, nicht den eines bekannten (er hat keinen Ton).
+Der Lader-Ton verlängert nichts: Er kommt nur beim Andocken und nie neben einem Hörspiel.
+
 ## 4. Werte ohne Hardware (Container)
 
 Gemessen mit `box/tools/measure_service_latency.py --n 20` am 06.11.2026: echte `App`,

@@ -6,9 +6,11 @@
 *   **Gilt für:** Modul `ha` des Box-Dienstes und `mqtt.py` der
     HA-Integration `tobibox`. Schemas der Inhalte: `data-model.md`. Ereignisse
     und Befehle im Kern: `core-interface.md`.
-*   **Änderung 10.11. (Ein/Aus, 10.11.; Klarstellung):** Das Statusfeld `lader` (3.3) und der Sensor „Lader“ (6.2) bedeuten ab jetzt
-    **Strom am Eingang der Box aus jeder Quelle** (Netzteil, Sockel, Kabel, Powerbank), nicht mehr nur „Ladegerät“; bei zwei Quellen gilt der Leser
-    (`core-interface.md`, Abschnitt 9, Punkt 9). Name, Typ und `v` bleiben, kein neues Feld.
+*   **Änderung 10.11. (Ein/Aus, 10.11.; Klarstellung):** Das Statusfeld `lader` (3.3) und der Sensor „Lader“ (6.2) bleiben, wie sie
+    waren: Es war schon immer der Wert „externer Strom“ des PiSugar (`battery_power_plugged`), also Strom am Eingang aus jeder Quelle (Netzteil, Sockel, Kabel,
+    Powerbank), nicht „lädt gerade“. Die Bedeutung ändert sich nicht (V8); dieser Text stellt es nur klar. Neu ist nur, woher der Wert kommt: bei zwei Quellen
+    (`pisugar-server` und Leser) gilt der Leser (`core-interface.md`, Abschnitt 9, Punkt 9). Name, Typ, `device_class` und `v` bleiben, kein neues Feld;
+    die Versionsregel (Abschnitt 8) verlangt deshalb kein neues `v`.
 *   **Änderung 09.11. (Befunde des Code-Reviews zu AP 3.7 und 4.8, Entscheidung P, Rev. 3.17):** `event` `fehler` bekommt zwei
     Codes der Box (3.4): `kopfhoerer_unlesbar` (Entscheidung P: der Kopfhörer-Kontakt ist nicht lesbar, es gilt die Kopfhörer-Grenze)
     und `herunterfahren_fehlgeschlagen` (B1). `befehl_abgelehnt` für `update` nennt bis Stufe 3b `detail` „Update kommt mit Stufe 3b.“ (B16).

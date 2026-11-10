@@ -1138,7 +1138,7 @@ Jede Zeile auf `sim.sock` ist ein JSON-Objekt mit dem Schlüssel `befehl` und wi
 | `regler` | `delta`: ganze Zahl, nicht 0, höchstens 20 in Betrag (Prozentpunkte) | `LautstaerkeDrehen(delta)` über `Bedienung` wie der echte Drehregler (seit B14: „lauter“ über der Grenze sendet nichts, der Wunsch bleibt) | wirkt (der Kern klemmt an der Grenze); `tobibox sim knob +N\|-N` dreht N Rasten zu je 2 Prozentpunkten (höchstens 10) |
 | `kopfhoerer` | `steckt`: `true` oder `false` | `Kopfhoerer(steckt)` | wirkt (Grenze und Ausgang der Sitzung); `tobibox sim headphones on\|off`. Mit `[kopfhoerer] quelle = "sim"` (Vorgabe) stellt `sim` den simulierten Schaltkontakt, und die `Buchse` meldet; bei `gpio` kommt der Stecker von der echten Buchse |
 | `zeit` | `iso`: Zeitpunkt in ISO 8601 (ohne Zone: Ortszeit des Rechners) oder `null` | stellt die Wanduhr des Dienstes (kein Ereignis); Antwort `{"ok": true, "wall": …}` | wirkt seit AP 4.8 (`tobibox sim time <ISO>\|now`), für die Leise-Zeiten. Die Uhr läuft von dort weiter, Timer und Fristen bleiben unberührt |
-| `strom` | `lader`: bool und/oder `akku`: 0 bis 100 | `LaderGeaendert`, `AkkuStand` | wirkt seit AP 3.7 (`tobibox sim power --charger on\|off --battery N`); mit `[strom] quelle = "sim"` stellt `sim` den Treiber ein und `power` meldet, sonst gibt `sim` die Ereignisse selbst aus |
+| `strom` | `lader`: bool und/oder `akku`: 0 bis 100; optional `quelle`: `pisugar` (Vorgabe) oder `leser` (nur mit `lader`, Ein/Aus Schritt 1: wie die Zeile `LADER`, Vorrang bei Widerspruch; `tobibox sim power --charger on --source leser`) | `LaderGeaendert` (mit `quelle`), `AkkuStand` | wirkt seit AP 3.7 (`tobibox sim power --charger on\|off --battery N`); mit `[strom] quelle = "sim"` stellt `sim` den Treiber ein und `power` meldet, sonst gibt `sim` die Ereignisse selbst aus |
 | `netz` | `klasse`: `home`, `hotspot`, `offline` | `NetzKlasse(klasse)` | wirkt seit AP 3.7 (`tobibox sim net home\|hotspot\|offline`); mit `[netz] quelle = "sim"` setzt `sim` das simulierte WLAN (Namen aus `heim_ssid`/`hotspot_ssid`, sonst `sim-heim`/`sim-hotspot`) und `net` klassifiziert, sonst gibt `sim` das Ereignis selbst aus |
 | `tobie_auflegen` | `uid` (Kennung wie in `config.json`) oder `"zufall": true` | `Aufgelegt` (vorher `Abgehoben`, wenn schon einer liegt); Antwort mit `uid` und `vorgang` | wirkt |
 | `tobie_gesperrt` | – | `Gesperrt` (vorher `Abgehoben`, wenn schon einer liegt) | wirkt |
@@ -1202,7 +1202,7 @@ Ab hier steht `"$LOG"` für das Protokoll. In einem neuen Terminal beide Zeilen 
 
 **Wie du Schritte schneller machst.** `tobibox sim time` stellt nur die **Wanduhr** (für Leise-Zeiten und Lesezeichen).
 Timer und Fristen laufen auf der monotonen Uhr und lassen sich nicht vorspulen: der Gute-Nacht-Timer, das Ausblenden
-und der Leerlauf von 20 Minuten. Dafür gibt es zwei Auswege: In 13.1 stellst du den Gute-Nacht-Timer auf 1 Minute und das
+und der Leerlauf von 10 Minuten (ohne Strom, seit Ein/Aus Schritt 1). Dafür gibt es zwei Auswege: In 13.1 stellst du den Gute-Nacht-Timer auf 1 Minute und das
 Ausblenden auf 5 Sekunden, und in 13.8 gibt es einen Kurzstart mit 30 Sekunden Leerlauf.
 
 **Die Tobies in diesem Abschnitt.** Du brauchst keine echten Tobies. In der Oberfläche legst du simulierte auf
@@ -1598,25 +1598,25 @@ grep -E '"ereignis":"akku_tiefstand"|"ton":"akku_leer"' "$LOG" | tail -n 3
 - [ ] `tobibox sim power --charger on`: Das rote Blinken endet (der Ring zeigt 5 s den Akku blau, dann den normalen Zustand).
       Setze danach den Akku wieder hoch: `tobibox sim power --battery 80`.
 
-**c) Leerlauf nach 20 Minuten, auch mit liegendem Tobie (Entscheidung O).** Der Zähler läuft ab dem Moment, an dem **nichts spielt**,
-auch wenn ein Tobie liegt. Taste, Drehregler und Kopfhörer setzen ihn zurück; `tobibox status`, `sim net` und `sim power` nicht.
+**c) Leerlauf nach 10 Minuten ohne Strom, auch mit liegendem Tobie (Entscheidung O; Ein/Aus Schritt 1).** Der Zähler läuft ab dem Moment, an dem **nichts spielt**,
+auch wenn ein Tobie liegt, **und kein Strom am Eingang anliegt**. Stelle vorher den Strom aus: `tobibox sim power --charger off` (ohne Wert gilt der Strom 60 s nach dem Start als „kein Strom“). Mit Strom (`--charger on`) schaltet die Box nie ab (14). Taste, Drehregler und Kopfhörer setzen ihn zurück; `tobibox status`, `sim net` und `sim power` nicht.
 
 - [ ] Lege `04130001` auf und drücke „Hauptknopf kurz“ (Pause, der Tobie liegt). Rühre danach **nichts** an. Der Ring bleibt bernstein
-      (Pause bei liegendem Tobie, auch im Leerlauf). Im Protokoll steht `leerlauf` mit Ergebnis `zaehler_gestartet`, `frist_s` 1200.0.
-- [ ] Nach 20 Minuten: `herunterfahren` mit Ergebnis `angefordert` und `"grund":"leerlauf"`, danach wie in a).
-      Auch ohne Tobie gilt es: 20 Minuten nach dem Start des Dienstes steht dieselbe Zeile im Protokoll, wenn du nichts bedienst.
+      (Pause bei liegendem Tobie, auch im Leerlauf). Im Protokoll steht `leerlauf` mit Ergebnis `zaehler_gestartet`, `frist_s` 600.0.
+- [ ] Nach 10 Minuten: `herunterfahren` mit Ergebnis `angefordert` und `"grund":"leerlauf"`, danach wie in a).
+      Auch ohne Tobie gilt es: 10 Minuten nach dem Abziehen des Stroms (oder 11 Minuten nach dem Start des Dienstes, wenn nie ein Strom-Wert kam) steht dieselbe Zeile im Protokoll, wenn du nichts bedienst.
 
 ```bash
 grep -E '"baustein":"idle","ereignis":"(leerlauf|herunterfahren)"' "$LOG" | tail -n 4
 ```
 
-**Kurzstart: 30 Sekunden statt 20 Minuten.** Beende den Dienst und starte ihn so (setzt die Frist nur für diesen Lauf, am Code ändert sich nichts):
+**Kurzstart: 30 Sekunden statt 10 Minuten** (danach `tobibox sim power --charger off`, sonst zählt der Zähler erst nach 60 s). Beende den Dienst und starte ihn so (setzt die Frist nur für diesen Lauf, am Code ändert sich nichts):
 
 ```bash
 python -c "import sys, tobibox.idle as i, tobibox.app as a; i.LEERLAUF_S = 30.0; sys.exit(a.main(['--config', '$TOBIBOX_CONFIG']))"
 ```
 
-- [ ] Wie oben mit liegendem Tobie, nach 30 s statt 20 min. Im Protokoll steht `frist_s` 30.0.
+- [ ] Wie oben mit liegendem Tobie, nach 30 s statt 10 min. Im Protokoll steht `frist_s` 30.0.
 - [ ] **Lernmodus hält die Abschaltung auf:** `tobibox sim learn --serie 5e1a0c7d9b31` direkt nach dem Start. Nach 30 s steht `leerlauf` mit Ergebnis
       `wartet` und `"lernmodus":true`; nichts fährt herunter. `tobibox sim learn-abort`: Der Zähler beginnt neu.
 
@@ -1727,7 +1727,70 @@ Das geht am Mac nicht oder nicht aussagekräftig. Es gehört in den Pi-Probelauf
 - Das echte Herunterfahren: Rechte und Rückgabecode des Abschaltkommandos mit dem Dienstbenutzer, die Frist von 60 s und was die Box danach tut.
 - Der Akkustand, der Lader und der Tiefstand vom PiSugar; der Ton `akku_leer` am echten Lautsprecher.
 - Die Uhrzeit: NTP-Synchronisierung (Befund B15), die RTC des PiSugar und das Verhalten bei unsicherer Uhr (kleinste „leiser“-Grenze, nie „stumm“).
-- Die echte Netz-Klasse über NetworkManager (Heim, Hotspot, offline), die Erreichbarkeit des NAS und ein echter Sync, samt Start-Sync am Lader und dessen Wiederholung.
+- Die echte Netz-Klasse über NetworkManager (Heim, Hotspot, offline), die Erreichbarkeit des NAS und ein echter Sync, samt Sync-Check beim Andocken (die Wiederholung des Start-Syncs gibt es seit Ein/Aus Schritt 1 nicht mehr).
 - Der PiSugar-Wecker (Aufwachen zum Sync).
 - Der echte LED-Ring (APA102): wie hell er im Gehäuse wirkt, die Farben im Raum und der Deckel von 25 %.
 - Die Verbindung zu Home Assistant über Tailscale und MQTT mit Konto und Passwort.
+
+## 14. Abnahme Ein/Aus, Schritt 1
+
+Ein- und Ausschalten, Schritt 1 (Design `docs/designs/box-software.md`, CUJ 16 und 21 bis 25; Verträge `docs/protocol/core-interface.md`, Abschnitt 9, Punkt 9):
+10 min Frist nur ohne Strom, am Strom immer bereit, zwei Strom-Quellen (PiSugar und Leser), Ton `lader` beim Andocken, früher Start-Ton mit Marke.
+Alles geht am Mac in der Simulation; das Wecken durch Tobie, Magnet und Strom (Schritt 2) gehört nicht dazu. Die Befehle sind im Container ausprobiert
+(Dienst mit `ziel = "datei"`, Protokollstufe `DEBUG`); die Zeilen im Protokoll sehen am Mac genauso aus. Du brauchst die Terminals und `LOG` wie in Abschnitt 13.
+
+**Vorbereitung.** Der Dienst braucht `[strom]` und `[netz]` mit `quelle = "sim"` und Protokollstufe `DEBUG` (13.1). Für den frühen Start-Ton gibt es am Mac kein `/run/tobibox`;
+nimm ein eigenes Verzeichnis und setze es in **beiden** Terminals (Dienst und Frühdienst):
+
+```bash
+mkdir -p /tmp/tobibox-marken && rm -f /tmp/tobibox-marken/*
+export TOBIBOX_MARKEN=/tmp/tobibox-marken
+```
+
+**Wichtig:** Rückmeldungen beim Andocken und Abziehen gibt es erst **10 s nach „bereit“** (Sperre `LADER_SPERRE_S`). Warte nach dem Start des Dienstes mindestens 12 s, bevor du Strom schaltest.
+
+### 14.1 Frist nur ohne Strom (CUJ 16, 23, 24)
+
+- [ ] Starte den Dienst mit dem Kurzstart aus 13.8 (Frist 30 s). Warte 12 s, dann `tobibox sim power --charger on`. **Was du siehst:** Im Protokoll `leerlauf` / `zaehler_verworfen` mit
+      `"grund":"strom"`. Warte 2 Minuten: **nichts** fährt herunter, es steht keine Zeile `herunterfahren`.
+- [ ] `tobibox sim power --charger off`. **Was du siehst:** `strom` / `abziehen`, dann `leerlauf` / `zaehler_gestartet` mit `frist_s` 30.0 und 30 s später `herunterfahren` / `angefordert` mit `"grund":"leerlauf"`.
+      Die Frist beginnt **ab dem Abziehen**, nicht ab dem letzten Spielen.
+- [ ] Bedienung setzt den Zähler zurück: nach `--charger off` nach 20 s „Vor“ drücken (`tobibox sim key vor`): Das Herunterfahren kommt erst 30 s danach.
+
+```bash
+grep -E '"baustein":"idle","ereignis":"(strom|leerlauf|herunterfahren)"' "$LOG" | tail -n 8
+```
+
+### 14.2 Zwei Quellen, Vorrang Leser (CUJ 23)
+
+- [ ] `tobibox sim power --charger off`, dann `tobibox sim power --charger on --source leser` (der Leser sieht Strom, der PiSugar nicht). **Was du siehst:** `strom` / `widerspruch_beginnt`
+      (nur DEBUG), nach 5 s `widerspruch` als WARNING (einmal). Die Box gilt als „am Strom“ und fährt nie herunter. `tobibox status` zeigt „am Lader“.
+- [ ] Mit einem falschen Leser: `python box/tools/fake_reader.py --link /tmp/tobibox-fake/ttyACM0 --strom aus` (Firmware mit `caps=strom`), `geraet` auf diesen Link, Dienst starten.
+      In der Eingabe des falschen Lesers `power on` und `power off`: Der Dienst verhält sich wie oben (Wert der Zeile `LADER`). `tobibox status` zeigt die Firmware `1.1.0`.
+- [ ] Leser-Ausfall (falschen Leser beenden): Der Wert des Lesers gilt nicht mehr, es gilt wieder der PiSugar-Wert (Protokoll `strom` / `leser_wert_verfallen`).
+
+### 14.3 Andocken und Abziehen (CUJ 25)
+
+- [ ] Strom aus, Box im Leerlauf, mehr als 10 s nach „bereit“. `tobibox sim power --charger on`. **Was du hörst/siehst:** der kurze Ton „Strom ist da.“ (`lader`, leise wie der Hinweiston) und der Ring zeigt
+      5 s den Akku (blau). Im Protokoll `strom` / `andocken`, `ton` mit `"ton":"lader"`. Ein Sync wird einmal geprüft (`start_sync` / `angefordert`).
+- [ ] `tobibox sim power --charger off`: Ring 5 s Akku, **kein** Ton, kein Sync (`strom` / `abziehen`).
+- [ ] Wackelkontakt: dreimal schnell `--charger on` / `--charger off` im Wechsel: höchstens **eine** Rückmeldung (die übrigen Zeilen `rueckmeldung_gesperrt`), der Zähler folgt trotzdem dem Wert.
+- [ ] Spielt ein Tobie (`04130001`): `--charger on` zeigt den Ring nur 3 s, **kein** Ton.
+- [ ] In einem Leise-Fenster („leiser“ oder „stumm“, 13.5) oder im Lernmodus: **kein** Ton, aber der Ring (Helligkeit 5 % unter „leiser“, 3 % unter „stumm“, ohne den Faktor 0,4).
+
+### 14.4 Früher Start-Ton und Marke (CUJ 21)
+
+Der Frühdienst läuft am Mac von Hand. Reihenfolge wie am Pi: erst `python -m tobibox.fruehton`, dann der Dienst.
+
+- [ ] Dienst **nicht** laufen lassen. `python -m tobibox.fruehton --config "$TOBIBOX_CONFIG"` (Ton über das Kommando aus `[toene]`). **Was du hörst:** „Tobi Box ist bereit.“ in der Lautstärke eines
+      gewöhnlichen Tons. `cat "$TOBIBOX_MARKEN/fruehton"` zeigt `fertig`.
+- [ ] Dienst starten. **Was du hörst:** **keinen** zweiten Start-Ton. Im Protokoll `app` / `fruehton` mit Ergebnis `fertig` und `bereit`; die Marke ist weg.
+- [ ] Ohne Frühdienst (Marke leer machen: `rm "$TOBIBOX_MARKEN"/*`, Dienst neu starten): der Dienst spielt den Start-Ton selbst; danach steht `uebernommen` in der Marke, und ein
+      später gestarteter `python -m tobibox.fruehton` spielt **nicht** (Ausgabe `kein_ton`).
+- [ ] Unter „stumm“ (13.5, Uhr in das Fenster stellen): `python -m tobibox.fruehton` bleibt still (Marke `keiner`), und der Dienst spielt auch keinen Hinweiston.
+      Unter „leiser“ klingt der Ton mit der Grenze des Fensters. Ein `systemctl restart`-Ersatz (Dienst beenden und neu starten) spielt den Start-Ton aus dem Kern und ignoriert die Marke.
+
+### 14.5 Messung der Bootzeit (nur am Pi)
+
+`python box/tools/measure_boot.py --log <Protokolldatei>` rechnet aus Protokoll, `systemd-analyze` und `systemctl show tobibox-fruehton.service` die Zeiten ab 5 V am Pi und nennt, ob das Soll gehalten ist
+(Frühton höchstens 5 s, *Bereit* höchstens 8,5 s). Am Mac gibt es nur das Protokoll; die Messung gehört in den Pi-Probelauf (`docs/timing.md`, „Aus → Hörspiel“).

@@ -45,6 +45,16 @@ def _systemuhr_wie_am_mac(monkeypatch):
     monkeypatch.setattr(App, "_systemuhr_pruefen_noetig", lambda self: False)
 
 
+@pytest.fixture(autouse=True)
+def _marken_verzeichnis(monkeypatch, tmp_path_factory):
+    """Die Marke des Frühtons liegt in Tests in einem eigenen Verzeichnis, nie in ``/run/tobibox`` (Ein/Aus, 10.11.)."""
+    from tobibox import fruehton
+
+    verz = tmp_path_factory.mktemp("marken")
+    monkeypatch.setattr(fruehton, "MARKEN_VERZEICHNIS", verz)
+    return verz
+
+
 @pytest.fixture
 def kurz() -> Path:
     """Kurzes Verzeichnis für Unix-Sockets (``sim.sock``, ``NOTIFY_SOCKET``)."""
@@ -335,8 +345,7 @@ class LeserSim:
         if z.typ == "HELLO":
             self.leser._seq_erwartet = 0
             self.leser._wiedermeldung = True
-            f = z.felder
-            self._ausgabe(ev.LeserHallo(int(f["proto"]), f["fw"], f["build"], f["pn5180"]))
+            self._ausgabe(self._reader.hallo_ereignis(z))
         elif z.typ == "HB":
             self._ausgabe(self._reader._herzschlag(z))
         else:
@@ -347,10 +356,19 @@ class LeserSim:
         self.seq += 1
         return n
 
-    def hello(self) -> None:
-        """Leser (neu) gestartet: ``HELLO``, ``seq`` beginnt wieder bei 0."""
+    def hello(self, strom: bool | None = None) -> None:
+        """Leser (neu) gestartet: ``HELLO``, ``seq`` beginnt wieder bei 0.
+
+        ``strom`` ``True`` / ``False``: Firmware mit ``caps=strom`` (Ein/Aus, 10.11.); nach dem ``HELLO`` folgt ``LADER in=…``."""
         self.seq = 0
-        self.zeile("HELLO proto=1 fw=1.0.0 build=fa4e0000 pn5180=4.2")
+        if strom is None:
+            self.zeile("HELLO proto=1 fw=1.0.0 build=fa4e0000 pn5180=4.2")
+        else:
+            self.zeile("HELLO proto=1 fw=1.1.0 build=fa4e0000 pn5180=4.2 caps=strom")
+            self.lader(strom)
+
+    def lader(self, strom: bool) -> None:
+        self.zeile(f"LADER in={int(strom)}")
 
     def placed(self, uid: str, typ: str = "ntag", tonie: bool = False) -> None:
         self.zeile(f"PLACED uid={uid} type={typ} tonie={int(tonie)} seq={self._naechste_seq()}")

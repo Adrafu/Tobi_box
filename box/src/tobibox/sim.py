@@ -14,6 +14,8 @@ Ereignisse daraus, die er an ``ausgabe`` übergibt. Befehle in Stufe 2 (Schlüss
 * ``card``: ``{"befehl":"card","uid":…,"ziel":{"typ":"serie","serie":…}}`` (auch ``folge``, ``aktion``)
   trägt die Zuordnung in ``config.json`` ein (``store``) -> ``KonfigGeladen``.
 * ``learn_abort``: ``{"befehl":"learn_abort"}`` -> ``HaLernmodusAbbruch`` (Ablaufzeit 30 s).
+* ``strom`` mit ``"quelle": "leser"`` (Ein/Aus, 10.11.): ``{"befehl":"strom","lader":true,"quelle":"leser"}`` meldet den Strom wie die Zeile ``LADER`` des
+  Lesers (``LaderGeaendert(quelle="leser")``); ohne ``quelle`` gilt ``pisugar`` (Treiber ``SimStrom``). Bei Widerspruch gilt der Leser.
 * ``status``: ``{"befehl":"status"}`` -> Antwort mit dem Status des Dienstes (``auskunft``), kein Ereignis.
 
 Seit AP 4.9 (Simulations-Oberfläche im Browser, ``tobibox gui``) kommen dazu: ``taste``, ``regler``, ``kopfhoerer``,
@@ -354,8 +356,13 @@ class Sim:
             return self._zeit(d)
         if befehl == "strom":
             lader, akku = d.get("lader"), d.get("akku")
+            quelle = d.get("quelle", "pisugar")
+            if quelle not in ("pisugar", "leser"):
+                raise Ungueltig("quelle ungueltig")
             if lader is None and akku is None:
                 raise Ungueltig("lader oder akku fehlt")
+            if quelle == "leser" and (lader is None or akku is not None):
+                raise Ungueltig("quelle leser: nur lader")
             if lader is not None and not isinstance(lader, bool):
                 raise Ungueltig("lader ungueltig")
             if akku is not None and (isinstance(akku, bool) or not isinstance(akku, int) or not 0 <= akku <= 100):
@@ -363,6 +370,9 @@ class Sim:
             self._quelle("strom")
             if not VERDRAHTET["strom"]:
                 return {"ok": False, "fehler": NOCH_NICHT_VERDRAHTET}, [], None
+            if quelle == "leser":
+                # die zweite Strom-Quelle (Zeile ``LADER`` des Lesers, Ein/Aus, 10.11.): der simulierte Leser meldet sie selbst
+                return {"ok": True}, [ev.LaderGeaendert(lader, "leser")], None  # type: ignore[arg-type]
             if self.strom_haken is not None:
                 return {"ok": True}, [], lambda: self.strom_haken(lader, akku)  # type: ignore[misc]
             aus: list[ev.Ereignis] = []

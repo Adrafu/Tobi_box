@@ -353,14 +353,9 @@ class Leser:
                     extra={"baustein": "reader", "ereignis": "leser_verbunden", "ergebnis": "ok",
                            "daten": {"fw": zeile.felder["fw"], "proto": int(zeile.felder["proto"])}},
                 )
-                self._ausgabe(
-                    ev.LeserHallo(
-                        proto=int(zeile.felder["proto"]),
-                        fw=zeile.felder["fw"],
-                        build=zeile.felder["build"],
-                        pn5180=zeile.felder["pn5180"],
-                    )
-                )
+                self._ausgabe(hallo_ereignis(zeile))
+                if zeile.verworfen:
+                    self._begrenzt_loggen(logging.WARNING, "caps", "HELLO: ungültiges caps wie fehlend behandelt")
                 frist = loop.time() + self._watchdog_s
                 continue
             if not hallo:
@@ -406,6 +401,10 @@ class Leser:
 
     def _verarbeite(self, zeile: Zeile) -> None:
         f = zeile.felder
+        if zeile.typ == "LADER":
+            # Strom am Eingang der Box (Ein/Aus, 10.11.): ein Pegel, kein ``seq``; auch eine Wiederholung nach ``HELLO`` geht weiter
+            self._ausgabe(ev.LaderGeaendert(f["in"] == "1", "leser"))
+            return
         if zeile.typ == "ERR":
             self._ausgabe(ev.LeserFehler(f["code"], f["detail"], schwere(f["code"])))  # type: ignore[arg-type]
             return
@@ -429,6 +428,12 @@ class Leser:
             self._ausgabe(ev.Aufgelegt(f["uid"], f["type"], f["tonie"] == "1", seq, vorgang))  # type: ignore[arg-type]
         else:
             self._ausgabe(ev.Gesperrt(seq, vorgang))
+
+
+def hallo_ereignis(zeile: Zeile) -> ev.LeserHallo:
+    """``LeserHallo`` aus einer gültigen ``HELLO``-Zeile (``caps`` fehlt: ``""``)."""
+    f = zeile.felder
+    return ev.LeserHallo(int(f["proto"]), f["fw"], f["build"], f["pn5180"], f.get("caps", ""))
 
 
 def _herzschlag(zeile: Zeile) -> ev.LeserHerzschlag:

@@ -34,6 +34,7 @@ PEGEL_DB: dict[str, float] = {
     "pruef_ok": -9.9,
     "pruef_fehler": -9.4,
     "akku_leer": -8.5,
+    "lader": -9.5,  # gemessen mit tools/lautheit.py (-18,0 LUFS)
 }
 
 # Name -> Folge aus (Frequenz in Hz, Dauer in s); 0 Hz ist eine Pause
@@ -47,6 +48,8 @@ TOENE: dict[str, list[tuple[float, float]]] = {
     "pruef_ok": [(1046.5, 0.12)],
     "pruef_fehler": [(196.0, 0.40)],
     "akku_leer": [(660.0, 0.2), (0.0, 0.1), (495.0, 0.2), (0.0, 0.1), (330.0, 0.35)],
+    # Strom ist da (Ein/Aus, 10.11., R4): kurz, aufwärts, freundlich; spielt mit dem leisen Pegel von ``hinweis``
+    "lader": [(698.46, 0.07), (1046.5, 0.12)],
 }
 
 

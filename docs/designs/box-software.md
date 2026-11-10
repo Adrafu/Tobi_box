@@ -924,11 +924,13 @@ Zustände, Übergänge und Konflikte: siehe „Kern-Zustände“.
     *   Lernmodus: blaues Atmen, 3 s, 8 bis 25 %.
     *   Gute Nacht, nur während der Wiedergabe: warm-oranges Glimmen, 4 s, 3 bis
         8 %, mit dem Ausblende-Faktor multipliziert; danach normale Pause.
-    *   Stumm: Der Zustand bleibt, die Helligkeit ×0,4.
+    *   Stumm: Der Zustand bleibt, die Helligkeit ×0,4 (ausgenommen die Akku-Anzeige, siehe unten).
     *   Übrige Zustände: läuft grünes Atmen (12 bis 25 %, 6 s); Pause bernstein
         (10 %); unbekannte Karte magenta blinkend (1 s); Aufwachen weißes
-        Lauflicht (2 s); Akku als Füllstand (40 LEDs, grün, gelb oder rot, am
-        Lader blau, bei Tiefstand rot blinkend).
+        Lauflicht (2 s); Akku als Füllstand (40 LEDs, grün, gelb oder rot, mit
+        Strom blau, bei Tiefstand rot blinkend). **(Ein/Aus, 10.11., V6)** „Ladestand“ (beim Andocken, CUJ 25) und „Akku“ (beim Abziehen) sind **dieselbe** Anzeige,
+        die Akku-Füllstand-Anzeige; nur die Farbe folgt dem Strom (blau mit Strom, sonst nach Prozent). Wann sie erscheinen darf, gibt `idle` mit dem Befehl
+        `AkkuAnzeigen` frei (`core-interface.md`, Abschnitt 4 und 9); beim Start mit Strom zeigt `led` sie nach `Bereit` allein (Start-Anzeige).
     *   **Akku-Anzeige (Ein/Aus, 10.11.):** Sie erscheint 5 s lang beim Andocken und beim Abziehen (spielt ein Hörspiel: 3 s) und auf Anforderung.
         Helligkeit 15 %; unter „leiser“ und solange „Gute Nacht“ läuft 5 %; unter „stumm“ 3 % (mindestens Stufe 1 der 31 Stufen des Rings). Der Faktor
         0,4 von „stumm“ gilt für sie nicht.
@@ -983,7 +985,7 @@ Zustände, Übergänge und Konflikte: siehe „Kern-Zustände“.
     (Ziel höchstens 5 s nach 5 V am Pi), ohne den Box-Dienst aufzuhalten. Er klingt wie heute (R10): unter „stumm“ gar nicht, unter „leiser“ mit der Grenze
     des Fensters, sonst normal (CUJ 15). (3) *Bereit* (Ziel höchstens 8,5 s) übernimmt und spielt **keinen zweiten** Start-Ton; Frühton und Töne des Kerns
     überlagern sich nie. (4) Liegt ein Tobie, spielt er (CUJ 20); unter „stumm“ startet nichts.
-*   **Ausnahme Frühdienst fehlt, zu langsam oder gescheitert:** Dann gibt es keine Marke, und der Kern spielt `start` wie bisher.
+*   **Ausnahme Frühdienst fehlt, zu langsam oder gescheitert:** Dann gibt es keine Marke des Frühdienstes (`app` legt bei *Bereit* die Gegenmarke an, der Frühdienst spielt dann nicht mehr, V1), und der Kern spielt `start` wie bisher. Unter „stumm“ bleibt es still: Der Kern spielt dann auch keinen Hinweiston (V5).
 *   **Ausnahme Dienst-Neustart:** wie in CUJ 20 (Kern-Ton, keine Marke).
 *   **Ausnahme Pi kommt nicht hoch** (kein Lauflicht-Ende, `host_timeout`, Zwangs-Aus): folgt mit Schritt 2.
 
@@ -1346,7 +1348,7 @@ Baustein 4, D6) verweisen hierher.
 #### Uhr und Zeitquelle
 
 - Der Kern bekommt die Zeit als Eingang (`clock`). Alle **Dauern** (Fristen,
-  Timer, 20 min Leerlauf, 30 s Resume) laufen auf der monotonen Uhr. Die
+  Timer, 10 min Leerlauf ohne Strom (seit Ein/Aus, 10.11.; vorher 20 min), 30 s Resume) laufen auf der monotonen Uhr. Die
   Wanduhr braucht nur der Kern der Leise-Zeiten und das Ereignisprotokoll.
 - **Zeitquelle:** beim Start die RTC des PiSugar, bei Netz NTP. Ist die Zeit
   nicht vertrauenswürdig (weder RTC noch NTP seit dem Start), gilt die
@@ -2919,13 +2921,13 @@ Ergebnis: Teilautomat Strom / Leerlauf.
 
 | Datei | Neu/Änd. | Inhalt und Grund |
 |---|---|---|
-| `box/src/tobibox/idle.py` | neu | Teilautomat Strom / Leerlauf: Abschaltung nach 20 min, nie während Sync, Update oder Lernmodus. Am Lader wird nicht abgeschaltet, solange Sync oder Update laufen; ist keines aktiv, gilt die 20-min-Regel. Beim Start am Lader Sync prüfen. Nutzt `power.py` aus AP 3.3. **(Ein/Aus, 10.11.: Frist jetzt 10 min und nur ohne Strom, Andocken und Abziehen, zwei Strom-Quellen, keine Wiederholung des Start-Syncs; siehe Nachtrag E1-1.)** |
-| `box/tests/unit/test_idle.py` | neu | 20-min-Leerlauf und Lader-Regel (mit simulierter Uhr). |
+| `box/src/tobibox/idle.py` | neu | Teilautomat Strom / Leerlauf: Abschaltung nach 20 min (seit Ein/Aus, 10.11.: 10 min und nur ohne Strom am Eingang; mit Strom nie), nie während Sync, Update oder Lernmodus. Am Lader wird nicht abgeschaltet, solange Sync oder Update laufen; ist keines aktiv, gilt die 20-min-Regel (seit Ein/Aus: mit Strom gibt es keine Frist). Beim Start am Lader Sync prüfen. Nutzt `power.py` aus AP 3.3. **(Ein/Aus, 10.11.: Frist jetzt 10 min und nur ohne Strom, Andocken und Abziehen, zwei Strom-Quellen, keine Wiederholung des Start-Syncs; siehe Nachtrag E1-1.)** |
+| `box/tests/unit/test_idle.py` | neu | Leerlauf und Lader-Regel (mit simulierter Uhr; seit Ein/Aus, 10.11.: 10 min nur ohne Strom, zwei Quellen, Andocken und Sperre). |
 | `docs/betrieb/pisugar-wecker.md` | neu | Beschreibung der PiSugar-Anbindung und Option: nächtliches Wecken am Lader über den PiSugar-Wecker (nur Beschreibung, Umsetzung nach Tobias' Entscheidung). |
 
 Abnahme AP 4.3:
 
-- Nach 20 min Leerlauf wird heruntergefahren (in der Simulation nur protokolliert).
+- Nach 10 min Leerlauf **ohne Strom** wird heruntergefahren (in der Simulation nur protokolliert; seit Ein/Aus, 10.11., vorher 20 min); **mit Strom nie von selbst**.
 - Während Sync, Update oder Lernmodus wird nie abgeschaltet.
 
 #### AP 4.4 Kopfhörer (Sonnet), umsetzt CUJ 17
@@ -3048,6 +3050,12 @@ Schritt 2 (Arbeitspakete E2-x: Firmware-Logik, `WAKE`, `SLEEP`, `CFG`, `RING_PI`
 | **E1-6** | Sonnet | `reader.py` (`LADER`, `caps`, `LaderGeaendert(quelle="leser")`), Sim-Leser sendet `LADER` | E1-0 |
 | **E1-7** | Sonnet | CUJ-Tests 16, 23, 24, 25 und die Fälle der Tabelle „Lader-Ton und Doppel-Ton“ im Entwurf (Doppel-Ton, Wackelkontakt, `pisugar-server` hängt, Strom kommt beim Herunterfahren), simulierte Uhr | E1-1 bis E1-6 |
 | **E1-8** | Haiku | Doku nachziehen (`pisugar-wecker.md`, `mac-prototyp.md`, `docs/timing.md`, Plan); Messskript Bootzeit und Prüfliste | E1-7 |
+
+**Stand der Umsetzung (E1-1 bis E1-8, 10.11.):** `idle.py` (Frist, zwei Quellen über `stromwert.py`, Sperre, `AkkuAnzeigen`), `core.py` (Regel 2a, `start` unter „stumm“ gestrichen), `session.py`
+(`Bereit.fruehton`), `app.py` (Marke bei `Bereit`, Gegenmarke, Wartereihenfolge), `fruehton.py` und `uhrregel.py` (Frühdienst, gemeinsame Uhr-Regel), `deploy/pi/tobibox-fruehton.service`,
+`led.py` (Akku-Anzeige 15/5/3 %, Stufe ≥ 1, Entprellen, Start-Anzeige), `reader.py`/`protocol.py` (`caps`, `LADER`), `sim.py`/`cli.py`/GUI (zweite Quelle `--source leser`), `box/sounds/lader.wav`
+(auch `sounds/sprache/`), `box/tools/measure_boot.py`; Tests `test_idle.py`, `test_led.py`, `test_fruehton.py`, `test_app_fruehton.py`, `test_cuj16_leerlauf.py`, `test_cuj23_24_sockel_und_pause.py`,
+`test_cuj25_andocken.py`. Abnahme am Mac: `docs/betrieb/mac-prototyp.md`, Abschnitt 14. Nachtrag der Verträge nach dem Goldfisch-Review V1 bis V17: `core-interface.md`, Änderung 10.11. „Nachtrag“.
 
 ### Dokumente, die am Ende nachgezogen werden
 

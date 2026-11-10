@@ -842,6 +842,10 @@ def _resume(z: Zustand, e: ev.ResumeGeladen, jetzt: Jetzt) -> tuple[Zustand, Aus
 
 
 def _bereit(z: Zustand, e: ev.Bereit, jetzt: Jetzt) -> tuple[Zustand, Ausgabe]:
+    if e.fruehton:
+        # Der Frühdienst hat den Start-Ton schon entschieden (gespielt oder bewusst unterlassen, R10): kein zweiter ``start``
+        # und unter „stumm“ auch kein ``hinweis`` an seiner Stelle (Ein/Aus, 10.11.; ``core-interface.md``, 3.3)
+        return z, []
     return z, [ev.TonSpielen("start")]
 
 

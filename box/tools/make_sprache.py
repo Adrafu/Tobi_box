@@ -61,6 +61,7 @@ TOENE: dict[str, str] = {
     "lernen_beginn": "Lernmodus an. Leg den neuen Tobie auf.",
     "lernen_ende": "Lernmodus beendet.",
     "akku_leer": "Mein Akku ist fast leer. Ich gehe gleich aus.",
+    "lader": "Strom ist da.",  # Box wird angedockt (Ein/Aus, 10.11.); kurz, spielt mit dem Pegel von „hinweis“
     "pruef_ok": "In Ordnung.",
     "pruef_fehler": "Fehler.",
     "pruef_leser_ok": "Leser in Ordnung.",

@@ -349,6 +349,8 @@ def test_sim_mit_zu_langem_socket_pfad_gibt_verstaendlichen_fehler_statt_traceba
     [
         (["power", "--charger", "on", "--battery", "40"], {"befehl": "strom", "lader": True, "akku": 40}),
         (["power", "--charger", "off"], {"befehl": "strom", "lader": False}),
+        (["power", "--charger", "on", "--source", "leser"], {"befehl": "strom", "lader": True, "quelle": "leser"}),
+        (["power", "--charger", "off", "--source", "pisugar"], {"befehl": "strom", "lader": False}),
         (["power", "--battery", "0"], {"befehl": "strom", "akku": 0}),
         (["power", "--battery", "100"], {"befehl": "strom", "akku": 100}),
         (["net", "home"], {"befehl": "netz", "klasse": "home"}),
@@ -365,7 +367,7 @@ def test_sim_power_und_net_bauen_die_zeile_im_format_von_ap_4_9(box, monkeypatch
 
 
 @pytest.mark.parametrize(
-    "argv", [["power"], ["power", "--battery", "101"], ["power", "--battery", "-1"], ["power", "--charger", "vielleicht"], ["net", "mobil"], ["net"]]
+    "argv", [["power"], ["power", "--battery", "101"], ["power", "--battery", "-1"], ["power", "--charger", "vielleicht"], ["power", "--source", "leser"], ["power", "--source", "leser", "--charger", "on", "--battery", "3"], ["power", "--charger", "on", "--source", "usb"], ["net", "mobil"], ["net"]]
 )
 def test_sim_power_und_net_lehnen_falsche_eingaben_ab(box, argv, capsys):
     _, toml = box

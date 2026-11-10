@@ -152,6 +152,16 @@ static string formatFrom(const ParsedLine& p) {
   return string(buf, n);
 }
 
+// Ein/Aus, 10.11. (Schritt 1): Die Beispieldatei enthaelt die Zeile LADER und das optionale Feld caps
+// in HELLO. Die Firmware 1.x erzeugt beides nicht und versteht beides nicht (LADER sendet erst die Firmware
+// von Schritt 2, reader-v1.md Abschnitt 13). Das Testprogramm ueberspringt diese Zeilen und Ablaeufe
+// ausdruecklich und zaehlt sie; alle uebrigen Pruefungen bleiben unveraendert.
+static bool nurNachSchritt1(const string& zeile) {
+  if (zeile.rfind("LADER", 0) == 0 && (zeile.size() == 5 || zeile[5] == ' ')) return true;
+  if (zeile.rfind("HELLO ", 0) == 0 && zeile.find(" caps=") != string::npos) return true;
+  return false;
+}
+
 struct Failures {
   vector<string> list;
   int cases = 0;
@@ -172,11 +182,16 @@ struct Failures {
 
 static void runSection1(const char* kind, bool formatterCheck, const char* label) {
   Failures f;
+  int uebersprungen = 0;
   for (const string& line : loadExamples()) {
     vector<string> parts = split(line, '|');
     if (parts.size() < 2 || parts[0] != kind) continue;
-    f.cases++;
     string zeile = unescape(parts[1]);
+    if (nurNachSchritt1(zeile)) {
+      uebersprungen++;
+      continue;
+    }
+    f.cases++;
     ParsedLine p;
     ParseReason r = parseReaderLine(zeile, &p);
     if (r != ParseReason::Ok) {
@@ -194,6 +209,7 @@ static void runSection1(const char* kind, bool formatterCheck, const char* label
       if (out != zeile) f.add("Formatierer: '" + out + "' statt '" + zeile + "'");
     }
   }
+  printf("%s: %d Zeilen von Schritt 1 uebersprungen (LADER, caps)\n", label, uebersprungen);
   f.finish(label);
 }
 
@@ -202,16 +218,22 @@ void test_section1_okn_parse() { runSection1("OKN", false, "Abschnitt 1b (OKN)")
 
 void test_section1_err_parse() {
   Failures f;
+  int uebersprungen = 0;
   for (const string& line : loadExamples()) {
     vector<string> parts = split(line, '|');
     if (parts.size() != 3 || parts[0] != "ERR") continue;
-    f.cases++;
     string zeile = unescape(parts[1]);
+    if (nurNachSchritt1(zeile)) {
+      uebersprungen++;
+      continue;
+    }
+    f.cases++;
     ParsedLine p;
     ParseReason r = parseReaderLine(zeile, &p);
     if (string(parseReasonName(r)) != parts[2])
       f.add("Grund " + string(parseReasonName(r)) + " statt " + parts[2] + ": " + line.substr(0, 90));
   }
+  printf("Abschnitt 1c (ERR): %d Zeilen von Schritt 1 uebersprungen (LADER, caps)\n", uebersprungen);
   f.finish("Abschnitt 1c (ERR)");
 }
 
@@ -406,6 +428,8 @@ void test_section3_sequences() {
   int steps = 0;
   Sequence cur;
   bool open = false;
+  bool strom = false;  // Ablauf einer Firmware mit caps=strom (Zeile STROM): erst Schritt 2
+  int uebersprungen = 0;
   for (const string& line : loadExamples()) {
     if (line.empty() || line[0] == '#') continue;
     vector<string> p = split(line, '|');
@@ -413,6 +437,9 @@ void test_section3_sequences() {
       cur = Sequence();
       cur.name = p[1];
       open = true;
+      strom = false;
+    } else if (p[0] == "STROM" && open) {
+      strom = true;
     } else if (p[0] == "PARAM" && open) {
       // PARAM|confirm=..|remove=..|error=.. ; change = 0 heisst: gleich confirm
       cur.params = DebounceParams(u32(p[1].substr(p[1].find('=') + 1).c_str()), 0,
@@ -422,6 +449,9 @@ void test_section3_sequences() {
       cur.steps.push_back({p[1], p[2], p[3]});
     } else if (p[0] == "COUNT" && open) {
       cur.count = line;
+    } else if (p[0] == "END" && open && strom) {
+      uebersprungen++;  // die Firmware 1.x sendet kein LADER und kein caps
+      open = false;
     } else if (p[0] == "END" && open) {
       f.cases++;
       string e = runSequence(cur, &steps);
@@ -429,7 +459,7 @@ void test_section3_sequences() {
       open = false;
     }
   }
-  printf("Abschnitt 3: %d Schritte\n", steps);
+  printf("Abschnitt 3: %d Schritte, %d Ablaeufe von Schritt 1 uebersprungen (STROM)\n", steps, uebersprungen);
   f.finish("Abschnitt 3 (Ablaeufe)");
 }
 

@@ -38,6 +38,19 @@ def lese_neustart_uid(zustand: Path, boot_id: str | None) -> str | None:
     return uid if isinstance(uid, str) and uid else None
 
 
+def gleicher_start(zustand: Path, boot_id: str | None) -> bool:
+    """Steht in ``lauf.json`` die Kennung des aktuellen Starts? Dann ist es ein Dienst-Neustart ohne Ausschalten (Marke des Frühtons ignorieren).
+
+    Ohne lesbare Kennung (Datei fehlt, unlesbar, Kennung des Geräts unbekannt) gilt: Einschalten (V17)."""
+    if boot_id is None:
+        return False
+    try:
+        roh = json.loads((Path(zustand) / DATEI).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    return isinstance(roh, dict) and roh.get("boot_id") == boot_id
+
+
 def schreibe(zustand: Path, boot_id: str | None, uid: str | None) -> bool:
     """Marker schreiben (einfaches Schreiben genügt). Ohne Kennung des Starts wird nichts geschrieben."""
     if boot_id is None:

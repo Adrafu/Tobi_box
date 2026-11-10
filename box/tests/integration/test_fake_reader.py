@@ -111,3 +111,31 @@ def test_ping_meldet_gesperrten_und_nichts_nach_remove(tmp_path):
         zeilen = gelesen.decode().replace("\r", "").split("\n")
         assert [z.split()[0] for z in zeilen if z] == ["LOCKED", "HELLO", "LOCKED", "REMOVED", "HELLO"]
         assert "LOCKED seq=0" in zeilen
+
+
+async def test_mit_strom_sendet_der_falsche_leser_caps_und_lader_nach_jedem_hello(tmp_path):
+    """``--strom``: Firmware mit ``caps=strom``; ``LADER`` folgt dem ``HELLO`` (auch auf ``PING``) und jeder Änderung (Ein/Aus, 10.11.)."""
+    ereignisse: list = []
+    with fake_reader.FakeReader(tmp_path / "ttyACM0", hb_intervall_s=None, strom=True) as fr:
+        leser = Leser(ereignisse.append, str(tmp_path / "ttyACM*"), watchdog_s=3.0, hello_timeout_s=0.5, backoff_s=(0.02, 0.05))
+        leser.start()
+        try:
+            await warte(lambda: any(isinstance(x, ev.LaderGeaendert) for x in ereignisse))
+            assert ereignisse[0].caps == "strom"
+            assert ereignisse[1] == ev.LaderGeaendert(True, "leser")
+            fr.place(UID)
+            fr.ping()  # HELLO, LADER, dann die erneute Meldung der Figur (Reihenfolge laut Vertrag)
+            await warte(lambda: sum(isinstance(x, ev.Aufgelegt) for x in ereignisse) == 2)
+            folge = [type(x).__name__ for x in ereignisse]
+            i = len(folge) - 1 - folge[::-1].index("LeserHallo")
+            assert folge[i:i + 3] == ["LeserHallo", "LaderGeaendert", "Aufgelegt"]
+            assert fake_reader.befehl(fr, "power off")
+            await warte(lambda: ereignisse and ereignisse[-1] == ev.LaderGeaendert(False, "leser"))
+        finally:
+            await leser.stop()
+
+
+def test_falscher_leser_ohne_strom_bleibt_eine_firmware_ohne_caps(tmp_path):
+    with fake_reader.FakeReader(tmp_path / "ttyACM0", hb_intervall_s=None) as fr:
+        assert "caps" not in fr.hallo and fr.strom is None
+        assert fake_reader.befehl(fr, "power on")  # ohne --strom ohne Wirkung

@@ -1,4 +1,4 @@
-"""Teilautomat Strom / Leerlauf (CUJ 16, Tabelle „Strom / Leerlauf“) mit simulierter Uhr."""
+"""Teilautomat Strom / Leerlauf (CUJ 16, 23 bis 25, Tabelle „Strom / Leerlauf“) mit simulierter Uhr (Ein/Aus, 10.11.)."""
 
 from __future__ import annotations
 
@@ -7,16 +7,20 @@ import pytest
 from tobibox import events as ev
 from tobibox import idle
 from tobibox.clock import SimUhr
-from tobibox.idle import LEERLAUF_S, START_WIEDERHOLUNG_S, START_WIEDERHOLUNGEN, SYNC_ANTWORT_FRIST_S
+from tobibox.idle import (
+    ANDOCK_RING_S, ANDOCK_RING_SPIELT_S, LADER_SPERRE_S, LEERLAUF_S, STROM_UNBEKANNT_S, STROM_WIDERSPRUCH_S, SYNC_ANTWORT_FRIST_S,
+)
 
 
 class Rahmen:
     """Treibt ``idle.step`` mit einer ``SimUhr``; sammelt die Ausgaben ohne ``Protokoll``."""
 
-    def __init__(self) -> None:
+    def __init__(self, strom: bool | None = None) -> None:
         self.uhr = SimUhr()
         self.z = idle.neuer_zustand()
         self.alles: list = []
+        if strom is not None:
+            self.sende(ev.LaderGeaendert(strom))  # erste Messung (pisugar)
 
     def sende(self, *ereignisse) -> list:
         aus: list = []
@@ -36,9 +40,9 @@ class Rahmen:
 
 
 def leer(**kw) -> Rahmen:
-    """Eine Box ohne Wiedergabe und ohne Tobie, Zähler läuft."""
+    """Eine Box ohne Wiedergabe und ohne Tobie, **ohne Strom** (erste Messung „kein Strom“), Zähler läuft."""
     r = Rahmen()
-    r.sende(ev.SitzungGeaendert("leer", False, False, None))
+    r.sende(ev.LaderGeaendert(False), ev.SitzungGeaendert("leer", False, False, None))
     assert r.modus == "leerlauf"
     return r
 
@@ -53,12 +57,20 @@ FAHREN = [ev.HerunterfahrenAngefordert("leerlauf")]
 # --- 20 min Leerlauf ---------------------------------------------------------------------------------------
 
 
-def test_start_ist_aktiv_und_zaehler_beginnt_mit_der_ersten_auswertung():
+def test_start_ist_aktiv_und_ohne_bekannten_strom_laeuft_kein_zaehler():
     r = Rahmen()
     assert r.modus == "aktiv"
     r.sende(ev.Takt())
-    assert r.modus == "leerlauf"
-    assert r.z.frist_bis == r.uhr.mono + LEERLAUF_S
+    assert r.modus == "leerlauf" and r.z.frist_bis is None  # Strom unbekannt: der Zähler zählt noch nicht
+
+
+def test_unbekannter_strom_gilt_nach_60_s_als_kein_strom_dann_beginnt_der_zaehler():
+    r = Rahmen()
+    r.sende(ev.Takt())
+    assert r.vor(STROM_UNBEKANNT_S - 1) == [] and r.z.frist_bis is None
+    assert r.vor(1) == [] and r.z.frist_bis == r.uhr.mono + LEERLAUF_S
+    assert r.vor(LEERLAUF_S - 1) == []
+    assert r.vor(1) == FAHREN
 
 
 def test_nach_20_min_leerlauf_wird_heruntergefahren():
@@ -92,8 +104,8 @@ def test_spielende_wiedergabe_ist_kein_leerlauf():
 
 @pytest.mark.parametrize("zustand", ["pausiert", "beendet", "gehalten"])
 def test_liegender_tobie_ohne_wiedergabe_zaehlt_als_leerlauf(zustand):
-    """Entscheidung O (09.11., B5): 20 min lang wird nichts gespielt, egal ob ein Tobie liegt (Gute Nacht, „stumm“-Fenster)."""
-    r = Rahmen()
+    """Entscheidung O (09.11., B5): ohne Strom wird 10 min lang nichts gespielt, egal ob ein Tobie liegt (Gute Nacht, „stumm“-Fenster)."""
+    r = Rahmen(strom=False)
     belegt(r, zustand)
     r.sende(ev.Takt())
     assert r.modus == "leerlauf"
@@ -104,7 +116,7 @@ def test_liegender_tobie_ohne_wiedergabe_zaehlt_als_leerlauf(zustand):
 
 def test_liegender_tobie_im_leerlauf_nicht_bei_sync_lernmodus():
     """Die Ausnahmen gelten weiter: Lernmodus (oder Sync, Update) halten die Abschaltung auch mit liegendem Tobie auf."""
-    r = Rahmen()
+    r = Rahmen(strom=False)
     belegt(r, "pausiert")
     r.sende(ev.LernenGeaendert(True))
     assert r.vor(2 * LEERLAUF_S) == []
@@ -112,7 +124,7 @@ def test_liegender_tobie_im_leerlauf_nicht_bei_sync_lernmodus():
 
 
 def test_bedienung_setzt_den_zaehler_auch_mit_liegendem_tobie_zurueck():
-    r = Rahmen()
+    r = Rahmen(strom=False)
     belegt(r, "pausiert")
     r.sende(ev.Takt())
     r.vor(LEERLAUF_S - 10)
@@ -134,7 +146,7 @@ def test_leser_unterbrechung_ist_kein_leerlauf():
     assert r.vor(3 * LEERLAUF_S) == []
 
 
-def test_tobie_verwirft_den_zaehler_und_abheben_startet_ihn_neu():
+def test_tobie_verwirft_den_zaehler_und_abheben_startet_ihn_neu():  # ohne Strom
     r = leer()
     r.vor(LEERLAUF_S - 10)
     belegt(r)
@@ -222,17 +234,17 @@ def test_sync_haelt_die_abschaltung_auf_mit_und_ohne_lader(lader):
 @pytest.mark.parametrize("ende", [ev.SyncFertig(3, 0), ev.SyncAbgebrochen("netz_weg")])
 def test_nach_dem_sync_wird_sofort_erneut_geprueft(ende):
     r = leer()
-    r.sende(ev.LaderGeaendert(True), ev.SyncGestartet())
+    r.sende(ev.SyncGestartet())
     r.vor(LEERLAUF_S + 5)
     assert r.sende(ende) == FAHREN
 
 
-def test_sync_endet_vor_ablauf_die_zwanzig_minuten_gelten_weiter():
+def test_sync_endet_vor_ablauf_die_zehn_minuten_gelten_weiter():
     r = leer()
     r.sende(ev.SyncGestartet())
-    r.vor(600)
+    r.vor(300)
     assert r.sende(ev.SyncFertig(1, 0)) == []
-    assert r.vor(LEERLAUF_S - 600) == FAHREN
+    assert r.vor(LEERLAUF_S - 300) == FAHREN
 
 
 def test_update_haelt_die_abschaltung_auf_bis_zum_selbsttest():
@@ -272,9 +284,8 @@ def test_tobie_waehrend_der_wartezeit_verwirft_die_faelligkeit():
 # --- am Lader: offener Sync ----------------------------------------------------------------------------------
 
 
-def test_am_lader_haelt_ein_offener_sync_die_abschaltung_auf():
+def test_ein_offener_sync_haelt_die_abschaltung_auf():
     r = leer()
-    r.sende(ev.LaderGeaendert(True))
     r.vor(LEERLAUF_S - 10)
     assert r.sende(ev.HaSyncAnstossen("b1", r.uhr.wall + 30)) == [ev.SyncStarten("ha")]
     assert r.vor(20) == []  # 20 min um, Sync noch nicht gemeldet
@@ -283,7 +294,6 @@ def test_am_lader_haelt_ein_offener_sync_die_abschaltung_auf():
 
 def test_sync_regel_lehnt_ab_dann_faehrt_die_box_herunter():
     r = leer()
-    r.sende(ev.LaderGeaendert(True))
     r.vor(LEERLAUF_S - 10)
     r.sende(ev.HaSyncAnstossen("b1", r.uhr.wall + 30))
     r.vor(10)  # 20 min um, die Antwort fehlt noch
@@ -337,22 +347,23 @@ def test_start_sync_nur_einmal():
 
 
 def test_start_sync_haelt_die_abschaltung_bis_zur_antwort():
-    r = Rahmen()
+    r = Rahmen(strom=True)
     r.sende(ev.SitzungGeaendert("leer", False, False, None))
-    r.vor(LEERLAUF_S - 10)
-    r.sende(ev.LaderGeaendert(True), ev.Bereit())
-    r.vor(10)
-    assert r.modus == "leerlauf" and r.z.faellig
+    assert r.sende(ev.Bereit()) == [ev.SyncStarten("start_lader")]
     r.sende(ev.SyncGestartet())
+    r.vor(100)
+    r.sende(ev.LaderGeaendert(False))  # abgenommen: der Zähler beginnt jetzt
+    r.vor(LEERLAUF_S)
+    assert r.modus == "leerlauf" and r.z.faellig
     assert r.vor(LEERLAUF_S) == []
     assert r.sende(ev.SyncFertig(0, 0)) == FAHREN
 
 
-def test_am_lader_ohne_sync_und_update_gilt_die_zwanzig_minuten_regel():
-    r = leer()
-    r.sende(ev.LaderGeaendert(True))
-    assert r.vor(LEERLAUF_S - 1) == []
-    assert r.vor(1) == FAHREN
+def test_mit_strom_faehrt_die_box_nie_von_selbst_herunter():
+    r = Rahmen(strom=True)
+    r.sende(ev.SitzungGeaendert("leer", False, False, None))
+    assert r.vor(100 * LEERLAUF_S) == []
+    assert r.modus == "leerlauf" and r.z.frist_bis is None
 
 
 # --- Herunterfahren auf Anforderung --------------------------------------------------------------------------
@@ -499,97 +510,11 @@ def test_pausierte_sitzung_ist_fuer_das_update_kein_spielen():
 def test_kennzeichen_ist_der_modus():
     r = Rahmen()
     assert idle.kennzeichen(r.z) == "aktiv"
-    r.sende(ev.Takt())
+    r.sende(ev.Takt(), ev.LaderGeaendert(False))
     assert idle.kennzeichen(r.z) == "leerlauf"
     r.vor(LEERLAUF_S)
     assert idle.kennzeichen(r.z) == "herunterfahren"
 
-
-# --- Wiederholung des Start-Syncs am Lader (Entscheidung der Projektleitung, AP 4.8) -------------------------
-
-
-def am_lader_gestartet() -> Rahmen:
-    """Box am Lader gestartet, ohne Tobie; der Start-Sync ist ausgegeben und noch ohne Antwort."""
-    r = Rahmen()
-    r.sende(ev.SitzungGeaendert("leer", False, False, None), ev.LaderGeaendert(True))
-    assert r.sende(ev.Bereit()) == [ev.SyncStarten("start_lader")]
-    return r
-
-
-@pytest.mark.parametrize("grund", ["netz_weg", "regel"])
-def test_start_sync_wird_nach_10_min_wiederholt(grund):
-    r = am_lader_gestartet()
-    assert r.sende(ev.SyncAbgebrochen(grund)) == []
-    assert r.vor(START_WIEDERHOLUNG_S - 1) == []
-    assert r.vor(1) == [ev.SyncStarten("start_lader")]
-
-
-def test_wiederholung_nur_6_mal_dann_gilt_die_20_min_regel():
-    r = am_lader_gestartet()
-    r.sende(ev.SyncAbgebrochen("netz_weg"))
-    for n in range(START_WIEDERHOLUNGEN):
-        assert r.vor(START_WIEDERHOLUNG_S) == [ev.SyncStarten("start_lader")], n
-        if n < START_WIEDERHOLUNGEN - 1:
-            assert r.sende(ev.SyncAbgebrochen("regel")) == []
-    # der 6. Versuch scheitert wie die anderen: keine siebte Wiederholung, die Box fährt herunter (Zähler ist längst abgelaufen)
-    assert r.sende(ev.SyncAbgebrochen("regel")) == FAHREN
-    assert r.vor(10 * START_WIEDERHOLUNG_S) == []
-
-
-def test_waehrend_der_wiederholungen_schaltet_die_box_nicht_ab():
-    r = am_lader_gestartet()
-    r.sende(ev.SyncAbgebrochen("netz_weg"))
-    assert r.vor(START_WIEDERHOLUNG_S) == [ev.SyncStarten("start_lader")]
-    r.sende(ev.SyncAbgebrochen("regel"))
-    assert r.vor(START_WIEDERHOLUNG_S - 1) == []
-    assert r.vor(1) == [ev.SyncStarten("start_lader")]  # 20 min um: die Wiederholung kommt, die Abschaltung wartet
-    assert r.modus == "leerlauf" and r.z.faellig
-
-
-def test_gelungene_wiederholung_beendet_sie_und_die_box_faehrt_herunter():
-    r = am_lader_gestartet()
-    r.sende(ev.SyncAbgebrochen("netz_weg"))
-    assert r.vor(START_WIEDERHOLUNG_S) == [ev.SyncStarten("start_lader")]
-    r.sende(ev.SyncGestartet())
-    assert r.vor(LEERLAUF_S) == []  # Sync läuft
-    assert r.sende(ev.SyncFertig(2, 0)) == FAHREN
-
-
-def test_anderer_abbruchgrund_wiederholt_nicht():
-    r = am_lader_gestartet()
-    r.sende(ev.SyncAbgebrochen("quelle_leer"))
-    assert r.vor(10 * START_WIEDERHOLUNG_S) == FAHREN or r.modus == "herunterfahren"
-    assert [b for b in r.alles if b == ev.SyncStarten("start_lader")] == [ev.SyncStarten("start_lader")]
-
-
-def test_ohne_lader_keine_wiederholung():
-    r = am_lader_gestartet()
-    r.sende(ev.SyncAbgebrochen("netz_weg"))
-    r.sende(ev.LaderGeaendert(False))
-    assert r.vor(START_WIEDERHOLUNG_S) == []
-    assert not [b for b in r.alles if b == ev.SyncStarten("start_lader")][1:]
-
-
-def test_nur_der_start_sync_wird_wiederholt_nicht_der_ha_sync():
-    r = leer()
-    r.sende(ev.LaderGeaendert(True), ev.HaSyncAnstossen("b1", r.uhr.wall + 9999))
-    assert r.sende(ev.SyncAbgebrochen("regel")) == []
-    assert r.vor(START_WIEDERHOLUNG_S) == []
-    assert r.z.wdh_bei is None
-
-
-def test_wiederholung_nach_lader_wechsel_waehrend_des_wartens_endet():
-    r = am_lader_gestartet()
-    r.sende(ev.SyncAbgebrochen("regel"))
-    r.sende(ev.LaderGeaendert(False))
-    assert r.z.wdh_bei is None and not r.z.start_wdh
-
-
-def test_ohne_sync_abschnitt_wird_nicht_wiederholt():
-    """``app`` meldet ohne ``[sync]`` ``nicht_eingerichtet``: kein Grund für die Wiederholung."""
-    r = am_lader_gestartet()
-    r.sende(ev.SyncAbgebrochen("nicht_eingerichtet"))
-    assert r.z.wdh_bei is None
 
 
 # --- B1: ein fehlgeschlagenes Herunterfahren ist nicht endgültig --------------------------------------------------
@@ -606,7 +531,7 @@ def test_fehlgeschlagenes_herunterfahren_verlaesst_den_zustand_und_zaehlt_neu():
     assert len(fehler) == 1 and fehler[0].art == "fehler"
     assert fehler[0].daten["code"] == "herunterfahren_fehlgeschlagen" and "Rückgabecode 1" in str(fehler[0].daten["text"])
     assert any(isinstance(x, ev.Protokoll) and x.ergebnis == "fehlgeschlagen" for x in r.alles)
-    # neuer Zähler: nach 20 min wieder Herunterfahren, nicht sofort
+    # neuer Zähler: nach 10 min wieder Herunterfahren, nicht sofort
     assert r.vor(LEERLAUF_S - 1) == []
     assert r.vor(2) == FAHREN
 
@@ -638,3 +563,311 @@ def test_simuliertes_herunterfahren_kehrt_nach_fester_zeit_zurueck_ohne_hinweis(
     assert r.modus == "leerlauf"
     assert not [x for x in r.alles if isinstance(x, ev.EreignisSenden)]
     assert r.sende(ev.Hauptknopf("lang")) == [ev.HerunterfahrenAngefordert("hauptknopf")]
+
+
+# --- Ein/Aus, 10.11.: Strom, Frist, Andocken -----------------------------------------------------------------------
+
+
+def bereit_ohne_strom(**kw) -> Rahmen:
+    """Bereit, nichts spielt, erste Messung „kein Strom“, ``Bereit`` verarbeitet; die Sperre (10 s ab ``Bereit``) ist noch zu."""
+    r = leer()
+    r.sende(ev.Bereit())
+    return r
+
+
+def andocken(r: Rahmen, quelle="pisugar"):
+    return r.sende(ev.LaderGeaendert(True, quelle))  # type: ignore[arg-type]
+
+
+def test_strom_verwirft_den_zaehler_und_mit_strom_gibt_es_keine_frist():
+    r = leer()
+    r.vor(LEERLAUF_S - 5)
+    r.sende(ev.LaderGeaendert(True))
+    assert r.z.frist_bis is None
+    assert r.vor(50 * LEERLAUF_S) == [] and r.modus == "leerlauf"
+
+
+def test_abziehen_beginnt_die_frist_ab_dem_abnehmen_auch_nach_langer_ruhe():
+    r = Rahmen(strom=True)
+    r.sende(ev.SitzungGeaendert("leer", False, False, None))
+    r.vor(5 * LEERLAUF_S)  # lange nichts gespielt, am Strom
+    r.sende(ev.LaderGeaendert(False))
+    assert r.z.frist_bis == r.uhr.mono + LEERLAUF_S
+    assert r.vor(LEERLAUF_S - 1) == []
+    assert r.vor(1) == FAHREN
+
+
+def test_spielt_die_sitzung_beginnt_die_frist_erst_wenn_sie_nicht_mehr_spielt():
+    r = Rahmen(strom=True)
+    belegt(r)
+    r.sende(ev.LaderGeaendert(False))
+    r.vor(3 * LEERLAUF_S)
+    assert r.modus == "aktiv" and r.z.frist_bis is None
+    r.sende(ev.SitzungGeaendert("pausiert", False, False, "s1"))
+    assert r.z.frist_bis == r.uhr.mono + LEERLAUF_S
+
+
+def test_strom_waehrend_der_wartezeit_verwirft_die_faelligkeit():
+    r = leer()
+    r.sende(ev.SyncGestartet())
+    r.vor(LEERLAUF_S)
+    assert r.z.faellig
+    r.sende(ev.LaderGeaendert(True))
+    assert not r.z.faellig
+    assert r.sende(ev.SyncFertig(0, 0)) == []
+    assert r.modus == "leerlauf"
+
+
+def test_bedienung_am_strom_aendert_nichts_und_beginnt_keinen_zaehler():
+    r = Rahmen(strom=True)
+    r.sende(ev.SitzungGeaendert("leer", False, False, None), ev.Weiter(), ev.Hauptknopf("kurz"))
+    assert r.z.frist_bis is None
+
+
+def test_hauptknopf_lang_faehrt_auch_am_strom_herunter():
+    r = Rahmen(strom=True)
+    assert r.sende(ev.Hauptknopf("lang")) == [ev.HerunterfahrenAngefordert("hauptknopf")]
+
+
+def test_tiefstand_wird_nur_ohne_strom_ausgefuehrt_unbekannter_strom_zaehlt_als_kein_strom():
+    r = Rahmen()
+    assert ev.HerunterfahrenAngefordert("akku_tiefstand") in r.sende(ev.AkkuTiefstand())  # Strom unbekannt (V15)
+    r = Rahmen(strom=True)
+    assert r.sende(ev.AkkuTiefstand()) == []
+
+
+def test_update_braucht_bekannten_strom_unbekannt_zaehlt_als_kein_strom():
+    r = Rahmen()
+    r.sende(ev.NetzKlasse("home"))
+    aus = r.sende(ev.HaUpdateAnstossen("b1", "1.2", r.uhr.wall + 30))
+    assert "Lader" in aus[0].daten["detail"]
+
+
+# --- zwei Quellen ---------------------------------------------------------------------------------------------
+
+
+def test_leser_hat_vorrang_bei_widerspruch():
+    r = Rahmen()
+    r.sende(ev.LaderGeaendert(False, "pisugar"), ev.LaderGeaendert(True, "leser"))
+    assert r.z.am_lader is True
+    r.sende(ev.SitzungGeaendert("leer", False, False, None))
+    assert r.vor(10 * LEERLAUF_S) == []  # hängt am Sockel, trotz „kein Strom“ von pisugar
+
+
+def test_pisugar_hängt_der_leser_liefert_den_wert_allein():
+    r = Rahmen()
+    r.sende(ev.SitzungGeaendert("leer", False, False, None), ev.LaderGeaendert(True, "leser"))
+    assert r.vor(10 * LEERLAUF_S) == []
+
+
+def test_ohne_leser_gilt_pisugar():
+    r = Rahmen(strom=True)
+    r.sende(ev.SitzungGeaendert("leer", False, False, None))
+    assert r.z.am_lader is True
+
+
+def test_widerspruch_wird_erst_nach_der_entprellzeit_als_warnung_protokolliert():
+    r = Rahmen()
+    r.sende(ev.LaderGeaendert(True, "pisugar"), ev.LaderGeaendert(False, "leser"))
+    warn = lambda: [x for x in r.alles if isinstance(x, ev.Protokoll) and x.ereignis == "strom" and x.ebene == "WARNING"]  # noqa: E731
+    r.vor(STROM_WIDERSPRUCH_S - 1)
+    assert warn() == []
+    r.vor(1)
+    assert len(warn()) == 1
+    r.vor(60)
+    assert len(warn()) == 1  # einmal je Widerspruch
+    r.sende(ev.LaderGeaendert(False, "pisugar"))  # die Quellen stimmen wieder überein
+    r.sende(ev.LaderGeaendert(True, "pisugar"))
+    r.vor(STROM_WIDERSPRUCH_S)
+    assert len(warn()) == 2
+
+
+def test_kurzer_widerspruch_beim_normalen_andocken_ist_keine_warnung():
+    r = Rahmen()
+    r.sende(ev.LaderGeaendert(False, "pisugar"), ev.LaderGeaendert(False, "leser"))
+    r.sende(ev.LaderGeaendert(True, "pisugar"))  # pisugar ist schneller
+    r.vor(1)
+    r.sende(ev.LaderGeaendert(True, "leser"))
+    r.vor(60)
+    assert not [x for x in r.alles if isinstance(x, ev.Protokoll) and x.ebene == "WARNING"]
+
+
+@pytest.mark.parametrize("ende", [ev.LeserAlarm("getrennt"), ev.LeserHallo(1, "1.0.0", "abc1234", "4.2")])
+def test_der_leser_wert_gilt_nur_fuer_die_aktuelle_verbindung(ende):
+    """V2: Bei Leser-Ausfall oder neuem ``HELLO`` (ohne neues ``LADER``) gilt wieder ``pisugar``."""
+    r = Rahmen()
+    r.sende(ev.SitzungGeaendert("leer", False, False, None), ev.LaderGeaendert(False, "pisugar"), ev.LaderGeaendert(True, "leser"))
+    assert r.z.am_lader is True and r.z.frist_bis is None
+    r.sende(ende)
+    assert r.z.am_lader is False and r.z.frist_bis is not None  # die Frist beginnt: am Sockel nur durch den Leser
+    assert r.vor(LEERLAUF_S) == FAHREN
+
+
+def test_nach_neuem_hello_zaehlt_ein_neuer_lader_wert_wieder():
+    r = Rahmen()
+    r.sende(ev.LaderGeaendert(False, "pisugar"), ev.LaderGeaendert(True, "leser"), ev.LeserHallo(1, "1.1.0", "abc1234", "4.2", "strom"))
+    r.sende(ev.LaderGeaendert(True, "leser"))
+    assert r.z.am_lader is True
+
+
+# --- erste Messung --------------------------------------------------------------------------------------------
+
+
+def test_erste_messung_strom_loest_nur_den_sync_check_aus():
+    r = Rahmen()
+    r.sende(ev.Bereit())
+    r.vor(100)
+    assert r.sende(ev.LaderGeaendert(True)) == [ev.SyncStarten("start_lader")]  # kein Ton, kein Ring
+
+
+def test_erste_messung_vor_bereit_der_sync_check_kommt_mit_bereit():
+    r = Rahmen()
+    assert r.sende(ev.LaderGeaendert(True)) == []
+    assert r.sende(ev.Bereit()) == [ev.SyncStarten("start_lader")]
+
+
+def test_erste_messung_kein_strom_kein_sync_und_kein_ring():
+    r = Rahmen()
+    r.sende(ev.Bereit())
+    assert r.sende(ev.LaderGeaendert(False)) == []
+
+
+def test_spaete_erste_messung_nach_60_s_strom_stellt_den_zustand_neu_und_hat_keine_rueckmeldung():
+    """V4: Der Zustand folgt dem Wert sofort; nur Ring und Ton entfallen."""
+    r = Rahmen()
+    r.sende(ev.SitzungGeaendert("leer", False, False, None), ev.Bereit())
+    r.vor(STROM_UNBEKANNT_S + 30)  # Zähler läuft seit 60 s
+    assert r.z.frist_bis is not None
+    aus = r.sende(ev.LaderGeaendert(True))
+    assert aus == [ev.SyncStarten("start_lader")]
+    assert r.z.frist_bis is None and r.vor(10 * LEERLAUF_S) == []
+
+
+def test_spaete_erste_messung_kein_strom_laesst_den_zaehler_weiterlaufen():
+    r = Rahmen()
+    r.sende(ev.SitzungGeaendert("leer", False, False, None), ev.Bereit())
+    r.vor(STROM_UNBEKANNT_S + 30)
+    frist = r.z.frist_bis
+    assert r.sende(ev.LaderGeaendert(False)) == [] and r.z.frist_bis == frist
+
+
+def test_erster_wert_einer_zweiten_quelle_ist_keine_rueckmeldung():
+    """V3: pisugar „kein Strom“, später der Leser „Strom“: der Zustand wechselt, aber kein Ring, kein Ton."""
+    r = bereit_ohne_strom()
+    r.vor(60)  # Sperre ist frei
+    aus = r.sende(ev.LaderGeaendert(True, "leser"))
+    assert [x for x in aus if isinstance(x, (ev.AkkuAnzeigen, ev.TonSpielen))] == []
+    assert r.z.am_lader is True and r.z.frist_bis is None
+
+
+# --- Andocken und Abziehen ------------------------------------------------------------------------------------
+
+
+def test_andocken_gibt_ring_ton_und_sync_check():
+    r = bereit_ohne_strom()
+    r.vor(LADER_SPERRE_S)
+    assert andocken(r) == [ev.AkkuAnzeigen("andocken", ANDOCK_RING_S), ev.TonSpielen("lader"), ev.SyncStarten("start_lader")]
+    assert r.z.frist_bis is None  # der Zähler ist verworfen
+
+
+def test_andocken_spielt_die_sitzung_nur_ring_3_s_und_sync_aber_kein_ton():
+    r = bereit_ohne_strom()
+    belegt(r)
+    r.vor(LADER_SPERRE_S)
+    assert andocken(r) == [ev.AkkuAnzeigen("andocken", ANDOCK_RING_SPIELT_S), ev.SyncStarten("start_lader")]
+
+
+def test_andocken_im_leser_ausfall_zustand_unbekannt_der_sitzung_kein_ton():
+    r = bereit_ohne_strom()
+    r.sende(ev.SitzungGeaendert("unbekannt", False, False, "s1"))
+    r.vor(LADER_SPERRE_S)
+    assert ev.TonSpielen("lader") not in andocken(r)
+
+
+def test_andocken_waehrend_eines_updates_nur_ring():
+    r = bereit_ohne_strom()
+    r.sende(ev.UpdateGestartet("1.2"))
+    r.vor(LADER_SPERRE_S)
+    assert andocken(r) == [ev.AkkuAnzeigen("andocken", ANDOCK_RING_S)]
+
+
+def test_andocken_waehrend_eines_syncs_kein_zweiter_sync():
+    r = bereit_ohne_strom()
+    r.sende(ev.SyncGestartet())
+    r.vor(LADER_SPERRE_S)
+    assert andocken(r) == [ev.AkkuAnzeigen("andocken", ANDOCK_RING_S), ev.TonSpielen("lader")]
+
+
+def test_abziehen_ring_akku_kein_ton_kein_sync_und_die_frist_beginnt_jetzt():
+    r = Rahmen(strom=True)
+    r.sende(ev.SitzungGeaendert("leer", False, False, None), ev.Bereit())
+    r.vor(LADER_SPERRE_S)
+    assert r.sende(ev.LaderGeaendert(False)) == [ev.AkkuAnzeigen("abziehen", ANDOCK_RING_S)]
+    assert r.z.frist_bis == r.uhr.mono + LEERLAUF_S
+
+
+def test_abziehen_waehrend_des_spielens_ring_3_s():
+    r = Rahmen(strom=True)
+    belegt(r)
+    r.sende(ev.Bereit())
+    r.vor(LADER_SPERRE_S)
+    assert r.sende(ev.LaderGeaendert(False)) == [ev.AkkuAnzeigen("abziehen", ANDOCK_RING_SPIELT_S)]
+
+
+def test_sperre_ab_bereit_strom_in_den_ersten_10_s_gibt_keine_rueckmeldung_aber_der_zustand_wechselt():
+    r = bereit_ohne_strom()
+    r.vor(LADER_SPERRE_S - 1)
+    assert andocken(r) == []
+    assert r.z.am_lader is True and r.z.frist_bis is None
+
+
+def test_wackelkontakt_hoechstens_eine_rueckmeldung_je_10_s():
+    r = bereit_ohne_strom()
+    r.vor(LADER_SPERRE_S)
+    ausgaben = []
+    for _ in range(5):
+        ausgaben += r.sende(ev.LaderGeaendert(True))
+        r.vor(1)
+        ausgaben += r.sende(ev.LaderGeaendert(False))
+        r.vor(1)
+    anzeigen = [a for a in ausgaben if isinstance(a, ev.AkkuAnzeigen)]
+    assert len(anzeigen) == 1 and anzeigen[0].grund == "andocken"
+    assert len([a for a in ausgaben if a == ev.TonSpielen("lader")]) == 1
+    assert r.z.frist_bis is not None  # Zustand folgt trotzdem dem Wert: zuletzt „kein Strom“
+    r.vor(LADER_SPERRE_S)
+    assert [a for a in andocken(r) if isinstance(a, ev.AkkuAnzeigen)]  # nach der Sperre wieder
+
+
+def test_ohne_bereit_gibt_es_keine_rueckmeldung():
+    r = leer()
+    r.vor(100)
+    assert andocken(r) == []
+
+
+def test_wiederholter_gleicher_wert_ist_kein_wechsel():
+    r = bereit_ohne_strom()
+    r.vor(LADER_SPERRE_S)
+    andocken(r)
+    r.vor(LADER_SPERRE_S)
+    assert andocken(r, "leser") == []  # erster Wert des Lesers, gleich: nichts
+    assert andocken(r, "leser") == []  # Wiederholung nach HELLO
+
+
+def test_beim_herunterfahren_gibt_es_keine_rueckmeldung_und_strom_wird_nachgefuehrt():
+    r = Rahmen(strom=False)
+    r.sende(ev.Bereit())
+    r.vor(LADER_SPERRE_S)
+    r.sende(ev.Hauptknopf("lang"))
+    assert andocken(r) == []
+    assert r.z.am_lader is True
+    r.sende(ev.HerunterfahrenFehlgeschlagen("x"))
+    assert r.modus == "leerlauf" and r.z.frist_bis is None  # Strom da: kein Zähler
+
+
+def test_strom_ist_ein_wert_aus_der_stromquelle_fuer_alle():
+    from tobibox.stromwert import StromQuellen
+
+    q = StromQuellen().mit(ev.LaderGeaendert(True, "pisugar"))
+    assert q.wert is True and not q.widerspruch
+    q = q.mit(ev.LaderGeaendert(False, "leser"))
+    assert q.wert is False and q.widerspruch

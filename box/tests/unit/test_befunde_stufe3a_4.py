@@ -126,6 +126,8 @@ async def test_b1_power_simulation_meldet_simuliert():
 async def test_b1_app_fehlgeschlagenes_poweroff_idle_zaehlt_neu_und_ha_erfaehrt_es(d):
     a = d.app
     a.power.treiber = KaputtesPoweroff()
+    await d.sim(befehl="strom", lader=False, akku=80)  # ohne Strom: die Frist zählt (Ein/Aus, 10.11.)
+    await d.ruhe()
     assert (await d.sim(befehl="taste", taste="hauptknopf_lang")) == {"ok": True}
     await d.ruhe()
     assert a.kern.teil["idle"].modus in ("aktiv", "leerlauf")  # nicht mehr endgültig (Probe 3: war „herunterfahren“ für immer)
@@ -135,7 +137,7 @@ async def test_b1_app_fehlgeschlagenes_poweroff_idle_zaehlt_neu_und_ha_erfaehrt_
     await d.sim(befehl="taste", taste="hauptknopf_lang")
     await d.ruhe()
     assert len([b for b in a.ha.gesendet if b.art == "fehler"]) == 2
-    # nach 20 min Leerlauf wieder ein Versuch
+    # nach 10 min Leerlauf ohne Strom wieder ein Versuch
     await d.zeit_vor(idle_leerlauf() + 5)
     await d.ruhe()
     assert len([b for b in a.ha.gesendet if b.art == "fehler"]) == 3
@@ -405,11 +407,9 @@ async def test_b7_start_sync_wartet_auf_die_erste_netz_klasse(tmp_path, kurz, mo
         await dienst.sim(befehl="strom", lader=True, akku=80)
         await asyncio.sleep(0.1)
         assert [x for x in starts if x[0] == "start_lader"] == []  # wartet, statt mit ``regel`` abzubrechen (Probe des Prüfers)
-        assert a.kern.teil["idle"].wdh_bei is None
         await dienst.sim(befehl="netz", klasse="home")
         await asyncio.sleep(0.1)
         assert [x for x in starts if x[0] == "start_lader"] == [("start_lader", True)]  # erst mit bekannter Netz-Klasse
-        assert a.kern.teil["idle"].wdh_bei is None
     finally:
         await a.beende()
 
@@ -442,7 +442,6 @@ async def test_b7_echter_sync_antwortet_nicht_mehr_mit_regel_vor_der_netz_klasse
         await dienst.sim(befehl="strom", lader=True, akku=80)
         await asyncio.sleep(0.1)
         assert a.status.sync["grund"] != "regel"
-        assert a.kern.teil["idle"].wdh_bei is None
     finally:
         await a.beende()
 

@@ -710,3 +710,12 @@ async def test_folge_wartet_zeigt_weitere_toene(tmp_path):
     tor.set()
     await t.warte_leer()
     assert not t.folge_wartet
+
+
+def test_lader_hat_den_pegel_von_hinweis_ein_aus_10_11():
+    """Der Ton ``lader`` (Ein/Aus, 10.11.) klingt wie der Hinweiston: ``min(grenze, max(10, min(hinweis_pegel, lautstaerke)))``."""
+    from tobibox.sounds import pegel
+
+    for grenze, laut, hp in [(50, 40, None), (50, 0, None), (50, 40, 30), (5, 40, None), (50, 8, 15), (30, 100, 90)]:
+        assert pegel("lader", grenze, laut, hp) == pegel("hinweis", grenze, laut, hp)
+    assert pegel("lader", 50, 40) == 15 and pegel("lader", 50, 0) == 10 and pegel("lader", 5, 40) == 5

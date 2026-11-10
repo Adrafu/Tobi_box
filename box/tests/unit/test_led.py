@@ -110,12 +110,94 @@ def test_akku_anzeige_ohne_stand_zeigt_nichts():
     assert lg.zustand(1.0) == led.LAEUFT
 
 
-def test_lader_wechsel_zeigt_akku_blau():
+def test_laderwechsel_allein_zeigt_nichts_die_anzeige_kommt_von_idle():
+    """Ein/Aus, 10.11.: Andocken und Abziehen zeigt der Ring nur auf ``AkkuAnzeigen`` von ``idle`` (Sperre, erste Messung)."""
     lg = logik_mit("pausiert")
     lg.beobachte(ev.AkkuStand(80), 0.0)
+    lg.beobachte(ev.LaderGeaendert(False), 0.5)
     lg.beobachte(ev.LaderGeaendert(True), 1.0)
-    r = lg.ring(1.5)
+    assert lg.zustand(1.5) == led.PAUSE
+
+
+def test_andocken_zeigt_akku_blau_und_abziehen_nach_prozent():
+    lg = logik_mit("pausiert")
+    lg.beobachte(ev.AkkuStand(80), 0.0)
+    lg.beobachte(ev.LaderGeaendert(False), 0.0)
+    lg.beobachte(ev.LaderGeaendert(True), 20.0)
+    lg.beobachte(ev.AkkuAnzeigen("andocken", 5.0), 20.0)
+    r = lg.ring(21.0)
     assert r.zustand == led.AKKU and r.leds[0] == led.BLAU
+    assert lg.zustand(20.0 + 5.0 + 0.1) == led.PAUSE  # 5 s
+    lg.beobachte(ev.LaderGeaendert(False), 30.0)
+    lg.beobachte(ev.AkkuAnzeigen("abziehen", 3.0), 30.0)
+    assert lg.ring(31.0).leds[0] == led.GRUEN  # 80 %, ohne Strom nach Prozent
+    assert lg.zustand(30.0 + 3.0 + 0.1) == led.PAUSE  # spielt die Sitzung: 3 s
+
+
+def test_start_mit_strom_zeigt_nach_bereit_den_ladestand_5_s():
+    lg = logik_mit("leer")
+    lg.beobachte(ev.AkkuStand(60), 0.0)
+    lg.beobachte(ev.LaderGeaendert(True), 1.0)  # erste Messung vor Bereit
+    assert lg.zustand(1.5) == led.AUS  # noch nicht bereit
+    lg.beobachte(ev.Bereit(), 2.0)
+    assert lg.zustand(2.5) == led.AUFWACHEN  # das Lauflicht geht vor
+    assert lg.zustand(2.0 + led.AUFWACHEN_S + 0.1) == led.AKKU  # danach 5 s Ladestand
+    assert lg.zustand(2.0 + led.AUFWACHEN_S + 5.1) == led.AUS
+
+
+def test_start_ohne_strom_keine_anzeige_und_spaetes_andocken_zeigt_nichts_ohne_freigabe():
+    lg = logik_mit("pausiert")
+    lg.beobachte(ev.Bereit(), 0.0)
+    lg.beobachte(ev.LaderGeaendert(False), 0.5)
+    lg.beobachte(ev.LaderGeaendert(True), 30.0)
+    assert lg.zustand(30.5) == led.PAUSE
+
+
+def test_leser_ausfall_loescht_nur_den_leser_wert_der_anzeige():
+    lg = LedLogik()
+    lg.beobachte(ev.LaderGeaendert(False, "pisugar"), 0.0)
+    lg.beobachte(ev.LaderGeaendert(True, "leser"), 0.0)
+    assert lg.am_lader
+    lg.beobachte(ev.LeserAlarm("getrennt"), 1.0)
+    assert not lg.am_lader
+
+
+@pytest.mark.parametrize(
+    "ruhe, gute_nacht, erwartet",
+    [("normal", "aus", 15), ("leiser", "aus", 5), ("stumm", "aus", 3), ("normal", "laeuft", 5), ("normal", "ausblenden", 5), ("stumm", "laeuft", 3)],
+)
+def test_akku_anzeige_helligkeit_15_5_3_ohne_den_stumm_faktor(ruhe, gute_nacht, erwartet):
+    lg = LedLogik()
+    lg.beobachte(melden("pausiert", ruhe=ruhe, gute_nacht=gute_nacht), 0.0)
+    lg.beobachte(ev.AkkuStand(70), 0.0)
+    lg.akku_zeigen(1.0)
+    r = lg.ring(2.0)
+    assert r.zustand == led.AKKU and r.helligkeit == erwartet
+
+
+@pytest.mark.parametrize("hell", [3, 5, 15])
+def test_akku_anzeige_hat_mindestens_stufe_1_von_31(hell):
+    r = Ring("akku", ((0, 255, 70),) * ANZAHL, hell)
+    assert r.apa102_rahmen()[4] & 0x1F >= 1
+    assert Ring("x", ((0, 0, 0),) * ANZAHL, 0).apa102_rahmen()[4] & 0x1F == 0
+
+
+def test_akku_anzeige_wird_entprellt():
+    lg = logik_mit("pausiert")
+    lg.beobachte(ev.AkkuStand(70), 0.0)
+    lg.akku_zeigen(10.0)
+    lg.akku_zeigen(10.5)  # innerhalb von AKKU_ENTPRELL_S: startet nicht neu
+    assert lg.zustand(10.0 + led.AKKU_ANZEIGE_S + 0.1) == led.PAUSE
+    lg.akku_zeigen(20.0)
+    lg.akku_zeigen(21.5)  # nach der Entprellzeit: neue Anzeige
+    assert lg.zustand(25.5) == led.AKKU
+
+
+def test_tiefstand_blinken_bleibt_unter_stumm_gedimmt():
+    lg = LedLogik()
+    lg.beobachte(melden("pausiert", ruhe="stumm"), 0.0)
+    lg.beobachte(ev.AkkuTiefstand(), 0.0)
+    assert lg.ring(0.1).helligkeit == pytest.approx(DECKEL_PROZENT * led.STUMM_DIMMUNG)
 
 
 def test_akku_tiefstand_blinkt_rot_bis_lader():

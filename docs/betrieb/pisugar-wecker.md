@@ -1,6 +1,6 @@
 # PiSugar: Anbindung und nächtlicher Wecker (nur Beschreibung)
 
-Stand: 09.11. (AP 4.3). Dieses Dokument beschreibt, wie die Box mit dem PiSugar
+Stand: 10.11. (AP 4.3; nachgezogen mit Ein/Aus, Schritt 1, AP E1-8). Dieses Dokument beschreibt, wie die Box mit dem PiSugar
 spricht und wie sie nachts am Lader zum Sync geweckt werden könnte. Es ist
 **keine Anleitung zum Einrichten**. Der Wecker wird erst gebaut, wenn Tobias
 es entscheidet (Abschnitt 5). Gebaut ist der Wecker nicht, es gibt dafür
@@ -9,6 +9,15 @@ keinen Code.
 Quellen sind die README des Projekts `PiSugar/pisugar-power-manager-rs` und die
 PiSugar-Wiki (Stand der Recherche 09.11.). Was dort **nicht** steht, ist unten
 als „am Gerät prüfen“ markiert.
+
+**Nachtrag Ein/Aus, Schritt 1 (10.11.):** Der nächtliche Wecker des PiSugar für den Sync **wird nicht gebraucht**. Am Sockel (Strom am Eingang) ist die Box ohnehin
+immer bereit und schaltet nie von selbst ab (CUJ 23); ohne Strom fährt sie nach 10 min Pause herunter (CUJ 16, 24). Den nächsten Sync-Anstoß geben der Takt (`[sync] intervall_s`),
+das Andocken (Sync-Check, CUJ 25) und HA. Die Abschnitte 4 bis 6 bleiben als Beschreibung der Möglichkeit stehen; die Wiederholung des Start-Syncs, von der sie reden, ist **entfallen**.
+„Lader“ heißt jetzt **Strom am Eingang aus jeder Quelle**. Zwei Quellen liefern ihn: `pisugar-server` (`get battery_power_plugged`, Abschnitt 2) und der Leser (Zeile `LADER`,
+`docs/protocol/reader-v1.md`); bei Widerspruch gilt der Leser, solange seine Verbindung steht. Hängt `pisugar-server`, liefert der Leser den Wert allein; ohne Leser (Firmware 1.x) gilt
+nur `pisugar-server`. Meldet keine Quelle einen Wert, gilt der Strom nach 60 s als „kein Strom“. „Einschalten bei Strom“ des PiSugar entscheidet bis Schritt 2, ob die Box am Sockel nach
+`Hauptknopf` lang wieder startet (Messung M9 im Entwurf `docs/egm/ein-aus/design_draft.md`, 10.3). Das Hauptknopf-Verhalten und die Frist haben **keinen** neuen Befehl an den PiSugar zur Folge
+(`set_anti_mistouch` ist nicht nötig).
 
 ## 1. Wie die Box mit dem PiSugar spricht
 
@@ -121,7 +130,7 @@ zu einer festen Uhrzeit ein, die Box synchronisiert und fährt wieder herunter.
 
 Der Ablauf mit den Teilen, die es schon gibt:
 
-1. Die Box fährt herunter (Leerlauf nach 20 min oder Hauptknopf lang).
+1. Die Box fährt herunter (Leerlauf nach 10 min ohne Strom, seit Ein/Aus Schritt 1; oder Hauptknopf lang). *Am Lader/Sockel gibt es keinen Leerlauf mehr.*
 2. Der PiSugar schaltet die Box zur Weckzeit ein (RTC-Alarm).
 3. Beim Start liest `power.py` die RTC und setzt die Systemuhr (`rtc_rtc2pi`).
    Die Zeit gilt dann als vertrauenswürdig, wenn die RTC plausibel ist.
@@ -130,7 +139,7 @@ Der Ablauf mit den Teilen, die es schon gibt:
    entscheidet `sync` nach der Netz-Regel.
 5. Während der Sync läuft, schaltet `idle.py` nie ab. Sobald er fertig ist
    und kein Tobie liegt, fährt die Box sofort herunter. Gab es keinen Sync zu
-   tun, gilt die 20-Minuten-Regel.
+   tun, gilt die Leerlauf-Regel (10 min, aber nur ohne Strom; am Strom bleibt die Box bereit).
 
 Damit braucht die Box für den Wecker **keine neue Logik im Kern**. Es fehlt nur
 das Setzen der Weckzeit.
@@ -179,8 +188,9 @@ Vor der Entscheidung zu klären:
 
 ## 6. Lücken, die beim Schreiben aufgefallen sind
 
-- **Erledigt (Rev. 3.16 und 3.17):** Der Start-Sync am Lader wird alle 10 min bis zu 6-mal wiederholt und wartet beim Start auf die erste
-  Netz-Klasse (höchstens 30 s). Die folgende Beschreibung ist der Stand vor dieser Änderung.
+- **Erledigt (Rev. 3.16 und 3.17), seit Ein/Aus Schritt 1 (10.11.) geändert:** Der Start-Sync wartet beim Start auf die erste
+  Netz-Klasse (höchstens 30 s). Seine **Wiederholung alle 10 min (höchstens 6-mal) ist entfallen**: Am Sockel ist die Box bereit, den nächsten Anstoß geben der Takt, das Andocken und HA.
+  Die folgende Beschreibung ist der Stand vor Rev. 3.16.
 - **Kein zweiter Versuch beim Start-Sync.** Kommt `SyncAbgebrochen` mit
   `netz_weg` oder `regel`, wartet die Box nicht auf bessere Netzverhältnisse.
   Beim nächtlichen Wecker würde die Box dann herunterfahren, ohne

@@ -50,6 +50,10 @@
       "sha256": "937437ffef93c6d0086f025094fadaa8e6aa9f81ab9601f55d0b0e0396f24cfd",
       "lufs": -18.02
     },
+    "sounds/lader.wav": {
+      "sha256": "4a278a1e0159309adc0140be23a27e38b6d3fcb35b55aaf3068bf1a5a7474be2",
+      "lufs": -18.02
+    },
     "sounds/lernen_beginn.wav": {
       "sha256": "142ab0e5a1f2ad6c6fdd7c52f69c7b5e014572a2492af258d92f50f02e0ca382",
       "lufs": -17.96
@@ -76,6 +80,10 @@
     },
     "sounds/sprache/hinweis.wav": {
       "sha256": "362869c83c918a8d137cbebb756d28b8f5d07d4b704d485a74014e5a545782d1",
+      "lufs": -18.0
+    },
+    "sounds/sprache/lader.wav": {
+      "sha256": "23b8b74d1d7033af4985dbe5180a48c248ace60f74d5c9b468af96abd587c71d",
       "lufs": -18.0
     },
     "sounds/sprache/lernen_beginn.wav": {

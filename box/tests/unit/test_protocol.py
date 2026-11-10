@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from tobibox.protocol import FELDER, ZeilenFehler, parse_zeile, pruefe_befehl, schwere
+from tobibox.protocol import FELDER, OPTIONAL, ZeilenFehler, parse_zeile, pruefe_befehl, schwere
 
 BEISPIELE = Path(__file__).resolve().parents[3] / "docs" / "protocol" / "reader-v1-examples.txt"
 
@@ -61,7 +61,8 @@ def test_gueltige_zeilen(nr, teile):
 @pytest.mark.parametrize("nr, teile", _faelle({"OK"}))
 def test_kanonische_zeilen_haben_die_felder_in_tabellenreihenfolge(nr, teile):
     z = parse_zeile(_entescape(teile[1]))
-    assert tuple(z.felder) == FELDER[z.typ]
+    erwartet = FELDER[z.typ] + tuple(f for f in OPTIONAL.get(z.typ, ()) if f in z.felder)  # optionale Felder am Ende
+    assert tuple(z.felder) == erwartet
     assert z.unbekannt == ()
 
 

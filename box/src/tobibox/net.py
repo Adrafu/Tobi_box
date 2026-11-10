@@ -20,6 +20,7 @@ from collections.abc import Callable
 from typing import Any, Protocol
 
 from . import events as ev
+from . import uhrregel
 from .config import NetzKonfig
 from .eventlog import logge
 
@@ -207,13 +208,7 @@ class Zeitquelle:
         self.vertrauenswuerdig = system
 
     def _bewerte(self) -> tuple[ev.ZeitQuelle, bool]:
-        if self._system:
-            return "system", True
-        if self._ntp_ok:
-            return "ntp", True
-        if self._rtc_ok:
-            return "rtc", True
-        return "unbekannt", False
+        return uhrregel.bewerte(system=self._system, ntp_ok=self._ntp_ok, rtc_ok=self._rtc_ok)  # die eine Regel (Ein/Aus, 10.11.)
 
     def _aendere(self) -> ev.ZeitquelleGeaendert | None:
         quelle, ok = self._bewerte()

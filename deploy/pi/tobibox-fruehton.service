@@ -1,0 +1,39 @@
+# Früher Start-Ton der Tobi Box (Ein/Aus, 10.11.; AP E1-5). Vorlage, am Pi zu prüfen (M-P2: Python-Startzeit, ALSA gleichzeitig mit MPD).
+#
+# Der Dienst spielt box/sounds/start.wav, sobald der Ton-Ausgang da ist, und endet. Er hält den Box-Dienst NIE auf:
+#   * Type=simple und kein Before=tobiboxd.service (ein blockierendes Before= würde den Start von tobiboxd verzögern).
+#   * Er schreibt zuerst die Marke /run/tobibox/fruehton (start oder keiner) und ersetzt sie nach dem Ton durch fertig;
+#     tobiboxd liest sie bei "Bereit" und legt sonst die Gegenmarke "uebernommen" an (nie zwei Töne, docs/data-model.md, 1.6).
+#   * Jeder Fehler (tobibox.toml, start.wav, Ausgang) legt keine Marke an: tobiboxd spielt start wie bisher.
+#
+# /run/tobibox/ legt systemd an (RuntimeDirectory) und LÖSCHT es nicht, wenn dieser Dienst endet (RuntimeDirectoryPreserve=yes):
+# tobiboxd braucht die Marke nach dem Ende des Frühdienstes. Beide Dienste laufen als derselbe Benutzer "tobibox" und
+# schreiben und löschen die Marke; das Verzeichnis gehört ihm (Modus 0755). Die Datei ist tmpfs und nach jedem Einschalten leer.
+#
+# Installation (Pi):  sudo cp tobibox-fruehton.service /etc/systemd/system/ && sudo systemctl enable tobibox-fruehton.service
+# Der gleiche RuntimeDirectory-Eintrag gehört in tobiboxd.service (RuntimeDirectory=tobibox, RuntimeDirectoryPreserve=yes),
+# damit auch der Box-Dienst das Verzeichnis anlegen kann, falls er vor dem Frühdienst startet.
+
+[Unit]
+Description=Tobi Box: früher Start-Ton
+# Kein Before=tobiboxd.service. After=sound.target genügt, damit der Ausgang (ALSA) da ist.
+After=sound.target local-fs.target
+DefaultDependencies=no
+ConditionPathExists=/opt/tobibox/config/tobibox.toml
+
+[Service]
+Type=simple
+User=tobibox
+Group=tobibox
+Environment=TOBIBOX_CONFIG=/opt/tobibox/config/tobibox.toml
+RuntimeDirectory=tobibox
+RuntimeDirectoryMode=0755
+RuntimeDirectoryPreserve=yes
+# python -m tobibox.fruehton endet immer mit 0; Fehler stehen im Journal.
+ExecStart=/opt/tobibox/venv/bin/python -m tobibox.fruehton --config /opt/tobibox/config/tobibox.toml --marken /run/tobibox
+# Hängt etwas (Ausgang), nach dieser Zeit weg: tobiboxd wartet ohnehin höchstens FRUEHTON_WARTEN_S = 3 s.
+TimeoutStartSec=20
+Nice=-5
+
+[Install]
+WantedBy=sysinit.target

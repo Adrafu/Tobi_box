@@ -23,6 +23,7 @@ from datetime import datetime, timezone
 from typing import Any, Literal, Protocol
 
 from . import events as ev
+from . import uhrregel
 from .config import StromKonfig
 from .eventlog import logge
 from .net import Zeitquelle
@@ -30,8 +31,7 @@ from .syncregel import HOTSPOT_AKKU_MIN_PROZENT, sync_erlaubt  # noqa: F401  (di
 
 #: Der Tiefstand gilt wieder als „nicht erreicht“, wenn der Akku um so viel über der Grenze liegt (kein Flattern).
 TIEFSTAND_ABSTAND_PROZENT = 3
-#: Eine RTC vor diesem Zeitpunkt hat ihre Zeit verloren (leerer Akku): sie gilt nicht als vertrauenswürdig.
-RTC_FRUEHESTENS = datetime(2026, 1, 1, tzinfo=timezone.utc)
+RTC_FRUEHESTENS = uhrregel.RTC_FRUEHESTENS  # die eine Regel, auch für den Frühdienst (``uhrregel.py``)
 PISUGAR_FRIST_S = 3.0
 #: So lange darf ``systemctl poweroff`` (oder das eingestellte Kommando) höchstens brauchen, bevor es als Fehler gilt (B1).
 ABSCHALT_FRIST_S = 60.0
@@ -253,7 +253,7 @@ class Power:
         plausibel = False
         try:
             t = await self.treiber.rtc()
-            plausibel = t is not None and t >= RTC_FRUEHESTENS
+            plausibel = uhrregel.rtc_plausibel(t)
             logge("power", "INFO", "rtc", "plausibel" if plausibel else "unbrauchbar",
                   daten={"rtc": t.isoformat() if t else None})
             if plausibel and hasattr(self.treiber, "uhr_aus_rtc_setzen"):

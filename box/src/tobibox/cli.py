@@ -359,6 +359,8 @@ def _sim_zeile(args: argparse.Namespace, zustand: Path, medien: Path | None = No
         zeile = {"befehl": "strom"}
         if args.charger is not None:
             zeile["lader"] = args.charger == "on"
+        if args.source != "pisugar":
+            zeile["quelle"] = args.source
         if args.battery is not None:
             zeile["akku"] = args.battery
         return zeile
@@ -498,7 +500,9 @@ def main(argv: Sequence[str] | None = None, ausgabe: TextIO | None = None) -> in
     ack.add_argument("--art", choices=("unbekannt", "gelernt"), help="Art der Meldung (sonst aus unknown.json)")
     ack.add_argument("--grund", default="sim", help="Grund der Bestätigung (neu, bekannt, zugeordnet, abgelehnt)")
     strom = ms.add_parser("power", help="Lader und Akku vorgeben (Treiber SimStrom; Dienst braucht [strom] quelle = sim)")
-    strom.add_argument("--charger", choices=("on", "off"), help="Lader dran (on) oder nicht (off)")
+    strom.add_argument("--charger", choices=("on", "off"), help="Strom am Eingang (on) oder nicht (off); aus jeder Quelle: Netzteil, Sockel, Kabel")
+    strom.add_argument("--source", choices=("pisugar", "leser"), default="pisugar",
+                       help="wer den Strom meldet: pisugar (Vorgabe, pisugar-server) oder leser (Zeile LADER); bei Widerspruch gilt der Leser")
     strom.add_argument("--battery", type=int, help="Akkustand in Prozent (0 bis 100)")
     netz = ms.add_parser("net", help="Netz-Klasse vorgeben: daheim (home), Handy-Hotspot (hotspot) oder offline")
     netz.add_argument("klasse", choices=("home", "hotspot", "offline"))
@@ -530,6 +534,8 @@ def main(argv: Sequence[str] | None = None, ausgabe: TextIO | None = None) -> in
     if getattr(args, "sim_befehl", None) == "power":
         if args.charger is None and args.battery is None:
             p.error("power: --charger und/oder --battery angeben")
+        if args.source == "leser" and (args.charger is None or args.battery is not None):
+            p.error("power --source leser: nur --charger angeben")
         if args.battery is not None and not 0 <= args.battery <= 100:
             p.error("power: --battery muss zwischen 0 und 100 liegen")
     return args.func(args, ausgabe or sys.stdout)

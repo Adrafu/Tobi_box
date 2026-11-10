@@ -11,6 +11,7 @@
     Box) und optionales Feld `caps` am Ende von `HELLO`. `proto` bleibt 1. Die Versionsregel
     (Abschnitt 13) ist klargestellt. Alle Änderungen sind mit „(Ein/Aus, 10.11.)“ markiert.
     Die Zeilen für das Wecken, den Schlaf und den Ring (Schritt 2) folgen mit Schritt 2.
+    Die Beispieldatei `reader-v1-examples.txt` ist mit AP E1-6 nachgezogen (Beispiele für `HELLO` mit `caps`, ungültiges `caps`, `LADER`, `LADER` ohne `HELLO` im Ablauf, Abläufe `ping-…-strom`). Klarstellungen nach dem Goldfisch-Review (V9, V10, V14): ungültiges `caps` gilt als fehlend; `caps` und nicht `fw` entscheidet über Fähigkeiten; `LADER` hat kein `seq`.
 
 Dieses Dokument ist der **einzige Vertrag** zwischen Firmware und Box-Dienst.
 Wo es etwas nicht sagt, gilt: nicht erfinden, sondern die Projektleitung fragen.
@@ -103,7 +104,7 @@ später entfallen, ohne dass der Dienst etwas ändern muss.
 | `fw` | HELLO | Firmware-Version `MAJOR.MINOR.PATCH` mit optionalem `-Zusatz` (`[0-9A-Za-z.]+`), höchstens 24 Zeichen. Beispiel `1.0.0`, `1.2.10-rc1`. |
 | `build` | HELLO | Git-Hash: 7 bis 12 Zeichen `[0-9a-f]`, optional gefolgt von `-dirty`; oder `unknown`. |
 | `pn5180` | HELLO | Firmware-Version des PN5180 als `<major>.<minor>` (Dezimalzahlen, z. B. `4.2`) oder `unknown`, wenn sie nicht gelesen werden konnte. |
-| `caps` | HELLO | *optional* (Ein/Aus, 10.11.). Fähigkeiten der Firmware: Liste durch Komma, jeder Name `[a-z][a-z0-9_]{0,15}`, ohne Leerzeichen, höchstens 5 Namen, z. B. `strom`. Schritt 1 kennt `strom` (die Firmware liest `STROM_IN` und sendet `LADER`). Unbekannte Namen sind gültig und werden ignoriert. Fehlt das Feld, ist die Firmware 1.x und hat keine Fähigkeit. Weitere Namen folgen mit Schritt 2. |
+| `caps` | HELLO | *optional* (Ein/Aus, 10.11.). Fähigkeiten der Firmware: Liste durch Komma, jeder Name `[a-z][a-z0-9_]{0,15}`, ohne Leerzeichen, höchstens 5 Namen, z. B. `strom`. Schritt 1 kennt `strom` (die Firmware liest `STROM_IN` und sendet `LADER`). Unbekannte Namen sind gültig und werden ignoriert. Fehlt das Feld, hat die Firmware keine Fähigkeit (so verhält sich auch eine Firmware vor Schritt 1); ohne Fähigkeit lässt die Firmware das Feld weg und sendet nie `caps=`. Der Dienst prüft nie `fw` auf Fähigkeiten, nur `caps`. **Ein Wert, der das Format verletzt (Großbuchstaben, leeres Element, leerer Wert, mehr als 5 Namen), gilt wie ein fehlendes Feld** (V9): Das `HELLO` bleibt gültig, `caps` ist leer, der Dienst protokolliert eine WARNING. Weitere Namen folgen mit Schritt 2. |
 | `in` | LADER | `0` oder `1`. `1` genau dann, wenn am Eingang der Box (USB-C des PiSugar) Strom aus irgendeiner Quelle anliegt (Ein/Aus, 10.11.). |
 | `uid` | PLACED | kanonische Kennung, Abschnitt 4. |
 | `type` | PLACED | `ntag` (ISO 14443A) oder `iso15693`. |
@@ -142,6 +143,8 @@ und `tonie` nicht zueinander (Länge der Kennung passt nicht zum Typ, oder
     Wert. `LADER` hat kein `seq` (es ist ein Pegel, kein Ereignis), zählt nicht in `seq` und
     wiederholt sich außer nach einem `HELLO` nicht ohne Änderung. Die Firmware entprellt: `in=1` erst, wenn der Pegel
     `STROM_ENTPRELL_HOCH_MS` anliegt, `in=0` erst nach `STROM_ENTPRELL_WEG_MS` ohne Strom.
+    Das gilt auch für die Zeile unmittelbar nach dem `HELLO` (V3): Sie nennt den **entprellten** Wert; steht er beim `HELLO` noch nicht fest, verzögert die
+    Firmware die Zeile, bis er feststeht. Der Dienst sieht so nach einem `HELLO` keinen kurzen Fehlwert.
     Eine Firmware ohne `caps` `strom` sendet keine `LADER`-Zeile; der Dienst fragt dann nur
     `pisugar-server`. Was der Dienst aus dem Wert macht: `core-interface.md`, Abschnitt 3.6
     (`LaderGeaendert`) und Abschnitt 9, Punkt 9.
@@ -183,7 +186,7 @@ MQTT-Themen verwendet; sie enthält deshalb nur `[0-9a-f]`.
 ## 5. `seq`
 
 *   `seq` steht nur in `PLACED`, `LOCKED` und `REMOVED`. Es zählt **jede dieser
-    Zeilen** um 1 hoch. `HELLO`, `HB` und `ERR` haben kein `seq` und zählen
+    Zeilen** um 1 hoch. `HELLO`, `HB`, `LADER` und `ERR` haben kein `seq` und zählen
     nicht mit.
 *   Nach dem Start des ESP32 und nach jedem `HELLO` (auch auf `PING`) hat die
     nächste dieser Zeilen `seq=0`.
@@ -300,7 +303,7 @@ tragen: `pn5180_no_response`, `pn5180_timeout`, `bad_response`, `uid_invalid`.
 
 | Zeile | Wirkung |
 |---|---|
-| `PING` | Die Firmware antwortet mit `HELLO` (Felder wie beim Start), setzt `seq` auf 0 zurück und meldet eine **liegende Figur sofort erneut** (`PLACED` bzw. `LOCKED` mit `seq=0`). Der Entpreller-Zustand, `up` und die Zähler bleiben unverändert. Liegt nichts, folgt nur das `HELLO`. |
+| `PING` | Die Firmware antwortet mit `HELLO` (Felder wie beim Start), setzt `seq` auf 0 zurück und meldet eine **liegende Figur sofort erneut** (`PLACED` bzw. `LOCKED` mit `seq=0`). Der Entpreller-Zustand, `up` und die Zähler bleiben unverändert. Bei `caps` `strom` folgt dem `HELLO` die Zeile `LADER` (noch vor der erneuten Meldung der Figur). Liegt nichts, folgt nur das `HELLO` (und ggf. `LADER`). |
 
 *   Das Wort `PING` steht allein in der Zeile, ohne Felder. Alles andere
     (Groß-/Kleinschreibung, Leerzeichen, Felder) ist ungültig.
@@ -527,10 +530,10 @@ Meldung der Figur) die Wiedergabe nicht unterbricht.
 | Zeichen außerhalb 0x20 bis 0x7E | `not_ascii` | verworfen, protokolliert |
 | Zeile beginnt mit einem Leerzeichen (auch nur Leerzeichen) | `bad_syntax` | verworfen, protokolliert (WARNING) |
 | erstes Wort ist kein bekannter Zeilentyp (`HELLO PLACED LOCKED REMOVED HB LADER ERR`; `LADER` seit Ein/Aus, 10.11.) | `unknown_type` | verworfen, protokolliert (DEBUG, höchstens eine Meldung je Sekunde) |
-| Syntaxfehler (Wort ohne `=`, doppelte Leerzeichen, Leerzeichen am Ende, leerer Wert, auch leeres `detail=`, ungültiger Schlüssel) | `bad_syntax` | verworfen, protokolliert (WARNING) |
+| Syntaxfehler (Wort ohne `=`, doppelte Leerzeichen, Leerzeichen am Ende, leerer Wert, auch leeres `detail=`, ungültiger Schlüssel; ausgenommen das optionale `caps`, V9) | `bad_syntax` | verworfen, protokolliert (WARNING) |
 | Schlüssel doppelt | `duplicate_key` | verworfen, protokolliert |
 | Pflichtfeld fehlt | `missing_field` | verworfen, protokolliert |
-| Wert verletzt Format oder Bereich (auch `detail` mit `|` oder `;` oder über 80 Zeichen) | `bad_value` / `bad_uid` | verworfen, protokolliert |
+| Wert verletzt Format oder Bereich (auch `detail` mit `|` oder `;` oder über 80 Zeichen; ausgenommen das optionale `caps`, V9) | `bad_value` / `bad_uid` | verworfen, protokolliert |
 | `uid`, `type`, `tonie` passen nicht zusammen | `uid_type_mismatch` | verworfen, protokolliert |
 
 *   **Eine ungültige Zeile hat nie eine halbe Wirkung:** Entweder sie ist
@@ -628,7 +631,7 @@ Das Design lässt diese Einzelheiten offen. Entschieden wurde die einfachste
 stimmige Lösung. „Bestätigt (05.11.)“ heißt: von Tobias oder der Projektleitung
 bestätigt oder entschieden. Alle anderen Punkte sind noch offen.
 
-1.  **`seq` zählt nur `PLACED`, `LOCKED`, `REMOVED`.** `HB`, `ERR` und `HELLO`
+1.  **`seq` zählt nur `PLACED`, `LOCKED`, `REMOVED`.** `HB`, `ERR`, `HELLO` und `LADER`
     haben kein `seq`, wie in der Zeilentabelle des Designs. Das Design sagt
     zugleich „zählt jede Meldung“; gemeint ist hier: jede Zustandsmeldung.
     Verlorene `HB` oder `ERR` zeigt `seq` deshalb nicht an (die `HB` zeigt der

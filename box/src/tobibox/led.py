@@ -24,6 +24,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from . import events as ev
+from .stromwert import StromQuellen
 
 ANZAHL = 40  # LEDs im Ring (APA102)
 DECKEL_PROZENT = 25  # Helligkeit nie darüber (Plan 5.5.3)
@@ -44,7 +45,8 @@ ZUSTAENDE = (AUS, LAEUFT, PAUSE, AKKU, UNBEKANNTE_KARTE, AUFWACHEN, LERNEN, GUTE
 
 # Zeiten in Sekunden
 AUFWACHEN_S = 2.0  # Lauflicht beim Aufwachen
-AKKU_ANZEIGE_S = 5.0  # Akku-Anzeige nach Anforderung oder Laderwechsel
+AKKU_ANZEIGE_S = 5.0  # Akku-Anzeige nach Anforderung, beim Start mit Strom und beim Andocken oder Abziehen
+AKKU_ENTPRELL_S = 1.0  # eine zweite Anforderung der Akku-Anzeige so kurz nach der ersten startet sie nicht neu
 ATMEN_S = 6.0  # Periode beim Atmen (läuft)
 PAUSE_HELLIGKEIT = 10  # Prozent, Pause
 BLINK_UNBEKANNT_S = 1.0  # Periode Blinken (Sitzung „unbekannt“: Leser unterbrochen)
@@ -62,6 +64,10 @@ GUTE_NACHT_GLIMMEN_S = 4.0  # Periode des Glimmens
 GUTE_NACHT_HELL_MIN = 3  # Prozent, unterer Punkt des Glimmens
 GUTE_NACHT_HELL_MAX = 8  # Prozent, oberer Punkt; beim Ausblenden wird alles mit dem Ausblenden-Faktor multipliziert
 STUMM_DIMMUNG = 0.4  # unter „stumm“ bleibt der Ring wie er ist, aber mit diesem Anteil der Helligkeit
+# Akku-Anzeige (Ein/Aus, 10.11.): eigene Helligkeiten, der Faktor ``STUMM_DIMMUNG`` gilt für sie nicht. Mindestens Stufe 1 der 31 Stufen.
+AKKU_HELL = 15  # Prozent, normal
+AKKU_HELL_LEISER = 5  # Prozent, in einem Fenster „leiser“ und solange „Gute Nacht“ läuft
+AKKU_HELL_STUMM = 3  # Prozent, in einem Fenster „stumm“
 
 Farbe = tuple[int, int, int]
 SCHWARZ: Farbe = (0, 0, 0)
@@ -112,6 +118,8 @@ class Ring:
     def apa102_rahmen(self) -> bytes:
         """Bytes für den echten Ring: Startrahmen, je LED ``0xE0|hell, B, G, R``, Endrahmen."""
         hell = min(APA102_DECKEL, int(self.helligkeit * APA102_MAX / 100.0))
+        if self.helligkeit > 0:
+            hell = max(1, hell)  # was leuchten soll, bekommt mindestens Stufe 1 (3 % ergäben gerundet Stufe 0, Ein/Aus, 10.11.)
         daten = bytearray(4)
         for r, g, b in self.leds:
             daten += bytes((0xE0 | hell, b, g, r))
@@ -158,14 +166,14 @@ def _akku_farbe(prozent: int) -> Farbe:
     return GRUEN if prozent > 50 else GELB if prozent > 20 else ROT
 
 
-def _akku(prozent: int | None, am_lader: bool, tiefstand: bool, t: float) -> Ring:
+def _akku(prozent: int | None, am_lader: bool, tiefstand: bool, t: float, helligkeit: float = AKKU_HELL) -> Ring:
     if tiefstand:
         an = (t % BLINK_TIEFSTAND_S) < BLINK_TIEFSTAND_S / 2
         return _einfarbig(AKKU, ROT, DECKEL_PROZENT if an else 0)
     p = max(0, min(100, prozent if prozent is not None else 0))
     n = int(round(p / 100 * ANZAHL))
     farbe = BLAU if am_lader else _akku_farbe(p)
-    return Ring(AKKU, (farbe,) * n + (SCHWARZ,) * (ANZAHL - n), 15)
+    return Ring(AKKU, (farbe,) * n + (SCHWARZ,) * (ANZAHL - n), helligkeit)
 
 
 def _aufwachen(t_seit: float) -> Ring:
@@ -191,12 +199,19 @@ class LedLogik:
     def __init__(self) -> None:
         self.zustand_melden: ev.ZustandMelden | None = None
         self.akku_prozent: int | None = None
-        self.am_lader = False
+        self.quellen = StromQuellen()  # Strom am Eingang aus zwei Quellen (nur für die Farbe der Anzeige: blau mit Strom)
         self.tiefstand = False
+        self._bereit = False
+        self._start_anzeige = False  # erste bekannte Messung war „Strom“: Ladestand nach ``Bereit`` zeigen (CUJ 25, Start-Anzeige)
+        self._akku_ab: float | None = None
         self._aufwachen_ab: float | None = None
         self._akku_bis: float | None = None
         self._unbekannt_ab: float | None = None  # ein unbekannter Tobie wurde aufgelegt: Magenta blinkt ab diesem Zeitpunkt
         self.ausblenden_faktor: float | None = None  # Gute Nacht: 1 bis 0 während des Ausblendens, sonst ``None``
+
+    @property
+    def am_lader(self) -> bool:
+        return self.quellen.wert is True
 
     # -- Eingaben ---------------------------------------------------------------------
 
@@ -204,9 +219,21 @@ class LedLogik:
         """Lauflicht ``AUFWACHEN_S`` lang starten."""
         self._aufwachen_ab = jetzt_mono
 
-    def akku_zeigen(self, jetzt_mono: float) -> None:
-        """Akkustand ``AKKU_ANZEIGE_S`` lang zeigen."""
-        self._akku_bis = jetzt_mono + AKKU_ANZEIGE_S
+    def akku_zeigen(self, jetzt_mono: float, dauer_s: float = AKKU_ANZEIGE_S) -> None:
+        """Akkustand ``dauer_s`` lang zeigen (Anforderung, Start mit Strom, Andocken, Abziehen).
+
+        Entprellt: Eine zweite Anforderung innerhalb von ``AKKU_ENTPRELL_S`` nach dem Beginn einer laufenden Anzeige startet sie nicht neu.
+        Läuft gerade das Lauflicht des Aufwachens, beginnt die Anzeige danach (das Lauflicht geht vor)."""
+        if (
+            self._akku_ab is not None and self._akku_bis is not None
+            and jetzt_mono < self._akku_bis and jetzt_mono - self._akku_ab < AKKU_ENTPRELL_S
+        ):
+            return
+        beginn = jetzt_mono
+        if self._aufwachen_ab is not None:
+            beginn = max(beginn, self._aufwachen_ab + AUFWACHEN_S)
+        self._akku_ab = jetzt_mono
+        self._akku_bis = beginn + dauer_s
 
     def unbekannter_tobie(self, jetzt_mono: float) -> None:
         """Ein unbekannter Tobie wurde aufgelegt: ``BLINK_UNBEKANNT_ANZEIGE_S`` lang magenta blinken, danach der normale Zustand."""
@@ -231,16 +258,31 @@ class LedLogik:
             if e.strom == "herunterfahren":
                 self._aufwachen_ab = None
         elif isinstance(e, ev.Bereit):
+            self._bereit = True
             self.aufwachen(jetzt_mono)  # Start der Box fertig
+            self._start_pruefen(jetzt_mono)
         elif isinstance(e, ev.AkkuStand):
             self.akku_prozent = max(0, min(100, e.prozent))
         elif isinstance(e, ev.LaderGeaendert):
-            self.am_lader = e.am_lader
-            if e.am_lader:
+            erste = self.quellen.wert is None
+            self.quellen = self.quellen.mit(e)
+            if self.quellen.wert is True:
                 self.tiefstand = False
-            self.akku_zeigen(jetzt_mono)
+            if erste and self.quellen.wert is True:
+                self._start_anzeige = True  # Start-Anzeige: keine Andock-Rückmeldung, ohne Sperre (``core-interface.md``, 9.9 Nr. 4)
+                self._start_pruefen(jetzt_mono)
+        elif isinstance(e, (ev.LeserHallo, ev.LeserAlarm)):
+            self.quellen = StromQuellen(self.quellen.pisugar, None)  # der Leser-Wert gilt nur für die aktuelle Verbindung (V2)
+        elif isinstance(e, ev.AkkuAnzeigen):
+            # Freigabe durch ``idle`` (Andocken, Abziehen): erste Messung und Sperre hat ``idle`` schon geprüft (V6)
+            self.akku_zeigen(jetzt_mono, e.dauer_s)
         elif isinstance(e, ev.AkkuTiefstand):
             self.tiefstand = True
+
+    def _start_pruefen(self, jetzt_mono: float) -> None:
+        if self._bereit and self._start_anzeige:
+            self._start_anzeige = False
+            self.akku_zeigen(jetzt_mono)
 
     # -- Ausgabe ----------------------------------------------------------------------
 
@@ -275,9 +317,22 @@ class LedLogik:
             return PAUSE
         return AUS  # ``leer``
 
+    def akku_helligkeit(self) -> float:
+        """Helligkeit der Akku-Anzeige: normal 15 %, „leiser“ und „Gute Nacht“ 5 %, „stumm“ 3 % (Ein/Aus, 10.11.)."""
+        z = self.zustand_melden
+        if z is None:
+            return AKKU_HELL
+        if z.ruhe == "stumm":
+            return AKKU_HELL_STUMM
+        if z.ruhe == "leiser" or z.gute_nacht != "aus":
+            return AKKU_HELL_LEISER
+        return AKKU_HELL
+
     def ring(self, jetzt_mono: float) -> Ring:
         r = ring_fuer(self.zustand(jetzt_mono), jetzt_mono, self)
         z = self.zustand_melden
+        if r.zustand == AKKU and not self.tiefstand:
+            return Ring(r.zustand, r.leds, self.akku_helligkeit())  # eigene Helligkeiten, kein Faktor 0,4 unter „stumm“
         if z is not None and z.ruhe == "stumm":
             r = Ring(r.zustand, r.leds, r.helligkeit * STUMM_DIMMUNG)
         return r
@@ -308,7 +363,7 @@ def ring_fuer(zustand: str, t: float, logik: LedLogik | None = None) -> Ring:
     if zustand == AKKU:
         if logik is None:
             return _akku(50, False, False, t)
-        return _akku(logik.akku_prozent, logik.am_lader, logik.tiefstand, t)
+        return _akku(logik.akku_prozent, logik.am_lader, logik.tiefstand, t, logik.akku_helligkeit())
     if zustand == AUFWACHEN:
         ab = logik._aufwachen_ab if logik is not None and logik._aufwachen_ab is not None else 0.0
         return _aufwachen(t - ab)

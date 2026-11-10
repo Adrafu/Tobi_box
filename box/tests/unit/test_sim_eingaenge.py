@@ -175,6 +175,21 @@ async def test_mit_haken_stellt_sim_den_treiber_ein_und_gibt_selbst_nichts_aus(s
     assert sim.got == []  # die Ereignisse kommen von ``power`` und ``net``
 
 
+async def test_strom_von_der_zweiten_quelle_dem_leser_ohne_treiber(sim):
+    """Ein/Aus, 10.11.: ``quelle = "leser"`` meldet den Strom wie die Zeile ``LADER`` (``LaderGeaendert(quelle="leser")``)."""
+    aufrufe: list = []
+
+    async def strom(lader, akku):
+        aufrufe.append((lader, akku))
+
+    sim.strom_haken = strom
+    assert (await eins(sim, befehl="strom", lader=True, quelle="leser"))["ok"]
+    assert sim.got == [ev.LaderGeaendert(True, "leser")] and aufrufe == []  # nicht über ``SimStrom``
+    assert (await eins(sim, befehl="strom", lader=True, quelle="usb"))["fehler"] == "quelle ungueltig"
+    assert (await eins(sim, befehl="strom", akku=50, quelle="leser"))["ok"] is False
+    assert (await eins(sim, befehl="strom", lader=True, akku=50, quelle="leser"))["ok"] is False
+
+
 async def test_hauptknopf_lang_wird_verdrahtet_kommen_die_ereignisse(sim, monkeypatch):
     monkeypatch.setitem(sim_modul.VERDRAHTET, "hauptknopf_lang", True)
     assert (await eins(sim, befehl="taste", taste="hauptknopf_lang"))["ok"]

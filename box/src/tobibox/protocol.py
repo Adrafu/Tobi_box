@@ -15,7 +15,7 @@ PROTO_UNTERSTUETZT = frozenset({1})
 MAX_ZEILE = 200
 MAX_DETAIL = 80
 
-TYPEN = ("HELLO", "PLACED", "LOCKED", "REMOVED", "HB", "ERR")
+TYPEN = ("HELLO", "PLACED", "LOCKED", "REMOVED", "HB", "LADER", "ERR")
 
 #: Pflichtfelder je Zeilentyp in der Reihenfolge der Zeilentabelle.
 FELDER: dict[str, tuple[str, ...]] = {
@@ -24,8 +24,13 @@ FELDER: dict[str, tuple[str, ...]] = {
     "LOCKED": ("seq",),
     "REMOVED": ("seq",),
     "HB": ("up", "present", "polls", "hits", "rejected", "errors", "cycle_ms"),
+    "LADER": ("in",),
     "ERR": ("code", "detail"),
 }
+
+#: Optionale Felder am Ende bekannter Zeilen (Ein/Aus, 10.11.). Fehlt eines, fehlt es auch in ``Zeile.felder``. Ist sein Wert ungültig,
+#: wird es wie ein fehlendes behandelt (V9): Die Zeile bleibt gültig, ``Zeile.verworfen`` nennt das Feld.
+OPTIONAL: dict[str, tuple[str, ...]] = {"HELLO": ("caps",)}
 
 #: Feste Zuordnung Fehlercode -> Schwere (Abschnitt 7). Unbekannt: ``warnung``.
 SCHWERE: dict[str, str] = {
@@ -44,6 +49,8 @@ _UID = re.compile(r"[0-9a-f]{8}|[0-9a-f]{14}|[0-9a-f]{20}|[0-9a-f]{16}")
 _FW = re.compile(r"[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?")
 _BUILD = re.compile(r"([0-9a-f]{7,12}(-dirty)?)|unknown")
 _PN5180 = re.compile(r"([0-9]+\.[0-9]+)|unknown")
+_CAPS_NAME = re.compile(r"[a-z][a-z0-9_]{0,15}")
+MAX_CAPS = 5
 _CODE = re.compile(r"[a-z][a-z0-9_]{0,31}")
 
 
@@ -66,6 +73,8 @@ class Zeile:
     typ: str
     felder: dict[str, str]
     unbekannt: tuple[str, ...] = ()
+    #: optionale Felder mit ungültigem Wert; sie fehlen in ``felder`` (V9, Ein/Aus, 10.11.)
+    verworfen: tuple[str, ...] = ()
 
 
 def _uint(wert: str, maximum: int = 4294967295, minimum: int = 0) -> bool:
@@ -85,6 +94,11 @@ def _pruefe_wert(typ: str, name: str, wert: str) -> str | None:
         ok = _BUILD.fullmatch(wert) is not None
     elif name == "pn5180":
         ok = _PN5180.fullmatch(wert) is not None
+    elif name == "in":
+        ok = wert in ("0", "1")
+    elif name == "caps":
+        namen = wert.split(",")
+        ok = len(namen) <= MAX_CAPS and all(_CAPS_NAME.fullmatch(n) for n in namen)
     elif name == "type":
         ok = wert in ("ntag", "iso15693")
     elif name == "tonie" or name == "present":
@@ -141,7 +155,11 @@ def parse_zeile(zeile: str) -> Zeile:
         if "=" not in wort:
             raise ZeilenFehler("bad_syntax")
         schluessel, wert = wort.split("=", 1)
-        if _SCHLUESSEL.fullmatch(schluessel) is None or wert == "":
+        if _SCHLUESSEL.fullmatch(schluessel) is None:
+            raise ZeilenFehler("bad_syntax")
+        if wert == "":
+            if schluessel in OPTIONAL.get(typ, ()):
+                continue  # leeres optionales Feld: wie fehlend (V9)
             raise ZeilenFehler("bad_syntax")
         if schluessel in gefunden or (detail is not None and schluessel == "detail"):
             raise ZeilenFehler("duplicate_key")
@@ -160,8 +178,16 @@ def parse_zeile(zeile: str) -> Zeile:
         raise ZeilenFehler("uid_type_mismatch")
 
     felder = {f: gefunden[f] for f in pflicht}
-    unbekannt = tuple(k for k in gefunden if k not in felder)
-    return Zeile(typ, felder, unbekannt)
+    verworfen: list[str] = []
+    for f in OPTIONAL.get(typ, ()):
+        if f in gefunden:
+            if _pruefe_wert(typ, f, gefunden[f]) is None:
+                felder[f] = gefunden[f]
+            else:
+                verworfen.append(f)
+    bekannt = set(felder) | set(verworfen)
+    unbekannt = tuple(k for k in gefunden if k not in bekannt)
+    return Zeile(typ, felder, unbekannt, tuple(verworfen))
 
 
 def schwere(code: str) -> str:

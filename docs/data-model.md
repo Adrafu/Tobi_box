@@ -13,7 +13,7 @@
     `resume.json` haben deshalb `schema_version` 2. Im Code heißt ein Tobie aus
     historischen Gründen `figur`.
 *   **Änderung 10.11. (Ein/Aus, 10.11.; Schritt 1; alles additiv, `schema_version` bleibt):** Neue flüchtige Datei `/run/tobibox/fruehton`
-    (Marke des Frühdienstes für den frühen Start-Ton, Abschnitt 1.6; Text, kein JSON, kein `schema_version`). Neue Tondatei
+    (Marke für den frühen Start-Ton, Abschnitt 1.6; Text, kein JSON, kein `schema_version`). Neue Tondatei
     `box/sounds/lader.wav`; `hinweis_pegel` gilt auch für den Ton `lader`, und der frühe Start-Ton hat den Pegel eines gewöhnlichen
     Tons (Abschnitt 2, Zeile `hinweis_pegel`). Kein Feld in `config.json`, `resume.json` oder `lauf.json` ändert sich.
 *   **Änderung 09.11. (Entscheidung J, 09.11.; nachgezogen mit Entscheidung L, 09.11.):** `ton_pegel` hat
@@ -136,7 +136,7 @@ Beim Start (und bei jedem Lesen) in dieser Reihenfolge:
 | `config.json` | Box, Zustandsverzeichnis | Box: `ha` (über `store`), aus der angenommenen Liste von `tobibox/config`; in Stufe 2 `tobibox sim card` | `app` (lädt beim Start), `ha` | wird von HA verteilt; die Box schreibt nur die übernommene Liste |
 | `resume.json` | Box, Zustandsverzeichnis | Box: `store`, auf Befehl `ZeigerSpeichern` | `app` (beim Start) | nie |
 | `lauf.json` | Box, Zustandsverzeichnis | Box: `app` (einfaches Schreiben) (Entscheidung G, 06.11.) | `app` (beim Start) | nie |
-| `fruehton` | Box, **flüchtig**: `/run/tobibox/fruehton` (tmpfs, bei jedem Einschalten leer) (Ein/Aus, 10.11.) | Frühdienst `tobibox-fruehton.service` (`fruehton.py`); `app` löscht sie | `app` (beim Start) | nie |
+| `fruehton` | Box, **flüchtig**: `/run/tobibox/fruehton` (tmpfs, bei jedem Einschalten leer) (Ein/Aus, 10.11.) | Frühdienst `tobibox-fruehton.service` (`fruehton.py`) und `app` (Gegenmarke `uebernommen`); `app` löscht die Marke des Frühdienstes | `app` (bei `Bereit`) | nie |
 | `unknown.json` | Box, Zustandsverzeichnis | Box: `outbox` | `outbox`, `ha` | wird an HA gemeldet, nach Bestätigung gelöscht |
 | `serie.json` | NAS, `medien/<ordner>/` | HA-Integration (`media.py`) | Box: `library` (nur lesen), HA | `rsync` NAS → Box |
 | `manifest.json` | im Paket `tobibox-<version>.tar.gz` | `deploy/build_release.sh` | `update.py`, `guard.py` | liegt auf dem NAS (`releases/`) |
@@ -152,13 +152,16 @@ Beim Start (und bei jedem Lesen) in dieser Reihenfolge:
 *   `export/config.json` hat dasselbe Schema wie `config.json` plus das Feld
     `exportiert_am` (Zeitstempel). Die Box liest diese Datei nicht.
 
-**`fruehton` (Ein/Aus, 10.11.):** Eine Textdatei mit **genau einem** Wort und einem `\n`: `start` (der Frühdienst hat den Ton begonnen), `keiner` (er hat bewusst keinen Ton gespielt: Modus „stumm“,
-Datei oder Ausgang fehlt) oder `fertig` (der Ton ist zu Ende). Sie liegt in `/run/tobibox/` (tmpfs: nach jedem Einschalten leer, kein Eintrag im Sync, im Schreibbudget oder im Update-Paket).
-Der Frühdienst schreibt sie **zuerst** (`start` oder `keiner`), dann spielt er den Ton und ersetzt sie danach durch `fertig`, und zwar atomar (temporäre Datei im selben Verzeichnis, dann `rename`)
-und nur, wenn sie noch da ist. Die Marke sagt „entschieden“, nicht „fertig gespielt“. `app` liest sie beim Start einmal und löscht sie, sobald `fertig` oder `keiner` dasteht oder
-`FRUEHTON_WARTEN_S` um sind; war sie da, ist `Bereit.fruehton` wahr (`core-interface.md`, Abschnitt 3.3 und 6.5g). Bei einem Dienst-Neustart ohne Ausschalten
-(gleiche Boot-Kennung wie in `lauf.json`) ignoriert und löscht `app` sie. Eine fehlende, leere oder unbekannte Marke heißt: kein Frühton, der Kern spielt `start` wie bisher.
-Das Verzeichnis `/run/tobibox/` muss auch bestehen bleiben, wenn der Frühdienst endet (Umsetzung: AP E1-5).
+**`fruehton` (Ein/Aus, 10.11.):** Eine Textdatei mit **genau einem** Wort und einem `\n`. Wörter des Frühdienstes: `start` (er hat den Ton begonnen), `keiner` (er hat **bewusst** keinen Ton gespielt:
+nur der Modus „stumm“, R10), `fertig` (der Ton ist zu Ende), `fehler` (der Ton lief nicht). Wort von `app`: `uebernommen` (Gegenmarke, V1). Sie liegt in `/run/tobibox/` (tmpfs: nach jedem Einschalten leer, kein Eintrag
+im Sync, im Schreibbudget oder im Update-Paket). **Wer sie zuerst anlegt, entscheidet**: Sie wird atomar und nur angelegt, wenn es sie noch nicht gibt (eine fertig geschriebene temporäre Datei im selben Verzeichnis,
+dann `link`; nie ein halb gelesener Inhalt). Der Frühdienst legt `start` oder `keiner` an, spielt den Ton und ersetzt `start` danach per `rename` durch `fertig` (oder `fehler`), und zwar nur, wenn die Marke noch da ist.
+Kann er nicht spielen (Konfiguration, Datei, Abspielprogramm oder Ausgang fehlt, Fehler), legt er **keine** Marke an. `app` liest sie **bei `Bereit`** (nicht beim Dienststart, V1): Gibt es sie nicht, legt `app` die Gegenmarke
+`uebernommen` an, und der Frühdienst darf dann nicht mehr spielen; so gibt es nie zwei Töne. War ein Wort des Frühdienstes (`start`, `keiner`, `fertig`) da, ist `Bereit.fruehton` wahr (`core-interface.md`, Abschnitt 3.3 und 6.5g);
+`app` löscht die Marke, sobald `fertig` oder `keiner` dasteht oder `FRUEHTON_WARTEN_S` um sind (die Gegenmarke bleibt bis zum Ausschalten). Bei einem Dienst-Neustart ohne Ausschalten (gleiche Boot-Kennung wie in `lauf.json`)
+ignoriert `app` die Marke und ersetzt sie durch `uebernommen`; ohne lesbare Boot-Kennung (Datei fehlt oder unlesbar) gilt Einschalten (V17). Eine fehlende, leere, halbe oder unbekannte Marke und `fehler` heißen: kein Frühton,
+der Kern spielt `start` wie bisher (unter „stumm“ nichts, V5). Das Verzeichnis `/run/tobibox/` legt systemd an (`RuntimeDirectory=tobibox`, Modus 0755, Besitzer der Benutzer `tobibox`, unter dem Frühdienst und Box-Dienst laufen) und
+muss auch bestehen bleiben, wenn der Frühdienst endet (`RuntimeDirectoryPreserve=yes`; Umsetzung: `deploy/pi/tobibox-fruehton.service`).
 
 **`lauf.json` (Entscheidung G, 06.11.):** `{"boot_id": <Kennung des aktuellen Starts des Geräts>, "uid": <Kennung des liegenden Tobies oder null>}`.
 `boot_id` ist unter Linux `/proc/sys/kernel/random/boot_id`, am Mac die Systemstartzeit

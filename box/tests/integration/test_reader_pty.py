@@ -520,3 +520,62 @@ async def test_leser_verbunden_wird_als_info_protokolliert(lauf, leitung, caplog
     zeilen = [r for r in caplog.records if getattr(r, "ereignis", None) == "leser_verbunden"]
     assert len(zeilen) == 1
     assert zeilen[0].levelname == "INFO" and zeilen[0].baustein == "reader"
+
+
+# --- Ein/Aus, 10.11. (Schritt 1): caps und LADER ---------------------------------------------------------------------
+
+HALLO_STROM = b"HELLO proto=1 fw=1.1.0 build=a1b2c3d pn5180=4.2 caps=strom\n"
+
+
+async def test_hello_mit_caps_und_lader_nach_dem_hello(lauf, leitung):
+    leser, e = lauf
+    leitung.hallo = HALLO_STROM + b"LADER in=1\n"  # die Firmware sendet LADER unmittelbar nach HELLO
+    leser.start()
+    await warte(lambda: zaehle(e, ev.LaderGeaendert) == 1)
+    assert e[0] == ev.LeserHallo(1, "1.1.0", "a1b2c3d", "4.2", "strom")
+    assert e[1] == ev.LaderGeaendert(True, "leser")
+    leitung.sende(b"LADER in=0\n")
+    await warte(lambda: zaehle(e, ev.LaderGeaendert) == 2)
+    assert e[2] == ev.LaderGeaendert(False, "leser")
+    leitung.sende(b"LADER in=0\n")  # auch eine unveränderte Wiederholung geht weiter; ``idle`` wertet nur Wechsel aus
+    await warte(lambda: zaehle(e, ev.LaderGeaendert) == 3)
+
+
+async def test_lader_vor_dem_ersten_hello_wird_verworfen(lauf, leitung):
+    leser, e = lauf
+    leitung.auto_hallo = False
+    leser.start()
+    await warte(lambda: leitung.pings >= 1 or leitung.empfangen)
+    leitung.sende(b"LADER in=1\n")
+    await asyncio.sleep(0.15)
+    assert zaehle(e, ev.LaderGeaendert) == 0
+    leitung.sende(HALLO_STROM)
+    await warte(lambda: zaehle(e, ev.LeserHallo) == 1)
+    assert zaehle(e, ev.LaderGeaendert) == 0
+
+
+async def test_firmware_ohne_caps_hat_leere_caps_und_kein_lader(lauf, leitung):
+    leser, e = lauf
+    leser.start()
+    await warte(lambda: zaehle(e, ev.LeserHallo) == 1)
+    assert e[0].caps == "" and zaehle(e, ev.LaderGeaendert) == 0
+
+
+async def test_ungueltiges_caps_das_hello_bleibt_gueltig(lauf, leitung):
+    leser, e = lauf
+    leitung.hallo = b"HELLO proto=1 fw=1.1.0 build=a1b2c3d pn5180=4.2 caps=STROM\n"
+    leser.start()
+    await warte(lambda: zaehle(e, ev.LeserHallo) == 1)
+    assert e[0].caps == "" and zaehle(e, ev.LeserAlarm) == 0  # V9: wie fehlend behandelt, kein Ausfall
+
+
+async def test_lader_in_ungueltig_wird_verworfen(lauf, leitung):
+    leser, e = lauf
+    leitung.hallo = HALLO_STROM
+    leser.start()
+    await warte(lambda: zaehle(e, ev.LeserHallo) == 1)
+    leitung.sende(b"LADER in=2\n")
+    leitung.sende(b"LADER\n")
+    leitung.sende(b"LADER in=1\n")
+    await warte(lambda: zaehle(e, ev.LaderGeaendert) == 1)
+    assert e[-1] == ev.LaderGeaendert(True, "leser")
