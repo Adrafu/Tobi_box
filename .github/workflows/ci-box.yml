@@ -1,0 +1,49 @@
+# Pfadfilter: laeuft nur bei Aenderungen an der Box-Software und den Dateien aus docs/, die die Box-Tests lesen, damit reine Doku-Pushes keine Actions-Minuten kosten.
+name: CI Box
+
+on:
+  push:
+    paths:
+      - "box/**"
+      - "docs/protocol/reader-v1-examples.txt"
+      - "docs/designs/box-software.md"
+      - ".github/workflows/ci-box.yml"
+  pull_request:
+    paths:
+      - "box/**"
+      - "docs/protocol/reader-v1-examples.txt"
+      - "docs/designs/box-software.md"
+      - ".github/workflows/ci-box.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: ci-box-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  box:
+    name: Box-Dienst (pytest)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v4
+
+      - name: Python 3.11 einrichten
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: MPD, Mosquitto, ffmpeg und rsync installieren, Systemdienste aus
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mpd mosquitto ffmpeg rsync
+          sudo systemctl stop mpd mpd.socket || true
+          sudo systemctl disable mpd mpd.socket || true
+          sudo systemctl stop mosquitto || true
+          sudo systemctl disable mosquitto || true
+
+      - name: Box-Paket mit Testabhaengigkeiten installieren
+        run: pip install -e "box[test]"
+
+      - name: Tests ausfuehren
+        run: pytest -q box/tests

@@ -1,0 +1,52 @@
+# Pfadfilter: laeuft nur bei Aenderungen an der Firmware und dem Protokoll-Beispielfile, das die Firmware-Tests lesen, damit reine Doku-Pushes keine Actions-Minuten kosten.
+name: CI Firmware
+
+on:
+  push:
+    paths:
+      - "firmware/**"
+      - "docs/protocol/reader-v1-examples.txt"
+      - ".github/workflows/ci-firmware.yml"
+  pull_request:
+    paths:
+      - "firmware/**"
+      - "docs/protocol/reader-v1-examples.txt"
+      - ".github/workflows/ci-firmware.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: ci-firmware-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  firmware:
+    name: Firmware (PlatformIO)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v4
+
+      - name: Python 3.11 einrichten
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: PlatformIO installieren
+        run: pip install platformio==6.1.19
+
+      - name: PlatformIO-Cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.platformio
+          key: platformio-${{ runner.os }}-${{ hashFiles('firmware/tobibox-reader/platformio.ini') }}
+
+      - name: Konfiguration mit Platzhalter anlegen
+        run: cp firmware/tobibox-reader/include/config.example.h firmware/tobibox-reader/include/config.h
+
+      - name: Native Tests ausfuehren
+        run: pio test -e native
+        working-directory: firmware/tobibox-reader
+
+      - name: Firmware bauen (ohne Veroeffentlichung)
+        run: pio run -e esp32s3
+        working-directory: firmware/tobibox-reader

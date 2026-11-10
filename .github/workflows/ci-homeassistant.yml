@@ -1,0 +1,74 @@
+# Pfadfilter: laeuft nur bei Aenderungen an der HA-Integration und den Dateien, die ihre Tests lesen (Vertraege, Box-Module store.py und library.py), damit reine Doku-Pushes keine Actions-Minuten kosten.
+name: CI Home Assistant
+
+on:
+  push:
+    paths:
+      - "homeassistant/**"
+      - "box/src/tobibox/store.py"
+      - "box/src/tobibox/library.py"
+      - "docs/data-model.md"
+      - "docs/protocol/ha-websocket-v1.md"
+      - ".github/workflows/ci-homeassistant.yml"
+  pull_request:
+    paths:
+      - "homeassistant/**"
+      - "box/src/tobibox/store.py"
+      - "box/src/tobibox/library.py"
+      - "docs/data-model.md"
+      - "docs/protocol/ha-websocket-v1.md"
+      - ".github/workflows/ci-homeassistant.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: ci-homeassistant-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  homeassistant:
+    name: Home Assistant (pytest und jsdom)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v4
+
+      - name: Python 3.14 einrichten
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: homeassistant/requirements-test.txt
+
+      - name: ffmpeg und Mosquitto installieren, Systemdienst aus
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg mosquitto
+          sudo systemctl stop mosquitto || true
+          sudo systemctl disable mosquitto || true
+
+      - name: Testabhaengigkeiten installieren
+        run: pip install -r homeassistant/requirements-test.txt
+
+      - name: Python-Tests ausfuehren
+        run: pytest -q homeassistant/tests
+
+      - name: Node 22 einrichten
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: npm-Cache wiederherstellen
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-jsdom-${{ github.run_id }}
+          restore-keys: |
+            npm-${{ runner.os }}-jsdom-
+
+      - name: jsdom ausserhalb des Repos installieren
+        run: npm install --prefix "$RUNNER_TEMP/jsdom" jsdom
+
+      - name: Frontend-Tests ausfuehren
+        run: node --test homeassistant/tests/frontend
+        env:
+          TOBIBOX_JSDOM_DIR: ${{ runner.temp }}/jsdom
