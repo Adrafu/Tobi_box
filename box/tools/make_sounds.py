@@ -9,7 +9,7 @@ sind einfache Sinusfolgen mit weicher Hüllkurve und ersetzen später die echten
 Lautheit (Entscheidung J, 09.11.): Jeder Ton liegt bei -18 LUFS, dem Zielwert von ReplayGain
 für die Hörspiele. ``PEGEL_DB`` gleicht den Ton von der Grundamplitude ``AMPLITUDE`` auf diesen
 Wert an. Die Zahlen stammen aus einer Messung mit ``tools/lautheit.py``
-(``python tools/lautheit.py --ordner box/sounds``); das Skript selbst braucht kein ``ffmpeg``.
+(``python tools/lautheit.py --ordner box/sounds``; gemessen mit dem Vorlauf von ``VORLAUF_S``); das Skript selbst braucht kein ``ffmpeg``.
 Ändert sich ein Ton, muss seine Zahl neu bestimmt werden (der Test ``test_lautheit.py`` prüft es).
 """
 
@@ -22,20 +22,21 @@ import wave
 from pathlib import Path
 
 RATE = 22050
+VORLAUF_S = 0.15  # Stille am Anfang jedes Tons: die Tonausgabe am Mac verschluckt den Anfang (Befund 11.11.); gilt auch für ``make_sprache.py``
 AMPLITUDE = 0.6  # Grundamplitude (Anteil der Vollaussteuerung), bevor ``PEGEL_DB`` greift
 # Anpassung je Ton in dB auf -18 LUFS (gemessen mit tools/lautheit.py; Zielwert wie rsgain/ReplayGain 2.0)
 PEGEL_DB: dict[str, float] = {
-    "start": -9.5,
-    "unbekannt": -9.4,
-    "fehler": -8.4,
-    "hinweis": -9.4,
-    "lernen_beginn": -9.3,
-    "lernen_ende": -9.2,
-    "pruef_ok": -9.9,
-    "pruef_fehler": -9.4,
-    "akku_leer": -8.5,
-    "lader": -9.5,  # gemessen mit tools/lautheit.py (-18,0 LUFS)
-    "gute_nacht": -9.55,  # gemessen mit tools/lautheit.py (-18,0 LUFS)
+    "start": -8.3,
+    "unbekannt": -8.0,
+    "fehler": -7.56,
+    "hinweis": -8.41,  # neu gemessen (Zweiklang und Vorlauf, 11.11.)
+    "lernen_beginn": -8.17,
+    "lernen_ende": -8.1,
+    "pruef_ok": -6.35,
+    "pruef_fehler": -8.06,
+    "akku_leer": -7.91,
+    "lader": -6.93,  # gemessen mit tools/lautheit.py (-18,0 LUFS)
+    "gute_nacht": -8.57,  # gemessen mit tools/lautheit.py (-18,0 LUFS)
 }
 
 # Name -> Folge aus (Frequenz in Hz, Dauer in s); 0 Hz ist eine Pause
@@ -43,7 +44,7 @@ TOENE: dict[str, list[tuple[float, float]]] = {
     "start": [(523.25, 0.12), (659.25, 0.12), (783.99, 0.22)],
     "unbekannt": [(392.0, 0.15), (329.63, 0.25)],
     "fehler": [(220.0, 0.18), (0.0, 0.05), (220.0, 0.18), (0.0, 0.05), (220.0, 0.18)],
-    "hinweis": [(880.0, 0.10)],
+    "hinweis": [(660.0, 0.18), (880.0, 0.22)],  # weicher Zweiklang, ca. 0,4 s (Befund Mac-Abnahme 11.11.)
     "lernen_beginn": [(440.0, 0.10), (554.37, 0.10), (659.25, 0.10), (880.0, 0.18)],
     "lernen_ende": [(880.0, 0.10), (659.25, 0.10), (554.37, 0.10), (440.0, 0.18)],
     "pruef_ok": [(1046.5, 0.12)],
@@ -57,7 +58,7 @@ TOENE: dict[str, list[tuple[float, float]]] = {
 
 
 def erzeuge_samples(folge: list[tuple[float, float]], rate: int = RATE, pegel_db: float = 0.0) -> bytes:
-    daten = bytearray()
+    daten = bytearray(2 * int(round(rate * VORLAUF_S)))  # Vorlauf: Stille (16 Bit mono)
     amplitude = AMPLITUDE * 10 ** (pegel_db / 20)
     for frequenz, dauer in folge:
         n = int(rate * dauer)

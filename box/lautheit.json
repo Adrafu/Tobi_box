@@ -39,127 +39,127 @@
       "lufs": -18.0
     },
     "sounds/akku_leer.wav": {
-      "sha256": "4b5fdffc8cd42cae87a54f8cff5beff936b0d447b50aad70bf6cbd1b16e898e2",
-      "lufs": -18.04
+      "sha256": "daba404820113196b6d5a52b8094bec74dad087f9581b4026ba1c7f768ae534d",
+      "lufs": -18.0
     },
     "sounds/fehler.wav": {
-      "sha256": "82353d21f10d6e96b52c03af9026f027e9a65337a5c3444562702219deef456d",
-      "lufs": -17.98
+      "sha256": "71131ab766c0383eb29c654e20bc5ba265595539e698540fa848c1b4a650bc93",
+      "lufs": -18.0
     },
     "sounds/gute_nacht.wav": {
-      "sha256": "63f92862a300e902b44629167e8fe613f8ba8063170498cdffd88d755b1d3f44",
+      "sha256": "68b55e463d7c401ee521eeba993f35827b78122ac5e12994b15140b0e56507db",
       "lufs": -18.0
     },
     "sounds/hinweis.wav": {
-      "sha256": "937437ffef93c6d0086f025094fadaa8e6aa9f81ab9601f55d0b0e0396f24cfd",
-      "lufs": -18.02
+      "sha256": "e4f92982d1ae199b886e4dde839f5c3e811b74639bff7f85d0dbc11917b96259",
+      "lufs": -18.0
     },
     "sounds/lader.wav": {
-      "sha256": "4a278a1e0159309adc0140be23a27e38b6d3fcb35b55aaf3068bf1a5a7474be2",
-      "lufs": -18.02
+      "sha256": "2cc4b682835e9a3821f36d7187d4da2188155fa6b3b43d3a9d5eb26339ed11e0",
+      "lufs": -18.0
     },
     "sounds/lernen_beginn.wav": {
-      "sha256": "142ab0e5a1f2ad6c6fdd7c52f69c7b5e014572a2492af258d92f50f02e0ca382",
-      "lufs": -17.96
+      "sha256": "08b8d5c44ee34ed61a0545db00c6a492049356f0045f18f3001c6048af6fab80",
+      "lufs": -18.0
     },
     "sounds/lernen_ende.wav": {
-      "sha256": "f7d54c802db599f15a2f3e24754aba6b4a3327fa27527ebbdfe754dec5134f5b",
-      "lufs": -17.95
+      "sha256": "fb0039db2b2ff0d98177586429dbc4514a4a5d31f89170d7dcb9b7b9ea514d35",
+      "lufs": -18.0
     },
     "sounds/pruef_fehler.wav": {
-      "sha256": "37825be9e54e1b3f9c6e68eb924d0e3c8940d8b617a8b6217c2d8559c91ecc3f",
-      "lufs": -17.99
+      "sha256": "ae65518e846d71329db39e81e7e36cebfec4a99410c06791400b17e9b448a3f1",
+      "lufs": -18.0
     },
     "sounds/pruef_ok.wav": {
-      "sha256": "8b4fbcf8439c83e1e1bef3c02c2f9ae67b6e47991e2865a1d64ca10b1e500d95",
-      "lufs": -18.01
+      "sha256": "f3e9ba13bb1b19959f9d773482f1d4df803b0ab5d22475398072d0bf1572897d",
+      "lufs": -18.0
     },
     "sounds/sprache/akku_leer.wav": {
-      "sha256": "595d40f70c8c5ae0b221038efebea3eb5a8113b607b3a2db098103d59cab0d35",
-      "lufs": -18.0
+      "sha256": "35efde5f4c11bf1134e145a8717c4816756443b619fd21469e82b774fbf14872",
+      "lufs": -18.15
     },
     "sounds/sprache/fehler.wav": {
-      "sha256": "453cfe5fcdae0bceab9492f2140f15293b332dc76041bb24c273f5d2f0ca5167",
-      "lufs": -18.0
+      "sha256": "750d7b8f4d4ff609e3e4edbe57d497d6d59d14cc5d4ed72cc44ad2d70c8e8c6f",
+      "lufs": -18.33
     },
     "sounds/sprache/gute_nacht.wav": {
-      "sha256": "daefaec9559a0c285b963227a54813957d6b7019915b52549af84965736c11bc",
-      "lufs": -18.0
+      "sha256": "225845c53b703c0e3fad7bcb4f84f949729549e1d067496f0f4ad8ca494b0493",
+      "lufs": -18.26
     },
     "sounds/sprache/hinweis.wav": {
-      "sha256": "937437ffef93c6d0086f025094fadaa8e6aa9f81ab9601f55d0b0e0396f24cfd",
-      "lufs": -18.02
+      "sha256": "e4f92982d1ae199b886e4dde839f5c3e811b74639bff7f85d0dbc11917b96259",
+      "lufs": -18.0
     },
     "sounds/sprache/lader.wav": {
-      "sha256": "23b8b74d1d7033af4985dbe5180a48c248ace60f74d5c9b468af96abd587c71d",
-      "lufs": -18.0
+      "sha256": "b24ca4fc6d81a6205f3476c8f9abf28037b9878a950304d1fa2396a07d69ceed",
+      "lufs": -18.1
     },
     "sounds/sprache/lernen_beginn.wav": {
-      "sha256": "89c47594ca164691a3f3ced417c109caaf7a72d949053412aeffd91281759536",
-      "lufs": -18.0
+      "sha256": "6118f792324b81f5fb47129ba558d6f66b17812dca90668a97d48b49ca9e142d",
+      "lufs": -17.89
     },
     "sounds/sprache/lernen_ende.wav": {
-      "sha256": "c9d70d143d2ef97a165ad56bd8f8a62ea674c01f2f480612febdc6878df4ad45",
-      "lufs": -18.0
+      "sha256": "d378854857364b85b4cde68b4d8851fb5bbef0900537ccc6759f3d74702be7e1",
+      "lufs": -18.08
     },
     "sounds/sprache/pruef_fehler.wav": {
-      "sha256": "bb8ef28f9cb731184f187d67c7ec2ad286739046d47db186b73363f1028aeeb6",
-      "lufs": -18.0
+      "sha256": "2119b556c11819bea334b4dae0822b6a6f805b0f64ca28172a73e679751f3b79",
+      "lufs": -18.76
     },
     "sounds/sprache/pruef_leser_fehler.wav": {
-      "sha256": "b338a775f0960f627e47269ddd37ae68339427d5b9b30ef44fcd0a36a77871f0",
-      "lufs": -18.0
+      "sha256": "2486d58a1739f6c978421bd9f3d01e158ab88d5ac4251168d4e2185ae1c04b7a",
+      "lufs": -18.35
     },
     "sounds/sprache/pruef_leser_ok.wav": {
-      "sha256": "36c56b596dcae7824cc46cafbe2ada0012bf6276f79502723ceb33f2acabb497",
-      "lufs": -18.0
+      "sha256": "0fd293d6eb6b87ccc69d95c36f9cc66583dbb7d7b1fb254805986d4565cd7035",
+      "lufs": -18.46
     },
     "sounds/sprache/pruef_leser_simulation.wav": {
-      "sha256": "1fdddcc434450d41b6f109b5402cb0e726f5acf25baf5703134d8299a3c689c9",
-      "lufs": -18.0
+      "sha256": "dda5573836a20856b93b2dfdc583cffcb5628cb685c759e130b0ebf252a4db78",
+      "lufs": -18.31
     },
     "sounds/sprache/pruef_medien_fehler.wav": {
-      "sha256": "ff6c4abe9836756e7a1f949c61582b2c3e856230dec5f66ad00a10a964f266ee",
-      "lufs": -18.0
+      "sha256": "7cd49cf2b84697a81f3fb8ea40e5acf0892054206f7970b98a253b36b47bed10",
+      "lufs": -18.29
     },
     "sounds/sprache/pruef_medien_ok.wav": {
-      "sha256": "9a3a73f5612e3ccdae3a6d0fc5f823a33ca72f7ca233973308702e1bf3880522",
-      "lufs": -18.0
+      "sha256": "263bae33bd762c666abdcfebd9e881cd35f3d72e2ae3a7f40927cbb0b90bc1bb",
+      "lufs": -18.41
     },
     "sounds/sprache/pruef_netz_fehler.wav": {
-      "sha256": "78a29c14863edc86a020111642164677b780804a309a1ed5e6369be64ff53947",
-      "lufs": -18.0
+      "sha256": "c490b9410d2a944b69538bc26c75be10e267f90ad7f7363a51677a7eeee406a5",
+      "lufs": -18.54
     },
     "sounds/sprache/pruef_netz_ok.wav": {
-      "sha256": "cdd9a4a1916221e41a0ce89564d80b50bc708425fa8ab3675ee832a8e2ac114b",
-      "lufs": -18.0
+      "sha256": "a71e05b2f3cdedad82b3fbc1a76c00dccd877a5e58c8dbf8f383770658d4bad3",
+      "lufs": -18.52
     },
     "sounds/sprache/pruef_ok.wav": {
-      "sha256": "8b6ad25c092ed475cedfd76c6afd8c4f753bbf1213b3aea97a6ee8b5b3fbfb7e",
-      "lufs": -18.0
+      "sha256": "85cac38ca6d24a74f71941bb80f45e128fbc839fb28a459d3ad026cd3c8eb521",
+      "lufs": -18.73
     },
     "sounds/sprache/pruef_speicher_fehler.wav": {
-      "sha256": "da236f2b7bc0b5b315a335d0e54913202e9bfa66180cb74926515aa205f1502f",
-      "lufs": -18.0
+      "sha256": "c658fd5a7de119d223da831caef7761a4db8c889f21a782ce2b745786151e265",
+      "lufs": -18.3
     },
     "sounds/sprache/pruef_speicher_ok.wav": {
-      "sha256": "de35beb20d4b9a8eaf5a3362fadbf4ee273fffe4b6c105d8cd19beba2ecd7efb",
-      "lufs": -18.0
+      "sha256": "a5a8256e5bf2cabc0dbe6d33c85d4c33bc14d26eb8fba57ab78bfe29c5c48f01",
+      "lufs": -18.32
     },
     "sounds/sprache/start.wav": {
-      "sha256": "dbafc2af08531392aaabc6336a56ca0becc517d241d86c79560b01a13b241bec",
-      "lufs": -18.0
+      "sha256": "7d69eb2a7fda7359d0a5a9ef530abfc8e58ac64be5b34460e01239c89243ddfb",
+      "lufs": -18.17
     },
     "sounds/sprache/unbekannt.wav": {
-      "sha256": "6ed47f7c8a11d2e928e4077176d8ebe3f136daee0d2b98023572df63b2f7736e",
-      "lufs": -18.0
+      "sha256": "e212ad4504743619797741c39d828015f17832cf115f4ac4931501ab327eedbb",
+      "lufs": -18.06
     },
     "sounds/start.wav": {
-      "sha256": "5cf5210ffc0e3ce2f39231b6645be444b2dedda51a3ca03e0413d29f82c1309c",
-      "lufs": -18.01
+      "sha256": "01c2ea94f0f5d166847ae3fbe219f0d6bac158cc52e9665f6a3e37ebace66104",
+      "lufs": -18.0
     },
     "sounds/unbekannt.wav": {
-      "sha256": "5e199d169fb62734c566210b0b35006d493b89ed0edca60a20fb0b8c69e24927",
+      "sha256": "bf0dd4fb40a79bd53a3a1b7782a173b657849f95baf502d677099c8e83cc9328",
       "lufs": -18.0
     }
   }

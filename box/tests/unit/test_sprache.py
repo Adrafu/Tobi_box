@@ -46,6 +46,7 @@ def test_sprach_ordner_hat_alle_namen_des_melodie_ordners_und_die_pruefpunkte():
 
 
 RAND_SCHWELLE_DBFS = -50.0
+VORLAUF_S = 0.15  # Stille am Anfang jedes Tons (Befund Mac 11.11.: die Tonausgabe verschluckt den Anfang)
 RAND_STILLE_MAX_S = 0.1  # Befund Mac 09.11.: zwischen zwei Ansagen höchstens etwa 0,3 s Stille, davon die Ränder
 
 
@@ -62,12 +63,13 @@ def rand_stille_s(datei: Path) -> tuple[float, float]:
 
 
 @pytest.mark.parametrize("ordner", [MELODIE, SPRACHE], ids=["melodie", "sprache"])
-def test_rand_stille_aller_toene_hoechstens_0_1_s(ordner):
+def test_rand_stille_aller_toene_vorlauf_plus_hoechstens_0_1_s(ordner):
     dateien = sorted(ordner.glob("*.wav"))
     assert dateien
     for d in dateien:
         vorn, hinten = rand_stille_s(d)
-        assert vorn <= RAND_STILLE_MAX_S and hinten <= RAND_STILLE_MAX_S, (d.name, vorn, hinten)
+        assert VORLAUF_S - 0.01 <= vorn <= VORLAUF_S + RAND_STILLE_MAX_S, (d.name, vorn)  # 0,15 s Vorlauf, dahinter der Einsatz
+        assert hinten <= RAND_STILLE_MAX_S, (d.name, hinten)
 
 
 def test_sprach_toene_haben_das_format_der_melodie_toene(tmp_path):
@@ -76,7 +78,7 @@ def test_sprach_toene_haben_das_format_der_melodie_toene(tmp_path):
     for datei in SPRACHE.glob("*.wav"):
         with wave.open(str(datei)) as w:
             assert (w.getnchannels(), w.getsampwidth(), w.getframerate()) == erwartet, datei.name
-            untergrenze = 0.05 if datei.stem == "hinweis" else 0.2  # hinweis ist nur ein kurzer Klang (Entscheidung T, 10.11.)
+            untergrenze = 0.35 if datei.stem == "hinweis" else 0.2  # hinweis ist nur ein weicher Zweiklang von ca. 0,4 s (Entscheidung T, 10.11.; Mac-Abnahme 11.11.)
             assert untergrenze < w.getnframes() / w.getframerate() < TON_MAX_S, datei.name
         skaliere_wav(datei, 40, tmp_path / datei.name)  # der Pegel wird in Python skaliert
 

@@ -40,6 +40,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import lautheit  # noqa: E402  (liegt neben diesem Skript)
+from make_sounds import VORLAUF_S  # noqa: E402  (0,15 s Stille am Anfang jedes Tons)
 
 RATE = 22050
 WURZEL = Path(__file__).resolve().parents[1]
@@ -54,7 +55,7 @@ ANGELEGT_AM = "2026-11-09T09:00:00Z"
 # --------------------------------------------------------------------------
 
 # Kein Sprachtext (Entscheidung T, 10.11.): ``hinweis`` ist auch in der Sprachfassung nur der leise Ton.
-# Die Datei wird unverändert aus ``box/sounds/`` übernommen (gleiche Bytes, -18 LUFS).
+# Die Datei wird unverändert aus ``box/sounds/`` übernommen (gleiche Bytes, -18 LUFS, inkl. Vorlauf).
 TOENE_OHNE_SPRACHE = ("hinweis",)
 
 TOENE: dict[str, str] = {
@@ -290,7 +291,7 @@ def erzeuge_toene(stimme: Stimme, ziel: Path) -> list[Path]:
         aus.append(p)
     for name, text in TOENE.items():
         p = ziel / f"{name}.wav"
-        schreibe_wav(p, stimme.sprich(text))
+        schreibe_wav(p, stille(VORLAUF_S) + stimme.sprich(text))  # Vorlauf: die Tonausgabe am Mac verschluckt den Anfang
         aus.append(p)
     return aus
 

@@ -24,7 +24,7 @@ aus; dann bauen wir sie ein.
 | `lader` | Box wird angedockt, während sie läuft und nichts spielt | „Strom ist da.“ | in beiden Fenstern keiner | |
 | `akku_leer` | Akku fast leer, kurz bevor die Box ausgeht | „Mein Akku ist fast leer. Ich gehe gleich aus.“ | „leiser“: leise · „stumm“: Hinweiston | |
 | `fehler` | Etwas klappt nicht (z. B. Datei fehlt) | „Da ist etwas schiefgegangen.“ | „leiser“: leise · „stumm“: Hinweiston | |
-| `hinweis` | Taste ohne Tobie (Entscheidung Q), Tobie unter „stumm“, „Vor“ am Ende | kurzer, leiser Klang (Entscheidung T) | immer leise | |
+| `hinweis` | Taste ohne Tobie (Entscheidung Q), Tobie unter „stumm“, „Vor“ am Ende | kurzer, leiser Zweiklang (Entscheidung T) | immer leise | |
 
 ## Töne für dich (Lernmodus und Prüfkarte)
 

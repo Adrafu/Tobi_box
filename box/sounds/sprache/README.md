@@ -14,6 +14,8 @@ die Prüfpunkt-Töne der Status-Karte (`pruef_<punkt>_ok`, `pruef_<punkt>_fehler
 - Dieselben Texte und Stimme erzeugen auch `box/medien-sprache/`.
 - **Lautheit (Entscheidung J, 09.11.):** Jeder Satz liegt bei -18 LUFS (Zielwert von ReplayGain 2.0 und
   `rsgain`), gemessen mit `box/tools/lautheit.py`; Werte und Prüfsummen in `box/lautheit.json`.
-- **`hinweis.wav`** (Entscheidung T, 10.11.): kein gesprochener Text. Die Datei ist byte-gleich mit `box/sounds/hinweis.wav` (kurzer, sanfter Klang, -18 LUFS); `make_sprache.py` kopiert sie (`TOENE_OHNE_SPRACHE`). Pegelregel `hinweis_pegel` unverändert.
+- **`hinweis.wav`** (Entscheidung T, 10.11.): kein gesprochener Text. Die Datei ist byte-gleich mit `box/sounds/hinweis.wav` (weicher Zweiklang 660 Hz dann 880 Hz, etwa 0,4 s, -18 LUFS; seit 11.11., vorher 0,1 s und bei der Mac-Abnahme nicht hörbar); `make_sprache.py` kopiert sie (`TOENE_OHNE_SPRACHE`). Pegelregel `hinweis_pegel` unverändert.
 - **`lader.wav`** (Ein/Aus, 10.11.): „Strom ist da.“ Der Ton beim Andocken der laufenden Box; er spielt mit dem leisen Pegel von `hinweis` und nie in Leise-Zeiten. Einzeln mit den Funktionen von `make_sprache.py` erzeugt (Piper `de_DE-thorsten-medium`, -18,0 LUFS).
 - **`gute_nacht.wav`** (Entscheidung R, 10.11.): „Gute Nacht! Ich spiele noch ein bisschen.“ Die Durchsage beim Auflegen der Gute-Nacht-Karte; normaler Ton-Pegel (Grenze gilt, unter „leiser“ begrenzt), unter „stumm“ keine Durchsage. Einzeln mit den Funktionen von `make_sprache.py` erzeugt (Piper `de_DE-thorsten-medium`, -18,0 LUFS, 1,9 s).
+
+**Vorlauf (11.11.):** Alle Töne beginnen mit 0,15 s Stille (`VORLAUF_S` in `tools/make_sounds.py`, auch von `make_sprache.py` genutzt), weil die Tonausgabe am Mac den Anfang verschluckt (bei `lader` fehlte das „S“). Die Stille am Ende kommt weiter aus `pad 0 0.15` im `kommando` der Mac-Konfiguration.
