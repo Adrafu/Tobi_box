@@ -17,6 +17,7 @@ from fixtures.stufe4 import BedienBox
 
 from tobibox import events as ev
 from tobibox import led
+from tobibox.idle import AUSSCHALT_AUSBLENDEN_S
 
 SERIE = "3f9a1c07b2d4"
 UID = "04a1b2c3"
@@ -135,7 +136,7 @@ def test_akku_anzeige_geht_nach_dem_abheben_vor(box):
     assert box.ring_zustand() == led.PAUSE  # die Pause-Anzeige läuft noch, die Akku-Anzeige hat nur Vorrang
 
 
-def test_leser_unterbrochen_rot_langsam_blinkend(box):
+def test_leser_unterbrochen_gelb_langsam_blinkend(box):
     box.auflege(UID)
     box.laufe(3.0)
     box.sende(ev.LeserAlarm("kein_herzschlag"))
@@ -143,7 +144,7 @@ def test_leser_unterbrochen_rot_langsam_blinkend(box):
     hell = []
     for _ in range(int(led.BLINK_LESER_S / 0.25) + 1):
         hell.append(box.ring().helligkeit)
-        assert box.ring().leds[0] == led.ROT
+        assert box.ring().leds[0] == led.GELB
         box.laufe(0.25)
     assert led.DECKEL_PROZENT in hell and 0 in hell  # blinkt, langsam: mindestens eine halbe Periode am Stück
     assert hell.count(hell[0]) >= int(led.BLINK_LESER_S / 2 / 0.25) - 1
@@ -259,7 +260,16 @@ def test_tobie_unter_stumm_aufgelegt_dunkelrot_dann_nach_5_s_aus(box):
 
 
 def test_herunterfahren_ring_aus(box):
+    """Entscheidung Y (11.11.): spielt ein Hörspiel, blendet die Box 2 s aus; der Ring geht erst mit dem Herunterfahren aus."""
     box.auflege(UID)
+    box.sende(ev.Hauptknopf("lang"))
+    assert stufe4.zeile(box).strom == "aktiv"  # Ausblenden läuft
+    box.laufe(AUSSCHALT_AUSBLENDEN_S + 0.2)
+    assert stufe4.zeile(box).strom == "herunterfahren"
+    assert box.ring_zustand() == led.AUS
+
+
+def test_herunterfahren_ohne_wiedergabe_ring_sofort_aus(box):
     box.sende(ev.Hauptknopf("lang"))
     assert stufe4.zeile(box).strom == "herunterfahren"
     assert box.ring_zustand() == led.AUS

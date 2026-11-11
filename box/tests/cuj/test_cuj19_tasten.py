@@ -14,6 +14,7 @@ from fixtures.stufe4 import BedienBox
 
 from tobibox import events as ev
 from tobibox.controls import LANG_S, RASTER_PROZENT
+from tobibox.idle import AUSSCHALT_AUSBLENDEN_S
 
 SERIE = "3f9a1c07b2d4"
 UID_SERIE = "04a1b2c3"
@@ -245,6 +246,8 @@ def test_hauptknopf_lang_speichert_den_zeiger_und_faehrt_herunter(box):
     box.bedienung.tick(10.0 + LANG_S - 0.1)
     assert [b for b in box.log[n:] if isinstance(b, ev.Herunterfahren)] == []
     box.bedienung.tick(10.0 + LANG_S + 0.1)
+    assert [b for b in box.log[n:] if isinstance(b, ev.Herunterfahren)] == []  # Entscheidung Y (11.11.): erst 2 s ausblenden
+    box.laufe(AUSSCHALT_AUSBLENDEN_S + 0.2)
     assert [b.grund for b in box.befehle(ev.Herunterfahren, n)] == ["hauptknopf"]
     assert box.befehle(ev.ZeigerSpeichern, n) and box.resume_json()["serien"][SERIE]["position_s"] > 0
     box.bedienung.haupt_hoch(10.0 + LANG_S + 0.3)  # Loslassen nach lang: kein kurzer Druck mehr
@@ -256,6 +259,7 @@ def test_hauptknopf_lang_beim_loslassen_ohne_tick(box):
     box.auflege(UID_SERIE)
     box.bedienung.haupt_runter(0.0)
     box.bedienung.haupt_hoch(LANG_S + 0.2)
+    box.laufe(AUSSCHALT_AUSBLENDEN_S + 0.2)  # Entscheidung Y (11.11.): 2 s ausblenden, dann herunterfahren
     assert [b.grund for b in box.befehle(ev.Herunterfahren)] == ["hauptknopf"]
 
 

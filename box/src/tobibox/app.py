@@ -747,6 +747,8 @@ class App:
             fortsetzen=lambda: not (self._start is not None and self._start.wartet),
             halten=lambda: bool(getattr(self.toene, "folge_wartet", False)),
         )
+        if not getattr(self.toene, "folge_wartet", False):
+            self.ereignisse.put_nowait(ev.TonFolgeEnde())  # ``idle`` wartet nach ``akku_leer`` darauf (Entscheidung Z, 11.11.)
 
     async def _melde(self, b: ev.Melden) -> None:
         """Unbekannten oder gelernten Tobie in ``unknown.json`` eintragen (``outbox``)."""

@@ -17,6 +17,8 @@
 *   **Änderung 10.11.:** Entscheidung R eingearbeitet (Durchsage beim Auflegen der Gute-Nacht-Karte, neuer Ton `gute_nacht`: „Gute Nacht! Ich spiele noch ein bisschen.“; unter „stumm“ keine Durchsage, die Karte wirkt trotzdem). Betroffen: CUJ 14, Tabelle „Gute Nacht“. Die Änderungen sind mit „(Entscheidung R, 10.11.)“ markiert.
 *   **Änderung 10.11.:** Entscheidung U eingearbeitet (Ring unter „stumm“: ganz dunkelrot, nach 5 s aus; ersetzt „stumm dimmt auf ×0,4“). Betroffen: CUJ 15 und 18 (LED-Ring). Die Änderungen sind mit „(Entscheidung U, 10.11.)“ markiert.
 *   **Änderung 10.11.:** Entscheidung V eingearbeitet (Ring: Pause nach 10 s aus; Lernmodus und Gute Nacht bestätigt; Leser unterbrochen rot langsam blinkend statt magenta). Betroffen: CUJ 18 (LED-Ring). Die Änderungen sind mit „(Entscheidung V, 10.11.)“ markiert.
+*   **Änderung 11.11.:** Entscheidung X eingearbeitet (Ring zeigt am Strom bei nicht vollem Akku dauernd den Füllstand, wenn sonst nichts angezeigt wird). Betroffen: CUJ 18 (LED-Ring). Die Änderungen sind mit „(Entscheidung X, 11.11.)“ markiert.
+*   **Änderung 11.11.:** Ergänzung zu Entscheidung V (Akku-Tiefstand rot pulsierend statt Blinken; Leser unterbrochen gelb statt rot). Betroffen: CUJ 18. Markiert mit „(Entscheidung V, 11.11.)“.
 *   **Grundlage:** `concepts_brief.md` (gleicher Ordner) inkl. Entscheidungen
     Runde 1 und 2
 
@@ -915,7 +917,7 @@ Zustände, Übergänge und Konflikte: siehe „Kern-Zustände“.
     (Entscheidung O, 09.11.; Frist 10 statt 20 min). Schlägt das Herunterfahren fehl, läuft die Box weiter, der Zähler beginnt neu und HA
     bekommt einen Hinweis (Befund B1). In der Simulation wird das Herunterfahren nur
     protokolliert; nach 10 s ist die Box wieder im normalen Zustand.
-*   **Hauptknopf lang** fährt immer herunter, auch am Sockel (R8). Am Sockel startet die Box danach gleich wieder: Ausschalten heißt dort abnehmen.
+*   **Hauptknopf lang** fährt immer herunter, auch am Sockel (R8). **Spielt gerade ein Hörspiel, wird es vorher 2 s ausgeblendet** (`AUSSCHALT_AUSBLENDEN_S`), dann Pause, Zeiger speichern, Herunterfahren (Entscheidung Y, 11.11.); in dieser Zeit zählen keine anderen Tasten, ein zweiter Langdruck ändert nichts. Dasselbe gilt beim **Akku-Tiefstand** (Entscheidung Z, 11.11.): erst die Durchsage `akku_leer`, dann 2 s ausblenden, Stelle speichern, herunterfahren. Im Leerlauf wird nicht ausgeblendet (dort spielt nichts), und wenn nichts spielt, fährt die Box sofort herunter. Am Sockel startet die Box danach gleich wieder: Ausschalten heißt dort abnehmen.
     Wer die Box aus *Aus* holt: Hauptknopf (PiSugar). Das Wecken durch Tobie, Magnet und Strom über den ESP32 folgt mit Schritt 2; bis dahin hängt
     „Einschalten bei Strom“ am PiSugar.
 *   Der Wecker des PiSugar zum nächtlichen Sync am Lader (früher geplant für Stufe 4) wird damit nicht gebraucht: Am Sockel ist die Box ohnehin bereit
@@ -947,24 +949,32 @@ Zustände, Übergänge und Konflikte: siehe „Kern-Zustände“.
     *   **Pause (Entscheidung V, 10.11.):** bernstein (10 %) wie bisher, aber nach **10 s** (`PAUSE_ANZEIGE_S`) aus. Danach bleibt der Ring dunkel, bis etwas
         anderes angezeigt wird (Akku-Anzeige, Aufwachen, Blinken). Die 10 s beginnen, wenn die Sitzung in eine Pause wechselt (`pausiert`, `beendet`, `gehalten`); eine
         wiederholte Meldung startet sie nicht neu, Abheben und erneutes Auflegen schon.
-    *   **Leser unterbrochen (Entscheidung V, 10.11.):** Sitzung „unbekannt“ zeigt den Ring **rot, langsam blinkend** (Periode 2 s, `BLINK_LESER_S`, Zustandsname
-        `leser_unterbrochen`) statt magenta. Magenta bleibt nur für den unbekannten Tobie (1 s, zwei Blinker).
+    *   **Leser unterbrochen (Entscheidung V, 10.11.; Farbe geändert (Entscheidung V, 11.11.)):** Sitzung „unbekannt“ zeigt den Ring **gelb, langsam blinkend** (Periode 2 s, `BLINK_LESER_S`, Zustandsname
+        `leser_unterbrochen`, `FARBE_LESER_UNTERBROCHEN`) statt magenta (und statt rot: Rot bedeutet nur noch Akku leer und „stumm“). Magenta bleibt nur für den unbekannten Tobie (1 s, zwei Blinker).
     *   **Stumm (Entscheidung U, 10.11.):** Pausiert die Box wegen eines „stumm“-Fensters (das Ausblenden beginnt) oder erkennt sie unter „stumm“ einen aufgelegten
         Tobie (der dann nicht spielt, Sitzung `gehalten`), leuchtet der Ring **ganz dunkel rot** (`STUMM_FARBE`, 3 %, die kleinste sichtbare Stufe, mindestens Stufe 1 von 31,
         wie die Akku-Anzeige unter „stumm“) und geht nach **5 s** (`STUMM_ANZEIGE_S`) aus. Danach bleibt der Ring dunkel, solange „stumm“ gilt und nichts anderes
-        angezeigt werden muss. Akku-Anzeige (Andocken, Abziehen, Anforderung), Tiefstand-Blinken (unter „stumm“ ebenfalls 3 %) und Unbekannt-Blinken bleiben wie festgelegt;
+        angezeigt werden muss. Akku-Anzeige (Andocken, Abziehen, Anforderung), Tiefstand-Pulsieren (unter „stumm“ ruhig 3 %) und Unbekannt-Blinken bleiben wie festgelegt;
         auch der Lernmodus bleibt blau. Es gibt keinen Dimm-Faktor 0,4 mehr; er ersetzt den Vorschlag von AP 4.8. `led` erkennt beides aus `ZustandMelden`
         (`ruhe` = `stumm` und Sitzung `spielt` oder `gehalten` neu); der Übergang `spielt` zu `gehalten` startet die 5 s nicht neu, Abheben und erneutes Auflegen schon.
         Keine neue Schnittstelle des Kerns.
     *   Übrige Zustände: läuft grünes Atmen (12 bis 25 %, 6 s); Pause bernstein
         (10 %, nach 10 s aus); unbekannter Tobie magenta blinkend (1 s); Aufwachen weißes
         Lauflicht (2 s); Akku als Füllstand (40 LEDs, grün, gelb oder rot, mit
-        Strom blau, bei Tiefstand rot blinkend). **(Ein/Aus, 10.11., V6)** „Ladestand“ (beim Andocken, CUJ 25) und „Akku“ (beim Abziehen) sind **dieselbe** Anzeige,
+        Strom blau, bei Tiefstand rot **pulsierend** (Entscheidung V, 11.11.: weiches An- und Abschwellen, Periode 1,5 s `TIEFSTAND_PULS_S`, Kurve wie das Atmen bei „läuft“, 12 % bis zum Deckel; unter „stumm“ ruhig auf der kleinsten Stufe 3 %)). **(Ein/Aus, 10.11., V6)** „Ladestand“ (beim Andocken, CUJ 25) und „Akku“ (beim Abziehen) sind **dieselbe** Anzeige,
         die Akku-Füllstand-Anzeige; nur die Farbe folgt dem Strom (blau mit Strom, sonst nach Prozent). Wann sie erscheinen darf, gibt `idle` mit dem Befehl
         `AkkuAnzeigen` frei (`core-interface.md`, Abschnitt 4 und 9); beim Start mit Strom zeigt `led` sie nach `Bereit` allein (Start-Anzeige).
     *   **Akku-Anzeige (Ein/Aus, 10.11.):** Sie erscheint 5 s lang beim Andocken und beim Abziehen (spielt ein Hörspiel: 3 s) und auf Anforderung.
         Helligkeit 15 %; unter „leiser“ und solange „Gute Nacht“ läuft 5 %; unter „stumm“ 3 % (mindestens Stufe 1 der 31 Stufen des Rings). Der Faktor
         0,4 von „stumm“ gibt es nicht mehr (Entscheidung U, 10.11.).
+    *   **Laden: dauernder Füllstand am Strom (Entscheidung X, 11.11.):** Liegt Strom am Eingang und ist der Akku **nicht voll**, zeigt der Ring **dauerhaft** den Füllstand
+        (Zustandsname `laden`, blau, so viele LEDs wie Prozent von 40, mindestens eine), **wenn sonst nichts angezeigt wird**, also statt „aus“ (nach der Pause-Anzeige,
+        nach den 5 s „stumm“, in *Bereit* ohne Tobie). Alles andere geht vor: Spielen, Pause-Anzeige (10 s), unbekannter Tobie, Lernmodus, Gute Nacht, Leser unterbrochen, stumm-Rot (5 s),
+        Aufwachen, die 5-s-Akku-Anzeige und das Tiefstand-Pulsieren. Beim Herunterfahren bleibt der Ring aus. Helligkeit **5 %** (`LADEN_HELL`), in „leiser“ und „stumm“ die kleinste
+        Stufe **3 %** (`LADEN_HELL_RUHE`, Stufe 1 von 31). **Voll** heißt Akku ≥ 100 % (`LADEN_VOLL_PROZENT`): dann ist der Ring aus; erst unter 97 % (`LADEN_HYSTERESE` = 3) zeigt er wieder,
+        damit er bei 99/100 % nicht flackert. Beim Andocken oder Abziehen wird „voll“ neu bestimmt (98 % neu angedockt ist nicht voll). Der `pisugar-server` liefert nur Prozent und
+        „Netzteil steckt“, keinen Lade-Status; deshalb zählt der Prozentwert. `led` kennt alles aus `AkkuStand`, `LaderGeaendert` und `ZustandMelden`; keine neue Schnittstelle des Kerns.
+        Die 5-s-Akku-Anzeige beim Andocken, Abziehen und Start bleibt unverändert (15/5/3 %).
     *   **Folgt mit Schritt 2:** Der Ring ist in *Bereit* dunkel (Weiche und Ring-Schalter am ESP32, `led.py` gibt den Ring über `RING_PI` an die Weiche);
         das weiße Lauflicht beim Wecken kommt vom ESP32, danach übernimmt `led.py`; der Deckel 25 % gilt dann in Pi **und** ESP32. Bis dahin
         bleibt der Ring wie oben beschrieben (in *Bereit* mit liegendem Tobie zeigt er weiter die Pause).
@@ -1518,6 +1528,9 @@ ohne Wert 60 s „unbekannt“, danach „kein Strom“). Vertrag: `core-interfa
 | `leerlauf` | **Strom geht** (Abnehmen, Abziehen; Ein/Aus, 10.11.) | Zähler **ab jetzt** neu (10 min, R9); Ring Akku 5 s, kein Ton, kein Sync | `leerlauf` |
 | `leerlauf` | 10 min um (kein Strom), Sync, Update oder Lernmodus läuft (auch: Sync oder Update noch offen) | warten, Zähler neu; nach Ende des Syncs oder Updates erneut prüfen | `leerlauf` |
 | `leerlauf` | 10 min um (kein Strom), nichts läuft | Zeiger speichern, Herunterfahren | `herunterfahren` |
+| `aktiv` | Hauptknopf lang, Hörspiel spielt (Entscheidung Y, 11.11.) | 2 s ausblenden (Grenze `ausblenden`, `AUSSCHALT_AUSBLENDEN_S`); andere Tasten ignoriert; dann Pause, Zeiger speichern, Herunterfahren | `herunterfahren` |
+| `aktiv` | Akku-Tiefstand (nicht am Lader), Hörspiel spielt (Entscheidung Z, 11.11.) | Sync abbrechen; Durchsage `akku_leer` (das Hörspiel pausiert dafür und läuft danach weiter); nach ihrem Ende 2 s ausblenden, andere Tasten ignoriert; dann Pause, Zeiger speichern, Herunterfahren | `herunterfahren` |
+| `aktiv`, `leerlauf` | Hauptknopf lang oder Akku-Tiefstand (nicht am Lader), nichts spielt | sofort Zeiger speichern, Herunterfahren, kein Ausblenden; beim Tiefstand mit der Durchsage `akku_leer` (Entscheidung Y und Z, 11.11.) | `herunterfahren` |
 | `leerlauf` | mit Strom, beliebig lange | nichts: am Strom ist die Box immer bereit (Ein/Aus, 10.11.) | `leerlauf` |
 | `aktiv`, `leerlauf` | Hauptknopf lang (auch mit Strom; am Sockel startet die Box danach wieder, R8) | Zeiger speichern, Herunterfahren | `herunterfahren` |
 | `aktiv`, `leerlauf` | Akku-Tiefstand (nicht am Lader, also ohne Strom) | Sync abbrechen, Ton `akku_leer` (einmal), Zeiger speichern, Herunterfahren (Befund B12, 09.11.) | `herunterfahren` |

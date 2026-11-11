@@ -33,6 +33,8 @@ MPD_FRIST_S = 5.0
 RUECKSPRUNG_S = pointer.RUECKSPRUNG_S
 SPEICHERN_PERIODISCH_S = pointer.SPEICHERN_PERIODISCH_S
 STUMM_AUSBLENDEN_S = 3.0
+#: Ausblenden vor dem Herunterfahren per Hauptknopf lang (Entscheidung Y, 11.11.); dieselbe Grenze ``ausblenden`` wie bei „stumm“
+AUSSCHALT_AUSBLENDEN_S = 2.0
 #: Fehlt beim Fortsetzen bis zum Ende der ganzen Folge weniger als das, gilt die Folge als fertig gehört (Entscheidung I, 09.11.)
 REST_FERTIG_S = 15.0
 #: Folgen unter dieser Gesamtdauer sind von der Restregel ausgenommen (Entscheidung I, 09.11.)
@@ -82,6 +84,9 @@ class Zustand:
     mpd_bis: float | None = None
     # (start_mono, von) beim sanften Ausblenden wegen „stumm“
     ausblenden: tuple[float, int] | None = None
+    #: das Ausblenden ist das vor dem Herunterfahren (Entscheidung Y): ``AUSSCHALT_AUSBLENDEN_S`` lang, bleibt danach bei 0 stehen
+    #: und endet erst mit ``HerunterfahrenAngefordert`` (Pause, Zeiger)
+    ausschalten: bool = False
     letzte_speicherung: float = 0.0
     hb_abweichungen: int = 0
     nach_hallo: bool = False
@@ -270,7 +275,7 @@ def _grenze_weg(z: Zustand) -> Ausgabe:
 def _ruhe(z: Zustand, **felder: object) -> Zustand:
     """Zustand für „es läuft nichts mehr“: Fristen und Ausblenden verwerfen."""
     felder.setdefault("ende", None)
-    return replace(z, unbekannt_seit=None, mpd_verloren=False, mpd_bis=None, ausblenden=None, **felder)
+    return replace(z, unbekannt_seit=None, mpd_verloren=False, mpd_bis=None, ausblenden=None, ausschalten=False, **felder)
 
 
 def _start(
@@ -722,6 +727,8 @@ def _hauptknopf(z: Zustand, e: ev.Hauptknopf, jetzt: Jetzt) -> tuple[Zustand, Au
         return z, []  # Hauptknopf lang gehört dem Teilautomat `idle`
     if z.lern_wartet_bis is not None:
         return z, [_prot("INFO", "hauptknopf", "ignoriert", z.figur.vorgang if z.figur else None, grund="lern_warten")]
+    if z.modus == "spielt" and z.ausschalten:
+        return z, [_prot("INFO", "hauptknopf", "ignoriert", z.figur.vorgang if z.figur else None, grund="ausschalten")]  # Entscheidung Y
     if z.modus == "spielt":
         return _pausiere(z, "knopf", "pause", jetzt)
     if z.modus == "leer" and z.figur is None:
@@ -934,6 +941,14 @@ def _herunterfahren(z: Zustand, e: ev.HerunterfahrenAngefordert, jetzt: Jetzt) -
     return z, []
 
 
+def _ausschalten_ausblenden(z: Zustand, e: ev.AusschaltenAusblenden, jetzt: Jetzt) -> tuple[Zustand, Ausgabe]:
+    """Entscheidung Y (11.11.): Hauptknopf lang bei laufendem Hörspiel blendet 2 s aus (Grenze ``ausblenden``), danach macht
+    ``HerunterfahrenAngefordert`` Pause und Zeiger. Läuft schon ein Ausblenden („stumm“) oder die MPD-Frist, bleibt es dabei."""
+    if z.modus != "spielt" or z.ausblenden is not None or z.mpd_bis is not None:
+        return z, []
+    return replace(z, ausblenden=(jetzt.mono, z.wirksam), ausschalten=True), []
+
+
 def _dienst_endet(z: Zustand, e: ev.DienstEndet, jetzt: Jetzt) -> tuple[Zustand, Ausgabe]:
     """Dienst-Ende: pausieren und Zeiger sichern, aber das Gerät nicht herunterfahren."""
     if z.modus in ("spielt", "unbekannt"):
@@ -959,6 +974,9 @@ def _takt(z: Zustand, e: ev.Takt, jetzt: Jetzt) -> tuple[Zustand, Ausgabe]:
         return z, []
     if z.ausblenden is not None:
         start, von = z.ausblenden
+        if z.ausschalten:
+            # bleibt bei 0 stehen, bis ``HerunterfahrenAngefordert`` pausiert (die Grenze wird dort gelöscht)
+            return z, [ev.GrenzeGesetzt(GRENZE_AUSBLENDEN, rampe(von, 0, start, AUSSCHALT_AUSBLENDEN_S, jetzt.mono))]
         if jetzt.mono - start >= STUMM_AUSBLENDEN_S - _EPS:
             out: Ausgabe = [ev.Pausieren("stumm")]
             z, sp = _speichern(z, "pause", jetzt)
@@ -1011,6 +1029,7 @@ _HANDLER: dict[type, _Handler] = {
     ev.Bestaetigt: _bestaetigt,
     ev.GuteNachtEnde: _gute_nacht_ende,
     ev.HerunterfahrenAngefordert: _herunterfahren,
+    ev.AusschaltenAusblenden: _ausschalten_ausblenden,
     ev.DienstEndet: _dienst_endet,
 }
 

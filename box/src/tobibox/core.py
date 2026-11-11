@@ -195,6 +195,13 @@ def step(
                     grenzen[e.name] = e.prozent
                 continue
 
+            # Entscheidung Y und Z (11.11.): vor dem Herunterfahren (Durchsage ``akku_leer``, Ausblenden) zählt keine Taste außer Hauptknopf lang
+            if "idle" in teil and idle.ausschalten_laeuft(teil["idle"]) and (
+                (isinstance(e, ev.Hauptknopf) and e.art == "kurz") or isinstance(e, (ev.Weiter, ev.Zurueck, ev.LautstaerkeDrehen))
+            ):
+                befehle.append(ev.Protokoll("core", "INFO", "taste", "ignoriert", None, {"grund": "ausschalten", "ereignis": type(e).__name__}))
+                continue
+
             # Spezialbehandlung durch den Kern
             if isinstance(e, ev.GeraeteEinstellungen):
                 e = replace(

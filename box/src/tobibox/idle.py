@@ -55,6 +55,7 @@ from dataclasses import dataclass, replace
 from . import events as ev
 from .events import Jetzt
 from .stromwert import StromQuellen
+from .volume import GRENZE_AUSBLENDEN
 
 #: 10 min Leerlauf ohne Strom bis zur Abschaltung (``core-interface.md``, Konstanten; vorher 20 min).
 LEERLAUF_S = 600.0
@@ -69,6 +70,11 @@ ANDOCK_RING_S = 5.0
 ANDOCK_RING_SPIELT_S = 3.0
 #: So lange hält ein ausgegebenes ``SyncStarten`` ohne Antwort die Abschaltung höchstens auf.
 SYNC_ANTWORT_FRIST_S = 60.0
+#: Hauptknopf lang bei laufendem Hörspiel: so lange wird ausgeblendet, dann Pause, Zeiger, Herunterfahren (Entscheidung Y, 11.11.).
+AUSSCHALT_AUSBLENDEN_S = 2.0
+#: Akku-Tiefstand bei laufendem Hörspiel: so lange wartet ``idle`` höchstens auf das Ende des Tons ``akku_leer`` (``TonFolgeEnde``),
+#: bevor es trotzdem ausblendet (Entscheidung Z, 11.11.; ein Ton ist in ``sounds`` auf 10 s begrenzt).
+AKKU_TON_WARTEN_S = 12.0
 #: Am Mac wird das Herunterfahren nur protokolliert; so lange bleibt ``idle`` danach in ``herunterfahren`` (B1).
 SIMULATION_RUECKKEHR_S = 10.0
 
@@ -102,6 +108,11 @@ class Zustand:
     widerspruch_gemeldet: bool = False
     # Rückkehr aus ``herunterfahren`` (Simulation): Zeitpunkt auf ``mono``
     ende_bis: float | None = None
+    # Hauptknopf lang bei laufendem Hörspiel (Entscheidung Y): das Ausblenden endet zu diesem Zeitpunkt (mono), dann wird heruntergefahren
+    aus_bis: float | None = None
+    aus_grund: str = "hauptknopf"  # Grund des Herunterfahrens am Ende des Ausblendens: "hauptknopf" | "akku_tiefstand" (Entscheidung Z)
+    # Akku-Tiefstand bei laufendem Hörspiel (Entscheidung Z): ``akku_leer`` läuft, das Ausblenden beginnt mit ``TonFolgeEnde`` oder spätestens dann
+    ton_bis: float | None = None
 
     @property
     def am_lader(self) -> bool | None:
@@ -120,6 +131,11 @@ def kennzeichen(zustand: Zustand) -> str:
 def belegt(z: Zustand) -> bool:
     """Gegenteil von Leerlauf: es spielt etwas (ein liegender Tobie allein zählt nicht, Entscheidung O)."""
     return z.spielt or z.unbekannt
+
+
+def ausschalten_laeuft(z: Zustand) -> bool:
+    """Wartet ``idle`` auf das Ende von ``akku_leer`` oder blendet es aus? Dann zählt keine Taste (Entscheidung Y und Z)."""
+    return z.aus_bis is not None or z.ton_bis is not None
 
 
 def sync_offen(z: Zustand) -> bool:
@@ -146,7 +162,7 @@ def _prot(ebene: str, ereignis: str, ergebnis: str, **daten: str | int | float |
 
 
 def _herunterfahren(z: Zustand, grund: str, *vorher: ev.Befehl | ev.InternesEreignis) -> tuple[Zustand, Ausgabe]:
-    neu = replace(z, modus="herunterfahren", faellig=False, frist_bis=None)
+    neu = replace(z, modus="herunterfahren", faellig=False, frist_bis=None, aus_bis=None, ton_bis=None)
     return neu, (
         *vorher,
         _prot("INFO", "herunterfahren", "angefordert", grund=grund),
@@ -229,6 +245,14 @@ def _widerspruch(z: Zustand, jetzt: Jetzt) -> tuple[Zustand, Ausgabe]:
             _prot("WARNING", "strom", "widerspruch", pisugar=z.quellen.pisugar, leser=z.quellen.leser, gilt="leser"),
         )
     return z, ()
+
+
+def _ausblenden_beginnt(z: Zustand, jetzt: Jetzt, grund: str) -> tuple[Zustand, Ausgabe]:
+    """Das Ausblenden vor dem Herunterfahren beginnt (Entscheidung Y und Z)."""
+    return replace(z, aus_bis=jetzt.mono + AUSSCHALT_AUSBLENDEN_S, aus_grund=grund, ton_bis=None), (
+        _prot("INFO", "herunterfahren", "ausblenden_beginnt", grund=grund, dauer_s=AUSSCHALT_AUSBLENDEN_S),
+        ev.AusschaltenAusblenden(AUSSCHALT_AUSBLENDEN_S),
+    )
 
 
 def _auswerten(z: Zustand, jetzt: Jetzt) -> tuple[Zustand, Ausgabe]:
@@ -316,7 +340,11 @@ def _leser_verbindung(z: Zustand, jetzt: Jetzt, grund: str) -> tuple[Zustand, Au
 
 def _verarbeite(z: Zustand, e: ev.Ereignis | ev.InternesEreignis, jetzt: Jetzt) -> tuple[Zustand, Ausgabe]:
     if isinstance(e, ev.SitzungGeaendert):
-        return replace(z, spielt=e.spielt, figur_liegt=e.figur_liegt, unbekannt=e.zustand == "unbekannt"), ()
+        z = replace(z, spielt=e.spielt, figur_liegt=e.figur_liegt, unbekannt=e.zustand == "unbekannt")
+        if ausschalten_laeuft(z) and not z.spielt:
+            # vor oder während des Ausblendens hat das Hörspiel geendet (Folge zu Ende, abgehoben): nichts mehr auszublenden
+            return _herunterfahren(z, z.aus_grund, ev.GrenzeGesetzt(GRENZE_AUSBLENDEN, None))
+        return z, ()
 
     if isinstance(e, ev.LernenGeaendert):
         z = replace(z, lernt=e.aktiv)
@@ -326,19 +354,39 @@ def _verarbeite(z: Zustand, e: ev.Ereignis | ev.InternesEreignis, jetzt: Jetzt) 
 
     if isinstance(e, ev.Hauptknopf):
         if e.art == "lang":
+            if ausschalten_laeuft(z):
+                return z, (_prot("INFO", "herunterfahren", "ignoriert", grund="ausblenden_laeuft"),)  # kein Abbruch, kein Neustart
+            if z.spielt and not z.unbekannt:
+                # Entscheidung Y (11.11.): erst 2 s ausblenden; die Sitzung pausiert und speichert, wenn ``HerunterfahrenAngefordert`` kommt
+                return _ausblenden_beginnt(z, jetzt, "hauptknopf")
             return _herunterfahren(z, "hauptknopf")
         return _bedient(z, jetzt), ()
 
     if isinstance(e, (ev.Weiter, ev.Zurueck, ev.LautstaerkeDrehen, ev.Kopfhoerer)):
         return _bedient(z, jetzt), ()
 
+    if isinstance(e, ev.TonFolgeEnde):
+        if z.ton_bis is not None and z.spielt:
+            return _ausblenden_beginnt(z, jetzt, "akku_tiefstand")  # Entscheidung Z: die Durchsage ist zu Ende, jetzt 2 s ausblenden
+        return z, ()
+
     if isinstance(e, ev.AkkuTiefstand):
         if z.am_lader is True:
             return z, (_prot("WARNING", "akku_tiefstand", "ignoriert", grund="am_lader"),)
+        if ausschalten_laeuft(z):
+            return z, (_prot("INFO", "akku_tiefstand", "ignoriert", grund="ausschalten_laeuft"),)  # es wird schon heruntergefahren
         abbrechen: tuple[ev.Befehl, ...] = ()
         if z.sync_laeuft or sync_offen(z):
             abbrechen = (ev.SyncAbbrechen("akku_tiefstand"),)
         z = replace(z, sync_laeuft=False, sync_offen_bis=None)
+        if z.spielt and not z.unbekannt:
+            # Entscheidung Z (11.11.): erst die Durchsage ``akku_leer`` (das Hörspiel pausiert dafür und läuft danach weiter, Regel L),
+            # dann 2 s ausblenden, Stelle speichern, herunterfahren
+            return replace(z, ton_bis=jetzt.mono + AKKU_TON_WARTEN_S, aus_grund="akku_tiefstand"), (
+                *abbrechen,
+                ev.TonSpielen("akku_leer"),
+                _prot("INFO", "herunterfahren", "wartet_auf_ton", grund="akku_tiefstand", frist_s=AKKU_TON_WARTEN_S),
+            )
         return _herunterfahren(z, "akku_tiefstand", *abbrechen, ev.TonSpielen("akku_leer"))
 
     if isinstance(e, ev.LaderGeaendert):
@@ -435,5 +483,11 @@ def step(zustand: Zustand, ereignis: ev.Ereignis | ev.InternesEreignis, jetzt: J
     if zustand.modus == "herunterfahren":
         return _im_herunterfahren(zustand, ereignis, jetzt)
     z, out = _verarbeite(zustand, ereignis, jetzt)
+    if z.modus != "herunterfahren" and z.ton_bis is not None and jetzt.mono >= z.ton_bis:
+        z, aus = _ausblenden_beginnt(z, jetzt, "akku_tiefstand")  # der Ton hat nicht gemeldet, dass er zu Ende ist: trotzdem ausblenden
+        out = out + aus
+    if z.modus != "herunterfahren" and z.aus_bis is not None and jetzt.mono >= z.aus_bis:
+        z, aus = _herunterfahren(z, z.aus_grund)  # das Ausblenden ist zu Ende (Entscheidung Y und Z)
+        out = out + aus
     z, mehr = _auswerten(z, jetzt)
     return z, out + mehr

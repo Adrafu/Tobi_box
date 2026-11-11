@@ -458,6 +458,12 @@ class Takt(Ereignis):
 
 
 @dataclass(frozen=True, slots=True)
+class TonFolgeEnde(Ereignis):
+    """Die Tonspur ist leer: der letzte Ton einer Folge ist zu Ende, ein pausiertes Hörspiel läuft wieder (``app``, Entscheidung L).
+    ``idle`` wartet darauf nach ``akku_leer``, bevor es ausblendet (Entscheidung Z, 11.11.)."""
+
+
+@dataclass(frozen=True, slots=True)
 class ZeitquelleGeaendert(Ereignis):
     quelle: ZeitQuelle
     vertrauenswuerdig: bool
@@ -511,6 +517,14 @@ class LautstaerkeGeaendert(InternesEreignis):
 @dataclass(frozen=True, slots=True)
 class GuteNachtEnde(InternesEreignis):
     pass
+
+
+@dataclass(frozen=True, slots=True)
+class AusschaltenAusblenden(InternesEreignis):
+    """Hauptknopf lang bei laufendem Hörspiel (Entscheidung Y, 11.11.): ``idle`` bittet die Sitzung, ``dauer_s`` lang auszublenden.
+    Danach folgt ``HerunterfahrenAngefordert``."""
+
+    dauer_s: float
 
 
 @dataclass(frozen=True, slots=True)

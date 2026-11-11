@@ -8,7 +8,7 @@ from tobibox import events as ev
 from tobibox import idle
 from tobibox.clock import SimUhr
 from tobibox.idle import (
-    ANDOCK_RING_S, ANDOCK_RING_SPIELT_S, LADER_SPERRE_S, LEERLAUF_S, STROM_UNBEKANNT_S, STROM_WIDERSPRUCH_S, SYNC_ANTWORT_FRIST_S,
+    ANDOCK_RING_S, ANDOCK_RING_SPIELT_S, AUSSCHALT_AUSBLENDEN_S, LADER_SPERRE_S, LEERLAUF_S, STROM_UNBEKANNT_S, STROM_WIDERSPRUCH_S, SYNC_ANTWORT_FRIST_S,
 )
 
 
@@ -375,7 +375,14 @@ def test_hauptknopf_lang_faehrt_herunter(vorher):
     if vorher == "aktiv":
         belegt(r)
     assert r.modus == vorher
-    assert r.sende(ev.Hauptknopf("lang")) == [ev.HerunterfahrenAngefordert("hauptknopf")]
+    if vorher == "aktiv":
+        # Entscheidung Y (11.11.): es spielt, also erst 2 s ausblenden, dann herunterfahren
+        assert r.sende(ev.Hauptknopf("lang")) == [ev.AusschaltenAusblenden(AUSSCHALT_AUSBLENDEN_S)]
+        assert r.modus == "aktiv"
+        assert r.vor(AUSSCHALT_AUSBLENDEN_S - 0.1) == []
+        assert r.vor(0.2) == [ev.HerunterfahrenAngefordert("hauptknopf")]
+    else:
+        assert r.sende(ev.Hauptknopf("lang")) == [ev.HerunterfahrenAngefordert("hauptknopf")]
     assert r.modus == "herunterfahren"
 
 
@@ -400,11 +407,21 @@ def test_tiefstand_bricht_den_sync_ab_und_faehrt_herunter():
     assert r.modus == "herunterfahren"
 
 
-def test_tiefstand_ohne_sync_fahrt_nur_herunter():
-    r = Rahmen()
-    belegt(r)
+def test_tiefstand_ohne_wiedergabe_und_ohne_sync_fahrt_nur_herunter():
+    r = leer()
     # B12: einmal der Ton ``akku_leer``, dann Herunterfahren
     assert r.sende(ev.AkkuTiefstand()) == [ev.TonSpielen("akku_leer"), ev.HerunterfahrenAngefordert("akku_tiefstand")]
+
+
+def test_tiefstand_bei_wiedergabe_ton_dann_ausblenden_dann_herunterfahren():
+    """Entscheidung Z (11.11.)."""
+    r = Rahmen()
+    belegt(r)
+    assert r.sende(ev.AkkuTiefstand()) == [ev.TonSpielen("akku_leer")]
+    assert r.modus == "aktiv"
+    assert r.sende(ev.TonFolgeEnde()) == [ev.AusschaltenAusblenden(AUSSCHALT_AUSBLENDEN_S)]
+    assert r.vor(AUSSCHALT_AUSBLENDEN_S + 0.1) == [ev.HerunterfahrenAngefordert("akku_tiefstand")]
+    assert r.modus == "herunterfahren"
 
 
 def test_tiefstand_bricht_auch_einen_offenen_sync_ab():

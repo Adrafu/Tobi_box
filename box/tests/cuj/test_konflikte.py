@@ -323,6 +323,8 @@ def test_tiefstand_waehrend_sync_sync_bricht_ab_zeiger_gespeichert_box_faehrt_he
     n = len(box.log)
     box.sende(ev.AkkuTiefstand())
     assert [b.grund for b in box.befehle(ev.SyncAbbrechen, n)] == ["akku_tiefstand"]
+    box.sende(ev.TonFolgeEnde())  # Entscheidung Z (11.11.): erst die Durchsage, dann 2 s ausblenden
+    box.laufe(2.3)
     assert box.befehle(ev.ZeigerSpeichern, n) and zeiger(box)["position_s"] > 4
     assert [b.grund for b in box.befehle(ev.Herunterfahren, n)] == ["akku_tiefstand"]
 
