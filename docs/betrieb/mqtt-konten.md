@@ -19,7 +19,7 @@ Wo eine Angabe nicht sicher ist, steht **„bitte am Gerät prüfen“**.
 
 Für jede Box ein Konto. Für zwei Boxen: `box1` und `box2`.
 
-1.  Ein Passwort je Box erzeugen. Lang und zufällig, z. B. mit `openssl rand -base64 24` auf dem Mac. Nicht wiederverwenden.
+1.  Ein Passwort je Box erzeugen. Lang und zufällig, mit `openssl rand -hex 16` auf dem Mac. Das Ergebnis enthält nur Ziffern und Buchstaben. Nicht wiederverwenden. Mit `openssl rand -base64` gab es am Mac „Not authorized“ (Anmeldung abgelehnt), diese Form daher nicht nehmen.
 2.  Das Passwort sofort notieren, und zwar **nur** in der Box-Konfiguration (Abschnitt 5) und im Add-on (Abschnitt 4). Nirgends sonst.
 3.  Das Konto unter `logins` im Add-on eintragen (Abschnitt 4).
 
@@ -52,14 +52,16 @@ HA: Einstellungen > Add-ons > Mosquitto broker > Konfiguration. Als YAML (bitte 
 ```yaml
 logins:
   - username: box1
-    password: <Passwort von Box 1>
+    password: "<Passwort von Box 1>"
   - username: box2
-    password: <Passwort von Box 2>
+    password: "<Passwort von Box 2>"
 customize:
   active: true
   folder: mosquitto
 ```
 
+*   Das Passwort steht in **Anführungszeichen** (`password: "…"`).
+*   **ACL-Vorsicht:** Eine ACL-Datei sperrt alle Konten aus, die nicht darin stehen, auch bestehende Geräte. Für den Mac-Test genügt zunächst nur der Login-Eintrag (`logins`) ohne ACL-Datei. Die ACL-Datei erst einrichten, wenn alle Konten darin stehen.
 *   `customize.active: true` ist nötig, sonst liest das Add-on keine eigene ACL-Datei.
 *   **Zwei Dateien (Add-on 7.1.3, DOCS.md „Access Control Lists“):** `/share/mosquitto/acl.conf` ist eine Mosquitto-**Konfigurationsdatei** (das Add-on liest alle `*.conf` des Ordners) und enthält nur die Zeile `acl_file /share/mosquitto/accesscontrollist`. Die Regeln aus Abschnitt 3 (je Konto ein `user`-Block) stehen in der Datei `/share/mosquitto/accesscontrollist` **ohne** Endung `.conf`. Regeln in einer `*.conf` würde Mosquitto als Konfiguration lesen und abbrechen. Vorlagen: `homeassistant/mosquitto/acl.conf.example` und `accesscontrollist.example`; beide Formen (`user` je Konto und `pattern`) sind gegen Mosquitto 2.0.18 getestet (`homeassistant/tests/test_mosquitto_acl.py`). **Bitte am Gerät prüfen**, ob die Dateien über SMB oder den Dateimanager unter `/share/mosquitto/` ankommen.
 *   Passwort als Hash statt Klartext: Das Add-on kann Hash-Einträge verarbeiten (`password_pre_hashed: true`). Die Erzeugung des Hashs ist bitte am Gerät zu prüfen. Der Hash ist trotzdem geheim, wenn er in Abschnitt 5 nicht steht.

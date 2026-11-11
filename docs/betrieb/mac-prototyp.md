@@ -389,6 +389,12 @@ Der Serial-Monitor (`pio device monitor`) hat den Port noch offen. Mit
    Hörst du die Stimme „Test-Serie, Folge eins.“ nicht, liegt es an Mac oder MPD, nicht an der Box.
    Ist es zu leise, prüfe `start` und `max` in `box/config/tobibox.toml`.
 
+**Der Leser meldet sich nicht mehr (z. B. nach dem Ruhezustand des Macs)**
+
+- Der Ring blinkt gelb und langsam. Im Protokoll (`tobibox.log`) steht `hello_timeout`.
+- Abhilfe: USB-Kabel des Lesers ab- und wieder anstecken.
+- Halte keinen seriellen Monitor (`pio device monitor`) parallel offen. Nur ein Programm kann den Port nutzen.
+
 ## 11. Abnahme Stufe 1
 
 Diese Liste führt jeden Punkt von „Abnahme Stufe 1“ aus `docs/designs/box-software.md`
@@ -651,6 +657,8 @@ Zeit. Wie lange `afplay` wirklich braucht, steht im Protokoll: Die Zeile `ton ge
 `play` schneidet aber das Ende ab: Das letzte „f“ in „Leg den neuen Tobie auf.“ fehlt. Deshalb steht in
 `tobibox.mac.example.toml` `kommando = ["play", "-q", "{datei}", "pad", "0", "0.15"]`: `pad 0 0.15`
 hängt 0,15 s Stille an, dann ist die Ansage vollständig. Willst du wieder `afplay`, lösche diese Zeile.
+
+**Bluetooth-Kopfhörer (AirPods):** Dort schneidet der Mac oft den Anfang ab. Dann im Abschnitt `[toene]` deiner lokalen `box/config/tobibox.toml` mehr Stille vorne geben: `kommando = ["play", "-q", "{datei}", "pad", "0.5", "0.15"]`. Die erste Zahl nach `pad` ist die Stille vorn in Sekunden.
 Auf dem Pi nutzt die Box `aplay`, dort wird dieses Problem nicht erwartet. Das messen wir beim Pi-Probelauf.
 
 Die Töne kommen aus `box/tools/make_sprache.py`; neu erzeugen geht nur im Container, nicht am Mac.
@@ -1079,7 +1087,7 @@ sich kein Browserfenster. Wie bei `tobibox status` gilt die Konfiguration aus `-
 
 ### Was die Seite zeigt und kann
 
-- **LED-Ring:** 40 Punkte aus dem Ring-Zustand des Dienstes (läuft, Pause, Akku, unbekannte Karte, Aufwachen; als Vorschlag
+- **LED-Ring:** 40 Punkte aus dem Ring-Zustand des Dienstes (läuft, Pause, Akku, unbekannte Karte, Aufwachen; nach Plan 5.5.2, dazu
   Lernmodus und Gute Nacht). Der Umschalter an der Karte wählt die Darstellung (die Wahl merkt sich der Browser):
   **echt** (Vorgabe) zeichnet jede LED mit ihrer wirksamen Helligkeit relativ zum Deckel (25 % = volle Farbe, Wahrnehmungskurve
   (h/25)^(1/2,2)) auf dunklem Grund, sodass Atmen, Pulsieren, Ein-/Ausblenden und Überblendungen zu sehen sind; **Farben voll**
@@ -1088,7 +1096,7 @@ sich kein Browserfenster. Wie bei `tobibox status` gilt die Konfiguration aus `-
   Solange der Dienst keinen Ring meldet, steht dort ein grauer Ring mit „Ring noch nicht verdrahtet“.
 - **Tasten:** Hauptknopf kurz, Hauptknopf lang, Zurück, Vor.
 - **Drehregler:** „− Raste“ und „+ Raste“ (eine Raste sind 2 Prozentpunkte), dazu die Lautstärke und die wirksame Grenze.
-- **Schalter:** Kopfhörer eingesteckt, Ladegerät dran, Akku 0 bis 100 %, Netz (Heim, Hotspot, Offline; nie die echten
+- **Schalter:** Kopfhörer eingesteckt, zwei Strom-Haken (je Quelle einer: „Strom am Eingang (pisugar-server)“ und „Strom am Eingang (Leser …)“), Akku 0 bis 100 %, Netz (Heim, Hotspot, Offline; nie die echten
   Namen deiner WLANs).
 - **Tobies:** alle zugeordneten Tobies aus `config.json` mit Name (Feld `name`, sonst die Kennung) und Ziel, je mit
   „auflegen“ und „abheben“. Dazu „Unbekannter Tobie (neue Zufallskennung)“ und „Gesperrter Tonie“. Die Marke „simuliert“
@@ -1206,7 +1214,7 @@ LOG=~/Tobi_box/box/var/log/tobibox.log
 
 Ab hier steht `"$LOG"` für das Protokoll. In einem neuen Terminal beide Zeilen wiederholen.
 
-**Wie du Schritte schneller machst.** `tobibox sim time` stellt nur die **Wanduhr** (für Leise-Zeiten und Lesezeichen).
+**Wie du Schritte schneller machst.** Die Karte **Uhr** in der Oberfläche (oder `tobibox sim time`) stellt nur die **Wanduhr** (für Leise-Zeiten und Lesezeichen).
 Timer und Fristen laufen auf der monotonen Uhr und lassen sich nicht vorspulen: der Gute-Nacht-Timer, das Ausblenden
 und der Leerlauf von 10 Minuten (ohne Strom, seit Ein/Aus Schritt 1). Dafür gibt es zwei Auswege: In 13.1 stellst du den Gute-Nacht-Timer auf 1 Minute und das
 Ausblenden auf 5 Sekunden, und in 13.8 gibt es einen Kurzstart mit 30 Sekunden Leerlauf.
@@ -1277,7 +1285,7 @@ Oberfläche sie ohne diese Zeile. Siehst du später einen grauen Knopf oder die 
 Quelle; erst dann hilft die Zeile (Abschnitt „Nur Eingänge mit Quelle `sim`“). Für `[uhr]` gilt dasselbe: Am Mac ist die Systemuhr immer sicher.
 
 **Gute-Nacht-Zeiten und Hilfsskript.** Die Einstellungen für Gute Nacht und die Leise-Zeiten kommen in Stufe 3a aus Home
-Assistant. Ohne HA schreibst du sie in `config.json`. Dafür ein kleines Hilfsskript, das **nicht im Repo** liegt
+Assistant. Ohne HA schreibst du sie in `config.json`. Mit Home Assistant geht es anders, siehe „Mit Home Assistant statt Hilfsskript“ nach 13.10. Ohne HA dafür ein kleines Hilfsskript, das **nicht im Repo** liegt
 (`~/tobibox-mpd/config13.py`). Es ändert nur `gute_nacht` und `leise_zeiten`, legt vorher eine Sicherung
 `config.json.vor-13` an und arbeitet nur, wenn der Dienst **nicht** läuft:
 
@@ -1365,7 +1373,7 @@ in der Karte „Drehregler“ und am MPD:
 
 - [ ] **Was du hörst:** „Lange Serie, Folge …“, danach die Ansage der Sekunden. **Was du siehst:** Sitzung „spielt“, der Ring
       atmet grün.
-- [ ] „Hauptknopf kurz“ (oder `tobibox sim key haupt`): Die Wiedergabe hält an, Sitzung „pausiert“, der Ring ist bernstein.
+- [ ] „Hauptknopf kurz“ (oder `tobibox sim key haupt`): Die Wiedergabe hält an, Sitzung „pausiert“, der Ring ist bernstein und geht nach 10 s aus.
       Noch einmal drücken: Es läuft etwa 3 s vor der Stelle weiter, an der es hielt (Rücksprung wie in 12.2).
       Im Protokoll stehen zwei Zeilen mit `Hauptknopf`:
 
@@ -1424,7 +1432,7 @@ darum beginnst du den Track neu.
       **Was du hörst/siehst:** Die Folge läuft weiter. Der Ring glimmt warm orange und dunkel (nicht grün).
 - [ ] Nach etwa 60 s beginnt das Ausblenden: Die Lautstärke sinkt 5 s lang (in „Wirksame Grenze“ erscheint `gute_nacht` mit fallendem
       Wert, in „Zustand“ steht „Gute Nacht: blendet aus“), dann hält die Wiedergabe an. Sitzung „pausiert“, „Gute Nacht: aus“, der Ring ist
-      bernstein. Die Lautstärke steht wieder auf dem Wert von vorher.
+      bernstein und geht nach 10 s aus. Die Lautstärke steht wieder auf dem Wert von vorher.
 
 ```bash
 grep -E '"baustein":"bedtime"' "$LOG" | tail -n 4
@@ -1445,7 +1453,7 @@ python3 ~/tobibox-mpd/config13.py leise
 
 Es gibt zwei Fenster, jeden Tag: 19:30 bis 21:00 „leiser“ mit Grenze 15 und 21:00 bis 06:30 „stumm“. Dienst wieder starten (Zeile
 `tobiboxd …` aus 13.1). Lege `04130001` auf (Hauptknopf kurz, falls er nur pausiert) und drehe auf etwa 30 (`tobibox sim knob +5`).
-Die Uhrzeit stellst du mit `sim time` (ISO 8601 mit Zone; im November gilt `+01:00`):
+Die Uhrzeit stellst du zuerst in der Karte **Uhr** (Feld für Datum und Uhrzeit, dann „Uhr stellen“). Zweiter Weg: der Befehl `tobibox sim time` (ISO 8601 mit Zone; im November gilt `+01:00`):
 
 ```bash
 tobibox sim time 2026-11-10T19:45:00+01:00
@@ -1454,14 +1462,16 @@ tobibox sim time 2026-11-10T19:45:00+01:00
 - [ ] Die Antwort enthält `"ok": true` und eine Zahl `wall`. **Was du hörst/siehst:** Innerhalb weniger Sekunden sinkt die Lautstärke weich (3 s)
       auf 15. „Ruhe: leiser“, „Wirksame Grenze: 15 %“ mit `leise_zeit 15`.
 
+Zuerst die Karte Uhr (10.11.2026, 22:00, „Uhr stellen“). Zweiter Weg:
+
 ```bash
 tobibox sim time 2026-11-10T22:00:00+01:00
 ```
 
 - [ ] **Was du hörst/siehst:** Die Lautstärke wird weich ausgeblendet, dann hält die Wiedergabe an. „Ruhe: stumm“, Sitzung „gehalten (stumm)“.
-      Der Ring bleibt bernstein, aber viel dunkler (nur 40 % der Helligkeit).
-- [ ] Hebe den Tobie ab und lege ihn wieder auf. **Was du hörst:** Nur ein kurzer, leiser Klang (keine Sprache), keine Wiedergabe.
-- [ ] Zum Ende des Fensters:
+      Der Ring leuchtet ganz dunkel rot und geht nach 5 s aus (Pause wegen „stumm“).
+- [ ] Hebe den Tobie ab und lege ihn wieder auf. **Was du hörst:** Nur ein kurzer, leiser Klang (keine Sprache), keine Wiedergabe. Der Ring leuchtet dabei kurz ganz dunkel rot.
+- [ ] Zum Ende des Fensters stellst du in der Karte Uhr 11.11.2026, 07:00 („Uhr stellen“). Zweiter Weg:
 
 ```bash
 tobibox sim time 2026-11-11T07:00:00+01:00
@@ -1474,7 +1484,7 @@ grep -E '"baustein":"quiet"' "$LOG" | tail -n 4
 ```
 
       **Was du siehst:** `ruhe` mit den Ergebnissen `leiser` (`"grenze":15`), `stumm` und `normal`.
-- [ ] Setze die echte Uhr zurück: `tobibox sim time now` (Antwort `"wall": null`).
+- [ ] Setze die echte Uhr zurück: in der Karte Uhr „echte Uhr“, zweiter Weg `tobibox sim time now` (Antwort `"wall": null`).
 
 Wichtig: Die Fenster gelten jetzt auch für die echte Uhrzeit. **Beende den Dienst und nimm sie sofort wieder heraus**, sonst bist du
 abends plötzlich „stumm“:
@@ -1488,7 +1498,7 @@ Dienst neu starten.
 ### 13.6 Lesezeichen mit Ablauf (Entscheidung N)
 
 Ein Zeiger, der länger als `lesezeichen_tage` (Vorgabe 14) nicht benutzt wurde, beginnt die Folge beim Fortsetzen wieder von vorn. Dafür
-stellst du die Wanduhr vor. Eine kleine Hilfsfunktion liefert den Zeitpunkt in N Tagen (Terminal C):
+stellst du die Wanduhr vor, in der Karte Uhr oder mit dem Befehl. Eine kleine Hilfsfunktion liefert den Zeitpunkt in N Tagen (Terminal C):
 
 ```bash
 tage() { python3 -c "from datetime import datetime, timedelta; print((datetime.now() + timedelta(days=$1)).isoformat(timespec='seconds'))"; }
@@ -1498,10 +1508,10 @@ Hebe zuerst alles ab und lege `04130001` auf. Drücke „Hauptknopf kurz“, fal
 beginnt von vorn). Lass sie etwa 30 s laufen (bis „Folge …, Sekunde fünfundzwanzig“) und hebe ab. Dabei wird der Zeiger mit Datum gespeichert.
 (Hebst du in den letzten 15 s der Folge ab, greift stattdessen die Restregel aus 12.2.)
 
-- [ ] **13 Tage:** `tobibox sim time "$(tage 13)"`, dann `04130001` auflegen. **Was du hörst:** Die Folge läuft an der gespeicherten Stelle weiter,
+- [ ] **13 Tage:** Lass dir mit `tage 13` den Zeitpunkt ausgeben und stelle ihn in der Karte Uhr („Uhr stellen“). Zweiter Weg: `tobibox sim time "$(tage 13)"`. Dann `04130001` auflegen. **Was du hörst:** Die Folge läuft an der gespeicherten Stelle weiter,
       etwa bei „Sekunde zwanzig“ bis „fünfundzwanzig“ (3 s Rücksprung). Im Protokoll steht **keine** neue Zeile `lesezeichen_abgelaufen`.
-- [ ] Zurück in die Gegenwart und abheben: `tobibox sim time now`, dann „abheben“ (so trägt der Zeiger wieder das echte Datum).
-- [ ] **15 Tage:** `tobibox sim time "$(tage 15)"`, dann `04130001` auflegen. **Was du hörst:** Dieselbe Folge beginnt von vorn
+- [ ] Zurück in die Gegenwart und abheben: in der Karte Uhr „echte Uhr“ (zweiter Weg `tobibox sim time now`), dann „abheben“ (so trägt der Zeiger wieder das echte Datum).
+- [ ] **15 Tage:** Lass dir mit `tage 15` den Zeitpunkt ausgeben und stelle ihn in der Karte Uhr. Zweiter Weg: `tobibox sim time "$(tage 15)"`. Dann `04130001` auflegen. **Was du hörst:** Dieselbe Folge beginnt von vorn
       („Lange Serie, Folge …“, ohne 3 s Rücksprung). Die Serie springt nicht zurück auf Folge eins.
 
 ```bash
@@ -1509,7 +1519,7 @@ grep '"ereignis":"lesezeichen_abgelaufen"' "$LOG" | tail -n 1
 ```
 
       **Was du siehst:** `ergebnis` `von_vorn`, `alter_tage` 15.0, `tage` 14.
-- [ ] `tobibox sim time now`. Die Uhr läuft wieder echt.
+- [ ] Karte Uhr „echte Uhr“ (zweiter Weg `tobibox sim time now`). Die Uhr läuft wieder echt.
 
 `lesezeichen_tage` selbst (0 bis 365, 0 = läuft nie ab) stellt in Stufe 3a Home Assistant ein; am Mac steht es nicht in `config.json`, es gilt die Vorgabe 14.
 
@@ -1532,7 +1542,9 @@ grep -E '"baustein":"net"' "$LOG" | tail -n 3
       **Was du siehst:** `netz_klasse` mit dem neuen Ergebnis und dem Feld `vorher`. Die WLAN-Namen sind erfunden (`sim-heim`, `sim-hotspot`).
 - [ ] Die Status-Karte meldet „Netz: Fehler“ auch bei `home`: Der Prüfpunkt braucht außerdem einen verbundenen Broker (13.10).
 
-**Akku und Lader.** Der Ring zeigt den Akkustand 5 s lang, sobald sich der **Lader** ändert (der Schieber „Akku“ allein zeigt nichts).
+**Vorsicht bei der Messung.** Die erste Strom-Messung nach dem Start gibt keine Rückmeldung. Andocken und Abziehen sind 10 s entprellt (Sperre): Zwischen Haken weg und Haken an mindestens 10 s warten.
+
+**Akku und Lader.** Sobald sich der **Lader** ändert, zeigt der Ring den Akkustand 5 s lang (der Schieber „Akku“ allein zeigt nichts). Hängt Strom an und ist der Akku nicht voll, bleibt danach ein blauer Füllstand stehen (Anstecken: zweimal schnell pulsieren, dann langsam pulsierend).
 Alle Befehle antworten `{"ok": true}`:
 
 ```bash
@@ -1546,7 +1558,7 @@ tobibox sim power --charger off
 
 - [ ] Beim ersten Befehl füllt sich der Ring blau (Lader dran) zu 60 %: 24 von 40 Punkten. Beim zweiten grün (über 50 %), 32 Punkte.
       Beim dritten blau, 16 Punkte; beim vierten (nur Lader ab, Akku bleibt 40) gelb, 16 Punkte. Beim fünften blau, beim sechsten rot (unter 20 %), 6 Punkte.
-      Nach 5 s ist die Anzeige wieder weg. In der Oberfläche steht in „Zustand“ der Akku, zum Beispiel „Akku: 15 %“; „, am Lader“ steht nur bei Lader dran.
+      Bei Lader ab ist die Anzeige nach 5 s wieder weg; bei Lader dran bleibt der blaue Füllstand stehen. In der Oberfläche steht in „Zustand“ der Akku, zum Beispiel „Akku: 15 %“; „, am Lader“ steht nur bei Lader dran.
 - [ ] `tobibox status` zeigt in der Zeile `HA:` den Akku: `Akku: 15 %, nicht am Lader` oder `Akku: 15 %, am Lader`.
 
 **Sync-Regel ohne NAS (optional).** Einen echten Sync gibt es am Mac nicht. Die Regel „kein Sync ohne Netz“ kannst du aber sehen. Beende den
@@ -1575,7 +1587,7 @@ Oberfläche steht in dieser Zeit in „Zustand“ die Sitzung „fährt herunter
 **a) Hauptknopf lang.** Lege `04130001` auf und lass ihn spielen.
 
 - [ ] „Hauptknopf lang“ (oder `tobibox sim key haupt-lang`). **Was du hörst/siehst:** Die Wiedergabe hält sofort an, der Ring geht aus,
-      die Sitzung steht auf „fährt herunter“. Nach etwa 10 s ist die Box wieder „pausiert“ und der Ring bernstein (der Tobie liegt noch).
+      die Sitzung steht auf „fährt herunter“. Nach etwa 10 s ist die Box wieder „pausiert“, der Ring leuchtet kurz bernstein (der Tobie liegt noch) und geht nach 10 s aus.
 
 ```bash
 grep '"ereignis":"herunterfahren"' "$LOG" | tail -n 5
@@ -1594,20 +1606,20 @@ tobibox sim power --battery 4
 ```
 
 - [ ] **Was du hörst:** „Mein Akku ist fast leer. Ich gehe gleich aus.“ (`akku_leer`). Danach geht es wie in a): Wiedergabe aus, Ring aus.
-      **Was du siehst:** Der Ring blinkt rot (Akku-Tiefstand) und **bleibt** nach den 10 s rot blinkend, solange der Akku so niedrig und nicht am Lader ist.
+      **Was du siehst:** Der Ring pulsiert rot (Akku-Tiefstand) und **bleibt** nach den 10 s rot pulsierend, solange der Akku so niedrig und nicht am Lader ist.
       Nach etwa einer Minute meldet der Dienst den Tiefstand noch einmal (Ton, Herunterfahren, 10 s).
 
 ```bash
 grep -E '"ereignis":"akku_tiefstand"|"ton":"akku_leer"' "$LOG" | tail -n 3
 ```
 
-- [ ] `tobibox sim power --charger on`: Das rote Blinken endet (der Ring zeigt 5 s den Akku blau, dann den normalen Zustand).
+- [ ] `tobibox sim power --charger on`: Das rote Pulsieren endet, der Ring zeigt jetzt den Ladestand blau (solange Strom anliegt und der Akku nicht voll ist).
       Setze danach den Akku wieder hoch: `tobibox sim power --battery 80`.
 
 **c) Leerlauf nach 10 Minuten ohne Strom, auch mit liegendem Tobie (Entscheidung O; Ein/Aus Schritt 1).** Der Zähler läuft ab dem Moment, an dem **nichts spielt**,
 auch wenn ein Tobie liegt, **und kein Strom am Eingang anliegt**. Stelle vorher den Strom aus: `tobibox sim power --charger off` (ohne Wert gilt der Strom 60 s nach dem Start als „kein Strom“). Mit Strom (`--charger on`) schaltet die Box nie ab (14). Taste, Drehregler und Kopfhörer setzen ihn zurück; `tobibox status`, `sim net` und `sim power` nicht.
 
-- [ ] Lege `04130001` auf und drücke „Hauptknopf kurz“ (Pause, der Tobie liegt). Rühre danach **nichts** an. Der Ring bleibt bernstein
+- [ ] Lege `04130001` auf und drücke „Hauptknopf kurz“ (Pause, der Tobie liegt). Rühre danach **nichts** an. Der Ring leuchtet bernstein und geht nach 10 s aus
       (Pause bei liegendem Tobie, auch im Leerlauf). Im Protokoll steht `leerlauf` mit Ergebnis `zaehler_gestartet`, `frist_s` 600.0.
 - [ ] Nach 10 Minuten: `herunterfahren` mit Ergebnis `angefordert` und `"grund":"leerlauf"`, danach wie in a).
       Auch ohne Tobie gilt es: 10 Minuten nach dem Abziehen des Stroms (oder 11 Minuten nach dem Start des Dienstes, wenn nie ein Strom-Wert kam) steht dieselbe Zeile im Protokoll, wenn du nichts bedienst.
@@ -1638,35 +1650,37 @@ grep '"ereignis":"ring"' "$LOG" | tail -n 8
 ```
 
 Gehe die Zustände der Reihe nach durch, schau jeweils 5 bis 10 s hin und trage deine Meinung in die Tabelle unten ein.
-Farben, Muster und Zeiten stehen als benannte Konstanten oben in `box/src/tobibox/led.py` (Vorschlag, du entscheidest). Du änderst sie nicht
+Farben, Muster und Zeiten stehen als benannte Konstanten oben in `box/src/tobibox/led.py` (Stand: Entscheidungen U und V vom 10.11., Ergänzungen vom 11.11.; du prüfst sie an der Ansicht). Du änderst sie nicht
 selbst; „ändern zu …“ geht als Auftrag an die Projektleitung.
 
 - [ ] **Aufwachen** (weißes Lauflicht, 2 s, volle Helligkeit): beim Start des Dienstes, und wenn du bei leerer Box einen Tobie auflegst (erst abheben, dann „auflegen“).
 - [ ] **Läuft** (grünes Atmen, 12 bis 25 %, 6 s): `04130001` spielt.
-- [ ] **Pause** (bernstein, 10 %): „Hauptknopf kurz“. Die Pause zeigt der Ring nur, solange ein Tobie liegt; ohne Tobie ist er aus.
-- [ ] **Akku** (Füllstand, grün, gelb oder rot; am Lader blau; 15 %, 5 s): `tobibox sim power --charger on --battery 60` und `--charger off`.
-- [ ] **Akku-Tiefstand** (rot blinkend, 0,5 s): `tobibox sim power --charger off --battery 4`. Danach `--charger on`.
+- [ ] **Pause** (bernstein, 10 %, nach 10 s aus): „Hauptknopf kurz“. Der Ring geht nach 10 s aus, auch wenn der Tobie noch liegt.
+- [ ] **Akku** (Füllstand, grün, gelb oder rot; 15 %, 5 s bei Lader ab): `tobibox sim power --charger on --battery 60` und `--charger off`. **Laden** (blauer Füllstand, dauerhaft bei Strom; Anstecken zweimal schnell pulsierend): beim ersten Befehl oben.
+- [ ] **Akku-Tiefstand** (rot pulsierend, weich, ca. 1,5 s): `tobibox sim power --charger off --battery 4`. Danach `--charger on`.
 - [ ] **Lernmodus** (blaues Atmen, 3 s, 8 bis 25 %): `tobibox sim learn --serie 5e1a0c7d9b31` bei leerer Box, danach `tobibox sim learn-abort`.
 - [ ] **Gute Nacht** (warmes Orange, Glimmen, 4 s, 3 bis 8 %): wie in 13.4. Beim Ausblenden wird es schwächer.
-- [ ] **Stumm** (derselbe Zustand, aber nur 40 % der Helligkeit): wie in 13.5, Zeit auf 22:00 stellen. Vergleiche die Pause mit 10 % und mit 4 %.
+- [ ] **Stumm** (ganz dunkel rot, nach 5 s aus): wie in 13.5, Zeit auf 22:00 stellen. Vergleiche mit der bernsteinen Pause (10 %).
 - [ ] **Unbekannte Karte** (magenta blinkend, 1 s): Knopf „Unbekannter Tobie“ in der Oberfläche. Der Ring blinkt 1 s magenta (zwei Blinker),
       danach zeigt er den normalen Zustand: grünes Atmen, denn die Überraschung spielt. Liegt vorher nichts auf der Box, läuft erst das
       Lauflicht des Aufwachens (2 s) und danach blinkt der Ring. Bei einer **Leser-Unterbrechung** (bis zu 3 s nach einem
-      Leser-Ausfall, während ein Tobie spielt; Abschnitt 11.3, USB-Kabel ziehen) blinkt der Ring dagegen **rot und langsam** (Periode 2 s; Entscheidung V, 10.11.).
+      Leser-Ausfall, während ein Tobie spielt; Abschnitt 11.3, USB-Kabel ziehen) blinkt der Ring dagegen **gelb und langsam** (Periode 2 s; Entscheidung V, 10.11.; Ergänzung 11.11.).
 - [ ] **Aus** (schwarz): leere Box oder Herunterfahren.
 
-| Zustand | Vorschlag heute | gefällt | ändern zu … |
+| Zustand | Stand heute | gefällt | ändern zu … |
 |---|---|---|---|
 | Läuft | grün, Atmen 12 bis 25 %, 6 s | | |
-| Pause | bernstein, 10 % | | |
+| Pause | bernstein, 10 %, nach 10 s aus | | |
 | Unbekannte Karte (unbekannter Tobie aufgelegt) | magenta, 1 s blinkend (zwei Blinker), danach normaler Zustand | | |
-| Leser-Unterbrechung | rot, langsames Blinken (2-s-Periode), bis zu 3 s (Entscheidung V, 10.11.) | | |
+| Leser-Unterbrechung | gelb, langsames Blinken (2-s-Periode), bis zu 3 s (Entscheidung V, 10.11.; Ergänzung 11.11.) | | |
 | Aufwachen | weißes Lauflicht, 2 s | | |
-| Akku (Füllstand) | grün über 50 %, gelb über 20 %, sonst rot; am Lader blau; 15 % | | |
-| Akku-Tiefstand | rot blinkend, 0,5 s | | |
+| Akku (Füllstand) | grün über 50 %, gelb über 20 %, sonst rot; 15 %, 5 s bei Lader ab | | |
+| Laden | blauer Füllstand, dauerhaft bei Strom bis der Akku voll ist; Anstecken zweimal schnell pulsierend, dann langsam pulsierend; voll: langsam ausblenden | | |
+| Akku-Tiefstand | rot pulsierend, weich, ca. 1,5 s | | |
 | Lernmodus | blau (0, 70, 255), Atmen 3 s, 8 bis 25 % | | |
 | Gute Nacht | warmes Orange, Glimmen 4 s, 3 bis 8 %, wird beim Ausblenden schwächer | | |
-| Stumm | derselbe Zustand, 40 % der Helligkeit | | |
+| Stumm | ganz dunkel rot, nach 5 s aus | | |
+| Wechsel zwischen Zuständen | alle weich überblendet (ca. 0,5 s) | | |
 
 ### 13.10 Optional: mit Mosquitto
 
@@ -1704,6 +1718,16 @@ Starte den Dienst neu.
 - [ ] Mit `[mqtt]` übernimmt Home Assistant den Lernmodus und die Zuordnung. `tobibox sim learn`, `ack` und `card` antworten darum mit
       `quelle_nicht_sim`, und „Lernmodus starten“ in der Oberfläche meldet „Dieser Eingang ist gesperrt …“. Das ist richtig. Entferne den Abschnitt `[mqtt]`
       wieder und beende den Broker.
+
+### Mit Home Assistant statt Hilfsskript
+
+Läuft Home Assistant mit dem Mosquitto-Add-on (Anleitung `docs/betrieb/mqtt-konten.md`), kommen Gute Nacht, Leise-Zeiten und Zuordnungen aus der HA-Seite „Tobi Box“. Das Hilfsskript aus 13.1 brauchst du dann nicht.
+
+- **Vorher sichern:** `cp ~/Tobi_box/box/var/config.json ~/Tobi_box/box/var/config.json.vor-ha`
+- Beim **ersten Verbinden** mit `[mqtt]` übernimmt die Box die Liste aus HA. Die ist neu und leer, deine alten Zuordnungen aus `config.json` stehen dort nicht. Dafür ist die Sicherung da.
+- **Testserien auf das NAS** kopieren (Ordner `tobibox/medien/`), damit HA sie kennt.
+- Einen **unbekannten simulierten Tobie** legst du in der Oberfläche mit „Unbekannter Tobie (neue Zufallskennung)“ auf. HA ordnet ihn zu.
+- **Zurück:** Dienst beenden, dann `mv ~/Tobi_box/box/var/config.json.vor-ha ~/Tobi_box/box/var/config.json`.
 
 ### 13.11 Aufräumen
 
@@ -1748,11 +1772,12 @@ Alles geht am Mac in der Simulation; das Wecken durch Tobie, Magnet und Strom (S
 nimm ein eigenes Verzeichnis und setze es in **beiden** Terminals (Dienst und Frühdienst):
 
 ```bash
-mkdir -p /tmp/tobibox-marken && rm -f /tmp/tobibox-marken/*
+mkdir -p /tmp/tobibox-marken
+rm -f /tmp/tobibox-marken/fruehton
 export TOBIBOX_MARKEN=/tmp/tobibox-marken
 ```
 
-**Wichtig:** Rückmeldungen beim Andocken und Abziehen gibt es erst **10 s nach „bereit“** (Sperre `LADER_SPERRE_S`). Warte nach dem Start des Dienstes mindestens 12 s, bevor du Strom schaltest.
+**Wichtig:** Rückmeldungen beim Andocken und Abziehen gibt es erst **10 s nach „bereit“** (Sperre `LADER_SPERRE_S`). Warte nach dem Start des Dienstes mindestens 12 s, bevor du Strom schaltest. Die erste Strom-Messung nach dem Start gibt keine Rückmeldung. Zwischen zwei Strom-Schritten mindestens 10 s warten.
 
 ### 14.1 Frist nur ohne Strom (CUJ 16, 23, 24)
 
@@ -1776,21 +1801,30 @@ grep -E '"baustein":"idle","ereignis":"(strom|leerlauf|herunterfahren)"' "$LOG" 
 
 ### 14.3 Andocken und Abziehen (CUJ 25)
 
-- [ ] Strom aus, Box im Leerlauf, mehr als 10 s nach „bereit“. `tobibox sim power --charger on`. **Was du hörst/siehst:** der kurze Ton „Strom ist da.“ (`lader`, leise wie der Hinweiston) und der Ring zeigt
-      5 s den Akku (blau). Im Protokoll `strom` / `andocken`, `ton` mit `"ton":"lader"`. Ein Sync wird einmal geprüft (`start_sync` / `angefordert`).
+Zwischen zwei Strom-Schritten mindestens 10 s warten (Entprellung, siehe oben).
+
+- [ ] Strom aus, Box im Leerlauf, mehr als 10 s nach „bereit“. `tobibox sim power --charger on`. **Was du hörst/siehst:** der kurze Ton „Strom ist da.“ (`lader`, leise wie der Hinweiston) und der Ring pulsiert
+      zweimal schnell blau und zeigt danach den Ladestand dauerhaft blau. Im Protokoll `strom` / `andocken`, `ton` mit `"ton":"lader"`. Ein Sync wird einmal geprüft (`start_sync` / `angefordert`).
 - [ ] `tobibox sim power --charger off`: Ring 5 s Akku, **kein** Ton, kein Sync (`strom` / `abziehen`).
 - [ ] Wackelkontakt: dreimal schnell `--charger on` / `--charger off` im Wechsel: höchstens **eine** Rückmeldung (die übrigen Zeilen `rueckmeldung_gesperrt`), der Zähler folgt trotzdem dem Wert.
 - [ ] Spielt ein Tobie (`04130001`): `--charger on` zeigt den Ring nur 3 s, **kein** Ton.
-- [ ] In einem Leise-Fenster („leiser“ oder „stumm“, 13.5) oder im Lernmodus: **kein** Ton, aber der Ring (Helligkeit 5 % unter „leiser“, 3 % unter „stumm“, ohne den Faktor 0,4).
+- [ ] In einem Leise-Fenster („leiser“ oder „stumm“, 13.5) oder im Lernmodus: **kein** Ton, aber der Ring (Helligkeit 5 % unter „leiser“, 3 % unter „stumm“; danach bleibt der blaue Ladestand, nachts ruhig auf der kleinsten Stufe).
 
 ### 14.4 Früher Start-Ton und Marke (CUJ 21)
 
 Der Frühdienst läuft am Mac von Hand. Reihenfolge wie am Pi: erst `python -m tobibox.fruehton`, dann der Dienst.
 
-- [ ] Dienst **nicht** laufen lassen. `python -m tobibox.fruehton --config "$TOBIBOX_CONFIG"` (Ton über das Kommando aus `[toene]`). **Was du hörst:** „Tobi Box ist bereit.“ in der Lautstärke eines
+Am Mac bleibt die Boot-Kennung gleich. Ein Dienst, der normal beendet und neu gestartet wird, gilt als **Dienst-Neustart** und spielt den Start-Ton selbst (Protokoll `fruehton`, Ergebnis `neustart`). Um ein echtes Einschalten nachzustellen, löschst du vorher:
+
+```bash
+rm -f ~/Tobi_box/box/var/lauf.json
+rm -f "$TOBIBOX_MARKEN/fruehton"
+```
+
+- [ ] Dienst **nicht** laufen lassen. Die beiden `rm`-Zeilen oben, dann `python -m tobibox.fruehton --config "$TOBIBOX_CONFIG"` (Ton über das Kommando aus `[toene]`). **Was du hörst:** „Tobi Box ist bereit.“ in der Lautstärke eines
       gewöhnlichen Tons. `cat "$TOBIBOX_MARKEN/fruehton"` zeigt `fertig`.
 - [ ] Dienst starten. **Was du hörst:** **keinen** zweiten Start-Ton. Im Protokoll `app` / `fruehton` mit Ergebnis `fertig` und `bereit`; die Marke ist weg.
-- [ ] Ohne Frühdienst (Marke leer machen: `rm "$TOBIBOX_MARKEN"/*`, Dienst neu starten): der Dienst spielt den Start-Ton selbst; danach steht `uebernommen` in der Marke, und ein
+- [ ] Ohne Frühdienst (Marke entfernen: `rm -f "$TOBIBOX_MARKEN/fruehton"`, Dienst neu starten): der Dienst spielt den Start-Ton selbst; danach steht `uebernommen` in der Marke, und ein
       später gestarteter `python -m tobibox.fruehton` spielt **nicht** (Ausgabe `kein_ton`).
 - [ ] Unter „stumm“ (13.5, Uhr in das Fenster stellen): `python -m tobibox.fruehton` bleibt still (Marke `keiner`), und der Dienst spielt auch keinen Hinweiston.
       Unter „leiser“ klingt der Ton mit der Grenze des Fensters. Ein `systemctl restart`-Ersatz (Dienst beenden und neu starten) spielt den Start-Ton aus dem Kern und ignoriert die Marke.
