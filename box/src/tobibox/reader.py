@@ -34,6 +34,13 @@ HELLO_TIMEOUT_S = 2.0
 PING_TRIES = 3
 RECONNECT_BACKOFF_S: tuple[float, ...] = (0.25, 0.5, 1.0, 2.0)
 BAUD = 115200
+# Selbstheilung (11.11.): Wiederöffnen der Serielle geschieht nach jedem Ausfall ohnehin. Hilft das nicht (die
+# Firmware hängt, Mac-Abnahme 11.11.: minutenlang `hello_timeout`), startet der Dienst den ESP32-S3 über die
+# USB-Steuerleitungen neu.
+NEUSTART_NACH_HELLO_TIMEOUTS = 3  # aufeinanderfolgende `hello_timeout` (je PING_TRIES Versuche), dann Neustart
+NEUSTART_ABSTAND_S: tuple[float, ...] = (60.0, 120.0, 300.0)  # Mindestabstand zum letzten Neustart; danach bleibt es bei 300 s
+NEUSTART_HALTEN_S = 0.2  # EN/RTS so lange halten (wie esptool `HardReset` über USB)
+NEUSTART_WARTE_S = 3.0  # danach dem Gerät Zeit geben, sich neu am USB anzumelden
 VERWERFEN_S = 0.3  # nach dem Öffnen: alles Alte lesen und wegwerfen
 MAC_SUCHMUSTER = "/dev/cu.usbmodem*"
 
@@ -55,6 +62,25 @@ def oeffne_seriell(pfad: str) -> serial.Serial:
     ser.rts = False
     ser.open()
     return ser
+
+
+def usb_neustart(pfad: str) -> None:
+    """ESP32-S3 (USB-Serial/JTAG) neu starten: Hard-Reset wie esptool/PlatformIO.
+
+    Folge (esptool ``HardReset``): RTS an bei DTR aus (Chip-Reset, IO0 bleibt hoch, also Start der Anwendung),
+    0,2 s halten, RTS aus. Das Gerät meldet sich danach neu am USB an. ``oeffne_seriell`` öffnet ohne DTR/RTS.
+    """
+    ser = oeffne_seriell(pfad)
+    try:
+        ser.dtr = False
+        ser.rts = True
+        time.sleep(NEUSTART_HALTEN_S)
+        ser.rts = False
+    finally:
+        try:
+            ser.close()
+        except Exception:
+            pass
 
 
 # Meldungen des Threads an die Ereignisschleife
@@ -171,6 +197,10 @@ class Leser:
         backoff_s: tuple[float, ...] = RECONNECT_BACKOFF_S,
         vorgang_id: Callable[[], str] = lambda: secrets.token_hex(4),
         schlafen: Callable[[float], Awaitable[None]] = asyncio.sleep,
+        neustart: Callable[[str], None] = usb_neustart,
+        neustart_nach: int = NEUSTART_NACH_HELLO_TIMEOUTS,
+        neustart_abstand_s: tuple[float, ...] = NEUSTART_ABSTAND_S,
+        neustart_warte_s: float = NEUSTART_WARTE_S,
     ) -> None:
         self._ausgabe = ausgabe
         self._port = port
@@ -189,6 +219,14 @@ class Leser:
         self._offen: _Offen | None = None
         self._wiedermeldung = False  # erste PLACED/LOCKED nach HELLO
         self._log_zeiten: dict[str, float] = {}
+        self._neustart = neustart
+        self._neustart_nach = neustart_nach
+        self._neustart_abstand = neustart_abstand_s
+        self._neustart_warte_s = neustart_warte_s
+        self._pfad_zuletzt: str | None = None
+        self._hello_fehlschlaege = 0  # `hello_timeout` in Folge seit dem letzten gültigen HELLO
+        self._neustarts = 0  # Neustarts im laufenden Ausfall (bestimmt den Abstand)
+        self._neustart_zeit = -1e9  # monotone Zeit des letzten Neustarts
 
     # ------------------------------------------------------------------
     # Steuerung
@@ -274,6 +312,9 @@ class Leser:
                     log.exception("Trennen fehlgeschlagen")
                 if self._stopp:
                     break
+                await self._pruefe_neustart()
+                if self._stopp:
+                    break
                 warte = self._backoff[min(self._backoff_i, len(self._backoff) - 1)]
                 self._backoff_i += 1
                 try:
@@ -285,12 +326,37 @@ class Leser:
             if self._thread is not None:
                 self._thread.stoppe()  # `stop()` wartet danach auf das Ende des Threads
 
+    async def _pruefe_neustart(self) -> None:
+        """Nach ``NEUSTART_NACH_HELLO_TIMEOUTS`` Fehlschlägen in Folge den ESP32 neu starten (mit Mindestabstand)."""
+        if self._hello_fehlschlaege < self._neustart_nach or self._pfad_zuletzt is None:
+            return
+        abstand = self._neustart_abstand[min(self._neustarts, len(self._neustart_abstand) - 1)]
+        seit = time.monotonic() - self._neustart_zeit
+        if seit < abstand:
+            self._begrenzt_loggen(logging.INFO, "neustart_warten", "Leser-Neustart erst in %.0f s (Abstand)", abstand - seit)
+            return
+        self._neustart_zeit = time.monotonic()
+        self._neustarts += 1
+        self._hello_fehlschlaege = 0
+        log.warning(
+            "Leser antwortet nicht: ESP32 wird über USB neu gestartet (Versuch %d)", self._neustarts,
+            extra={"baustein": "reader", "ereignis": "leser_neustart", "ergebnis": "versucht",
+                   "daten": {"pfad": self._pfad_zuletzt, "versuch": self._neustarts}},
+        )
+        try:
+            await asyncio.get_running_loop().run_in_executor(None, self._neustart, self._pfad_zuletzt)
+        except Exception as exc:  # Gerät weg, keine Rechte: nächster Versuch nach dem Abstand
+            log.warning("Leser-Neustart fehlgeschlagen: %s", exc)
+            return
+        await self._schlafen(self._neustart_warte_s)  # das Gerät meldet sich neu am USB an
+
     async def _verbindung(self) -> None:
         """Eine Verbindung vom Öffnen bis zum Ausfall; meldet den Ausfall."""
         pfad = self._finde_pfad()
         if pfad is None:
             self._alarm("getrennt")
             return
+        self._pfad_zuletzt = pfad
         loop = asyncio.get_running_loop()
         q: asyncio.Queue = asyncio.Queue()
         thread = _SerielleThread(pfad, loop, q)
@@ -316,6 +382,7 @@ class Leser:
                     self._alarm("kein_herzschlag")
                     return
                 if versuche >= self._ping_tries:
+                    self._hello_fehlschlaege += 1
                     self._alarm("hello_timeout")
                     return
                 versuche += 1
@@ -345,6 +412,8 @@ class Leser:
                     return
                 hallo = True
                 self._ausfall = False
+                self._hello_fehlschlaege = 0
+                self._neustarts = 0
                 self._backoff_i = 0
                 self._seq_erwartet = 0
                 self._wiedermeldung = True

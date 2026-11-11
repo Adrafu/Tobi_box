@@ -14,6 +14,8 @@ Befehle (je eine Zeile auf stdin):
     remove                        Figur abheben (REMOVED)
     err <code> <detail>           Fehlerzeile (ERR)
     hello                         HELLO nochmals senden (setzt seq auf 0)
+    haengt                        Firmware hängt: keine Antwort auf PING, kein HB (bis ``neustart``)
+    neustart                      Firmware startet neu (wie nach einem USB-Hard-Reset)
     power on|off                  Strom am Eingang der Box (nur mit --strom): sendet LADER in=1|0
     quit
 
@@ -52,6 +54,7 @@ class FakeReader:
         self.antwortet_auf_ping = antwortet_auf_ping
         self.empfangen: list[str] = []
         self.seq = 0
+        self._haengt = False
         self.present = False
         self._belegung: tuple[str, str, str] | None = None  # ("PLACED" oder "LOCKED", uid, typ)
         self._start = time.monotonic()
@@ -104,6 +107,19 @@ class FakeReader:
             else:
                 self._sende_placed(uid, typ)
 
+    def haengen(self) -> None:
+        """Firmware hängt (11.11.): keine Antwort auf ``PING``, kein ``HB``."""
+        self.antwortet_auf_ping = False
+        self._haengt = True
+
+    def neustart(self) -> None:
+        """Hard-Reset über USB: die Firmware startet neu (``HELLO``, ``seq`` 0, Tobie weg wie nach dem Einschalten)."""
+        self.antwortet_auf_ping = True
+        self._haengt = False
+        self.present = False
+        self._belegung = None
+        self.hello()
+
     def _naechste_seq(self) -> int:
         s = self.seq
         self.seq = (self.seq + 1) % 4294967296
@@ -134,6 +150,8 @@ class FakeReader:
         self.sende_zeile(f"ERR code={code} detail={detail}")
 
     def herzschlag(self) -> None:
+        if self._haengt:
+            return
         z = self._zaehler
         z["polls"] += 10
         up = int(time.monotonic() - self._start)
@@ -212,6 +230,10 @@ def befehl(leser: FakeReader, zeile: str) -> bool:
         leser.remove()
     elif wort == "hello":
         leser.hello()
+    elif wort == "haengt":
+        leser.haengen()
+    elif wort == "neustart":
+        leser.neustart()
     elif wort == "power" and args in (["on"], ["off"]) and leser.strom is not None:
         leser.setze_strom(args[0] == "on")
     elif wort == "err" and len(args) >= 2:

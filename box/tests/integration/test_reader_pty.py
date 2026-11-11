@@ -579,3 +579,134 @@ async def test_lader_in_ungueltig_wird_verworfen(lauf, leitung):
     leitung.sende(b"LADER in=1\n")
     await warte(lambda: zaehle(e, ev.LaderGeaendert) == 1)
     assert e[-1] == ev.LaderGeaendert(True, "leser")
+
+
+# --- Selbstheilung (11.11.): Leser hängt, Dienst startet den ESP32 über USB neu ---------------------------------
+
+
+def _leser_mit_neustart(tmp_path, neustart, **kw):
+    e: list = []
+    leser = Leser(
+        e.append,
+        str(tmp_path / "ttyACM*"),
+        watchdog_s=0.6,
+        hello_timeout_s=0.1,
+        ping_tries=2,
+        backoff_s=(0.02, 0.04),
+        neustart=neustart,
+        neustart_nach=3,
+        neustart_abstand_s=kw.pop("abstand", (60.0,)),
+        neustart_warte_s=0.05,
+        **kw,
+    )
+    return leser, e
+
+
+async def test_haengender_leser_wird_nach_n_hello_timeouts_neu_gestartet_und_kommt_zurueck(tmp_path, leitung, caplog):
+    """Leser antwortet nicht auf HELLO -> Port wird je Ausfall neu geöffnet -> nach N Fehlschlägen Neustart -> HELLO."""
+    leitung.auto_hallo = False
+    aufrufe: list[str] = []
+
+    def neustart(pfad):
+        aufrufe.append(pfad)
+        leitung.auto_hallo = True  # die Firmware läuft wieder
+
+    leser, e = _leser_mit_neustart(tmp_path, neustart)
+    with caplog.at_level("WARNING", logger="tobibox.reader"):
+        leser.start()
+        try:
+            await warte(lambda: zaehle(e, ev.LeserHallo) == 1, 6.0)
+        finally:
+            await leser.stop()
+    assert len(aufrufe) == 1 and aufrufe[0] == str(tmp_path / "ttyACM0")
+    assert zaehle(e, ev.LeserAlarm, grund="hello_timeout") == 1  # ein Alarm je Ausfall, nicht je Versuch
+    assert leitung.pings >= 3 * 2  # N Ausfälle mit je PING_TRIES Versuchen, je mit neu geöffnetem Port
+    assert any("neu gestartet" in r.getMessage() for r in caplog.records)
+    assert leser._hello_fehlschlaege == 0 and leser._neustarts == 0  # HELLO hat zurückgesetzt
+
+
+async def test_neustart_hat_mindestabstand_kein_dauer_reset(tmp_path, leitung):
+    leitung.auto_hallo = False  # hilft nie
+    aufrufe: list[float] = []
+    leser, e = _leser_mit_neustart(tmp_path, lambda pfad: aufrufe.append(time.monotonic()), abstand=(0.8, 1.5))
+    leser.start()
+    try:
+        await warte(lambda: len(aufrufe) >= 1, 6.0)
+        await asyncio.sleep(0.5)  # innerhalb des Abstands von 0,8 s kommt kein zweiter
+        assert len(aufrufe) == 1
+        await warte(lambda: len(aufrufe) >= 2, 6.0)
+        assert aufrufe[1] - aufrufe[0] >= 0.8
+        await asyncio.sleep(0.8)  # der zweite Abstand ist länger (1,5 s)
+        assert len(aufrufe) == 2
+    finally:
+        await leser.stop()
+    assert zaehle(e, ev.LeserAlarm) == 1
+
+
+async def test_fehlgeschlagener_neustart_stoert_die_schleife_nicht(tmp_path, leitung):
+    leitung.auto_hallo = False
+
+    def neustart(pfad):
+        raise OSError("Gerät weg")
+
+    leser, e = _leser_mit_neustart(tmp_path, neustart)
+    leser.start()
+    try:
+        await warte(lambda: leser._neustarts >= 1, 6.0)
+        leitung.auto_hallo = True
+        await warte(lambda: zaehle(e, ev.LeserHallo) == 1, 6.0)
+    finally:
+        await leser.stop()
+
+
+async def test_getrennt_zaehlt_nicht_als_hello_timeout(tmp_path):
+    """Kein Gerät: nie ein Neustart (es gibt nichts neu zu starten)."""
+    aufrufe: list[str] = []
+    leser, e = _leser_mit_neustart(tmp_path, aufrufe.append)
+    leser.start()
+    try:
+        await asyncio.sleep(0.5)
+    finally:
+        await leser.stop()
+    assert aufrufe == [] and e == [ev.LeserAlarm("getrennt")]
+
+
+async def test_fake_reader_haengt_und_kommt_nach_neustart_zurueck(tmp_path):
+    from tools.fake_reader import FakeReader  # noqa: PLC0415
+
+    with FakeReader(tmp_path / "ttyACM0", hb_intervall_s=0.1) as fr:
+        fr.haengen()
+        leser, e = _leser_mit_neustart(tmp_path, lambda pfad: fr.neustart())
+        leser.start()
+        try:
+            await warte(lambda: zaehle(e, ev.LeserHallo) == 1, 6.0)
+            await warte(lambda: zaehle(e, ev.LeserHerzschlag) >= 2, 4.0)
+        finally:
+            await leser.stop()
+    assert zaehle(e, ev.LeserAlarm, grund="hello_timeout") == 1
+
+
+def test_usb_neustart_setzt_rts_bei_dtr_aus_und_gibt_es_wieder_frei(monkeypatch):
+    """Die Folge wie esptool ``HardReset`` über USB-Serial/JTAG: RTS an (DTR aus), halten, RTS aus."""
+    folge: list[tuple[str, object]] = []
+
+    class FalscheSerielle:
+        def __init__(self):
+            self._w = {}
+
+        def __setattr__(self, name, wert):
+            if name in ("dtr", "rts"):
+                folge.append((name, wert))
+            object.__setattr__(self, name, wert)
+
+        def open(self):
+            folge.append(("open", None))
+
+        def close(self):
+            folge.append(("close", None))
+
+    monkeypatch.setattr(reader.serial, "Serial", FalscheSerielle)
+    monkeypatch.setattr(reader, "NEUSTART_HALTEN_S", 0.0)
+    reader.usb_neustart("/dev/ttyACM9")
+    nach_open = folge[folge.index(("open", None)) + 1 :]
+    assert nach_open == [("dtr", False), ("rts", True), ("rts", False), ("close", None)]

@@ -47,17 +47,17 @@ async def test_der_ring_ist_in_der_anzeige_sichtbar_und_folgt_dem_zustand(gui):
     assert r is not None and len(r["farben"]) == 40 and r["deckel"] == 25
     assert all(len(f) == 3 for f in r["farben"])
     fr.place(UID)  # der Tobie liegt auf dem (Fake-)Leser; ein simulierter widerspräche dem Herzschlag des Lesers
-    await warte(lambda: spielt_aus(port, "rabe", "folge-01.wav"), 10.0, "(Serie spielt)")
-    await warte(lambda: _ring_ist(srv, "laeuft"), 10.0, "(Ring: läuft, nach dem Lauflicht)")  # Aufwachen dauert 2 s
-    await warte(lambda: _ring_gruen(srv), 5.0, "(Ring: ganz grün, die Überblendung vom Lauflicht ist vorbei)")  # UEBERGANG_S = 0,5 s (11.11.)
+    await warte(lambda: spielt_aus(port, "rabe", "folge-01.wav"), 30.0, "(Serie spielt)")
+    await warte(lambda: _ring_ist(srv, "laeuft"), 30.0, "(Ring: läuft, nach dem Lauflicht)")  # Aufwachen dauert 2 s
+    await warte(lambda: _ring_gruen(srv), 20.0, "(Ring: ganz grün, die Überblendung vom Lauflicht ist vorbei)")  # UEBERGANG_S = 0,5 s (11.11.)
     r = await ring(srv)
     assert 0 < r["helligkeit"] <= 25 and r["farben"][0] == [0, 255, 70]  # Grün, nie heller als der Deckel
-    await warte(lambda: "laeuft" in [z["ergebnis"] for z in log_zeilen(welt_, "ring")], 5.0, "(Protokoll: läuft)")
+    await warte(lambda: "laeuft" in [z["ergebnis"] for z in log_zeilen(welt_, "ring")], 20.0, "(Protokoll: läuft)")
     await befehl(srv, befehl="taste", taste="hauptknopf_kurz")
-    await warte(lambda: _pausiert(port), 10.0, "(Pause)")
-    await warte(lambda: _ring_ist(srv, "pause"), 5.0, "(Ring: Pause)")
+    await warte(lambda: _pausiert(port), 30.0, "(Pause)")
+    await warte(lambda: _ring_ist(srv, "pause"), 20.0, "(Ring: Pause)")
     # dieselben Zustände im Protokoll, nur bei Wechsel
-    await warte(lambda: [z["ergebnis"] for z in log_zeilen(welt_, "ring")][-1:] == ["pause"], 5.0, "(Protokoll: pause)")
+    await warte(lambda: [z["ergebnis"] for z in log_zeilen(welt_, "ring")][-1:] == ["pause"], 20.0, "(Protokoll: pause)")
     zustaende = [z["ergebnis"] for z in log_zeilen(welt_, "ring")]
     assert "laeuft" in zustaende and zustaende[-1] == "pause"
     assert all(a != b for a, b in zip(zustaende, zustaende[1:]))
@@ -87,18 +87,20 @@ async def test_hauptknopf_lang_faehrt_herunter_nur_protokolliert(gui):
     srv, welt_, fr = gui
     port = welt_["mpd"].port
     fr.place(UID)
-    await warte(lambda: spielt_aus(port, "rabe", "folge-01.wav"), 10.0, "(spielt)")
+    await warte(lambda: spielt_aus(port, "rabe", "folge-01.wav"), 30.0, "(spielt)")
     a = await befehl(srv, befehl="taste", taste="hauptknopf_lang")
     assert a == {"ok": True}
-    await warte(lambda: _pausiert(port), 10.0, "(Pause vor dem Herunterfahren)")
-    await warte(lambda: _strom_ist(srv, "herunterfahren"), 5.0, "(Strom: herunterfahren)")
-    await warte(lambda: _ring_ist(srv, "aus"), 5.0, "(Ring aus)")
+    await warte(lambda: _pausiert(port), 30.0, "(Pause vor dem Herunterfahren)")
+    await warte(lambda: _strom_ist(srv, "herunterfahren"), 20.0, "(Strom: herunterfahren)")
+    await warte(lambda: _ring_ist(srv, "aus"), 20.0, "(Ring aus)")
     zeilen = [z for z in log_zeilen(welt_, "herunterfahren") if z["baustein"] == "app"]
     assert len(zeilen) == 1 and "hauptknopf" in str(zeilen[0])
     # am Mac nur protokolliert: der Dienst läuft weiter und antwortet
     assert (await anzeige(srv))["dienst"] == "laeuft"
 
 
+# Zeitlimits mit Reserve (11.11.): gewartet wird auf Zustände; unter Last im Volllauf dauern Ausblenden (2 s, Entscheidung Y)
+# und Ringtakt länger. Die Prüfungen selbst bleiben gleich.
 async def _strom_ist(srv, strom: str) -> bool:
     return (await anzeige(srv))["anzeige"]["strom"] == strom
 

@@ -661,7 +661,7 @@ R18 des Reviews Stufe 9.
 | Risiko | Auswirkung | Gegenmaßnahme | Wann geprüft |
 |---|---|---|---|
 | Tonie-Entsperrung klappt nicht bei jedem Exemplar | Der Tobie spielt die Überraschungs-Serie statt seiner eigenen | Rückfall auf Überraschungs-Serie (CUJ 6); Test mit Tobias' Tobies | Stufe 1, mit Tobias' Tobies |
-| USB-CDC am Pi nicht stabil | Leser fällt aus | Wächter und selbständiges Neuverbinden (CUJ 13); fester Gerätename | Pi-Probelauf |
+| USB-CDC am Pi nicht stabil | Leser fällt aus | Wächter und selbständiges Neuverbinden (CUJ 13); fester Gerätename; **(11.11.)** hängt die Firmware, startet `reader` den ESP32 nach 3 `hello_timeout` in Folge per USB-Hard-Reset (RTS bei DTR aus) neu, Abstand 60/120/300 s (`reader-v1.md`, 12) | Pi-Probelauf |
 | Tonqualität / I²S-Ausgabe | Klang schlecht oder verzerrt | Hörtest und Messung am Verstärker; bei Mängeln entscheidet Tobias über die Ausgabe | Pi mit Verstärker |
 | Pi 3A+ noch nicht bestellt | Pi-Probelauf und Go/No-Go verzögern sich | Mac-Prototyp läuft ohne Pi (Ziel 3); Bestellung durch Tobias | jetzt |
 | Tailscale noch nicht eingerichtet | Kein Sync, kein Update, keine Fernwartung | Anleitung AP 3.5; Voraussetzung im Go/No-Go | Stufe 3a |

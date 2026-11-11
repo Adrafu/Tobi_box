@@ -574,6 +574,14 @@ Meldung der Figur) die Wiedergabe nicht unterbricht.
 5.  Verliert der Dienst die Verbindung (Lesefehler, Gerät weg) oder löst der
     Wächter aus, gilt dasselbe wie bei Schritt 2: Ausfall melden, schließen,
     neu verbinden.
+    **(11.11.) Selbstheilung:** Hängt die Firmware (Befund Mac-Abnahme 11.11.: minutenlang
+    `hello_timeout`, nur Ab- und Anstecken half), reicht das Neuöffnen der Serielle nicht. Nach
+    `NEUSTART_NACH_HELLO_TIMEOUTS` (3) `hello_timeout` in Folge startet der Dienst den ESP32-S3 über die
+    USB-Steuerleitungen neu: RTS an bei DTR aus, `NEUSTART_HALTEN_S` (0,2 s) halten, RTS aus (wie esptool
+    `HardReset`; IO0 bleibt hoch, die Anwendung startet), danach `NEUSTART_WARTE_S` (3 s) warten, weil das Gerät
+    sich neu am USB anmeldet. Zwischen zwei Neustarts liegt mindestens `NEUSTART_ABSTAND_S` (60, 120, dann 300 s;
+    ein gültiges `HELLO` setzt Zähler und Abstand zurück). Kein neues Zeilenformat, kein neuer Alarm; Protokollzeile
+    `reader` / `leser_neustart`.
 6.  Jedes gültige `HELLO` — beim Start der Firmware oder auf `PING` — hat
     dieselbe Wirkung. Der Dienst unterscheidet beide Fälle nicht.
 
