@@ -42,8 +42,9 @@ AUFWACHEN = "aufwachen"
 LERNEN = "lernen"
 STUMM = "stumm"  # Entscheidung U (10.11.): Pause wegen „stumm“ oder Tobie unter „stumm“ erkannt, ganz dunkelrot
 GUTE_NACHT = "gute_nacht"
-LESER_UNTERBROCHEN = "leser_unterbrochen"  # Entscheidung V (10.11.): Sitzung „unbekannt“, rot langsam blinkend
-ZUSTAENDE = (AUS, LAEUFT, PAUSE, AKKU, UNBEKANNTE_KARTE, AUFWACHEN, LERNEN, GUTE_NACHT, STUMM, LESER_UNTERBROCHEN)
+LESER_UNTERBROCHEN = "leser_unterbrochen"  # Entscheidung V (10.11.): Sitzung „unbekannt“, gelb langsam blinkend (Entscheidung V, 11.11.: gelb statt rot)
+LADEN = "laden"  # Entscheidung X (11.11.): am Strom und Akku nicht voll zeigt der Ring dauernd den Füllstand, wenn sonst nichts angezeigt wird
+ZUSTAENDE = (AUS, LAEUFT, PAUSE, AKKU, UNBEKANNTE_KARTE, AUFWACHEN, LERNEN, GUTE_NACHT, STUMM, LESER_UNTERBROCHEN, LADEN)
 
 # Zeiten in Sekunden
 AUFWACHEN_S = 2.0  # Lauflicht beim Aufwachen
@@ -52,11 +53,11 @@ AKKU_ENTPRELL_S = 1.0  # eine zweite Anforderung der Akku-Anzeige so kurz nach d
 ATMEN_S = 6.0  # Periode beim Atmen (läuft)
 PAUSE_HELLIGKEIT = 10  # Prozent, Pause
 BLINK_UNBEKANNT_S = 1.0  # Periode Blinken magenta (Rückfall ohne Zeitpunkt des Auflegens)
-BLINK_LESER_S = 2.0  # Entscheidung V (10.11.): Periode des langsamen roten Blinkens, wenn der Leser unterbrochen ist (Sitzung „unbekannt“)
+BLINK_LESER_S = 2.0  # Entscheidung V (10.11.): Periode des langsamen gelben Blinkens, wenn der Leser unterbrochen ist (Sitzung „unbekannt“)
 PAUSE_ANZEIGE_S = 10.0  # Entscheidung V (10.11.): so lange leuchtet die Pause bernstein, danach ist der Ring aus
 BLINK_UNBEKANNT_ANZEIGE_S = 1.0  # so lange blinkt der Ring, wenn ein unbekannter Tobie aufgelegt wird (CUJ 18)
 BLINK_UNBEKANNT_NEU_S = 0.5  # Periode dieses Blinkens: zwei Blinker in einer Sekunde
-BLINK_TIEFSTAND_S = 0.5  # Periode Blinken (Akku-Tiefstand)
+TIEFSTAND_PULS_S = 1.5  # Entscheidung V (11.11.): Periode des roten Pulsierens bei Akku-Tiefstand (Kurvenform wie das Atmen bei „läuft“)
 KOMET_LAENGE = 10  # LEDs im Schweif des Lauflichts
 KOMET_RUNDEN = 2
 STUMM_ANZEIGE_S = 5.0  # Entscheidung U (10.11.): so lange leuchtet der Ring dunkelrot, danach bleibt er unter „stumm“ aus
@@ -74,6 +75,12 @@ AKKU_HELL_LEISER = 5  # Prozent, in einem Fenster „leiser“ und solange „Gu
 AKKU_HELL_STUMM = 3  # Prozent, in einem Fenster „stumm“
 STUMM_HELLIGKEIT = 3  # Prozent: kleinste sichtbare Stufe (``apa102_rahmen`` rundet auf mindestens Stufe 1 von 31)
 
+# Dauernder Füllstand am Strom (Entscheidung X, 11.11.): blau, so viele LEDs wie Prozent, nur wenn sonst nichts angezeigt wird (statt „aus“)
+LADEN_HELL = 5  # Prozent, tags
+LADEN_HELL_RUHE = 3  # Prozent, in „leiser“ und „stumm“: kleinste Stufe (Stufe 1 von 31)
+LADEN_VOLL_PROZENT = 100  # ab diesem Stand gilt der Akku als voll: der Ring geht aus (der PiSugar meldet nur Prozent und „Netzteil steckt“, keinen Lade-Status)
+LADEN_HYSTERESE = 3  # erst unter 97 % (100 minus 3) zeigt der Ring wieder, sonst flackert er bei 99/100 %
+
 Farbe = tuple[int, int, int]
 SCHWARZ: Farbe = (0, 0, 0)
 GRUEN: Farbe = (0, 255, 70)
@@ -85,6 +92,7 @@ BLAU: Farbe = (0, 150, 255)
 WARMWEISS: Farbe = (255, 200, 120)
 FARBE_LERNEN: Farbe = (0, 70, 255)  # Lernmodus: Blau, deutlich anders als der Akku im Laden (BLAU)
 FARBE_GUTE_NACHT: Farbe = (255, 90, 10)  # Gute Nacht: warmes, dunkles Orange, wie Glut
+FARBE_LESER_UNTERBROCHEN: Farbe = GELB  # Entscheidung V (11.11.): gelb statt rot; Rot bleibt dem Akku-Tiefstand (pulsierend) und „stumm“
 STUMM_FARBE: Farbe = ROT  # Entscheidung U (10.11.): Pause wegen „stumm“ oder Tobie unter „stumm“ erkannt
 
 
@@ -173,7 +181,7 @@ def _unbekannt(t: float, periode: float = BLINK_UNBEKANNT_S) -> Ring:
 
 def _leser_unterbrochen(t: float) -> Ring:
     an = (t % BLINK_LESER_S) < BLINK_LESER_S / 2
-    return _einfarbig(LESER_UNTERBROCHEN, ROT, DECKEL_PROZENT if an else 0)
+    return _einfarbig(LESER_UNTERBROCHEN, FARBE_LESER_UNTERBROCHEN, DECKEL_PROZENT if an else 0)
 
 
 def _akku_farbe(prozent: int) -> Farbe:
@@ -182,12 +190,18 @@ def _akku_farbe(prozent: int) -> Farbe:
 
 def _akku(prozent: int | None, am_lader: bool, tiefstand: bool, t: float, helligkeit: float = AKKU_HELL) -> Ring:
     if tiefstand:
-        an = (t % BLINK_TIEFSTAND_S) < BLINK_TIEFSTAND_S / 2
-        return _einfarbig(AKKU, ROT, DECKEL_PROZENT if an else 0)
+        welle = 0.5 - 0.5 * math.cos(2 * math.pi * t / TIEFSTAND_PULS_S)  # wie ``_laeuft``: weich zwischen 12 % und dem Deckel
+        return _einfarbig(AKKU, ROT, 12 + (DECKEL_PROZENT - 12) * welle)
     p = max(0, min(100, prozent if prozent is not None else 0))
     n = int(round(p / 100 * ANZAHL))
     farbe = BLAU if am_lader else _akku_farbe(p)
     return Ring(AKKU, (farbe,) * n + (SCHWARZ,) * (ANZAHL - n), helligkeit)
+
+
+def _laden(prozent: int | None, ruhe: bool) -> Ring:
+    p = max(0, min(100, prozent if prozent is not None else 50))
+    n = max(1, int(round(p / 100 * ANZAHL)))
+    return Ring(LADEN, (BLAU,) * n + (SCHWARZ,) * (ANZAHL - n), LADEN_HELL_RUHE if ruhe else LADEN_HELL)
 
 
 def _aufwachen(t_seit: float) -> Ring:
@@ -204,9 +218,12 @@ def _aufwachen(t_seit: float) -> Ring:
 class LedLogik:
     """Hält die Eingaben des Rings und liefert das Bild zu einer Zeit.
 
+    Entscheidung X (11.11.): Wo der Ring sonst „aus“ wäre, zeigt er am Strom bei nicht vollem Akku dauernd den Füllstand (``LADEN``, blau,
+    ``LADEN_HELL`` oder in „leiser“/„stumm“ ``LADEN_HELL_RUHE``); alles Folgende hat Vorrang. Beim Herunterfahren bleibt er aus.
+
     Rangfolge (oben gewinnt): Aufwachen, Akku (Tiefstand oder Anzeige), unbekannte Karte
     (Blinken beim Auflegen eines unbekannten Tobies, ``BLINK_UNBEKANNT_ANZEIGE_S`` lang), Leser unterbrochen (Sitzung „unbekannt“,
-    rot langsam blinkend, Entscheidung V), Lernmodus, „stumm“ (dunkelrot, dann aus), Gute Nacht (nur während die Wiedergabe läuft), läuft, Pause (bernstein, nach ``PAUSE_ANZEIGE_S`` aus, Entscheidung V), aus.
+    gelb langsam blinkend, Entscheidung V), Lernmodus, „stumm“ (dunkelrot, dann aus), Gute Nacht (nur während die Wiedergabe läuft), läuft, Pause (bernstein, nach ``PAUSE_ANZEIGE_S`` aus, Entscheidung V), aus.
     Unter „stumm“ (``ruhe``, Entscheidung U, 10.11.): Beginnt „stumm“, während ein Tobie spielt (Ausblenden), oder wird unter „stumm“ ein
     Tobie aufgelegt (Sitzung ``gehalten``), leuchtet der Ring ``STUMM_ANZEIGE_S`` lang ganz dunkelrot (``STUMM``) und bleibt dann aus,
     solange „stumm“ gilt. Die 5 s beginnen mit der ``ZustandMelden``, die ``spielt`` oder ``gehalten`` unter „stumm“ zum ersten Mal zeigt
@@ -219,6 +236,7 @@ class LedLogik:
         self.akku_prozent: int | None = None
         self.quellen = StromQuellen()  # Strom am Eingang aus zwei Quellen (nur für die Farbe der Anzeige: blau mit Strom)
         self.tiefstand = False
+        self._voll = False  # Entscheidung X: Akku gilt als voll (mit Hysterese), dann zeigt der Ring „laden“ nicht
         self._bereit = False
         self._start_anzeige = False  # erste bekannte Messung war „Strom“: Ladestand nach ``Bereit`` zeigen (CUJ 25, Start-Anzeige)
         self._akku_ab: float | None = None
@@ -285,9 +303,11 @@ class LedLogik:
             self._start_pruefen(jetzt_mono)
         elif isinstance(e, ev.AkkuStand):
             self.akku_prozent = max(0, min(100, e.prozent))
+            self._voll_pruefen(neu_ansetzen=False)
         elif isinstance(e, ev.LaderGeaendert):
             erste = self.quellen.wert is None
             self.quellen = self.quellen.mit(e)
+            self._voll_pruefen(neu_ansetzen=True)  # nach jedem Wechsel neu ansetzen: bei 98 % neu angedockt ist der Akku nicht voll
             if self.quellen.wert is True:
                 self.tiefstand = False
             if erste and self.quellen.wert is True:
@@ -295,11 +315,22 @@ class LedLogik:
                 self._start_pruefen(jetzt_mono)
         elif isinstance(e, (ev.LeserHallo, ev.LeserAlarm)):
             self.quellen = StromQuellen(self.quellen.pisugar, None)  # der Leser-Wert gilt nur für die aktuelle Verbindung (V2)
+            self._voll_pruefen(neu_ansetzen=True)
         elif isinstance(e, ev.AkkuAnzeigen):
             # Freigabe durch ``idle`` (Andocken, Abziehen): erste Messung und Sperre hat ``idle`` schon geprüft (V6)
             self.akku_zeigen(jetzt_mono, e.dauer_s)
         elif isinstance(e, ev.AkkuTiefstand):
             self.tiefstand = True
+
+    def _voll_pruefen(self, neu_ansetzen: bool) -> None:
+        """Entscheidung X: voll ab ``LADEN_VOLL_PROZENT``; wieder „nicht voll“ erst unter ``LADEN_VOLL_PROZENT - LADEN_HYSTERESE``."""
+        p = self.akku_prozent
+        if p is None:
+            self._voll = False
+        elif p >= LADEN_VOLL_PROZENT:
+            self._voll = True
+        elif neu_ansetzen or p < LADEN_VOLL_PROZENT - LADEN_HYSTERESE:
+            self._voll = False
 
     @staticmethod
     def _pausiert(m: ev.ZustandMelden | None) -> bool:
@@ -337,6 +368,20 @@ class LedLogik:
     # -- Ausgabe ----------------------------------------------------------------------
 
     def zustand(self, jetzt_mono: float) -> str:
+        """Der Zustand des Rings. Wo er „aus“ wäre, zeigt er am Strom bei nicht vollem Akku den Füllstand (``LADEN``, Entscheidung X)."""
+        z = self._zustand_ohne_laden(jetzt_mono)
+        if z == AUS and self._laden_zeigen():
+            return LADEN
+        return z
+
+    def _laden_zeigen(self) -> bool:
+        m = self.zustand_melden
+        return (
+            m is not None and m.strom != "herunterfahren"
+            and self.am_lader and self.akku_prozent is not None and not self._voll
+        )
+
+    def _zustand_ohne_laden(self, jetzt_mono: float) -> str:
         if self._aufwachen_ab is not None:
             if jetzt_mono - self._aufwachen_ab < AUFWACHEN_S:
                 return AUFWACHEN
@@ -397,6 +442,11 @@ class LedLogik:
             return AKKU_HELL_LEISER
         return AKKU_HELL
 
+    def laden_helligkeit(self) -> float:
+        """Helligkeit des dauernden Füllstands: 5 %, in „leiser“ und „stumm“ 3 % (Entscheidung X, 11.11.)."""
+        z = self.zustand_melden
+        return LADEN_HELL_RUHE if z is not None and z.ruhe in ("leiser", "stumm") else LADEN_HELL
+
     def ring(self, jetzt_mono: float) -> Ring:
         r = ring_fuer(self.zustand(jetzt_mono), jetzt_mono, self)
         if r.zustand == AKKU:
@@ -404,7 +454,7 @@ class LedLogik:
             if not self.tiefstand:
                 return Ring(r.zustand, r.leds, self.akku_helligkeit())  # eigene Helligkeiten
             if z is not None and z.ruhe == "stumm":
-                return Ring(r.zustand, r.leds, AKKU_HELL_STUMM * (r.helligkeit > 0))  # Tiefstand-Blinken unter „stumm“: kleinste Stufe
+                return Ring(r.zustand, r.leds, AKKU_HELL_STUMM)  # Tiefstand unter „stumm“: ruhig auf der kleinsten Stufe (Pulsieren ist dort nicht möglich)
         return r
 
     def ring_dict(self, jetzt_mono: float) -> dict[str, Any]:
@@ -438,6 +488,10 @@ def ring_fuer(zustand: str, t: float, logik: LedLogik | None = None) -> Ring:
         if logik is None:
             return _akku(50, False, False, t)
         return _akku(logik.akku_prozent, logik.am_lader, logik.tiefstand, t, logik.akku_helligkeit())
+    if zustand == LADEN:
+        if logik is None:
+            return _laden(50, False)
+        return _laden(logik.akku_prozent, logik.laden_helligkeit() == LADEN_HELL_RUHE)
     if zustand == AUFWACHEN:
         ab = logik._aufwachen_ab if logik is not None and logik._aufwachen_ab is not None else 0.0
         return _aufwachen(t - ab)
