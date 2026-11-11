@@ -1262,7 +1262,7 @@ gekennzeichneten sind von Tobias oder der Projektleitung entschieden
             freien Rückmeldung (Punkt 5 und 6) den Befehl `AkkuAnzeigen(grund, dauer_s)` aus (Abschnitt 4); `led` setzt ihn um. Zusätzlich zeigt `led` allein die
             **Start-Anzeige** (CUJ 25): ist die erste bekannte Messung „Strom“, zeigt der Ring nach `Bereit` (nach dem Lauflicht) den Ladestand 5 s lang, ohne
             Sperre und ohne `AkkuAnzeigen`. Helligkeit der Akku-Anzeige: 15 %, in einem Fenster „leiser“ und während „Gute Nacht“ 5 %, in einem Fenster „stumm“
-            3 %, mindestens Stufe 1 der 31 Stufen; der Faktor 0,4 von „stumm“ gilt nicht für sie. `led` entprellt: Eine zweite Anforderung innerhalb von 1 s nach
+            3 %, mindestens Stufe 1 der 31 Stufen; der frühere Faktor 0,4 von „stumm“ entfällt (Entscheidung U, 10.11.: unter „stumm“ zeigt der Ring 5 s dunkelrot bei `gehalten`, `led` leitet das aus `ZustandMelden` ab, keine neue Schnittstelle). `led` entprellt: Eine zweite Anforderung innerhalb von 1 s nach
             dem Beginn einer laufenden Anzeige startet sie nicht neu. `led` führt den Strom-Wert aus beiden Quellen mit demselben Code zusammen (`stromwert.py`).
         10. **Hauptknopf lang am Strom.** Er fährt herunter (R8: am Sockel ist die Box danach „immer an“; dass sie dort gleich wieder startet,
             leistet mit Schritt 2 der Leser über `STROM_IN`; bis dahin hängt es an „Einschalten bei Strom“ des PiSugar, Messung M9). Ausschalten

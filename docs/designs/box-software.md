@@ -15,6 +15,8 @@
 *   **Änderung 10.11.:** Ein- und Ausschalten, **Schritt 1** eingearbeitet (EGM `docs/egm/ein-aus/`, Entwurf Rev. 2, Entscheidungen R1–R11 in `resolve.md`; es ersetzt die Ladestations-Folgen aus `docs/egm/ladestation/software_folgen.md` und das ruhende EGM `docs/egm/start-am-lader/`). Neu: Zustände *Spielt / Bereit / Aus* (Namen für die Pi-Zustände `aktiv` / `leerlauf` / ausgeschaltet), Frist 10 min nur ohne Strom und ab dem Abnehmen, am Strom immer bereit (Sockel, Kabel, Powerbank), „Lader“ = Strom aus jeder Quelle (Leser-Zeile `LADER`, Vorrang Leser), Ton `lader` beim Andocken, früher Start-Ton durch einen Frühdienst (unter „stumm“ gar nicht, unter „leiser“ mit der Grenze des Fensters, R10). Es entfällt die Wiederholung des Start-Syncs am Lader (AP 4.8). Betroffen: Entscheidung O, CUJ 10, 15, 16, 18, 20, neu 21 bis 25, Baustein 2, Tabelle „Strom / Leerlauf“, „Netz, Sync, Strom“, AP 4.3 und neue Arbeitspakete E1-0 bis E1-8. Die Änderungen sind mit „(Ein/Aus, 10.11.)“ markiert. **Schritt 2** (Wecken durch Tobie, Magnet und Strom über den ESP32, Lauflicht, Ring-Weiche, Schlaf, LPCD, `WAKE`, `SLEEP`, `CFG`, `RING_PI`) folgt nach den Messungen am Breadboard und ist hier nicht eingearbeitet; wo ein Satz darauf verweist, steht „folgt mit Schritt 2“.
 *   **Änderung 10.11.:** Entscheidung Q eingearbeitet (ohne aufliegenden Tobie startet nichts: Hauptknopf kurz, Vor und Zurück geben dann nur den Hinweiston; es entfällt „ohne Tobie gilt Play / Pause“). Die Änderungen sind mit „(Entscheidung Q, 10.11.)“ markiert.
 *   **Änderung 10.11.:** Entscheidung R eingearbeitet (Durchsage beim Auflegen der Gute-Nacht-Karte, neuer Ton `gute_nacht`: „Gute Nacht! Ich spiele noch ein bisschen.“; unter „stumm“ keine Durchsage, die Karte wirkt trotzdem). Betroffen: CUJ 14, Tabelle „Gute Nacht“. Die Änderungen sind mit „(Entscheidung R, 10.11.)“ markiert.
+*   **Änderung 10.11.:** Entscheidung U eingearbeitet (Ring unter „stumm“: ganz dunkelrot, nach 5 s aus; ersetzt „stumm dimmt auf ×0,4“). Betroffen: CUJ 15 und 18 (LED-Ring). Die Änderungen sind mit „(Entscheidung U, 10.11.)“ markiert.
+*   **Änderung 10.11.:** Entscheidung V eingearbeitet (Ring: Pause nach 10 s aus; Lernmodus und Gute Nacht bestätigt; Leser unterbrochen rot langsam blinkend statt magenta). Betroffen: CUJ 18 (LED-Ring). Die Änderungen sind mit „(Entscheidung V, 10.11.)“ markiert.
 *   **Grundlage:** `concepts_brief.md` (gleicher Ordner) inkl. Entscheidungen
     Runde 1 und 2
 
@@ -886,7 +888,7 @@ Zustände, Übergänge und Konflikte: siehe „Kern-Zustände“.
 *   **Then**: Bei „leiser“ gilt die Fenster-Grenze nach der Regel in
     „Lautstärke“ (Baustein 3); eine lautere laufende Wiedergabe wird sanft
     abgesenkt. Bei „stumm“ pausiert die Box und spielt nicht; ein kurzer
-    leiser Hinweiston zeigt, dass der Tobie erkannt wurde. Nach dem Fenster
+    leiser Hinweiston zeigt, dass der Tobie erkannt wurde, und der Ring leuchtet 5 s ganz dunkelrot, dann bleibt er aus (Entscheidung U, 10.11.). Nach dem Fenster
     gilt wieder die normale Grenze. Endet ein „stumm“-Fenster, während ein Tobie liegt, startet nichts von selbst; das Kind muss den Tobie erneut
     auflegen. Ohne Netz gilt die letzte Kopie. Ist die Uhrzeit nicht
     vertrauenswürdig, gilt die kleinste „leiser“-Grenze aller Fenster, nie
@@ -897,7 +899,7 @@ Zustände, Übergänge und Konflikte: siehe „Kern-Zustände“.
         sonst normal. Bei unsicherer Uhr gilt wie im Kern die kleinste „leiser“-Grenze, nie „stumm“. Anders als heute spielt die Box unter „stumm“
         beim Einschalten auch keinen Hinweiston; der Hinweiston gehört weiter zum Auflegen eines Tobies.
     *   Die **Akku-Anzeige** am Ring ist normal 15 % hell, unter „leiser“ 5 %, unter „stumm“ 3 % (mindestens die erste der 31 Stufen des Rings);
-        für sie gilt der Faktor 0,4 von „stumm“ nicht.
+        der frühere Faktor 0,4 von „stumm“ entfällt (Entscheidung U, 10.11.: unter „stumm“ zeigt der Ring nur noch 5 s dunkelrot, dann nichts).
     *   Das Lauflicht beim Wecken (tags normal, nachts gedimmt) folgt mit Schritt 2.
 
 ### CUJ 16: Leerlauf-Abschaltung (Bereit und Aus; Ein/Aus, 10.11.)
@@ -937,22 +939,32 @@ Zustände, Übergänge und Konflikte: siehe „Kern-Zustände“.
 *   **When**: Der Zustand der Box wechselt.
 *   **Then**: Der Ring zeigt den passenden Zustand. Die Helligkeit liegt nie
     über 25 %. Am Mac zeigen Terminal und Protokoll denselben Zustand.
-*   **Vorschlag, Tobias entscheidet nach Ansicht in der Simulation** (09.11.,
-    AP 4.8). Die Farben und Muster stehen als benannte Konstanten oben in
-    `box/src/tobibox/led.py`.
-    *   Lernmodus: blaues Atmen, 3 s, 8 bis 25 %.
-    *   Gute Nacht, nur während der Wiedergabe: warm-oranges Glimmen, 4 s, 3 bis
-        8 %, mit dem Ausblende-Faktor multipliziert; danach normale Pause.
-    *   Stumm: Der Zustand bleibt, die Helligkeit ×0,4 (ausgenommen die Akku-Anzeige, siehe unten).
+*   **Zustände des Rings** (AP 4.8, 09.11.; Lernmodus und Gute Nacht von Tobias bestätigt, Entscheidung V, 10.11.). Die Farben und Muster stehen als
+    benannte Konstanten oben in `box/src/tobibox/led.py`.
+    *   Lernmodus: blaues Atmen, 3 s, 8 bis 25 % (bestätigt, Entscheidung V, 10.11.).
+    *   Gute Nacht, nur während der Wiedergabe: warmes Orange, Glimmen 3 bis 8 % (Periode 4 s), dunkler beim Ausblenden (mit dem Ausblende-Faktor
+        multipliziert); danach normale Pause (bestätigt, Entscheidung V, 10.11.).
+    *   **Pause (Entscheidung V, 10.11.):** bernstein (10 %) wie bisher, aber nach **10 s** (`PAUSE_ANZEIGE_S`) aus. Danach bleibt der Ring dunkel, bis etwas
+        anderes angezeigt wird (Akku-Anzeige, Aufwachen, Blinken). Die 10 s beginnen, wenn die Sitzung in eine Pause wechselt (`pausiert`, `beendet`, `gehalten`); eine
+        wiederholte Meldung startet sie nicht neu, Abheben und erneutes Auflegen schon.
+    *   **Leser unterbrochen (Entscheidung V, 10.11.):** Sitzung „unbekannt“ zeigt den Ring **rot, langsam blinkend** (Periode 2 s, `BLINK_LESER_S`, Zustandsname
+        `leser_unterbrochen`) statt magenta. Magenta bleibt nur für den unbekannten Tobie (1 s, zwei Blinker).
+    *   **Stumm (Entscheidung U, 10.11.):** Pausiert die Box wegen eines „stumm“-Fensters (das Ausblenden beginnt) oder erkennt sie unter „stumm“ einen aufgelegten
+        Tobie (der dann nicht spielt, Sitzung `gehalten`), leuchtet der Ring **ganz dunkel rot** (`STUMM_FARBE`, 3 %, die kleinste sichtbare Stufe, mindestens Stufe 1 von 31,
+        wie die Akku-Anzeige unter „stumm“) und geht nach **5 s** (`STUMM_ANZEIGE_S`) aus. Danach bleibt der Ring dunkel, solange „stumm“ gilt und nichts anderes
+        angezeigt werden muss. Akku-Anzeige (Andocken, Abziehen, Anforderung), Tiefstand-Blinken (unter „stumm“ ebenfalls 3 %) und Unbekannt-Blinken bleiben wie festgelegt;
+        auch der Lernmodus bleibt blau. Es gibt keinen Dimm-Faktor 0,4 mehr; er ersetzt den Vorschlag von AP 4.8. `led` erkennt beides aus `ZustandMelden`
+        (`ruhe` = `stumm` und Sitzung `spielt` oder `gehalten` neu); der Übergang `spielt` zu `gehalten` startet die 5 s nicht neu, Abheben und erneutes Auflegen schon.
+        Keine neue Schnittstelle des Kerns.
     *   Übrige Zustände: läuft grünes Atmen (12 bis 25 %, 6 s); Pause bernstein
-        (10 %); unbekannte Karte magenta blinkend (1 s); Aufwachen weißes
+        (10 %, nach 10 s aus); unbekannter Tobie magenta blinkend (1 s); Aufwachen weißes
         Lauflicht (2 s); Akku als Füllstand (40 LEDs, grün, gelb oder rot, mit
         Strom blau, bei Tiefstand rot blinkend). **(Ein/Aus, 10.11., V6)** „Ladestand“ (beim Andocken, CUJ 25) und „Akku“ (beim Abziehen) sind **dieselbe** Anzeige,
         die Akku-Füllstand-Anzeige; nur die Farbe folgt dem Strom (blau mit Strom, sonst nach Prozent). Wann sie erscheinen darf, gibt `idle` mit dem Befehl
         `AkkuAnzeigen` frei (`core-interface.md`, Abschnitt 4 und 9); beim Start mit Strom zeigt `led` sie nach `Bereit` allein (Start-Anzeige).
     *   **Akku-Anzeige (Ein/Aus, 10.11.):** Sie erscheint 5 s lang beim Andocken und beim Abziehen (spielt ein Hörspiel: 3 s) und auf Anforderung.
         Helligkeit 15 %; unter „leiser“ und solange „Gute Nacht“ läuft 5 %; unter „stumm“ 3 % (mindestens Stufe 1 der 31 Stufen des Rings). Der Faktor
-        0,4 von „stumm“ gilt für sie nicht.
+        0,4 von „stumm“ gibt es nicht mehr (Entscheidung U, 10.11.).
     *   **Folgt mit Schritt 2:** Der Ring ist in *Bereit* dunkel (Weiche und Ring-Schalter am ESP32, `led.py` gibt den Ring über `RING_PI` an die Weiche);
         das weiße Lauflicht beim Wecken kommt vom ESP32, danach übernimmt `led.py`; der Deckel 25 % gilt dann in Pi **und** ESP32. Bis dahin
         bleibt der Ring wie oben beschrieben (in *Bereit* mit liegendem Tobie zeigt er weiter die Pause).
@@ -2267,7 +2279,7 @@ Ergebnis: Der Dienst spielt über MPD und lässt sich mit Leser (oder
 | `box/sounds/start.wav` | neu | Platzhalter-Ton: Start. |
 | `box/sounds/unbekannt.wav` | neu | Platzhalter-Ton: unbekannter Tobie. |
 | `box/sounds/fehler.wav` | neu | Platzhalter-Ton: Fehler. |
-| `box/sounds/hinweis.wav` | neu | Leiser Hinweiston (Tobie erkannt bei „stumm“). |
+| `box/sounds/hinweis.wav` | neu | Leiser Hinweiston (Tobie erkannt bei „stumm“). Auch die Sprachfassung `box/sounds/sprache/hinweis.wav` ist nur dieser Klang, kein gesprochenes „Hinweis.“ (Entscheidung T, 10.11.). |
 | `box/sounds/lernen_beginn.wav` | neu | Platzhalter-Ton: Lernmodus beginnt. |
 | `box/sounds/lernen_ende.wav` | neu | Platzhalter-Ton: Lernmodus endet. |
 | `box/sounds/akku_leer.wav` | neu | Platzhalter-Ton: Akku fast leer. |

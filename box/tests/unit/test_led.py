@@ -23,6 +23,12 @@ def logik_mit(sitzung, strom="aktiv"):
     return lg
 
 
+def neu_pausiert(lg, t):
+    """Die Sitzung wechselt zur Zeit ``t`` in die Pause: die Pause-Anzeige (``PAUSE_ANZEIGE_S``) beginnt neu."""
+    lg.beobachte(melden("leer"), t)
+    lg.beobachte(melden("pausiert"), t)
+
+
 def an_leds(r):
     return [c for c in r.leds if c != (0, 0, 0)]
 
@@ -47,12 +53,13 @@ def test_pause_bernstein_ruhig(sitzung):
     assert lg.ring(3.3).helligkeit == r.helligkeit > 0
 
 
-def test_unbekannte_karte_blinkt():
+def test_leser_unterbrochen_blinkt_rot_langsam():
+    """Entscheidung V (10.11.): Leser unterbrochen (Sitzung „unbekannt“) blinkt rot und langsam; Magenta bleibt dem unbekannten Tobie."""
     lg = logik_mit("unbekannt")
-    an, aus = lg.ring(0.1), lg.ring(0.6)
-    assert an.zustand == aus.zustand == led.UNBEKANNTE_KARTE
+    an, aus = lg.ring(0.1), lg.ring(led.BLINK_LESER_S / 2 + 0.1)
+    assert an.zustand == aus.zustand == led.LESER_UNTERBROCHEN
     assert an.helligkeit == DECKEL_PROZENT and aus.helligkeit == 0
-    assert all(c == led.MAGENTA for c in an.leds)
+    assert all(c == led.ROT for c in an.leds) and led.BLINK_LESER_S > led.BLINK_UNBEKANNT_NEU_S
 
 
 @pytest.mark.parametrize("sitzung", ["leer"])
@@ -72,6 +79,7 @@ def test_ohne_meldung_dunkel():
 
 def test_aufwachen_lauflicht_dann_zurueck():
     lg = logik_mit("pausiert")
+    neu_pausiert(lg, 9.0)
     lg.aufwachen(10.0)
     a, b = lg.ring(10.0), lg.ring(10.3)
     assert a.zustand == led.AUFWACHEN and a.helligkeit == DECKEL_PROZENT
@@ -125,11 +133,13 @@ def test_andocken_zeigt_akku_blau_und_abziehen_nach_prozent():
     lg.beobachte(ev.LaderGeaendert(False), 0.0)
     lg.beobachte(ev.LaderGeaendert(True), 20.0)
     lg.beobachte(ev.AkkuAnzeigen("andocken", 5.0), 20.0)
+    neu_pausiert(lg, 19.0)
     r = lg.ring(21.0)
     assert r.zustand == led.AKKU and r.leds[0] == led.BLAU
     assert lg.zustand(20.0 + 5.0 + 0.1) == led.PAUSE  # 5 s
     lg.beobachte(ev.LaderGeaendert(False), 30.0)
     lg.beobachte(ev.AkkuAnzeigen("abziehen", 3.0), 30.0)
+    neu_pausiert(lg, 29.0)
     assert lg.ring(31.0).leds[0] == led.GRUEN  # 80 %, ohne Strom nach Prozent
     assert lg.zustand(30.0 + 3.0 + 0.1) == led.PAUSE  # spielt die Sitzung: 3 s
 
@@ -150,6 +160,7 @@ def test_start_ohne_strom_keine_anzeige_und_spaetes_andocken_zeigt_nichts_ohne_f
     lg.beobachte(ev.Bereit(), 0.0)
     lg.beobachte(ev.LaderGeaendert(False), 0.5)
     lg.beobachte(ev.LaderGeaendert(True), 30.0)
+    neu_pausiert(lg, 29.0)
     assert lg.zustand(30.5) == led.PAUSE
 
 
@@ -185,19 +196,23 @@ def test_akku_anzeige_hat_mindestens_stufe_1_von_31(hell):
 def test_akku_anzeige_wird_entprellt():
     lg = logik_mit("pausiert")
     lg.beobachte(ev.AkkuStand(70), 0.0)
+    neu_pausiert(lg, 9.0)
     lg.akku_zeigen(10.0)
     lg.akku_zeigen(10.5)  # innerhalb von AKKU_ENTPRELL_S: startet nicht neu
     assert lg.zustand(10.0 + led.AKKU_ANZEIGE_S + 0.1) == led.PAUSE
+    neu_pausiert(lg, 19.0)
     lg.akku_zeigen(20.0)
     lg.akku_zeigen(21.5)  # nach der Entprellzeit: neue Anzeige
     assert lg.zustand(25.5) == led.AKKU
 
 
-def test_tiefstand_blinken_bleibt_unter_stumm_gedimmt():
+def test_tiefstand_blinken_unter_stumm_mit_der_kleinsten_stufe_wie_die_akku_anzeige():
+    """Entscheidung U (10.11.): kein Faktor 0,4 mehr; der Tiefstand blinkt unter „stumm“ mit ``AKKU_HELL_STUMM`` (Stufe 1)."""
     lg = LedLogik()
     lg.beobachte(melden("pausiert", ruhe="stumm"), 0.0)
     lg.beobachte(ev.AkkuTiefstand(), 0.0)
-    assert lg.ring(0.1).helligkeit == pytest.approx(DECKEL_PROZENT * led.STUMM_DIMMUNG)
+    r = lg.ring(0.1)
+    assert r.zustand == led.AKKU and r.helligkeit == led.AKKU_HELL_STUMM and r.apa102_rahmen()[4] & 0x1F >= 1
 
 
 def test_akku_tiefstand_blinkt_rot_bis_lader():
@@ -301,7 +316,7 @@ def test_lernmodus_blaues_atmen_auch_im_leerlauf():
 def test_lernmodus_schlaegt_laeuft_und_pause_aber_nicht_unbekannte_karte():
     assert logik_mit_lernen("pausiert").zustand(0.0) == led.LERNEN
     assert logik_mit_lernen("spielt").zustand(0.0) == led.LERNEN
-    assert logik_mit_lernen("unbekannt").zustand(0.0) == led.UNBEKANNTE_KARTE
+    assert logik_mit_lernen("unbekannt").zustand(0.0) == led.LESER_UNTERBROCHEN
 
 
 def logik_mit_lernen(sitzung):
@@ -353,17 +368,116 @@ def test_gute_nacht_nur_waehrend_die_wiedergabe_laeuft():
     assert lg.zustand(0.0) == led.PAUSE
 
 
-@pytest.mark.parametrize("zustand", [led.LAEUFT, led.PAUSE, led.LERNEN, led.GUTE_NACHT])
-def test_unter_stumm_bleibt_der_zustand_nur_die_helligkeit_sinkt(zustand):
-    sitzung = {led.LAEUFT: "spielt", led.PAUSE: "pausiert", led.LERNEN: "pausiert", led.GUTE_NACHT: "spielt"}[zustand]
-    extra = {led.LERNEN: {"lernmodus": True}, led.GUTE_NACHT: {"gute_nacht": "laeuft"}}.get(zustand, {})
-    normal, stumm = LedLogik(), LedLogik()
-    normal.beobachte(melden(sitzung, **extra), 0.0)
-    stumm.beobachte(melden(sitzung, ruhe="stumm", **extra), 0.0)
-    for t in (0.0, 0.7, 1.9, 2.5):
-        a, b = normal.ring(t), stumm.ring(t)
-        assert a.zustand == b.zustand == zustand and a.leds == b.leds
-        assert b.helligkeit == pytest.approx(a.helligkeit * led.STUMM_DIMMUNG) and b.helligkeit <= DECKEL_PROZENT
+# -- Entscheidung U (10.11.): Ring unter „stumm“ ----------------------------------------------
+
+
+def stumm_logik(vorher=("spielt", "normal"), jetzt=("gehalten", "stumm"), t_vorher=0.0, t_jetzt=100.0, **kw):
+    lg = LedLogik()
+    lg.beobachte(melden(vorher[0], ruhe=vorher[1], figur_liegt=True, **kw), t_vorher)
+    lg.beobachte(melden(jetzt[0], ruhe=jetzt[1], figur_liegt=True, **kw), t_jetzt)
+    return lg
+
+
+def test_stumm_konstanten_sind_benannt():
+    assert led.STUMM_ANZEIGE_S == 5.0 and led.STUMM_FARBE == led.ROT and not hasattr(led, "STUMM_DIMMUNG")
+    assert 0 < led.STUMM_HELLIGKEIT <= 5
+
+
+def test_pause_wegen_stumm_ganz_dunkelrot_dann_nach_5_s_aus():
+    lg = stumm_logik()
+    r = lg.ring(100.5)
+    assert r.zustand == led.STUMM and all(c == led.STUMM_FARBE for c in r.leds)
+    assert r.helligkeit == led.STUMM_HELLIGKEIT and r.apa102_rahmen()[4] & 0x1F == 1  # kleinste sichtbare Stufe
+    assert lg.ring(100.0 + led.STUMM_ANZEIGE_S - 0.01).zustand == led.STUMM
+    for t in (100.0 + led.STUMM_ANZEIGE_S, 130.0, 5000.0):
+        aus = lg.ring(t)
+        assert aus.zustand == led.AUS and aus.helligkeit == 0 and an_leds(aus) == []
+
+
+def test_stumm_beginnt_waehrend_es_spielt_rot_ab_dem_ausblenden_und_laeuft_ueber_gehalten_weiter():
+    lg = LedLogik()
+    lg.beobachte(melden("spielt", figur_liegt=True), 0.0)
+    lg.beobachte(melden("spielt", ruhe="stumm", figur_liegt=True), 100.0)  # Ausblenden
+    assert lg.zustand(100.5) == led.STUMM
+    lg.beobachte(melden("gehalten", ruhe="stumm", figur_liegt=True), 103.0)  # Ausblenden fertig: keine neue 5 s
+    assert lg.zustand(104.0) == led.STUMM and lg.zustand(105.1) == led.AUS
+
+
+def test_tobie_unter_stumm_aufgelegt_zeigt_rot_5_s():
+    lg = LedLogik()
+    lg.beobachte(melden("leer", ruhe="stumm"), 0.0)
+    assert lg.zustand(50.0) == led.AUS
+    lg.beobachte(melden("gehalten", ruhe="stumm", figur_liegt=True), 50.0)
+    assert lg.zustand(52.0) == led.STUMM and lg.zustand(55.1) == led.AUS
+
+
+def test_erneutes_auflegen_unter_stumm_startet_die_5_s_neu():
+    lg = stumm_logik()
+    assert lg.zustand(110.0) == led.AUS
+    lg.beobachte(melden("leer", ruhe="stumm"), 120.0)  # abgehoben
+    lg.beobachte(melden("gehalten", ruhe="stumm", figur_liegt=True), 130.0)
+    assert lg.zustand(131.0) == led.STUMM and lg.zustand(135.1) == led.AUS
+
+
+def test_gleiche_meldung_wiederholt_startet_die_5_s_nicht_neu():
+    lg = stumm_logik()
+    lg.beobachte(melden("gehalten", ruhe="stumm", figur_liegt=True, folge="x"), 103.0)
+    assert lg.zustand(105.1) == led.AUS
+
+
+def test_stumm_endet_der_ring_zeigt_wieder_die_normale_pause_und_das_fenster_ist_weg():
+    lg = stumm_logik()
+    lg.beobachte(melden("pausiert", ruhe="normal", figur_liegt=True), 101.0)
+    assert lg.zustand(101.5) == led.PAUSE
+    lg.beobachte(melden("gehalten", ruhe="normal", figur_liegt=True), 102.0)
+    assert lg.zustand(102.5) == led.PAUSE
+
+
+def test_pause_ohne_stumm_bleibt_bernstein():
+    lg = LedLogik()
+    lg.beobachte(melden("spielt", figur_liegt=True), 0.0)
+    lg.beobachte(melden("pausiert", figur_liegt=True), 10.0)
+    r = lg.ring(10.5)
+    assert r.zustand == led.PAUSE and r.helligkeit == led.PAUSE_HELLIGKEIT
+
+
+def test_nach_den_5_s_bleibt_der_ring_dunkel_solange_stumm_gilt_auch_bei_pausiert():
+    lg = stumm_logik()
+    lg.beobachte(melden("pausiert", ruhe="stumm", figur_liegt=True), 200.0)
+    assert lg.zustand(200.1) == led.AUS
+
+
+def test_akku_anzeige_geht_unter_stumm_vor_und_danach_wieder_dunkel():
+    lg = stumm_logik()
+    lg.beobachte(ev.AkkuStand(70), 100.0)
+    lg.akku_zeigen(101.0)
+    r = lg.ring(102.0)
+    assert r.zustand == led.AKKU and r.helligkeit == led.AKKU_HELL_STUMM
+    assert lg.zustand(101.0 + led.AKKU_ANZEIGE_S + 0.1) == led.AUS
+    lg2 = stumm_logik()
+    lg2.beobachte(ev.AkkuStand(70), 100.0)
+    lg2.akku_zeigen(200.0)  # lange nach dem Fenster
+    assert lg2.ring(201.0).zustand == led.AKKU and lg2.zustand(200.0 + led.AKKU_ANZEIGE_S + 0.1) == led.AUS
+
+
+def test_unbekannt_blinken_bleibt_unter_stumm_wie_festgelegt():
+    lg = stumm_logik()
+    lg.unbekannter_tobie(200.0)
+    assert lg.ring(200.1).zustand == led.UNBEKANNTE_KARTE and lg.ring(200.1).helligkeit == DECKEL_PROZENT
+    assert lg.zustand(200.0 + led.BLINK_UNBEKANNT_ANZEIGE_S + 0.1) == led.AUS
+
+
+def test_lernmodus_unter_stumm_bleibt_blau_ungedimmt():
+    lg = LedLogik()
+    lg.beobachte(melden("pausiert", ruhe="stumm", lernmodus=True), 0.0)
+    r = lg.ring(0.0)
+    assert r.zustand == led.LERNEN and r.helligkeit == pytest.approx(led.LERNEN_HELL_MIN)
+
+
+def test_leerlauf_ohne_tobie_unter_stumm_bleibt_dunkel():
+    lg = LedLogik()
+    lg.beobachte(melden("leer", strom="leerlauf", ruhe="stumm"), 0.0)
+    assert lg.zustand(0.0) == led.AUS
 
 
 def test_alle_zustaende_haben_ein_bild_und_halten_den_deckel():
@@ -376,7 +490,7 @@ def test_alle_zustaende_haben_ein_bild_und_halten_den_deckel():
 
 
 def test_farben_und_muster_sind_benannte_konstanten():
-    for name in ("FARBE_LERNEN", "FARBE_GUTE_NACHT", "LERNEN_ATMEN_S", "GUTE_NACHT_GLIMMEN_S", "STUMM_DIMMUNG", "PAUSE_HELLIGKEIT"):
+    for name in ("FARBE_LERNEN", "FARBE_GUTE_NACHT", "LERNEN_ATMEN_S", "GUTE_NACHT_GLIMMEN_S", "STUMM_FARBE", "STUMM_ANZEIGE_S", "STUMM_HELLIGKEIT", "PAUSE_HELLIGKEIT"):
         assert hasattr(led, name)
 
 
@@ -400,6 +514,38 @@ def test_blinken_wartet_das_lauflicht_beim_aufwachen_ab():
     assert lg.zustand(10.0 + led.AUFWACHEN_S + led.BLINK_UNBEKANNT_ANZEIGE_S + 0.1) == led.LAEUFT
 
 
-def test_leser_unterbrechung_zeigt_weiter_magenta():
-    """Offene Frage (Bericht AP Mac-Abnahme): Für die Leser-Unterbrechung legt das Design keine eigene Anzeige fest."""
-    assert logik_mit("unbekannt").zustand(0.0) == led.UNBEKANNTE_KARTE
+def test_leser_unterbrechung_zeigt_rot_nicht_magenta():
+    """Entscheidung V (10.11.): Leser unterbrochen ist rot und langsam; Magenta gehört dem unbekannten Tobie."""
+    assert logik_mit("unbekannt").zustand(0.0) == led.LESER_UNTERBROCHEN
+
+
+# -- Entscheidung V (10.11.): Pause bernstein, nach 10 s aus ------------------------------------
+
+
+def test_pause_bernstein_dann_nach_10_s_aus_und_bleibt_dunkel():
+    lg = LedLogik()
+    lg.beobachte(melden("spielt"), 0.0)
+    lg.beobachte(melden("pausiert"), 50.0)
+    r = lg.ring(50.5)
+    assert r.zustand == led.PAUSE and r.helligkeit == led.PAUSE_HELLIGKEIT and all(c == led.BERNSTEIN for c in r.leds)
+    assert led.PAUSE_ANZEIGE_S == 10.0
+    assert lg.zustand(50.0 + led.PAUSE_ANZEIGE_S - 0.01) == led.PAUSE
+    for t in (60.0, 120.0, 9000.0):
+        assert lg.zustand(t) == led.AUS and lg.ring(t).helligkeit == 0
+
+
+def test_wiederholte_pause_meldung_startet_die_10_s_nicht_neu_neues_auflegen_schon():
+    lg = LedLogik()
+    lg.beobachte(melden("pausiert"), 0.0)
+    lg.beobachte(melden("pausiert", folge="x"), 8.0)
+    assert lg.zustand(10.5) == led.AUS
+    neu_pausiert(lg, 20.0)
+    assert lg.zustand(25.0) == led.PAUSE and lg.zustand(30.1) == led.AUS
+
+
+def test_akku_anzeige_geht_in_der_dunklen_pause_vor_und_danach_wieder_dunkel():
+    lg = LedLogik()
+    lg.beobachte(melden("pausiert"), 0.0)
+    lg.beobachte(ev.AkkuStand(70), 0.0)
+    lg.akku_zeigen(30.0)
+    assert lg.zustand(31.0) == led.AKKU and lg.zustand(30.0 + led.AKKU_ANZEIGE_S + 0.1) == led.AUS

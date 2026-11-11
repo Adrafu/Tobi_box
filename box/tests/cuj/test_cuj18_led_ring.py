@@ -82,13 +82,18 @@ def test_abgehoben_ist_der_ring_aus(box):
     assert box.ring_zustand() == led.AUS  # leer-ähnlich: keine Karte, Leerlauf
 
 
-def test_unbekannte_karte_bei_unterbrechung_des_lesers(box):
+def test_leser_unterbrochen_rot_langsam_blinkend(box):
     box.auflege(UID)
     box.laufe(3.0)
     box.sende(ev.LeserAlarm("kein_herzschlag"))
-    assert box.modus == "unbekannt" and box.ring_zustand() == led.UNBEKANNTE_KARTE
-    zustaende = {box.ring().leds[0] for _ in (0, 1)}
-    assert led.MAGENTA in zustaende or led.SCHWARZ in zustaende  # blinkt
+    assert box.modus == "unbekannt" and box.ring_zustand() == led.LESER_UNTERBROCHEN
+    hell = []
+    for _ in range(int(led.BLINK_LESER_S / 0.25) + 1):
+        hell.append(box.ring().helligkeit)
+        assert box.ring().leds[0] == led.ROT
+        box.laufe(0.25)
+    assert led.DECKEL_PROZENT in hell and 0 in hell  # blinkt, langsam: mindestens eine halbe Periode am Stück
+    assert hell.count(hell[0]) >= int(led.BLINK_LESER_S / 2 / 0.25) - 1
 
 
 UID_UNBEKANNT = "04ffeedd"  # nicht in der Zuordnung
@@ -171,20 +176,33 @@ def test_gute_nacht_glimmt_und_wird_beim_ausblenden_schwaecher(box):
     assert box.modus == "pausiert" and box.ring_zustand() == led.PAUSE  # Ende: normale Pause
 
 
-def test_unter_stumm_bleibt_der_zustand_nur_gedimmt(box):
+def test_pause_wegen_stumm_dunkelrot_dann_nach_5_s_aus(box):
+    """Entscheidung U (10.11.): Pausiert die Box wegen „stumm“, leuchtet der Ring ganz dunkelrot und geht nach 5 s aus."""
     stufe4.setze_konfig(box, fenster_liste=(stufe4.fenster("n", "stumm", "22:00", "07:00"),), revision=3)
     box.uhr.setze_wall(stufe4.wall(2026, 11, 9, 21, 59, 0))
     box.laufe(0.5)
     box.auflege(UID)
-    box.sende(ev.Hauptknopf("kurz"))  # Pause: Bernstein mit fester Helligkeit
     box.laufe(led.AUFWACHEN_S + 0.5)
-    assert box.ring_zustand() == led.PAUSE and box.ring().helligkeit == led.PAUSE_HELLIGKEIT
+    assert box.ring_zustand() == led.LAEUFT
     box.uhr.setze_wall(stufe4.wall(2026, 11, 9, 23, 0))
     box.laufe(0.5)
     assert stufe4.zeile(box).ruhe == "stumm"
-    assert box.ring_zustand() == led.PAUSE  # der Zustand bleibt, der Ring ist nicht aus
-    assert box.ring().helligkeit == pytest.approx(led.PAUSE_HELLIGKEIT * led.STUMM_DIMMUNG)
-    assert box.ring().leds[0] == led.BERNSTEIN
+    assert box.ring_zustand() == led.STUMM
+    assert box.ring().helligkeit == led.STUMM_HELLIGKEIT and box.ring().leds[0] == led.STUMM_FARBE
+    box.laufe(led.STUMM_ANZEIGE_S + 3.5)
+    assert box.modus == "gehalten" and box.ring_zustand() == led.AUS and box.ring().helligkeit == 0
+
+
+def test_tobie_unter_stumm_aufgelegt_dunkelrot_dann_nach_5_s_aus(box):
+    stufe4.setze_konfig(box, fenster_liste=(stufe4.fenster("n", "stumm", "22:00", "07:00"),), revision=3)
+    box.uhr.setze_wall(stufe4.wall(2026, 11, 9, 23, 0))
+    box.laufe(0.5)
+    box.auflege(UID)
+    box.laufe(led.AUFWACHEN_S + 0.1)
+    assert box.modus == "gehalten"
+    assert box.ring_zustand() == led.STUMM
+    box.laufe(led.STUMM_ANZEIGE_S + 0.5)
+    assert box.ring_zustand() == led.AUS
 
 
 def test_herunterfahren_ring_aus(box):

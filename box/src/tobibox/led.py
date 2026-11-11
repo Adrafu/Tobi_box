@@ -7,9 +7,9 @@ Der echte APA102-Treiber und die Browser-Simulation bekommen dasselbe Bild:
 * ``Ring.als_dict()``: JSON-fähig, für Simulation, Terminal und Protokoll.
 * ``Ring.apa102_rahmen()``: die Bytes für den echten Ring.
 
-**Vorschlag, Tobias entscheidet nach Ansicht in der Simulation** (AP 4.8): Lernmodus als blaues Atmen, Gute Nacht als
-Glimmen, das mit dem Ausblenden schwächer wird, „stumm“ dimmt den Ring. Farben, Muster und Zeiten stehen als benannte
-Konstanten unten (Abschnitt „Vorschlag“) und lassen sich dort ohne Änderung der Logik anpassen.
+Bestätigt (Entscheidung V, 10.11.): Lernmodus als blaues Atmen, Gute Nacht als Glimmen, das mit dem Ausblenden schwächer wird.
+„stumm“ zeigt dunkelrot und geht aus (Entscheidung U, 10.11.), die Pause geht nach ``PAUSE_ANZEIGE_S`` aus (Entscheidung V).
+Farben, Muster und Zeiten stehen als benannte Konstanten unten und lassen sich dort ohne Änderung der Logik anpassen.
 
 Das Bild ist eine Funktion der Zeit (Atmen, Blinken, Lauflicht). Wer es zeichnet, ruft
 ``LedLogik.ring(jetzt_mono)`` im eigenen Takt auf (z. B. alle 50 ms).
@@ -39,9 +39,11 @@ PAUSE = "pause"
 AKKU = "akku"
 UNBEKANNTE_KARTE = "unbekannte_karte"
 AUFWACHEN = "aufwachen"
-LERNEN = "lernen"  # Vorschlag (AP 4.8)
-GUTE_NACHT = "gute_nacht"  # Vorschlag (AP 4.8)
-ZUSTAENDE = (AUS, LAEUFT, PAUSE, AKKU, UNBEKANNTE_KARTE, AUFWACHEN, LERNEN, GUTE_NACHT)
+LERNEN = "lernen"
+STUMM = "stumm"  # Entscheidung U (10.11.): Pause wegen „stumm“ oder Tobie unter „stumm“ erkannt, ganz dunkelrot
+GUTE_NACHT = "gute_nacht"
+LESER_UNTERBROCHEN = "leser_unterbrochen"  # Entscheidung V (10.11.): Sitzung „unbekannt“, rot langsam blinkend
+ZUSTAENDE = (AUS, LAEUFT, PAUSE, AKKU, UNBEKANNTE_KARTE, AUFWACHEN, LERNEN, GUTE_NACHT, STUMM, LESER_UNTERBROCHEN)
 
 # Zeiten in Sekunden
 AUFWACHEN_S = 2.0  # Lauflicht beim Aufwachen
@@ -49,25 +51,28 @@ AKKU_ANZEIGE_S = 5.0  # Akku-Anzeige nach Anforderung, beim Start mit Strom und 
 AKKU_ENTPRELL_S = 1.0  # eine zweite Anforderung der Akku-Anzeige so kurz nach der ersten startet sie nicht neu
 ATMEN_S = 6.0  # Periode beim Atmen (läuft)
 PAUSE_HELLIGKEIT = 10  # Prozent, Pause
-BLINK_UNBEKANNT_S = 1.0  # Periode Blinken (Sitzung „unbekannt“: Leser unterbrochen)
+BLINK_UNBEKANNT_S = 1.0  # Periode Blinken magenta (Rückfall ohne Zeitpunkt des Auflegens)
+BLINK_LESER_S = 2.0  # Entscheidung V (10.11.): Periode des langsamen roten Blinkens, wenn der Leser unterbrochen ist (Sitzung „unbekannt“)
+PAUSE_ANZEIGE_S = 10.0  # Entscheidung V (10.11.): so lange leuchtet die Pause bernstein, danach ist der Ring aus
 BLINK_UNBEKANNT_ANZEIGE_S = 1.0  # so lange blinkt der Ring, wenn ein unbekannter Tobie aufgelegt wird (CUJ 18)
 BLINK_UNBEKANNT_NEU_S = 0.5  # Periode dieses Blinkens: zwei Blinker in einer Sekunde
 BLINK_TIEFSTAND_S = 0.5  # Periode Blinken (Akku-Tiefstand)
 KOMET_LAENGE = 10  # LEDs im Schweif des Lauflichts
 KOMET_RUNDEN = 2
+STUMM_ANZEIGE_S = 5.0  # Entscheidung U (10.11.): so lange leuchtet der Ring dunkelrot, danach bleibt er unter „stumm“ aus
 
-# --- Vorschlag (AP 4.8): Lernmodus, Gute Nacht, stumm. Tobias entscheidet nach Ansicht in der Simulation. ---
+# --- Lernmodus, Gute Nacht (bestätigt, Entscheidung V, 10.11.), stumm (Entscheidung U, 10.11.) ---
 LERNEN_ATMEN_S = 3.0  # Periode des blauen Atmens im Lernmodus (schneller als „läuft“: die Box wartet auf einen Tobie)
 LERNEN_HELL_MIN = 8  # Prozent, unterer Punkt des Atmens
 LERNEN_HELL_MAX = 25  # Prozent, oberer Punkt (nie über dem Deckel)
 GUTE_NACHT_GLIMMEN_S = 4.0  # Periode des Glimmens
 GUTE_NACHT_HELL_MIN = 3  # Prozent, unterer Punkt des Glimmens
 GUTE_NACHT_HELL_MAX = 8  # Prozent, oberer Punkt; beim Ausblenden wird alles mit dem Ausblenden-Faktor multipliziert
-STUMM_DIMMUNG = 0.4  # unter „stumm“ bleibt der Ring wie er ist, aber mit diesem Anteil der Helligkeit
-# Akku-Anzeige (Ein/Aus, 10.11.): eigene Helligkeiten, der Faktor ``STUMM_DIMMUNG`` gilt für sie nicht. Mindestens Stufe 1 der 31 Stufen.
+# Akku-Anzeige (Ein/Aus, 10.11.): eigene Helligkeiten. Mindestens Stufe 1 der 31 Stufen.
 AKKU_HELL = 15  # Prozent, normal
 AKKU_HELL_LEISER = 5  # Prozent, in einem Fenster „leiser“ und solange „Gute Nacht“ läuft
 AKKU_HELL_STUMM = 3  # Prozent, in einem Fenster „stumm“
+STUMM_HELLIGKEIT = 3  # Prozent: kleinste sichtbare Stufe (``apa102_rahmen`` rundet auf mindestens Stufe 1 von 31)
 
 Farbe = tuple[int, int, int]
 SCHWARZ: Farbe = (0, 0, 0)
@@ -78,9 +83,9 @@ GELB: Farbe = (255, 190, 0)
 ROT: Farbe = (255, 0, 0)
 BLAU: Farbe = (0, 150, 255)
 WARMWEISS: Farbe = (255, 200, 120)
-# Vorschlag (AP 4.8)
 FARBE_LERNEN: Farbe = (0, 70, 255)  # Lernmodus: Blau, deutlich anders als der Akku im Laden (BLAU)
 FARBE_GUTE_NACHT: Farbe = (255, 90, 10)  # Gute Nacht: warmes, dunkles Orange, wie Glut
+STUMM_FARBE: Farbe = ROT  # Entscheidung U (10.11.): Pause wegen „stumm“ oder Tobie unter „stumm“ erkannt
 
 
 def _byte(x: float) -> int:
@@ -145,6 +150,10 @@ def _pause() -> Ring:
     return _einfarbig(PAUSE, BERNSTEIN, PAUSE_HELLIGKEIT)
 
 
+def _stumm() -> Ring:
+    return _einfarbig(STUMM, STUMM_FARBE, STUMM_HELLIGKEIT)
+
+
 def _lernen(t: float) -> Ring:
     welle = 0.5 - 0.5 * math.cos(2 * math.pi * t / LERNEN_ATMEN_S)
     return _einfarbig(LERNEN, FARBE_LERNEN, LERNEN_HELL_MIN + (LERNEN_HELL_MAX - LERNEN_HELL_MIN) * welle)
@@ -160,6 +169,11 @@ def _gute_nacht(t: float, faktor: float) -> Ring:
 def _unbekannt(t: float, periode: float = BLINK_UNBEKANNT_S) -> Ring:
     an = (t % periode) < periode / 2
     return _einfarbig(UNBEKANNTE_KARTE, MAGENTA, DECKEL_PROZENT if an else 0)
+
+
+def _leser_unterbrochen(t: float) -> Ring:
+    an = (t % BLINK_LESER_S) < BLINK_LESER_S / 2
+    return _einfarbig(LESER_UNTERBROCHEN, ROT, DECKEL_PROZENT if an else 0)
 
 
 def _akku_farbe(prozent: int) -> Farbe:
@@ -191,9 +205,13 @@ class LedLogik:
     """Hält die Eingaben des Rings und liefert das Bild zu einer Zeit.
 
     Rangfolge (oben gewinnt): Aufwachen, Akku (Tiefstand oder Anzeige), unbekannte Karte
-    (Blinken beim Auflegen eines unbekannten Tobies, ``BLINK_UNBEKANNT_ANZEIGE_S`` lang; und die Sitzung „unbekannt“, also
-    die Leser-Unterbrechung), Lernmodus, Gute Nacht (nur während die Wiedergabe läuft), läuft, Pause, aus.
-    Unter „stumm“ (``ruhe``) bleibt der Zustand, die Helligkeit sinkt auf ``STUMM_DIMMUNG``.
+    (Blinken beim Auflegen eines unbekannten Tobies, ``BLINK_UNBEKANNT_ANZEIGE_S`` lang), Leser unterbrochen (Sitzung „unbekannt“,
+    rot langsam blinkend, Entscheidung V), Lernmodus, „stumm“ (dunkelrot, dann aus), Gute Nacht (nur während die Wiedergabe läuft), läuft, Pause (bernstein, nach ``PAUSE_ANZEIGE_S`` aus, Entscheidung V), aus.
+    Unter „stumm“ (``ruhe``, Entscheidung U, 10.11.): Beginnt „stumm“, während ein Tobie spielt (Ausblenden), oder wird unter „stumm“ ein
+    Tobie aufgelegt (Sitzung ``gehalten``), leuchtet der Ring ``STUMM_ANZEIGE_S`` lang ganz dunkelrot (``STUMM``) und bleibt dann aus,
+    solange „stumm“ gilt. Die 5 s beginnen mit der ``ZustandMelden``, die ``spielt`` oder ``gehalten`` unter „stumm“ zum ersten Mal zeigt
+    (der Übergang ``spielt`` zu ``gehalten`` startet nicht neu; Abheben und erneutes Auflegen schon). Akku-Anzeige, Tiefstand,
+    Unbekannt-Blinken, Aufwachen und Lernmodus gehen vor und bleiben unverändert. Es gibt keinen Dimm-Faktor mehr.
     """
 
     def __init__(self) -> None:
@@ -207,6 +225,8 @@ class LedLogik:
         self._aufwachen_ab: float | None = None
         self._akku_bis: float | None = None
         self._unbekannt_ab: float | None = None  # ein unbekannter Tobie wurde aufgelegt: Magenta blinkt ab diesem Zeitpunkt
+        self._pause_ab: float | None = None  # Entscheidung V: Beginn der Pause-Anzeige
+        self._stumm_ab: float | None = None  # Entscheidung U: Beginn der dunkelroten Anzeige unter „stumm“
         self.ausblenden_faktor: float | None = None  # Gute Nacht: 1 bis 0 während des Ausblendens, sonst ``None``
 
     @property
@@ -254,6 +274,8 @@ class LedLogik:
             # (nicht, wenn ein Tobie lag: mit Entscheidung O zählt auch die Pause mit liegendem Tobie als Leerlauf)
             if alt is not None and alt.strom == "leerlauf" and e.strom == "aktiv" and not alt.figur_liegt:
                 self.aufwachen(jetzt_mono)
+            self._stumm_pruefen(alt, e, jetzt_mono)
+            self._pause_pruefen(alt, e, jetzt_mono)
             self.zustand_melden = e
             if e.strom == "herunterfahren":
                 self._aufwachen_ab = None
@@ -278,6 +300,34 @@ class LedLogik:
             self.akku_zeigen(jetzt_mono, e.dauer_s)
         elif isinstance(e, ev.AkkuTiefstand):
             self.tiefstand = True
+
+    @staticmethod
+    def _pausiert(m: ev.ZustandMelden | None) -> bool:
+        return m is not None and m.sitzung in ("pausiert", "gehalten", "beendet")
+
+    def _pause_pruefen(self, alt: ev.ZustandMelden | None, neu: ev.ZustandMelden, jetzt_mono: float) -> None:
+        """Entscheidung V: Die 10 s der Pause beginnen, wenn die Sitzung in eine Pause wechselt (nicht bei jeder Wiederholung der Meldung)."""
+        if not self._pausiert(neu):
+            self._pause_ab = None
+        elif not self._pausiert(alt):
+            ab = jetzt_mono
+            if self._aufwachen_ab is not None:
+                ab = max(ab, self._aufwachen_ab + AUFWACHEN_S)
+            self._pause_ab = ab
+
+    @staticmethod
+    def _wegen_stumm(m: ev.ZustandMelden | None) -> bool:
+        """„Wegen stumm pausiert“ (Ausblenden oder ``gehalten``) oder „Tobie unter stumm erkannt“ (``gehalten``): beides zeigt die Sitzung so."""
+        return m is not None and m.ruhe == "stumm" and m.sitzung in ("spielt", "gehalten")
+
+    def _stumm_pruefen(self, alt: ev.ZustandMelden | None, neu: ev.ZustandMelden, jetzt_mono: float) -> None:
+        if not self._wegen_stumm(neu):
+            self._stumm_ab = None
+        elif not self._wegen_stumm(alt):
+            ab = jetzt_mono
+            if self._aufwachen_ab is not None:
+                ab = max(ab, self._aufwachen_ab + AUFWACHEN_S)  # erst das Lauflicht des Aufwachens
+            self._stumm_ab = ab
 
     def _start_pruefen(self, jetzt_mono: float) -> None:
         if self._bereit and self._start_anzeige:
@@ -306,14 +356,24 @@ class LedLogik:
                 return UNBEKANNTE_KARTE
             self._unbekannt_ab = None
         if z.sitzung == "unbekannt":
-            return UNBEKANNTE_KARTE
+            return LESER_UNTERBROCHEN
         if z.lernmodus:
             return LERNEN  # auch im Leerlauf: Lernen wartet auf einen Tobie, der Ring zeigt es
+        if z.ruhe == "stumm":
+            if (
+                self._stumm_ab is not None and self._wegen_stumm(z) and jetzt_mono - self._stumm_ab < STUMM_ANZEIGE_S
+                and (z.strom == "aktiv" or z.figur_liegt)
+            ):
+                return STUMM
+            if z.sitzung in ("pausiert", "gehalten", "beendet"):
+                return AUS  # Entscheidung U: danach bleibt der Ring unter „stumm“ dunkel
         if z.strom != "aktiv" and not (z.strom == "leerlauf" and z.figur_liegt):
             return AUS  # Leerlauf ohne Tobie; mit liegendem Tobie zeigt der Ring die Pause weiter (Entscheidung O)
         if z.sitzung == "spielt":
             return GUTE_NACHT if z.gute_nacht != "aus" else LAEUFT
         if z.sitzung in ("pausiert", "gehalten", "beendet"):
+            if self._pause_ab is not None and jetzt_mono - self._pause_ab >= PAUSE_ANZEIGE_S:
+                return AUS  # Entscheidung V: nach 10 s dunkel
             return PAUSE
         return AUS  # ``leer``
 
@@ -330,11 +390,12 @@ class LedLogik:
 
     def ring(self, jetzt_mono: float) -> Ring:
         r = ring_fuer(self.zustand(jetzt_mono), jetzt_mono, self)
-        z = self.zustand_melden
-        if r.zustand == AKKU and not self.tiefstand:
-            return Ring(r.zustand, r.leds, self.akku_helligkeit())  # eigene Helligkeiten, kein Faktor 0,4 unter „stumm“
-        if z is not None and z.ruhe == "stumm":
-            r = Ring(r.zustand, r.leds, r.helligkeit * STUMM_DIMMUNG)
+        if r.zustand == AKKU:
+            z = self.zustand_melden
+            if not self.tiefstand:
+                return Ring(r.zustand, r.leds, self.akku_helligkeit())  # eigene Helligkeiten
+            if z is not None and z.ruhe == "stumm":
+                return Ring(r.zustand, r.leds, AKKU_HELL_STUMM * (r.helligkeit > 0))  # Tiefstand-Blinken unter „stumm“: kleinste Stufe
         return r
 
     def ring_dict(self, jetzt_mono: float) -> dict[str, Any]:
@@ -355,6 +416,10 @@ def ring_fuer(zustand: str, t: float, logik: LedLogik | None = None) -> Ring:
         if logik is not None and logik._unbekannt_ab is not None:
             return _unbekannt(t - logik._unbekannt_ab, BLINK_UNBEKANNT_NEU_S)
         return _unbekannt(t)
+    if zustand == LESER_UNTERBROCHEN:
+        return _leser_unterbrochen(t)
+    if zustand == STUMM:
+        return _stumm()
     if zustand == LERNEN:
         return _lernen(t)
     if zustand == GUTE_NACHT:
