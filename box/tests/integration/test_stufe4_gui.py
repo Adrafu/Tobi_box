@@ -35,6 +35,11 @@ async def _ring_ist(srv, zustand: str) -> bool:
     return r is not None and r["zustand"] == zustand
 
 
+async def _ring_gruen(srv) -> bool:
+    r = await ring(srv)
+    return r is not None and r["zustand"] == "laeuft" and r["farben"][0] == [0, 255, 70] and r["helligkeit"] > 0
+
+
 async def test_der_ring_ist_in_der_anzeige_sichtbar_und_folgt_dem_zustand(gui):
     srv, welt_, fr = gui
     port = welt_["mpd"].port
@@ -44,6 +49,7 @@ async def test_der_ring_ist_in_der_anzeige_sichtbar_und_folgt_dem_zustand(gui):
     fr.place(UID)  # der Tobie liegt auf dem (Fake-)Leser; ein simulierter widerspräche dem Herzschlag des Lesers
     await warte(lambda: spielt_aus(port, "rabe", "folge-01.wav"), 10.0, "(Serie spielt)")
     await warte(lambda: _ring_ist(srv, "laeuft"), 10.0, "(Ring: läuft, nach dem Lauflicht)")  # Aufwachen dauert 2 s
+    await warte(lambda: _ring_gruen(srv), 5.0, "(Ring: ganz grün, die Überblendung vom Lauflicht ist vorbei)")  # UEBERGANG_S = 0,5 s (11.11.)
     r = await ring(srv)
     assert 0 < r["helligkeit"] <= 25 and r["farben"][0] == [0, 255, 70]  # Grün, nie heller als der Deckel
     await warte(lambda: "laeuft" in [z["ergebnis"] for z in log_zeilen(welt_, "ring")], 5.0, "(Protokoll: läuft)")

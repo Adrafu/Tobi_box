@@ -50,16 +50,24 @@ def andocken(box, quelle="pisugar"):
 # --- Bereit: Andocken und Abziehen ------------------------------------------------------------------------
 
 
-def test_bereit_andocken_ring_ladestand_5_s_ton_lader_und_sync(box):
+def spitze(box, dauer_s):
+    """Größte Helligkeit des Rings in ``dauer_s`` (im Takt des Kerns von 100 ms abgeholt)."""
+    h = 0.0
+    for _ in range(int(round(dauer_s / 0.1))):
+        h = max(h, box.ring().helligkeit)
+        box.laufe(0.1)
+    return h
+
+
+def test_bereit_andocken_ring_zwei_schnelle_pulse_ton_lader_und_sync(box):
     n = andocken(box)
     assert toene(box, n) == ["lader"]
     assert [s.grund for s in syncs(box, n)] == ["start_lader"]
-    r = box.ring()
-    assert r.zustand == led.AKKU and r.helligkeit == led.AKKU_HELL
-    box.laufe(4.8)
-    assert box.ring_zustand() == led.AKKU
-    box.laufe(0.4)
-    assert box.ring_zustand() != led.AKKU  # nach 5 s weg
+    # Ergänzung X (11.11.): zwei schnelle, weiche Pulse bis zur Akku-Helligkeit, keine 5-s-Anzeige mehr
+    assert box.ring().zustand == led.ANSTECKEN
+    assert spitze(box, led.ANSTECKEN_DAUER_S - 0.1) == pytest.approx(led.AKKU_HELL, abs=0.5)
+    box.laufe(0.3)
+    assert box.ring_zustand() not in (led.ANSTECKEN, led.AKKU)  # danach direkt der Ladestand bzw. aus
 
 
 def test_bereit_andocken_verwirft_die_frist_abziehen_beginnt_sie_ab_jetzt(box):
@@ -95,11 +103,9 @@ def test_spielt_andocken_nur_ring_3_s_kein_ton_sync_wird_geprueft(box):
     box.sende(ev.LaderGeaendert(True))
     assert toene(box, n) == []  # Entscheidung L: kein Ton neben dem Hörspiel
     assert [s.grund for s in syncs(box, n)] == ["start_lader"]
-    assert box.ring_zustand() == led.AKKU
-    box.laufe(2.8)
-    assert box.ring_zustand() == led.AKKU
-    box.laufe(0.4)
-    assert box.ring_zustand() == led.LAEUFT  # nach 3 s zurück
+    assert box.ring_zustand() == led.ANSTECKEN
+    box.laufe(led.ANSTECKEN_DAUER_S + 0.1)
+    assert box.ring_zustand() == led.LAEUFT  # danach zurück
 
 
 def test_spielt_abziehen_nur_ring_3_s(box):
@@ -122,7 +128,7 @@ def test_update_laeuft_nur_ring_kein_sync_kein_ton(box):
     box.sende(ev.UpdateGestartet("1.2.0"))
     n = andocken(box)
     assert toene(box, n) == [] and syncs(box, n) == []
-    assert box.ring_zustand() == led.AKKU
+    assert box.ring_zustand() == led.ANSTECKEN
 
 
 # --- Sperre / Wackelkontakt ----------------------------------------------------------------------------
@@ -218,8 +224,8 @@ def test_leise_zeiten_kein_ton_ring_mit_eigener_helligkeit(box, wirkung, grenze,
     assert stufe4.zeile(box).ruhe == wirkung
     n = andocken(box)
     assert "lader" not in toene(box, n) and [s.grund for s in syncs(box, n)] == ["start_lader"]
-    r = box.ring()
-    assert r.zustand == led.AKKU and r.helligkeit == helligkeit  # Faktor 0,4 gilt für die Akku-Anzeige nicht
+    assert box.ring().zustand == led.ANSTECKEN
+    assert spitze(box, led.ANSTECKEN_DAUER_S - 0.1) == pytest.approx(helligkeit, abs=0.3)  # Spitze der Pulse = Akku-Helligkeit der Leise-Zeit
 
 
 def test_unsichere_uhr_kein_lader_ton(box):

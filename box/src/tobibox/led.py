@@ -44,7 +44,8 @@ STUMM = "stumm"  # Entscheidung U (10.11.): Pause wegen „stumm“ oder Tobie u
 GUTE_NACHT = "gute_nacht"
 LESER_UNTERBROCHEN = "leser_unterbrochen"  # Entscheidung V (10.11.): Sitzung „unbekannt“, gelb langsam blinkend (Entscheidung V, 11.11.: gelb statt rot)
 LADEN = "laden"  # Entscheidung X (11.11.): am Strom und Akku nicht voll zeigt der Ring dauernd den Füllstand, wenn sonst nichts angezeigt wird
-ZUSTAENDE = (AUS, LAEUFT, PAUSE, AKKU, UNBEKANNTE_KARTE, AUFWACHEN, LERNEN, GUTE_NACHT, STUMM, LESER_UNTERBROCHEN, LADEN)
+ANSTECKEN = "anstecken"  # Ergänzung X (11.11.): beim Anstecken zweimal schnell pulsieren, weich übergehend in das langsame Pulsieren des Ladestands
+ZUSTAENDE = (AUS, LAEUFT, PAUSE, AKKU, UNBEKANNTE_KARTE, AUFWACHEN, LERNEN, GUTE_NACHT, STUMM, LESER_UNTERBROCHEN, LADEN, ANSTECKEN)
 
 # Zeiten in Sekunden
 AUFWACHEN_S = 2.0  # Lauflicht beim Aufwachen
@@ -80,6 +81,16 @@ LADEN_HELL = 5  # Prozent, tags
 LADEN_HELL_RUHE = 3  # Prozent, in „leiser“ und „stumm“: kleinste Stufe (Stufe 1 von 31)
 LADEN_VOLL_PROZENT = 100  # ab diesem Stand gilt der Akku als voll: der Ring geht aus (der PiSugar meldet nur Prozent und „Netzteil steckt“, keinen Lade-Status)
 LADEN_HYSTERESE = 3  # erst unter 97 % (100 minus 3) zeigt der Ring wieder, sonst flackert er bei 99/100 %
+# Ergänzung X (11.11.): der Ladestand pulsiert ganz leicht; Ein- und Ausblenden bei „voll“ / „Laden beginnt wieder“; Anstecken = zwei schnelle Pulse
+LADEN_PULS_S = 4.0  # Periode des leichten Pulsierens (Kurvenform wie das Atmen bei „läuft“)
+LADEN_PULS_MIN = 0.6  # Anteil von ``LADEN_HELL`` am tiefsten Punkt (oberer Punkt: 1,0); in „leiser“/„stumm“ ruhig, kein Pulsieren
+LADEN_AUSBLENDEN_S = 2.0  # Ring blendet beim Erreichen von „voll“ in dieser Zeit aus (am Ende darf er 0 werden)
+LADEN_EINBLENDEN_S = 2.0  # Ring blendet ein, wenn das Laden wieder beginnt (unter voll minus Hysterese)
+UEBERGANG_S = 0.5  # Ergänzung X (11.11.): jeder Wechsel des angezeigten Zustands wird in dieser Zeit überblendet (auch an → aus, aus → an)
+UEBERGANG_LUECKE_S = 1.0  # wurde das Bild länger nicht abgeholt (Zeitsprung, kein Zeichnen), gibt es nichts, wovon überblendet werden könnte
+ANSTECKEN_PULSE = 2  # so viele schnelle, weiche Pulse beim Anstecken
+ANSTECKEN_PULS_S = 0.6  # Periode eines schnellen Pulses
+ANSTECKEN_DAUER_S = ANSTECKEN_PULSE * ANSTECKEN_PULS_S  # danach direkt der Ladestand (kein harter Wechsel: die Pulse enden auf dessen Helligkeit)
 
 Farbe = tuple[int, int, int]
 SCHWARZ: Farbe = (0, 0, 0)
@@ -198,10 +209,36 @@ def _akku(prozent: int | None, am_lader: bool, tiefstand: bool, t: float, hellig
     return Ring(AKKU, (farbe,) * n + (SCHWARZ,) * (ANZAHL - n), helligkeit)
 
 
-def _laden(prozent: int | None, ruhe: bool) -> Ring:
+def _laden_helligkeit(ruhe: bool, t: float, faktor: float) -> float:
+    """Ladestand: ganz leichtes Pulsieren (60 bis 100 % von ``LADEN_HELL``), in Leise-Zeiten ruhig; mal Ein-/Ausblend-``faktor``."""
+    if ruhe:
+        basis = float(LADEN_HELL_RUHE)
+    else:
+        welle = 0.5 - 0.5 * math.cos(2 * math.pi * t / LADEN_PULS_S)
+        basis = LADEN_HELL * (LADEN_PULS_MIN + (1.0 - LADEN_PULS_MIN) * welle)
+    return basis * max(0.0, min(1.0, faktor))
+
+
+def _laden_leds(prozent: int | None) -> tuple[Farbe, ...]:
     p = max(0, min(100, prozent if prozent is not None else 50))
     n = max(1, int(round(p / 100 * ANZAHL)))
-    return Ring(LADEN, (BLAU,) * n + (SCHWARZ,) * (ANZAHL - n), LADEN_HELL_RUHE if ruhe else LADEN_HELL)
+    return (BLAU,) * n + (SCHWARZ,) * (ANZAHL - n)
+
+
+def _laden(prozent: int | None, ruhe: bool, t: float = 0.0, faktor: float = 1.0) -> Ring:
+    return Ring(LADEN, _laden_leds(prozent), _laden_helligkeit(ruhe, t, faktor))
+
+
+def _anstecken(prozent: int | None, ruhe: bool, t_seit: float, t: float, faktor: float, spitze: float) -> Ring:
+    """Zwei schnelle, weiche Pulse (``ANSTECKEN_PULS_S``) auf dem Ladestand; sie beginnen und enden auf der Helligkeit des Ladestands
+    (``basis``), damit der Übergang ins langsame Pulsieren weich ist. ``spitze`` = Akku-Helligkeit der Tageszeit (mindestens ``basis``)."""
+    basis = _laden_helligkeit(ruhe, t, faktor)
+    x = min(max(t_seit, 0.0), ANSTECKEN_DAUER_S) / ANSTECKEN_PULS_S
+    puls = math.sin(math.pi * (x % 1.0)) ** 2 if x < ANSTECKEN_PULSE else 0.0
+    if puls < 1e-9:
+        puls = 0.0  # Gleitkomma-Rest am Ende des Pulses: dort genau die Helligkeit des Ladestands (bei „voll“ genau 0)
+    hell = basis + (max(spitze, basis) - basis) * puls
+    return Ring(ANSTECKEN, _laden_leds(prozent), hell)
 
 
 def _aufwachen(t_seit: float) -> Ring:
@@ -215,8 +252,26 @@ def _aufwachen(t_seit: float) -> Ring:
     return Ring(AUFWACHEN, tuple(leds), DECKEL_PROZENT)
 
 
+def _ueberblenden(von: Ring, nach: Ring, w: float) -> Ring:
+    """Je LED linear von ``von`` nach ``nach`` (w = 0 bis 1), gerechnet auf den sichtbaren Farben (Farbe mal Helligkeit).
+    Die gemeinsame Helligkeit ist die lineare Mischung beider; die Farben werden darauf zurückgerechnet (bleiben so höchstens 255)."""
+    hell = von.helligkeit * (1.0 - w) + nach.helligkeit * w
+    if hell <= 0.0:
+        return Ring(nach.zustand, (SCHWARZ,) * ANZAHL, 0.0)
+    fv, fn = von.helligkeit / 100.0, nach.helligkeit / 100.0
+    leds = []
+    for (r1, g1, b1), (r2, g2, b2) in zip(von.leds, nach.leds):
+        leds.append(tuple(_byte((a * fv * (1.0 - w) + b * fn * w) * 100.0 / hell) for a, b in ((r1, r2), (g1, g2), (b1, b2))))
+    return Ring(nach.zustand, tuple(leds), hell)  # type: ignore[arg-type]
+
+
 class LedLogik:
     """Hält die Eingaben des Rings und liefert das Bild zu einer Zeit.
+
+    Ergänzung X (11.11.): Der Ladestand pulsiert ganz leicht (``LADEN_PULS_S``, 60 bis 100 % von ``LADEN_HELL``; in Leise-Zeiten ruhig), blendet bei
+    „voll“ in ``LADEN_AUSBLENDEN_S`` aus und beim Wiederbeginn des Ladens in ``LADEN_EINBLENDEN_S`` ein. Beim Anstecken (``AkkuAnzeigen("andocken")``)
+    pulsiert der Ladestand zweimal schnell und weich (``ANSTECKEN``, bis zur Akku-Helligkeit der Tageszeit) und geht ohne Sprung in das langsame
+    Pulsieren über; die 5-s-Anzeige beim Andocken entfällt (Abziehen und Start wie bisher).
 
     Entscheidung X (11.11.): Wo der Ring sonst „aus“ wäre, zeigt er am Strom bei nicht vollem Akku dauernd den Füllstand (``LADEN``, blau,
     ``LADEN_HELL`` oder in „leiser“/„stumm“ ``LADEN_HELL_RUHE``); alles Folgende hat Vorrang. Beim Herunterfahren bleibt er aus.
@@ -237,6 +292,15 @@ class LedLogik:
         self.quellen = StromQuellen()  # Strom am Eingang aus zwei Quellen (nur für die Farbe der Anzeige: blau mit Strom)
         self.tiefstand = False
         self._voll = False  # Entscheidung X: Akku gilt als voll (mit Hysterese), dann zeigt der Ring „laden“ nicht
+        self._laden_von = 1.0  # Ergänzung X: Ein-/Ausblenden des Ladestands: Faktor von ... nach ``_laden_ziel`` ab ``_laden_ab``
+        self._laden_ziel = 1.0
+        self._laden_ab = 0.0
+        self._gezeigt: Ring | None = None  # zuletzt gelieferte Bild und seine Zeit: Ausgangspunkt der Überblendung
+        self._gezeigt_t = 0.0
+        self._ub_name: str | None = None  # Zustandsname des zuletzt gelieferten Rohbilds
+        self._ub_von: Ring | None = None
+        self._ub_ab = 0.0
+        self._anstecken_ab: float | None = None  # Ergänzung X: Beginn der zwei schnellen Pulse beim Anstecken
         self._bereit = False
         self._start_anzeige = False  # erste bekannte Messung war „Strom“: Ladestand nach ``Bereit`` zeigen (CUJ 25, Start-Anzeige)
         self._akku_ab: float | None = None
@@ -302,12 +366,13 @@ class LedLogik:
             self.aufwachen(jetzt_mono)  # Start der Box fertig
             self._start_pruefen(jetzt_mono)
         elif isinstance(e, ev.AkkuStand):
+            bekannt = self.akku_prozent is not None
             self.akku_prozent = max(0, min(100, e.prozent))
-            self._voll_pruefen(neu_ansetzen=False)
+            self._voll_pruefen(False, jetzt_mono, weich=bekannt)
         elif isinstance(e, ev.LaderGeaendert):
             erste = self.quellen.wert is None
             self.quellen = self.quellen.mit(e)
-            self._voll_pruefen(neu_ansetzen=True)  # nach jedem Wechsel neu ansetzen: bei 98 % neu angedockt ist der Akku nicht voll
+            self._voll_pruefen(True, jetzt_mono, weich=False)  # nach jedem Wechsel neu ansetzen: bei 98 % neu angedockt ist der Akku nicht voll
             if self.quellen.wert is True:
                 self.tiefstand = False
             if erste and self.quellen.wert is True:
@@ -315,22 +380,52 @@ class LedLogik:
                 self._start_pruefen(jetzt_mono)
         elif isinstance(e, (ev.LeserHallo, ev.LeserAlarm)):
             self.quellen = StromQuellen(self.quellen.pisugar, None)  # der Leser-Wert gilt nur für die aktuelle Verbindung (V2)
-            self._voll_pruefen(neu_ansetzen=True)
+            self._voll_pruefen(True, jetzt_mono, weich=False)
         elif isinstance(e, ev.AkkuAnzeigen):
             # Freigabe durch ``idle`` (Andocken, Abziehen): erste Messung und Sperre hat ``idle`` schon geprüft (V6)
-            self.akku_zeigen(jetzt_mono, e.dauer_s)
+            if e.grund == "andocken":
+                self.anstecken(jetzt_mono)  # Ergänzung X (11.11.): zwei schnelle Pulse statt der 5-s-Anzeige
+            else:
+                self.akku_zeigen(jetzt_mono, e.dauer_s)
         elif isinstance(e, ev.AkkuTiefstand):
             self.tiefstand = True
 
-    def _voll_pruefen(self, neu_ansetzen: bool) -> None:
-        """Entscheidung X: voll ab ``LADEN_VOLL_PROZENT``; wieder „nicht voll“ erst unter ``LADEN_VOLL_PROZENT - LADEN_HYSTERESE``."""
+    def anstecken(self, jetzt_mono: float) -> None:
+        """Strom angesteckt (mit Rückmeldung): ``ANSTECKEN_PULSE`` schnelle, weiche Pulse, danach direkt der Ladestand.
+        Läuft gerade das Lauflicht des Aufwachens, beginnen sie danach."""
+        ab = jetzt_mono
+        if self._aufwachen_ab is not None:
+            ab = max(ab, self._aufwachen_ab + AUFWACHEN_S)
+        self._anstecken_ab = ab
+
+    def _voll_pruefen(self, neu_ansetzen: bool, jetzt_mono: float, weich: bool) -> None:
+        """Entscheidung X: voll ab ``LADEN_VOLL_PROZENT``; wieder „nicht voll“ erst unter ``LADEN_VOLL_PROZENT - LADEN_HYSTERESE``.
+
+        Ergänzung X: Ein Wechsel nach „voll“ blendet den Ring in ``LADEN_AUSBLENDEN_S`` aus, einer zurück in ``LADEN_EINBLENDEN_S`` ein
+        (``weich``). Nach Anstecken, Abziehen und Leser-Wechsel (``weich=False``) und beim ersten Stand gilt der Zustand sofort."""
         p = self.akku_prozent
+        voll = self._voll
         if p is None:
-            self._voll = False
+            voll = False
         elif p >= LADEN_VOLL_PROZENT:
-            self._voll = True
+            voll = True
         elif neu_ansetzen or p < LADEN_VOLL_PROZENT - LADEN_HYSTERESE:
-            self._voll = False
+            voll = False
+        ziel = 0.0 if voll else 1.0
+        if not weich:
+            self._laden_von = self._laden_ziel = ziel
+            self._laden_ab = jetzt_mono
+        elif ziel != self._laden_ziel:
+            self._laden_von = self._laden_faktor(jetzt_mono)
+            self._laden_ziel = ziel
+            self._laden_ab = jetzt_mono
+        self._voll = voll
+
+    def _laden_faktor(self, jetzt_mono: float) -> float:
+        """Stand des Ein-/Ausblendens des Ladestands: 1 = voll sichtbar, 0 = aus."""
+        dauer = LADEN_AUSBLENDEN_S if self._laden_ziel < self._laden_von else LADEN_EINBLENDEN_S
+        x = max(0.0, min(1.0, (jetzt_mono - self._laden_ab) / dauer))
+        return self._laden_von + (self._laden_ziel - self._laden_von) * x
 
     @staticmethod
     def _pausiert(m: ev.ZustandMelden | None) -> bool:
@@ -370,15 +465,17 @@ class LedLogik:
     def zustand(self, jetzt_mono: float) -> str:
         """Der Zustand des Rings. Wo er „aus“ wäre, zeigt er am Strom bei nicht vollem Akku den Füllstand (``LADEN``, Entscheidung X)."""
         z = self._zustand_ohne_laden(jetzt_mono)
-        if z == AUS and self._laden_zeigen():
+        if z == AUS and self._laden_zeigen(jetzt_mono):
             return LADEN
         return z
 
-    def _laden_zeigen(self) -> bool:
+    def _laden_zeigen(self, jetzt_mono: float) -> bool:
+        """Am Strom und nicht voll; bei „voll“ nur noch, solange der Ring ausblendet."""
         m = self.zustand_melden
         return (
             m is not None and m.strom != "herunterfahren"
-            and self.am_lader and self.akku_prozent is not None and not self._voll
+            and self.am_lader and self.akku_prozent is not None
+            and (not self._voll or self._laden_faktor(jetzt_mono) > 0.0)
         )
 
     def _zustand_ohne_laden(self, jetzt_mono: float) -> str:
@@ -393,6 +490,11 @@ class LedLogik:
                 return AKKU
             if jetzt_mono >= self._akku_bis:
                 self._akku_bis = None
+        if self._anstecken_ab is not None:
+            if 0.0 <= jetzt_mono - self._anstecken_ab < ANSTECKEN_DAUER_S:
+                return ANSTECKEN
+            if jetzt_mono >= self._anstecken_ab + ANSTECKEN_DAUER_S:
+                self._anstecken_ab = None
         z = self.zustand_melden
         if z is None or z.strom == "herunterfahren":
             return AUS
@@ -443,11 +545,34 @@ class LedLogik:
         return AKKU_HELL
 
     def laden_helligkeit(self) -> float:
-        """Helligkeit des dauernden Füllstands: 5 %, in „leiser“ und „stumm“ 3 % (Entscheidung X, 11.11.)."""
+        """Grundhelligkeit des dauernden Füllstands: 5 % (pulsierend), in „leiser“ und „stumm“ 3 % ruhig (Entscheidung X, 11.11.)."""
         z = self.zustand_melden
         return LADEN_HELL_RUHE if z is not None and z.ruhe in ("leiser", "stumm") else LADEN_HELL
 
     def ring(self, jetzt_mono: float) -> Ring:
+        """Das Bild jetzt. Wechselt der Zustand, wird in ``UEBERGANG_S`` vom zuletzt gelieferten Bild überblendet (Ergänzung X, 11.11.).
+
+        Das neue Muster läuft dabei weiter; ``zustand`` des Bildes ist schon der neue. Wer das Bild abholt, tut das im Takt (``LED_TAKT_S``);
+        liegt der letzte Abruf länger als ``UEBERGANG_LUECKE_S`` zurück, beginnt der neue Zustand ohne Überblendung."""
+        r = self._rohbild(jetzt_mono)
+        if r.zustand != self._ub_name:
+            if self._gezeigt is not None and 0.0 <= jetzt_mono - self._gezeigt_t <= UEBERGANG_LUECKE_S:
+                self._ub_von, self._ub_ab = self._gezeigt, jetzt_mono
+            else:
+                self._ub_von = None
+            self._ub_name = r.zustand
+        out = r
+        if self._ub_von is not None:
+            x = (jetzt_mono - self._ub_ab) / UEBERGANG_S
+            if x >= 1.0:
+                self._ub_von = None
+            elif x >= 0.0:
+                out = _ueberblenden(self._ub_von, r, 0.5 - 0.5 * math.cos(math.pi * x))
+        self._gezeigt = out
+        self._gezeigt_t = max(self._gezeigt_t, jetzt_mono)
+        return out
+
+    def _rohbild(self, jetzt_mono: float) -> Ring:
         r = ring_fuer(self.zustand(jetzt_mono), jetzt_mono, self)
         if r.zustand == AKKU:
             z = self.zustand_melden
@@ -491,7 +616,14 @@ def ring_fuer(zustand: str, t: float, logik: LedLogik | None = None) -> Ring:
     if zustand == LADEN:
         if logik is None:
             return _laden(50, False)
-        return _laden(logik.akku_prozent, logik.laden_helligkeit() == LADEN_HELL_RUHE)
+        return _laden(logik.akku_prozent, logik.laden_helligkeit() == LADEN_HELL_RUHE, t, logik._laden_faktor(t))
+    if zustand == ANSTECKEN:
+        if logik is None:
+            return _anstecken(50, False, t, t, 1.0, AKKU_HELL)
+        ab = logik._anstecken_ab if logik._anstecken_ab is not None else t
+        return _anstecken(
+            logik.akku_prozent, logik.laden_helligkeit() == LADEN_HELL_RUHE, t - ab, t, logik._laden_faktor(t), logik.akku_helligkeit()
+        )
     if zustand == AUFWACHEN:
         ab = logik._aufwachen_ab if logik is not None and logik._aufwachen_ab is not None else 0.0
         return _aufwachen(t - ab)

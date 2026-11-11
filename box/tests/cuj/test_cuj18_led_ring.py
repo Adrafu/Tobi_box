@@ -168,7 +168,10 @@ def test_unbekannter_tobie_blinkt_eine_sekunde_magenta_danach_normaler_zustand(b
     assert box.ring().leds[0] == led.MAGENTA
     box.laufe(led.BLINK_UNBEKANNT_ANZEIGE_S - 0.9 + 0.2)
     assert box.ring_zustand() == led.LAEUFT  # danach der normale Zustand: grünes Atmen
-    assert box.ring().leds[0] == led.GRUEN
+    for _ in range(int(led.UEBERGANG_S / 0.1) + 2):  # der Austritt aus dem Blinken ist weich (Ergänzung X, 11.11.)
+        box.laufe(0.1)
+        r = box.ring()
+    assert r.leds[0] == led.GRUEN
 
 
 def test_bekannter_tobie_blinkt_nicht_magenta(box):

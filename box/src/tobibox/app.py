@@ -825,6 +825,8 @@ class App:
                 "ruhe": zeile.ruhe if zeile is not None else "normal",
                 "gute_nacht": zeile.gute_nacht if zeile is not None else "aus",
                 "strom": zeile.strom if zeile is not None else "aktiv",
+                # Strom am Eingang je Quelle (die Seite schreibt jeden Haken aus seiner Quelle; ``status.lader`` ist der zusammengeführte Wert)
+                "strom_quellen": {"pisugar": self.status.strom_quellen.pisugar, "leser": self.status.strom_quellen.leser},
                 "figur": figur,
                 "sync_fortschritt": self.status.sync_fortschritt,
                 "ring": self.ring_anzeige(),

@@ -29,6 +29,15 @@ def neu_pausiert(lg, t):
     lg.beobachte(melden("pausiert"), t)
 
 
+def lauf(lg, von, bis, schritt=0.05):
+    """Holt das Bild im Takt der Box ab (``LED_TAKT_S``), wie ``app`` es tut; liefert das letzte (Überblendungen brauchen den Takt)."""
+    r = None
+    n = int(round((bis - von) / schritt))
+    for k in range(n + 1):
+        r = lg.ring(von + k * schritt)
+    return r
+
+
 def an_leds(r):
     return [c for c in r.leds if c != (0, 0, 0)]
 
@@ -139,16 +148,17 @@ def test_warnung_zeigt_5_s_den_akku_rot_bei_20_prozent_oder_weniger():
     assert lg.zustand(20.0 + 5.0 + 0.1) == led.PAUSE
 
 
-def test_andocken_zeigt_akku_blau_und_abziehen_nach_prozent():
+def test_andocken_pulsiert_zweimal_schnell_und_abziehen_zeigt_nach_prozent():
+    """Ergänzung X (11.11.): Andocken = zweimal schnell pulsieren (keine 5-s-Anzeige mehr), Abziehen bleibt die Anzeige nach Prozent."""
     lg = logik_mit("pausiert")
     lg.beobachte(ev.AkkuStand(80), 0.0)
     lg.beobachte(ev.LaderGeaendert(False), 0.0)
     lg.beobachte(ev.LaderGeaendert(True), 20.0)
     lg.beobachte(ev.AkkuAnzeigen("andocken", 5.0), 20.0)
     neu_pausiert(lg, 19.0)
-    r = lg.ring(21.0)
-    assert r.zustand == led.AKKU and r.leds[0] == led.BLAU
-    assert lg.zustand(20.0 + 5.0 + 0.1) == led.PAUSE  # 5 s
+    r = lg.ring(20.0 + led.ANSTECKEN_PULS_S / 2)
+    assert r.zustand == led.ANSTECKEN and r.leds[0] == led.BLAU and r.helligkeit == pytest.approx(led.AKKU_HELL)
+    assert lg.zustand(20.0 + led.ANSTECKEN_DAUER_S + 0.05) == led.PAUSE  # keine 5 s Anzeige mehr
     lg.beobachte(ev.LaderGeaendert(False), 30.0)
     lg.beobachte(ev.AkkuAnzeigen("abziehen", 3.0), 30.0)
     neu_pausiert(lg, 29.0)
@@ -407,7 +417,8 @@ def test_pause_wegen_stumm_ganz_dunkelrot_dann_nach_5_s_aus():
     assert r.zustand == led.STUMM and all(c == led.STUMM_FARBE for c in r.leds)
     assert r.helligkeit == led.STUMM_HELLIGKEIT and r.apa102_rahmen()[4] & 0x1F == 1  # kleinste sichtbare Stufe
     assert lg.ring(100.0 + led.STUMM_ANZEIGE_S - 0.01).zustand == led.STUMM
-    for t in (100.0 + led.STUMM_ANZEIGE_S, 130.0, 5000.0):
+    lauf(lg, 100.0 + led.STUMM_ANZEIGE_S - 0.01, 100.0 + led.STUMM_ANZEIGE_S + led.UEBERGANG_S)  # die Überblendung nach „aus“ läuft ab
+    for t in (100.0 + led.STUMM_ANZEIGE_S + led.UEBERGANG_S + 0.05, 130.0, 5000.0):
         aus = lg.ring(t)
         assert aus.zustand == led.AUS and aus.helligkeit == 0 and an_leds(aus) == []
 
@@ -595,23 +606,41 @@ def am_strom(sitzung="leer", prozent=60, strom="aktiv", **kw):
 def test_laden_konstanten_sind_benannt():
     assert led.LADEN_HELL == 5 and led.LADEN_HELL_RUHE == 3
     assert led.LADEN_VOLL_PROZENT == 100 and led.LADEN_HYSTERESE == 3
+    assert led.LADEN_AUSBLENDEN_S == 2.0 and led.LADEN_EINBLENDEN_S == 2.0
+    assert led.LADEN_PULS_S == 4.0 and led.LADEN_PULS_MIN == 0.6
+    assert (led.ANSTECKEN_PULSE, led.ANSTECKEN_PULS_S) == (2, 0.6)
+    assert led.ANSTECKEN_DAUER_S == pytest.approx(1.2)
 
 
-def test_laden_statt_aus_blau_so_viele_leds_wie_prozent_und_5_prozent_hell():
+def test_laden_statt_aus_blau_so_viele_leds_wie_prozent_und_pulsiert_60_bis_100_prozent_von_laden_hell():
     lg = am_strom("leer", 50)
     r = lg.ring(1.0)
-    assert r.zustand == led.LADEN and r.helligkeit == led.LADEN_HELL
+    assert r.zustand == led.LADEN
     assert len(an_leds(r)) == ANZAHL // 2 and all(c == led.BLAU for c in an_leds(r))
     assert r.leds[0] == led.BLAU and r.leds[-1] == led.SCHWARZ
+    assert lg.ring(0.0).helligkeit == pytest.approx(led.LADEN_HELL * led.LADEN_PULS_MIN)  # Tal
+    assert lg.ring(led.LADEN_PULS_S / 2).helligkeit == pytest.approx(led.LADEN_HELL)  # Gipfel
+    assert lg.ring(led.LADEN_PULS_S).helligkeit == pytest.approx(led.LADEN_HELL * led.LADEN_PULS_MIN)  # Periode 4 s
+    for t in range(0, 80):
+        h = lg.ring(t / 10.0).helligkeit
+        assert led.LADEN_HELL * led.LADEN_PULS_MIN - 1e-9 <= h <= led.LADEN_HELL + 1e-9
     lg.beobachte(ev.AkkuStand(25), 2.0)
     assert len(an_leds(lg.ring(3.0))) == ANZAHL // 4  # folgt dem Stand ohne neue Anzeige
 
 
 @pytest.mark.parametrize("ruhe", ["leiser", "stumm"])
-def test_laden_in_leise_zeiten_kleinste_stufe(ruhe):
-    r = am_strom("leer", 50, ruhe=ruhe).ring(1.0)
-    assert r.zustand == led.LADEN and r.helligkeit == led.LADEN_HELL_RUHE == 3
-    assert r.apa102_rahmen()[4] & 0x1F == 1  # Stufe 1 von 31
+def test_laden_in_leise_zeiten_ruhig_auf_kleinster_stufe(ruhe):
+    lg = am_strom("leer", 50, ruhe=ruhe)
+    for t in (0.0, 1.0, 2.0, 3.3):
+        r = lg.ring(t)
+        assert r.zustand == led.LADEN and r.helligkeit == led.LADEN_HELL_RUHE == 3  # kein Pulsieren
+        assert r.apa102_rahmen()[4] & 0x1F == 1  # Stufe 1 von 31
+
+
+def test_laden_pulsieren_faellt_nie_unter_stufe_1():
+    lg = am_strom("leer", 50)
+    for t in range(0, 80):
+        assert lg.ring(t / 10.0).apa102_rahmen()[4] & 0x1F >= 1
 
 
 def test_laden_nicht_ohne_strom_und_nicht_ohne_akkustand():
@@ -651,24 +680,65 @@ def test_laden_hat_nie_vorrang_vor_den_anzeigen():
     lg = am_strom("leer", 50)
     lg.akku_zeigen(1.0)
     assert lg.ring(2.0).zustand == led.AKKU and lg.ring(2.0).helligkeit == led.AKKU_HELL  # 5-s-Anzeige bleibt 15 %
+    lg.beobachte(ev.AkkuAnzeigen("andocken", 5.0), 6.0)
+    assert lg.zustand(6.1) == led.ANSTECKEN  # Anstecken-Pulsieren geht vor
     lg.unbekannter_tobie(10.0)
     assert lg.zustand(10.1) == led.UNBEKANNTE_KARTE
     lg.aufwachen(20.0)
     assert lg.zustand(20.1) == led.AUFWACHEN
 
 
-def test_laden_voll_ring_aus_mit_hysterese():
+def test_laden_voll_ring_blendet_in_2_s_aus_mit_hysterese():
     lg = am_strom("leer", 99)
     assert lg.zustand(1.0) == led.LADEN
+    voll = lg.ring(2.0 - 1e-9).helligkeit  # unmittelbar vor „voll“ (Tal der Pulsierens bei t = 4 s: hier t = 2 s, Gipfel)
     lg.beobachte(ev.AkkuStand(100), 2.0)
-    assert lg.zustand(3.0) == led.AUS  # voll: Ring aus
+    mitte = lg.ring(3.0)
+    assert mitte.zustand == led.LADEN and 0 < mitte.helligkeit < voll  # blendet aus, nicht sofort
+    assert len(an_leds(mitte)) == ANZAHL  # der Ring bleibt gefüllt
+    ende = lauf(lg, 3.0, 2.0 + led.LADEN_AUSBLENDEN_S + led.UEBERGANG_S + 0.05)  # 2 s Ausblenden, dann der Wechsel nach „aus“ in 0,5 s
+    assert ende.helligkeit == 0
+    assert lg.zustand(2.0 + led.LADEN_AUSBLENDEN_S + 0.1) == led.AUS  # voll: Ring aus
     for p in (99, 98, 97):
-        lg.beobachte(ev.AkkuStand(p), 4.0)
-        assert lg.zustand(5.0) == led.AUS, p  # kein Flackern knapp unter 100
-    lg.beobachte(ev.AkkuStand(led.LADEN_VOLL_PROZENT - led.LADEN_HYSTERESE - 1), 6.0)
-    assert lg.zustand(7.0) == led.LADEN
-    lg.beobachte(ev.AkkuStand(99), 8.0)
-    assert lg.zustand(9.0) == led.LADEN  # erst bei 100 wieder voll
+        lg.beobachte(ev.AkkuStand(p), 6.0)
+        assert lg.zustand(7.0) == led.AUS, p  # kein Flackern knapp unter 100
+    lg.beobachte(ev.AkkuStand(led.LADEN_VOLL_PROZENT - led.LADEN_HYSTERESE - 1), 10.0)
+    assert lg.zustand(10.0) == led.LADEN  # beginnt wieder: Einblenden
+
+
+def test_laden_beginnt_wieder_blendet_in_2_s_ein_dann_pulsierend():
+    lg = am_strom("leer", 100)
+    lg.beobachte(ev.AkkuStand(90), 10.0)
+    anfang, mitte = lg.ring(10.0), lg.ring(11.0)
+    assert anfang.zustand == led.LADEN and anfang.helligkeit == 0
+    assert 0 < mitte.helligkeit < led.LADEN_HELL  # blendet ein
+    ziel = lg.ring(10.0 + led.LADEN_EINBLENDEN_S + 1.0)
+    assert led.LADEN_HELL * led.LADEN_PULS_MIN - 1e-9 <= ziel.helligkeit <= led.LADEN_HELL + 1e-9
+    # ohne „voll“ dazwischen: 99 nach 100 zeigt weiter nichts, erst bei 96
+    lg.beobachte(ev.AkkuStand(100), 20.0)
+    lg.beobachte(ev.AkkuStand(99), 30.0)
+    assert lg.zustand(31.0) == led.AUS
+
+
+def test_laden_ausblenden_in_leise_zeiten_geht_auch_auf_null_und_einblenden_ruhig():
+    lg = am_strom("leer", 99, ruhe="leiser")
+    lg.beobachte(ev.AkkuStand(100), 2.0)
+    assert 0 < lg.ring(3.0).helligkeit < led.LADEN_HELL_RUHE
+    assert lauf(lg, 3.0, 4.0 + led.UEBERGANG_S + 0.05).helligkeit == 0
+    lg.beobachte(ev.AkkuStand(90), 10.0)
+    assert lg.ring(14.0).helligkeit == led.LADEN_HELL_RUHE  # danach ruhig auf Stufe 1
+
+
+def test_laden_ausblenden_nie_stufe_0_solange_sichtbar():
+    lg = am_strom("leer", 99)
+    lg.beobachte(ev.AkkuStand(100), 2.0)
+    for k in range(1, 20):
+        r = lg.ring(2.0 + k * 0.1)
+        assert r.helligkeit > 0 and r.apa102_rahmen()[4] & 0x1F >= 1
+
+
+def test_laden_voll_beim_ersten_stand_ohne_ausblenden():
+    assert am_strom("leer", 100).zustand(0.1) == led.AUS
 
 
 def test_laden_andocken_bei_vollem_akku_bleibt_aus_und_abziehen_vergisst_voll():
@@ -677,9 +747,170 @@ def test_laden_andocken_bei_vollem_akku_bleibt_aus_und_abziehen_vergisst_voll():
     lg.beobachte(ev.LaderGeaendert(False), 2.0)
     lg.beobachte(ev.AkkuStand(98), 3.0)
     lg.beobachte(ev.LaderGeaendert(True), 4.0)
-    assert lg.zustand(5.0) == led.LADEN  # neu angedockt bei 98 %: nicht voll
+    assert lg.ring(4.0).helligkeit > 0  # neu angedockt bei 98 %: nicht voll, sofort da (kein Einblenden nach dem Anstecken)
+    assert lg.zustand(5.0) == led.LADEN
 
 
 def test_laden_ring_fuer_ohne_logik_und_deckel():
     r = led.ring_fuer(led.LADEN, 0.0)
     assert r.zustand == led.LADEN and r.helligkeit <= DECKEL_PROZENT
+
+
+# -- Anstecken: zwei schnelle, weiche Pulse (Ergänzung X, 11.11., CUJ 25) --------------------
+
+
+def test_anstecken_zwei_weiche_pulse_bis_akku_helligkeit_dann_direkt_der_ladestand():
+    lg = am_strom("leer", 50)
+    lg.beobachte(ev.AkkuAnzeigen("andocken", 5.0), 10.0)
+    halb = led.ANSTECKEN_PULS_S / 2
+    spitzen = [lg.ring(10.0 + k * led.ANSTECKEN_PULS_S + halb) for k in range(led.ANSTECKEN_PULSE)]
+    for r in spitzen:
+        assert r.zustand == led.ANSTECKEN and r.helligkeit == pytest.approx(led.AKKU_HELL)
+        assert len(an_leds(r)) == ANZAHL // 2 and r.leds[0] == led.BLAU  # der Ladestand pulsiert, kein Vollring
+    tal = lg.ring(10.0 + led.ANSTECKEN_PULS_S)
+    assert tal.helligkeit < spitzen[0].helligkeit  # zwischen den Pulsen wieder tiefer
+    # weich: keine Stufe zwischen zwei 10-ms-Schritten
+    letzte = lg.ring(9.999).helligkeit
+    for k in range(0, int(led.ANSTECKEN_DAUER_S * 100) + 60):
+        h = lg.ring(10.0 + k / 100.0).helligkeit
+        assert abs(h - letzte) < 1.0, k
+        letzte = h
+    nach = lg.ring(10.0 + led.ANSTECKEN_DAUER_S + 0.001)
+    assert nach.zustand == led.LADEN and len(an_leds(nach)) == ANZAHL // 2
+    assert nach.helligkeit == pytest.approx(lg.ring(10.0 + led.ANSTECKEN_DAUER_S - 0.001).helligkeit, abs=0.01)  # Übergang ohne Sprung
+
+
+@pytest.mark.parametrize(
+    "ruhe, gute_nacht, erwartet",
+    [("normal", "aus", 15), ("leiser", "aus", 5), ("stumm", "aus", 3), ("normal", "laeuft", 5)],
+)
+def test_anstecken_spitze_wie_die_akku_anzeige_der_tageszeit(ruhe, gute_nacht, erwartet):
+    lg = am_strom("pausiert", 50, ruhe=ruhe, gute_nacht=gute_nacht)
+    lg.beobachte(ev.AkkuAnzeigen("andocken", 5.0), 10.0)
+    spitze = max(lg.ring(10.0 + k / 100.0).helligkeit for k in range(int(led.ANSTECKEN_DAUER_S * 100)))
+    assert spitze == pytest.approx(erwartet, abs=0.05)
+    assert all(
+        lg.ring(10.0 + k / 100.0).apa102_rahmen()[4] & 0x1F >= 1 and lg.ring(10.0 + k / 100.0).helligkeit <= led.DECKEL_PROZENT
+        for k in range(int(led.ANSTECKEN_DAUER_S * 100))
+    )
+
+
+def test_anstecken_in_stumm_nie_heller_als_die_kleinste_stufe():
+    lg = am_strom("pausiert", 50, ruhe="stumm")
+    lg.beobachte(ev.AkkuAnzeigen("andocken", 5.0), 10.0)
+    assert all(lg.ring(10.0 + k / 100.0).helligkeit == led.LADEN_HELL_RUHE for k in range(120))
+
+
+def test_anstecken_bei_vollem_akku_pulst_aus_dem_dunkel_und_bleibt_danach_aus():
+    lg = am_strom("leer", 100)
+    lg.beobachte(ev.AkkuAnzeigen("andocken", 5.0), 10.0)
+    assert lg.ring(10.0).helligkeit == 0
+    assert lg.ring(10.3).helligkeit > 0
+    assert lg.ring(10.0 + led.ANSTECKEN_DAUER_S).helligkeit == 0
+    assert lg.zustand(10.0 + led.ANSTECKEN_DAUER_S + 0.1) == led.AUS
+
+
+def test_anstecken_nach_den_pulsen_zurueck_zum_normalen_zustand():
+    lg = am_strom("spielt", 50)
+    lg.beobachte(ev.AkkuAnzeigen("andocken", 3.0), 10.0)
+    assert lg.zustand(10.1) == led.ANSTECKEN
+    assert lg.zustand(10.0 + led.ANSTECKEN_DAUER_S + 0.01) == led.LAEUFT
+
+
+def test_anstecken_ohne_akkustand_zeigt_trotzdem_den_ring():
+    lg = logik_mit("leer")
+    lg.beobachte(ev.AkkuAnzeigen("andocken", 5.0), 10.0)
+    assert lg.zustand(10.1) == led.ANSTECKEN
+
+
+def test_anstecken_hinter_aufwachen_und_tiefstand():
+    lg = am_strom("leer", 50)
+    lg.aufwachen(10.0)
+    lg.beobachte(ev.AkkuAnzeigen("andocken", 5.0), 10.5)
+    assert lg.zustand(10.6) == led.AUFWACHEN
+    assert lg.zustand(10.0 + led.AUFWACHEN_S + 0.1) == led.ANSTECKEN  # erst das Lauflicht, dann die Pulse
+    lg2 = LedLogik()
+    lg2.beobachte(melden("leer"), 0.0)
+    lg2.beobachte(ev.AkkuTiefstand(), 0.0)
+    lg2.beobachte(ev.AkkuAnzeigen("andocken", 5.0), 1.0)
+    assert lg2.zustand(1.1) == led.AKKU
+
+
+def test_abziehen_und_warnung_zeigen_weiter_die_akku_anzeige_nicht_die_pulse():
+    lg = am_strom("leer", 50)
+    lg.beobachte(ev.LaderGeaendert(False), 5.0)
+    lg.beobachte(ev.AkkuAnzeigen("abziehen", 5.0), 5.0)
+    assert lg.zustand(5.1) == led.AKKU
+    lg.beobachte(ev.AkkuAnzeigen("akku_warnung", 5.0), 20.0)
+    assert lg.zustand(20.1) == led.AKKU
+
+
+def test_anstecken_ring_fuer_ohne_logik_und_deckel():
+    for t in range(0, 20):
+        r = led.ring_fuer(led.ANSTECKEN, t / 10.0)
+        assert r.zustand == led.ANSTECKEN and r.helligkeit <= DECKEL_PROZENT
+
+
+# -- Überblendung zwischen den Zuständen (Ergänzung X, 11.11.) ---------------------------
+
+
+def test_ueberblendung_zwischen_zwei_zustaenden_zwischenwerte_nach_der_halben_zeit():
+    lg = logik_mit("pausiert")
+    vorher = lg.ring(5.9)  # Pause, bernstein
+    assert vorher.zustand == led.PAUSE
+    lg.beobachte(melden("leer", lernmodus=True), 6.0)  # Lernmodus: blau atmend
+    anfang = lg.ring(6.0)
+    mitte = lg.ring(6.0 + led.UEBERGANG_S / 2)
+    ende = lg.ring(6.0 + led.UEBERGANG_S)
+    assert anfang.zustand == mitte.zustand == ende.zustand == led.LERNEN  # der Name ist schon der neue
+    assert anfang.sichtbar() == vorher.sichtbar()  # beginnt auf dem alten Bild
+    r, g, b = mitte.sichtbar()[0]
+    alt = vorher.sichtbar()[0]
+    neu = led.ring_fuer(led.LERNEN, 6.0 + led.UEBERGANG_S / 2, lg).sichtbar()[0]
+    assert r > 0 and b > 0  # Bernstein (Rot) und Blau sind beide teilweise da
+    assert min(alt[2], neu[2]) <= b <= max(alt[2], neu[2]) and min(alt[0], neu[0]) <= r <= max(alt[0], neu[0])
+    assert ende.sichtbar() == led.ring_fuer(led.LERNEN, 6.0 + led.UEBERGANG_S, lg).sichtbar()  # danach das reine neue Bild
+
+
+def test_ueberblendung_an_nach_aus_und_aus_nach_an_geht_ueber_zwischenwerte():
+    lg = logik_mit("pausiert")
+    neu_pausiert(lg, 0.0)
+    lauf(lg, 0.0, led.PAUSE_ANZEIGE_S - 0.05)
+    bilder = [lg.ring(led.PAUSE_ANZEIGE_S + k * 0.05) for k in range(0, 11)]
+    w = [r.helligkeit for r in bilder]
+    assert w[0] == pytest.approx(led.PAUSE_HELLIGKEIT)  # beginnt auf dem alten Bild
+    assert w[-1] == 0 and all(a >= b for a, b in zip(w, w[1:])) and 0 < w[5] < w[0]  # weich bis 0, am Ende darf 0 kommen
+    assert all(r.apa102_rahmen()[4] & 0x1F >= 1 for r in bilder[:-1])  # solange etwas leuchtet, mindestens Stufe 1
+    lauf(lg, 10.5, 19.95)
+    neu_pausiert(lg, 20.0)  # Pause beginnt neu: aus → an
+    w = [lg.ring(20.0 + k * 0.05).helligkeit for k in range(0, 11)]
+    assert w[0] == 0 and w[-1] == pytest.approx(led.PAUSE_HELLIGKEIT) and 0 < w[5] < w[-1]
+
+
+def test_ueberblendung_deckel_gilt_in_jedem_schritt():
+    lg = logik_mit("spielt")
+    lauf(lg, 0.0, 1.0)
+    lg.beobachte(melden("leer", lernmodus=True), 1.0)
+    lg.unbekannter_tobie(1.0)
+    for k in range(0, 60):
+        r = lg.ring(1.0 + k * 0.05)
+        assert 0 <= r.helligkeit <= DECKEL_PROZENT and all(max(c) <= 255 for c in r.leds)
+
+
+def test_ueberblendung_ohne_takt_beginnt_der_neue_zustand_sofort():
+    lg = logik_mit("pausiert")
+    lg.ring(1.0)
+    neu_pausiert(lg, 40.0)
+    assert lg.ring(41.0).helligkeit == led.PAUSE_HELLIGKEIT  # kein Abruf dazwischen: nichts zum Überblenden
+
+
+def test_blinkmuster_bleiben_hart_nur_eintritt_und_austritt_sind_weich():
+    lg = logik_mit("leer")
+    lauf(lg, 0.0, 1.0)
+    lg.unbekannter_tobie(1.0)
+    eintritt = lauf(lg, 1.0, 1.0 + led.UEBERGANG_S / 2)
+    assert eintritt.zustand == led.UNBEKANNTE_KARTE and 0 < eintritt.helligkeit < DECKEL_PROZENT or eintritt.helligkeit == 0
+    lauf(lg, 1.0 + led.UEBERGANG_S / 2, 1.0 + led.UEBERGANG_S + 0.05)
+    # danach wechselt das Blinken selbst hart (gleicher Zustand, keine Überblendung)
+    hell = {lg.ring(1.0 + led.UEBERGANG_S + 0.1 + k * 0.05).helligkeit for k in range(0, 5)}
+    assert hell <= {DECKEL_PROZENT, 0}

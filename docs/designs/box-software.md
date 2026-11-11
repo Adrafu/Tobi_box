@@ -18,6 +18,7 @@
 *   **Änderung 10.11.:** Entscheidung U eingearbeitet (Ring unter „stumm“: ganz dunkelrot, nach 5 s aus; ersetzt „stumm dimmt auf ×0,4“). Betroffen: CUJ 15 und 18 (LED-Ring). Die Änderungen sind mit „(Entscheidung U, 10.11.)“ markiert.
 *   **Änderung 10.11.:** Entscheidung V eingearbeitet (Ring: Pause nach 10 s aus; Lernmodus und Gute Nacht bestätigt; Leser unterbrochen rot langsam blinkend statt magenta). Betroffen: CUJ 18 (LED-Ring). Die Änderungen sind mit „(Entscheidung V, 10.11.)“ markiert.
 *   **Änderung 11.11.:** Entscheidung X eingearbeitet (Ring zeigt am Strom bei nicht vollem Akku dauernd den Füllstand, wenn sonst nichts angezeigt wird). Betroffen: CUJ 18 (LED-Ring). Die Änderungen sind mit „(Entscheidung X, 11.11.)“ markiert.
+*   **Änderung 11.11.:** Ergänzung zu Entscheidung X (Ladestand-Ring pulsiert leicht, blendet bei voll aus und wieder ein; beim Anstecken zwei schnelle weiche Pulse statt der 5-s-Anzeige). Betroffen: CUJ 18, CUJ 25. Markiert mit „(Ergänzung X, 11.11.)“.
 *   **Änderung 11.11.:** Ergänzung zu Entscheidung V (Akku-Tiefstand rot pulsierend statt Blinken; Leser unterbrochen gelb statt rot). Betroffen: CUJ 18. Markiert mit „(Entscheidung V, 11.11.)“.
 *   **Änderung 11.11.:** Entscheidung Y eingearbeitet (Hauptknopf lang bei laufendem Hörspiel: 2 s ausblenden, dann Pause, Zeiger speichern, Herunterfahren). Betroffen: CUJ 16, Tabelle „Strom / Leerlauf“. Markiert mit „(Entscheidung Y, 11.11.)“.
 *   **Änderung 11.11.:** Entscheidung Z eingearbeitet (Akku in zwei Stufen, Plan Rev. 3.20). Erste Stufe: bei 5 % ohne Strom die Durchsage `akku_leer`, dann 2 s ausblenden und herunterfahren. **Zweite Stufe:** bei 10 % ohne Strom einmal die Warnung `akku_warnung` („Mein Akku wird leer. Bitte bald laden.“); das Hörspiel läuft weiter, der Ring zeigt 5 s den Ladestand (neue Schwelle `warnung_prozent` in `[strom]`). Betroffen: CUJ 16, Tabelle „Strom / Leerlauf“. Markiert mit „(Entscheidung Z, 11.11.)“.
@@ -977,7 +978,25 @@ Zustände, Übergänge und Konflikte: siehe „Kern-Zustände“.
         Stufe **3 %** (`LADEN_HELL_RUHE`, Stufe 1 von 31). **Voll** heißt Akku ≥ 100 % (`LADEN_VOLL_PROZENT`): dann ist der Ring aus; erst unter 97 % (`LADEN_HYSTERESE` = 3) zeigt er wieder,
         damit er bei 99/100 % nicht flackert. Beim Andocken oder Abziehen wird „voll“ neu bestimmt (98 % neu angedockt ist nicht voll). Der `pisugar-server` liefert nur Prozent und
         „Netzteil steckt“, keinen Lade-Status; deshalb zählt der Prozentwert. `led` kennt alles aus `AkkuStand`, `LaderGeaendert` und `ZustandMelden`; keine neue Schnittstelle des Kerns.
-        Die 5-s-Akku-Anzeige beim Andocken, Abziehen und Start bleibt unverändert (15/5/3 %).
+        Die 5-s-Akku-Anzeige beim Abziehen und Start bleibt unverändert (15/5/3 %); beim Andocken entfällt sie (siehe „Ergänzung X“).
+    *   **Laden, Ergänzung X (11.11.):**
+        1.  **Anstecken** (Wechsel auf „Strom am Eingang“ mit Rückmeldung, also wo `idle` `AkkuAnzeigen("andocken")` freigibt): der Ladestand pulsiert **zweimal schnell und weich**
+            (Zustandsname `anstecken`, `ANSTECKEN_PULSE` = 2 Pulse à `ANSTECKEN_PULS_S` = 0,6 s, von der Helligkeit des Ladestands bis zur Akku-Helligkeit der Tageszeit 15/5/3 %,
+            Kurve sin², gleiche LEDs wie der Ladestand) und geht **ohne Sprung** in das langsame Pulsieren (2.) über; die Pulse enden auf der Helligkeit des Ladestands.
+            Die 5-s-Anzeige beim Andocken entfällt; beim Abziehen und beim Start bleibt sie. Rangfolge wie die Akku-Anzeige (nach Aufwachen und Tiefstand, vor Spielen u. a.).
+            In „stumm“ ist die Spitze 3 % (kein Pulsieren sichtbar), in „leiser“ 5 %.
+        2.  **Ladestand pulsiert ganz leicht:** Periode 4 s (`LADEN_PULS_S`), zwischen 60 % (`LADEN_PULS_MIN`) und 100 % von `LADEN_HELL` (3 bis 5 %), Kurvenform wie das Atmen.
+            In Leise-Zeiten (`LADEN_HELL_RUHE`) ruhig, kein Pulsieren (auf Stufe 1 nicht darstellbar).
+        3.  **Akku wird voll** (≥ `LADEN_VOLL_PROZENT`): der Ring **blendet in 2 s aus** (`LADEN_AUSBLENDEN_S`); erst am Ende darf die Helligkeit 0 werden.
+        4.  **Laden beginnt wieder** (unter voll minus Hysterese): der Ring **blendet in 2 s ein** (`LADEN_EINBLENDEN_S`), danach pulsierend wie in 2.
+        Beim Anstecken, Abziehen und Wechsel des Leser-Stroms sowie beim ersten bekannten Stand gilt „voll“ sofort, ohne Ein- oder Ausblenden. Vorrang wie bisher.
+    *   **Weiche Übergänge (Ergänzung X, 11.11.):** Wechselt der angezeigte Zustand des Rings (auch an → aus und aus → an, z. B. Pause nach 10 s, „stumm“ nach 5 s, Ende der
+        Akku-Anzeige), blendet `led` in `UEBERGANG_S` = 0,5 s je LED vom zuletzt gezeigten Bild (Farbe mal Helligkeit) zum neuen über (Kurve wie das Atmen); das neue Muster läuft dabei weiter.
+        Die Blink-Muster selbst (unbekannter Tobie magenta, Leser gelb) bleiben hart; nur Eintritt und Austritt sind weich. Der Deckel gilt in jedem Zwischenbild, die
+        Mindeststufe 1 solange etwas leuchtet; erst am Ende einer Ausblendung kommt 0. Die Überblendung braucht den Takt des Abrufs (`LED_TAKT_S`): liegt der letzte Abruf länger
+        als `UEBERGANG_LUECKE_S` = 1 s zurück, beginnt der neue Zustand sofort. Keine neue Schnittstelle.
+    *   **Hinweis zur Hardware (Ergänzung X, 11.11.):** Der APA102 hat 31 Stufen; 3 bis 5 % ergeben alle Stufe 1, das leichte Pulsieren ist am echten Ring daher nur in der Simulation zu sehen
+        (die schnellen Pulse mit 15 % = Stufe 4 sind sichtbar).
     *   **Folgt mit Schritt 2:** Der Ring ist in *Bereit* dunkel (Weiche und Ring-Schalter am ESP32, `led.py` gibt den Ring über `RING_PI` an die Weiche);
         das weiße Lauflicht beim Wecken kommt vom ESP32, danach übernimmt `led.py`; der Deckel 25 % gilt dann in Pi **und** ESP32. Bis dahin
         bleibt der Ring wie oben beschrieben (in *Bereit* mit liegendem Tobie zeigt er weiter die Pause).
@@ -1059,9 +1078,9 @@ Folgt mit Schritt 2 (Tobie auflegen und Tonie-Magnet wecken über den ESP32; nur
 | Lage | Andocken | Abziehen |
 |---|---|---|
 | **Aus** | Die Box startet, wenn der PiSugar es kann („Einschalten bei Strom“); mit Schritt 2 durch den ESP32 (`STROM_IN`). Frühton `start` (CUJ 21), nach *Bereit* Ring Ladestand 5 s, Sync prüfen. **Kein** Lader-Ton (erste Messung) | – |
-| **Bereit** | Ring Ladestand 5 s, **Ton `lader`** (nicht in „leiser“, „stumm“, bei unsicherer Uhr, im Lernmodus), Sync prüfen (einmal); die Frist wird verworfen | Ring Akku 5 s, kein Ton, kein Sync; die Frist beginnt (10 min **ab jetzt**) |
-| **Spielt** | nur Ring 3 s (Entscheidung L: kein Ton neben dem Hörspiel); Sync prüfen | nur Ring 3 s |
-| Update läuft | nur Ring, kein Sync, kein Ton | nur Ring |
+| **Bereit** | Ring: zwei schnelle weiche Pulse, dann Ladestand (Ergänzung X, 11.11.; vorher Ladestand 5 s), **Ton `lader`** (nicht in „leiser“, „stumm“, bei unsicherer Uhr, im Lernmodus), Sync prüfen (einmal); die Frist wird verworfen | Ring Akku 5 s, kein Ton, kein Sync; die Frist beginnt (10 min **ab jetzt**) |
+| **Spielt** | nur Ring: zwei schnelle Pulse (Ergänzung X, 11.11.; vorher 3 s) (Entscheidung L: kein Ton neben dem Hörspiel); Sync prüfen | nur Ring 3 s |
+| Update läuft | nur Ring (zwei Pulse), kein Sync, kein Ton | nur Ring |
 
 *   Die **Sperre** `LADER_SPERRE_S` = 10 s gilt für jede Rückmeldung (Ring, Ton, Sync), gerechnet ab der letzten Rückmeldung **oder ab *Bereit***. Ein Wackelkontakt
     löst höchstens eine Rückmeldung je 10 s aus; Strom in den ersten 10 s nach *Bereit* gibt keinen Ton.
