@@ -583,6 +583,7 @@ Stand 3.8: Aufteilung neu. V3 entfällt, die Firmware macht den Leser, Home Assi
       - Leser unterbrochen: rot, langsam blinkend
       - Aufwachen: weißes Lauflicht, 2 Runden (ab Schritt 2 vom ESP32 sofort beim Wecken; tags normal, nachts gedimmt)
       - Akku: Füllstand grün über 50 %, gelb über 20 %, rot darunter, blau beim Laden; 15 %, abends 5 %, nachts 3 %; 5 s; fast leer rot schnell blinkend
+      - Laden (Entscheidung X, 11.11.): solange Strom anliegt und der Akku nicht voll ist, dauerhaft blauer Füllstand, wenn sonst nichts angezeigt wird; tags 5 %, in Leise-Zeiten 3 %; voll → aus
       - Lernmodus: blaues Atmen, 3 s, 8 bis 25 %
       - Gute Nacht, nur während der Wiedergabe: warm-oranges Glimmen, 4 s, 3 bis 8 %, dunkler beim Ausblenden
       - Unter „stumm“ (Pause wegen stumm oder Tobie unter stumm): ganz dunkel rot, nach 5 s aus
@@ -751,6 +752,8 @@ CAD (4.2) startet erst, wenn 3.2 auf dem Breadboard läuft.
 | **Ring unter „stumm“ (3.20, Entscheidung U, 10.11.)** | Ganz dunkel rot, nach 5 s aus; ersetzt „Stumm dimmt auf ×0,4“ |
 | **Ring-Zustände festgelegt (3.20, Entscheidung V, 10.11.)** | Pause bernstein, nach 10 s aus; Lernmodus blau atmend; Gute Nacht warm-oranges Glimmen; Leser unterbrochen rot langsam blinkend; unbekannter Tobie magenta 1 s. Ersetzt den Vorschlag aus 3.16 |
 | **Töne im Echtbetrieb (3.20, 10.11.)** | Die gesprochenen Töne bleiben für Tests. Für den Echtbetrieb ersetzt Tobias alle Töne durch eigene MP3s; die Liste `docs/betrieb/toene-liste.md` füllt er **vor dem Abschluss**, dann bauen wir einen Weg für eigene Töne ein (Ordner, Angleichen auf −18 LUFS, Umschalter) |
+| **Ladestand beim Laden (3.20, Entscheidung X, 11.11.)** | Liegt Strom am Eingang und ist der Akku nicht voll, zeigt der Ring dauerhaft den Füllstand (blau), wenn sonst nichts angezeigt wird; tags 5 %, in Leise-Zeiten kleinste Stufe (3 %). Ist der Akku voll, geht er aus. Spielen, Pause, Lernmodus usw. haben Vorrang |
+| **Stille vor jedem Ton (3.20, 11.11., Projektleitung)** | Vor jedem Ton ca. 0,15 s Stille, damit die Tonausgabe den Anfang nicht verschluckt (Mac-Abnahme: „S“ von „Strom“ fehlte) |
 | **Mosquitto-ACL (3.14)** | In der `pattern`-Form müssen auch `tobibox/config` und `homeassistant/status` `pattern read` heißen (Test gegen Mosquitto 2.0.18); `mqtt-v1.md`, Abschnitt 7 korrigiert |
 | **Leerlauf-Zähler (3.16, 09.11., AP 4.8)** | Bedienung an der Box (Hauptknopf kurz, Vor, Zurück, Drehregler, Kopfhörer) setzt den Leerlauf-Zähler neu. HA-Befehle (Sync, Update) setzen ihn nicht zurück. Wer an der Box spielt, will nicht, dass sie ausgeht. `core-interface.md`, Abschnitt 9 Punkt 9; Design „Strom / Leerlauf“ |
 | **Start am Lader (3.16, 09.11., AP 4.8)** | Bricht der Start-Sync mit `netz_weg` oder `regel` ab, wiederholt `idle` ihn alle 10 min, höchstens 6-mal, solange die Box am Lader hängt; währenddessen keine Abschaltung. Ohne Lader, bei anderem Abbruch oder Erfolg gilt die 20-min-Regel. Fehlt `[sync]`: Grund `nicht_eingerichtet`, keine Wiederholung |
