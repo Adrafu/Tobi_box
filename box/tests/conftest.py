@@ -389,6 +389,9 @@ class CujBox:
     ``neustart()`` baut Kern und Speicher neu auf und lädt die Dateien, als wäre der Dienst
     neu gestartet worden (Zustandsdateien bleiben)."""
 
+    #: ``Bereit.strom_warten`` (HW8): ``True`` wie in ``app`` mit ``[strom]``; vor ``neustart()`` setzen
+    strom_warten = False
+
     def __init__(self, tmp_path, zuordnungen, serien_aufbau=None, boot_id="boot-1") -> None:
         from tobibox import lauf, library
         from tobibox.store import ResumeStore
@@ -424,7 +427,7 @@ class CujBox:
             self._lade_konfig(),
             self._library.lade_bibliothek(self.medien).ereignis(),
             self.resume.laden(),
-            ev.Bereit(),
+            ev.Bereit(strom_warten=self.strom_warten),
         ):
             self.sende(e)
 

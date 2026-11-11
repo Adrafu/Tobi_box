@@ -35,6 +35,7 @@ APA102_DECKEL = -(-APA102_MAX * DECKEL_PROZENT // 100)
 # Zustandsnamen (Kennungen für Simulation und Protokoll)
 AUS = "aus"
 LAEUFT = "laeuft"
+LAEUFT_GLUEHEN = "laeuft_gluehen"  # HW1 (11.11.): „läuft“ nach ``LAEUFT_ANZEIGE_S``: schwaches, langsam atmendes Glühen
 PAUSE = "pause"
 AKKU = "akku"
 UNBEKANNTE_KARTE = "unbekannte_karte"
@@ -45,13 +46,19 @@ GUTE_NACHT = "gute_nacht"
 LESER_UNTERBROCHEN = "leser_unterbrochen"  # Entscheidung V (10.11.): Sitzung „unbekannt“, gelb langsam blinkend (Entscheidung V, 11.11.: gelb statt rot)
 LADEN = "laden"  # Entscheidung X (11.11.): am Strom und Akku nicht voll zeigt der Ring dauernd den Füllstand, wenn sonst nichts angezeigt wird
 ANSTECKEN = "anstecken"  # Ergänzung X (11.11.): beim Anstecken zweimal schnell pulsieren, weich übergehend in das langsame Pulsieren des Ladestands
-ZUSTAENDE = (AUS, LAEUFT, PAUSE, AKKU, UNBEKANNTE_KARTE, AUFWACHEN, LERNEN, GUTE_NACHT, STUMM, LESER_UNTERBROCHEN, LADEN, ANSTECKEN)
+ZUSTAENDE = (AUS, LAEUFT, LAEUFT_GLUEHEN, PAUSE, AKKU, UNBEKANNTE_KARTE, AUFWACHEN, LERNEN, GUTE_NACHT, STUMM, LESER_UNTERBROCHEN, LADEN, ANSTECKEN)
 
 # Zeiten in Sekunden
 AUFWACHEN_S = 2.0  # Lauflicht beim Aufwachen
 AKKU_ANZEIGE_S = 5.0  # Akku-Anzeige nach Anforderung, beim Start mit Strom und beim Andocken oder Abziehen
 AKKU_ENTPRELL_S = 1.0  # eine zweite Anforderung der Akku-Anzeige so kurz nach der ersten startet sie nicht neu
 ATMEN_S = 6.0  # Periode beim Atmen (läuft)
+# HW1 (11.11.): Beim Start der Wiedergabe und bei jedem Wechsel (neuer Tobie, Weiter/Zurück, Fortsetzen nach Pause) atmet der Ring grün wie bisher,
+# nach ``LAEUFT_ANZEIGE_S`` geht er (Überblendung ``UEBERGANG_S``) in ein schwaches Glühen über: spart Strom am echten Ring und stört beim Hören nicht.
+LAEUFT_ANZEIGE_S = 10.0  # so lange atmet „läuft“ nach Start oder Wechsel hell (12 bis 25 %), danach Glühen
+LAEUFT_GLUEHEN_HELL_MIN = 2.0  # Prozent, unterer Punkt des Glühens (über Farbwerte am echten Ring sichtbar, ``apa102_rahmen``)
+LAEUFT_GLUEHEN_HELL_MAX = 3.0  # Prozent, oberer Punkt
+LAEUFT_GLUEHEN_S = 8.0  # Periode des Glühens (langsamer als das Atmen)
 PAUSE_HELLIGKEIT = 10  # Prozent, Pause
 BLINK_UNBEKANNT_S = 1.0  # Periode Blinken magenta (Rückfall ohne Zeitpunkt des Auflegens)
 BLINK_LESER_S = 2.0  # Entscheidung V (10.11.): Periode des langsamen gelben Blinkens, wenn der Leser unterbrochen ist (Sitzung „unbekannt“)
@@ -174,6 +181,12 @@ def _laeuft(t: float) -> Ring:
     return _einfarbig(LAEUFT, GRUEN, 12 + 13 * welle)
 
 
+def _laeuft_gluehen(t: float) -> Ring:
+    """HW1: schwaches grünes Glühen, weiter langsam atmend (2 bis 3 %)."""
+    welle = 0.5 - 0.5 * math.cos(2 * math.pi * t / LAEUFT_GLUEHEN_S)
+    return _einfarbig(LAEUFT_GLUEHEN, GRUEN, LAEUFT_GLUEHEN_HELL_MIN + (LAEUFT_GLUEHEN_HELL_MAX - LAEUFT_GLUEHEN_HELL_MIN) * welle)
+
+
 def _pause() -> Ring:
     return _einfarbig(PAUSE, BERNSTEIN, PAUSE_HELLIGKEIT)
 
@@ -285,6 +298,9 @@ class LedLogik:
     Entscheidung X (11.11.): Wo der Ring sonst „aus“ wäre, zeigt er am Strom bei nicht vollem Akku dauernd den Füllstand (``LADEN``, blau,
     ``LADEN_HELL`` oder in „leiser“/„stumm“ ``LADEN_HELL_RUHE``); alles Folgende hat Vorrang. Beim Herunterfahren bleibt er aus.
 
+    HW1 (11.11.): „läuft“ ist nach Start der Wiedergabe oder einem Wechsel (neuer Tobie, Weiter/Zurück, Fortsetzen nach Pause) ``LAEUFT_ANZEIGE_S`` lang
+    das helle grüne Atmen, danach ``LAEUFT_GLUEHEN`` (schwaches Glühen, weich überblendet). Gute Nacht, Lernmodus, „stumm“ und Akku-Anzeigen gehen vor.
+
     Rangfolge (oben gewinnt): Aufwachen, Akku (Tiefstand oder Anzeige), unbekannte Karte
     (Blinken beim Auflegen eines unbekannten Tobies, ``BLINK_UNBEKANNT_ANZEIGE_S`` lang), Leser unterbrochen (Sitzung „unbekannt“,
     gelb langsam blinkend, Entscheidung V), Lernmodus, „stumm“ (dunkelrot, dann aus), Gute Nacht (nur während die Wiedergabe läuft), läuft, Pause (bernstein, nach ``PAUSE_ANZEIGE_S`` aus, Entscheidung V), aus.
@@ -317,6 +333,7 @@ class LedLogik:
         self._akku_bis: float | None = None
         self._unbekannt_ab: float | None = None  # ein unbekannter Tobie wurde aufgelegt: Magenta blinkt ab diesem Zeitpunkt
         self._pause_ab: float | None = None  # Entscheidung V: Beginn der Pause-Anzeige
+        self._laeuft_ab: float | None = None  # HW1: Beginn des hellen Atmens (Start der Wiedergabe oder Wechsel)
         self._stumm_ab: float | None = None  # Entscheidung U: Beginn der dunkelroten Anzeige unter „stumm“
         self.ausblenden_faktor: float | None = None  # Gute Nacht: 1 bis 0 während des Ausblendens, sonst ``None``
 
@@ -367,6 +384,7 @@ class LedLogik:
                 self.aufwachen(jetzt_mono)
             self._stumm_pruefen(alt, e, jetzt_mono)
             self._pause_pruefen(alt, e, jetzt_mono)
+            self._laeuft_pruefen(alt, e, jetzt_mono)
             self.zustand_melden = e
             if e.strom == "herunterfahren":
                 self._aufwachen_ab = None
@@ -450,6 +468,18 @@ class LedLogik:
                 ab = max(ab, self._aufwachen_ab + AUFWACHEN_S)
             self._pause_ab = ab
 
+    def _laeuft_pruefen(self, alt: ev.ZustandMelden | None, neu: ev.ZustandMelden, jetzt_mono: float) -> None:
+        """HW1: Die 10 s des hellen Atmens beginnen, wenn die Sitzung zu ``spielt`` wechselt (Start, Fortsetzen) oder beim Spielen Serie, Folge oder
+        Track wechseln (neuer Tobie, Weiter, Zurück, nächste Folge); eine wiederholte Meldung startet sie nicht neu."""
+        if neu.sitzung != "spielt":
+            self._laeuft_ab = None
+            return
+        if alt is None or alt.sitzung != "spielt" or (alt.serie_id, alt.folge, alt.track) != (neu.serie_id, neu.folge, neu.track):
+            ab = jetzt_mono
+            if self._aufwachen_ab is not None:
+                ab = max(ab, self._aufwachen_ab + AUFWACHEN_S)  # erst das Lauflicht des Aufwachens
+            self._laeuft_ab = ab
+
     @staticmethod
     def _wegen_stumm(m: ev.ZustandMelden | None) -> bool:
         """„Wegen stumm pausiert“ (Ausblenden oder ``gehalten``) oder „Tobie unter stumm erkannt“ (``gehalten``): beides zeigt die Sitzung so."""
@@ -526,7 +556,11 @@ class LedLogik:
         if z.strom != "aktiv" and not (z.strom == "leerlauf" and (z.figur_liegt or self._pause_laeuft(z, jetzt_mono))):
             return AUS  # Leerlauf ohne Tobie; mit liegendem Tobie zeigt der Ring die Pause weiter (Entscheidung O), nach dem Abheben die 10 s (V)
         if z.sitzung == "spielt":
-            return GUTE_NACHT if z.gute_nacht != "aus" else LAEUFT
+            if z.gute_nacht != "aus":
+                return GUTE_NACHT
+            if self._laeuft_ab is not None and jetzt_mono - self._laeuft_ab >= LAEUFT_ANZEIGE_S:
+                return LAEUFT_GLUEHEN  # HW1: nach 10 s schwaches Glühen
+            return LAEUFT
         if z.sitzung in ("pausiert", "gehalten", "beendet"):
             if self._pause_ab is not None and jetzt_mono - self._pause_ab >= PAUSE_ANZEIGE_S:
                 return AUS  # Entscheidung V: nach 10 s dunkel
@@ -603,6 +637,8 @@ def ring_fuer(zustand: str, t: float, logik: LedLogik | None = None) -> Ring:
     """
     if zustand == LAEUFT:
         return _laeuft(t)
+    if zustand == LAEUFT_GLUEHEN:
+        return _laeuft_gluehen(t)
     if zustand == PAUSE:
         return _pause()
     if zustand == UNBEKANNTE_KARTE:

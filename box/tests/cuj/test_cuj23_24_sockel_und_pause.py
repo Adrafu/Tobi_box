@@ -163,3 +163,28 @@ def test_lernmodus_haelt_die_abschaltung_auf(ohne_sockel):
     assert fahren(box) == []
     warte(box, 10 * MIN + 1)
     assert [b.grund for b in fahren(box)] == ["leerlauf"]
+
+
+# --- Start durch Strom (HW8, 11.11.) ---------------------------------------------------------------------
+
+
+def test_hw8_start_am_sockel_liegender_tobie_bleibt_still_dann_spielt_ein_neu_aufgelegter(box):
+    """CUJ 23 mit CUJ 20: Die Box startet am Sockel (Strom), der Tobie liegt schon: still bereit. Neu auflegen oder Hauptknopf startet."""
+    box.neustart_nach_einschalten()
+    n = len(box.log)
+    box.sende(ev.LaderGeaendert(True, "leser"))
+    box.auflege(UID, "v2")
+    assert box.befehle(ev.Abspielen, n) == [] and box.modus == "pausiert"
+    warte(box, 3 * 60 * MIN)
+    assert fahren(box) == [] and box.befehle(ev.Abspielen, n) == []  # am Sockel bleibt sie bereit
+    box.hebe_ab("v2")
+    box.auflege(UID, "v3")
+    assert box.befehle(ev.Abspielen, n) and box.modus == "spielt"
+
+
+def test_hw8_start_ohne_strom_messung_keine_quelle_der_tobie_spielt(box):
+    """Liefert keine Quelle einen Wert (``pisugar-server`` hängt, kein ``LADER``), gilt „ohne Strom“: der Tobie spielt wie bisher."""
+    box.neustart_nach_einschalten()
+    n = len(box.log)
+    box.auflege(UID, "v2")
+    assert box.befehle(ev.Abspielen, n) and box.modus == "spielt"

@@ -53,6 +53,82 @@ def test_laeuft_gruen_und_atmet():
     assert r0.helligkeit == pytest.approx(12) and r1.helligkeit == pytest.approx(25)
 
 
+# -- HW1 (11.11.): „läuft“ nach 10 s schwaches Glühen --------------------------------------
+
+
+def test_hw1_nach_10_s_gluehen_statt_atmen():
+    lg = logik_mit("spielt")
+    assert lg.zustand(led.LAEUFT_ANZEIGE_S - 0.1) == led.LAEUFT
+    assert lg.zustand(led.LAEUFT_ANZEIGE_S) == led.LAEUFT_GLUEHEN
+    r = lauf(lg, 0.0, led.LAEUFT_ANZEIGE_S + led.UEBERGANG_S + 0.1)
+    assert r.zustand == led.LAEUFT_GLUEHEN and all(c == led.GRUEN for c in r.leds)
+    assert led.LAEUFT_GLUEHEN_HELL_MIN <= r.helligkeit <= led.LAEUFT_GLUEHEN_HELL_MAX
+    # weiter langsam atmend: zwischen den Grenzen, nie darunter oder darüber
+    hell = [lg.ring(20.0 + k * 0.25).helligkeit for k in range(int(led.LAEUFT_GLUEHEN_S / 0.25) + 1)]
+    assert min(hell) == pytest.approx(led.LAEUFT_GLUEHEN_HELL_MIN) and max(hell) == pytest.approx(led.LAEUFT_GLUEHEN_HELL_MAX)
+
+
+def test_hw1_ueberblendung_von_atmen_zu_gluehen_ist_weich():
+    lg = logik_mit("spielt")
+    lauf(lg, 0.0, led.LAEUFT_ANZEIGE_S - 0.05)
+    vorher = lg.ring(led.LAEUFT_ANZEIGE_S - 0.05).helligkeit
+    mitte = lg.ring(led.LAEUFT_ANZEIGE_S + 0.05).helligkeit
+    assert led.LAEUFT_GLUEHEN_HELL_MAX < mitte < vorher + 1e-9 and vorher >= led.LAEUFT_GLUEHEN_HELL_MAX
+    assert lg.ring(led.LAEUFT_ANZEIGE_S + 0.7).helligkeit <= led.LAEUFT_GLUEHEN_HELL_MAX + 1e-9
+
+
+def test_hw1_gluehen_ist_am_echten_ring_sichtbar():
+    lg = logik_mit("spielt")
+    rahmen = lg.ring(20.0).apa102_rahmen()
+    led0 = rahmen[4:8]
+    assert led0[0] & 0x1F >= 1 and led0[2] >= 1  # Grünkanal leuchtet (Stufe >= 1, Farbwert >= 1)
+
+
+@pytest.mark.parametrize("wechsel", ["pause", "tobie", "track", "folge"])
+def test_hw1_wechsel_startet_das_helle_atmen_neu(wechsel):
+    lg = LedLogik()
+    lg.beobachte(melden("spielt", serie_id="a", folge="f1", track=0), 0.0)
+    assert lg.zustand(30.0) == led.LAEUFT_GLUEHEN
+    if wechsel == "pause":
+        lg.beobachte(melden("pausiert", serie_id="a", folge="f1", track=0), 30.0)
+        lg.beobachte(melden("spielt", serie_id="a", folge="f1", track=0), 40.0)
+        jetzt = 40.0
+    else:
+        neu = {"tobie": dict(serie_id="b", folge="f1", track=0), "track": dict(serie_id="a", folge="f1", track=1),
+               "folge": dict(serie_id="a", folge="f2", track=0)}[wechsel]
+        lg.beobachte(melden("spielt", **neu), 40.0)
+        jetzt = 40.0
+    assert lg.zustand(jetzt + 0.1) == led.LAEUFT
+    assert lg.zustand(jetzt + led.LAEUFT_ANZEIGE_S - 0.1) == led.LAEUFT
+    assert lg.zustand(jetzt + led.LAEUFT_ANZEIGE_S + 0.1) == led.LAEUFT_GLUEHEN
+
+
+def test_hw1_wiederholte_meldung_startet_die_10_s_nicht_neu():
+    lg = LedLogik()
+    lg.beobachte(melden("spielt", serie_id="a", folge="f1", track=0), 0.0)
+    lg.beobachte(melden("spielt", serie_id="a", folge="f1", track=0, ruhe="leiser"), 9.0)  # andere Änderung, gleiche Wiedergabe
+    assert lg.zustand(10.5) == led.LAEUFT_GLUEHEN
+
+
+def test_hw1_gute_nacht_und_lernmodus_behalten_vorrang_und_regeln():
+    lg = LedLogik()
+    lg.beobachte(melden("spielt", gute_nacht="laeuft"), 0.0)
+    assert lg.zustand(30.0) == led.GUTE_NACHT
+    lg.beobachte(melden("spielt", lernmodus=True), 31.0)
+    assert lg.zustand(32.0) == led.LERNEN
+    lg2 = LedLogik()
+    lg2.beobachte(melden("spielt"), 0.0)
+    lg2.beobachte(ev.AkkuStand(70), 0.0)
+    lg2.akku_zeigen(30.0)
+    assert lg2.zustand(31.0) == led.AKKU  # Akku-Anzeige geht vor
+    assert lg2.zustand(30.0 + led.AKKU_ANZEIGE_S + 0.1) == led.LAEUFT_GLUEHEN
+
+
+def test_hw1_ohne_logik_zeigt_ring_fuer_gluehen_und_laeuft():
+    assert led.ring_fuer(led.LAEUFT_GLUEHEN, 0.0).zustand == led.LAEUFT_GLUEHEN
+    assert led.ring_fuer(led.LAEUFT, 0.0).helligkeit == pytest.approx(12)
+
+
 @pytest.mark.parametrize("sitzung", ["pausiert", "gehalten", "beendet"])
 def test_pause_bernstein_ruhig(sitzung):
     lg = logik_mit(sitzung)
@@ -557,7 +633,8 @@ def test_farben_und_muster_sind_benannte_konstanten():
 
 
 def test_unbekannter_tobie_blinkt_kurz_und_dann_gilt_der_normale_zustand():
-    lg = logik_mit("spielt")
+    lg = LedLogik()
+    lg.beobachte(melden("spielt"), 10.0)  # die Wiedergabe beginnt mit dem Blinken (HW1: 10 s helles Atmen ab dann)
     lg.unbekannter_tobie(10.0)
     an, aus = lg.ring(10.1), lg.ring(10.3)
     assert an.zustand == aus.zustand == led.UNBEKANNTE_KARTE
@@ -568,8 +645,9 @@ def test_unbekannter_tobie_blinkt_kurz_und_dann_gilt_der_normale_zustand():
 
 
 def test_blinken_wartet_das_lauflicht_beim_aufwachen_ab():
-    lg = logik_mit("spielt")
+    lg = LedLogik()
     lg.aufwachen(10.0)
+    lg.beobachte(melden("spielt"), 10.0)
     lg.unbekannter_tobie(10.0)
     assert lg.zustand(10.5) == led.AUFWACHEN
     assert lg.zustand(10.0 + led.AUFWACHEN_S + 0.1) == led.UNBEKANNTE_KARTE
@@ -845,9 +923,9 @@ def test_anstecken_bei_vollem_akku_pulst_aus_dem_dunkel_und_bleibt_danach_aus():
 
 def test_anstecken_nach_den_pulsen_zurueck_zum_normalen_zustand():
     lg = am_strom("spielt", 50)
-    lg.beobachte(ev.AkkuAnzeigen("andocken", 3.0), 10.0)
-    assert lg.zustand(10.1) == led.ANSTECKEN
-    assert lg.zustand(10.0 + led.ANSTECKEN_DAUER_S + 0.01) == led.LAEUFT
+    lg.beobachte(ev.AkkuAnzeigen("andocken", 3.0), 2.0)  # (HW1: vor Ablauf der 10 s des hellen Atmens)
+    assert lg.zustand(2.1) == led.ANSTECKEN
+    assert lg.zustand(2.0 + led.ANSTECKEN_DAUER_S + 0.01) == led.LAEUFT
 
 
 def test_anstecken_ohne_akkustand_zeigt_trotzdem_den_ring():

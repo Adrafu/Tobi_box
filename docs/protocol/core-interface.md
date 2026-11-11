@@ -62,7 +62,7 @@
     Entscheidungen O und P von Tobias, Rev. 3.17):**
     *   **Entscheidung O: Leerlauf zählt auch mit liegendem Tobie.** Leerlauf heißt: 20 min lang (seit Ein/Aus, 10.11.: 10 min und nur ohne Strom) wird nichts gespielt, egal ob ein
         Tobie liegt. Es gelten weiter die Ausnahmen Sync, Update und Lernmodus; Bedienung setzt den Zähler zurück. Beim Einschalten
-        spielt ein liegender Tobie wie bisher sofort weiter (Entscheidung G). Siehe Abschnitt 9, Punkt 9.
+        spielt ein liegender Tobie wie bisher sofort weiter (Entscheidung G; seit HW8, 11.11., nicht bei einem Start durch Strom, Abschnitt 6.3). Siehe Abschnitt 9, Punkt 9.
     *   **Entscheidung P: Ist der Kopfhörer-Kontakt nicht lesbar, gilt die Kopfhörer-Grenze** (Gehörschutz), bis er wieder lesbar ist,
         auch beim Start, solange die erste Messung fehlt. Neues Ereignis `KopfhoererLesbar`, HA bekommt `fehler` mit
         `code="kopfhoerer_unlesbar"`. Siehe Abschnitt 3.5 und 9, Punkt 15.
@@ -215,7 +215,7 @@ auf dieselbe Folge). `gen` gehört nicht zur Gleichheit der Typen (Tests prüfen
 | `KonfigGeladen` | `konfig: Konfig` | `app` beim Start (aus `config.json`), `ha` nach angenommener Liste | Zuordnungen, Leise-Zeiten, Gute-Nacht-Einstellungen (Typen in 3.8). Ersetzt die bisherige Konfiguration vollständig. |
 | `BibliothekGeladen` | `serien: tuple[Serie, ...]` | `app` beim Start (aus `library`), `library` nach jedem Sync und nach Änderungen im Medienordner | Alle Serien mit ihren Folgen in der maßgeblichen Reihenfolge. Ersetzt die bisherige Bibliothek. |
 | `ResumeGeladen` | `zeiger: tuple[Zeiger, ...]` | `app` beim Start (aus `resume.json`) | Gespeicherte Zeiger. Kommt einmal. |
-| `Bereit` | `fruehton: bool = False` (Ein/Aus, 10.11.) | `app` | Alle vorigen Daten sind geliefert und MPD ist erreichbar. Bis `Bereit` hält `app` alle Ereignisse des Lesers in der Warteschlange zurück (Reihenfolge bleibt). Bei `Bereit` spielt der Kern den Start-Ton (CUJ 20: ein beim Start liegender Tobie kommt als `Aufgelegt` direkt danach). **`fruehton=True` (Ein/Aus, 10.11.):** Der Frühdienst hat den Start-Ton schon entschieden (gespielt oder bewusst unterlassen); `session` spielt dann **keinen** `start` und auch keinen `hinweis` an seiner Stelle. `app` setzt das Feld aus der Marke `/run/tobibox/fruehton`, die es **bei `Bereit`** liest (Abschnitt 6.5, Punkt 6g; `data-model.md`, 1.6; V1). Ohne Marke (Dienst-Neustart, Frühdienst fehlt oder zu spät, Marke `fehler`) ist es `False`, und der Kern spielt `start` wie bisher (unter „stumm“ nichts, V5). |
+| `Bereit` | `fruehton: bool = False` (Ein/Aus, 10.11.), `strom_warten: bool = False` (HW8, 11.11.) | `app` | Alle vorigen Daten sind geliefert und MPD ist erreichbar. Bis `Bereit` hält `app` alle Ereignisse des Lesers in der Warteschlange zurück (Reihenfolge bleibt). Bei `Bereit` spielt der Kern den Start-Ton (CUJ 20: ein beim Start liegender Tobie kommt als `Aufgelegt` direkt danach). **`fruehton=True` (Ein/Aus, 10.11.):** Der Frühdienst hat den Start-Ton schon entschieden (gespielt oder bewusst unterlassen); `session` spielt dann **keinen** `start` und auch keinen `hinweis` an seiner Stelle. `app` setzt das Feld aus der Marke `/run/tobibox/fruehton`, die es **bei `Bereit`** liest (Abschnitt 6.5, Punkt 6g; `data-model.md`, 1.6; V1). Ohne Marke (Dienst-Neustart, Frühdienst fehlt oder zu spät, Marke `fehler`) ist es `False`, und der Kern spielt `start` wie bisher (unter „stumm“ nichts, V5). **`strom_warten=True` (HW8, 11.11.):** `app` erwartet gleich eine erste Strom-Messung (`[strom]` mit echtem Treiber, nicht `sim`). Dann wartet `session` mit einem beim Start liegenden Tobie auf die erste Messung, höchstens `STROM_START_WARTEN_S` ab `Bereit` (Abschnitt 6.3, „Start durch Strom“); ohne Erwartung gilt „unbekannt“ sofort als „ohne Strom“ (Mac mit `sim` oder ohne `[strom]`, Tests; dort setzt `sim` den Wert vor dem Auflegen). |
 
 ### 3.4 Home Assistant (Quelle `ha`; in Stufe 2 `sim`)
 
@@ -1394,6 +1394,17 @@ gekennzeichneten sind von Tobias oder der Projektleitung entschieden
         geleert beim ersten `Aufgelegt`, bei `Abgehoben` und bei einem Herzschlag ohne
         Tobie. Ein echtes Einschalten (auch leerer Akku, Stromausfall) lässt
         `neustart_uid` leer: CUJ 20 gilt.
+        **Start durch Strom (HW8, 11.11.):** Auch ohne `neustart_uid` bleibt ein beim Start liegender Tobie still, wenn die Box **mit Strom am Eingang** startet
+        (Schritt 1: der zusammengeführte Strom-Wert, Abschnitt 9, Punkt 9, ist „Strom“; S1: jeder Start mit Strom gilt als Start am Lader). `session` führt die Strom-Quellen
+        dafür selbst mit (`stromwert.StromQuellen`, aus `LaderGeaendert`; `LeserHallo` und `LeserAlarm` löschen den Leser-Wert wie in `idle`). **Der Start-Tobie** ist der erste `Aufgelegt`
+        oder `Gesperrt` in `leer`, das höchstens `START_TOBIE_FENSTER_S` nach `Bereit` kommt (nicht bei Dienst-Neustart, unter „stumm“ oder bei einer Aktionskarte). Seine Behandlung:
+        Strom `True`: Zielzustand wie beim Dienst-Neustart (`pausiert`, Zeiger des Ziels, kein Ton, kein `Abspielen`, Protokoll `start_strom` / `pausiert`); Hauptknopf kurz oder Abheben und neu
+        Auflegen spielt am Zeiger. Strom `False`: wie bisher (spielt sofort). Strom unbekannt: Ist `Bereit.strom_warten` gesetzt und liegen seit `Bereit` weniger als `STROM_START_WARTEN_S`,
+        wartet der Tobie (Feld `strom_wartet_bis`, Zustand `leer` mit liegendem Tobie, nichts spielt, Protokoll `start_strom` / `warten`) bis zur ersten Messung (`LaderGeaendert`) oder bis die Frist
+        im `Takt` endet; dann gilt der Messwert, bei Fristende „ohne Strom“ (der Tobie spielt). `Abgehoben` und ein anderer Tobie beenden das Warten. Sonst (keine Erwartung, Frist schon um) gilt
+        „unbekannt“ sofort als „ohne Strom“. **Begründung der 2 s:** `power` und `reader` starten erst nach `Bereit`, `pisugar-server` antwortet normalerweise in unter 1 s; länger als 2 s soll ein bewusst
+        aufgelegter Tobie nicht still bleiben (CUJ 23, Ziel 3 s), und bei Ausfall beider Quellen (`idle`: „unbekannt“ 60 s, Punkt 9) ist „spielen“ der sichere Rückfall. Ab Schritt 2 liefert der ESP32 den
+        Weckgrund (`WAKE reason`) und ersetzt dort die Strom-Messung: folgt mit Schritt 2.
     *   **Im „stumm“-Fenster** (`quiet` im Zustand `stumm`) startet **kein**
         Abspielen-Auslöser eine Wiedergabe. Jeder Auslöser, der ohne „stumm“ ein
         `Abspielen` ergäbe, gibt stattdessen nur `TonSpielen("hinweis")` aus
@@ -1484,6 +1495,8 @@ Modulkonstanten mit genau diesen Namen. Es gibt keine eigene Konstanten-Datei.
 | `LADER_SPERRE_S` | 10 | `idle.py` (Sperre für jede Rückmeldung beim Andocken oder Abziehen: Ring, Ton, Sync; gerechnet ab der letzten Rückmeldung oder ab `Bereit`; Ein/Aus, 10.11., Abschnitt 9, Punkt 9) |
 | `STROM_UNBEKANNT_S` | 60 | `idle.py` (so lange gilt „Strom unbekannt“, danach „kein Strom“; Ein/Aus, 10.11., Abschnitt 9, Punkt 9) |
 | `STROM_WIDERSPRUCH_S` | 5 | `idle.py` (so lange muss ein Widerspruch der Strom-Quellen anhalten, bevor er als WARNING protokolliert wird; V16, Ein/Aus, 10.11., Abschnitt 9, Punkt 9) |
+| `STROM_START_WARTEN_S` | 2 | `session.py` (so lange nach `Bereit` wartet ein beim Start liegender Tobie auf die erste Strom-Messung, danach „ohne Strom“; HW8, 11.11., Abschnitt 6.3) |
+| `START_TOBIE_FENSTER_S` | 5 | `session.py` (ein Tobie, der innerhalb dieser Zeit nach `Bereit` zum ersten Mal gemeldet wird, gilt als „beim Start liegend“; HW8, 11.11.) |
 | `FRUEHTON_WARTEN_S` | 3 | `app.py` (so lange ab `Bereit` wartet `app` mit Tönen des Kerns auf das Ende des Frühtons; Ein/Aus, 10.11., Abschnitt 6.5, Punkt 6g) |
 | `SIMULATION_RUECKKEHR_S` | 10 | `idle.py` (Simulation: so lange bleibt `herunterfahren`, dann Rückkehr in den normalen Zustand; B1, 09.11.) |
 | `ABSCHALT_FRIST_S` | 60 | `power.py` (so lange darf das Abschalt-Kommando höchstens brauchen; B1) |

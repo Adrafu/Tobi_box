@@ -296,6 +296,9 @@ class Bereit(Ereignis):
     #: Der Frühdienst hat den Start-Ton schon entschieden (gespielt oder bewusst unterlassen); ``session`` spielt dann keinen
     #: ``start`` (Ein/Aus, 10.11.).
     fruehton: bool = False
+    #: HW8 (11.11.): ``app`` erwartet gleich eine erste Strom-Messung (``[strom]`` mit echtem Treiber, nicht ``sim``). Dann wartet ``session`` mit einem beim Start liegenden
+    #: Tobie höchstens ``STROM_START_WARTEN_S`` ab ``Bereit`` auf die erste Messung; ohne Erwartung gilt „unbekannt“ sofort als „ohne Strom“.
+    strom_warten: bool = False
 
 
 # --------------------------------------------------------------------------

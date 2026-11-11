@@ -578,7 +578,7 @@ Stand 3.8: Aufteilung neu. V3 entfällt, die Firmware macht den Leser, Home Assi
   - 5.5.1 APA102-Treiber per Bit-Bang
   - 5.5.2 Zustände: läuft, Pause, Akku, unbekannte Karte, Aufwachen
     - **Festgelegt (10.11., Entscheidungen U und V):**
-      - Läuft: grünes Atmen, 6 s, 12 bis 25 %
+      - Läuft: beim Start und bei jedem Wechsel (neuer Tobie, Weiter/Zurück, Fortsetzen nach Pause) grünes Atmen, 6 s, 12 bis 25 %, nach 10 s schwaches Glühen (ca. 3 %, langsam atmend) (HW1, 11.11.)
       - Pause: bernstein, 10 %, nach 10 s aus
       - Unbekannter Tobie: magenta, zwei Blinker in 1 s, danach wie „läuft“
       - Leser unterbrochen: gelb, langsam blinkend (11.11.)

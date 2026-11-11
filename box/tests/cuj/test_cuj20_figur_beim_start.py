@@ -290,3 +290,183 @@ def test_dienst_neustart_gesperrt_lag_aber_jetzt_liegt_ein_anderer_startet_sofor
     n = len(box.log)
     box.auflege(UID, "v2")
     assert len(box.befehle(ev.Abspielen, n)) == 1 and box.modus == "spielt"
+
+
+# --- Start durch Strom (HW8, 11.11.) ---------------------------------------------------------------------
+
+
+def einschalten(box, strom_warten=False):
+    box.strom_warten = strom_warten
+    box.neustart_nach_einschalten()
+    return len(box.log)
+
+
+def keine_toene(box, n):
+    return [b for b in box.log[n:] if isinstance(b, ev.TonSpielen)] == []
+
+
+def test_hw8_start_mit_strom_liegender_tobie_bleibt_still_und_pausiert_hauptknopf_startet(box):
+    n = einschalten(box)
+    box.sende(ev.LaderGeaendert(True))  # Strom am Eingang beim Start (S1)
+    box.auflege(UID, "v2")
+    ohne_wiedergabe(box, n)
+    assert box.modus == "pausiert" and box.kern.session.figur.uid == UID and keine_toene(box, n)
+    box.laufe(5.0)
+    ohne_wiedergabe(box, n)  # auch nach Wartezeit startet nichts
+    box.sende(ev.Hauptknopf("kurz"))
+    (a,) = box.befehle(ev.Abspielen, n)
+    assert a.datei == "a.wav" and box.modus == "spielt"
+
+
+def test_hw8_start_mit_strom_neu_auflegen_startet(box):
+    n = einschalten(box)
+    box.sende(ev.LaderGeaendert(True, "leser"))
+    box.auflege(UID, "v2")
+    ohne_wiedergabe(box, n)
+    box.hebe_ab("v2")
+    box.auflege(UID, "v3")
+    assert len(box.befehle(ev.Abspielen, n)) == 1 and box.modus == "spielt"
+
+
+def test_hw8_start_ohne_strom_spielt_sofort_wie_bisher(box):
+    n = einschalten(box)
+    box.sende(ev.LaderGeaendert(False))  # Knopf, Akku
+    box.auflege(UID, "v2")
+    (a,) = box.befehle(ev.Abspielen, n)
+    assert a.datei == "a.wav" and box.modus == "spielt"
+
+
+def test_hw8_start_mit_strom_unbekannter_tobie_still_ohne_ueberraschung(box):
+    n = einschalten(box)
+    box.sende(ev.LaderGeaendert(True))
+    box.auflege(UID_UNBEKANNT, "v2")
+    ohne_wiedergabe(box, n)
+    assert box.modus == "pausiert" and keine_toene(box, n)
+    assert [m.art for m in box.befehle(ev.Melden, n)] == ["unbekannt"]  # die Meldung an HA bleibt
+    box.sende(ev.Hauptknopf("kurz"))
+    (a,) = box.befehle(ev.Abspielen, n)
+    assert a.serie_id == UEBERRASCHUNG
+
+
+def test_hw8_start_mit_strom_gesperrter_tobie_still(box):
+    n = einschalten(box)
+    box.sende(ev.LaderGeaendert(True))
+    box.sende(ev.Gesperrt(0, "v2"))
+    ohne_wiedergabe(box, n)
+    assert box.modus == "pausiert"
+
+
+def test_hw8_start_mit_strom_unter_stumm_wie_bisher_hinweis_und_nichts_spielt(box):
+    n = einschalten(box)
+    box.sende(ev.StummBeginnt())
+    box.sende(ev.LaderGeaendert(True))
+    box.auflege(UID, "v2")
+    ohne_wiedergabe(box, n)
+    assert box.modus == "gehalten" and [b.ton for b in box.befehle(ev.TonSpielen, n)] == ["hinweis"]
+
+
+def test_hw8_start_mit_strom_nur_der_start_tobie_ein_spaeter_aufgelegter_spielt(box):
+    n = einschalten(box)
+    box.sende(ev.LaderGeaendert(True))
+    box.laufe(6.0)  # mehr als ``START_TOBIE_FENSTER_S`` nach ``Bereit``
+    box.auflege(UID, "v2")
+    assert len(box.befehle(ev.Abspielen, n)) == 1 and box.modus == "spielt"
+
+
+def test_hw8_start_mit_strom_ein_zweiter_tobie_spielt(box):
+    n = einschalten(box)
+    box.sende(ev.LaderGeaendert(True))
+    box.auflege(UID, "v2")
+    ohne_wiedergabe(box, n)
+    box.hebe_ab("v2")
+    box.auflege(UID_ANDERS, "v3")
+    assert len(box.befehle(ev.Abspielen, n)) == 1 and box.modus == "spielt"
+
+
+def test_hw8_dienst_neustart_bleibt_wie_entscheidung_g_auch_ohne_strom_messung(box):
+    spiele_und_merke(box)
+    box.sende(ev.DienstEndet())
+    box.neustart()
+    n = len(box.log)
+    box.sende(ev.LaderGeaendert(False))
+    box.auflege(UID, "v2")
+    ohne_wiedergabe(box, n)
+    assert box.modus == "pausiert"
+
+
+# Reihenfolge: die erste Strom-Messung kommt nach ``Bereit`` und kann nach dem Tobie kommen (Wartefrist ``STROM_START_WARTEN_S``)
+
+
+def test_hw8_messung_kommt_nach_dem_tobie_mit_strom_bleibt_still(box):
+    n = einschalten(box, strom_warten=True)
+    box.auflege(UID, "v2")  # Strom noch unbekannt: der Tobie wartet
+    ohne_wiedergabe(box, n)
+    assert box.modus == "leer" and keine_toene(box, n)
+    box.sende(ev.LaderGeaendert(True), dt=0.5)
+    ohne_wiedergabe(box, n)
+    assert box.modus == "pausiert" and box.kern.session.strom_wartet_bis is None
+    box.laufe(5.0)
+    ohne_wiedergabe(box, n)
+
+
+def test_hw8_messung_kommt_nach_dem_tobie_ohne_strom_spielt_sofort(box):
+    n = einschalten(box, strom_warten=True)
+    box.auflege(UID, "v2")
+    ohne_wiedergabe(box, n)
+    box.sende(ev.LaderGeaendert(False), dt=0.5)
+    assert len(box.befehle(ev.Abspielen, n)) == 1 and box.modus == "spielt"
+
+
+def test_hw8_keine_messung_nach_der_frist_gilt_ohne_strom_und_der_tobie_spielt(box):
+    from tobibox.session import STROM_START_WARTEN_S
+
+    n = einschalten(box, strom_warten=True)
+    box.auflege(UID, "v2")
+    box.laufe(STROM_START_WARTEN_S - 0.3)
+    ohne_wiedergabe(box, n)
+    box.laufe(0.5)  # Frist (2 s ab ``Bereit``) um
+    assert len(box.befehle(ev.Abspielen, n)) == 1 and box.modus == "spielt"
+
+
+def test_hw8_tobie_nach_der_frist_ohne_messung_spielt_sofort(box):
+    from tobibox.session import STROM_START_WARTEN_S
+
+    n = einschalten(box, strom_warten=True)
+    box.laufe(STROM_START_WARTEN_S + 0.5)
+    box.auflege(UID, "v2")
+    assert len(box.befehle(ev.Abspielen, n)) == 1 and box.modus == "spielt"
+
+
+def test_hw8_ohne_erwartung_einer_messung_spielt_unbekannt_sofort(box):
+    n = einschalten(box, strom_warten=False)  # kein ``[strom]``
+    box.auflege(UID, "v2")
+    assert len(box.befehle(ev.Abspielen, n)) == 1
+
+
+def test_hw8_abheben_waehrend_des_wartens_verwirft_den_tobie(box):
+    n = einschalten(box, strom_warten=True)
+    box.auflege(UID, "v2")
+    box.hebe_ab("v2")
+    box.sende(ev.LaderGeaendert(False), dt=0.3)
+    box.laufe(3.0)
+    ohne_wiedergabe(box, n)
+    assert box.modus == "leer" and box.kern.session.figur is None
+
+
+def test_hw8_anderer_tobie_waehrend_des_wartens_spielt_nach_der_messung_nur_der_neue(box):
+    n = einschalten(box, strom_warten=True)
+    box.auflege(UID, "v2")
+    box.sende(ev.Abgehoben(1, "v2"))
+    box.auflege(UID_ANDERS, "v3")
+    box.sende(ev.LaderGeaendert(False))
+    box.laufe(3.0)
+    assert len(box.befehle(ev.Abspielen, n)) == 1 and box.modus == "spielt"
+
+
+def test_hw8_leser_wert_gilt_vor_pisugar_bei_widerspruch(box):
+    n = einschalten(box)
+    box.sende(ev.LaderGeaendert(False, "pisugar"))
+    box.sende(ev.LaderGeaendert(True, "leser"))
+    box.auflege(UID, "v2")
+    ohne_wiedergabe(box, n)
+    assert box.modus == "pausiert"

@@ -266,3 +266,25 @@ def test_leser_ausfall_dann_gilt_pisugar_und_die_frist_beginnt(tmp_path):
     assert b.befehle(ev.Herunterfahren) == []
     b.laufe(2)
     assert [x.grund for x in b.befehle(ev.Herunterfahren)] == ["leerlauf"]
+
+
+def test_hw8_aus_andocken_liegender_tobie_bleibt_still_ohne_lader_ton(tmp_path):
+    """CUJ 25, Zeile „Aus“ (HW8, 11.11.): Start durch Strom mit liegendem Tobie: kein Spielen, kein Lader-Ton; nach Bereit zeigt der Ring den Ladestand."""
+    b = BedienBox(tmp_path, {UID: ev.Zuordnung("serie", SERIE)}, aufbau)
+    b.sende(ev.AkkuStand(70))
+    b.sende(ev.LaderGeaendert(True, "leser"))  # erste Messung ist Strom
+    n = len(b.log)
+    b.auflege(UID)
+    assert b.befehle(ev.Abspielen, n) == [] and b.modus == "pausiert" and "lader" not in toene(b, n)
+    b.laufe(led.AUFWACHEN_S + 0.1)  # erst das Lauflicht des Aufwachens
+    assert b.ring_zustand() in (led.AKKU, led.PAUSE)  # Start-Anzeige (Ladestand) und Pause-Anzeige des still liegenden Tobies, nie „läuft“
+    b.sende(ev.Hauptknopf("kurz"))
+    assert b.befehle(ev.Abspielen, n) and b.modus == "spielt"
+
+
+def test_hw8_andocken_im_laufenden_betrieb_aendert_nichts_am_spielenden_tobie(box):
+    """Nur der Start zählt: Wer schon spielt, spielt weiter (Andocken, CUJ 25 „Spielt“)."""
+    box.auflege(UID)
+    assert box.modus == "spielt"
+    andocken(box)
+    assert box.modus == "spielt"

@@ -20,6 +20,7 @@
 *   **Änderung 11.11.:** Entscheidung X eingearbeitet (Ring zeigt am Strom bei nicht vollem Akku dauernd den Füllstand, wenn sonst nichts angezeigt wird). Betroffen: CUJ 18 (LED-Ring). Die Änderungen sind mit „(Entscheidung X, 11.11.)“ markiert.
 *   **Änderung 11.11.:** Ergänzung zu Entscheidung X (Ladestand-Ring pulsiert leicht, blendet bei voll aus und wieder ein; beim Anstecken zwei schnelle weiche Pulse statt der 5-s-Anzeige). Betroffen: CUJ 18, CUJ 25. Markiert mit „(Ergänzung X, 11.11.)“.
 *   **Änderung 11.11.:** Ergänzung zu Entscheidung V (Akku-Tiefstand rot pulsierend statt Blinken; Leser unterbrochen gelb statt rot). Betroffen: CUJ 18. Markiert mit „(Entscheidung V, 11.11.)“.
+*   **Änderung 11.11.:** HW1 und HW8 aus `docs/egm/hardware-pruefung/resolve.md` eingearbeitet (Ring beim Hören: nach 10 s schwaches Glühen; Start durch Strom: liegender Tobie bleibt still). Betroffen: CUJ 18, CUJ 20, CUJ 21, CUJ 23. Markiert mit „(HW1, 11.11.)“ und „(HW8, 11.11.)“.
 *   **Änderung 11.11.:** Entscheidung Y eingearbeitet (Hauptknopf lang bei laufendem Hörspiel: 2 s ausblenden, dann Pause, Zeiger speichern, Herunterfahren). Betroffen: CUJ 16, Tabelle „Strom / Leerlauf“. Markiert mit „(Entscheidung Y, 11.11.)“.
 *   **Änderung 11.11.:** Entscheidung Z eingearbeitet (Akku in zwei Stufen, Plan Rev. 3.20). Erste Stufe: bei 5 % ohne Strom die Durchsage `akku_leer`, dann 2 s ausblenden und herunterfahren. **Zweite Stufe:** bei 10 % ohne Strom einmal die Warnung `akku_warnung` („Mein Akku wird leer. Bitte bald laden.“); das Hörspiel läuft weiter, der Ring zeigt 5 s den Ladestand (neue Schwelle `warnung_prozent` in `[strom]`). Betroffen: CUJ 16, Tabelle „Strom / Leerlauf“. Markiert mit „(Entscheidung Z, 11.11.)“.
 *   **Grundlage:** `concepts_brief.md` (gleicher Ordner) inkl. Entscheidungen
@@ -962,7 +963,13 @@ Zustände, Übergänge und Konflikte: siehe „Kern-Zustände“.
         auch der Lernmodus bleibt blau. Es gibt keinen Dimm-Faktor 0,4 mehr; er ersetzt den Vorschlag von AP 4.8. `led` erkennt beides aus `ZustandMelden`
         (`ruhe` = `stumm` und Sitzung `spielt` oder `gehalten` neu); der Übergang `spielt` zu `gehalten` startet die 5 s nicht neu, Abheben und erneutes Auflegen schon.
         Keine neue Schnittstelle des Kerns.
-    *   Übrige Zustände: läuft grünes Atmen (12 bis 25 %, 6 s); Pause bernstein
+    *   **Läuft: nach 10 s schwaches Glühen (HW1, 11.11.):** Beim Start der Wiedergabe und bei jedem Wechsel (neuer Tobie, Weiter, Zurück, nächste Folge, Fortsetzen nach einer Pause)
+        atmet der Ring wie bisher grün (12 bis 25 %, 6 s). Nach **10 s** (`LAEUFT_ANZEIGE_S`) blendet er in `UEBERGANG_S` (0,5 s, die vorhandene Überblendung) in das **Glühen** über
+        (Zustandsname `laeuft_gluehen`, grün, weiter langsam atmend, Periode 8 s `LAEUFT_GLUEHEN_S`, 2 bis 3 % `LAEUFT_GLUEHEN_HELL_MIN`/`_MAX`; am echten Ring über die Farbwerte sichtbar,
+        siehe „Hinweis zur Hardware“). Die 10 s beginnen, wenn die Sitzung zu `spielt` wechselt oder sich beim Spielen Serie, Folge oder Track ändern (`ZustandMelden`); eine wiederholte
+        Meldung startet sie nicht neu. Gute Nacht, Lernmodus, „stumm“, Leise-Zeiten und die Akku-Anzeigen behalten ihre Regeln und ihren Vorrang (das Glühen gilt nur dort, wo vorher „läuft“ stand).
+        Strom am echten Ring messen und die Laufzeit-Tabelle neu rechnen (Plan 1.5). Keine neue Schnittstelle des Kerns.
+    *   Übrige Zustände: läuft grünes Atmen (12 bis 25 %, 6 s; nach 10 s Glühen, HW1, 11.11.); Pause bernstein
         (10 %, nach 10 s aus); unbekannter Tobie magenta blinkend (1 s); Aufwachen weißes
         Lauflicht (2 s); Akku als Füllstand (40 LEDs, grün, gelb oder rot, mit
         Strom blau, bei Tiefstand rot **pulsierend** (Entscheidung V, 11.11.: weiches An- und Abschwellen, Periode 1,5 s `TIEFSTAND_PULS_S`, Kurve wie das Atmen bei „läuft“, 12 % bis zum Deckel; unter „stumm“ ruhig auf der kleinsten Stufe 3 %)). **(Ein/Aus, 10.11., V6)** „Ladestand“ (beim Andocken, CUJ 25) und „Akku“ (beim Abziehen) sind **dieselbe** Anzeige,
@@ -1034,6 +1041,13 @@ Zustände, Übergänge und Konflikte: siehe „Kern-Zustände“.
     bis „bereit“ hat einen Soll-Wert (Pi-Probelauf).
     **(Ein/Aus, 10.11.)** Der frühe Start-Ton (CUJ 21) ist dann schon gespielt oder bewusst unterlassen; der Kern spielt keinen zweiten `start`
     (`Bereit.fruehton`). Unter „stumm“ startet der liegende Tobie nicht (CUJ 15). Dass der Tobie selbst die ausgeschaltete Box geweckt hat, folgt mit Schritt 2.
+    **(HW8, 11.11.) Start durch Strom:** Startet die Box mit Strom am Eingang (Sockel, Kabel, Auto, Powerbank), bleibt der liegende Tobie **still und `pausiert`**, wie nach einem
+    Dienst-Neustart: kein Ton, kein `Abspielen`, Zeiger des Ziels bleibt; Hauptknopf kurz oder Abheben und neu Auflegen startet. Beim Einschalten **ohne** Strom (Hauptknopf, Akku) spielt er sofort
+    wie bisher. Schritt 1: „Strom“ heißt, dass bei `Bereit` oder der **ersten Strom-Messung** Strom am Eingang anliegt (S1: jeder Start mit Strom gilt als Start am Lader). Die erste Messung kommt
+    nach `Bereit` und kann nach dem Tobie kommen (`power` und `reader` starten erst nach `Bereit`): Ein beim Start liegender Tobie wartet auf sie, **höchstens `STROM_START_WARTEN_S` = 2 s ab `Bereit`**,
+    danach gilt „ohne Strom“ und er spielt (so bleibt „Tobie spielt in höchstens 3 s“ erhalten, und bei einem Ausfall beider Quellen, `idle`: „Strom unbekannt“ 60 s, gewinnt das Spielen). „Beim Start
+    liegend“ ist der erste Tobie, der höchstens `START_TOBIE_FENSTER_S` = 5 s nach `Bereit` gemeldet wird; später aufgelegte Tobies spielen auch am Sockel sofort (CUJ 23). Unter „stumm“ wie bisher
+    (CUJ 15). Ab Schritt 2 liefert der ESP32 den Weckgrund (`WAKE reason`) statt der Strom-Messung: folgt mit Schritt 2.
 *   **Ausnahme: Dienst-Neustart (Entscheidung G, 06.11.)**: Nach einem Neustart des
     Box-Dienstes, ohne dass die Box ausgeschaltet war (Update, Absturz,
     `systemctl restart`), startet ein liegender Tobie **nie** von selbst. Die
@@ -1050,7 +1064,7 @@ Zustände, Übergänge und Konflikte: siehe „Kern-Zustände“.
 *   **Then**: (1) Das weiße Lauflicht des ESP32 sofort beim Wecken **folgt mit Schritt 2**. (2) Der Frühdienst spielt `start`, sobald der Ton-Ausgang da ist
     (Ziel höchstens 5 s nach 5 V am Pi), ohne den Box-Dienst aufzuhalten. Er klingt wie heute (R10): unter „stumm“ gar nicht, unter „leiser“ mit der Grenze
     des Fensters, sonst normal (CUJ 15). (3) *Bereit* (Ziel höchstens 8,5 s) übernimmt und spielt **keinen zweiten** Start-Ton; Frühton und Töne des Kerns
-    überlagern sich nie. (4) Liegt ein Tobie, spielt er (CUJ 20); unter „stumm“ startet nichts.
+    überlagern sich nie. (4) Liegt ein Tobie, spielt er (CUJ 20; **bei einem Start durch Strom bleibt er still, HW8, 11.11.**); unter „stumm“ startet nichts.
 *   **Ausnahme Frühdienst fehlt, zu langsam oder gescheitert:** Dann gibt es keine Marke des Frühdienstes (`app` legt bei *Bereit* die Gegenmarke an, der Frühdienst spielt dann nicht mehr, V1), und der Kern spielt `start` wie bisher. Unter „stumm“ bleibt es still: Der Kern spielt dann auch keinen Hinweiston (V5).
 *   **Ausnahme Dienst-Neustart:** wie in CUJ 20 (Kern-Ton, keine Marke).
 *   **Ausnahme Pi kommt nicht hoch** (kein Lauflicht-Ende, `host_timeout`, Zwangs-Aus): folgt mit Schritt 2.
@@ -1064,7 +1078,7 @@ Folgt mit Schritt 2 (Tobie auflegen und Tonie-Magnet wecken über den ESP32; nur
 *   **Given**: Strom liegt am Eingang der Box an (Sockel, Kabel, Powerbank, Auto).
 *   **When**: Zeit vergeht, nichts wird gespielt.
 *   **Then**: Die Box ist *Bereit*, ohne Frist, und fährt **nie von selbst** herunter (nur Hauptknopf lang und Akku-Tiefstand ohne Strom). Ein Tobie, der aufgelegt wird,
-    spielt wie sonst (Ziel höchstens 3 s). Das gilt auch, wenn `pisugar-server` hängt, weil der Leser (`LADER`) den Wert liefert; liefert keine Quelle einen Wert, gilt der
+    spielt wie sonst (Ziel höchstens 3 s); **nur ein Tobie, der schon beim Start durch Strom lag, bleibt still und startet per Hauptknopf oder neu Auflegen (HW8, 11.11., CUJ 20)**. Das gilt auch, wenn `pisugar-server` hängt, weil der Leser (`LADER`) den Wert liefert; liefert keine Quelle einen Wert, gilt der
     Strom nach 60 s als „kein Strom“. Kommt der Strom, während die Box herunterfährt, startet sie wieder: folgt mit Schritt 2 (Leser); bis dahin entscheidet
     „Einschalten bei Strom“ des PiSugar.
 
@@ -1087,7 +1101,7 @@ Folgt mit Schritt 2 (Tobie auflegen und Tonie-Magnet wecken über den ESP32; nur
 *   Die **Sperre** `LADER_SPERRE_S` = 10 s gilt für jede Rückmeldung (Ring, Ton, Sync), gerechnet ab der letzten Rückmeldung **oder ab *Bereit***. Ein Wackelkontakt
     löst höchstens eine Rückmeldung je 10 s aus; Strom in den ersten 10 s nach *Bereit* gibt keinen Ton.
 *   Die **erste bekannte Messung** des Stroms im laufenden Dienst (auch eine späte) und ein Dienst-Neustart lösen nur den Sync-Check aus, nie Ton oder Ring.
-*   Liegt beim Andocken aus *Aus* ein Tobie, spielt er (CUJ 20); nachts schützt „stumm“.
+*   Liegt beim Andocken aus *Aus* ein Tobie, bleibt er still (HW8, 11.11., CUJ 20: Start durch Strom); vorher spielte er.
 
 ## Technischer Plan
 
@@ -1482,7 +1496,7 @@ wegen „stumm“ nicht gespielt), `unbekannt` (Leser-Zustand unbekannt).
 | `pausiert` (wartet) | Frist 10 s ohne Antwort (Entscheidung H, 07.11.) | wie ein normales Auflegen (Aktionskarte: Aktion auslösen); kein zweites Melden, der Eintrag bleibt offen | `spielt` (unter „stumm“: `gehalten`) |
 | `pausiert` (wartet) | `REMOVED` (Entscheidung H, 07.11.) | Warten endet, nichts spielt | `pausiert` |
 | `pausiert` (wartet) | Hauptknopf kurz, `Vor`, `Zurück` (Entscheidung H, 07.11.) | nichts (Lautstärke wirkt wie immer) | unverändert |
-| `leer` | Start mit liegendem Tobie (CUJ 20) | wie `PLACED`, sobald alles bereit ist; nach Dienst-Neustart ohne Ausschalten nichts (Entscheidung G, 06.11.) | `spielt`; nach Dienst-Neustart `pausiert` |
+| `leer` | Start mit liegendem Tobie (CUJ 20) | wie `PLACED`, sobald alles bereit ist; nach Dienst-Neustart ohne Ausschalten und bei Start durch Strom nichts (Entscheidung G, 06.11.; HW8, 11.11.) | `spielt`; nach Dienst-Neustart und bei Start durch Strom `pausiert` |
 | beliebig | Kopfhörer rein/raus | erst Grenze setzen, dann Ausgang umschalten | unverändert |
 
 Kommt nach der Frist dieselbe Kennung wieder, ist das ein normales Auflegen
@@ -2633,7 +2647,7 @@ bestätigt oder ändert sie):
 | Auflegen eines Tonies (mit Entsperrzeit), ohne Last | ≤ 1,0 s |
 | Auflegen eines bekannten Tobies, während ein Sync läuft | ≤ 1,0 s; wird erst nach AP 3.4 am Pi gemessen (Abnahme Stufe 3a) |
 | Abheben bis Pause | ≤ 1,5 s |
-| Tobie liegt beim Start (CUJ 20) | spielt, sobald „bereit“ (nur nach Einschalten; nach Dienst-Neustart bleibt er `pausiert`, Entscheidung G, 06.11.) |
+| Tobie liegt beim Start (CUJ 20) | spielt, sobald „bereit“ (nur nach Einschalten ohne Strom; nach Dienst-Neustart und bei Start durch Strom bleibt er `pausiert`, Entscheidung G, 06.11.; HW8, 11.11.) |
 | Lautstärke-Kappung (`softvol`) | Ausgang bleibt bei Dienst-Absturz und Neustart unter der Grenze |
 | Schreibvorgänge pro Tag (Zeiger, Protokoll) | im Schreibbudget des Datenmodells |
 | Temperatur | nur protokollieren (kein Soll-Wert) |

@@ -937,7 +937,7 @@ class App:
         self._loop = asyncio.get_running_loop()
         # Kopfhörer: erste Messung nach ``GeraeteEinstellungen`` (sie stehen vorn in der Schlange), vor ``Bereit``
         await self.buchse.start()
-        self.ereignisse.put_nowait(ev.Bereit(fruehton=self._fruehton_auswerten()))
+        self.ereignisse.put_nowait(ev.Bereit(fruehton=self._fruehton_auswerten(), strom_warten=self._strom_misst_selbst()))
         await self._leere_ereignisse()
         if not self.konfig.leser.simulation:
             self.leser.start()
@@ -956,6 +956,11 @@ class App:
         if self._melde_bereit:
             notify.bereit()
         eventlog.logge("app", "INFO", "bereit", "ok")
+
+    def _strom_misst_selbst(self) -> bool:
+        """HW8: Kommt gleich nach ``Bereit`` von selbst eine erste Strom-Messung? Nur mit einem echten Treiber (PiSugar). ``SimStrom`` (Mac, Tests)
+        liefert erst, wenn ``sim`` einen Wert setzt; dort gilt „unbekannt“ sofort als „ohne Strom“ (kein Warten)."""
+        return self.power is not None and not isinstance(self.power.treiber, SimStrom)
 
     def _fruehton_auswerten(self) -> bool:
         """Die Marke des Frühtons **bei ``Bereit``** lesen (V1, Ein/Aus, 10.11.) und die Gegenmarke setzen.

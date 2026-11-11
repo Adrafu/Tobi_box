@@ -13,6 +13,12 @@ Lernmodus wartet still (Entscheidung H, 07.11.): Ein im Lernmodus aufgelegter To
 nichts. Die Sitzung bleibt ``pausiert`` mit dem Feld ``lern_wartet_bis`` (``mono``) und wartet auf die
 Zuordnung (``KonfigGeladen``), auf ``Bestaetigt`` „abgelehnt“ oder auf ``LERN_ANTWORT_FRIST_S``; danach
 verhält sie sich wie bei einem normalen Auflegen. Hauptknopf, ``Weiter`` und ``Zurueck`` bewirken nichts.
+
+Start durch Strom (HW8, 11.11.): Startet die Box mit Strom am Eingang (Schritt 1: „jeder Start mit Strom gilt als Start am Lader“, S1),
+bleibt ein beim Start liegender Tobie still und ``pausiert`` wie nach einem Dienst-Neustart (Hauptknopf kurz oder neu auflegen startet).
+Ein „beim Start liegender“ Tobie ist der erste, der höchstens ``START_TOBIE_FENSTER_S`` nach ``Bereit`` gemeldet wird. ``session`` führt die
+Strom-Quellen selbst mit (``stromwert``, ``LaderGeaendert``). Ist der Strom beim Auflegen noch unbekannt, wartet der Tobie bis zur ersten
+Messung, höchstens bis ``STROM_START_WARTEN_S`` nach ``Bereit`` (Feld ``strom_wartet_bis``); danach gilt „ohne Strom“ und er spielt.
 """
 
 from __future__ import annotations
@@ -24,11 +30,20 @@ from typing import Literal
 from . import events as ev
 from . import pointer
 from .events import Jetzt
+from .stromwert import StromQuellen
 from .volume import GRENZE_AUSBLENDEN, GRENZE_KOPFHOERER, rampe
 
 LESER_FRIST_S = 3.0
 #: Wartezeit auf die Antwort von HA, wenn im Lernmodus ein Tobie aufgelegt wird (Entscheidung H, 07.11.); läuft auf ``mono``
 LERN_ANTWORT_FRIST_S = 10.0
+#: HW8 (11.11.): So lange nach ``Bereit`` wartet ein beim Start liegender Tobie auf die erste Strom-Messung (``mono``); danach gilt „ohne Strom“.
+#: Begründung: ``power`` und ``reader`` starten erst nach ``Bereit``; ``pisugar-server`` antwortet im Normalfall in unter 1 s. Länger als 2 s soll
+#: ein Tobie, den Tobias bewusst auflegt, nicht stumm bleiben (CUJ 23: „Tobie spielt in höchstens 3 s“). Ohne Messung (Strom unbekannt, ``idle``:
+#: ``STROM_UNBEKANNT_S`` = 60 s) startet er also nach 2 s wie bisher: der sichere Rückfall ist „spielen“.
+STROM_START_WARTEN_S = 2.0
+#: HW8: Ein Tobie, der innerhalb dieser Zeit nach ``Bereit`` zum ersten Mal gemeldet wird, gilt als „beim Start liegend“ (der Leser meldet ihn
+#: gleich nach dem Start). Später aufgelegte Tobies spielen auch am Sockel sofort (CUJ 23).
+START_TOBIE_FENSTER_S = 5.0
 MPD_FRIST_S = 5.0
 RUECKSPRUNG_S = pointer.RUECKSPRUNG_S
 SPEICHERN_PERIODISCH_S = pointer.SPEICHERN_PERIODISCH_S
@@ -93,6 +108,14 @@ class Zustand:
     gen: int = 0  # Wiedergabe-Generation: wächst mit jedem ``Abspielen``
     # Tobie, der beim Dienst-Neustart auflag: startet nicht von selbst (Entscheidung G, 06.11.)
     neustart_uid: str | None = None
+    # HW8 (11.11.): Start durch Strom. ``start_offen``: der Start-Tobie (erster Tobie nach ``Bereit``) ist noch nicht behandelt;
+    # ``start_mono``: ``mono`` von ``Bereit``; ``strom``: Strom-Quellen (wie ``idle`` und ``led``); ``strom_warten``: aus ``Bereit``;
+    # ``strom_wartet_bis``: der Start-Tobie liegt und wartet auf die erste Messung (``mono``), es spielt nichts.
+    start_offen: bool = False
+    start_mono: float = 0.0
+    strom: StromQuellen = StromQuellen()
+    strom_warten: bool = False
+    strom_wartet_bis: float | None = None
     # Lernmodus wartet still (Entscheidung H, 07.11.): Ende der Wartefrist auf ``mono``; ``None``: wir warten nicht.
     # Der Tobie liegt (``figur``), der Zustand ist ``pausiert``, es spielt nichts.
     lern_wartet_bis: float | None = None
@@ -347,15 +370,18 @@ def _stumm_hinweis(z: Zustand, modus: str) -> tuple[Zustand, Ausgabe]:
 
 
 def _auflegen(
-    z: Zustand, uid: str | None, vorgang: str, jetzt: Jetzt, *, warten: bool = True, melden: bool = True
+    z: Zustand, uid: str | None, vorgang: str, jetzt: Jetzt, *, warten: bool = True, melden: bool = True,
+    start_strom: bool | None = None,
 ) -> tuple[Zustand, Ausgabe]:
     """Neue Figur in einem Zustand ohne laufende Wiedergabe behandeln.
+
+    ``start_strom`` (HW8): ``True``/``False`` nur beim Ende des Wartens auf die erste Strom-Messung (Start mit/ohne Strom schon entschieden).
 
     ``warten=False`` und ``melden=False`` gelten, wenn das Warten im Lernmodus endet (Entscheidung H, 07.11.):
     Der Tobie wurde schon gemeldet und wird nicht noch einmal abgewartet.
     """
     zuo = z.konfig.zuordnungen.get(uid) if (uid is not None and z.konfig is not None) else None
-    z = replace(z, lern_wartet_bis=None, lern_ziel=None)
+    z = replace(z, lern_wartet_bis=None, lern_ziel=None, strom_wartet_bis=None)  # (HW8: ein neuer Tobie beendet das Warten auf die Strom-Messung)
     if warten and z.lernt and uid is not None:
         return _lern_warten(z, uid, vorgang, zuo, jetzt)
     # Dienst-Neustart (Entscheidung G, 06.11.): der Tobie, der schon vorher lag, startet nicht
@@ -363,8 +389,17 @@ def _auflegen(
     kennung = ev.NEUSTART_GESPERRT if uid is None else uid
     neustart = z.neustart_uid is not None and kennung == z.neustart_uid and z.modus == "leer"
     z = replace(z, neustart_uid=None)
-    if zuo is not None and zuo.typ == "aktion" and zuo.aktion is not None:
-        return replace(z, figur=Figur(vorgang, uid, "aktion")), [ev.AktionAusgeloest(zuo.aktion, vorgang)]
+    aktion = zuo is not None and zuo.typ == "aktion" and zuo.aktion is not None
+    z, entscheid = _start_entscheiden(z, jetzt, start_strom, aktiv=not neustart and not z.stumm and not aktion)
+    if entscheid == "warten":
+        art_w: Literal["serie", "unbekannt", "gesperrt", "aktion"] = "gesperrt" if uid is None else ("serie" if zuo is not None else "unbekannt")
+        return (
+            replace(z, figur=Figur(vorgang, uid, art_w), strom_wartet_bis=z.start_mono + STROM_START_WARTEN_S),
+            [_prot("INFO", "start_strom", "warten", vorgang, uid=uid, frist_s=STROM_START_WARTEN_S)],
+        )
+    strom_start = entscheid == "strom"
+    if aktion:
+        return replace(z, figur=Figur(vorgang, uid, "aktion")), [ev.AktionAusgeloest(zuo.aktion, vorgang)]  # type: ignore[union-attr, arg-type]
 
     out: Ausgabe = []
     serie: ev.Serie | None
@@ -402,8 +437,9 @@ def _auflegen(
         )
     )
 
+    neustart = neustart or strom_start  # HW8: Start durch Strom verhält sich wie der Dienst-Neustart: pausiert, still
     if z.stumm or (neustart and serie is not None):
-        # „stumm“: gehalten, Hinweiston. Dienst-Neustart: pausiert, still (Zeiger bleibt, Hauptknopf spielt)
+        # „stumm“: gehalten, Hinweiston. Dienst-Neustart und Start durch Strom: pausiert, still (Zeiger bleibt, Hauptknopf spielt)
         if neustart:
             modus = "pausiert"
         else:
@@ -422,7 +458,10 @@ def _auflegen(
         if not neustart:
             out.append(ev.TonSpielen("hinweis"))
         else:
-            out.append(_prot("INFO", "dienst_neustart", "pausiert", vorgang, uid=uid))
+            out.append(
+                _prot("INFO", "start_strom", "pausiert", vorgang, uid=uid) if strom_start
+                else _prot("INFO", "dienst_neustart", "pausiert", vorgang, uid=uid)
+            )
         return z, out
 
     if serie is None:
@@ -434,6 +473,46 @@ def _auflegen(
         out.append(ev.TonSpielen("unbekannt"))
     z, start = _start(z, serie, vorgang, jetzt, ziel_art, folge)
     return z, out + start
+
+
+def _start_entscheiden(
+    z: Zustand, jetzt: Jetzt, start_strom: bool | None, *, aktiv: bool
+) -> tuple[Zustand, Literal["strom", "ohne", "warten"]]:
+    """HW8: Gilt der Start als „durch Strom“? Verbraucht den Start-Tobie (``start_offen``); später aufgelegte Tobies spielen immer.
+
+    ``strom``: Strom am Eingang beim Start, der Tobie bleibt still. ``ohne``: spielt wie bisher. ``warten``: Strom noch unbekannt, die Frist
+    ``STROM_START_WARTEN_S`` seit ``Bereit`` läuft noch und ``Bereit.strom_warten`` ist gesetzt. ``aktiv=False``: Dienst-Neustart, „stumm“
+    oder Aktionskarte regeln es selbst."""
+    if start_strom is not None:
+        return z, "strom" if start_strom else "ohne"
+    if not z.start_offen:
+        return z, "ohne"
+    z = replace(z, start_offen=False)
+    if not aktiv or jetzt.mono - z.start_mono > START_TOBIE_FENSTER_S:
+        return z, "ohne"
+    wert = z.strom.wert
+    if wert is not None:
+        return z, "strom" if wert else "ohne"
+    if z.strom_warten and jetzt.mono - z.start_mono < STROM_START_WARTEN_S:
+        return z, "warten"
+    return z, "ohne"
+
+
+def _start_warten_ende(z: Zustand, jetzt: Jetzt, strom: bool) -> tuple[Zustand, Ausgabe]:
+    """Das Warten auf die erste Strom-Messung endet (Messung da oder Frist um): der Tobie wird jetzt behandelt (HW8)."""
+    f = z.figur
+    z = replace(z, strom_wartet_bis=None)
+    if f is None:
+        return z, []
+    z, out = _auflegen(z, f.uid, f.vorgang, jetzt, start_strom=strom)
+    return z, [_prot("INFO", "start_strom", "mit_strom" if strom else "ohne_strom", f.vorgang, uid=f.uid)] + out
+
+
+def _lader(z: Zustand, e: ev.LaderGeaendert, jetzt: Jetzt) -> tuple[Zustand, Ausgabe]:
+    z = replace(z, strom=z.strom.mit(e))
+    if z.strom_wartet_bis is not None and z.strom.wert is not None:
+        return _start_warten_ende(z, jetzt, z.strom.wert)
+    return z, []
 
 
 def _lern_warten(
@@ -539,7 +618,7 @@ def _abgehoben(z: Zustand, jetzt: Jetzt) -> tuple[Zustand, Ausgabe]:
     if z.figur is None:
         return z, []
     out: Ausgabe = []
-    z = replace(z, figur=None, hb_abweichungen=0, neustart_uid=None, lern_wartet_bis=None, lern_ziel=None)
+    z = replace(z, figur=None, hb_abweichungen=0, neustart_uid=None, lern_wartet_bis=None, lern_ziel=None, strom_wartet_bis=None)
     if z.modus in ("spielt", "unbekannt"):
         out += _grenze_weg(z)
         out.append(ev.Pausieren("abgehoben"))
@@ -561,7 +640,10 @@ def _abgehoben_ereignis(z: Zustand, e: ev.Abgehoben, jetzt: Jetzt) -> tuple[Zust
 
 
 def _leser_ausfall(z: Zustand, e: ev.Ereignis, jetzt: Jetzt) -> tuple[Zustand, Ausgabe]:
-    z = replace(z, nach_hallo=isinstance(e, ev.LeserHallo), hb_abweichungen=0)
+    z = replace(
+        z, nach_hallo=isinstance(e, ev.LeserHallo), hb_abweichungen=0,
+        strom=StromQuellen(z.strom.pisugar, None),  # der Leser-Wert gilt nur für die aktuelle Verbindung (V2), wie in ``idle`` und ``led``
+    )
     if z.modus == "spielt" and z.ausblenden is None:
         z = replace(z, modus="unbekannt", unbekannt_seit=jetzt.mono, mpd_bis=None)
     return z, []
@@ -853,6 +935,7 @@ def _resume(z: Zustand, e: ev.ResumeGeladen, jetzt: Jetzt) -> tuple[Zustand, Aus
 
 
 def _bereit(z: Zustand, e: ev.Bereit, jetzt: Jetzt) -> tuple[Zustand, Ausgabe]:
+    z = replace(z, start_offen=True, start_mono=jetzt.mono, strom_warten=e.strom_warten)  # HW8
     if e.fruehton:
         # Der Frühdienst hat den Start-Ton schon entschieden (gespielt oder bewusst unterlassen, R10): kein zweiter ``start``
         # und unter „stumm“ auch kein ``hinweis`` an seiner Stelle (Ein/Aus, 10.11.; ``core-interface.md``, 3.3)
@@ -962,6 +1045,10 @@ def _dienst_endet(z: Zustand, e: ev.DienstEndet, jetzt: Jetzt) -> tuple[Zustand,
 
 
 def _takt(z: Zustand, e: ev.Takt, jetzt: Jetzt) -> tuple[Zustand, Ausgabe]:
+    if z.strom_wartet_bis is not None:
+        if jetzt.mono >= z.strom_wartet_bis - _EPS:
+            return _start_warten_ende(z, jetzt, False)  # HW8: keine Messung in der Frist: „ohne Strom“, der Tobie spielt
+        return z, []
     if z.lern_wartet_bis is not None:
         if jetzt.mono >= z.lern_wartet_bis - _EPS:
             return _lern_warten_ende(z, "frist", jetzt)
@@ -1005,6 +1092,7 @@ _HANDLER: dict[type, _Handler] = {
     ev.BibliothekGeladen: _bibliothek,
     ev.ResumeGeladen: _resume,
     ev.Bereit: _bereit,
+    ev.LaderGeaendert: _lader,
     ev.Aufgelegt: _aufgelegt,
     ev.Gesperrt: _gesperrt,
     ev.Abgehoben: _abgehoben_ereignis,
