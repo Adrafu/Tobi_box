@@ -50,16 +50,22 @@ max_bytes = 1000000
 anzahl = 5
 
 # [sync]
-# Medien-Sync vom QNAP (rsync-Daemon, Modul "medien", nur lesend, über Tailscale).
+# Medien-Sync vom QNAP (11.11.): Rsync-Server des QNAP (HBS 3), nur Abholen, über Tailscale oder Heimnetz.
+# Der QNAP kennt ein gemeinsames Konto und keine eigenen Module: Modul = Freigabeordner "tobibox", die Medien liegen
+# im Unterordner "medien". Die Box liest nur und schreibt nie zum Server (--delete wirkt nur auf die Box).
 # Ohne diesen Abschnitt läuft der Dienst wie bisher ohne Sync. Zum Einschalten die Zeilen einkommentieren. Nur Platzhalter, nie echte Zugangsdaten.
 # host = "qnap.example.ts.net"        # Tailscale-Name oder -Adresse des QNAP
 # port = 873
-# modul = "medien"
-# benutzer = "box1"
+# modul = "tobibox"                   # Freigabeordner am QNAP
+# pfad = "medien"                     # Unterordner im Modul; ohne pfad ist das Modul selbst die Quelle
+# benutzer = "<gemeinsames Konto>"    # Platzhalter
 # Das Passwort steht nie in dieser Datei: entweder eine Datei (Rechte 600, nicht im Repo) ...
 # passwort_datei = "../var/sync.pw"
 # ... oder der Name einer Umgebungsvariable:
 # passwort_umgebung = "TOBIBOX_SYNC_PASSWORT"
+# Am Mac: Apples rsync (openrsync, Protokoll 29) reicht nicht, der Dienst meldet das beim Start.
+# Bitte `brew install rsync` und das Homebrew-rsync eintragen (Apple Silicon: /opt/homebrew/bin/rsync, Intel: /usr/local/bin/rsync):
+# rsync = "/opt/homebrew/bin/rsync"
 # Halbe Dateien landen hier, nie im Medienordner; gleiches Dateisystem wie "medien" (Vorgabe: neben "medien").
 # partial_dir = "../.rsync-partial"
 # intervall_s = 3600                  # Takt für den zeitgesteuerten Sync

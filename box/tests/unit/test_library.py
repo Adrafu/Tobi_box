@@ -337,3 +337,21 @@ def test_serie_einzelfolgen_ohne_sonderregel(tmp_path):
     s = lade_bibliothek(tmp_path).serie("Einzelfolgen")
     assert (s.typ, s.folgen) == ("normal", ("Frosch.wav", "Schatzinsel"))
     assert len(s.tracks["Schatzinsel"]) == 3 and s.tracks["Frosch.wav"] == ("Frosch.wav",)
+
+
+@pytest.mark.parametrize("name", ["@eaDir", "@Recycle", "#recycle", "$RECYCLE.BIN", ".@__thumb", ".Trash"])
+def test_systemordner_sind_keine_serien(tmp_path, name):
+    """11.11.: QNAP- und Windows-Systemordner (auch mit Audio darin, z. B. ein Papierkorb) werden nicht eingelesen."""
+    erzeuge_serie(tmp_path, "echt", ["folge-1.wav"], mit_serie_json=False)
+    erzeuge_serie(tmp_path, name, ["geloescht.wav"], mit_serie_json=False)
+    assert [s.ordner for s in lade_bibliothek(tmp_path).serien] == ["echt"]
+
+
+def test_systemordner_in_serie_sind_keine_folgen_und_systemdateien_keine_tracks(tmp_path):
+    erzeuge_serie(tmp_path, "serie", ["folge-1.wav"], mit_serie_json=False)
+    schreibe_wav(tmp_path / "serie" / "@eaDir" / "x.wav")
+    schreibe_wav(tmp_path / "serie" / "._folge-1.wav")
+    (tmp_path / "serie" / ".DS_Store").write_bytes(b"x")
+    (tmp_path / "serie" / "Thumbs.db").write_bytes(b"x")
+    s = lade_bibliothek(tmp_path).serie("serie")
+    assert s.folgen == ("folge-1.wav",)

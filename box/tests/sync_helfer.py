@@ -54,7 +54,8 @@ def dateien(ordner: Path) -> set[str]:
 @pytest.fixture
 def rsync_daemon(tmp_path):
     """Startet einen lokalen rsync-Daemon. Module: ``medien`` (offen), ``gesichert`` (mit Anmeldung),
-    ``fehlt`` (Pfad existiert nicht), ``leer`` (leerer Ordner). Alle nur lesend."""
+    ``fehlt`` (Pfad existiert nicht), ``leer`` (leerer Ordner), ``nas`` (Elternordner von ``medien``, wie die QNAP-Freigabe
+    ``tobibox`` mit dem Unterordner ``medien``; Aufruf mit ``pfad="medien"``). Alle nur lesend."""
     if shutil.which("rsync") is None:
         pytest.skip("rsync nicht installiert")
     quelle = tmp_path / "nas" / "medien"
@@ -89,6 +90,8 @@ address = 127.0.0.1
     path = {tmp_path}/gibt-es-nicht
 [leer]
     path = {leer}
+[nas]
+    path = {tmp_path}/nas
 """
     )
     proc = subprocess.Popen(

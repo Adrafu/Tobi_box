@@ -1865,8 +1865,21 @@ Skripte, Automationen) liegt als Dateien im Repo unter `homeassistant/`.
   `home` (Heim-SSID **und** NAS über Tailscale erreichbar), `hotspot`
   (Hotspot-SSID), `offline`.
 - **Medien-Sync** mit rsync über Tailscale zu einem **rsync-Daemon auf dem
-  QNAP** (Modul `medien`, `read only = yes`; QNAP-SSH-Konten sind nur für
-  Admins, deshalb kein SSH). Der Sync startet auf einen Takt im Dienst
+  QNAP** (QNAP-SSH-Konten sind nur für Admins, deshalb kein SSH).
+  - **(11.11.)** Gewählt ist der **eingebaute Rsync-Server des QNAP (HBS 3)**
+    mit **einem gemeinsamen Konto**, das auch schreiben darf. Er kennt keine
+    eigenen Module: Modul = Freigabe `tobibox`, Quelle = Unterordner `medien`
+    (`[sync] modul = "tobibox"`, `pfad = "medien"`, URL `rsync://…/tobibox/medien/`;
+    ohne `pfad` wie bisher das Modul selbst). Die Ausschlüsse (`/_upload`,
+    `/_papierkorb`, `/eingang`) sind am Anfang der **Quelle** verankert, also von
+    `medien/`. Die Box benutzt rsync **nur lesend**: Quelle immer der Server,
+    Ziel immer lokal, `--delete` nur lokal; `befehl()` prüft das bei jedem Aufruf
+    (`pruefe_nur_lesend`), ein Test sichert es. Risiko und Rückweg (Container mit
+    Nur-Lesen-Modul): `docs/betrieb/tailscale-nas.md`, Abschnitt 4.
+  - **(11.11.)** Mac: Apples `rsync` (openrsync, Protokoll 29) reicht nicht. Der
+    Dienst fragt beim Start `rsync --version` und bricht mit „rsync zu alt bzw.
+    openrsync: bitte `brew install rsync`“ ab; `[sync] rsync` setzt den Pfad
+    (z. B. `/opt/homebrew/bin/rsync`). Der Sync startet auf einen Takt im Dienst
   (Intervall in `tobibox.toml`, Vorschlag 1 h) und auf den HA-Knopf, jeweils
   nur wenn die Netz-Regel es erlaubt:
   - `home`: immer erlaubt.

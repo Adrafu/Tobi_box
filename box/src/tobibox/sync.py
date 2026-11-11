@@ -41,6 +41,7 @@ import os
 import re
 import shutil
 import signal
+import subprocess
 import time
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
@@ -63,10 +64,24 @@ FORTSCHRITT_ABSTAND_S = 1.0
 MPD_EINLESEN_MAX_S = 300.0
 
 #: Dinge, die der QNAP selbst anlegt und die nie auf die Box gehören.
-AUSSCHLUESSE = ("@*", "#recycle", ".@__thumb", "$RECYCLE.BIN", ".DS_Store", "Thumbs.db")
+def _ohne_gross_klein(name: str) -> str:
+    """rsync kennt kein ``--ignore-case`` für Muster: Buchstaben als ``[Aa]`` schreiben."""
+    return "".join(f"[{c.upper()}{c.lower()}]" if c.isalpha() else c for c in name)
+
+
+#: Systemdateien und -ordner (11.11.): AppleDouble ``._*``, ``.DS_Store``, ``@eaDir``/``@Recycle``/``@…`` (QNAP/Synology),
+#: ``.@__thumb``, ``.@__qini``, ``#recycle``, Windows ``Thumbs.db``, ``desktop.ini``, ``$RECYCLE.BIN``. Ohne Rücksicht auf
+#: Groß-/Kleinschreibung, an jeder Tiefe. ``--exclude`` schützt sie auch vor ``--delete``: Liegt so etwas lokal, bleibt es.
+AUSSCHLUESSE = (
+    "@*",
+    "._*",
+    ".@__*",
+    *(_ohne_gross_klein(n) for n in ("#recycle", "$RECYCLE.BIN", ".DS_Store", "Thumbs.db", "desktop.ini")),
+)
 
 #: Ordner der HA-Medienverwaltung, die nie auf die Box gehören (Entscheidung M6, 09.11.): Upload-Zwischenablage, Papierkorb
-#: und Eingang. Am Anfang des Moduls verankert. ``--exclude`` schützt sie auch vor ``--delete``: Was die Box davon hätte, bleibt.
+#: und Eingang. Am Anfang der **Quelle** verankert (11.11.): rsync verankert ein ``/`` am Anfang an dem Ordner, der als Quelle
+#: angegeben ist (URL mit Schrägstrich am Ende). Mit ``[sync] pfad`` ist das ``…/{modul}/{pfad}/``, nicht das Modul. ``--exclude`` schützt sie auch vor ``--delete``: Was die Box davon hätte, bleibt.
 NIE_AUF_DIE_BOX = ("/_upload", "/_papierkorb", "/eingang")
 
 #: rsync-Rückgabewerte, die auf ein weggefallenes Netz hindeuten (Socket, Datenstrom, Timeout, Verbindungs-Timeout).
@@ -102,6 +117,62 @@ def regel_erlaubt(klasse: str | None, am_lader: bool | None, akku: int | None) -
 def zu_viele_loeschungen(geloescht: int, vorhanden: int) -> bool:
     """Mehr als 20 % der vorhandenen Dateien (genau 20 % ist noch erlaubt; ganzzahlig gerechnet)."""
     return geloescht * 100 > vorhanden * MAX_LOESCHEN_PROZENT
+
+
+#: Optionen, mit denen rsync auf der Quelle etwas löschen oder verändern würde (das gemeinsame Konto am QNAP darf schreiben).
+_SCHREIBENDE_OPTIONEN = ("--remove-source-files", "--remove-sent-files", "--del-source", "--delete-source")
+
+
+def pruefe_nur_lesend(cmd: Sequence[str]) -> None:
+    """Die Box benutzt rsync nur zum Abholen (11.11.): Quelle ist immer der Server, Ziel immer ein lokaler Pfad.
+
+    Das Konto am QNAP darf schreiben; dieser Schutz sorgt dafür, dass die Box es nie tut. ``--delete`` wirkt nur
+    auf das Ziel, also lokal. Verstöße sind Programmfehler (``ValueError``), nie Laufzeitfehler des Netzes."""
+    args = list(cmd)
+    for a in args:
+        if a.split("=", 1)[0] in _SCHREIBENDE_OPTIONEN:
+            raise ValueError(f"rsync darf nie auf dem Server schreiben oder löschen: {a}")
+    orte = [a for a in args if a.startswith("rsync://")]
+    if len(orte) != 1:
+        raise ValueError("rsync braucht genau eine Server-Quelle")
+    i = args.index(orte[0])
+    if i != len(args) - 1 and i != len(args) - 2:
+        raise ValueError("die Server-Adresse muss die Quelle sein (vor dem Ziel)")
+    ziel = args[i + 1 :]
+    if not ziel and "--list-only" not in args:
+        raise ValueError("der Server steht am Ende: das wäre ein Ziel (nur ``--list-only`` hat kein lokales Ziel)")
+    if len(ziel) > 1:
+        raise ValueError("höchstens ein Ziel nach der Quelle")
+    if ziel and (ziel[0].startswith("rsync://") or ":" in ziel[0].split("/", 1)[0] or not ziel[0].startswith("/")):
+        raise ValueError(f"das Ziel muss ein lokaler absoluter Pfad sein: {ziel[0]}")
+
+
+class RsyncUngeeignet(Exception):
+    """Das gefundene rsync ist zu alt oder Apples openrsync (Protokoll 29): der Sync liefe nicht."""
+
+
+_PROTOKOLL = re.compile(r"protocol version\s+(\d+)")
+
+
+def pruefe_rsync_ausgabe(ausgabe: str, rsync: str = "rsync") -> None:
+    """Prüft die Ausgabe von ``rsync --version``: openrsync oder Protokoll unter 30 (rsync vor 3.0) lehnt der Dienst ab."""
+    text = ausgabe.lower()
+    m = _PROTOKOLL.search(ausgabe)
+    protokoll = int(m.group(1)) if m else None
+    if "openrsync" in text or protokoll is None or protokoll < 30:
+        raise RsyncUngeeignet(
+            f"rsync zu alt bzw. openrsync (Apples rsync, Protokoll 29): '{rsync}' taugt nicht für den Sync. "
+            "Bitte `brew install rsync` und in [sync] rsync = \"/opt/homebrew/bin/rsync\" eintragen."
+        )
+
+
+def pruefe_rsync(rsync: str = "rsync") -> None:
+    """Beim Start: ``rsync --version`` fragen und prüfen. Fehlt das Programm, ist das ebenfalls ein klarer Fehler."""
+    try:
+        r = subprocess.run([rsync, "--version"], capture_output=True, text=True, timeout=10, check=False)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        raise RsyncUngeeignet(f"rsync nicht ausführbar ('{rsync}': {e}). Auf dem Mac: `brew install rsync` und [sync] rsync setzen.") from e
+    pruefe_rsync_ausgabe(r.stdout + r.stderr, rsync)
 
 
 def _maskiere(pfad: str) -> str:
@@ -392,7 +463,8 @@ class Sync:
     def _url(self) -> str:
         k = self.konfig
         wer = f"{k.benutzer}@" if k.benutzer else ""
-        return f"rsync://{wer}{k.host}:{k.port}/{k.modul}/"
+        unter = f"{k.pfad}/" if k.pfad else ""  # ohne ``pfad`` wie bisher: das Modul selbst ist die Quelle
+        return f"rsync://{wer}{k.host}:{k.port}/{k.modul}/{unter}"
 
     def _basis(self, optionen: Sequence[str], ausnahmen: Sequence[str] = ()) -> list[str]:
         return self.befehl(optionen, ausnahmen)
@@ -425,6 +497,7 @@ class Sync:
             cmd.append(self._url())
         else:
             cmd += [self._url(), str(self.medien) + "/"]
+        pruefe_nur_lesend(cmd)
         return cmd
 
     def _grund_aus_code(self, code: int, fehl: str) -> str:
@@ -434,8 +507,8 @@ class Sync:
             return "netz_weg"
         if "auth failed" in fehl or "password file" in fehl:
             return "anmeldung"
-        if code == 5:
-            return "quelle_fehlt"  # unbekanntes Modul, Pfad des Moduls fehlt, ...
+        if code == 5 or (code == 23 and "change_dir" in fehl):
+            return "quelle_fehlt"  # unbekanntes Modul, Pfad des Moduls fehlt, ``[sync] pfad`` gibt es im Modul nicht, ...
         return "rsync_fehler"
 
     async def _rsync_lauf(

@@ -56,6 +56,7 @@ from pathlib import Path
 
 from . import __version__, bootid, core, eventlog, fruehton, lauf, library, nachfuehrung, notify, selftest, store, uhrregel
 from . import config as konfig_modul
+from . import sync as sync_modul
 from . import events as ev
 from .clock import SystemUhr, Uhr
 from .ausgang import Ausgang
@@ -259,6 +260,7 @@ class App:
             self.sync = Sync(
                 k.sync, k.pfade.medien, ausgabe=self.ereignisse_ein,
                 aktuelle_datei=haken.aktuelle_datei, einlesen=haken.einlesen,
+                rsync=k.sync.rsync or "rsync",
             )
 
     def _systemuhr_pruefen_noetig(self) -> bool:
@@ -1145,6 +1147,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     except konfig_modul.KonfigFehler as e:
         print(f"tobiboxd: {e}", file=sys.stderr)
         return 2
+    if konfig.sync is not None:
+        try:
+            sync_modul.pruefe_rsync(konfig.sync.rsync or "rsync")
+        except sync_modul.RsyncUngeeignet as e:
+            print(f"tobiboxd: {e}", file=sys.stderr)
+            return 2
     p = konfig.protokoll
     eventlog.einrichten(ziel=p.ziel, datei=p.datei, ebene=p.ebene, max_bytes=p.max_bytes, anzahl=p.anzahl)
     konfig.pfade.zustand.mkdir(parents=True, exist_ok=True)

@@ -167,6 +167,13 @@ def finde_ueberraschung(serien: tuple[ev.Serie, ...]) -> ev.Serie | None:
     return next((s for s in serien if s.typ == "ueberraschung"), None) if ueberraschung_status(serien) == "ok" else None
 
 
+def _ist_ordner_kandidat(p: Path) -> bool:
+    """Ordner, die Serie oder Folge sein können: nicht versteckt, kein Systemordner (``@eaDir``, ``#recycle``,
+    ``$RECYCLE.BIN``; 11.11., Vertrag W Abschnitt 12 reserviert nur ``_…`` und ``eingang``, die der Sync fernhält)."""
+    n = p.name
+    return p.is_dir() and not n.startswith((".", "@", "#", "$"))
+
+
 def _ist_audio(name: str) -> bool:
     return not name.startswith(".") and Path(name).suffix.lower() in AUDIO_ENDUNGEN and dateiname_gueltig(name)
 
@@ -179,13 +186,13 @@ def _vorhandene_dateien(ordner: Path) -> set[str]:
 
 
 def _folgen_ordner(ordner: Path) -> dict[str, tuple[str, ...]]:
-    """Unterordner (ohne Punkt am Anfang) -> ihre Tracks als Pfade ``Ordner/Datei``.
+    """Unterordner (ohne Punkt, @, # oder $ am Anfang) -> ihre Tracks als Pfade ``Ordner/Datei``.
 
     Ordner ohne Track stehen mit leerem Tupel drin (der Aufrufer protokolliert
     sie als ``folge_leer`` und zählt sie nicht)."""
     aus: dict[str, tuple[str, ...]] = {}
     try:
-        kandidaten = [p for p in ordner.iterdir() if p.is_dir() and not p.name.startswith(".")]
+        kandidaten = [p for p in ordner.iterdir() if _ist_ordner_kandidat(p)]
     except OSError:
         return aus
     for sub in kandidaten:
@@ -285,7 +292,7 @@ def lade_bibliothek(medien: str | Path, *, leise: bool = False) -> Bibliothek:
         logge("library", "ERROR", "medienordner_fehlt", "fehler", daten={"pfad": str(medien)})
         return Bibliothek((), "keine")
     kandidaten: list[tuple[ev.Serie, str]] = []
-    for ordner in sorted((p for p in medien.iterdir() if p.is_dir() and not p.name.startswith(".")),
+    for ordner in sorted((p for p in medien.iterdir() if _ist_ordner_kandidat(p)),
                          key=lambda p: natuerlicher_schluessel(p.name)):
         try:
             e = _serie_aus_ordner(ordner, medien)

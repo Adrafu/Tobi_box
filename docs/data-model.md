@@ -530,7 +530,10 @@ Regeln (aus dem Design, hier zusammengefasst):
     (`_papierkorb`, `_upload`), und der Name `eingang` (ohne Rücksicht auf
     Groß-/Kleinschreibung) sind **keine Serien**. Die HA-Integration legt dafür keine
     `serie.json` an. Sie werden vom Sync der Box ausgenommen und erreichen die Box nie;
-    die Box-Software braucht deshalb keine eigene Regel. Namensregeln für neue Dateien und
+    die Box-Software braucht deshalb keine eigene Regel (zu den Systemordnern siehe unten).
+    **(11.11.)** Systemdateien und -ordner (`.DS_Store`, `._*`, `Thumbs.db`, `desktop.ini`, `@eaDir`,
+    `@Recycle`, `.@__thumb`, `.@__qini`, `#recycle`, `$RECYCLE.BIN`; Groß-/Kleinschreibung egal) nimmt der
+    Sync ebenfalls aus, und die Bibliothek der Box liest Ordner mit `.`, `@`, `#` oder `$` am Anfang nie ein. Namensregeln für neue Dateien und
     Ordner: Vertrag W, Abschnitt 12.
 *   **Ungültige `serie.json`:** behandelt die Box wie eine fehlende; die Datei
     wird nicht repariert, aber protokolliert. (Die Integration repariert sie.)

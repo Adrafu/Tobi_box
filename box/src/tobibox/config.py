@@ -99,6 +99,8 @@ class SyncKonfig:
     host: str
     port: int = 873
     modul: str = "medien"
+    pfad: str | None = None  # Unterordner im Modul (11.11., QNAP: Modul = Freigabe ``tobibox``, Pfad ``medien``); None: Modul selbst
+    rsync: str | None = None  # Programm statt ``rsync`` im PATH (Mac: ``/opt/homebrew/bin/rsync``, nicht Apples openrsync)
     benutzer: str | None = None
     passwort_datei: Path | None = None
     passwort_umgebung: str | None = None
@@ -108,9 +110,22 @@ class SyncKonfig:
 
 
 _SYNC_SCHLUESSEL = {
-    "host", "port", "modul", "benutzer", "passwort_datei", "passwort_umgebung", "partial_dir", "intervall_s", "reserve_mb",
+    "host", "port", "modul", "pfad", "rsync", "benutzer", "passwort_datei", "passwort_umgebung", "partial_dir", "intervall_s", "reserve_mb",
 }
 _SYNC_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+_SYNC_SEGMENT = re.compile(r"^[A-Za-z0-9._-]+$")
+
+
+def _pruefe_sync_pfad(wert: str) -> str:
+    """``[sync] pfad``: Segmente aus ``[A-Za-z0-9._-]`` mit ``/`` getrennt; kein ``..``, kein ``.``, kein führendes oder
+    abschließendes ``/``. Ein abschließender ``/`` wird nicht geduldet, damit die URL eindeutig bleibt."""
+    segmente = wert.split("/")
+    if not all(_SYNC_SEGMENT.match(s) and s not in (".", "..") for s in segmente):
+        raise KonfigFehler(
+            "[sync] pfad: nur Ordnernamen aus Buchstaben, Ziffern, Punkt, Minus und Unterstrich, mit '/' getrennt "
+            "(kein '..', kein '/' am Anfang oder Ende)"
+        )
+    return wert
 
 
 def _pruefe_sync(roh: dict[str, Any], basis: Path, medien: Path) -> SyncKonfig | None:
@@ -132,6 +147,12 @@ def _pruefe_sync(roh: dict[str, Any], basis: Path, medien: Path) -> SyncKonfig |
         namen[schluessel] = wert
     if namen["host"] is None:
         raise KonfigFehler("[sync] braucht 'host' (Name oder Tailscale-Adresse des QNAP)")
+    pfad = _text(a, "sync", "pfad", None)
+    if pfad is not None:
+        pfad = _pruefe_sync_pfad(pfad)
+    rsync = _text(a, "sync", "rsync", None)
+    if rsync is not None and not rsync.strip():
+        raise KonfigFehler("[sync] rsync darf nicht leer sein (Pfad zum Programm, z. B. /opt/homebrew/bin/rsync)")
     datei = _text(a, "sync", "passwort_datei", None)
     umgebung = _text(a, "sync", "passwort_umgebung", None)
     if umgebung is not None and not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", umgebung):
@@ -152,6 +173,8 @@ def _pruefe_sync(roh: dict[str, Any], basis: Path, medien: Path) -> SyncKonfig |
         host=namen["host"],
         port=_ganz(a, "sync", "port", 873, 1, 65535),
         modul=namen["modul"] or "medien",
+        pfad=pfad,
+        rsync=rsync,
         benutzer=namen["benutzer"],
         passwort_datei=_pfad(datei, basis) if datei else None,
         passwort_umgebung=umgebung,

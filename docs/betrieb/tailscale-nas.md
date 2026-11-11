@@ -49,22 +49,25 @@ Standardregel von Tailscale. Ohne Ersatz darf jedes Gerät alles erreichen.
 
 ## 4. QNAP: rsync-Server
 
-Die Boxen holen Medien und Update-Pakete per rsync-Daemon (Port 873). Das Konto
-ist nur lesend.
+**Gewählte Variante (11.11., Tobias):** Die Boxen holen Medien vom **eingebauten Rsync-Server des QNAP** (Hybrid Backup Sync, HBS 3, Port 873) mit **einem gemeinsamen Konto**. Der Rsync-Server des QNAP kennt keine eigenen Module: Das Modul ist der **Freigabeordner** (hier `tobibox`), die Medien liegen im Unterordner `medien`. In `tobibox.toml` heißt das `modul = "tobibox"` und `pfad = "medien"`; die Box holt von `rsync://<Konto>@<QNAP>:873/tobibox/medien/`.
 
 1.  Rsync-Server aktivieren. Der Pfad ist nicht sicher, bitte am Gerät prüfen. Mögliche Stellen in Hybrid Backup Sync: Seite **Dienste** („Services“), dort der Eintrag „Rsync-Server“. In älteren Versionen ist es „Backup-Server“ > „Rsync-Server“. Die Hilfe am NAS (Suche nach „Rsync“) führt direkt hin.
 2.  Port **873** prüfen.
-3.  Module anlegen (Werte aus `deploy/nas/rsyncd.example.conf`):
-    *   `medien`: Pfad `tobibox/medien`, **nur lesend**.
-    *   `releases`: Pfad `tobibox/releases`, **nur lesend**.
-    *   Beide Module nur für die Box-Konten freigeben.
-4.  Ein **Konto je Box** anlegen (z. B. `tobibox-box1`, `tobibox-box2`). Ein Konto je Box lässt sich einzeln sperren (Abschnitt 9). Die Passwörter stehen nur auf der Box (Abschnitt 10).
-5.  Die Rechte prüfen: Ein Box-Konto darf lesen, nicht schreiben und nicht löschen.
-6.  Die Freigaben selbst: `tobibox/` mit den Unterordnern `medien/`, `export/`, `releases/` und `medien/_papierkorb/` anlegen. Bitte am Gerät prüfen, ob der rsync-Server die Freigabe mit Unterordnern so anbieten kann.
-7.  Den Eingang anlegen: `tobibox/eingang/`, **neben** `medien/` (nicht darin). Dort legt Tobias Downloads ab (Hörbücher, Hörspiele). HA sortiert sie nach den Metadaten in `medien/` ein (Entscheidung M). Rechte: HA darf schreiben (Abschnitt 5, Schritt 4). Die Boxen haben keinen Zugriff: Der Ordner ist kein rsync-Modul, und das Box-Konto kennt ihn nicht.
-8.  Ausnahmen im Sync (Vorlage `deploy/nas/rsyncd.example.conf`, Modul `medien`): `exclude` für `_upload/`, `_papierkorb/`, alle Ordner mit `_` am Anfang und `eingang/` (ohne Rücksicht auf Groß-/Kleinschreibung). Diese Ordner gelten als reserviert (Vertrag W, Abschnitt 12) und erreichen die Box nie. Liegt der Eingang neben `medien/`, ist er ohnehin nicht im Modul; die Regel ist nur für den Fall da, dass jemand einen solchen Ordner in `medien/` anlegt. In der QNAP-Oberfläche bitte am Gerät prüfen, ob sich solche Ausnahmen eintragen lassen.
+3.  **Ein gemeinsames Konto** für alle Boxen anlegen (Name z. B. `tobibox`) und ihm die Freigabe `tobibox` geben. Das Passwort steht nur auf den Boxen (Abschnitt 10).
+4.  Die Freigaben selbst: `tobibox/` mit den Unterordnern `medien/`, `export/`, `releases/` und `medien/_papierkorb/`. Bitte am Gerät prüfen, ob der Rsync-Server Unterordner einer Freigabe so ausliefert (`rsync --list-only rsync://<Konto>@<QNAP>/tobibox/medien/`).
+5.  Den Eingang anlegen: `tobibox/eingang/`, **neben** `medien/` (nicht darin). Dort legt Tobias Downloads ab (Hörbücher, Hörspiele). HA sortiert sie nach den Metadaten in `medien/` ein (Entscheidung M). Die Box holt nur `…/tobibox/medien/` und sieht den Eingang nie. Sicherheitsnetz: Die Box schließt `_upload/`, `_papierkorb/` und `eingang/` am Anfang der **Quelle** (also von `medien/`) selbst aus, auch wenn sie dort jemand anlegt (Vertrag W, Abschnitt 12).
 
-Gegenprobe: Von einer Box aus (Abschnitt 8) muss der rsync-Daemon antworten. Ein Schreibversuch über rsync muss scheitern.
+**Risiko, bewusst in Kauf genommen:** Das gemeinsame Konto kann per rsync **alle Freigaben lesen und schreiben**, nicht nur `medien/`. Eine verlorene Box ist damit ein Schlüssel zum NAS. Die Box selbst benutzt rsync nur lesend: Quelle ist immer der Server, Ziel immer ein lokaler Pfad, `--delete` wirkt nur auf die Box. Das prüft ein Test, es schützt aber nicht vor einer gestohlenen Box. Ausgleich:
+
+*   Der Rsync-Server ist nur im Heimnetz und über Tailscale erreichbar, nicht aus dem Internet (kein Portforwarding, ACL in Abschnitt 2 und 8).
+*   Das Passwort steht nur auf den Boxen (Rechte 600), nicht im Repo.
+*   Bei Verlust einer Box das Passwort **sofort am QNAP ändern** und auf der anderen Box neu eintragen; zusätzlich den Tailscale-Schlüssel sperren (Abschnitt 9).
+
+**Rückweg:** Wird das Risiko zu groß, läuft statt des QNAP-Dienstes ein rsync-Container (Docker/Container Station) mit **Nur-Lesen-Modul** und einem Konto je Box (Vorlage `deploy/nas/rsyncd.example.conf`: Modul `medien`, `read only = yes`, `exclude` für `_upload/`, `_papierkorb/`, `eingang/`). Die Box ändert sich dafür nur in der Konfiguration: `modul = "medien"`, kein `pfad`, eigenes Konto je Box.
+
+**Am Mac:** Apples `rsync` (openrsync, Protokoll 29) taugt nicht. Der Dienst bricht beim Start mit einer klaren Meldung ab. `brew install rsync` und in `[sync]` `rsync = "/opt/homebrew/bin/rsync"` eintragen.
+
+Gegenprobe: Von einer Box aus (Abschnitt 8) muss der rsync-Daemon antworten und `--list-only` die Medien zeigen. Mit dem gemeinsamen Konto ist ein Schreibversuch **nicht** gesperrt; deshalb gehört der Schutz in den Umgang mit Passwort und Netz (siehe Risiko).
 
 ## 5. HA: Tailscale-Add-on, Freigaben und Rechte
 
