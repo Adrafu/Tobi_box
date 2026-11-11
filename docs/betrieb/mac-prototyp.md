@@ -1080,8 +1080,11 @@ sich kein Browserfenster. Wie bei `tobibox status` gilt die Konfiguration aus `-
 ### Was die Seite zeigt und kann
 
 - **LED-Ring:** 40 Punkte aus dem Ring-Zustand des Dienstes (läuft, Pause, Akku, unbekannte Karte, Aufwachen; als Vorschlag
-  Lernmodus und Gute Nacht). Die Punkte zeigen die Farbe **normiert** (volle Deckkraft), damit man sie sieht; die echte Helligkeit
-  der Box (höchstens 25 %) steht daneben als Zahl und im Helligkeitsbalken, die Marke im Balken ist der Deckel. Dieselbe Zeile steht im Terminal des Dienstes, und das Protokoll nennt jeden Wechsel (`led`/`ring`).
+  Lernmodus und Gute Nacht). Der Umschalter an der Karte wählt die Darstellung (die Wahl merkt sich der Browser):
+  **echt** (Vorgabe) zeichnet jede LED mit ihrer wirksamen Helligkeit relativ zum Deckel (25 % = volle Farbe, Wahrnehmungskurve
+  (h/25)^(1/2,2)) auf dunklem Grund, sodass Atmen, Pulsieren, Ein-/Ausblenden und Überblendungen zu sehen sind; **Farben voll**
+  zeigt die Farbe normiert mit voller Deckkraft. Die echte Helligkeit der Box (höchstens 25 %) steht in beiden Fällen als Zahl und im
+  Helligkeitsbalken, die Marke im Balken ist der Deckel. Der Ring wird etwa alle 100 ms geholt (`/api/ring`), der Rest der Seite alle 300 ms. Dieselbe Zeile steht im Terminal des Dienstes, und das Protokoll nennt jeden Wechsel (`led`/`ring`).
   Solange der Dienst keinen Ring meldet, steht dort ein grauer Ring mit „Ring noch nicht verdrahtet“.
 - **Tasten:** Hauptknopf kurz, Hauptknopf lang, Zurück, Vor.
 - **Drehregler:** „− Raste“ und „+ Raste“ (eine Raste sind 2 Prozentpunkte), dazu die Lautstärke und die wirksame Grenze.

@@ -5,6 +5,7 @@ Nur Python-Standardbibliothek. Der Server
 * liefert die Seite (``seite.html``, Paketdaten),
 * gibt unter ``GET /api/anzeige`` alles, was die Seite zeigt, als eine JSON-Antwort heraus
   (Antwort des Dienstes auf ``anzeige``, Tobies aus ``config.json``, Serien, letzte Protokollzeilen),
+* gibt unter ``GET /api/ring`` nur das Ringbild heraus (schnelle Abfrage, ca. 10 mal pro Sekunde),
 * leitet unter ``POST /api/befehl`` genau die erlaubten Befehle an ``sim.sock`` weiter.
 
 Er ist ein Client von ``sim.sock`` wie ``tobibox sim``; die Box ändert sich dadurch nicht. Er lauscht nur auf
@@ -169,6 +170,18 @@ class Oberflaeche:
         a["anzeige"] = {"ring": None, **(a.get("anzeige") or {})}
         return {**basis, "dienst": "laeuft", **a}
 
+    async def ring(self) -> dict[str, Any]:
+        """Nur das Ringbild (leicht, für die schnelle Abfrage der Seite): ``{"dienst", "ring"}``."""
+        try:
+            a = await self.frage({"befehl": "anzeige"})
+        except KeineBerechtigung:
+            return {"dienst": "keine_berechtigung", "ring": None}
+        if a is None:
+            return {"dienst": "nicht_erreichbar", "ring": None}
+        if not a.get("ok"):
+            return {"dienst": "fehler", "ring": None}
+        return {"dienst": "laeuft", "ring": (a.get("anzeige") or {}).get("ring")}
+
     async def befehl(self, zeile: Any) -> tuple[int, dict[str, Any]]:
         """Einen erlaubten Befehl weiterreichen. Rückgabe: (HTTP-Status, Antwort des Dienstes oder Fehler)."""
         if not isinstance(zeile, dict) or zeile.get("befehl") not in ERLAUBT:
@@ -249,6 +262,8 @@ class Server:
                 return _antwort(200, seite(), "text/html; charset=utf-8")
             if pfad == "/api/anzeige":
                 return _json(200, await self.ober.anzeige())
+            if pfad == "/api/ring":
+                return _json(200, await self.ober.ring())
             return _json(404, {"ok": False, "fehler": "nicht_gefunden"})
         if methode == "POST" and pfad == "/api/befehl":
             herkunft = kopf.get("origin")

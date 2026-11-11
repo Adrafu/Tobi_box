@@ -34,7 +34,11 @@
   .gross { font-size: 1.5rem; font-weight: 600; }
   dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; margin: 0; }
   dt { color: var(--leise); } dd { margin: 0; }
-  #ring { display: block; margin: 0 auto; width: min(100%, 300px); height: auto; }
+  #ring { display: block; margin: 0 auto; width: min(100%, 300px); height: auto; background: #0c0c0c; border-radius: 16px; }
+  .umschalter { display: inline-flex; gap: 0; float: right; }
+  .umschalter button { margin: 0; padding: 3px 10px; font-size: .85rem; border-radius: 0; background: transparent; color: var(--akzent); }
+  .umschalter button:first-child { border-radius: 8px 0 0 8px; } .umschalter button:last-child { border-radius: 0 8px 8px 0; border-left: 0; }
+  .umschalter button[aria-pressed=true] { background: var(--akzent); color: var(--akzent-text); }
   #ringtext { text-align: center; margin-top: 6px; }
   .tobie { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; padding: 8px 0; border-top: 1px solid var(--linie); align-items: center; }
   .tobie:first-child { border-top: 0; }
@@ -60,11 +64,14 @@
 <main>
 
   <section>
-    <h2>LED-Ring</h2>
+    <h2>LED-Ring
+      <span class="umschalter" role="group" aria-label="Darstellung des Rings">
+        <button type="button" id="ring-echt" aria-pressed="true" title="Helligkeit relativ zum Deckel, mit Wahrnehmungskurve">echt</button><button type="button" id="ring-voll" aria-pressed="false" title="Farben mit voller Deckkraft (normiert)">Farben voll</button>
+      </span></h2>
     <svg id="ring" viewBox="-110 -110 220 220" role="img" aria-label="LED-Ring mit 40 Punkten"></svg>
     <div id="ringtext" class="leise"></div>
     <div class="balken" aria-hidden="true" title="Echte Helligkeit des Rings; die Marke ist der Deckel der Box"><i id="ring-balken"></i><b id="ring-deckel"></b></div>
-    <div id="ring-hinweis" class="leise" style="text-align:center">Die Farben sind zur besseren Sichtbarkeit voll dargestellt; die echte Helligkeit steht in der Zahl und im Balken.</div>
+    <div id="ring-hinweis" class="leise" style="text-align:center"></div>
   </section>
 
   <section>
@@ -217,19 +224,40 @@ const RING_NAMEN = {
   stumm: "stumm", leser_unterbrochen: "Leser unterbrochen", laden: "Laden (Füllstand)",
 };
 
+// Darstellung des Rings: "echt" (Vorgabe) oder "voll". Die Wahl merkt sich der Browser (localStorage, darf fehlen).
+const RING_HINWEIS = {
+  echt: "Echte Wirkung: Jede LED zeigt ihre Helligkeit relativ zum Deckel (Deckel = volle Farbe), mit Wahrnehmungskurve, damit auch dunkle Werte zu sehen sind. Die genaue Zahl steht oben und im Balken.",
+  voll: "Die Farben sind zur besseren Sichtbarkeit voll dargestellt; die echte Helligkeit steht in der Zahl und im Balken.",
+};
+let ringModus = "echt";
+try { if (localStorage.getItem("ringModus") === "voll") ringModus = "voll"; } catch (e) { /* ohne Speicher: Vorgabe */ }
+let letzterRing = null;
+
+// Reine Umrechnung (ohne Seite): angezeigte Stärke 0..1 aus Helligkeit h (%) und Deckel (%): (h/Deckel)^(1/2,2), 0 bleibt 0.
+function ringStaerke(h, deckel) {
+  h = Number(h); deckel = Number(deckel) > 0 ? Number(deckel) : 25;
+  if (!(h > 0)) return 0;
+  return Math.pow(Math.min(1, h / deckel), 1 / 2.2);
+}
+
 function zeichneRing(ring) {
+  letzterRing = ring;
+  $("ring-echt").setAttribute("aria-pressed", String(ringModus === "echt"));
+  $("ring-voll").setAttribute("aria-pressed", String(ringModus === "voll"));
+  $("ring-hinweis").textContent = RING_HINWEIS[ringModus];
   if (!ring || !Array.isArray(ring.farben) || ring.farben.length !== 40) {
     leds.forEach((c) => { c.setAttribute("fill", "#8a8a8a"); c.setAttribute("opacity", "0.35"); });
     $("ringtext").textContent = "Ring noch nicht verdrahtet";
     $("ring-balken").style.width = "0%";
     return;
   }
-  // Helligkeit in Prozent (0 bis zum Deckel der Box, 25 %). Die Punkte zeigen die Farbe mit voller Deckkraft (normiert):
-  // bei 25 % wären sie sonst kaum zu sehen. Die echte Helligkeit steht als Zahl und im Balken darunter.
+  // Helligkeit in Prozent (0 bis zum Deckel der Box, 25 %). "voll": Farbe mit voller Deckkraft (normiert).
+  // "echt": Farbe mal ringStaerke(h, Deckel) auf dunklem Grund.
   let h = Number(ring.helligkeit); if (!(h >= 0)) h = 0;
   const deckel = Number(ring.deckel) > 0 ? Number(ring.deckel) : 25;
+  const st = ringModus === "echt" ? ringStaerke(h, deckel) : 1;
   ring.farben.forEach((f, i) => {
-    const c = farbe(f, 1);
+    const c = farbe(f, st);
     if (h <= 0 || !c) { leds[i].setAttribute("fill", "var(--led-aus)"); leds[i].setAttribute("opacity", "0.45"); }
     else { leds[i].setAttribute("fill", c); leds[i].setAttribute("opacity", "1"); }
   });
@@ -237,6 +265,11 @@ function zeichneRing(ring) {
   $("ringtext").textContent = name + "Helligkeit " + (Math.round(h * 10) / 10) + " % (Deckel " + deckel + " %)";
   $("ring-balken").style.width = Math.min(100, h) + "%";
   $("ring-deckel").style.left = Math.min(100, deckel) + "%";
+}
+function waehleRingModus(m) {
+  ringModus = m;
+  try { localStorage.setItem("ringModus", m); } catch (e) { /* egal */ }
+  zeichneRing(letzterRing);
 }
 
 async function senden(zeile) {
@@ -456,10 +489,7 @@ function zeige(d) {
   el.textContent = DIENST[d.dienst] || d.dienst;
   el.className = d.dienst === "laeuft" ? "ok" : "aus";
   if (d.dienst === "laeuft") {
-    zeichneRing(d.anzeige && d.anzeige.ring);
     zeigeLaeuft(d); zeigeZustand(d); zeigeLautstaerke(d); zeigeEingaenge(d); zeigeTobies(d); zeigeOffen(d); zeigeLernauswahl(d);
-  } else {
-    zeichneRing(null);
   }
   zeigeProtokoll(d);
 }
@@ -472,6 +502,19 @@ async function holen() {
   try { const d = await (await fetch("/api/anzeige")).json(); d.veraltet = befehleOffen > 0 || start < eingabeStand; zeige(d); }
   catch (e) { $("dienst").textContent = "Server der Seite nicht erreichbar"; $("dienst").className = "aus"; }
   finally { laeuftAbfrage = false; }
+}
+
+$("ring-echt").onclick = () => waehleRingModus("echt");
+$("ring-voll").onclick = () => waehleRingModus("voll");
+
+// Nur der Ring wird alle 100 ms geholt (/api/ring, leicht); alles andere bleibt bei 300 ms.
+let ringAbfrage = false;
+async function holeRing() {
+  if (ringAbfrage) return;
+  ringAbfrage = true;
+  try { const d = await (await fetch("/api/ring")).json(); zeichneRing(d.dienst === "laeuft" ? d.ring : null); }
+  catch (e) { zeichneRing(null); }
+  finally { ringAbfrage = false; }
 }
 
 document.querySelectorAll("button[data-eingang]").forEach((b) => { b.onclick = () => senden({ befehl: "taste", taste: b.dataset.eingang }); });
@@ -504,6 +547,8 @@ $("lern-ende").onclick = () => senden({ befehl: "learn_abort" });
 
 holen();
 setInterval(holen, 300);
+holeRing();
+setInterval(holeRing, 100);
 </script>
 </body>
 </html>

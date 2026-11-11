@@ -1002,10 +1002,11 @@ def test_t1_testaufbau_und_app_teilen_die_nachfuehrung():
 # --------------------------------------------------------------------------------------------------------------
 
 
-def test_gui_ring_zeigt_volle_farbe_und_helligkeitsbalken():
+def test_gui_ring_zeigt_echt_oder_volle_farbe_und_helligkeitsbalken():
     from importlib import resources
 
     html = resources.files("tobibox.gui").joinpath("seite.html").read_text(encoding="utf-8")
     assert 'id="ring-balken"' in html and 'id="ring-deckel"' in html
-    assert "farbe(f, 1)" in html  # volle Deckkraft, nicht mit der Helligkeit (höchstens 25 %) multipliziert
-    assert "farbe(f, h)" not in html
+    # „Farben voll“: Stärke 1 (volle Deckkraft); „echt“: Stärke aus ringStaerke (relativ zum Deckel, Wahrnehmungskurve)
+    assert 'ringModus === "echt" ? ringStaerke(h, deckel) : 1' in html and "farbe(f, st)" in html
+    assert "farbe(f, h)" not in html  # nie roh mit der Helligkeit (höchstens 25 %) multipliziert

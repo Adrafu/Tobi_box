@@ -204,3 +204,21 @@ async def test_befehl_gui_ohne_konfiguration_ist_exit_2(tmp_path):
     from tobibox import cli
 
     assert cli.main(["gui", "--config", str(tmp_path / "gibt-es-nicht.toml"), "--kein-browser"]) == 2
+
+
+async def test_ring_route_liefert_nur_das_ringbild(welt):
+    srv, fake = welt
+    ring = {"farben": [[0, 255, 0]] * 40, "helligkeit": 12.5, "deckel": 25}
+    fake.antworten["anzeige"] = {**ANZEIGE, "anzeige": {"ring": ring}}
+    status, _, rumpf = await http(srv, "GET", "/api/ring")
+    assert status == 200 and json.loads(rumpf) == {"dienst": "laeuft", "ring": ring}
+
+
+async def test_seite_hat_ring_umschalter_und_echte_darstellung():
+    from importlib import resources
+
+    html = resources.files("tobibox.gui").joinpath("seite.html").read_text(encoding="utf-8")
+    for text in ('id="ring-echt"', 'id="ring-voll"', "Farben voll", "localStorage", "ringStaerke", "Math.pow(", "1 / 2.2",
+                 "/api/ring", "setInterval(holeRing, 100)"):
+        assert text in html
+    assert "Echte Wirkung" in html and "voll dargestellt" in html  # Erklärsatz je Modus
