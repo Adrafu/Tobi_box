@@ -291,7 +291,40 @@ def test_deckel_in_allen_zustaenden_und_zeiten():
 
 
 def test_apa102_deckel_5bit_unter_25_prozent():
-    assert led.APA102_DECKEL / led.APA102_MAX <= DECKEL_PROZENT / 100
+    # die Stufe darf bis 8 von 31 (25,8 %) gehen, die wirksame Helligkeit (Farbe * Stufe / 31) bleibt aber unter 25 %
+    assert led.APA102_DECKEL == 8
+    for h in (25, 30, 100, 1e6):
+        b = Ring("x", ((255, 255, 255),) * ANZAHL, h).apa102_rahmen()
+        assert b[4] & 0x1F <= led.APA102_DECKEL
+        assert (b[4] & 0x1F) / 31 * b[5] / 255 <= DECKEL_PROZENT / 100 + 0.005
+
+
+def _wirksam(b: bytes, kanal: int = 5) -> float:
+    """Wirksame Helligkeit der ersten LED in Prozent (Farbwert / 255 * Stufe / 31), Kanal 5 = B, 6 = G, 7 = R."""
+    return (b[4] & 0x1F) / 31 * b[kanal] / 255 * 100
+
+
+@pytest.mark.parametrize("hell,stufe", [(25, 8), (15, 5), (5, 2), (3, 1), (1, 1)])
+def test_apa102_rahmen_typische_werte_fein(hell, stufe):
+    b = Ring("x", ((255, 255, 255),) * ANZAHL, hell).apa102_rahmen()
+    assert b[4] == 0xE0 | stufe  # kleinste Stufe, die den Wert noch erreicht
+    assert abs(_wirksam(b) - hell) < 0.25  # Rest über die Farbwerte
+    assert b[5] == b[6] == b[7] >= 1
+
+
+def test_apa102_rahmen_pulsieren_3_bis_5_prozent_unterscheidbar():
+    rahmen = {Ring("x", ((0, 150, 255),) * ANZAHL, h).apa102_rahmen()[4:8] for h in (3.0, 3.5, 4.0, 4.5, 5.0)}
+    assert len(rahmen) == 5  # früher alle Stufe 1 mit gleichen Bytes
+    # Laden: 60 bis 100 % von 5 % ergibt sichtbar verschiedene Bytes
+    assert Ring("x", ((0, 150, 255),) * ANZAHL, 3.0).apa102_rahmen() != Ring("x", ((0, 150, 255),) * ANZAHL, 5.0).apa102_rahmen()
+
+
+def test_apa102_rahmen_unter_einem_prozent_und_null():
+    b = Ring("x", ((255, 0, 120),) * ANZAHL, 0.2).apa102_rahmen()
+    assert b[4] == 0xE1 and b[5] >= 1 and b[7] >= 1  # Farbwerte tragen den Rest, Kanäle > 0 bleiben mindestens 1
+    assert b[6] == 0  # ein Kanal mit 0 bleibt 0
+    n = Ring("x", ((255, 0, 120),) * ANZAHL, 0).apa102_rahmen()
+    assert n[4:8] == bytes((0xE0, 0, 0, 0))
 
 
 def test_apa102_rahmen_aufbau():
@@ -634,7 +667,7 @@ def test_laden_in_leise_zeiten_ruhig_auf_kleinster_stufe(ruhe):
     for t in (0.0, 1.0, 2.0, 3.3):
         r = lg.ring(t)
         assert r.zustand == led.LADEN and r.helligkeit == led.LADEN_HELL_RUHE == 3  # kein Pulsieren
-        assert r.apa102_rahmen()[4] & 0x1F == 1  # Stufe 1 von 31
+        assert r.apa102_rahmen()[4] & 0x1F == 1  # kleinste Helligkeit (Stufe 1, Rest über Farbwerte)
 
 
 def test_laden_pulsieren_faellt_nie_unter_stufe_1():

@@ -290,8 +290,9 @@ def test_die_helligkeit_liegt_in_keinem_zustand_ueber_25_prozent(box):
     for _ in range(100):  # und im Lauf der Box
         box.laufe(0.1)
         assert deckel_gehalten(box.ring())
-    # APA102: das 5-Bit-Feld bleibt im Bild unter dem Deckel
-    assert led.APA102_DECKEL / led.APA102_MAX <= led.DECKEL_PROZENT / 100.0
+    # APA102 (11.11.): Stufe und Farbwerte zusammen bleiben unter dem Deckel (Farbe * Stufe / 31)
+    b = led.Ring("x", ((255, 255, 255),) * led.ANZAHL, 100).apa102_rahmen()
+    assert (b[4] & 0x1F) / led.APA102_MAX * b[5] / 255 <= led.DECKEL_PROZENT / 100.0 + 0.005
 
 
 # --- Teil 2: die App ----------------------------------------------------------------------------------

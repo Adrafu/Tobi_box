@@ -29,8 +29,8 @@ from .stromwert import StromQuellen
 ANZAHL = 40  # LEDs im Ring (APA102)
 DECKEL_PROZENT = 25  # Helligkeit nie darüber (Plan 5.5.3)
 APA102_MAX = 31  # 5 Bit globale Helligkeit
-# größter 5-Bit-Wert, der noch unter dem Deckel liegt (abgerundet): 7 von 31 = 22,6 %
-APA102_DECKEL = APA102_MAX * DECKEL_PROZENT // 100
+# größte 5-Bit-Stufe, die ``apa102_rahmen`` wählt: 8 von 31 = 25,8 % (aufgerundet). Der Rest bis exakt 25 % kommt aus den Farbwerten (11.11.)
+APA102_DECKEL = -(-APA102_MAX * DECKEL_PROZENT // 100)
 
 # Zustandsnamen (Kennungen für Simulation und Protokoll)
 AUS = "aus"
@@ -70,15 +70,15 @@ LERNEN_HELL_MAX = 25  # Prozent, oberer Punkt (nie über dem Deckel)
 GUTE_NACHT_GLIMMEN_S = 4.0  # Periode des Glimmens
 GUTE_NACHT_HELL_MIN = 3  # Prozent, unterer Punkt des Glimmens
 GUTE_NACHT_HELL_MAX = 8  # Prozent, oberer Punkt; beim Ausblenden wird alles mit dem Ausblenden-Faktor multipliziert
-# Akku-Anzeige (Ein/Aus, 10.11.): eigene Helligkeiten. Mindestens Stufe 1 der 31 Stufen.
+# Akku-Anzeige (Ein/Aus, 10.11.): eigene Helligkeiten. Fein über Stufe und Farbwerte (11.11.), mindestens eine sichtbare LED-Stufe.
 AKKU_HELL = 15  # Prozent, normal
 AKKU_HELL_LEISER = 5  # Prozent, in einem Fenster „leiser“ und solange „Gute Nacht“ läuft
 AKKU_HELL_STUMM = 3  # Prozent, in einem Fenster „stumm“
-STUMM_HELLIGKEIT = 3  # Prozent: kleinste sichtbare Stufe (``apa102_rahmen`` rundet auf mindestens Stufe 1 von 31)
+STUMM_HELLIGKEIT = 3  # Prozent: kleinste sichtbare Stufe (``apa102_rahmen`` bildet auch kleine Werte über die Farbwerte fein ab, 11.11.)
 
 # Dauernder Füllstand am Strom (Entscheidung X, 11.11.): blau, so viele LEDs wie Prozent, nur wenn sonst nichts angezeigt wird (statt „aus“)
 LADEN_HELL = 5  # Prozent, tags
-LADEN_HELL_RUHE = 3  # Prozent, in „leiser“ und „stumm“: kleinste Stufe (Stufe 1 von 31)
+LADEN_HELL_RUHE = 3  # Prozent, in „leiser“ und „stumm“: kleinste Helligkeit
 LADEN_VOLL_PROZENT = 100  # ab diesem Stand gilt der Akku als voll: der Ring geht aus (der PiSugar meldet nur Prozent und „Netzteil steckt“, keinen Lade-Status)
 LADEN_HYSTERESE = 3  # erst unter 97 % (100 minus 3) zeigt der Ring wieder, sonst flackert er bei 99/100 %
 # Ergänzung X (11.11.): der Ladestand pulsiert ganz leicht; Ein- und Ausblenden bei „voll“ / „Laden beginnt wieder“; Anstecken = zwei schnelle Pulse
@@ -141,12 +141,21 @@ class Ring:
 
     def apa102_rahmen(self) -> bytes:
         """Bytes für den echten Ring: Startrahmen, je LED ``0xE0|hell, B, G, R``, Endrahmen."""
-        hell = min(APA102_DECKEL, int(self.helligkeit * APA102_MAX / 100.0))
-        if self.helligkeit > 0:
-            hell = max(1, hell)  # was leuchten soll, bekommt mindestens Stufe 1 (3 % ergäben gerundet Stufe 0, Ein/Aus, 10.11.)
+        # (11.11.) Feine Helligkeit über beide Stellgrößen: kleinste globale Stufe, die den Zielwert noch erreicht,
+        # den Rest über die 8-Bit-Farbwerte (gerundet, Kanäle > 0 bleiben mindestens 1). Wirksam: Farbe * Stufe / 31.
+        ziel = min(float(DECKEL_PROZENT), self.helligkeit) / 100.0 * APA102_MAX  # gewünschte Stufe, auch als Bruch (Deckel inklusive)
+        if ziel <= 0:
+            hell, skala = 0, 0.0
+        else:
+            hell = max(1, min(APA102_DECKEL, math.ceil(round(ziel, 9))))
+            skala = ziel / hell  # <= 1; unter 1 / 31 Prozent wirkt nur noch der Farbwert
         daten = bytearray(4)
         for r, g, b in self.leds:
-            daten += bytes((0xE0 | hell, b, g, r))
+            if hell:
+                kanaele = tuple(max(1, _byte(c * skala)) if c > 0 else 0 for c in (b, g, r))
+            else:
+                kanaele = (0, 0, 0)
+            daten += bytes((0xE0 | hell,) + kanaele)
         daten += bytes((ANZAHL // 16 + 1) * [0xFF])  # Endrahmen: mindestens ANZAHL/2 Taktflanken
         return bytes(daten)
 

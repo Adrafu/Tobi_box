@@ -995,8 +995,10 @@ Zustände, Übergänge und Konflikte: siehe „Kern-Zustände“.
         Die Blink-Muster selbst (unbekannter Tobie magenta, Leser gelb) bleiben hart; nur Eintritt und Austritt sind weich. Der Deckel gilt in jedem Zwischenbild, die
         Mindeststufe 1 solange etwas leuchtet; erst am Ende einer Ausblendung kommt 0. Die Überblendung braucht den Takt des Abrufs (`LED_TAKT_S`): liegt der letzte Abruf länger
         als `UEBERGANG_LUECKE_S` = 1 s zurück, beginnt der neue Zustand sofort. Keine neue Schnittstelle.
-    *   **Hinweis zur Hardware (Ergänzung X, 11.11.):** Der APA102 hat 31 Stufen; 3 bis 5 % ergeben alle Stufe 1, das leichte Pulsieren ist am echten Ring daher nur in der Simulation zu sehen
-        (die schnellen Pulse mit 15 % = Stufe 4 sind sichtbar).
+    *   **Hinweis zur Hardware (Ergänzung X, 11.11.; geändert 11.11.):** Der APA102 hat nur 31 globale Stufen. `apa102_rahmen` dimmt deshalb über **beide** Stellgrößen: die kleinste globale Stufe,
+        die den Wert noch erreicht, und den Rest über die 8-Bit-Farbwerte je LED (gerundet, Kanäle über 0 bleiben mindestens 1; bei Helligkeit über 0 leuchtet immer etwas, nur 0 ist ganz aus).
+        So ist das leichte Pulsieren des Ladestands (3 bis 5 %) auch am echten Ring zu sehen und Glimmen und Atmen werden nicht stufig. Der Deckel von 25 % gilt für die wirksame Helligkeit (Stufe höchstens 8 von 31).
+        Gegenüber vorher ist der Ring bei kleinen Werten genauer (5 % statt bisher 3,2 %); die Feinabstimmung der Konstanten macht Tobias am echten Ring. Die Simulationsseite zeigt weiter die Helligkeit in Prozent.
     *   **Folgt mit Schritt 2:** Der Ring ist in *Bereit* dunkel (Weiche und Ring-Schalter am ESP32, `led.py` gibt den Ring über `RING_PI` an die Weiche);
         das weiße Lauflicht beim Wecken kommt vom ESP32, danach übernimmt `led.py`; der Deckel 25 % gilt dann in Pi **und** ESP32. Bis dahin
         bleibt der Ring wie oben beschrieben (in *Bereit* mit liegendem Tobie zeigt er weiter die Pause).
