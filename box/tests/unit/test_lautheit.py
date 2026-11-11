@@ -40,8 +40,8 @@ def test_zielwert_ist_der_von_rsgain_und_steht_im_design():
 
 def test_alle_erzeugten_ordner_sind_im_manifest():
     namen = {rel(d) for d in DATEIEN}
-    assert len([n for n in namen if n.startswith("sounds/sprache/")]) == 20
-    assert len([n for n in namen if n.startswith("sounds/") and "/sprache/" not in n]) == 11
+    assert len([n for n in namen if n.startswith("sounds/sprache/")]) == 21
+    assert len([n for n in namen if n.startswith("sounds/") and "/sprache/" not in n]) == 12
     assert len([n for n in namen if n.startswith("medien-sprache/") and n.endswith(".mp3")]) == 9
 
 

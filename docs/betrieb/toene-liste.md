@@ -23,6 +23,7 @@ aus; dann bauen wir sie ein.
 | `gute_nacht` | Gute-Nacht-Karte aufgelegt (Entscheidung R) | „Gute Nacht! Ich spiele noch ein bisschen.“ | „leiser“: leise · „stumm“: keiner | |
 | `lader` | Box wird angedockt, während sie läuft und nichts spielt | „Strom ist da.“ | in beiden Fenstern keiner | |
 | `akku_leer` | Akku fast leer, kurz bevor die Box ausgeht | „Mein Akku ist fast leer. Ich gehe gleich aus.“ | „leiser“: leise · „stumm“: Hinweiston | |
+| `akku_warnung` | Akku bei 10 %, ohne Strom, einmal; das Hörspiel läuft danach weiter (Entscheidung Z, 11.11.) | „Mein Akku wird leer. Bitte bald laden.“ | „leiser“: leise · „stumm“: Hinweiston | |
 | `fehler` | Etwas klappt nicht (z. B. Datei fehlt) | „Da ist etwas schiefgegangen.“ | „leiser“: leise · „stumm“: Hinweiston | |
 | `hinweis` | Taste ohne Tobie (Entscheidung Q), Tobie unter „stumm“, „Vor“ am Ende | kurzer, leiser Zweiklang (Entscheidung T) | immer leise | |
 

@@ -72,7 +72,7 @@ async def test_tiefstand_einmal_nicht_am_lader():
     p, sim, aus, _ = mk(akku=20, lader=False, tiefstand_prozent=5)
     await p.pruefe()
     sim.setze(akku=6)
-    assert await p.pruefe() == [ev.AkkuStand(6)]
+    assert await p.pruefe() == [ev.AkkuStand(6), ev.AkkuWarnung()]  # bei 10 % ist die Warnung schon dran (Entscheidung Z, 11.11.)
     sim.setze(akku=5)
     assert await p.pruefe() == [ev.AkkuStand(5), ev.AkkuTiefstand()]
     sim.setze(akku=4)
@@ -114,6 +114,83 @@ async def test_kein_flattern_an_der_grenze():
         sim.setze(akku=prozent)
         await p.pruefe()
     assert aus.liste.count(ev.AkkuTiefstand()) == 1
+
+
+# --- Warnung (Entscheidung Z, zweite Stufe, 11.11.) ------------------------------------------
+
+
+async def test_warnung_einmal_bei_10_prozent_nicht_am_lader():
+    p, sim, aus, _ = mk(akku=30, lader=False)
+    await p.pruefe()
+    sim.setze(akku=11)
+    assert await p.pruefe() == [ev.AkkuStand(11)]
+    sim.setze(akku=10)
+    assert await p.pruefe() == [ev.AkkuStand(10), ev.AkkuWarnung()]
+    sim.setze(akku=9)
+    assert await p.pruefe() == [ev.AkkuStand(9)]  # nur einmal
+    assert aus.liste.count(ev.AkkuWarnung()) == 1
+
+
+async def test_warnung_dann_tiefstand_nacheinander():
+    p, sim, aus, _ = mk(akku=10, lader=False)
+    assert await p.pruefe() == [ev.LaderGeaendert(False), ev.AkkuStand(10), ev.AkkuWarnung()]
+    sim.setze(akku=5)
+    assert await p.pruefe() == [ev.AkkuStand(5), ev.AkkuTiefstand()]
+
+
+async def test_keine_warnung_wenn_schon_der_tiefstand_erreicht_ist():
+    """Springt der Akku unter die Tiefstand-Grenze (oder ist er beim Start so leer), gilt nur der Tiefstand."""
+    p, sim, aus, _ = mk(akku=4, lader=False)
+    assert ev.AkkuWarnung() not in await p.pruefe()
+    sim.setze(akku=30, lader=True)
+    await p.pruefe()
+    sim.setze(lader=False, akku=9)
+    assert ev.AkkuWarnung() in await p.pruefe()
+
+
+async def test_keine_warnung_am_lader_oder_bei_unbekanntem_lader():
+    p, sim, *_ = mk(akku=8, lader=True)
+    assert ev.AkkuWarnung() not in await p.pruefe()
+    p2, *_ = mk(akku=8, lader=None)
+    assert ev.AkkuWarnung() not in await p2.pruefe()
+
+
+async def test_warnung_kein_flattern_und_neu_ueber_grenze_plus_3():
+    p, sim, aus, _ = mk(akku=10, lader=False)
+    await p.pruefe()
+    for prozent in (11, 10, 12, 13, 10):  # bis einschließlich warnung_prozent + 3 bleibt sie still
+        sim.setze(akku=prozent)
+        await p.pruefe()
+    assert aus.liste.count(ev.AkkuWarnung()) == 1
+    sim.setze(akku=14)
+    await p.pruefe()
+    sim.setze(akku=10)
+    assert ev.AkkuWarnung() in await p.pruefe()
+    assert aus.liste.count(ev.AkkuWarnung()) == 2
+
+
+async def test_warnung_wird_nach_strom_am_eingang_neu_bewaffnet():
+    p, sim, aus, _ = mk(akku=10, lader=False)
+    await p.pruefe()
+    sim.setze(lader=True)
+    await p.pruefe()
+    sim.setze(lader=False)
+    assert await p.pruefe() == [ev.LaderGeaendert(False), ev.AkkuWarnung()]
+
+
+async def test_warnung_nach_dem_tiefstand_nicht_erneut_ohne_ueberschreiten():
+    """Ein fehlgeschlagenes Herunterfahren wiederholt den Tiefstand (B1), aber nicht die Warnung."""
+    p, sim, aus, _ = mk(akku=4, lader=False)
+    await p.pruefe()
+    sim.setze(akku=8)  # Messschwankung nach oben, aber nicht über 13
+    await p.pruefe()
+    assert ev.AkkuWarnung() not in aus.liste
+
+
+async def test_warnung_prozent_aus_der_konfiguration():
+    p = Power.aus_konfig(StromKonfig(warnung_prozent=15))
+    assert p.warnung_prozent == 15
+    assert Power.aus_konfig(StromKonfig()).warnung_prozent == 10
 
 
 # --- Taste und Herunterfahren ------------------------------------------------------------------

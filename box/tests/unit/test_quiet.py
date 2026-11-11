@@ -343,7 +343,7 @@ def test_stumm_gegen_lernmodus_hinweiston_statt_toenen():
     assert [o.ton for o in ergebnis if isinstance(o, ev.TonSpielen)] == ["hinweis"]  # ein Ton, leise
 
 
-@pytest.mark.parametrize("ton", ["unbekannt", "lernen_beginn", "lernen_ende", "fehler", "akku_leer"])
+@pytest.mark.parametrize("ton", ["unbekannt", "lernen_beginn", "lernen_ende", "fehler", "akku_leer", "akku_warnung"])
 def test_toene_unter_stumm_werden_zum_hinweis(ton):
     assert core._konflikte([ev.TonSpielen(ton)], "stumm") == [ev.TonSpielen("hinweis")]
 

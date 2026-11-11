@@ -430,6 +430,31 @@ def test_tiefstand_bricht_auch_einen_offenen_sync_ab():
     assert r.sende(ev.AkkuTiefstand())[0] == ev.SyncAbbrechen("akku_tiefstand")
 
 
+def test_warnung_gibt_ton_und_ring_und_aendert_den_modus_nicht():
+    """Entscheidung Z, zweite Stufe (11.11.): Ton ``akku_warnung`` und 5 s Akku-Anzeige, nichts wird beendet."""
+    r = leer()
+    assert r.sende(ev.AkkuWarnung()) == [ev.TonSpielen("akku_warnung"), ev.AkkuAnzeigen("akku_warnung", 5.0)]
+    assert r.modus == "leerlauf"
+
+
+def test_warnung_bei_wiedergabe_laesst_das_hoerspiel_weiterlaufen():
+    r = Rahmen()
+    belegt(r)
+    assert r.sende(ev.AkkuWarnung()) == [ev.TonSpielen("akku_warnung"), ev.AkkuAnzeigen("akku_warnung", 5.0)]
+    assert r.modus == "aktiv"
+    assert r.sende(ev.TonFolgeEnde()) == []  # kein Ausblenden: das ist nur bei ``akku_leer`` so
+
+
+def test_warnung_am_lader_oder_beim_ausschalten_wird_ignoriert():
+    r = leer()
+    r.sende(ev.LaderGeaendert(True))
+    assert r.sende(ev.AkkuWarnung()) == []
+    r2 = Rahmen()
+    belegt(r2)
+    r2.sende(ev.AkkuTiefstand())  # ``akku_leer`` läuft, das Herunterfahren ist unterwegs
+    assert r2.sende(ev.AkkuWarnung()) == []
+
+
 def test_tiefstand_am_lader_wird_ignoriert():
     r = leer()
     r.sende(ev.LaderGeaendert(True))

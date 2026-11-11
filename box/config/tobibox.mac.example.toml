@@ -91,6 +91,7 @@ quelle = "sim"
 # Auf dem Pi: quelle = "pisugar" (pisugar-server auf 127.0.0.1:8423).
 quelle = "sim"
 # tiefstand_prozent = 5               # darunter, nicht am Lader: Sync abbrechen und herunterfahren
+# warnung_prozent = 10                # nicht am Lader: einmal der Ton akku_warnung („Mein Akku wird leer“), das Hörspiel läuft weiter; muss größer als tiefstand_prozent sein (Entscheidung Z, 11.11.)
 # intervall_s = 10
 # abschalt_kommando = ["systemctl", "poweroff"]   # Pi; am Mac wird nur protokolliert. Endet es mit einem Fehler, läuft die Box weiter und meldet es HA.
 # taste_befehl = "get button_event"   # PLATZHALTER, am Pi prüfen (docs/betrieb/pisugar-wecker.md, "Hauptknopf"): Hauptknopf über den PiSugar; Vorgabe: aus

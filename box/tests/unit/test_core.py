@@ -319,12 +319,12 @@ def test_herunterfahren_mit_laufender_wiedergabe_pausiert_zuerst(monkeypatch):
     ]
 
 
-ALLE_TOENE = ["start", "unbekannt", "fehler", "hinweis", "lernen_beginn", "lernen_ende", "akku_leer", "lader", "gute_nacht", "pruef_ok", "pruef_fehler"]
+ALLE_TOENE = ["start", "unbekannt", "fehler", "hinweis", "lernen_beginn", "lernen_ende", "akku_leer", "akku_warnung", "lader", "gute_nacht", "pruef_ok", "pruef_fehler"]
 
 
 @pytest.mark.parametrize(
     "ton, erwartet",
-    [(t, "hinweis" if t in {"start", "unbekannt", "lernen_beginn", "lernen_ende", "fehler", "akku_leer"} else t) for t in ALLE_TOENE],
+    [(t, "hinweis" if t in {"start", "unbekannt", "lernen_beginn", "lernen_ende", "fehler", "akku_leer", "akku_warnung"} else t) for t in ALLE_TOENE],
 )
 def test_regel2_toene_unter_stumm(monkeypatch, ton, erwartet):
     k = baue(monkeypatch, ("quiet", fake_teil({ev.Takt: [ev.TonSpielen(ton)]}, kennzeichen="stumm")))

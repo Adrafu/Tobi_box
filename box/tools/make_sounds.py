@@ -35,6 +35,7 @@ PEGEL_DB: dict[str, float] = {
     "pruef_ok": -6.35,
     "pruef_fehler": -8.06,
     "akku_leer": -7.91,
+    "akku_warnung": -7.33,  # gemessen mit tools/lautheit.py (-18,0 LUFS)
     "lader": -6.93,  # gemessen mit tools/lautheit.py (-18,0 LUFS)
     "gute_nacht": -8.57,  # gemessen mit tools/lautheit.py (-18,0 LUFS)
 }
@@ -50,6 +51,8 @@ TOENE: dict[str, list[tuple[float, float]]] = {
     "pruef_ok": [(1046.5, 0.12)],
     "pruef_fehler": [(196.0, 0.40)],
     "akku_leer": [(660.0, 0.2), (0.0, 0.1), (495.0, 0.2), (0.0, 0.1), (330.0, 0.35)],
+    # Akku-Warnung (Entscheidung Z, zweite Stufe, 11.11.): sanfter als ``akku_leer``, zweimal derselbe Ton, dann ein Schritt abwärts
+    "akku_warnung": [(660.0, 0.15), (0.0, 0.1), (660.0, 0.15), (0.0, 0.1), (495.0, 0.25)],
     # Strom ist da (Ein/Aus, 10.11., R4): kurz, aufwärts, freundlich; spielt mit dem leisen Pegel von ``hinweis``
     "lader": [(698.46, 0.07), (1046.5, 0.12)],
     # Gute Nacht (Entscheidung R, 10.11.): Karte aufgelegt; ruhig, abwärts, etwas länger als ``hinweis``

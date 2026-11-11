@@ -23,7 +23,7 @@ def test_reproduzierbar_und_wie_eingecheckt(tmp_path):
 
 
 def test_alle_vertragstoene_haben_eine_datei():
-    erwartet = {"start", "unbekannt", "fehler", "hinweis", "lernen_beginn", "lernen_ende", "akku_leer", "lader", "gute_nacht", "pruef_ok", "pruef_fehler"}
+    erwartet = {"start", "unbekannt", "fehler", "hinweis", "lernen_beginn", "lernen_ende", "akku_leer", "akku_warnung", "lader", "gute_nacht", "pruef_ok", "pruef_fehler"}
     assert set(make_sounds.TOENE) == erwartet
 
 

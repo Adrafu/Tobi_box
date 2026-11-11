@@ -68,6 +68,7 @@ STROM_WIDERSPRUCH_S = 5.0
 #: Dauer der Akku-Anzeige am Ring beim Andocken und Abziehen; spielt die Sitzung, die kürzere.
 ANDOCK_RING_S = 5.0
 ANDOCK_RING_SPIELT_S = 3.0
+WARNUNG_RING_S = 5.0  # Entscheidung Z, zweite Stufe (11.11.): so lange zeigt der Ring bei ``AkkuWarnung`` den Ladestand
 #: So lange hält ein ausgegebenes ``SyncStarten`` ohne Antwort die Abschaltung höchstens auf.
 SYNC_ANTWORT_FRIST_S = 60.0
 #: Hauptknopf lang bei laufendem Hörspiel: so lange wird ausgeblendet, dann Pause, Zeiger, Herunterfahren (Entscheidung Y, 11.11.).
@@ -369,6 +370,18 @@ def _verarbeite(z: Zustand, e: ev.Ereignis | ev.InternesEreignis, jetzt: Jetzt) 
         if z.ton_bis is not None and z.spielt:
             return _ausblenden_beginnt(z, jetzt, "akku_tiefstand")  # Entscheidung Z: die Durchsage ist zu Ende, jetzt 2 s ausblenden
         return z, ()
+
+    if isinstance(e, ev.AkkuWarnung):
+        # Entscheidung Z, zweite Stufe (11.11.): nur Ton und Akku-Anzeige; das Hörspiel läuft weiter (der Ton pausiert es kurz, Regel L)
+        if z.am_lader is True:
+            return z, (_prot("INFO", "akku_warnung", "ignoriert", grund="am_lader"),)
+        if ausschalten_laeuft(z) or z.modus == "herunterfahren":
+            return z, (_prot("INFO", "akku_warnung", "ignoriert", grund="ausschalten_laeuft"),)
+        return z, (
+            ev.TonSpielen("akku_warnung"),
+            ev.AkkuAnzeigen("akku_warnung", WARNUNG_RING_S),
+            _prot("INFO", "akku_warnung", "ausgegeben"),
+        )
 
     if isinstance(e, ev.AkkuTiefstand):
         if z.am_lader is True:

@@ -280,6 +280,11 @@ def test_netz_ungueltig(tmp_path, netz):
         'quelle = "usv"',
         "tiefstand_prozent = 0",
         "tiefstand_prozent = 60",
+        "warnung_prozent = 0",
+        "warnung_prozent = 101",
+        "warnung_prozent = 5",  # nicht größer als tiefstand_prozent (Vorgabe 5)
+        "tiefstand_prozent = 12",  # warnung_prozent bleibt bei der Vorgabe 10: nicht größer
+        "tiefstand_prozent = 8\nwarnung_prozent = 8",
         "abschalt_kommando = []",
         'abschalt_kommando = "poweroff"',
         'pisugar_host = "a b"',
@@ -293,6 +298,12 @@ def test_strom_ungueltig(tmp_path, strom):
 def test_strom_vorgaben(tmp_path):
     k = config.lade(schreibe(tmp_path, MINIMAL + "\n[strom]\n"))
     assert k.strom.simulation and k.strom.tiefstand_prozent == 5 and k.strom.abschalt_kommando == ("systemctl", "poweroff")
+    assert k.strom.warnung_prozent == 10  # Entscheidung Z, zweite Stufe (11.11.)
+
+
+def test_strom_warnung_gesetzt(tmp_path):
+    k = config.lade(schreibe(tmp_path, MINIMAL + "\n[strom]\ntiefstand_prozent = 8\nwarnung_prozent = 15\n"))
+    assert (k.strom.tiefstand_prozent, k.strom.warnung_prozent) == (8, 15)
 
 
 def test_mqtt_passwort_wird_nicht_protokolliert():

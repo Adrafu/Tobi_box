@@ -41,7 +41,7 @@ TEILAUTOMATEN: tuple[tuple[str, ModuleType], ...] = (
 
 MAX_EREIGNISSE = 32
 
-_TOENE_UNTER_STUMM = frozenset({"unbekannt", "lernen_beginn", "lernen_ende", "fehler", "akku_leer"})
+_TOENE_UNTER_STUMM = frozenset({"unbekannt", "lernen_beginn", "lernen_ende", "fehler", "akku_leer", "akku_warnung"})
 
 _RANG: dict[type, int] = {
     ev.LautstaerkeSetzen: 1,

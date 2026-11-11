@@ -12,6 +12,8 @@
     Ordner mit mehreren Tracks; der Zeiger hat einen Track. `config.json` und
     `resume.json` haben deshalb `schema_version` 2. Im Code heißt ein Tobie aus
     historischen Gründen `figur`.
+*   **Änderung 11.11. (Entscheidung Z, 11.11.):** Neue Tondatei `box/sounds/akku_warnung.wav` (Piepser) und `box/sounds/sprache/akku_warnung.wav`
+    (Sprache: „Mein Akku wird leer. Bitte bald laden.“), beide −18 LUFS, Einträge in `box/lautheit.json`. Pegel eines gewöhnlichen Tons; unter „stumm“ spielt `hinweis`.
 *   **Änderung 10.11. (Entscheidung R, 10.11.):** Neue Tondatei `box/sounds/gute_nacht.wav` (Piepser) und `box/sounds/sprache/gute_nacht.wav`
     (Sprache: „Gute Nacht! Ich spiele noch ein bisschen.“), beide −18 LUFS, Einträge in `box/lautheit.json`. Der Ton hat den Pegel eines gewöhnlichen
     Tons (`ton_pegel` und `hinweis_pegel` gelten nicht für ihn); unter „leiser“ gilt die Grenze, unter „stumm“ spielt er nicht

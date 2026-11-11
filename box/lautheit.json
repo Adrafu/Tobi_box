@@ -42,6 +42,10 @@
       "sha256": "daba404820113196b6d5a52b8094bec74dad087f9581b4026ba1c7f768ae534d",
       "lufs": -18.0
     },
+    "sounds/akku_warnung.wav": {
+      "sha256": "08ac9d89c2600fb0ecd01df11c855562886ae5f316d331c2a669e04b4d1478a6",
+      "lufs": -18.0
+    },
     "sounds/fehler.wav": {
       "sha256": "71131ab766c0383eb29c654e20bc5ba265595539e698540fa848c1b4a650bc93",
       "lufs": -18.0
@@ -77,6 +81,10 @@
     "sounds/sprache/akku_leer.wav": {
       "sha256": "35efde5f4c11bf1134e145a8717c4816756443b619fd21469e82b774fbf14872",
       "lufs": -18.15
+    },
+    "sounds/sprache/akku_warnung.wav": {
+      "sha256": "65ea3b1205c1158e8a28ec2dd7458f6269c041c108376054863559064c29eaf1",
+      "lufs": -18.0
     },
     "sounds/sprache/fehler.wav": {
       "sha256": "750d7b8f4d4ff609e3e4edbe57d497d6d59d14cc5d4ed72cc44ad2d70c8e8c6f",

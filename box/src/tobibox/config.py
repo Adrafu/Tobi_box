@@ -219,6 +219,7 @@ class StromKonfig:
     pisugar_host: str = "127.0.0.1"
     pisugar_port: int = 8423
     tiefstand_prozent: int = 5
+    warnung_prozent: int = 10  # Entscheidung Z, zweite Stufe (11.11.): einmal „Mein Akku wird leer“; muss größer als ``tiefstand_prozent`` sein
     intervall_s: int = 10
     abschalt_kommando: tuple[str, ...] = STANDARD_ABSCHALT_KOMMANDO
     #: Befehl an den ``pisugar-server``, der die Taste meldet (B2). ``None``: aus. **Am Pi zu prüfen**, siehe ``power.taste_lauf``.
@@ -233,7 +234,7 @@ class StromKonfig:
 _MQTT_SCHLUESSEL = {"box_id", "host", "port", "benutzer", "passwort", "anzeigename"}
 _NETZ_SCHLUESSEL = {"quelle", "heim_ssid", "hotspot_ssid", "nas_host", "nas_port", "intervall_s"}
 _STROM_SCHLUESSEL = {
-    "quelle", "pisugar_host", "pisugar_port", "tiefstand_prozent", "intervall_s", "abschalt_kommando",
+    "quelle", "pisugar_host", "pisugar_port", "tiefstand_prozent", "warnung_prozent", "intervall_s", "abschalt_kommando",
     "taste_befehl", "taste_intervall_s",
 }
 
@@ -311,11 +312,16 @@ def _pruefe_strom(roh: dict[str, Any]) -> StromKonfig | None:
     host = _text(a, "strom", "pisugar_host", "127.0.0.1")
     if host is None or not _HOST_MUSTER.match(host):
         raise KonfigFehler("[strom] pisugar_host muss ein Name oder eine Adresse sein")
+    tiefstand = _ganz(a, "strom", "tiefstand_prozent", 5, 1, 50)
+    warnung = _ganz(a, "strom", "warnung_prozent", 10, 1, 100)
+    if warnung <= tiefstand:
+        raise KonfigFehler(f"[strom] warnung_prozent ({warnung}) muss größer sein als tiefstand_prozent ({tiefstand})")
     return StromKonfig(
         quelle=quelle or "sim",
         pisugar_host=host,
         pisugar_port=_ganz(a, "strom", "pisugar_port", 8423, 1, 65535),
-        tiefstand_prozent=_ganz(a, "strom", "tiefstand_prozent", 5, 1, 50),
+        tiefstand_prozent=tiefstand,
+        warnung_prozent=warnung,
         intervall_s=_ganz(a, "strom", "intervall_s", 10, 1, 3600),
         abschalt_kommando=tuple(kommando),
         taste_befehl=_text(a, "strom", "taste_befehl", None),

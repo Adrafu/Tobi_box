@@ -404,6 +404,12 @@ class AkkuTiefstand(Ereignis):
 
 
 @dataclass(frozen=True, slots=True)
+class AkkuWarnung(Ereignis):
+    """Der Akku ist ohne Strom am Eingang auf ``warnung_prozent`` gefallen (Entscheidung Z, zweite Stufe, 11.11.): einmal, dann erst wieder
+    nach Hysterese. ``idle`` gibt den Ton ``akku_warnung`` und die Akku-Anzeige aus; das Hörspiel läuft weiter."""
+
+
+@dataclass(frozen=True, slots=True)
 class HerunterfahrenFehlgeschlagen(Ereignis):
     """Der Befehl ``Herunterfahren`` hat nicht gewirkt (09.11., Befund B1).
 
@@ -608,6 +614,7 @@ class TonSpielen(Befehl):
         "lernen_beginn",
         "lernen_ende",
         "akku_leer",
+        "akku_warnung",
         "lader",
         "gute_nacht",
         "pruef_ok",
@@ -675,7 +682,7 @@ class AkkuAnzeigen(Befehl):
     befiehlt den Ring damit nicht: Er gibt nur die Erlaubnis aus der einen Stelle, die Sperre und erste Messung kennt. ``app`` führt
     den Befehl nicht aus (kein Ausführer außer ``led``)."""
 
-    grund: Literal["andocken", "abziehen"]
+    grund: Literal["andocken", "abziehen", "akku_warnung"]
     dauer_s: float
 
 

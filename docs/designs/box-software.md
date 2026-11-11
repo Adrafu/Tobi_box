@@ -19,6 +19,8 @@
 *   **Änderung 10.11.:** Entscheidung V eingearbeitet (Ring: Pause nach 10 s aus; Lernmodus und Gute Nacht bestätigt; Leser unterbrochen rot langsam blinkend statt magenta). Betroffen: CUJ 18 (LED-Ring). Die Änderungen sind mit „(Entscheidung V, 10.11.)“ markiert.
 *   **Änderung 11.11.:** Entscheidung X eingearbeitet (Ring zeigt am Strom bei nicht vollem Akku dauernd den Füllstand, wenn sonst nichts angezeigt wird). Betroffen: CUJ 18 (LED-Ring). Die Änderungen sind mit „(Entscheidung X, 11.11.)“ markiert.
 *   **Änderung 11.11.:** Ergänzung zu Entscheidung V (Akku-Tiefstand rot pulsierend statt Blinken; Leser unterbrochen gelb statt rot). Betroffen: CUJ 18. Markiert mit „(Entscheidung V, 11.11.)“.
+*   **Änderung 11.11.:** Entscheidung Y eingearbeitet (Hauptknopf lang bei laufendem Hörspiel: 2 s ausblenden, dann Pause, Zeiger speichern, Herunterfahren). Betroffen: CUJ 16, Tabelle „Strom / Leerlauf“. Markiert mit „(Entscheidung Y, 11.11.)“.
+*   **Änderung 11.11.:** Entscheidung Z eingearbeitet (Akku in zwei Stufen, Plan Rev. 3.20). Erste Stufe: bei 5 % ohne Strom die Durchsage `akku_leer`, dann 2 s ausblenden und herunterfahren. **Zweite Stufe:** bei 10 % ohne Strom einmal die Warnung `akku_warnung` („Mein Akku wird leer. Bitte bald laden.“); das Hörspiel läuft weiter, der Ring zeigt 5 s den Ladestand (neue Schwelle `warnung_prozent` in `[strom]`). Betroffen: CUJ 16, Tabelle „Strom / Leerlauf“. Markiert mit „(Entscheidung Z, 11.11.)“.
 *   **Grundlage:** `concepts_brief.md` (gleicher Ordner) inkl. Entscheidungen
     Runde 1 und 2
 
@@ -918,6 +920,7 @@ Zustände, Übergänge und Konflikte: siehe „Kern-Zustände“.
     bekommt einen Hinweis (Befund B1). In der Simulation wird das Herunterfahren nur
     protokolliert; nach 10 s ist die Box wieder im normalen Zustand.
 *   **Hauptknopf lang** fährt immer herunter, auch am Sockel (R8). **Spielt gerade ein Hörspiel, wird es vorher 2 s ausgeblendet** (`AUSSCHALT_AUSBLENDEN_S`), dann Pause, Zeiger speichern, Herunterfahren (Entscheidung Y, 11.11.); in dieser Zeit zählen keine anderen Tasten, ein zweiter Langdruck ändert nichts. Dasselbe gilt beim **Akku-Tiefstand** (Entscheidung Z, 11.11.): erst die Durchsage `akku_leer`, dann 2 s ausblenden, Stelle speichern, herunterfahren. Im Leerlauf wird nicht ausgeblendet (dort spielt nichts), und wenn nichts spielt, fährt die Box sofort herunter. Am Sockel startet die Box danach gleich wieder: Ausschalten heißt dort abnehmen.
+*   **Akku-Warnung bei 10 %** (Entscheidung Z, zweite Stufe, 11.11.): Fällt der Akku **ohne Strom am Eingang** auf `warnung_prozent` (Vorgabe 10, muss größer sein als `tiefstand_prozent`, sonst lehnt die Konfiguration ab), kommt **einmal** der Ton `akku_warnung` („Mein Akku wird leer. Bitte bald laden.“) und der Ring zeigt 5 s den Ladestand (rot bei höchstens 20 %). Das Hörspiel läuft weiter (der Ton pausiert es kurz und es setzt an derselben Stelle fort, Regel L); es wird nichts ausgeblendet oder beendet. Unter „leiser“ spielt der Ton leise, unter „stumm“ spielt statt seiner der Hinweiston. Erneut warnt die Box erst, wenn der Akku vorher über `warnung_prozent + 3` gestiegen ist oder Strom anlag. Ist der Akku schon auf oder unter `tiefstand_prozent`, gibt es nur die Durchsage `akku_leer`.
     Wer die Box aus *Aus* holt: Hauptknopf (PiSugar). Das Wecken durch Tobie, Magnet und Strom über den ESP32 folgt mit Schritt 2; bis dahin hängt
     „Einschalten bei Strom“ am PiSugar.
 *   Der Wecker des PiSugar zum nächtlichen Sync am Lader (früher geplant für Stufe 4) wird damit nicht gebraucht: Am Sockel ist die Box ohnehin bereit
@@ -1530,6 +1533,7 @@ ohne Wert 60 s „unbekannt“, danach „kein Strom“). Vertrag: `core-interfa
 | `leerlauf` | 10 min um (kein Strom), nichts läuft | Zeiger speichern, Herunterfahren | `herunterfahren` |
 | `aktiv` | Hauptknopf lang, Hörspiel spielt (Entscheidung Y, 11.11.) | 2 s ausblenden (Grenze `ausblenden`, `AUSSCHALT_AUSBLENDEN_S`); andere Tasten ignoriert; dann Pause, Zeiger speichern, Herunterfahren | `herunterfahren` |
 | `aktiv` | Akku-Tiefstand (nicht am Lader), Hörspiel spielt (Entscheidung Z, 11.11.) | Sync abbrechen; Durchsage `akku_leer` (das Hörspiel pausiert dafür und läuft danach weiter); nach ihrem Ende 2 s ausblenden, andere Tasten ignoriert; dann Pause, Zeiger speichern, Herunterfahren | `herunterfahren` |
+| `aktiv`, `leerlauf` | Akku-Warnung (nicht am Lader, `warnung_prozent`, Entscheidung Z, 11.11.) | Ton `akku_warnung` (einmal), Ring zeigt 5 s den Ladestand; das Hörspiel läuft weiter, Zähler und Zustand bleiben | unverändert |
 | `aktiv`, `leerlauf` | Hauptknopf lang oder Akku-Tiefstand (nicht am Lader), nichts spielt | sofort Zeiger speichern, Herunterfahren, kein Ausblenden; beim Tiefstand mit der Durchsage `akku_leer` (Entscheidung Y und Z, 11.11.) | `herunterfahren` |
 | `leerlauf` | mit Strom, beliebig lange | nichts: am Strom ist die Box immer bereit (Ein/Aus, 10.11.) | `leerlauf` |
 | `aktiv`, `leerlauf` | Hauptknopf lang (auch mit Strom; am Sockel startet die Box danach wieder, R8) | Zeiger speichern, Herunterfahren | `herunterfahren` |
@@ -2296,6 +2300,7 @@ Ergebnis: Der Dienst spielt über MPD und lässt sich mit Leser (oder
 | `box/sounds/lernen_beginn.wav` | neu | Platzhalter-Ton: Lernmodus beginnt. |
 | `box/sounds/lernen_ende.wav` | neu | Platzhalter-Ton: Lernmodus endet. |
 | `box/sounds/akku_leer.wav` | neu | Platzhalter-Ton: Akku fast leer. |
+| `box/sounds/akku_warnung.wav` | neu | Platzhalter-Ton: Akku wird leer, bitte bald laden (Entscheidung Z, 11.11.). |
 | `box/tests/fixtures/mpd.test.conf` | neu | MPD-Konfiguration nur für Tests: eigener Port und eigenes Verzeichnis, Null-Ausgabe. |
 | `box/tests/integration/conftest.py` | neu | Startet und beendet ein MPD mit `mpd.test.conf`; nutzt `fixtures/audio.py`. |
 | `box/tests/integration/test_player_mpd.py` | neu | Gegen echtes MPD: Start, Pause, Position, Resume per `seek`, Folgenende (MPD stoppt, nichts spielt weiter), Lautstärke nie über der Grenze (auch nach Neustart des Dienstes; das ist die Klemmung im Dienst, die harte Kappung folgt im Pi-Probelauf). |

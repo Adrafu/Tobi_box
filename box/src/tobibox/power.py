@@ -206,6 +206,7 @@ class Power:
         zeit: Zeitquelle | None = None,
         *,
         tiefstand_prozent: int = 5,
+        warnung_prozent: int = 10,
         intervall_s: float = 10.0,
         taste_befehl: str | None = None,
         taste_intervall_s: float = 0.5,
@@ -215,10 +216,12 @@ class Power:
         self._ausgabe = ausgabe
         self.zeit = zeit
         self.tiefstand_prozent = tiefstand_prozent
+        self.warnung_prozent = warnung_prozent
         self.intervall_s = intervall_s
         self.akku: int | None = None  # letzter bekannter Akkustand
         self.am_lader: bool | None = None
         self._tiefstand_gemeldet = False
+        self._warnung_gemeldet = False  # Entscheidung Z, zweite Stufe (11.11.)
         self._tiefstand_wieder_ab: float | None = None  # mono; nach einem fehlgeschlagenen Herunterfahren
         self.taste_befehl = taste_befehl
         self.taste_intervall_s = taste_intervall_s
@@ -234,7 +237,8 @@ class Power:
             else PiSugarStrom(konfig.pisugar_host, konfig.pisugar_port, konfig.abschalt_kommando)
         )
         return cls(
-            treiber, ausgabe, zeit, tiefstand_prozent=konfig.tiefstand_prozent, intervall_s=konfig.intervall_s,
+            treiber, ausgabe, zeit, tiefstand_prozent=konfig.tiefstand_prozent,
+            warnung_prozent=konfig.warnung_prozent, intervall_s=konfig.intervall_s,
             taste_befehl=konfig.taste_befehl, taste_intervall_s=konfig.taste_intervall_s,
         )
 
@@ -284,9 +288,30 @@ class Power:
         if akku is not None and akku != self.akku:
             self.akku = akku
             await self._gib(ev.AkkuStand(akku), neu)
+        if self._warnung_pruefen():
+            await self._gib(ev.AkkuWarnung(), neu)
         if await self._tiefstand_pruefen():
             await self._gib(ev.AkkuTiefstand(), neu)
         return neu
+
+    def _warnung_pruefen(self) -> bool:
+        """``True`` genau einmal, wenn der Akku ohne Strom die Warn-Grenze erreicht (Entscheidung Z, zweite Stufe, 11.11.).
+
+        Nur oberhalb der Tiefstand-Grenze: ist der Akku schon so leer, gilt allein der Tiefstand (``akku_leer``). Neu bewaffnet wird
+        erst, wenn der Akku über ``warnung_prozent + TIEFSTAND_ABSTAND_PROZENT`` gestiegen ist oder Strom anlag (oder unbekannt war)."""
+        if self.am_lader is not False or self.akku is None:
+            self._warnung_gemeldet = False
+            return False
+        if self.akku > self.warnung_prozent + TIEFSTAND_ABSTAND_PROZENT:
+            self._warnung_gemeldet = False
+            return False
+        if self.akku > self.warnung_prozent or self._warnung_gemeldet:
+            return False
+        self._warnung_gemeldet = True  # auch beim Tiefstand: danach keine Warnung mehr, bis neu bewaffnet ist
+        if self.akku <= self.tiefstand_prozent:
+            return False
+        logge("power", "INFO", "akku_warnung", "erreicht", daten={"akku": self.akku})
+        return True
 
     async def _tiefstand_pruefen(self) -> bool:
         """``True`` genau einmal, wenn der Akku die Grenze erreicht und die Box sicher nicht am Lader ist.

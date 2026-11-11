@@ -127,6 +127,18 @@ def test_laderwechsel_allein_zeigt_nichts_die_anzeige_kommt_von_idle():
     assert lg.zustand(1.5) == led.PAUSE
 
 
+def test_warnung_zeigt_5_s_den_akku_rot_bei_20_prozent_oder_weniger():
+    """Entscheidung Z, zweite Stufe (11.11.): ``AkkuAnzeigen("akku_warnung", 5.0)`` zeigt den Ladestand, rot bei höchstens 20 %."""
+    lg = logik_mit("pausiert")
+    lg.beobachte(ev.AkkuStand(10), 0.0)
+    lg.beobachte(ev.LaderGeaendert(False), 0.0)
+    neu_pausiert(lg, 19.0)
+    lg.beobachte(ev.AkkuAnzeigen("akku_warnung", 5.0), 20.0)
+    r = lg.ring(21.0)
+    assert r.zustand == led.AKKU and r.leds[0] == led.ROT
+    assert lg.zustand(20.0 + 5.0 + 0.1) == led.PAUSE
+
+
 def test_andocken_zeigt_akku_blau_und_abziehen_nach_prozent():
     lg = logik_mit("pausiert")
     lg.beobachte(ev.AkkuStand(80), 0.0)

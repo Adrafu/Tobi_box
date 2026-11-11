@@ -65,6 +65,7 @@ TOENE: dict[str, str] = {
     "lernen_beginn": "Lernmodus an. Leg den neuen Tobie auf.",
     "lernen_ende": "Lernmodus beendet.",
     "akku_leer": "Mein Akku ist fast leer. Ich gehe gleich aus.",
+    "akku_warnung": "Mein Akku wird leer. Bitte bald laden.",  # einmal bei 10 % ohne Strom (Entscheidung Z, zweite Stufe, 11.11.); normaler Ton-Pegel
     "lader": "Strom ist da.",  # Box wird angedockt (Ein/Aus, 10.11.); kurz, spielt mit dem Pegel von „hinweis“
     "gute_nacht": "Gute Nacht! Ich spiele noch ein bisschen.",  # Karte Gute Nacht aufgelegt (Entscheidung R, 10.11.); normaler Ton-Pegel
     "pruef_ok": "In Ordnung.",
