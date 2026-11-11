@@ -190,3 +190,15 @@ async def test_lernmodus_ueber_die_api(gui):
 
 async def _lernmodus(srv, an) -> bool:
     return (await anzeige(srv))["status"]["lernmodus"] is an
+
+
+async def test_uhr_stellen_und_echte_uhr_ueber_die_api(gui):
+    """Die Karte „Uhr“ sendet ``zeit`` mit ISO (lokaler Offset) bzw. ``null``; der Status zeigt die gestellte Wanduhr."""
+    srv, _, _ = gui
+    a = await befehl(srv, befehl="zeit", iso="2026-11-09T22:00:00+01:00")
+    assert a["ok"] and a["wall"] > 1.7e9, a
+    ts = (await anzeige(srv))["status"]["ts"]
+    assert ts.startswith("2026-11-09T21:00:"), ts  # 22:00 +01:00 = 21:00 UTC
+    assert (await befehl(srv, befehl="zeit", iso=None))["ok"]
+    assert not (await anzeige(srv))["status"]["ts"].startswith("2026-11-09T21:00:")
+    assert (await anzeige(srv))["quelle_sim"]["zeit"] is True

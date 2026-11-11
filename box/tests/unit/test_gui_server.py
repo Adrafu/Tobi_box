@@ -98,6 +98,17 @@ async def test_seite_wird_geliefert(welt):
     assert "http://" not in text.replace("http://www.w3.org/2000/svg", "")  # keine Abhängigkeit aus dem Netz
 
 
+async def test_seite_enthaelt_die_uhr_karte():
+    from importlib import resources
+
+    html = resources.files("tobibox.gui").joinpath("seite.html").read_text(encoding="utf-8")
+    assert "<h2>Uhr</h2>" in html and 'type="datetime-local"' in html
+    for text in ("Uhr stellen", "echte Uhr", "heute 20:00", "heute 22:00"):
+        assert text in html
+    assert 'befehl: "zeit"' in html and "iso: null" in html
+    assert 'eingangOk("zeit")' in html  # ausgegraut wie die anderen Eingänge, wenn die Quelle nicht sim ist
+
+
 async def test_anzeige_fasst_dienst_tobies_serien_und_protokoll_zusammen(welt):
     srv, fake = welt
     status, _, rumpf = await http(srv, "GET", "/api/anzeige")

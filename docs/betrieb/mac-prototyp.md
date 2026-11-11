@@ -746,7 +746,7 @@ grep '"id"' ~/Tobi_box/box/medien-sprache/test-serie/serie.json
 **Zu den Tönen.** Mit `[toene] ordner = "../sounds/sprache"` sagt die Box, was sie tut:
 `start` „Tobi Box ist bereit.“, `unbekannt` „Diesen Tobie kenne ich noch nicht. Hier ist eine
 Überraschung.“, `lernen_beginn` „Lernmodus an. Leg den neuen Tobie auf.“, `lernen_ende`
-„Lernmodus beendet.“, `fehler` „Da ist etwas schiefgegangen.“, `hinweis` „Hinweis.“ (leise).
+„Lernmodus beendet.“, `fehler` „Da ist etwas schiefgegangen.“, `hinweis` ein kurzer, leiser Klang ohne Sprache (Entscheidung T, 10.11.).
 Mit den Piepsern (`box/sounds/`) gilt: `start` (0,5 s), `lernen_beginn` und `lernen_ende` (je 0,5 s),
 `unbekannt` (0,4 s), `hinweis` (0,1 s), `pruef_ok` (0,1 s, hoch) und `pruef_fehler` (0,4 s, tief).
 Wer die Töne im Protokoll sehen will: In `box/config/tobibox.toml` die Zeile
@@ -1090,6 +1090,9 @@ sich kein Browserfenster. Wie bei `tobibox status` gilt die Konfiguration aus `-
 - **Tobies:** alle zugeordneten Tobies aus `config.json` mit Name (Feld `name`, sonst die Kennung) und Ziel, je mit
   „auflegen“ und „abheben“. Dazu „Unbekannter Tobie (neue Zufallskennung)“ und „Gesperrter Tonie“. Die Marke „simuliert“
   oder „echt“ sagt, ob der liegende Tobie von der Seite oder vom Leser kommt.
+- **Uhr:** zeigt die Wanduhr des Dienstes (Ortszeit des Browsers). Ein Feld für Datum und Uhrzeit mit „Uhr stellen“ (`sim time <ISO>`),
+  „echte Uhr“ (`sim time now`) und die Schnellknöpfe „heute 20:00“ und „heute 22:00“ für die Leise-Zeiten. Die Uhrzeit ohne Zone gilt als
+  Ortszeit des Browsers und geht mit deren Offset an den Dienst. Wie die anderen Eingänge ist die Karte grau, wenn die Quelle nicht `sim` ist.
 - **Lernmodus und Meldungen:** Serie und Folge wählen, „Lernmodus starten“ (`sim learn`), „Abbrechen“ (`sim learn-abort`),
   „bestätigen“ für jede offene Meldung (`sim ack`).
 - **Zustand:** Serie, Folge, Track, Position, Sitzung, Lautstärke und Grenze, Ruhe, Gute Nacht, Netz, Akku, letzter Fehler
@@ -1371,7 +1374,7 @@ grep -E '"ereignis":"(Hauptknopf|Weiter|Zurueck)"' "$LOG" | tail -n 4
 
 - [ ] **Was du hörst:** „Track eins von drei.“ In der Karte „Was gerade läuft“ steht „Track 1“.
 - [ ] „Vor »“ (oder `tobibox sim key vor`): „Track zwei von drei.“ Noch einmal: „Track drei von drei.“
-- [ ] Ein drittes „Vor“ am letzten Track eines Folgen-Tobies tut nichts außer dem Ton „Hinweis.“ Der Track läuft weiter. Im Protokoll: `grep '"ton":"hinweis"' "$LOG" | tail -n 1`.
+- [ ] Ein drittes „Vor“ am letzten Track eines Folgen-Tobies tut nichts außer dem leisen Hinweiston (nur ein Klang, keine Sprache). Der Track läuft weiter. Im Protokoll: `grep '"ton":"hinweis"' "$LOG" | tail -n 1`.
 - [ ] „Zurück“, **nachdem** der Track mehr als 3 s gelaufen ist: Der Track beginnt von vorn („Track drei von drei.“).
       „Zurück“ innerhalb der ersten 3 s eines Tracks: der vorige Track („Track zwei von drei.“). Im ersten Track beginnt „Zurück“ immer diesen Track von vorn.
 
@@ -1454,7 +1457,7 @@ tobibox sim time 2026-11-10T22:00:00+01:00
 
 - [ ] **Was du hörst/siehst:** Die Lautstärke wird weich ausgeblendet, dann hält die Wiedergabe an. „Ruhe: stumm“, Sitzung „gehalten (stumm)“.
       Der Ring bleibt bernstein, aber viel dunkler (nur 40 % der Helligkeit).
-- [ ] Hebe den Tobie ab und lege ihn wieder auf. **Was du hörst:** Nur ein kurzer, leiser Ton „Hinweis.“, keine Wiedergabe.
+- [ ] Hebe den Tobie ab und lege ihn wieder auf. **Was du hörst:** Nur ein kurzer, leiser Klang (keine Sprache), keine Wiedergabe.
 - [ ] Zum Ende des Fensters:
 
 ```bash
@@ -1645,9 +1648,8 @@ selbst; „ändern zu …“ geht als Auftrag an die Projektleitung.
 - [ ] **Stumm** (derselbe Zustand, aber nur 40 % der Helligkeit): wie in 13.5, Zeit auf 22:00 stellen. Vergleiche die Pause mit 10 % und mit 4 %.
 - [ ] **Unbekannte Karte** (magenta blinkend, 1 s): Knopf „Unbekannter Tobie“ in der Oberfläche. Der Ring blinkt 1 s magenta (zwei Blinker),
       danach zeigt er den normalen Zustand: grünes Atmen, denn die Überraschung spielt. Liegt vorher nichts auf der Box, läuft erst das
-      Lauflicht des Aufwachens (2 s) und danach blinkt der Ring. Magenta zeigt der Ring außerdem bei einer **Leser-Unterbrechung** (bis zu 3 s nach einem
-      Leser-Ausfall, während ein Tobie spielt; Abschnitt 11.3, USB-Kabel ziehen). Dafür legt das Design keine eigene Anzeige fest; das Blinken ist dort langsamer
-      (1-s-Periode, solange die Unterbrechung dauert). Ob dafür eine eigene Anzeige nötig ist, entscheidest du; trage es in die Tabelle ein.
+      Lauflicht des Aufwachens (2 s) und danach blinkt der Ring. Bei einer **Leser-Unterbrechung** (bis zu 3 s nach einem
+      Leser-Ausfall, während ein Tobie spielt; Abschnitt 11.3, USB-Kabel ziehen) blinkt der Ring dagegen **rot und langsam** (Periode 2 s; Entscheidung V, 10.11.).
 - [ ] **Aus** (schwarz): leere Box oder Herunterfahren.
 
 | Zustand | Vorschlag heute | gefällt | ändern zu … |
@@ -1655,7 +1657,7 @@ selbst; „ändern zu …“ geht als Auftrag an die Projektleitung.
 | Läuft | grün, Atmen 12 bis 25 %, 6 s | | |
 | Pause | bernstein, 10 % | | |
 | Unbekannte Karte (unbekannter Tobie aufgelegt) | magenta, 1 s blinkend (zwei Blinker), danach normaler Zustand | | |
-| Leser-Unterbrechung | magenta, Blinken in 1-s-Periode, bis zu 3 s (das Design legt dafür nichts fest) | | |
+| Leser-Unterbrechung | rot, langsames Blinken (2-s-Periode), bis zu 3 s (Entscheidung V, 10.11.) | | |
 | Aufwachen | weißes Lauflicht, 2 s | | |
 | Akku (Füllstand) | grün über 50 %, gelb über 20 %, sonst rot; am Lader blau; 15 % | | |
 | Akku-Tiefstand | rot blinkend, 0,5 s | | |

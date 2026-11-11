@@ -76,7 +76,8 @@ def test_sprach_toene_haben_das_format_der_melodie_toene(tmp_path):
     for datei in SPRACHE.glob("*.wav"):
         with wave.open(str(datei)) as w:
             assert (w.getnchannels(), w.getsampwidth(), w.getframerate()) == erwartet, datei.name
-            assert 0.2 < w.getnframes() / w.getframerate() < TON_MAX_S, datei.name
+            untergrenze = 0.05 if datei.stem == "hinweis" else 0.2  # hinweis ist nur ein kurzer Klang (Entscheidung T, 10.11.)
+            assert untergrenze < w.getnframes() / w.getframerate() < TON_MAX_S, datei.name
         skaliere_wav(datei, 40, tmp_path / datei.name)  # der Pegel wird in Python skaliert
 
 

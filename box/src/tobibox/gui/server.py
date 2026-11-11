@@ -35,7 +35,7 @@ BIBLIOTHEK_CACHE_S = 5.0
 ERLAUBT = frozenset({
     "taste", "regler", "kopfhoerer", "strom", "netz",
     "tobie_auflegen", "tobie_gesperrt", "tobie_abheben",
-    "learn", "learn_abort", "ack",
+    "learn", "learn_abort", "ack", "zeit",
 })
 
 #: Zeile an ``sim.sock`` senden, Antwortzeile lesen (Wörterbuch) oder ``None``, wenn der Dienst nicht antwortet.

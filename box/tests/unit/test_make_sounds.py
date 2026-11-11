@@ -25,3 +25,16 @@ def test_reproduzierbar_und_wie_eingecheckt(tmp_path):
 def test_alle_vertragstoene_haben_eine_datei():
     erwartet = {"start", "unbekannt", "fehler", "hinweis", "lernen_beginn", "lernen_ende", "akku_leer", "lader", "gute_nacht", "pruef_ok", "pruef_fehler"}
     assert set(make_sounds.TOENE) == erwartet
+
+
+def test_sprachfassung_von_hinweis_ist_der_piepser_ohne_sprachtext():
+    """Entscheidung T, 10.11.: ``hinweis`` ist auch in der Sprachfassung nur der leise Klang."""
+    import importlib.util
+
+    wurzel = Path(__file__).resolve().parents[2]
+    spec = importlib.util.spec_from_file_location("make_sprache_t", wurzel / "tools" / "make_sprache.py")
+    ms = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(ms)
+    assert "hinweis" not in ms.TOENE
+    assert "hinweis" in ms.TOENE_OHNE_SPRACHE
+    assert (wurzel / "sounds" / "sprache" / "hinweis.wav").read_bytes() == (wurzel / "sounds" / "hinweis.wav").read_bytes()

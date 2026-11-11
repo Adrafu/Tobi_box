@@ -53,11 +53,14 @@ ANGELEGT_AM = "2026-11-09T09:00:00Z"
 # Texte: Box-Töne (gleiche Namen wie box/sounds/ plus Prüfpunkte)
 # --------------------------------------------------------------------------
 
+# Kein Sprachtext (Entscheidung T, 10.11.): ``hinweis`` ist auch in der Sprachfassung nur der leise Ton.
+# Die Datei wird unverändert aus ``box/sounds/`` übernommen (gleiche Bytes, -18 LUFS).
+TOENE_OHNE_SPRACHE = ("hinweis",)
+
 TOENE: dict[str, str] = {
     "start": "Tobi Box ist bereit.",
     "unbekannt": "Diesen Tobie kenne ich noch nicht. Hier ist eine Überraschung.",
     "fehler": "Da ist etwas schiefgegangen.",
-    "hinweis": "Hinweis.",
     "lernen_beginn": "Lernmodus an. Leg den neuen Tobie auf.",
     "lernen_ende": "Lernmodus beendet.",
     "akku_leer": "Mein Akku ist fast leer. Ich gehe gleich aus.",
@@ -280,6 +283,11 @@ def serie_json(ordner: Path, key: str, folgen: list[str]) -> None:
 
 def erzeuge_toene(stimme: Stimme, ziel: Path) -> list[Path]:
     aus = []
+    for name in TOENE_OHNE_SPRACHE:
+        p = ziel / f"{name}.wav"
+        p.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(WURZEL / "sounds" / f"{name}.wav", p)
+        aus.append(p)
     for name, text in TOENE.items():
         p = ziel / f"{name}.wav"
         schreibe_wav(p, stimme.sprich(text))

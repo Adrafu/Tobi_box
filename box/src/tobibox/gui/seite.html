@@ -128,6 +128,25 @@
   </section>
 
   <section>
+    <h2>Uhr</h2>
+    <div class="zeile"><span class="gross" id="uhr-wand">&ndash;</span></div>
+    <div class="leise" id="uhr-hinweis">Wanduhr des Dienstes (Ortszeit dieses Browsers). Sie läuft von der gestellten Zeit weiter.</div>
+    <div class="zeile" style="margin-top:8px">
+      <label for="uhr-feld">Datum und Uhrzeit</label>
+      <input type="datetime-local" id="uhr-feld" step="60">
+    </div>
+    <div class="zeile" style="margin-top:6px">
+      <button id="uhr-stellen" data-zeit="stellen">Uhr stellen</button>
+      <button id="uhr-echt" class="zweit" data-zeit="echt">echte Uhr</button>
+    </div>
+    <div class="zeile">
+      <button class="zweit" data-zeit="heute" data-stunde="20">heute 20:00</button>
+      <button class="zweit" data-zeit="heute" data-stunde="22">heute 22:00</button>
+    </div>
+    <div class="leise">Für die Leise-Zeiten (<code>sim time</code>). Timer und Fristen laufen unverändert weiter.</div>
+  </section>
+
+  <section>
     <h2>Lernmodus</h2>
     <div class="zeile">
       <label>Serie <select id="lern-serie"></select></label>
@@ -304,6 +323,8 @@ function zeigeEingaenge(d) {
   });
   document.querySelectorAll("[data-regler]").forEach((el) => grauSetzen(el, eingangOk("regler"), eingangGrund("regler")));
   document.querySelectorAll("[data-netz]").forEach((el) => grauSetzen(el, eingangOk("netz"), eingangGrund("netz")));
+  document.querySelectorAll("[data-zeit], #uhr-feld").forEach((el) => grauSetzen(el, eingangOk("zeit"), eingangGrund("zeit")));
+  zeigeUhr(d);
   const taste = verdrahtet.hauptknopf_lang === false ? "Hauptknopf lang: in der Box noch nicht verdrahtet." : "";
   $("hinweis-taste").textContent = taste;
   const teile = [];
@@ -316,6 +337,29 @@ function zeigeEingaenge(d) {
   document.querySelectorAll("[data-netz]").forEach((el) => { el.classList.toggle("zweit", el.dataset.netz !== s.netz); });
   if (!akkuZiehen && s.akku_prozent != null) { $("akku").value = s.akku_prozent; $("akku-wert").textContent = s.akku_prozent + " %"; }
   if (typeof s.lader === "boolean" && document.activeElement !== $("lader")) $("lader").checked = s.lader;
+}
+
+function zweistellig(n) { return String(n).padStart(2, "0"); }
+
+// Lokale Zeit eines Date als ISO 8601 mit Offset der Ortszeit, z. B. 2026-11-09T22:00:00+01:00.
+function isoMitOffset(dt) {
+  const o = -dt.getTimezoneOffset(), vz = o >= 0 ? "+" : "-", a = Math.abs(o);
+  return dt.getFullYear() + "-" + zweistellig(dt.getMonth() + 1) + "-" + zweistellig(dt.getDate()) + "T"
+    + zweistellig(dt.getHours()) + ":" + zweistellig(dt.getMinutes()) + ":" + zweistellig(dt.getSeconds())
+    + vz + zweistellig(Math.floor(a / 60)) + ":" + zweistellig(a % 60);
+}
+// Wert eines datetime-local-Felds ("2026-11-09T22:00", ohne Zone = Ortszeit des Browsers) -> ISO mit Offset, sonst null.
+function feldAlsIso(wert) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/.exec(wert || "");
+  if (!m) return null;
+  const dt = new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +(m[6] || 0));
+  return isNaN(dt.getTime()) ? null : isoMitOffset(dt);
+}
+function zeigeUhr(d) {
+  const ts = d.status && d.status.ts, dt = ts ? new Date(ts) : null;
+  $("uhr-wand").textContent = dt && !isNaN(dt.getTime())
+    ? dt.toLocaleDateString("de-DE", { weekday: "short", day: "2-digit", month: "2-digit", year: "numeric" }) + " " + dt.toLocaleTimeString("de-DE")
+    : "–";
 }
 
 function zeigeTobies(d) {
@@ -432,6 +476,15 @@ $("lern-start").onclick = () => {
   if (!serie) { $("meldung").textContent = "Keine Serie vorhanden."; return; }
   senden(folge ? { befehl: "learn", typ: "folge", serie, folge, ttl: 120 } : { befehl: "learn", typ: "serie", serie, ttl: 120 });
 };
+$("uhr-stellen").onclick = () => {
+  const iso = feldAlsIso($("uhr-feld").value);
+  if (!iso) { $("meldung").textContent = "Bitte Datum und Uhrzeit eintragen."; return; }
+  senden({ befehl: "zeit", iso });
+};
+$("uhr-echt").onclick = () => senden({ befehl: "zeit", iso: null });
+document.querySelectorAll("button[data-zeit=heute]").forEach((b) => {
+  b.onclick = () => { const t = new Date(); t.setHours(Number(b.dataset.stunde), 0, 0, 0); senden({ befehl: "zeit", iso: isoMitOffset(t) }); };
+});
 $("lern-ende").onclick = () => senden({ befehl: "learn_abort" });
 
 holen();

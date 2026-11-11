@@ -14,5 +14,6 @@ die Prüfpunkt-Töne der Status-Karte (`pruef_<punkt>_ok`, `pruef_<punkt>_fehler
 - Dieselben Texte und Stimme erzeugen auch `box/medien-sprache/`.
 - **Lautheit (Entscheidung J, 09.11.):** Jeder Satz liegt bei -18 LUFS (Zielwert von ReplayGain 2.0 und
   `rsgain`), gemessen mit `box/tools/lautheit.py`; Werte und Prüfsummen in `box/lautheit.json`.
+- **`hinweis.wav`** (Entscheidung T, 10.11.): kein gesprochener Text. Die Datei ist byte-gleich mit `box/sounds/hinweis.wav` (kurzer, sanfter Klang, -18 LUFS); `make_sprache.py` kopiert sie (`TOENE_OHNE_SPRACHE`). Pegelregel `hinweis_pegel` unverändert.
 - **`lader.wav`** (Ein/Aus, 10.11.): „Strom ist da.“ Der Ton beim Andocken der laufenden Box; er spielt mit dem leisen Pegel von `hinweis` und nie in Leise-Zeiten. Einzeln mit den Funktionen von `make_sprache.py` erzeugt (Piper `de_DE-thorsten-medium`, -18,0 LUFS).
 - **`gute_nacht.wav`** (Entscheidung R, 10.11.): „Gute Nacht! Ich spiele noch ein bisschen.“ Die Durchsage beim Auflegen der Gute-Nacht-Karte; normaler Ton-Pegel (Grenze gilt, unter „leiser“ begrenzt), unter „stumm“ keine Durchsage. Einzeln mit den Funktionen von `make_sprache.py` erzeugt (Piper `de_DE-thorsten-medium`, -18,0 LUFS, 1,9 s).
