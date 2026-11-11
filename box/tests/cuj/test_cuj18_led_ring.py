@@ -75,11 +75,64 @@ def test_pause_nach_dem_ende_der_folge_beendet(box):
     assert box.modus == "beendet" and box.ring_zustand() == led.PAUSE
 
 
-def test_abgehoben_ist_der_ring_aus(box):
+def test_abgehoben_zeigt_10_s_bernstein_dann_aus(box):
+    """Entscheidung V: Abheben während der Wiedergabe: Pause bernstein, nach 10 s aus (der Kern meldet dabei sofort ``leerlauf``)."""
+    box.auflege(UID)
+    box.laufe(3.0)
+    assert box.ring_zustand() == led.LAEUFT
+    box.hebe_ab()
+    assert box.kern.gemeldet.strom == "leerlauf" and not box.kern.gemeldet.figur_liegt
+    assert box.ring_zustand() == led.PAUSE
+    box.laufe(led.PAUSE_ANZEIGE_S - 1.0)
+    assert box.ring_zustand() == led.PAUSE
+    box.laufe(1.5)
+    assert box.ring_zustand() == led.AUS
+    box.laufe(60.0)
+    assert box.ring_zustand() == led.AUS
+
+
+def test_hauptknopf_pause_mit_liegendem_tobie_10_s_dann_aus(box):
+    box.auflege(UID)
+    box.laufe(3.0)
+    box.sende(ev.Hauptknopf("kurz"))
+    assert box.ring_zustand() == led.PAUSE
+    box.laufe(led.PAUSE_ANZEIGE_S - 1.0)
+    assert box.ring_zustand() == led.PAUSE
+    box.laufe(1.5)
+    assert box.ring_zustand() == led.AUS
+
+
+def test_folge_zu_ende_10_s_bernstein_dann_aus(box):
+    box.auflege(UID)
+    box.laufe(3.0)
+    box.sende(ev.FolgeZuEnde(SERIE, "a.wav"))
+    assert box.modus == "beendet" and box.ring_zustand() == led.PAUSE
+    box.laufe(led.PAUSE_ANZEIGE_S + 0.5)
+    assert box.ring_zustand() == led.AUS
+
+
+def test_taste_ohne_tobie_nach_dem_abheben_macht_den_ring_nicht_wieder_an(box):
+    """Entscheidung Q: Taste ohne Tobie gibt nur einen Hinweiston; der Ring bleibt aus (auch während und nach den 10 s)."""
     box.auflege(UID)
     box.laufe(3.0)
     box.hebe_ab()
-    assert box.ring_zustand() == led.AUS  # leer-ähnlich: keine Karte, Leerlauf
+    box.laufe(led.PAUSE_ANZEIGE_S + 1.0)
+    assert box.ring_zustand() == led.AUS
+    box.sende(ev.Hauptknopf("kurz"))
+    for _ in range(40):
+        box.laufe(0.5)
+        assert box.ring_zustand() == led.AUS
+
+
+def test_akku_anzeige_geht_nach_dem_abheben_vor(box):
+    box.sende(ev.AkkuStand(70))
+    box.auflege(UID)
+    box.laufe(3.0)
+    box.hebe_ab()
+    box.led.akku_zeigen(box.uhr.mono)
+    assert box.ring_zustand() == led.AKKU
+    box.laufe(led.AKKU_ANZEIGE_S + 0.1)
+    assert box.ring_zustand() == led.PAUSE  # die Pause-Anzeige läuft noch, die Akku-Anzeige hat nur Vorrang
 
 
 def test_leser_unterbrochen_rot_langsam_blinkend(box):

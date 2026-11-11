@@ -367,8 +367,8 @@ class LedLogik:
                 return STUMM
             if z.sitzung in ("pausiert", "gehalten", "beendet"):
                 return AUS  # Entscheidung U: danach bleibt der Ring unter „stumm“ dunkel
-        if z.strom != "aktiv" and not (z.strom == "leerlauf" and z.figur_liegt):
-            return AUS  # Leerlauf ohne Tobie; mit liegendem Tobie zeigt der Ring die Pause weiter (Entscheidung O)
+        if z.strom != "aktiv" and not (z.strom == "leerlauf" and (z.figur_liegt or self._pause_laeuft(z, jetzt_mono))):
+            return AUS  # Leerlauf ohne Tobie; mit liegendem Tobie zeigt der Ring die Pause weiter (Entscheidung O), nach dem Abheben die 10 s (V)
         if z.sitzung == "spielt":
             return GUTE_NACHT if z.gute_nacht != "aus" else LAEUFT
         if z.sitzung in ("pausiert", "gehalten", "beendet"):
@@ -376,6 +376,15 @@ class LedLogik:
                 return AUS  # Entscheidung V: nach 10 s dunkel
             return PAUSE
         return AUS  # ``leer``
+
+    def _pause_laeuft(self, z: ev.ZustandMelden, jetzt_mono: float) -> bool:
+        """Die 10 s der Pause-Anzeige (Entscheidung V) laufen noch. Nach dem Abheben meldet der Kern sofort ``leerlauf`` ohne
+        liegenden Tobie; die Pause-Anzeige darf trotzdem nicht sofort enden."""
+        return (
+            z.sitzung in ("pausiert", "gehalten", "beendet")
+            and self._pause_ab is not None
+            and jetzt_mono - self._pause_ab < PAUSE_ANZEIGE_S
+        )
 
     def akku_helligkeit(self) -> float:
         """Helligkeit der Akku-Anzeige: normal 15 %, „leiser“ und „Gute Nacht“ 5 %, „stumm“ 3 % (Ein/Aus, 10.11.)."""

@@ -549,3 +549,15 @@ def test_akku_anzeige_geht_in_der_dunklen_pause_vor_und_danach_wieder_dunkel():
     lg.beobachte(ev.AkkuStand(70), 0.0)
     lg.akku_zeigen(30.0)
     assert lg.zustand(31.0) == led.AKKU and lg.zustand(30.0 + led.AKKU_ANZEIGE_S + 0.1) == led.AUS
+
+
+def test_abheben_im_leerlauf_ohne_tobie_zeigt_die_10_s_pause_dann_aus():
+    """Wie im Dienst: spielt, dann ``pausiert`` mit ``strom=leerlauf`` und ohne liegenden Tobie (Entscheidung V)."""
+    lg = LedLogik()
+    lg.beobachte(melden("spielt", figur_liegt=True), 0.0)
+    lg.beobachte(melden("pausiert", strom="leerlauf", figur_liegt=False), 50.0)
+    assert lg.zustand(50.1) == led.PAUSE and lg.zustand(50.0 + led.PAUSE_ANZEIGE_S - 0.01) == led.PAUSE
+    assert lg.zustand(50.0 + led.PAUSE_ANZEIGE_S) == led.AUS
+    lg2 = LedLogik()
+    lg2.beobachte(melden("leer", strom="leerlauf"), 0.0)
+    assert lg2.zustand(1.0) == led.AUS
