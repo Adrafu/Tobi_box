@@ -15,7 +15,7 @@ Runden 6 und 7. **(Tobias)** = von Tobias entschieden, **(Empf.)** = Empfehlung 
 | 6 | Wochenplan-Grafik später, „Reihenfolge ändern“ nur Admin | **(Empf.)** Ja. |
 | 7 | Rückfrage beim Papierkorb nennt betroffene Tobies | **(Empf.)** Reicht. |
 | 8 | Hördaten (Stufe B) sichtbar für | **(Tobias)** Alle HA-Benutzer; Löschen nur Admin. |
-| 9 | Stufe B zählt je Box, nicht je Tobie | **(Empf.)** Ja; Kennung später additiv, falls nötig. |
+| 9 | Stufe B zählt je Box, nicht je Tobie | **(Empf.)** Ja; Kennung des Tobies später additiv, falls nötig. **(Tobias, Ergänzung)** Pflicht in „Gehört“: welche Box welches Hörspiel wie oft gehört hat (Anzahl, Hörzeit, fertig gehörte Folgen; je Box und gesamt; aufklappbar nach Folgen; Zeitraum wählbar). |
 | 10 | Speicherplatz der Boxen | **(Tobias)** SD-Karten 128 GB; nach dem System gut 110 GB frei. 200 Hörbücher (etwa 50–80 GB) und 300 Lieder passen. Keine Auswahl je Box nötig; `speicher_frei` im Blick behalten. |
 | 11 | Vorlage „Neuer Tobie → Mitteilung aufs Handy“ | **(Empf.)** Ja, in der Doku. |
 | 12 | Stufe B vor C | **(Empf.)** Ja. |
