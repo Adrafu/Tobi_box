@@ -41,7 +41,7 @@ def test_hinweis_und_lernmodus_codes_der_seite_haben_texte():
     texte = lade("strings.json")["exceptions"]
     for code in ("datei_fehlt", "kopierschutz", "nicht_lesbar", "probedekodierung_fehlgeschlagen", "pruefung_nicht_moeglich", "ffprobe_fehlt",
                  "doppelte_id_korrigiert", "serie_json_ungueltig_repariert", "reservierter_ordner", "keine_audiodateien",
-                 "verschieben_fehlgeschlagen", "doppelt", "vorgabe_serie_fehlt"):
+                 "verschieben_fehlgeschlagen", "doppelt", "vorgabe_serie_fehlt", "gruppe_unvollstaendig", "serie_name_doppelt"):
         assert texte[f"hinweis_{code}"]["message"], code
     for grund in ("konfig_zu_gross", "konfig_nicht_bereit", "speicherfehler"):
         assert texte[f"lernmodus_{grund}"]["message"], grund

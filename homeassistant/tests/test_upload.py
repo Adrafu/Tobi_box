@@ -16,7 +16,7 @@ import pytest
 from pytest_homeassistant_custom_component.common import async_fire_time_changed
 
 from custom_components.tobibox import ffprobe
-from custom_components.tobibox.const import UPLOAD_SAMMELZEIT_S
+from custom_components.tobibox.const import UPLOAD_MAX_MIB_VORGABE, UPLOAD_RESERVE_BYTES, UPLOAD_SAMMELZEIT_S
 
 from .conftest import braucht_ffmpeg, erzeuge_audio, warte_auf
 
@@ -25,12 +25,12 @@ pytestmark = braucht_ffmpeg
 MIB = 1024 * 1024
 
 
-def formular(inhalt: bytes | Path, name: str = "x.mp3", **felder: str) -> aiohttp.FormData:
-    """``upload_id``, ``serie_id``, ``gruppe`` in dieser Reihenfolge, dann ``datei`` (Vertrag W, 5.1).
+def formular(inhalt: bytes | Path, name: str = "x.mp3", /, **felder: str) -> aiohttp.FormData:  # (``name`` ist der Dateiname; das Feld ``name`` des Wunsches kommt über ``felder``)
+    """``upload_id``, ``serie_id``, ``gruppe`` und (seit 12.11.) ``ziel``, ``art``, ``name``, ``gruppe_anzahl`` in dieser Reihenfolge, dann ``datei`` (Vertrag W, 5.1, 14.4).
 
     Ein Browser schickt den Dateinamen unverändert; ``aiohttp`` würde ihn mit ``quote_fields`` in %-Schreibweise setzen."""
     daten = aiohttp.FormData(quote_fields=False)
-    for schluessel in ("upload_id", "serie_id", "gruppe"):
+    for schluessel in ("upload_id", "serie_id", "gruppe", "ziel", "art", "name", "gruppe_anzahl"):
         if schluessel in felder:
             daten.add_field(schluessel, felder[schluessel])
     daten.add_field("datei", inhalt.open("rb") if isinstance(inhalt, Path) else inhalt, filename=name, content_type="application/octet-stream")
@@ -339,11 +339,14 @@ async def test_zu_gross_im_strom_ohne_content_length(client, nas, integration, m
 
 async def test_platzpruefung_vorab(client, nas):
     koerper, kopf = roh_koerper(b"x" * 100)
-    with patch("custom_components.tobibox.http.dateien.freier_platz", return_value=50 * MIB):  # Reserve: 100 MiB
+    with patch("custom_components.tobibox.http.dateien.freier_platz", return_value=50 * MIB):  # Reserve: 2 GiB (Vertrag W 12.11.)
         antwort = await client.post("/api/tobibox/upload", data=koerper, headers=kopf)
     assert antwort.status == 507
     assert (await antwort.json())["fehler"]["code"] == "kein_speicher"
-    with patch("custom_components.tobibox.http.dateien.freier_platz", return_value=500 * MIB):
+    with patch("custom_components.tobibox.http.dateien.freier_platz", return_value=500 * MIB):  # Vertrag W 12.11.: 500 MiB reichen nicht mehr
+        antwort = await client.post("/api/tobibox/upload", data=koerper, headers=kopf)
+    assert antwort.status == 507
+    with patch("custom_components.tobibox.http.dateien.freier_platz", return_value=3 * 1024 * MIB):
         antwort = await client.post("/api/tobibox/upload", data=koerper, headers=kopf)
     assert antwort.status == 200 or antwort.status == 415  # genug Platz: weiter zur Prüfung des Inhalts
     assert part_dateien(nas) == []
@@ -496,3 +499,164 @@ async def test_fehler_ereignis_bei_ablehnung(hass, integration, hass_ws_client, 
         kette.append((await ws.receive_json())["event"]["daten"])
     assert [(k["zustand"], k["code"]) for k in kette] == [("pruefe", None), ("fehler", "format_nicht_erlaubt")]
     await ws.close()
+
+
+# --- Wunsch beim Hochladen (Vertrag W, 14.4; Paket A3d) ---
+
+GIB = 1024 * MIB
+
+
+def fehlercode(daten: dict) -> str:
+    return daten["fehler"]["code"]
+
+
+async def test_wunsch_wird_mit_ankunftszeit_in_den_vorgaben_gespeichert(client, nas, integration, mp3):
+    daten = await (await post(client, formular(mp3, "a.mp3", gruppe="abcdef1234567890", ziel="neu", art="hoerbuch", name="Kapitän Knopf", gruppe_anzahl="3"))).json()
+    assert daten["eingang_name"] == "a.mp3"
+    v = integration.eingang.vorgaben["Upload abcdef12/a.mp3"]
+    assert v["wunsch"] == {"ziel": "neu", "art": "hoerbuch", "name": "Kapitän Knopf", "gruppe_anzahl": 3}
+    assert v["gruppe"] == "abcdef1234567890" and v["serie_id"] is None and v["am"].endswith("Z")
+    eintrag = (await integration.eingang.liste("offen", 50, 0))["eintraege"]
+    assert eintrag == [] or eintrag[0]["wunsch"] == {"ziel": "neu", "art": "hoerbuch"}  # (der Eintrag erscheint nach dem nächsten Scan)
+    integration.eingang.abbrechen()
+
+
+async def test_ohne_wunsch_oder_mit_auto_ohne_anzahl_bleiben_die_vorgaben_wie_vorher(client, nas, integration, mp3):
+    await post(client, formular(mp3, "a.mp3", gruppe="abcdef1234567890"))
+    assert integration.eingang.vorgaben["Upload abcdef12/a.mp3"] == {"serie_id": None, "gruppe": "abcdef1234567890"}
+    await post(client, formular(mp3, "b.mp3", gruppe="abcdef1234567890", ziel="auto", art="musik"))  # ``auto`` ohne Anzahl ist kein Wunsch
+    assert integration.eingang.vorgaben["Upload abcdef12/b.mp3"] == {"serie_id": None, "gruppe": "abcdef1234567890"}
+    integration.eingang.abbrechen()
+
+
+@pytest.mark.parametrize(
+    "felder",
+    [
+        {"ziel": "quatsch"},
+        {"ziel": "playlist", "art": "musik", "name": "X"},  # Stufe C: noch nicht
+        {"ziel": "neu", "art": "hoerbuch"},  # Name fehlt
+        {"ziel": "neu", "name": "Buch"},  # Art fehlt
+        {"ziel": "neu", "art": "krimi", "name": "Buch"},
+        {"ziel": "neu", "art": "musik", "name": "   "},
+        {"ziel": "neu", "art": "musik", "name": "Buch", "serie_id": "vorhanden"},  # unpassende Mischung
+        {"ziel": "ergaenzen"},  # serie_id fehlt
+        {"ziel": "einzeln", "gruppe": "abcdef1234567890", "gruppe_anzahl": "2"},  # Einzeltitel: kein Warten
+        {"ziel": "einzeln", "serie_id": "vorhanden"},
+        {"ziel": "neu", "art": "musik", "name": "Buch", "gruppe": "abcdef1234567890", "gruppe_anzahl": "1"},
+        {"ziel": "neu", "art": "musik", "name": "Buch", "gruppe": "abcdef1234567890", "gruppe_anzahl": "201"},
+        {"ziel": "neu", "art": "musik", "name": "Buch", "gruppe": "abcdef1234567890", "gruppe_anzahl": "drei"},
+        {"ziel": "neu", "art": "musik", "name": "Buch", "gruppe_anzahl": "3"},  # ohne ``gruppe`` kann der Eingang nicht warten
+        {"ziel": "neu", "art": "musik", "name": "x" * 101},  # mehr als 100 Zeichen
+        {"ziel": "neu", "art": "musik", "name": "😀" * 101},  # 404 Bytes: über der Lesegrenze von 400
+    ],
+)
+async def test_ungueltiger_wunsch_ist_wunsch_ungueltig(client, nas, integration, mp3, felder):
+    nas.serie("vorhanden", "vorhanden", "Vorhanden")
+    await integration.medien.pruefen()
+    antwort = await post(client, formular(mp3, "a.mp3", **felder))
+    assert antwort.status == 400
+    assert fehlercode(await antwort.json()) == "wunsch_ungueltig"
+    assert eingang_namen(nas) == [] and part_dateien(nas) == [] and integration.eingang.vorgaben == {}
+
+
+async def test_name_mit_100_emojis_wird_nicht_abgeschnitten(client, nas, integration, mp3):
+    name = "😀" * 100  # genau 400 Bytes
+    assert len(name.encode()) == 400
+    antwort = await post(client, formular(mp3, "a.mp3", ziel="neu", art="musik", name=name))
+    assert antwort.status == 200
+    assert integration.eingang.vorgaben["a.mp3"]["wunsch"]["name"] == name
+    await integration.eingang.durchlauf_und_warten()
+    await integration.hass.async_block_till_done()
+    assert [json.loads(p.read_text())["name"] for p in nas.medien.glob("*/serie.json")] == [name]
+    integration.eingang.abbrechen()
+
+
+async def test_zweite_datei_ohne_gruppe_anzahl_ist_bei_neu_ungueltig(client, nas, integration, tmp_path):
+    """``neu`` mit mehreren Dateien ohne ``gruppe_anzahl`` = ``wunsch_ungueltig`` (Vertrag W, 14.4)."""
+    a = erzeuge_audio(tmp_path / "a.mp3", frequenz=300)
+    b = erzeuge_audio(tmp_path / "b.mp3", frequenz=400)
+    erste = await post(client, formular(a, "01.mp3", gruppe="abcdef1234567890", ziel="neu", art="hoerbuch", name="Buch"))
+    assert erste.status == 200  # eine Datei ist ein gültiger Wunsch
+    zweite = await post(client, formular(b, "02.mp3", gruppe="abcdef1234567890", ziel="neu", art="hoerbuch", name="Buch"))
+    assert zweite.status == 400 and fehlercode(await zweite.json()) == "wunsch_ungueltig"
+    assert eingang_namen(nas) == ["01.mp3"] and part_dateien(nas) == []
+    # mit der Zusage gehen mehrere
+    for i, quelle in enumerate((a, b), start=1):
+        antwort = await post(client, formular(quelle, f"{i:02d}.mp3", gruppe="1234567890abcdef", ziel="neu", art="hoerbuch", name="Buch", gruppe_anzahl="2"))
+        assert antwort.status == 200
+    integration.eingang.abbrechen()
+
+
+async def test_ergaenzen_braucht_eine_vorhandene_serie_und_keinen_einzeltitel(client, nas, integration, mp3):
+    nas.serie("lied", "lied", "Ein Lied", ["l.mp3"], einzeln=True)
+    nas.serie("reihe", "reihe", "Reihe", [])
+    await integration.medien.pruefen()
+    antwort = await post(client, formular(mp3, "a.mp3", ziel="ergaenzen", serie_id="gibtsnicht"))
+    assert antwort.status == 404 and fehlercode(await antwort.json()) == "serie_nicht_gefunden"
+    antwort = await post(client, formular(mp3, "a.mp3", ziel="ergaenzen", serie_id="lied"))
+    assert antwort.status == 400 and fehlercode(await antwort.json()) == "wunsch_ungueltig"  # in einen Einzeltitel kommen keine Folgen
+    assert eingang_namen(nas) == []
+    antwort = await post(client, formular(mp3, "a.mp3", ziel="ergaenzen", serie_id="reihe"))
+    assert antwort.status == 200
+    assert integration.eingang.vorgaben["a.mp3"]["wunsch"]["ziel"] == "ergaenzen"
+    integration.eingang.abbrechen()
+
+
+async def test_einzeln_ohne_art_gilt_musik(client, nas, integration, mp3):
+    antwort = await post(client, formular(mp3, "a.mp3", ziel="einzeln"))
+    assert antwort.status == 200
+    assert integration.eingang.vorgaben["a.mp3"]["wunsch"] == {"ziel": "einzeln", "art": "musik", "name": None, "gruppe_anzahl": None}
+    integration.eingang.abbrechen()
+
+
+# --- 2 GiB und Reserve ---
+
+
+async def test_die_grenze_ist_2_gib_und_ein_upload_darueber_wird_abgelehnt(client, nas, integration):
+    assert UPLOAD_MAX_MIB_VORGABE == 2048 and integration.upload_max_bytes == 2 * GIB  # der Test-Eintrag speichert 500: die Migration hat ihn angehoben
+    koerper, kopf = roh_koerper(b"x" * 100)
+    kopf = {**kopf, "Content-Length": str(2 * GIB + 1)}  # angekündigt: ein Byte zu viel; der Server antwortet vor dem Körper
+    antwort = await client.post("/api/tobibox/upload", data=koerper, headers=kopf)
+    assert antwort.status == 413 and fehlercode(await antwort.json()) == "datei_zu_gross"
+    assert part_dateien(nas) == [] and eingang_namen(nas) == []
+
+
+async def test_reserve_ist_2_gib():
+    assert UPLOAD_RESERVE_BYTES == 2 * GIB
+
+
+async def test_reserve_rechnung_zieht_laufende_uploads_ab(hass, client, nas, integration, mp3):
+    """Platz für **einen** Upload: der zweite, gleichzeitige bekommt ``kein_speicher`` (Vertrag W, 5.1)."""
+    koerper, kopf = roh_koerper(mp3.read_bytes(), "a.mp3")
+    laenge = len(koerper)
+    kopf = {**kopf, "Content-Length": str(laenge)}
+    frei = UPLOAD_RESERVE_BYTES + laenge + 500  # genug für einen Upload, nicht für zwei
+    weiter = asyncio.Event()
+
+    async def langsam():
+        yield koerper[: laenge // 2]
+        await weiter.wait()
+        yield koerper[laenge // 2 :]
+
+    with patch("custom_components.tobibox.http.dateien.freier_platz", return_value=frei):
+        erster = asyncio.ensure_future(client.post("/api/tobibox/upload", data=langsam(), headers=kopf))
+        await warte_auf(hass, lambda: len(integration.upload_laeufe) == 1, block=False)
+        zweiter = await client.post("/api/tobibox/upload", data=koerper, headers=kopf)
+        assert zweiter.status == 507 and fehlercode(await zweiter.json()) == "kein_speicher"
+        weiter.set()
+        assert (await erster).status == 200
+        # Ist der erste fertig, hat der nächste wieder Platz
+        assert integration.upload_laeufe == set()
+        dritter = await client.post("/api/tobibox/upload", data=koerper.replace(b"a.mp3", b"c.mp3"), headers=kopf)
+        assert dritter.status == 200
+    integration.eingang.abbrechen()
+
+
+async def test_ausstehende_bytes_zaehlen_nur_das_noch_nicht_geschriebene(integration):
+    from custom_components.tobibox.http import UploadLauf, ausstehende_bytes
+
+    a, b, c = UploadLauf(laenge=1000, geschrieben=300), UploadLauf(laenge=500, geschrieben=500), UploadLauf(laenge=None, geschrieben=40)
+    integration.upload_laeufe |= {a, b, c}
+    assert ausstehende_bytes(integration) == 700  # ohne ``Content-Length`` weiß man nichts
+    integration.upload_laeufe.clear()
+    assert ausstehende_bytes(integration) == 0

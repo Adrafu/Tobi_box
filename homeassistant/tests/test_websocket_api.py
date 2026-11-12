@@ -7,7 +7,7 @@ from typing import Any
 
 import pytest
 from homeassistant.components import mqtt as ha_mqtt
-from unittest.mock import patch
+from unittest.mock import ANY, patch
 
 from .conftest import braucht_ffmpeg, erzeuge_audio, warte_auf
 
@@ -93,7 +93,8 @@ async def test_hello(api, api_lesend, integration):
     ]
     assert r["konfig"]["zustand"] == "ok" and r["konfig"]["revision"] == 1
     g = r["grenzen"]
-    assert g["upload_max_bytes"] == 524288000 and g["upload_block_bytes"] == 1048576 and g["upload_parallel"] == 2
+    # Vertrag W 12.11.: Grenze 2 GiB; der Test-Eintrag speichert noch 500, die Migration hebt ihn an
+    assert g["upload_max_bytes"] == 2 * 1024**3 and g["upload_block_bytes"] == 1048576 and g["upload_parallel"] == 2
     assert g["endungen"] == ["mp3", "m4a", "m4b", "aac", "flac", "ogg", "opus", "wav"]
     assert (g["serie_name_max"], g["folge_anzeige_max"], g["tobie_name_max"], g["name_max_bytes"], g["limit_max"]) == (100, 200, 60, 255, 100)
     assert (await ok(api_lesend, "hello", v=1))["darf_schreiben"] is False
@@ -422,7 +423,8 @@ async def test_zuordnung_set_list_remove(api, box_fabrik, nas):
     assert liste["gesamt"] == 3
     assert [z["uid"] for z in liste["zuordnungen"]] == ["0123456789abcdef", UID2, UID]  # sortiert nach uid (Text)
     z = {x["uid"]: x for x in liste["zuordnungen"]}
-    assert z[UID] == {"uid": UID, "name": "Rabe aus Holz", "ziel": SERIE, "serie_name": "Der kleine Rabe", "folge_anzeige": None, "folge_vorhanden": None}
+    # Vertrag W 12.11., angelegt_am: Anlegen setzt den Zeitstempel
+    assert z[UID] == {"uid": UID, "name": "Rabe aus Holz", "ziel": SERIE, "serie_name": "Der kleine Rabe", "folge_anzeige": None, "folge_vorhanden": None, "angelegt_am": ANY}
     assert z["0123456789abcdef"]["folge_anzeige"] == "Eins" and z["0123456789abcdef"]["folge_vorhanden"] is True
     assert z[UID2]["serie_name"] is None
     assert (await ok(api, "zuordnung/list", serie_id="rabe"))["gesamt"] == 2
@@ -674,7 +676,8 @@ async def test_eingang_list_und_sortieren(hass, api, nas, ereignisse, integratio
     assert liste["gesamt"] == 2 and {e["status"] for e in liste["eintraege"]} == {"wartet"}
     assert liste.keys() == {"eintraege", "gesamt", "sortierung_laeuft", "geprueft_am"}
     eintrag = next(e for e in liste["eintraege"] if e["name"] == "a.mp3")
-    assert eintrag.keys() == {"id", "name", "art", "dateien", "ignoriert", "groesse_bytes", "zuerst_gesehen", "geaendert_am", "status", "hinweise", "ergebnis", "fertig_am"}
+    assert eintrag.keys() == {"id", "name", "art", "dateien", "ignoriert", "groesse_bytes", "zuerst_gesehen", "geaendert_am", "status", "hinweise", "ergebnis", "fertig_am", "wunsch"}  # "wunsch": Vertrag W 12.11. (A3d)
+    assert eintrag["wunsch"] is None  # ohne Wunsch
     r = await ok(api, "eingang/sortieren", eintrag_ids=[eintrag["id"]], sofort=True)
     assert r["eintraege"] == 1
     await hass.async_block_till_done()

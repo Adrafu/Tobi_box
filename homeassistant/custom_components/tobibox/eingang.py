@@ -33,7 +33,9 @@ from .const import (
     EINGANG_RUHE_S,
     EINGANG_STILLE_S,
     EINGANG_TIEFE_MAX,
+    GRUPPE_RUHE_MAX_S,
     INDEX_MAX,
+    SERIE_NAME_MAX,
     UPLOAD_SAMMELZEIT_S,
 )
 from .fehler import TobiboxFehler
@@ -137,6 +139,10 @@ class EintragZustand:
     signatur: tuple = ()
     #: ``signatur`` zum Zeitpunkt, als der Eintrag zuletzt blockiert liegen blieb
     sig_bei_block: tuple | None = None
+    #: Upload-Wunsch ``{"ziel", "art"}`` (Vertrag W, 14.4) oder ``None``
+    wunsch: dict[str, Any] | None = None
+    #: der Durchlauf hat eine Upload-Gruppe einsortiert, in der Dateien fehlten (Status bleibt ``teilweise``)
+    gruppe_unvollstaendig: bool = False
 
     def zu_json(self) -> dict[str, Any]:
         return {
@@ -152,6 +158,7 @@ class EintragZustand:
             "hinweise": list(self.hinweise),
             "ergebnis": list(self.ergebnis),
             "fertig_am": self.fertig_am,
+            "wunsch": dict(self.wunsch) if self.wunsch else None,
         }
 
 
@@ -182,6 +189,10 @@ class Gruppe:
     erste_pfad_schluessel: tuple = ()
     sortier: tuple = ()
     zielnamen: dict[str, str] = field(default_factory=dict)
+    #: Upload-Wunsch (Vertrag W, 14.4) dieser Gruppe: ``{"ziel", "art", "name", "gruppe_anzahl"}`` oder ``None``
+    wunsch: dict[str, Any] | None = None
+    #: gemeinsamer Schlüssel der Dateien eines Wunsches (``gruppe`` des Uploads, sonst der Pfad der Datei)
+    wunsch_schluessel: str | None = None
 
     def merke(self, code: str) -> None:
         if code not in self.kennz:
@@ -322,8 +333,13 @@ def mehrheit(werte: list[Any], schluessel=norm) -> tuple[Any | None, int]:
     return erster[beste], len(zaehler)
 
 
-def bilde_gruppen(eintraege: list[ScanEintrag], indizes: dict[str, int]) -> list[Gruppe]:
-    """Gruppiert die Dateien der bereiten Einträge (Vertrag W, 11.3): Album = Folge."""
+def bilde_gruppen(
+    eintraege: list[ScanEintrag], indizes: dict[str, int], wuensche: dict[str, tuple[dict[str, Any], str]] | None = None
+) -> list[Gruppe]:
+    """Gruppiert die Dateien der bereiten Einträge (Vertrag W, 11.3): Album = Folge.
+
+    Dateien mit Upload-Wunsch (``wuensche``: Pfad im Eingang -> ``(Wunsch, Schlüssel)``, 14.4) gruppiert der Wunsch **vor den
+    Tags**: ``neu`` mit ``hoerbuch`` macht aus allen Dateien des Wunsches **eine** Gruppe, alles andere je Datei eine."""
     gruppen: dict[tuple, Gruppe] = {}
     reihenfolge: list[tuple] = []
 
@@ -335,6 +351,15 @@ def bilde_gruppen(eintraege: list[ScanEintrag], indizes: dict[str, int]) -> list
 
     for e in eintraege:
         for d in e.dateien:
+            wunsch = wuensche.get(d.rel_eingang) if wuensche else None
+            if wunsch is not None:
+                w, schluessel_w = wunsch
+                gemeinsam = w["ziel"] == "neu" and w["art"] == "hoerbuch"
+                schluessel = ("wunsch", schluessel_w if gemeinsam else d.rel_eingang)
+                dazu(schluessel, e, d)
+                gruppen[schluessel].wunsch = w
+                gruppen[schluessel].wunsch_schluessel = schluessel_w
+                continue
             album = d.felder.get("album", "")
             if e.art == "ordner":
                 dazu(("ordner", e.name, norm(album) if album else None), e, d)
@@ -377,7 +402,17 @@ def berechne_gruppe(g: Gruppe, vorgaben: dict[str, str | None]) -> None:
     album = album_namen[0] if album_namen else ""
     g.ist_ordner = len(dateien_) > 1
     einzel = dateien_[0]
-    if album:
+    w = g.wunsch
+    # Wunsch (14.4): ``neu`` mit ``hoerbuch`` ist die eine Folge mit dem Namen des Wunsches; sonst ist jede Datei eine Folge,
+    # benannt nach ihrem Titel (das Album nennen alle Dateien gleich), sonst nach dem Dateinamen.
+    wunsch_je_datei = w is not None and not (w["ziel"] == "neu" and w["art"] == "hoerbuch")
+    if w is not None:
+        if wunsch_je_datei:
+            titel_w = einzel.felder.get("titel", "")
+            g.anzeige = (w["name"] if w["ziel"] == "einzeln" and w.get("name") else "") or titel_w or trenne_endung(einzel.name)[0]
+        else:
+            g.anzeige = w["name"]
+    elif album:
         g.anzeige = album
     else:
         g.merke("tags_fehlen")
@@ -392,11 +427,18 @@ def berechne_gruppe(g: Gruppe, vorgaben: dict[str, str | None]) -> None:
     nummer, vielfalt = mehrheit([f.get("nummer_tag") for f in felder], schluessel=lambda x: x)
     if vielfalt > 1:
         g.merke("nummer_widerspruch")
-    if nummer is None and album:
-        nummer = nummer_aus_text(album_namen[0])
-    if nummer is None and not g.ist_ordner:
-        titel = einzel.felder.get("titel", "")
-        nummer = nummer_aus_text(titel) if titel else None
+    if w is not None:
+        if w["ziel"] == "neu" and w["art"] == "hoerbuch":
+            nummer = None  # eine Folge in einer neuen Serie
+        elif nummer is None:
+            titel = einzel.felder.get("titel", "")  # das Album nennen alle Dateien gleich: keine Nummer daraus
+            nummer = nummer_aus_text(titel) if titel else None
+    else:
+        if nummer is None and album:
+            nummer = nummer_aus_text(album_namen[0])
+        if nummer is None and not g.ist_ordner:
+            titel = einzel.felder.get("titel", "")
+            nummer = nummer_aus_text(titel) if titel else None
     g.nummer = nummer
     daten = [f["datum"] for f in felder if f.get("datum")]
     g.datum = min(daten) if daten else None
@@ -405,7 +447,10 @@ def berechne_gruppe(g: Gruppe, vorgaben: dict[str, str | None]) -> None:
     g.vorgabe_serie_id = vorgabe
     serien_wert, n_serien = mehrheit([f.get("serien_tag") for f in felder])
     ai_wert, n_ai = mehrheit([f.get("album_interpret") for f in felder])
-    if serien_wert:
+    if w is not None and w["ziel"] in ("neu", "einzeln"):
+        g.vorgabe_serie_id = None
+        g.serie_name = (w["name"] if w["ziel"] == "neu" else g.anzeige)[:100]
+    elif serien_wert:
         g.serie_name = serien_wert[:100]
         if n_serien > 1:
             g.merke("serie_widerspruch")
@@ -428,9 +473,13 @@ def berechne_gruppe(g: Gruppe, vorgaben: dict[str, str | None]) -> None:
             g.merke("serie_aus_ordner")
             g.serie_schwach = True
     g.erste_pfad_schluessel = natuerlicher_schluessel(dateien_[0].rel)
+    zweiter = g.datum or "9999-99-99"
+    if wunsch_je_datei:  # Lieder und Folgen eines Wunsches: nach (CD, Track), wenn die Dateien es sagen
+        track = einzel.felder.get("track")
+        zweiter = f"{disc_von(einzel):04d}-{track:06d}" if track is not None else "9999-999999"
     g.sortier = (
         (0, g.nummer) if g.nummer is not None else (1, 0),
-        g.datum or "9999-99-99",
+        zweiter,
         g.eingangsindex,
         g.erste_pfad_schluessel,
     )
@@ -500,6 +549,8 @@ class Eingang:
         self._nachplan_abbruch = None
         self._upload_abbruch = None
         self._sofort_naechster = False
+        #: Eingangs-Ordner einer Upload-Gruppe -> Zahl der Uploads, die noch Bytes schicken (``http.py``)
+        self.gruppen_aktiv: dict[str, int] = {}
 
     # --- Speicher -----------------------------------------------------------------
 
@@ -585,6 +636,8 @@ class Eingang:
     async def liste(self, filter_: str, limit: int, offset: int) -> dict[str, Any]:
         await self._stelle_gescannt_sicher()
         offen = [e for e in self.eintraege.values() if e.status != "erledigt"]
+        for e in offen:
+            e.wunsch = self._wunsch_von_eintrag(e.name)
         offen.sort(key=lambda e: (parse_iso(e.zuerst_gesehen) or jetzt(), natuerlicher_schluessel(e.name)), reverse=True)
         erledigt = [dict(p) for p in reversed(self.protokoll)]
         if filter_ == "offen":
@@ -643,12 +696,15 @@ class Eingang:
             z.scans.append((jetzt_s, len(e.dateien), e.groesse))
             del z.scans[:-20]
             z.signatur = (len(e.dateien), e.groesse, e.neueste_mtime)
+            z.wunsch = self._wunsch_von_eintrag(e.name)
             if z.status == "laeuft" or z.status in ("blockiert", "teilweise"):
                 continue
             z.status = "bereit" if (self._ist_bereit(e) or sofort) else "wartet"
 
     def _ist_bereit(self, e: ScanEintrag) -> bool:
         """Ruhezeit (Vertrag W, 11.1): neueste Änderung mindestens 120 s her **und** Anzahl und Größe beim Scan davor gleich."""
+        if self._gruppe_wartet(e.name):  # Upload-Gruppe mit ``gruppe_anzahl``: erst wenn alle da sind (Vertrag W, 14.4)
+            return False
         if e.name in self.upload_eintraege:
             return True
         z = self.eintraege[e.name]
@@ -657,6 +713,67 @@ class Eingang:
             return False
         vorher = [s for s in z.scans[:-1] if jetzt_s - s[0] >= EINGANG_STILLE_S]
         return bool(vorher) and (vorher[-1][1], vorher[-1][2]) == (len(e.dateien), e.groesse)
+
+    # --- Upload-Gruppen mit ``gruppe_anzahl`` (Vertrag W, 14.4) ----------------------------------------------------
+
+    def _wunsch_eintraege(self, top: str) -> list[dict[str, Any]]:
+        """Die Vorgaben mit Wunsch unter dem Eintrag ``top`` (Ordner ``Upload …`` oder lose Datei)."""
+        return [
+            v
+            for rel, v in self.vorgaben.items()
+            if isinstance(v, dict) and v.get("wunsch") and (rel == top or rel.startswith(top + "/"))
+        ]
+
+    def _wunsch_von_eintrag(self, top: str) -> dict[str, Any] | None:
+        """``{"ziel", "art"}`` des Wunsches, mit dem die Dateien dieses Eintrags hochgeladen wurden (``eingang/list``)."""
+        for v in self._wunsch_eintraege(top):
+            w = v["wunsch"]
+            return {"ziel": w.get("ziel"), "art": w.get("art")}
+        return None
+
+    def gruppe_belegt(self, top: str) -> bool:
+        """Liegt im Eintrag schon eine Datei mit Wunsch? (Eine zweite Datei ohne ``gruppe_anzahl`` ist ungültig.)"""
+        return bool(self._wunsch_eintraege(top))
+
+    def upload_beginnt(self, top: str) -> None:
+        self.gruppen_aktiv[top] = self.gruppen_aktiv.get(top, 0) + 1
+
+    def upload_endet(self, top: str) -> None:
+        n = self.gruppen_aktiv.get(top, 0) - 1
+        if n > 0:
+            self.gruppen_aktiv[top] = n
+        else:
+            self.gruppen_aktiv.pop(top, None)
+
+    def _gruppe_stand(self, top: str) -> tuple[int, int, float]:
+        """``(erwartete Dateien, angekommene Dateien, Zeit der letzten angekommenen als Zeitstempel)``; erwartet 0 = keine Zusage."""
+        liste = self._wunsch_eintraege(top)
+        erwartet = max((int(v["wunsch"].get("gruppe_anzahl") or 0) for v in liste), default=0)
+        letzte = max(((parse_iso(v.get("am")) or datetime.fromtimestamp(0, tz=UTC)).timestamp() for v in liste), default=0.0)
+        return erwartet, len(liste), letzte
+
+    def _gruppe_wartet(self, top: str) -> bool:
+        """Wartet der Eintrag noch auf Dateien seiner Upload-Gruppe?
+
+        Ja, solange weniger als ``gruppe_anzahl`` Dateien da sind **und** die letzte vor weniger als ``GRUPPE_RUHE_MAX_S`` (30 Minuten)
+        ankam; ebenso, solange noch ein Upload dieser Gruppe Bytes schickt (eine 2-GiB-Datei kann länger als 30 Minuten dauern)."""
+        erwartet, angekommen, letzte = self._gruppe_stand(top)
+        if not erwartet:
+            return False
+        if self.gruppen_aktiv.get(top):
+            return True
+        if angekommen >= erwartet:
+            return False
+        return jetzt().timestamp() - letzte < GRUPPE_RUHE_MAX_S
+
+    def _wuensche_je_datei(self) -> dict[str, tuple[dict[str, Any], str]]:
+        """Pfad im Eingang -> ``(Wunsch, Schlüssel)`` für alle Dateien mit einem Wunsch außer ``auto`` (das ist das bisherige Einsortieren)."""
+        aus: dict[str, tuple[dict[str, Any], str]] = {}
+        for rel, v in self.vorgaben.items():
+            w = v.get("wunsch") if isinstance(v, dict) else None
+            if w and w.get("ziel") != "auto":
+                aus[rel] = (w, v.get("gruppe") or rel)
+        return aus
 
     def _bereite(self, scan: list[ScanEintrag], ids: set[str] | None, sofort: bool) -> list[ScanEintrag]:
         aus = []
@@ -798,7 +915,7 @@ class Eingang:
         await asyncio.gather(*(analysiere(d) for d in alle_dateien))
         # --- Gruppieren und berechnen ---
         indizes = self._eingangsindizes(scan)
-        gruppen = bilde_gruppen(bereit, indizes)
+        gruppen = bilde_gruppen(bereit, indizes, self._wuensche_je_datei())
         # Eine blockierte Datei (Kopierschutz, defekt) hält ihre ganze Gruppe zurück (Vertrag W, 11.10). Bei Kopierschutz
         # kennt ``ffprobe`` die Tags, die Datei gehört also zu ihrem Album; eine unlesbare Datei landet in der Gruppe „ohne Album“.
         blockierte: list[Gruppe] = [g for g in gruppen if any(d.block for d in g.dateien)]
@@ -806,6 +923,16 @@ class Eingang:
         vorgaben = {k: v.get("serie_id") for k, v in self.vorgaben.items()}
         # Hinweise zu blockierten Dateien (Eintrag, Datei)
         hinweise_je_eintrag: dict[str, list[dict[str, Any]]] = {e.name: [] for e in bereit}
+        # Upload-Gruppe, in der Dateien fehlen (30 Minuten Ruhe oder „sofort“): einsortiert wird, was da ist, „bitte ansehen“
+        for e in bereit:
+            erwartet, angekommen, _letzte = self._gruppe_stand(e.name)
+            z = self.eintraege[e.name]
+            z.gruppe_unvollstaendig = bool(erwartet) and angekommen < erwartet
+            if z.gruppe_unvollstaendig:
+                hinweise_je_eintrag[e.name].append(self._hinweis("gruppe_unvollstaendig", None, angekommen=angekommen, erwartet=erwartet))
+                for g in gruppen:
+                    if g.eintrag == e.name and g.wunsch:
+                        g.merke("gruppe_unvollstaendig")
         for g in blockierte:
             for d in g.dateien:
                 if d.block:
@@ -859,8 +986,8 @@ class Eingang:
         zustand.sort(key=lambda z: (parse_iso(z.zuerst_gesehen) or jetzt(), natuerlicher_schluessel(z.name)))
         return {z.name: i for i, z in enumerate(zustand)}
 
-    def _hinweis(self, code: str, datei: str | None) -> dict[str, Any]:
-        return {"code": code, "datei": datei, "text": self.hub.t(f"hinweis_{code}", datei=datei or "", folge=datei or "")}
+    def _hinweis(self, code: str, datei: str | None, **mehr: Any) -> dict[str, Any]:
+        return {"code": code, "datei": datei, "text": self.hub.t(f"hinweis_{code}", datei=datei or "", folge=datei or "", **mehr)}
 
     # --- Einsortieren ------------------------------------------------------------------------------------
 
@@ -876,7 +1003,7 @@ class Eingang:
         # Serienschlüssel (11.5): norm(name) von Anzeigename oder Ordnername einer vorhandenen normalen Serie
         vorhandene: dict[str, list[Any]] = {}
         for info in medien.serien.values():
-            if info.serie.typ != "normal":
+            if info.serie.typ != "normal" or info.serie.einzeln:  # in einen Einzeltitel kommt nichts Neues (Vertrag W, 14.2)
                 continue
             for k in {norm(info.serie.name), norm(info.ordner)}:
                 vorhandene.setdefault(k, []).append(info)
@@ -884,8 +1011,18 @@ class Eingang:
         for g in sorted(gruppen, key=lambda g: g.sortier):
             ziel_id: str | None = None
             neue_serie_key: str | None = None
+            w = g.wunsch
+            if w is not None and w["ziel"] in ("neu", "einzeln"):
+                # der Wunsch gilt vor den Tags: eine neue Serie, die **nie** mit einer vorhandenen zusammengeführt wird
+                einzeln = w["ziel"] == "einzeln"
+                eintrag = je_serie.setdefault(
+                    f"neu:{'e' if einzeln else 'w'}:{g.wunsch_schluessel}",
+                    {"id": None, "neu": True, "name": g.serie_name, "gruppen": [], "schwach": [], "wunsch": w, "einzeln": einzeln},
+                )
+                eintrag["gruppen"].append(g)
+                continue
             if g.vorgabe_serie_id:
-                if g.vorgabe_serie_id in medien.serien:
+                if g.vorgabe_serie_id in medien.serien and not medien.serien[g.vorgabe_serie_id].serie.einzeln:
                     ziel_id = g.vorgabe_serie_id
                 else:
                     g.merke("vorgabe_serie_fehlt")
@@ -933,6 +1070,7 @@ class Eingang:
         medien = self.hub.medien
         gruppen: list[Gruppe] = sorted(eintrag["gruppen"], key=lambda g: g.sortier)
         neu = eintrag["neu"]
+        wunsch = eintrag.get("wunsch")
         if neu:
             name = eintrag["name"]
             ordner_wunsch, _ = dateiname_bereinigen(name, mit_endung=False, fuer_serienordner=True)
@@ -945,13 +1083,28 @@ class Eingang:
         async with medien.sperren(sperre_id):
             try:
                 if neu:
+                    if wunsch and wunsch["ziel"] == "neu":
+                        # ``neu`` führt nie zusammen: gibt es den Namen, heißt die Serie „… (2)“ (Vertrag W, 14.4)
+                        belegt = {vergleichsschluessel(i.serie.name) for i in medien.serien.values()}
+                        eindeutig = eindeutiger_name(name, belegt, mit_endung=False)
+                        if len(eindeutig) > SERIE_NAME_MAX:
+                            eindeutig = eindeutiger_name(name[: SERIE_NAME_MAX - 6], belegt, mit_endung=False)
+                        if eindeutig != name:
+                            name = eindeutig
+                            hinweise[gruppen[0].eintrag].append(self._hinweis("serie_name_doppelt", None, name=name))
                     ordner = await hass.async_add_executor_job(medien._lege_ordner_an, ordner_wunsch)
                     serie = Serie(id=sid, name=name[:100], typ="normal", angelegt_am=jetzt_iso(), ordner=ordner)
-                    # Art aus den Tags vorschlagen (Vertrag W, 14.2); nur für neue Einträge, ein vorhandenes ``art`` bleibt
-                    serie.art, serie.art_quelle = art_vorschlag(art_dateien(gruppen))
-                    gruende = list(eintrag["schwach"])
-                    if serie.art_quelle == "geraten":
-                        gruende.append("art_geraten")
+                    if wunsch:
+                        # Art und Einzeltitel kommen aus dem Wunsch, nicht aus den Tags (14.2, 14.4)
+                        serie.art, serie.art_quelle = wunsch["art"], "manuell"
+                        serie.einzeln = bool(eintrag.get("einzeln"))
+                        gruende = []
+                    else:
+                        # Art aus den Tags vorschlagen (Vertrag W, 14.2); nur für neue Einträge, ein vorhandenes ``art`` bleibt
+                        serie.art, serie.art_quelle = art_vorschlag(art_dateien(gruppen))
+                        gruende = list(eintrag["schwach"])
+                        if serie.art_quelle == "geraten":
+                            gruende.append("art_geraten")
                     if gruende:
                         serie.pruefen = True
                         serie.pruefen_gruende = gruende
@@ -1105,6 +1258,7 @@ class Eingang:
         z = self.eintraege[e.name]
         z.ergebnis = ergebnis
         z.hinweise = hinweise
+        z.wunsch = self._wunsch_von_eintrag(e.name)
         pfad = self.pfade.eingang / e.name
         rest = await hass.async_add_executor_job(self._audio_uebrig, pfad)
         if not e.dateien:
@@ -1113,6 +1267,10 @@ class Eingang:
             zaehler["blockiert"] += 1
         elif rest:
             z.status = "teilweise" if ergebnis else "blockiert"
+        elif z.gruppe_unvollstaendig:
+            # alles Vorhandene ist einsortiert, aber der Upload-Gruppe fehlten Dateien: der Eintrag bleibt als „teilweise“ stehen,
+            # damit eine Nachlieferung (und der Hinweis) nicht untergeht (Vertrag W, 14.4)
+            z.status = "teilweise"
         else:
             z.status = "erledigt"
         if z.status == "erledigt":
@@ -1242,12 +1400,19 @@ class Eingang:
 
     # --- Upload (http.py) ----------------------------------------------------------------------------------------
 
-    def registriere_upload(self, rel: str, serie_id: str | None, gruppe: str | None) -> None:
-        """Hält Vorgaben eines hochgeladenen Eintrags fest und plant das Einsortieren."""
+    def registriere_upload(self, rel: str, serie_id: str | None, gruppe: str | None, wunsch: dict[str, Any] | None = None) -> None:
+        """Hält Vorgaben eines hochgeladenen Eintrags fest und plant das Einsortieren.
+
+        Ein Wunsch (Vertrag W, 14.4) steht mit der Ankunftszeit ``am`` in den persistenten Vorgaben der Datei; ohne Wunsch
+        bleibt der Eintrag genau ``{"serie_id", "gruppe"}``."""
         top = rel.split("/", 1)[0]
         self.upload_eintraege.add(top)
-        if serie_id or gruppe:
-            self.vorgaben[rel] = {"serie_id": serie_id, "gruppe": gruppe}
+        if serie_id or gruppe or wunsch:
+            vorgabe: dict[str, Any] = {"serie_id": serie_id, "gruppe": gruppe}
+            if wunsch:
+                vorgabe["wunsch"] = dict(wunsch)
+                vorgabe["am"] = jetzt_iso()
+            self.vorgaben[rel] = vorgabe
         self.speichern()
         self.plane_nach_upload()
         self.hub.emit("eingang", "geaendert", {})

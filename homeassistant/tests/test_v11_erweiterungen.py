@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import ANY, patch
 
 import pytest
 
@@ -82,7 +82,8 @@ async def test_zuordnung_list_filter_uid(api):
     await ok(api, "zuordnung/set", uid="04ffeedd", ziel=AKTION, erwartet_ziel=None)
     r = await ok(api, "zuordnung/list", uid=UID)
     assert r["gesamt"] == 1
-    assert r["zuordnungen"] == [{"uid": UID, "name": "Rabe aus Holz", "ziel": SERIE, "serie_name": "Der kleine Rabe", "folge_anzeige": None, "folge_vorhanden": None}]
+    # Vertrag W 12.11., angelegt_am: Anlegen setzt den Zeitstempel
+    assert r["zuordnungen"] == [{"uid": UID, "name": "Rabe aus Holz", "ziel": SERIE, "serie_name": "Der kleine Rabe", "folge_anzeige": None, "folge_vorhanden": None, "angelegt_am": ANY}]
     assert r["konfig"]["revision"] == 4
     z = (await ok(api, "zuordnung/list", uid=UID2))["zuordnungen"][0]
     assert z["folge_vorhanden"] is True and z["ziel"] == FOLGE

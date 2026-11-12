@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from unittest.mock import ANY
+
 import json
 import re
 
@@ -64,7 +66,8 @@ async def test_aenderung_erhoeht_revision_und_behaelt_einstellungen(hass, integr
     assert hub.store.konfig["liste_id"] == liste_id  # gleiche Listen-ID, Revision + 1
     msg = box_fabrik("box1").konfigs()[-1]
     assert msg["revision"] == 2
-    assert msg["zuordnungen"][UID1] == {"ziel": SERIE, "name": "Rabe aus Holz"}
+    # Vertrag W 12.11., angelegt_am: Anlegen setzt den Zeitstempel
+    assert msg["zuordnungen"][UID1] == {"ziel": SERIE, "name": "Rabe aus Holz", "angelegt_am": ANY}
     assert msg["leise_zeiten"]["zeitzone"] == "Europe/Berlin"
     assert msg["gute_nacht"] == {"timer_min": 30, "ausblenden_s": 60}
 
@@ -118,7 +121,8 @@ async def test_export_enthaelt_namen_und_alle_einstellungen(hass, integration, n
     assert export["schema_version"] == 2
     assert export["revision"] == 3
     assert export["zuordnungen"][UID1]["name"] == "Rabe aus Holz"
-    assert export["zuordnungen"][UID2] == {"ziel": {"typ": "aktion", "aktion": "status"}}
+    # Vertrag W 12.11., angelegt_am: Anlegen setzt den Zeitstempel
+    assert export["zuordnungen"][UID2] == {"ziel": {"typ": "aktion", "aktion": "status"}, "angelegt_am": ANY}
     assert export["leise_zeiten"]["fenster"] == []
     assert export["lesezeichen_tage"] == 14
     assert list(export)[0] == "schema_version"  # data-model.md 1.1: schema_version als erstes Feld

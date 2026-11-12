@@ -17,7 +17,9 @@ import asyncio
 import contextlib
 import logging
 import os
+import re
 import secrets
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -27,19 +29,25 @@ from homeassistant.components.http import KEY_HASS, HomeAssistantView
 
 from . import dateien, ffprobe
 from .const import (
+    ARTEN,
     DOMAIN,
     ENDUNGEN,
+    GRUPPE_ANZAHL_MAX,
     RE_UPLOAD_ID,
+    SERIE_NAME_MAX,
     UPLOAD_BLOCK_BYTES,
     UPLOAD_ERGEBNIS_ANZAHL,
     UPLOAD_ERGEBNIS_MERKEN_S,
     UPLOAD_PARALLEL,
     UPLOAD_RESERVE_BYTES,
     VERTRAG_V,
+    WUNSCH_NAME_MAX_BYTES,
+    WUNSCH_ZIELE,
 )
 from .fehler import TobiboxFehler
-from .schutz import Nutzer
+from .media import name_pruefen
 from .namen import NamenErschoepft, dateiname_bereinigen, eindeutiger_name, vergleichsschluessel
+from .schutz import Nutzer
 
 if TYPE_CHECKING:
     from .hub import Hub
@@ -47,6 +55,23 @@ if TYPE_CHECKING:
 _LOGGER = logging.getLogger(__name__)
 
 EINGANG_ORDNER_PRAEFIX = "Upload "
+
+
+@dataclass(eq=False)
+class UploadLauf:
+    """Ein laufender Upload: was er angekündigt und geschrieben hat (Reserve-Rechnung) und zu welcher Gruppe er gehört."""
+
+    laenge: int | None = None
+    geschrieben: int = 0
+    gruppe_ordner: str | None = None
+
+
+def ausstehende_bytes(hub: Hub) -> int:
+    """Bytes, die laufende Uploads angekündigt (``Content-Length``), aber noch nicht in die Zwischendatei geschrieben haben.
+
+    Der freie Platz der Freigabe enthält das schon Geschriebene nicht mehr; das Ausstehende muss der nächste Upload
+    zusätzlich abziehen (Vertrag W, 5.1 und 14.10)."""
+    return sum(max(0, lauf.laenge - lauf.geschrieben) for lauf in hub.upload_laeufe if lauf.laenge is not None)
 
 
 def _fehler_antwort(hub: Hub, code: str, status: int | None = None) -> web.Response:
@@ -75,10 +100,14 @@ class TobiboxUploadView(HomeAssistantView):
         if hub.upload_zaehler >= UPLOAD_PARALLEL:
             return _fehler_antwort(hub, "zu_viele_uploads")
         hub.upload_zaehler += 1
+        lauf = UploadLauf()
         try:
-            return await _empfange(hub, request, nutzer)
+            return await _empfange(hub, request, nutzer, lauf)
         finally:
             hub.upload_zaehler -= 1
+            hub.upload_laeufe.discard(lauf)
+            if lauf.gruppe_ordner:
+                hub.eingang.upload_endet(lauf.gruppe_ordner)
 
 
 def _fsync_und_schliessen(f: Any) -> None:
@@ -92,11 +121,62 @@ def _loesche_leise(pfad: Path) -> None:
         pfad.unlink()
 
 
+async def _lies_roh(part: Any, max_bytes: int) -> bytes:
+    """Liest ein Textfeld im Strom, höchstens ``max_bytes + 1`` Bytes (das eine Byte mehr verrät den Überlauf)."""
+    roh = b""
+    while len(roh) <= max_bytes:
+        block = await part.read_chunk(max_bytes + 1 - len(roh))
+        if not block:
+            break
+        roh += block
+    await part.release()
+    return roh
+
+
 async def _lies_feld(part: Any) -> str:
     """Ein kleines Textfeld (höchstens 64 Zeichen, sonst ungültig)."""
-    daten = await part.read_chunk(200)
-    await part.release()
-    return daten.decode("utf-8", "replace").strip()
+    return (await _lies_roh(part, 200)).decode("utf-8", "replace").strip()
+
+
+def _pruefe_wunsch(felder: dict[str, str], roh_name: bytes | None, serie_id: str | None, gruppe: str | None) -> dict[str, Any] | None:
+    """Der Wunsch beim Hochladen (Vertrag W, 14.4): ``None`` ohne Wunsch, sonst ``{ziel, art, name, gruppe_anzahl}``.
+
+    ``auto`` ohne ``gruppe_anzahl`` ist kein Wunsch (genau das bisherige Verhalten). Alles andere Unpassende ist
+    ``wunsch_ungueltig``; ``name`` wird bis 400 Bytes gelesen und nach den Namensregeln bereinigt (höchstens 100 Zeichen)."""
+    ziel = felder.get("ziel") or "auto"
+    if ziel not in WUNSCH_ZIELE:
+        raise TobiboxFehler("wunsch_ungueltig")
+    art = felder.get("art") or None
+    if art is not None and art not in ARTEN:
+        raise TobiboxFehler("wunsch_ungueltig")
+    anzahl_text = felder.get("gruppe_anzahl") or None
+    anzahl: int | None = None
+    if anzahl_text is not None:
+        if not re.fullmatch(r"[0-9]{1,4}", anzahl_text) or not 2 <= int(anzahl_text) <= GRUPPE_ANZAHL_MAX or not gruppe:
+            raise TobiboxFehler("wunsch_ungueltig")  # ohne ``gruppe`` gibt es nichts, worauf der Eingang warten könnte
+        anzahl = int(anzahl_text)
+    name: str | None = None
+    if roh_name:
+        if len(roh_name) > WUNSCH_NAME_MAX_BYTES:
+            raise TobiboxFehler("wunsch_ungueltig")
+        try:
+            name = name_pruefen(roh_name.decode("utf-8"), SERIE_NAME_MAX)
+        except (TobiboxFehler, UnicodeDecodeError):
+            raise TobiboxFehler("wunsch_ungueltig") from None
+    if ziel == "auto":
+        return {"ziel": "auto", "art": None, "name": None, "gruppe_anzahl": anzahl} if anzahl else None
+    if ziel == "neu":
+        if art is None or name is None or serie_id:
+            raise TobiboxFehler("wunsch_ungueltig")
+    elif ziel == "ergaenzen":
+        if not serie_id:
+            raise TobiboxFehler("wunsch_ungueltig")
+        art, name = None, None
+    else:  # einzeln: eine Datei je Upload, ohne gemeinsame Gruppe, die Serie gibt es noch nicht
+        if anzahl is not None or serie_id:
+            raise TobiboxFehler("wunsch_ungueltig")
+        art = art or "musik"
+    return {"ziel": ziel, "art": art, "name": name, "gruppe_anzahl": anzahl}
 
 
 async def _verwerfe_rest(part: Any) -> None:
@@ -105,7 +185,7 @@ async def _verwerfe_rest(part: Any) -> None:
         pass
 
 
-async def _empfange(hub: Hub, request: web.Request, nutzer: Nutzer) -> web.StreamResponse:
+async def _empfange(hub: Hub, request: web.Request, nutzer: Nutzer, lauf: UploadLauf) -> web.StreamResponse:
     hass = hub.hass
     nutzer_id = nutzer.id
     # Menge je Stunde (Vertrag W, 2.4): Administratoren sind ausgenommen (``rest`` ist dann ``None``)
@@ -125,14 +205,19 @@ async def _empfange(hub: Hub, request: web.Request, nutzer: Nutzer) -> web.Strea
             frei = await hass.async_add_executor_job(dateien.freier_platz, hub.pfade.eingang)
         except OSError:
             return _fehler_antwort(hub, "medien_nicht_erreichbar")
-        if laenge + UPLOAD_RESERVE_BYTES > frei:
+        # Reserve 2 GiB; was laufende Uploads angekündigt, aber noch nicht geschrieben haben, ist schon vergeben.
+        # Prüfen und Anmelden ohne ``await`` dazwischen, sonst bestehen zwei gleichzeitige Uploads die Prüfung beide.
+        if laenge + UPLOAD_RESERVE_BYTES > frei - ausstehende_bytes(hub):
             return _fehler_antwort(hub, "kein_speicher")
+        lauf.laenge = laenge
+        hub.upload_laeufe.add(lauf)
 
     try:
         reader = await request.multipart()
     except (AssertionError, KeyError, ValueError):
         return _fehler_antwort(hub, "invalid_format")
     felder: dict[str, str] = {}
+    roh_name: bytes | None = None
     part = None
     while True:
         part = await reader.next()
@@ -140,8 +225,10 @@ async def _empfange(hub: Hub, request: web.Request, nutzer: Nutzer) -> web.Strea
             return _fehler_antwort(hub, "invalid_format")
         if part.name == "datei":
             break
-        if part.name in ("upload_id", "serie_id", "gruppe"):
+        if part.name in ("upload_id", "serie_id", "gruppe", "ziel", "art", "gruppe_anzahl"):
             felder[part.name] = await _lies_feld(part)
+        elif part.name == "name":
+            roh_name = await _lies_roh(part, WUNSCH_NAME_MAX_BYTES)
         else:
             await part.release()
     upload_id = felder.get("upload_id") or None
@@ -159,6 +246,15 @@ async def _empfange(hub: Hub, request: web.Request, nutzer: Nutzer) -> web.Strea
     if upload_id and upload_id in hub.upload_ergebnisse:
         await _verwerfe_rest(part)
         return web.json_response({**hub.upload_ergebnisse[upload_id][1], "wiederholt": True})
+
+    try:
+        wunsch = _pruefe_wunsch(felder, roh_name, serie_id, gruppe)
+    except TobiboxFehler as err:
+        return _fehler_antwort(hub, err.code)
+    # ``neu``/``ergaenzen`` mit mehreren Dateien braucht ``gruppe_anzahl`` (14.4): schon eine zweite Datei ohne die Zusage ist ungültig
+    if wunsch and wunsch["ziel"] in ("neu", "ergaenzen") and not wunsch["gruppe_anzahl"] and gruppe:
+        if hub.eingang.gruppe_belegt(f"{EINGANG_ORDNER_PRAEFIX}{gruppe[:8]}"):
+            return _fehler_antwort(hub, "wunsch_ungueltig")
 
     # Endung und Name, bevor ein Byte der Datei gelesen wird
     dateiname = part.filename
@@ -179,9 +275,14 @@ async def _empfange(hub: Hub, request: web.Request, nutzer: Nutzer) -> web.Strea
             return _fehler_antwort(hub, err.code)
         if serie_id not in hub.medien.serien:
             return _fehler_antwort(hub, "serie_nicht_gefunden")
+        if wunsch and wunsch["ziel"] == "ergaenzen" and hub.medien.serien[serie_id].serie.einzeln:
+            return _fehler_antwort(hub, "wunsch_ungueltig")  # in einen Einzeltitel kommen keine neuen Folgen (14.2)
 
     if upload_id:
         hub.uploads_laufend.add(upload_id)
+    if wunsch and wunsch["gruppe_anzahl"] and gruppe:  # solange eine Datei der Gruppe noch unterwegs ist, wartet der Eingang
+        lauf.gruppe_ordner = f"{EINGANG_ORDNER_PRAEFIX}{gruppe[:8]}"
+        hub.eingang.upload_beginnt(lauf.gruppe_ordner)
     part_pfad = hub.pfade.upload / f"{secrets.token_hex(8)}.part"
     # --- Phase A: Empfang ---
     try:
@@ -199,6 +300,7 @@ async def _empfange(hub: Hub, request: web.Request, nutzer: Nutzer) -> web.Strea
             if not block:
                 break
             gesamt += len(block)
+            lauf.geschrieben = gesamt
             if gesamt > hub.upload_max_bytes:
                 await hass.async_add_executor_job(datei.close)
                 await asyncio.shield(hass.async_add_executor_job(_loesche_leise, part_pfad))
@@ -225,7 +327,7 @@ async def _empfange(hub: Hub, request: web.Request, nutzer: Nutzer) -> web.Strea
 
     # --- Phase B: Abschluss als eigene Aufgabe, vom Handler mit shield abgewartet ---
     aufgabe = hass.async_create_background_task(
-        _abschliessen(hub, part_pfad, name, endung, gesamt, upload_id, serie_id, gruppe, nutzer_id),
+        _abschliessen(hub, part_pfad, name, endung, gesamt, upload_id, serie_id, gruppe, nutzer_id, wunsch),
         "tobibox_upload_abschluss",
     )
     try:
@@ -251,6 +353,7 @@ async def _abschliessen(
     serie_id: str | None,
     gruppe: str | None,
     nutzer_id: str | None,
+    wunsch: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Prüfen, in den Eingang bringen (ohne Überschreiben), Ergebnis merken, Einsortieren anstoßen (5.2, Phase B)."""
     hass = hub.hass
@@ -275,6 +378,10 @@ async def _abschliessen(
         else:
             ergebnis_pruefung, hinweis = "ok", None
         async with hub.eingang.sperre:
+            if wunsch and wunsch["ziel"] in ("neu", "ergaenzen") and not wunsch["gruppe_anzahl"] and gruppe:
+                # unter der Sperre noch einmal: eine gleichzeitig angekommene Schwesterdatei zählt (14.4)
+                if hub.eingang.gruppe_belegt(f"{EINGANG_ORDNER_PRAEFIX}{gruppe[:8]}"):
+                    raise TobiboxFehler("wunsch_ungueltig")
             try:
                 rel, zielname = await hass.async_add_executor_job(_in_den_eingang, hub, part_pfad, name, gruppe)
             except NamenErschoepft as err:
@@ -282,7 +389,7 @@ async def _abschliessen(
             except OSError as err:
                 _LOGGER.error("Datei nicht in den Eingang gebracht: %s", err)
                 raise TobiboxFehler("medien_schreibfehler") from err
-            hub.eingang.registriere_upload(rel, serie_id, gruppe)
+            hub.eingang.registriere_upload(rel, serie_id, gruppe, wunsch)
         antwort = {
             "v": VERTRAG_V,
             "upload_id": upload_id,

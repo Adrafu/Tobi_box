@@ -18,7 +18,7 @@ from homeassistant.helpers.typing import ConfigType
 from homeassistant.loader import async_get_integration
 
 from . import testpanel, websocket_api
-from .const import DOMAIN, TESTPANEL
+from .const import CONF_UPLOAD_MAX_MIB, DOMAIN, TESTPANEL, UPLOAD_MAX_MIB_ALT, UPLOAD_MAX_MIB_VORGABE
 from .http import TobiboxUploadView
 from .hub import Hub
 from .services import async_setup_services
@@ -38,6 +38,21 @@ _GEMERKT = f"{DOMAIN}_einmalig"
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     websocket_api.async_register(hass)
     async_setup_services(hass)
+    return True
+
+
+async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Version 1 -> 2: Die Grenze je Datei beim Upload steigt von 500 MiB auf 2 GiB (Vertrag W, Abschnitt 8).
+
+    Nur der alte Vorgabewert 500 wird angehoben, in den Einrichtungsdaten und in den Optionen; ein anderer, bewusst
+    gesetzter Wert bleibt. Die Migration läuft einmal: Wer danach 500 einstellt, behält 500."""
+    if entry.version < 2:
+        daten = dict(entry.data)
+        optionen = dict(entry.options)
+        for quelle in (daten, optionen):
+            if quelle.get(CONF_UPLOAD_MAX_MIB) == UPLOAD_MAX_MIB_ALT:
+                quelle[CONF_UPLOAD_MAX_MIB] = UPLOAD_MAX_MIB_VORGABE
+        hass.config_entries.async_update_entry(entry, data=daten, options=optionen, version=2)
     return True
 
 

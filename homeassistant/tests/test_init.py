@@ -92,3 +92,46 @@ async def test_dienste_sind_angemeldet(hass, integration):
         "folge_loeschen", "papierkorb_leeren", "sync_anstossen", "update_anstossen", "liste_neu_ausrollen",
         "leise_zeiten_setzen", "gute_nacht_setzen", "lesezeichen_tage_setzen",  # AP 4.7
     }
+
+
+# --- Upload-Grenze 2 GiB: der alte Wert 500 wird beim Update angehoben (Vertrag W, 8; Paket A3d) ---
+
+
+async def test_migration_hebt_500_auf_2048_an_und_laesst_andere_werte(hass, starte_integration, einrichtung_daten):
+    from custom_components.tobibox.const import CONF_UPLOAD_MAX_MIB
+
+    assert einrichtung_daten[CONF_UPLOAD_MAX_MIB] == 500  # der gespeicherte Stand vor dem Update
+    hub = await starte_integration()
+    assert hub.upload_max_bytes == 2048 * 1024 * 1024
+    assert hub.entry.version == 2 and hub.entry.data[CONF_UPLOAD_MAX_MIB] == 2048
+
+
+async def test_migration_anderer_wert_bleibt_und_laeuft_nur_einmal(hass, starte_integration, einrichtung_daten):
+    from custom_components.tobibox.const import CONF_UPLOAD_MAX_MIB
+
+    einrichtung_daten[CONF_UPLOAD_MAX_MIB] = 750
+    hub = await starte_integration()
+    assert hub.upload_max_bytes == 750 * 1024 * 1024 and hub.entry.version == 2
+    # Version 2: wer jetzt bewusst 500 einstellt, behält 500 (die Migration läuft nicht noch einmal)
+    entry = hub.entry
+    await hass.config_entries.async_unload(entry.entry_id)
+    hass.config_entries.async_update_entry(entry, data={**entry.data, CONF_UPLOAD_MAX_MIB: 500})
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    assert hass.data[DOMAIN].upload_max_bytes == 500 * 1024 * 1024
+
+
+async def test_migration_hebt_auch_die_optionen_an(hass, nas, enable_custom_integrations, mqtt_broker, hass_storage, frontend_dir):
+    from custom_components.tobibox.const import CONF_BOXEN, CONF_MEDIEN_PFAD, CONF_UPLOAD_MAX_MIB
+
+    entry = MockConfigEntry(
+        domain=DOMAIN, unique_id=DOMAIN, title="Tobi Box",
+        data={CONF_MEDIEN_PFAD: str(nas.medien), CONF_BOXEN: ["box1"], CONF_UPLOAD_MAX_MIB: 300},
+        options={CONF_UPLOAD_MAX_MIB: 500},
+    )
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    assert dict(entry.options)[CONF_UPLOAD_MAX_MIB] == 2048 and entry.data[CONF_UPLOAD_MAX_MIB] == 300
+    assert hass.data[DOMAIN].upload_max_bytes == 2048 * 1024 * 1024
+    await hass.config_entries.async_unload(entry.entry_id)

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from unittest.mock import ANY
+
 import pytest
 import voluptuous as vol
 from homeassistant.exceptions import ServiceValidationError
@@ -30,7 +32,8 @@ async def dienste(hass, integration, nas, lege_mp3, box_fabrik):
 
 async def test_zuordnen_und_loesen(hass, dienste, integration, box_fabrik):
     await dienste("zuordnen", uid=UID, typ="serie", serie_id="rabe", name="Rabe aus Holz")
-    assert integration.store.konfig["zuordnungen"][UID] == {"ziel": SERIE, "name": "Rabe aus Holz"}
+    # Vertrag W 12.11., angelegt_am: Anlegen setzt den Zeitstempel
+    assert integration.store.konfig["zuordnungen"][UID] == {"ziel": SERIE, "name": "Rabe aus Holz", "angelegt_am": ANY}
     assert box_fabrik("box1").konfigs()[-1]["zuordnungen"][UID]["ziel"] == SERIE  # derselbe Weg: Revision, Veröffentlichung
     await dienste("zuordnen", uid=UID2, typ="folge", serie_id="rabe", folge="a.mp3")
     await dienste("zuordnen", uid="04ffeedd", typ="aktion", aktion="gute_nacht")

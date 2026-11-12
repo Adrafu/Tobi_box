@@ -12,7 +12,7 @@
         "data_description": {
           "medien_pfad": "Der Ordner „medien“ der NAS-Freigabe, wie er in Home Assistant eingebunden ist. „eingang“, „export“ und „releases“ liegen daneben.",
           "boxen": "Die Box-Namen wie in tobibox.toml, z. B. box1, box2.",
-          "upload_max_mib": "Größere Dateien lehnt der Upload ab (Vorgabe 500)."
+          "upload_max_mib": "Größere Dateien lehnt der Upload ab (Vorgabe 2048)."
         }
       }
     },
@@ -39,7 +39,7 @@
         "data_description": {
           "medien_pfad": "Der Ordner „medien“ der NAS-Freigabe, wie er in Home Assistant eingebunden ist. „eingang“, „export“ und „releases“ liegen daneben.",
           "boxen": "Die Box-Namen wie in tobibox.toml, z. B. box1, box2.",
-          "upload_max_mib": "Größere Dateien lehnt der Upload ab (Vorgabe 500).",
+          "upload_max_mib": "Größere Dateien lehnt der Upload ab (Vorgabe 2048).",
           "box_anzeigen": "So heißen die Boxen auf der Seite, zum Beispiel: box1=Box 1, box2=Box 2. Vor dem Gleichheitszeichen steht der Box-Name von oben, danach der ganze Name (bis 40 Zeichen). Leer lassen: dann gilt der Name, den die Box selbst meldet, sonst der Box-Name."
         }
       }
@@ -157,6 +157,9 @@
     "datei_zu_gross": {
       "message": "Die Datei ist zu groß."
     },
+    "wunsch_ungueltig": {
+      "message": "Das passt so nicht zusammen. Wähle noch einmal, was du hochlädst."
+    },
     "format_nicht_erlaubt": {
       "message": "Dieses Dateiformat spielt die Box nicht."
     },
@@ -198,6 +201,12 @@
     },
     "hinweis_doppelt": {
       "message": "„{datei}“ war schon vorhanden und liegt jetzt im Papierkorb."
+    },
+    "hinweis_gruppe_unvollstaendig": {
+      "message": "Es fehlt noch eine Datei. {angekommen} von {erwartet} Dateien sind angekommen. Einsortiert wurde, was da war."
+    },
+    "hinweis_serie_name_doppelt": {
+      "message": "Den Namen gab es schon. Die neue Serie heißt „{name}“."
     },
     "hinweis_vorgabe_serie_fehlt": {
       "message": "Die vorgegebene Serie gibt es nicht mehr. Die Serie wurde aus den Tags bestimmt."

@@ -163,3 +163,51 @@ async def test_bibliothek_ohne_dateizugriffe_in_der_loop(hass, wache, starte_int
         await hub.medien.serien_liste(art="geschichte")
     wache.leer()
     assert nas.serie_json("mond")["art"] == "geschichte"
+
+
+async def test_upload_mit_wunsch_gruppen_warten_und_reserve_ohne_dateizugriffe_in_der_loop(
+    hass, wache, integration, hass_client, nas, tmp_path, freezer
+):
+    """Paket A3d: Upload mit ``gruppe_anzahl`` (Reserve-Rechnung, Wunsch, Warten auf die Gruppe, ``teilweise`` nach 30 Minuten)."""
+    from datetime import timedelta
+
+    import aiohttp
+
+    client = await hass_client()
+    a = erzeuge_audio(tmp_path / "a.mp3", frequenz=300, album="Buch", title="Eins").read_bytes()  # (ausserhalb der Wache gelesen)
+    b = erzeuge_audio(tmp_path / "b.mp3", frequenz=400, album="Buch", title="Zwei").read_bytes()
+
+    def formular(inhalt: bytes, dateiname: str, **felder: str) -> aiohttp.FormData:
+        daten = aiohttp.FormData(quote_fields=False)
+        for k, v in felder.items():
+            daten.add_field(k, v)
+        daten.add_field("datei", inhalt, filename=dateiname, content_type="application/octet-stream")
+        return daten
+
+    gemeinsam = {"gruppe": "abcdef1234567890", "ziel": "neu", "art": "hoerbuch", "name": "Das Buch", "gruppe_anzahl": "3"}
+    with wache.aktiv():
+        assert (await client.post("/api/tobibox/upload", data=formular(a, "01.mp3", **gemeinsam))).status == 200
+        assert (await client.post("/api/tobibox/upload", data=formular(b, "02.mp3", **gemeinsam))).status == 200
+        assert (await client.post("/api/tobibox/upload", data=formular(b, "x.mp3", ziel="neu", art="musik", name="x" * 101))).status == 400
+        erg = await integration.eingang.durchlauf_und_warten()  # die Gruppe wartet auf die dritte Datei
+        await hass.async_block_till_done()
+        assert erg["eintraege"] == 0
+        assert (await integration.eingang.liste("offen", 50, 0))["eintraege"][0]["status"] == "wartet"
+    # Zeitgeber abmelden: Der Sprung der Uhr würde sonst die 10-Minuten-Prüfung und den Nachlauf neben dem eigenen Durchlauf starten
+    for fn in [*integration._abmelden, *integration._timer]:
+        fn()
+    integration._abmelden.clear()
+    integration._timer.clear()
+    integration.eingang.abbrechen()
+    freezer.tick(timedelta(minutes=31))
+    with wache.aktiv():
+        erg = await integration.eingang.durchlauf_und_warten()  # 30 Minuten Ruhe: einsortiert, was da ist
+        assert erg["gestartet"] is True
+        await hass.async_block_till_done()
+        eintrag = (await integration.eingang.liste("offen", 50, 0))["eintraege"][0]
+    wache.leer()
+    assert eintrag["status"] == "teilweise"
+    assert any(h["code"] == "gruppe_unvollstaendig" for h in eintrag["hinweise"])
+    integration.eingang.abbrechen()
+    for fn in list(integration._timer):
+        fn()

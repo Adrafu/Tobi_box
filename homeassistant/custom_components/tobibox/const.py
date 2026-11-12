@@ -18,7 +18,10 @@ CONF_UPLOAD_MAX_MIB: Final = "upload_max_mib"
 CONF_BOX_ANZEIGEN: Final = "box_anzeigen"
 #: Höchstlänge eines Anzeigenamens einer Box (Zeichen)
 BOX_ANZEIGE_MAX: Final = 40
-UPLOAD_MAX_MIB_VORGABE: Final = 500
+#: 2 GiB je Datei (Vertrag W, 8 und 14.10); bestehende Einträge mit 500 hebt die Migration an
+UPLOAD_MAX_MIB_VORGABE: Final = 2048
+#: der alte Vorgabewert, den die Migration (Version 2 des Konfigurationseintrags) anhebt
+UPLOAD_MAX_MIB_ALT: Final = 500
 
 # --- Ordner neben ``medien/`` (Vertrag W, 11.1) -------------------------------
 ORDNER_EINGANG: Final = "eingang"
@@ -55,10 +58,16 @@ FFPROBE_SPEICHER_BYTES: Final = 1024**3
 # --- Grenzen (Vertrag W, Abschnitt 8) ------------------------------------------
 UPLOAD_BLOCK_BYTES: Final = 1048576
 UPLOAD_PARALLEL: Final = 2
-UPLOAD_RESERVE_BYTES: Final = 100 * 1024 * 1024
+#: Reserve auf der Freigabe (Vertrag W, 5.1 und 14.10): 2 GiB; angekündigte, noch nicht geschriebene Bytes laufender Uploads werden vom freien Platz abgezogen
+UPLOAD_RESERVE_BYTES: Final = 2 * 1024**3
 UPLOAD_ERGEBNIS_MERKEN_S: Final = 3600
 UPLOAD_ERGEBNIS_ANZAHL: Final = 100
 UPLOAD_SAMMELZEIT_S: Final = 20
+#: Upload mit Wunsch (Vertrag W, 14.4): Ziele, Höchstzahl der Dateien einer Gruppe, Ruhezeit einer unvollständigen Gruppe
+WUNSCH_ZIELE: Final = ("auto", "neu", "ergaenzen", "einzeln")
+WUNSCH_NAME_MAX_BYTES: Final = 400
+GRUPPE_ANZAHL_MAX: Final = 200
+GRUPPE_RUHE_MAX_S: Final = 1800
 PART_MAX_ALTER_S: Final = 24 * 3600
 
 SERIE_NAME_MAX: Final = 100

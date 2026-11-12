@@ -180,6 +180,8 @@ class Hub:
         #: Upload-Zustand (``http.py``)
         self.uploads_laufend: set[str] = set()
         self.upload_zaehler = 0
+        #: laufende Uploads mit angekündigter Größe (Reserve-Rechnung, ``http.UploadLauf``)
+        self.upload_laeufe: set[Any] = set()
         self.upload_ergebnisse: OrderedDict[str, tuple[float, dict[str, Any]]] = OrderedDict()
         self._nachholen_sperre = asyncio.Lock()
         self._timer: set[Callable[[], None]] = set()
@@ -751,7 +753,11 @@ class Hub:
             neuer = alter_name if name_neu is FEHLT else name_neu
             if neuer:
                 eintrag["name"] = neuer
-            if (bestehend or {}).get("angelegt_am"):  # ein vorhandener Zeitstempel bleibt (V-5)
+            # Vertrag W 12.11.: ``angelegt_am`` setzt das **Anlegen**; ändert man eine bestehende Zuordnung, bleibt der alte Wert (V-5).
+            # (Eine bestehende ohne Zeitstempel bekommt keinen: sie ist nicht neu.)
+            if bestehend is None:
+                eintrag["angelegt_am"] = jetzt_iso()
+            elif bestehend.get("angelegt_am"):
                 eintrag["angelegt_am"] = bestehend["angelegt_am"]
             k["zuordnungen"][uid] = eintrag
 

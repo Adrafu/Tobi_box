@@ -740,3 +740,27 @@ async def test_leistung_600_eintraege_2000_folgen_300_einzeltitel(api, nas, inte
     r = await ok(api, "serien/list", filter=["einzeln"], limit=1)
     assert r["gesamt"] == 300
     assert (await ok(api, "folgen/list", filter=["einzeln"], limit=1))["gesamt"] == 300
+
+
+# --- angelegt_am beim Anlegen einer Zuordnung (Vertrag W 12.11.; Festlegung der Projektleitung, Paket A3d) ---
+
+
+async def test_zuordnung_anlegen_setzt_angelegt_am_aendern_behaelt_den_alten_wert(hass, integration, nas, freezer):
+    from datetime import timedelta
+
+    nas.serie("rabe", "rabe", "Rabe")
+    await integration.medien.pruefen()
+    await integration.zuordnung_setzen(UID, {"typ": "serie", "serie": "rabe"})
+    erste = integration.store.konfig["zuordnungen"][UID]["angelegt_am"]
+    assert erste.endswith("Z") and erste.startswith("20")
+    freezer.tick(timedelta(hours=2))
+    await integration.zuordnung_setzen(UID, {"typ": "serie", "serie": "rabe"}, name="Rabe aus Holz")  # ändern
+    assert integration.store.konfig["zuordnungen"][UID]["angelegt_am"] == erste
+    await integration.zuordnung_setzen(UID, {"typ": "serie", "serie": "rabe"}, name="Anderer", ueberschreiben=True)
+    assert integration.store.konfig["zuordnungen"][UID]["angelegt_am"] == erste
+    await integration.zuordnung_setzen(UID2, {"typ": "serie", "serie": "rabe"})  # ein weiteres Anlegen, später
+    assert integration.store.konfig["zuordnungen"][UID2]["angelegt_am"] > erste
+    # eine alte Zuordnung ohne Zeitstempel bekommt beim Ändern keinen: sie ist nicht neu
+    integration.store.konfig["zuordnungen"][UID3] = {"ziel": {"typ": "serie", "serie": "rabe"}}
+    await integration.zuordnung_setzen(UID3, {"typ": "serie", "serie": "rabe"}, name="Alt")
+    assert "angelegt_am" not in integration.store.konfig["zuordnungen"][UID3]

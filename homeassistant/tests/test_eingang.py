@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import time
+from datetime import timedelta
 from pathlib import Path
 from unittest.mock import patch
 
@@ -668,3 +669,247 @@ async def test_eintrag_id_ist_stabil():
     assert eintrag_id("Hörbuch X") == eintrag_id("Hörbuch X")
     assert len(eintrag_id("x")) == 12
     assert eintrag_id("a") != eintrag_id("b")
+
+
+# --------------------------------------------------------------------------
+# Upload mit Wunsch (Vertrag W, 14.4; Paket A3d): ``neu``, ``ergaenzen``, ``einzeln``, ``gruppe_anzahl``
+# --------------------------------------------------------------------------
+
+GRUPPE = "gruppe12-abcdef"
+ORDNER = "Upload gruppe12"
+
+
+def wunsch(ziel: str, art: str | None = None, name: str | None = None, anzahl: int | None = None) -> dict:
+    return {"ziel": ziel, "art": art, "name": name, "gruppe_anzahl": anzahl}
+
+
+def stille_zeitgeber(integration) -> None:
+    """Meldet die Zeitgeber der Integration ab (10-Minuten-Prüfung, „20 s nach dem Upload“, Nachlauf).
+
+    Unter dem ``freezer`` löst jeder Sprung der Uhr sie aus; sie würden Durchläufe neben denen des Tests starten."""
+    for fn in integration._abmelden:
+        fn()
+    integration._abmelden.clear()
+    for fn in list(integration._timer):
+        fn()
+    integration._timer.clear()
+    integration.eingang.abbrechen()
+
+
+def lege_upload(integration, nas, nr: int, w: dict, *, serie_id: str | None = None, gruppe: str | None = GRUPPE, **tags) -> str:
+    """Eine hochgeladene Datei: im Eingang-Ordner der Gruppe, wie ``http.py`` sie ablegt, mit dem Wunsch in den Vorgaben."""
+    ordner = ORDNER if gruppe else ""
+    rel = f"{ordner}/{nr:02d}.mp3" if ordner else f"{nr:02d}.mp3"
+    erzeuge_audio(nas.eingang / rel, frequenz=300 + 7 * nr, **tags)
+    integration.eingang.registriere_upload(rel, serie_id, gruppe, w)
+    stille_zeitgeber(integration)  # die Durchläufe stößt der Test an
+    return rel
+
+
+def album_tags(nr: int, von: int) -> dict:
+    return {"album": "Album X", "album_artist": "Künstler A", "track": f"{nr}/{von}", "title": f"Lied {nr}"}
+
+
+async def pass_ohne_sofort(hass, integration) -> bool:
+    """Ein Durchlauf ohne „sofort“. Gibt zurück, ob der Nachlauf („wartet noch etwas“) einen weiteren Durchlauf geplant hat.
+
+    Die Zeitgeber werden danach abgemeldet (``stille_zeitgeber``), damit nur die Durchläufe des Tests laufen."""
+    eingang = integration.eingang
+    erg = await eingang.durchlauf_und_warten(sofort=False)
+    assert erg["gestartet"] is True
+    await hass.async_block_till_done()
+    geplant = eingang._nachplan_abbruch is not None
+    stille_zeitgeber(integration)
+    return geplant
+
+
+async def test_wunsch_neu_hoerbuch_zwoelf_dateien_gleiches_album_sind_eine_folge(hass, integration, nas):
+    w = wunsch("neu", "hoerbuch", "Das große Hörbuch", 12)
+    for i in range(1, 13):
+        lege_upload(integration, nas, i, w, **album_tags(i, 12))
+    erg = await integration.eingang.durchlauf_und_warten(sofort=False)  # Uploads übergehen die Ruhezeit
+    await hass.async_block_till_done()
+    assert erg["eintraege"] == 1
+    serien = alle_serien(nas)
+    assert list(serien) == ["Das große Hörbuch"]  # der Name des Wunsches, nicht „Künstler A“ aus den Tags
+    serie = serien["Das große Hörbuch"]
+    assert serie["folgen"] == ["Das große Hörbuch"]
+    assert (serie["art"], serie["art_quelle"]) == ("hoerbuch", "manuell")
+    assert not serie.get("einzeln") and "pruefen" not in serie
+    assert folge_info(serie, "Das große Hörbuch")["anzeige"] == "Das große Hörbuch"
+    assert "pruefen" not in folge_info(serie, "Das große Hörbuch")
+    assert inhalt(nas.medien / serie["_ordner"] / "Das große Hörbuch") == [f"{i:02d}.mp3" for i in range(1, 13)]
+    assert not (nas.eingang / ORDNER).exists()
+    assert integration.eingang.protokoll[-1]["wunsch"] == {"ziel": "neu", "art": "hoerbuch"}
+    assert integration.eingang.protokoll[-1]["ergebnis"][0]["tracks"] == 12
+    integration.eingang.abbrechen()
+
+
+async def test_wunsch_neu_musik_zwoelf_dateien_gleiches_album_sind_zwoelf_folgen(hass, integration, nas):
+    w = wunsch("neu", "musik", "Meine Lieder", 12)
+    for i in range(1, 13):
+        lege_upload(integration, nas, i, w, **album_tags(i, 12))
+    await pass_ohne_sofort(hass, integration)
+    serien = alle_serien(nas)
+    assert list(serien) == ["Meine Lieder"]
+    serie = serien["Meine Lieder"]
+    assert serie["folgen"] == [f"{i:02d}.mp3" for i in range(1, 13)]  # nach dem Track, nicht nach dem Zufall
+    assert (serie["art"], serie["art_quelle"]) == ("musik", "manuell")
+    assert [folge_info(serie, f"{i:02d}.mp3")["anzeige"] for i in (1, 2, 12)] == ["Lied 1", "Lied 2", "Lied 12"]  # der Titel, nicht das gemeinsame Album
+    assert not any(folge_info(serie, n).get("pruefen") for n in serie["folgen"])  # der Wunsch ersetzt „Tags fehlen“ und „gleicher Name“
+    assert len(integration.eingang.protokoll[-1]["ergebnis"]) == 12
+    integration.eingang.abbrechen()
+
+
+async def test_G2_drei_dateien_im_abstand_von_60_s_bleiben_eine_gruppe(hass, integration, nas, freezer):
+    w = wunsch("neu", "hoerbuch", "Kapitän Knopf", 3)
+    for i in (1, 2, 3):
+        lege_upload(integration, nas, i, w, **album_tags(i, 3))
+        geplant = await pass_ohne_sofort(hass, integration)
+        if i < 3:  # die Sammelzeit von 20 s hätte hier schon einsortiert
+            assert geplant is True  # der Eintrag wartet: der Nachlauf prüft in einer Minute wieder (so kommt die 30-Minuten-Grenze an die Reihe)
+            assert alle_serien(nas) == {}
+            eintrag = (await integration.eingang.liste("offen", 50, 0))["eintraege"][0]
+            assert eintrag["status"] == "wartet" and eintrag["dateien"] == i
+            assert eintrag["wunsch"] == {"ziel": "neu", "art": "hoerbuch"}
+            freezer.tick(timedelta(seconds=60))
+    serie = alle_serien(nas)["Kapitän Knopf"]
+    assert serie["folgen"] == ["Kapitän Knopf"]  # **eine** Folge, kein „… (2)“
+    assert inhalt(nas.medien / serie["_ordner"] / "Kapitän Knopf") == ["01.mp3", "02.mp3", "03.mp3"]
+    integration.eingang.abbrechen()
+
+
+async def test_letzte_datei_fehlt_nach_30_minuten_ruhe_ist_die_gruppe_teilweise(hass, integration, nas, freezer):
+    w = wunsch("neu", "hoerbuch", "Kapitän Knopf", 3)
+    for i in (1, 2):
+        lege_upload(integration, nas, i, w, **album_tags(i, 3))
+    freezer.tick(timedelta(minutes=29))
+    await pass_ohne_sofort(hass, integration)
+    assert alle_serien(nas) == {}  # noch keine 30 Minuten Ruhe
+    assert (await integration.eingang.liste("offen", 50, 0))["eintraege"][0]["status"] == "wartet"
+    freezer.tick(timedelta(minutes=2))
+    await pass_ohne_sofort(hass, integration)
+    serie = alle_serien(nas)["Kapitän Knopf"]
+    assert inhalt(nas.medien / serie["_ordner"] / "Kapitän Knopf") == ["01.mp3", "02.mp3"]  # einsortiert, was da ist
+    info = folge_info(serie, "Kapitän Knopf")
+    assert info["pruefen"] is True and "gruppe_unvollstaendig" in info["pruefen_gruende"]  # „Bitte ansehen“
+    eintrag = (await integration.eingang.liste("offen", 50, 0))["eintraege"][0]
+    assert eintrag["status"] == "teilweise"
+    hinweis = next(h for h in eintrag["hinweise"] if h["code"] == "gruppe_unvollstaendig")
+    assert "2 von 3" in hinweis["text"]
+    assert eintrag["ergebnis"][0]["tracks"] == 2
+    integration.eingang.abbrechen()
+
+
+async def test_gruppe_wartet_solange_ein_upload_der_gruppe_noch_laeuft(hass, integration, nas, freezer):
+    """Eine 2-GiB-Datei kann länger als 30 Minuten dauern: solange sie Bytes schickt, wartet der Eingang."""
+    w = wunsch("neu", "hoerbuch", "Langes Buch", 2)
+    lege_upload(integration, nas, 1, w, **album_tags(1, 2))
+    integration.eingang.upload_beginnt(ORDNER)
+    freezer.tick(timedelta(minutes=45))
+    await pass_ohne_sofort(hass, integration)
+    assert alle_serien(nas) == {}
+    integration.eingang.upload_endet(ORDNER)
+    assert integration.eingang.gruppen_aktiv == {}
+    await pass_ohne_sofort(hass, integration)
+    assert "Langes Buch" in alle_serien(nas)  # nun sind 30 Minuten Ruhe vorbei: teilweise
+    assert (await integration.eingang.liste("offen", 50, 0))["eintraege"][0]["status"] == "teilweise"
+    integration.eingang.abbrechen()
+
+
+async def test_wunsch_ergaenzen_geht_vor_die_tags(hass, integration, nas):
+    nas.serie("ziel", "ziel", "Lange Serie", ["alt.mp3"], folgen_info={"alt.mp3": {"anzeige": "Folge 1", "nummer": 1}})
+    erzeuge_audio(nas.medien / "ziel" / "alt.mp3", frequenz=900)
+    await integration.medien.pruefen()
+    w = wunsch("ergaenzen", None, None, 2)
+    for i in (1, 2):
+        lege_upload(integration, nas, i, w, serie_id="ziel", album="Anderes Album", album_artist="Ganz Andere", title=f"Neue Folge {i}", track=str(i))
+    await pass_ohne_sofort(hass, integration)
+    serien = alle_serien(nas)
+    assert list(serien) == ["Lange Serie"]  # nicht „Ganz Andere“
+    assert serien["Lange Serie"]["folgen"] == ["alt.mp3", "01.mp3", "02.mp3"]  # jede Datei eine neue Folge, nie ein Folgen-Ordner
+    assert folge_info(serien["Lange Serie"], "02.mp3")["anzeige"] == "Neue Folge 2"
+    integration.eingang.abbrechen()
+
+
+async def test_wunsch_ergaenzen_in_einen_einzeltitel_faellt_auf_die_tags_zurueck(hass, integration, nas):
+    nas.serie("lied", "lied", "Ein Lied", ["l.mp3"], einzeln=True)
+    erzeuge_audio(nas.medien / "lied" / "l.mp3", frequenz=901)
+    await integration.medien.pruefen()
+    rel = lege_upload(integration, nas, 1, wunsch("ergaenzen"), serie_id="lied", gruppe=None, album="A", album_artist="Aus Tags")
+    await pass_ohne_sofort(hass, integration)
+    assert nas.serie_json("lied")["folgen"] == ["l.mp3"]  # in einen Einzeltitel kommt nichts Neues
+    assert "Aus Tags" in alle_serien(nas)
+    assert folge_info(alle_serien(nas)["Aus Tags"], rel)["pruefen_gruende"] == ["vorgabe_serie_fehlt"]
+    integration.eingang.abbrechen()
+
+
+async def test_wunsch_einzeln_ist_eine_serie_mit_einer_folge_und_im_suchindex(hass, integration, nas):
+    rel = lege_upload(integration, nas, 1, wunsch("einzeln", "musik"), gruppe=None, album="Album Y", album_artist="Künstler B", title="Schlaflied der Sterne")
+    await pass_ohne_sofort(hass, integration)
+    serie = alle_serien(nas)["Schlaflied der Sterne"]  # Name = Titel der Datei
+    assert serie["einzeln"] is True and serie["folgen"] == [rel]
+    assert (serie["art"], serie["art_quelle"]) == ("musik", "manuell")
+    assert folge_info(serie, rel)["anzeige"] == "Schlaflied der Sterne"
+    # im Suchindex (A3): als Serie **und** als Folge
+    treffer = (await integration.medien.serien_liste(text="sterne"))["serien"]
+    assert [(s["name"], s["einzeln"], s["anzahl_folgen"]) for s in treffer] == [("Schlaflied der Sterne", True, 1)]
+    zeilen = (await integration.medien.folgen_liste(text="sterne"))["folgen"]
+    assert [(z["serie_name"], z["serie_einzeln"], z["folge"], z["anzeige"]) for z in zeilen] == [("Schlaflied der Sterne", True, rel, "Schlaflied der Sterne")]
+    assert (await integration.medien.serien_liste(filter_=["einzeln"]))["gesamt"] == 1
+    assert (await integration.medien.serien_liste(filter_=["sammlung"]))["gesamt"] == 0
+    # Das Ziel eines Tobies ist die Folge
+    await integration.zuordnung_setzen("04a1b2c3", {"typ": "folge", "serie": serie["id"], "folge": rel}, name="Sternchen")
+    assert (await integration.medien.serien_liste(text="sterne"))["serien"][0]["anzahl_tobies"] == 1
+    integration.eingang.abbrechen()
+
+
+async def test_wunsch_einzeln_mit_name_und_je_datei_eine_serie(hass, integration, nas):
+    lege_upload(integration, nas, 1, wunsch("einzeln", "geschichte", "Mein Name"), gruppe=None, title="Egal", album="A")
+    lege_upload(integration, nas, 2, wunsch("einzeln", "musik"), gruppe=None, album="A", title="Zweites")
+    await pass_ohne_sofort(hass, integration)
+    serien = alle_serien(nas)
+    assert set(serien) == {"Mein Name", "Zweites"} and all(s["einzeln"] and len(s["folgen"]) == 1 for s in serien.values())
+    assert serien["Mein Name"]["art"] == "geschichte"
+    integration.eingang.abbrechen()
+
+
+async def test_einzeltitel_nimmt_keine_folgen_per_tags_auf(hass, integration, nas):
+    lege_upload(integration, nas, 1, wunsch("einzeln", "musik", "Intro"), gruppe=None)
+    await pass_ohne_sofort(hass, integration)
+    erzeuge_audio(nas.eingang / "x.mp3", frequenz=777, album="Folge 2", album_artist="Intro")
+    await sortiere(integration)
+    serien = [json.loads(p.read_text()) for p in sorted(nas.medien.glob("*/serie.json"))]
+    assert sorted((s["name"], len(s["folgen"]), bool(s.get("einzeln"))) for s in serien) == [("Intro", 1, False), ("Intro", 1, True)]
+    integration.eingang.abbrechen()
+
+
+async def test_wunsch_neu_fuehrt_nie_zusammen_gleicher_name_wird_zwei(hass, integration, nas):
+    nas.serie("mond", "mond", "Mondlieder", [])
+    await integration.medien.pruefen()
+    lege_upload(integration, nas, 1, wunsch("neu", "musik", "Mondlieder"), gruppe=None, title="Lied")
+    await pass_ohne_sofort(hass, integration)
+    serien = alle_serien(nas)
+    assert set(serien) == {"Mondlieder", "Mondlieder (2)"} and serien["Mondlieder"]["folgen"] == []
+    assert "serie_name_doppelt" in [h["code"] for h in integration.eingang.protokoll[-1]["hinweise"]]
+    integration.eingang.abbrechen()
+
+
+async def test_auto_ist_kein_wunsch_und_bleibt_wie_vorher(hass, integration, nas):
+    """``auto`` mit ``gruppe_anzahl``: der Eingang wartet auf alle, sortiert aber nach den Tags."""
+    for i in (1, 2):
+        lege_upload(integration, nas, i, wunsch("auto", None, None, 2), **album_tags(i, 2))
+    await pass_ohne_sofort(hass, integration)
+    serien = alle_serien(nas)
+    assert list(serien) == ["Künstler A"] and serien["Künstler A"]["folgen"] == ["Album X"]  # eine Folge aus dem Album, wie bisher
+    assert integration.eingang.protokoll[-1]["wunsch"] == {"ziel": "auto", "art": None}
+    integration.eingang.abbrechen()
+
+
+async def test_wunsch_steht_mit_ankunftszeit_in_den_persistenten_vorgaben(hass, integration, nas):
+    w = wunsch("neu", "hoerbuch", "Buch", 3)
+    lege_upload(integration, nas, 1, w, **album_tags(1, 3))
+    gespeichert = integration.eingang._daten()["vorgaben"]
+    assert gespeichert[f"{ORDNER}/01.mp3"]["wunsch"] == w and gespeichert[f"{ORDNER}/01.mp3"]["am"].endswith("Z")
+    json.dumps(gespeichert)  # persistierbar
+    integration.eingang.abbrechen()

@@ -104,7 +104,8 @@ def _schema(vorgabe: dict[str, Any], mit_anzeigen: bool = False) -> Any:
 
 
 class TobiboxConfigFlow(ConfigFlow, domain=DOMAIN):
-    VERSION = 1
+    #: Version 2 (12.11.): Die Grenze für Uploads steigt auf 2 GiB; ein gespeicherter Wert 500 wird angehoben (``__init__.async_migrate_entry``)
+    VERSION = 2
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         fehler: dict[str, str] = {}

@@ -24,7 +24,7 @@ from .const import (
 )
 from .fehler import TobiboxFehler
 from .media import name_pruefen
-from .util import iso, jetzt
+from .util import iso, jetzt, jetzt_iso
 
 if TYPE_CHECKING:
     from .hub import Hub
@@ -367,6 +367,11 @@ class Lernmodus:
             name = v.name if v.name is not None else alt.get("name")
             if name:
                 eintrag["name"] = name
+            # Vertrag W 12.11.: Anlegen setzt ``angelegt_am``, Ändern behält den alten Wert
+            if alt.get("angelegt_am"):
+                eintrag["angelegt_am"] = alt["angelegt_am"]
+            elif not alt:
+                eintrag["angelegt_am"] = jetzt_iso()
             k["zuordnungen"][uid] = eintrag
 
         try:

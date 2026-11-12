@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from datetime import timedelta
-from unittest.mock import patch
+from unittest.mock import ANY, patch
 
 import pytest
 from homeassistant.components import mqtt as ha_mqtt
@@ -37,7 +37,9 @@ async def test_config_retained_qos1_mit_revision_und_listen_id(hass, integration
     assert RE_LISTE_ID.match(zweite["liste_id"])
     assert (erste["revision"], zweite["revision"]) == (1, 2)
     assert zweite["schema_version"] == 2
-    assert zweite["zuordnungen"] == {UID1: {"ziel": SERIE, "name": "Rabe aus Holz"}}
+    # Vertrag W 12.11., angelegt_am: Anlegen setzt den Zeitstempel (die Box ignoriert ihn)
+    assert zweite["zuordnungen"] == {UID1: {"ziel": SERIE, "name": "Rabe aus Holz", "angelegt_am": ANY}}
+    assert zweite["zuordnungen"][UID1]["angelegt_am"].endswith("Z")
     assert zweite["erzeugt_am"].endswith("Z")
     assert set(zweite) <= {"schema_version", "revision", "liste_id", "erzeugt_am", "zuordnungen", "leise_zeiten", "gute_nacht", "ton_pegel", "hinweis_pegel", "lesezeichen_tage"}
     assert len(json.dumps(zweite).encode()) < 256 * 1024
@@ -53,7 +55,8 @@ async def test_neu_ausrollen_erzeugt_neue_listen_id(hass, integration, box_fabri
     neu = box_fabrik("box1").konfigs()[-1]
     assert neu["liste_id"] != alt
     assert neu["revision"] == 1  # eine neue Liste beginnt mit Revision 1
-    assert neu["zuordnungen"] == {UID1: {"ziel": SERIE}}  # gleiche Zuordnungen und Einstellungen
+    # gleiche Zuordnungen und Einstellungen; Vertrag W 12.11., angelegt_am: Anlegen setzt den Zeitstempel, die neue Liste behält ihn
+    assert neu["zuordnungen"] == {UID1: {"ziel": SERIE, "angelegt_am": ANY}}
 
 
 async def test_ohne_verbindung_gespeichert_und_beim_wiederverbinden_nachgeholt(hass, integration, box_fabrik, nas):

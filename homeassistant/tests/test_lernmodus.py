@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import timedelta
-from unittest.mock import patch
+from unittest.mock import ANY, patch
 
 import pytest
 from homeassistant.components import mqtt as ha_mqtt
@@ -132,7 +132,9 @@ async def test_unbekannter_tobie_wird_zugeordnet_erst_config_dann_ack(hass, lern
     assert UID in hub.store.neue_tobies
     v = await hub.lernmodus.start("box1", FOLGE, "Rabe aus Holz")
     meldung = await melde_gelernt(box, v, zuletzt="2026-11-09T10:05:00.500Z")
-    assert hub.store.konfig["zuordnungen"][UID] == {"ziel": FOLGE, "name": "Rabe aus Holz"}
+    # Vertrag W 12.11., angelegt_am: Anlegen setzt den Zeitstempel
+    assert hub.store.konfig["zuordnungen"][UID] == {"ziel": FOLGE, "name": "Rabe aus Holz", "angelegt_am": ANY}
+    assert hub.store.konfig["zuordnungen"][UID]["angelegt_am"].endswith("Z")
     assert hub.store.konfig["revision"] == 2
     ack = box.acks(UID)[-1]
     assert ack["grund"] == "zugeordnet" and ack["zuletzt"] == meldung["zuletzt"] and ack["art"] == "gelernt"

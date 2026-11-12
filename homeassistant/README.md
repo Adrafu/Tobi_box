@@ -66,7 +66,7 @@ Schritte:
     kopieren (samt `frontend/`) und HA neu starten.
 2.  Einstellungen → Geräte & Dienste → Integration hinzufügen → „Tobi Box“. Angaben: Pfad zum Ordner `medien`,
     die Box-Namen (wie `box_id` in `tobibox.toml`, z. B. `box1, box2`), größte Datei beim Upload (Vorgabe
-    500 MiB; später in den Optionen änderbar).
+    2048 MiB = 2 GiB; später in den Optionen änderbar).
 3.  In der Seitenleiste erscheint „Tobi Box“ (nur für Administratoren).
 4.  Beim ersten Start legt die Integration eine neue Liste an (Revision 1) und veröffentlicht sie. Startet HA
     später mit **leerem Speicher** oder ist der Export auf dem NAS **neuer**, veröffentlicht die Integration
