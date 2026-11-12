@@ -1833,3 +1833,17 @@ rm -f "$TOBIBOX_MARKEN/fruehton"
 
 `python box/tools/measure_boot.py --log <Protokolldatei>` rechnet aus Protokoll, `systemd-analyze` und `systemctl show tobibox-fruehton.service` die Zeiten ab 5 V am Pi und nennt, ob das Soll gehalten ist
 (Frühton höchstens 5 s, *Bereit* höchstens 8,5 s). Am Mac gibt es nur das Protokoll; die Messung gehört in den Pi-Probelauf (`docs/timing.md`, „Aus → Hörspiel“).
+
+### Nur ein MPD (Befund 12.11.)
+
+Läuft MPD zusätzlich über `brew services` oder noch ein alter Prozess, spielt die Box aus dem falschen Ordner (Protokoll `player_fehler` / `datei_fehlt`, MPD meldet „No such directory“). Vor dem Start prüfen und alle anderen beenden:
+
+```bash
+pgrep -fl mpd
+```
+
+```bash
+brew services stop mpd; mpd --kill ~/tobibox-mpd/mpd.conf; pkill -x mpd
+```
+
+Danach nur `mpd --no-daemon ~/tobibox-mpd/mpd.conf` starten. Wird der Dienst neu gestartet, während in der Simulationsseite noch ein Tobie liegt, bleibt er pausiert (Entscheidung G); Hauptknopf kurz startet ihn.
