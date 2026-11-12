@@ -151,3 +151,14 @@ Beim Bau aufgefallen; der Code folgt jeweils der hier genannten Lösung (PL), de
 | X28 | **Neuer Reiter „Geräte“ statt „Mehr“** (Lautsprecher-Symbol). Reiter: Start · Bibliothek · Tobies · Geräte | Inhalt: Status-Karten der Boxen (Akku, WLAN, was läuft; Tipp → Box-Detailseite X21), **Karte „Neuer Tobie aufgelegt“ nur hier** (dazu ein Punkt am Reiter „Geräte“, damit sie nicht übersehen wird), darunter **Gute Nacht und Leise-Zeiten** (X26). „Gehört“ (Stufe B, Rangliste je Box) wandert als Abschnitt in „Geräte“. „Mehr“ entfällt. |
 | X29 | **Hinzufügen in die Bibliothek** | Großer Knopf und Upload-Zusammenfassung verschwinden vom Start. „+“ als deutliches Symbol im Kopf der Bibliothek; laufende Uploads als dezentes Band oben in der Bibliothek. Hochladen bleibt Alltag (alle Benutzer). |
 | X30 | Folgen für frühere Entscheidungen | X1 (vier Reiter, „Mehr“) und X21 (Box-Karte auf Start) werden durch X27/X28 ersetzt; Box-Detailseite bleibt, erreicht über „Geräte“. Abkürzung „Abends“ auf dem Start entfällt (2 Taps über „Geräte“). |
+
+## Runde 16 (12.11., Rückmeldung zu Prototyp v7 und Vorschau X20)
+
+| Nr. | Entscheidung (Tobias) |
+|---|---|
+| X20 | **Angenommen:** Reiter Tobies wie in der Vorschau `x20_tobie_zuerst.html` („super“), Variante c. Dazu: a) Link „Einem Tobie geben …“ bleibt in der Bibliothek; b) bei einer einzelnen Folge steht im Regal auch der Serienname; c) Gute Nacht beim Tobie als eigene Zeile; d) nach dem Zuordnen einige Sekunden „Rückgängig“. |
+| X12a | Hochlade-Kachel „Neue Playlist“ entfällt; nach dem Hochladen „Zur Playlist hinzufügen“ (Upload-Wunsch `ziel=playlist` entfällt). |
+| X13a | Lernmodus mit Countdown nur noch für Administratoren (`lernmodus/start` wieder `admin`; Vertragsänderung mit A0-Q). |
+| X22a | Gute Nacht bleibt eine Dauer mit Schnellwahl; der Zeitwähler gilt nur für Leise-Zeiten. |
+| X27a | „Am Handy weiterhören“ und „Neu hinzugefügt“ nur auf dem Start, nicht mehr in der Bibliothek. |
+| X31 | Kein Spalt zwischen Mini-Player und Reiterleiste: der Player sitzt bündig auf der Leiste. |
