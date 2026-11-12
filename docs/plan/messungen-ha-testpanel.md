@@ -12,7 +12,7 @@ Gemessen von Tobias mit iPhone 16 Pro (iOS 27) in der HA-Companion-App, unterweg
 | 2 | Trackwechsel gesperrt (Ordner-Folge, 18 Tracks) | klappt von selbst, Lücke 822 ms | nächsten Track vorab signieren, um die Lücke zu kürzen |
 | 3 | ffmpeg auf dem QNAP | ffmpeg 8.1.3 über die HA-ffmpeg-Integration, Encoder `aac`; 600 s Audio in 15,0 s = **40× Echtzeit** | Zeitgrenze Hörkopie **90 min** (deckt 48 h Dauerdeckel bei 40×); Wartezeit-Schätzung 40× |
 | 4 | Springen auf dem NAS-Pfad | ±30 s und Regler funktionieren | – |
-| 5 | Upload über LTE und Nabu Casa | 3,4 MB in 1,9 s; **159,8 MB in 116 s (11,5 Mbit/s)**, Bytezahl stimmt | Nabu Casa nimmt mindestens 160 MB; 500 MiB und 2 GiB noch offen |
+| 5 | Upload über LTE und Nabu Casa | 3,4 MB in 1,9 s; 159,8 MB in 116 s (11,5 Mbit/s); **551,5 MB in 529 s (8,7 Mbit/s)**, Bytezahl stimmt jeweils | Nabu Casa nimmt über 500 MiB an; 2 GiB nicht gemessen (keine so große Datei am Handy), Grenze 2 GiB bleibt |
 | 6 | Formate (iPhone, iOS 27) | mp3, m4a/aac, m4b, flac, wav: ja; ogg/vorbis und opus: „probably“ | Hörkopien am iPhone kaum nötig; Mac-Safari noch offen |
 
-Offen: Upload 500 MiB und 2 GiB über Nabu Casa (im WLAN, über die Nabu-Casa-Adresse), Formate in Safari am Mac.
+Offen: Formate in Safari am Mac; Upload 2 GiB (bei Gelegenheit vom Mac).
