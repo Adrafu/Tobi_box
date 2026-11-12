@@ -31,3 +31,21 @@ Weiterhören je Folge und je HA-Benutzer in HA gespeichert. Wird in Entwurf Rev.
 1. Entwurf Rev. 3 und Prototyp v3 (läuft), Tobias sieht sich den Prototyp an.
 2. Goldfisch-Review von Rev. 3 (frischer Agent, nur Dokument und referenzierte Dateien).
 3. Befunde mit Tobias, dann Bau von Stufe A in Paketen.
+
+## Runde 8 und 9 (Entwurf Rev. 3/4, Fragen 14–26)
+
+| Nr. | Entscheidung |
+|---|---|
+| 14 | **(Tobias)** Abspiel-Link gilt 1 Stunde, still erneuert. |
+| 15 | **(Tobias)** Reinhören dürfen alle HA-Benutzer. |
+| 16 | **(Tobias)** Die Hörstelle (Weiterhören) sieht jeder nur für sich. |
+| 17 | **(Tobias)** Alle Formate im Bestand → Hörkopien für Formate, die nicht jeder Browser spielt. |
+| 18 | **(Tobias)** Dauer des Bestands einmal im Hintergrund nachlesen. |
+| 19 | **(Tobias)** Ab 10 s zählt eine Wiedergabe; Unterbrechungen bis 5 min zählen als eine. |
+| 20 | **(Tobias)** Hörbuch: Zeitleiste über alles **und** Kapitelliste (schon in Stufe A). |
+| 21 | **(Tobias)** Reinhören wird erfasst, dem HA-Benutzer zugeordnet (Stufe B). |
+| 22 | **(Tobias)** Musik spielt über das Album weiter, später über eine Playlist (Stufe C). |
+| 23 | **(Tobias)** **Reinhör-Daten sehen alle HA-Benutzer** (nicht nur die eigenen). Die Hörstelle bleibt privat (Nr. 16). PL: Umschalter heißt „Boxen \| Reinhören“, darin Auswahl „Alle“ oder ein HA-Benutzer (Namen aus HA, nie im Repo); löschen darf jeder seine eigenen, Administratoren alles. Erfassung beginnt mit Stufe B. |
+| 24 | **(Tobias)** Jedes einzelne Lied ist ein eigener Eintrag (Serie mit einer Folge, `einzeln: true`); der Tobie zeigt auf die Folge. |
+| 25 | **(Tobias)** NAS-Eingang weiter automatisch, „Anders einsortieren …“ bei „bitte ansehen“; ist der Rückweg zu teuer, Rückfall nach Entwurf 16 Nr. 25. |
+| 26 | **(Tobias)** NAS hat einige TB frei: Hörkopien auf dem NAS neben `medien/`, AAC 96 kbit/s, auch für FLAC und WAV. |

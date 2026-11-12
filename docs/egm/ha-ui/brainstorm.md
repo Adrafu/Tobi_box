@@ -101,3 +101,12 @@ wird nicht gebraucht. Die Hörstelle wird **je HA-Benutzer in HA** gespeichert (
 **Hochladen (Screenshot Blatt „In welches soll es?“):** Tobias will beim Hochladen wählen können, ob ein **neues
 Hörbuch/Hörspiel/Album**, eine **neue Playlist** oder **nur eine einzelne Folge** (bzw. ein einzelnes Lied) entsteht. Der
 Titel „In welches soll es?“ ist unverständlich; das Blatt muss klar beschreiben, was passiert.
+
+## Runde 9 (12.11., Fragen 23–26 aus Entwurf Rev. 4)
+
+| Nr. | Frage | Antwort Tobias |
+|---|---|---|
+| 23 | Wer sieht die Reinhör-Daten? | **Jeder sieht alles** (alle HA-Benutzer sehen die Reinhör-Daten aller) |
+| 24 | Wo lebt ein einzelnes Lied? | **Jedes Lied ein eigener Eintrag** (Variante A, `einzeln`) |
+| 25 | NAS-Eingang | **Passt:** weiter automatisch, „Anders einsortieren …“ bei „bitte ansehen“ |
+| 26 | Hörkopien, Platz auf dem NAS | **Einige TB frei** → Hörkopien wie vorgeschlagen, auch für FLAC und WAV |
