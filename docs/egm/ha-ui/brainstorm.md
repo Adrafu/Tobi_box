@@ -21,3 +21,10 @@ immer: Konzept, Entwurf, Goldfisch, Resolve, dann einmal bauen. Bestandsaufnahme
 | Woher kommen Hörspiele | **Alle drei:** Dateien auf dem Handy, Ordner am Computer, direkt aufs NAS (Eingang). |
 | Bilder | **Automatisch aus den MP3-Tags, sonst Platzhalter** (farbig mit Anfangsbuchstabe); eigenes Foto hochladbar. Hinweis Projektleitung: Das Cover-Auslesen ist die einzige kleine neue Funktion; sie dient nur der Bedienbarkeit. |
 | Zwei Boxen | **Eine gemeinsame Bibliothek**, Boxen nur als Status-Karten (mit Namen der Kinder). |
+
+## Antworten Runde 3 (12.11.)
+
+| Frage | Antwort |
+|---|---|
+| Rechte | Verena ist keine Administratorin: **Alltagsseite für alle**, „Für Tobias“ nur für Administratoren. |
+| Box-Namen | **Tobias trägt Anzeigenamen in den Einstellungen der Integration ein**; im Repo stehen keine Namen. |
