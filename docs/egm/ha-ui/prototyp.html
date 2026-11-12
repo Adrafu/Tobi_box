@@ -365,11 +365,131 @@ details.zahlen summary { min-height: 44px; display: flex; align-items: center; c
 .preview select { width: 100%; min-width: 0; max-width: 100%; }
 .preview label { min-width: 0; }
 
+/* Rev. 3: Kopfzeile, Bibliothek wie eine Hörbuch-App, Player */
+.top { margin: 0 0 4px; gap: 4px; min-height: 52px; }
+.top .logo { display: none; }
+.top h1 { font-size: 22px; }
+.topbtns { display: flex; align-items: center; gap: 4px; }
+.top .tech { min-width: 44px; padding: 0 12px; border-radius: 22px; }
+@media (max-width: 520px) { .top .tech span { display: none; } .top .tech { padding: 0; width: 44px; } }
+.iconbtn.plain { border: 0; background: none; color: var(--text); }
+.iconbtn.plain svg, .iconbtn svg { fill: currentColor; }
+.iconbtn.add { color: var(--primary-ink); }
+.iconbtn.plain[aria-current="page"], .iconbtn.plain[aria-expanded="true"] { background: var(--primary-soft); color: var(--primary-ink); }
+.iconbtn.fillp { background: var(--primary); color: var(--on-primary); border-color: var(--primary); flex: none; }
+.preview { margin: 0 0 8px; padding: 8px 12px; }
+.preview[hidden] { display: none; }
+.preview .pt { font-weight: 500; margin: 4px 0; }
+.preview .btns { margin-top: 4px; gap: 8px; }
+.preview .btns .btn { min-height: 44px; padding: 0 14px; }
+
+.libhead { display: flex; align-items: center; justify-content: space-between; margin: 0; }
+.libhead h2 { margin: 0; }
+.artrow { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; border-bottom: 1px solid var(--divider); margin: 0 0 12px; }
+.artrow::-webkit-scrollbar { display: none; }
+.arttab { flex: none; min-height: 44px; padding: 0 12px; border: 0; background: none; font-weight: 500; color: var(--text2); border-bottom: 3px solid transparent; border-radius: 0; }
+.arttab[aria-pressed="true"] { color: var(--primary-ink); border-bottom-color: var(--primary); }
+.rowh { font-size: 17px; font-weight: 500; margin: 16px 0 6px; }
+.libbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 12px 0 4px; }
+.libbar .count { margin: 0; }
+.libbar .btn { min-height: 44px; padding: 0 14px; }
+.libbar .btn svg { width: 20px; height: 20px; fill: currentColor; }
+.nbadge { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; background: var(--primary); color: var(--on-primary); font-size: 12px; line-height: 20px; text-align: center; font-weight: 700; }
+.lrow { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--divider); text-decoration: none; color: inherit; min-height: 84px; content-visibility: auto; contain-intrinsic-size: auto 92px; }
+.lrow:first-child { border-top: 0; }
+.lrow .grow { flex: 1; min-width: 0; display: grid; gap: 1px; }
+.lt { display: block; font-weight: 500; line-height: 1.3; overflow-wrap: anywhere; }
+.ls { display: block; font-size: 14px; color: var(--text2); }
+.ls.ok { color: var(--ok); }
+.ls.ok svg { width: 16px; height: 16px; fill: currentColor; vertical-align: -3px; }
+.pbar { display: block; height: 4px; background: var(--divider); border-radius: 2px; overflow: hidden; margin: 5px 0 1px; width: 100%; }
+.pbar i { display: block; height: 100%; background: var(--primary); }
+.tbadge { display: inline-flex; align-items: center; gap: 3px; font-size: 14px; color: var(--text2); flex: none; }
+.tbadge svg { width: 16px; height: 16px; fill: currentColor; }
+.cover.lr { width: 72px; font-size: 32px; flex: none; }
+.lrow .badge { justify-self: start; margin-top: 2px; }
+.wh { position: relative; flex: 0 0 120px; }
+.wh .tile { width: 100%; content-visibility: visible; }
+.wh .tile .pbar { margin: 0; }
+.playov { position: absolute; right: 10px; top: 66px; width: 44px; height: 44px; border-radius: 22px; border: 0; background: var(--primary); color: var(--on-primary); display: grid; place-items: center; box-shadow: 0 1px 4px var(--shadow); }
+.playov svg { width: 24px; height: 24px; fill: currentColor; }
+.hscroll { padding-bottom: 4px; }
+.optrow { width: 100%; min-height: 48px; border: 1px solid var(--divider); border-radius: 12px; background: var(--card); display: flex; align-items: center; justify-content: space-between; padding: 0 16px; text-align: left; }
+.optrow[aria-pressed="true"], .optrow[aria-checked="true"] { background: var(--primary-soft); border-color: var(--primary); }
+.optrow svg { width: 22px; height: 22px; fill: var(--primary-ink); }
+
+.shead { display: flex; align-items: center; gap: 4px; margin: 4px 0 12px; }
+.shead .grow { flex: 1; min-width: 0; }
+.shead .search { margin: 0; }
+.shead2 { display: flex; align-items: center; justify-content: space-between; }
+.hero { display: grid; justify-items: center; text-align: center; gap: 8px; margin: 4px 0 16px; }
+.hero h2 { margin: 4px 0 2px; font-size: 24px; overflow-wrap: anywhere; }
+.cover.xl { width: min(46vw, 190px); font-size: 80px; border-radius: 16px; }
+.hbtns { display: grid; gap: 10px; margin-top: 8px; width: 100%; max-width: 360px; }
+.btn.xl { min-height: 56px; font-size: 17px; border-radius: 28px; }
+.btn.xl svg { width: 24px; height: 24px; fill: currentColor; }
+.tbline { display: inline-flex; align-items: center; gap: 4px; justify-content: center; }
+.tbline svg { width: 16px; height: 16px; fill: currentColor; }
+@media (min-width: 900px) {
+  .hero { grid-template-columns: 220px 1fr; justify-items: start; text-align: left; gap: 8px 28px; align-items: center; }
+  .hero .htxt { display: grid; gap: 2px; justify-items: start; }
+  .cover.xl { width: 220px; }
+  .tbline { justify-content: flex-start; }
+}
+.fz .num { width: 28px; text-align: center; color: var(--text2); font-weight: 500; flex: none; }
+.fz.cur .nm { color: var(--primary-ink); }
+.fz .grow { display: grid; gap: 1px; }
+
+.mini { order: 8; position: sticky; bottom: calc(61px + env(safe-area-inset-bottom, 0px)); z-index: 19; background: var(--card); border-top: 1px solid var(--divider); box-shadow: 0 -2px 8px var(--shadow); margin-left: calc(-1 * max(16px, env(safe-area-inset-left, 0px))); margin-right: calc(-1 * max(16px, env(safe-area-inset-right, 0px))); }
+.mini[hidden] { display: none; }
+.mbar { height: 3px; background: var(--divider); }
+.mbar i { display: block; height: 100%; width: 0; background: var(--primary); }
+.mrow { display: flex; align-items: center; gap: 8px; padding: 4px max(16px, env(safe-area-inset-right, 0px)) 4px max(16px, env(safe-area-inset-left, 0px)); max-width: 1180px; margin: 0 auto; }
+.mopen { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; border: 0; background: none; text-align: left; min-height: 56px; padding: 0; }
+.mopen .grow { min-width: 0; display: grid; }
+.mopen .mt { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mopen .ms { font-size: 14px; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mplay { width: 48px; height: 48px; border-radius: 24px; border: 0; background: var(--primary); color: var(--on-primary); display: grid; place-items: center; flex: none; }
+.mplay svg { width: 28px; height: 28px; fill: currentColor; }
+@media (min-width: 900px) { .mini { bottom: 0; } }
+.kbd .mini { display: none; }
+
+dialog.player { padding: 0; border: 0; width: 100%; max-width: 480px; max-height: 96dvh; background: var(--card); color: var(--text); border-radius: 20px; overflow: auto; box-shadow: 0 8px 32px var(--shadow); }
+dialog.player::backdrop { background: var(--scrim); }
+@media (max-width: 699px) { .pin { min-height: 100dvh; align-content: center; } }
+@media (max-width: 699px) { dialog.player { max-width: none; height: 100dvh; max-height: 100dvh; margin: 0; border-radius: 0; } }
+.pin { padding: 8px max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); display: grid; gap: 8px; justify-items: center; }
+.phead { width: 100%; display: flex; align-items: center; justify-content: space-between; }
+.pin .cover { width: min(62vw, 280px, 36dvh); font-size: 96px; border-radius: 16px; }
+.ptitle { text-align: center; width: 100%; }
+.ptitle h2 { margin: 4px 0 2px; font-size: 22px; overflow-wrap: anywhere; }
+.pslider { width: 100%; min-height: 44px; accent-color: var(--primary); margin: 0; }
+.ptimes { width: 100%; display: flex; justify-content: space-between; font-size: 14px; color: var(--text2); margin-top: -8px; }
+.pctl { display: flex; align-items: center; justify-content: center; gap: 4px; width: 100%; }
+.pbtn { width: 52px; height: 52px; border-radius: 26px; border: 0; background: none; display: grid; place-items: center; color: var(--text); }
+.pbtn svg { width: 32px; height: 32px; fill: currentColor; }
+.pbtn.main { width: 72px; height: 72px; border-radius: 36px; background: var(--primary); color: var(--on-primary); }
+.pbtn.main svg { width: 40px; height: 40px; }
+.pbtn[disabled] { opacity: 0.35; }
+.speed { display: flex; gap: 8px; justify-content: center; }
+.speed .chip { min-width: 64px; }
+.pnote { margin: 0; font-size: 13px; text-align: center; }
+
+.rhead, .rrow { display: grid; grid-template-columns: 1fr 40px 84px 56px; gap: 6px; align-items: center; }
+.rhead { font-size: 13px; color: var(--text2); padding: 0 4px 4px; border-bottom: 1px solid var(--divider); }
+.rhead span:nth-child(n+2), .rrow .rn { text-align: right; }
+.rrow { width: 100%; border: 0; border-top: 1px solid var(--divider); background: none; text-align: left; min-height: 56px; padding: 6px 4px; font-size: 14px; border-radius: 0; }
+.rhead + .rrow { border-top: 0; }
+.rrow .rt { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 15px; font-weight: 500; overflow-wrap: anywhere; }
+.rrow .rt .rk { color: var(--text2); width: 18px; flex: none; font-weight: 400; font-size: 14px; }
+.rrow.z { color: var(--text2); }
+.rtotal { font-size: 14px; margin-top: 8px; }
+a.iconbtn { text-decoration: none; }
 </style>
 
 <div class="page" id="page">
-  <details class="preview" id="preview" style="order:0">
-    <summary>Vorschau mit Beispieldaten (Rev. 2)</summary>
+  <div class="preview" id="preview" hidden style="order:0">
+    <div class="pt">Vorschau mit Beispieldaten (Rev. 3)</div>
     <div class="ctl">
       <label for="sel-rolle">Angemeldet als
         <select id="sel-rolle"><option value="admin">Administrator (Tobias)</option><option value="user">Benutzer ohne Admin (Verena)</option></select>
@@ -385,18 +505,25 @@ details.zahlen summary { min-height: 44px; display: flex; align-items: center; c
       </label>
       <div class="rights" id="rights" aria-live="polite"></div>
     </div>
-  </details>
+    <div class="btns"><button class="btn" data-act="demoNeu" data-fk="demoNeu">Tobie auf Mond legen (Demo)</button><button class="btn" data-act="hReset" data-fk="hreset">Hörstellen zurücksetzen</button></div>
+    <div class="muted" style="margin-top:8px">Reinhören spielt kurze Beispieltöne (1 bis 5 Minuten je Folge), damit man Springen und Weiterhören ausprobieren kann. Die Hörstelle liegt hier im Browser; in der echten Seite liegt sie in Home Assistant, für jeden Benutzer einzeln.</div>
+  </div>
 
   <div class="top">
-    <div class="logo" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 7.97v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg></div>
     <h1 id="titel">Tobi Box</h1>
-    <span id="techslot"></span>
+    <span class="topbtns" id="techslot"></span>
+  </div>
+
+  <div class="mini" id="mini" hidden>
+    <div class="mbar" aria-hidden="true"><i id="mbari"></i></div>
+    <div class="mrow"><button class="mopen" id="mopen" data-p="open"></button><button class="mplay" id="mplay" data-p="toggle"></button></div>
   </div>
 
   <nav class="tabs" id="tabs" aria-label="Bereiche"><div class="tr" id="tabrow"></div></nav>
   <main id="main" tabindex="-1"></main>
 </div>
 <div id="layer"></div>
+<div id="playerlayer"></div>
 <div id="live" class="sr" aria-live="polite" role="status"></div>
 <div id="toastbox"></div>
 
@@ -416,6 +543,14 @@ details.zahlen summary { min-height: 44px; display: flex; align-items: center; c
     chart: 'M5 9.2h3V19H5V9.2zM10.6 5h2.8v14h-2.8V5zm5.6 8H19v6h-2.8v-6z',
     star: 'M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z',
     cam: 'M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4zM9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9z',
+    play: 'M8 5v14l11-7z',
+    pause: 'M6 19h4V5H6v14zm8-14v14h4V5h-4z',
+    prev: 'M6 6h2v12H6zm3.5 6l8.5 6V6z',
+    next: 'M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z',
+    search: 'M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z',
+    tune: 'M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z',
+    info: 'M11 7h2v2h-2zm0 4h2v6h-2zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z',
+    down: 'M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z',
     more: 'M6 10c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm12 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm-6 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z'
   };
   function ic(n, sz) { return '<svg viewBox="0 0 24 24" aria-hidden="true"' + (sz ? ' width="' + sz + '" height="' + sz + '"' : '') + ' fill="currentColor"><path d="' + ICON[n] + '"/></svg>'; }
@@ -470,6 +605,8 @@ details.zahlen summary { min-height: 44px; display: flex; align-items: center; c
       for (var j = 0; j < cnt; j++) f.push({ t: 'Geschichte ' + (j + 1) + ': ' + NOUN[(i * 5 + j * 2 + 3) % NOUN.length], k: 1, mb: 6 + Math.floor(R() * 8) });
       add(n, 'geschichte', f);
     });
+    var R2 = rng(77);
+    out.forEach(function (s) { s.folgen.forEach(function (f) { f.d = s.art === 'hoerbuch' ? 240 + Math.floor(R2() * 61) : s.art === 'musik' ? 40 + Math.floor(R2() * 36) : s.art === 'geschichte' ? 60 + Math.floor(R2() * 61) : 90 + Math.floor(R2() * 91); }); });
     // zuletzt hinzugefügt: einige Neuzugänge
     ['Pirat Pippo', 'Mia und das Meer', 'Frühlingslieder', 'Tiergeschichten', 'Die Sternenmühle', 'Abendlieder', 'Das Schiff im Sand'].forEach(function (n, i) { out.filter(function (s) { return s.name === n; })[0].ago = i * 2 + 1; });
     out.filter(function (s) { return s.name === 'Die Sternenmühle'; })[0].pruefen = 'In den Dateien steht kein Albumname. Der Name ist aus dem Ordnernamen geraten.';
@@ -503,7 +640,7 @@ details.zahlen summary { min-height: 44px; display: flex; align-items: center; c
     reihenfolge: false, nameDone: {},
     bib: { term: '', art: 'alle', ansicht: 'kacheln', ohne: false, neu: false, pruefen: false, sort: 'az', shown: 60 },
     serieTerm: '', serieShown: 20,
-    gh: { box: 'beide', tage: 7 },
+    gh: { box: 'beide', zr: 'woche', serie: null }, q: '',
     tobieTerm: ''
   };
   var DAYS = { 1: 'Mo', 2: 'Di', 3: 'Mi', 4: 'Do', 5: 'Fr', 6: 'Sa', 7: 'So' };
@@ -619,11 +756,11 @@ details.zahlen summary { min-height: 44px; display: flex; align-items: center; c
     if (S.mode !== 'leer') h += S.neu.filter(function (x, i, a) { return !x.done || true; }).map(neuCard).join('');
     h += '<div class="bigbtns"><a class="btn big primary" href="#hinzufuegen" data-fk="add">' + ic('plus') + 'Hinzufügen</a><a class="btn big" href="#abends" data-fk="abend">' + ic('moon') + 'Abends</a></div>';
     h += uploadSummary();
-    h += '<h2>Etwas suchen</h2><form data-act-form="startSuche" role="search"><label class="sr" for="startsuche">In der ganzen Bibliothek suchen</label><input class="search" id="startsuche" type="search" placeholder="Hörspiel, Lied, Folge oder Tobie suchen" data-fk="startsuche" style="margin-bottom:0"></form>';
+    h += '<form data-act-form="startSuche" role="search"><label class="sr" for="startsuche">In der ganzen Bibliothek suchen</label><input class="search" id="startsuche" type="search" placeholder="Hörspiel, Lied, Folge oder Tobie suchen" data-fk="startsuche" style="margin-bottom:0"></form>';
+    h += whRow();
     h += '<h2>Neu in der Bibliothek</h2>';
     if (S.mode === 'leer' || !S.series.length) h += '<div class="card">Noch nichts da. Tippe oben auf „Hinzufügen“.</div>';
     else h += '<div class="tiles">' + S.series.slice().sort(function (a, c) { return a.ago - c.ago; }).slice(0, 6).map(function (s) { return tileFor(s, 'oeffne'); }).join('') + '</div><div style="margin-top:12px"><a class="btn" href="#bibliothek" data-fk="alle">Ganze Bibliothek ansehen (' + S.series.length + ')</a></div>';
-    h += '<p class="muted" style="margin-top:24px">Nur Vorschau: <button class="btn link" data-act="demoNeu" data-fk="demoNeu">Tobie auf Mond legen (Demo)</button></p>';
     return h;
   }
 
@@ -638,7 +775,7 @@ details.zahlen summary { min-height: 44px; display: flex; align-items: center; c
       if (term && norm(s.name).indexOf(term) < 0) return false;
       return true;
     });
-    l.sort(B.sort === 'neu' ? function (a, c) { return a.ago - c.ago || a.name.localeCompare(c.name, 'de'); } : function (a, c) { return a.name.localeCompare(c.name, 'de'); });
+    l.sort(B.sort === 'neu' ? function (a, c) { return a.ago - c.ago || a.name.localeCompare(c.name, 'de'); } : B.sort === 'gehoert' ? function (a, c) { return serieProg(c).t - serieProg(a).t || a.name.localeCompare(c.name, 'de'); } : function (a, c) { return a.name.localeCompare(c.name, 'de'); });
     return l;
   }
   function folgenFiltered(B) {
@@ -657,82 +794,146 @@ details.zahlen summary { min-height: 44px; display: flex; align-items: center; c
     return out;
   }
   function artCount(a) { return S.series.filter(function (s) { return a === 'alle' || s.art === a; }).length; }
-  function toolbar(B, pre) {
-    var h = '<div class="toolbar"><div><label class="sr" for="' + pre + 'suche">Suchen</label><input class="search" id="' + pre + 'suche" type="search" placeholder="Suchen: Hörspiel, Lied, Folge, Tobie" value="' + esc(B.term) + '" data-fk="' + pre + 'suche" style="margin-bottom:0"></div>';
-    h += '<div class="chips wrap" role="group" aria-label="Art">' + ['alle'].concat(ARTEN).map(function (a) {
-      return '<button class="chip" data-act="' + pre + 'art" data-arg="' + a + '" aria-pressed="' + (B.art === a) + '" data-fk="' + pre + 'art' + a + '">' + (a === 'alle' ? 'Alles' : ART[a].n) + '<span class="n">' + artCount(a) + '</span></button>';
+  /* ---------- Rev. 3: Bibliothek wie eine Hörbuch-App ---------- */
+  function fmtDur(sec) { return dauerText(sec); }
+  function libRow(s, term) {
+    var p = serieProg(s), tb = S.tobies.filter(function (t) { return t.z.s === s.id; }).length;
+    var sub = ART[s.art].e + ' · ' + einheit(s) + ' · ' + dauerText(p.tot), prog = '';
+    if (p.started) prog = '<span class="pbar" role="progressbar" aria-label="Fortschritt" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + Math.round(p.frac * 100) + '"><i style="width:' + Math.round(p.frac * 100) + '%"></i></span><span class="ls">' + (p.frac >= 0.999 ? 'Fertig gehört' : 'noch ' + dauerText(p.rest)) + '</span>';
+    return '<a class="lrow" href="#serie-' + s.id + '" data-fk="lr' + s.id + '">' + coverHtml(s, 'lr') + '<span class="grow"><span class="lt">' + hl(s.name, term || '') + '</span><span class="ls">' + esc(sub) + '</span>' + prog + (s.pruefen ? '<span class="badge">bitte ansehen</span>' : '') + '</span>' +
+      (tb ? '<span class="tbadge" role="img" aria-label="' + tb + (tb === 1 ? ' Tobie' : ' Tobies') + '">' + ic('tag', 16) + tb + '</span>' : '') + '</a>';
+  }
+  function whRow() {
+    var l = S.series.map(function (s) { return { s: s, p: serieProg(s) }; }).filter(function (x) { return x.p.started && x.p.frac < 0.999; }).sort(function (a, c) { return c.p.t - a.p.t; }).slice(0, 8);
+    if (!l.length) return '';
+    return '<h3 class="rowh">Weiterhören</h3><div class="hscroll">' + l.map(function (x) {
+      var s = x.s, p = x.p;
+      return '<div class="wh"><button class="tile" data-act="oeffne" data-arg="' + s.id + '" data-fk="wh' + s.id + '"><span class="pos">' + coverHtml(s) + '</span><span class="pbar" aria-hidden="true"><i style="width:' + Math.round(p.frac * 100) + '%"></i></span><span class="tn">' + esc(s.name) + '</span><span class="tm">noch ' + dauerText(p.rest) + '</span></button>' +
+        '<button class="playov" data-act="reinhoeren" data-arg="' + s.id + '" data-fk="whp' + s.id + '" aria-label="' + esc(s.name) + ' weiterhören">' + ic('play', 24) + '</button></div>';
     }).join('') + '</div>';
-    h += '<div class="line"><div class="seg2" role="group" aria-label="Ansicht"><button data-act="' + pre + 'ansicht" data-arg="kacheln" aria-pressed="' + (B.ansicht === 'kacheln') + '" data-fk="' + pre + 'ak">Kacheln</button><button data-act="' + pre + 'ansicht" data-arg="folgen" aria-pressed="' + (B.ansicht === 'folgen') + '" data-fk="' + pre + 'af">Alle Folgen</button></div>' +
-      '<div class="chips wrap" role="group" aria-label="Filter"><button class="chip" data-act="' + pre + 'f" data-arg="ohne" aria-pressed="' + B.ohne + '" data-fk="' + pre + 'fo">Ohne Tobie</button><button class="chip" data-act="' + pre + 'f" data-arg="neu" aria-pressed="' + B.neu + '" data-fk="' + pre + 'fn">Neu</button><button class="chip" data-act="' + pre + 'f" data-arg="pruefen" aria-pressed="' + B.pruefen + '" data-fk="' + pre + 'fp">Bitte ansehen</button>' + (stufeA() ? '' : '<button class="chip" disabled title="Stufe B – Vorschau">★ Favoriten <span class="vb2">B</span></button>') + '</div>' +
-      '<label class="sr" for="' + pre + 'sort">Sortieren</label><select id="' + pre + 'sort" data-fk="' + pre + 'sort"><option value="az"' + (B.sort === 'az' ? ' selected' : '') + '>Sortiert: A bis Z</option><option value="neu"' + (B.sort === 'neu' ? ' selected' : '') + '>Sortiert: zuletzt hinzugefügt</option>' + (stufeA() ? '' : '<option disabled>Zuletzt gehört (Stufe B)</option><option disabled>Meist gehört (Stufe B)</option>') + '</select></div></div>';
-    return h;
   }
-  function folgeRow(x, term, pre) {
-    var s = x.s, f = x.f, ohne = folgeOhneTobie(s, x.i);
-    return '<div class="frow">' + coverHtml(s, 'sm') + '<div class="grow"><div class="nm">' + hl(f.t, term) + '</div><div class="muted">' + esc(s.name) + ' · ' + esc(ART[s.art].one) + (x.i + 1 > 0 && s.art !== 'hoerbuch' ? ' ' + (x.i + 1) : '') + (ohne ? '' : ' · hat einen Tobie') + '</div></div>' +
-      '<button class="btn" data-act="' + pre + 'folgeTobie" data-arg="' + s.id + '|' + x.i + '" data-fk="' + pre + 'ft' + s.id + x.i + '" aria-label="Tobie für ' + esc(f.t) + ' anlernen">Tobie</button></div>';
+  function neuRow() {
+    return '<h3 class="rowh">Neu hinzugefügt</h3><div class="hscroll">' + S.series.slice().sort(function (a, c) { return a.ago - c.ago; }).slice(0, 8).map(function (s) { return tileFor(s, 'oeffne'); }).join('') + '</div>';
   }
-  function libBody(B, pre, pick) {
-    var term = B.term.trim(), h = '', act = pick ? 'pickS' : 'oeffne';
-    var tnorm = norm(term);
-    if (term.length >= 2 && !pick) {
-      var ser = seriesFiltered(B), fol = folgenFiltered(B), tob = S.tobies.filter(function (t) { return t.name && norm(t.name).indexOf(tnorm) >= 0; });
-      h += '<div class="count" aria-live="polite">Gefunden: ' + ser.length + ' Sammlungen, ' + fol.length + ' Folgen und Lieder, ' + tob.length + ' Tobies</div>';
-      if (!ser.length && !fol.length && !tob.length) return h + '<div class="card">Nichts gefunden zu „' + esc(term) + '“.</div>';
-      if (ser.length) h += '<h2>Hörspiele, Bücher, Alben</h2><div class="tiles">' + ser.slice(0, 12).map(function (s) { return tileFor(s, act); }).join('') + '</div>' + (ser.length > 12 ? '<div class="muted" style="margin-top:8px">… und ' + (ser.length - 12) + ' weitere. Mit den Filtern oben eingrenzen.</div>' : '');
-      if (fol.length) h += '<h2>Folgen und Lieder</h2><div class="card"><div>' + fol.slice(0, 10).map(function (x) { return folgeRow(x, term, 'b'); }).join('') + '</div></div>' + (fol.length > 10 ? '<div class="muted">… und ' + (fol.length - 10) + ' weitere. Oben „Alle Folgen“ wählen, um alle zu sehen.</div>' : '');
-      if (tob.length) h += '<h2>Tobies</h2><div class="card"><div class="rows">' + tob.map(function (t) { return tobieRow(t); }).join('') + '</div></div>';
-      return h;
-    }
-    if (B.ansicht === 'folgen') {
-      var list = folgenFiltered(B);
-      h += '<div class="count" aria-live="polite">' + list.length + ' Folgen und Lieder' + (list.length > B.shown ? ' · ' + Math.min(B.shown, list.length) + ' gezeigt' : '') + '</div>';
-      if (!list.length) return h + '<div class="card">Nichts gefunden. Nimm einen Filter weg.</div>';
-      h += '<div class="card"><div>' + list.slice(0, B.shown).map(function (x) { return folgeRow(x, '', pre === 'p' ? 'p' : 'b'); }).join('') + '</div></div>';
-      if (list.length > B.shown) h += '<div class="btns" style="justify-content:center"><button class="btn" data-act="' + pre + 'mehr" data-fk="' + pre + 'mehr">Mehr zeigen (60 weitere)</button></div>';
-      return h;
-    }
-    var l = seriesFiltered(B);
-    h += '<div class="count" aria-live="polite">' + l.length + (l.length === 1 ? ' Eintrag' : ' Einträge') + (l.length > B.shown ? ' · ' + Math.min(B.shown, l.length) + ' gezeigt' : '') + '</div>';
-    if (S.mode === 'leer' || !S.series.length) return h + '<div class="card">Noch nichts da. Tippe auf „Hinzufügen“.</div>';
-    if (!l.length) return h + '<div class="card">Nichts gefunden. Nimm einen Filter weg oder wähle „Alles“.</div>';
-    h += '<div class="tiles">' + l.slice(0, B.shown).map(function (s) { return tileFor(s, act); }).join('') + '</div>';
-    if (l.length > B.shown) h += '<div class="btns" style="justify-content:center;margin-top:16px"><button class="btn" data-act="' + pre + 'mehr" data-fk="' + pre + 'mehr">Mehr zeigen (60 weitere)</button></div>';
-    return h;
-  }
+  function filtCount(B) { return (B.ohne ? 1 : 0) + (B.neu ? 1 : 0) + (B.pruefen ? 1 : 0) + (B.sort !== 'az' ? 1 : 0); }
   function vBibliothek() {
-    var B = S.bib;
-    var h = '<div class="btns" style="justify-content:space-between;align-items:center;margin-bottom:12px"><h2 style="margin:0">Bibliothek</h2><a class="btn primary" href="#hinzufuegen" data-fk="add2">' + ic('plus', 20) + 'Hinzufügen</a></div>';
-    return h + toolbar(B, 'b') + '<div id="libbody">' + libBody(B, 'b') + '</div>';
+    var B = S.bib, h = '<div class="libhead"><h2>Bibliothek</h2><button class="iconbtn plain" data-act="go" data-arg="suche" data-fk="lupe" aria-label="Suchen">' + ic('search', 26) + '</button></div>';
+    h += '<div class="artrow" role="group" aria-label="Art">' + ['alle'].concat(ARTEN).map(function (a) {
+      return '<button class="arttab" data-act="bart" data-arg="' + a + '" aria-pressed="' + (B.art === a) + '" data-fk="at' + a + '">' + (a === 'alle' ? 'Alle' : ART[a].n) + '</button>';
+    }).join('') + '</div>';
+    if (S.mode === 'leer' || !S.series.length) return h + '<div class="card">Noch nichts da. Tippe oben auf das Plus, um etwas hinzuzufügen.</div>';
+    var rows = B.art === 'alle' && !filtCount(B);
+    if (rows) h += whRow() + neuRow();
+    var l = seriesFiltered(B, true), n = filtCount(B);
+    h += '<div class="libbar"><span class="count" aria-live="polite">' + l.length + (l.length === 1 ? ' Eintrag' : ' Einträge') + '</span><button class="btn" data-act="sortSheet" data-fk="sortbtn" aria-haspopup="dialog">' + ic('tune', 20) + 'Sortieren &amp; Filter' + (n ? '<span class="nbadge" aria-label="' + n + ' aktiv">' + n + '</span>' : '') + '</button></div>';
+    if (!l.length) return h + '<div class="card">Nichts gefunden. Nimm einen Filter weg.</div>';
+    h += '<div id="libbody">' + l.slice(0, B.shown).map(function (s) { return libRow(s); }).join('') + '</div>';
+    if (l.length > B.shown) h += '<div class="btns" style="justify-content:center;margin-top:16px"><button class="btn" data-act="bmehr" data-fk="bmehr">Mehr zeigen (60 weitere)</button></div>';
+    return h;
+  }
+  function sortSheet() {
+    function body() {
+      var B = S.bib;
+      return '<h3>Sortieren</h3><div class="stack" role="radiogroup" aria-label="Sortieren">' + [['az', 'A bis Z'], ['neu', 'Zuletzt hinzugefügt'], ['gehoert', 'Zuletzt angehört']].map(function (o) {
+        return '<button class="optrow" role="radio" aria-checked="' + (B.sort === o[0]) + '" data-so="' + o[0] + '" id="so-' + o[0] + '"><span>' + o[1] + '</span>' + (B.sort === o[0] ? ic('check', 22) : '') + '</button>';
+      }).join('') + '</div><h3 style="margin-top:20px">Nur zeigen</h3><div class="stack">' + [['ohne', 'Ohne Tobie'], ['neu', 'Neu (letzte 14 Tage)'], ['pruefen', 'Bitte ansehen']].map(function (o) {
+        return '<button class="optrow" aria-pressed="' + !!B[o[0]] + '" data-fl="' + o[0] + '" id="fl-' + o[0] + '"><span>' + o[1] + '</span>' + (B[o[0]] ? ic('check', 22) : '') + '</button>';
+      }).join('') + '</div>';
+    }
+    openSheet('Sortieren und Filter', body(), [{ label: 'Zurücksetzen', fn: function () { S.bib.sort = 'az'; S.bib.ohne = S.bib.neu = S.bib.pruefen = false; S.bib.shown = 60; $('sheet-b').innerHTML = body(); render(); return false; } }, { label: 'Fertig', kind: 'primary' }]);
+    $('sheet-b').addEventListener('click', function (e) {
+      var b = e.target.closest('button'); if (!b) return;
+      if (b.dataset.so) S.bib.sort = b.dataset.so;
+      else if (b.dataset.fl) S.bib[b.dataset.fl] = !S.bib[b.dataset.fl];
+      else return;
+      var id = b.id; S.bib.shown = 60; $('sheet-b').innerHTML = body(); $(id).focus(); render();
+    });
   }
 
-  /* ---------- Hörspiel / Album / Buch ---------- */
-  function folgeZeile(s, f, i, admin) {
+  /* ---------- Suche ---------- */
+  function sfRow(x, term) {
+    var s = x.s, f = x.f;
+    return '<div class="frow">' + coverHtml(s, 'sm') + '<div class="grow"><div class="nm">' + hl(f.t, term) + '</div><div class="muted">' + esc(s.name) + ' · ' + clock(f.d) + '</div></div>' +
+      '<button class="iconbtn fillp" data-act="playF" data-arg="' + s.id + '|' + x.i + '" data-fk="sp' + s.id + x.i + '" aria-label="' + esc(f.t) + ' anhören">' + ic(P.sid === s.id && P.i === x.i && P.playing ? 'pause' : 'play', 24) + '</button>' +
+      '<button class="btn" data-act="folgeTobie" data-arg="' + s.id + '|' + x.i + '" data-fk="st' + s.id + x.i + '" aria-label="Tobie für ' + esc(f.t) + ' anlernen">Tobie</button></div>';
+  }
+  function suchBody() {
+    var term = S.q.trim();
+    if (term.length < 2) return '<div class="muted" style="padding:8px 4px">Tippe mindestens 2 Buchstaben. Gesucht wird in Hörspielen, Büchern, Alben, Folgen, Liedern und in den Namen der Tobies.</div>';
+    var B = { term: term, art: 'alle', ohne: false, neu: false, pruefen: false, sort: 'az', shown: 60 }, tnorm = norm(term);
+    var ser = seriesFiltered(B), fol = folgenFiltered(B), tob = S.tobies.filter(function (t) { return t.name && norm(t.name).indexOf(tnorm) >= 0; });
+    var h = '<div class="count" aria-live="polite">Gefunden: ' + ser.length + ' Sammlungen, ' + fol.length + ' Folgen und Lieder, ' + tob.length + ' Tobies</div>';
+    if (!ser.length && !fol.length && !tob.length) return h + '<div class="card">Nichts gefunden zu „' + esc(term) + '“.</div>';
+    if (ser.length) h += '<h3 class="rowh">Hörspiele, Bücher, Alben</h3><div class="card"><div>' + ser.slice(0, 8).map(function (s) { return libRow(s, term); }).join('') + '</div></div>' + (ser.length > 8 ? '<div class="muted">… und ' + (ser.length - 8) + ' weitere. Genauer suchen hilft.</div>' : '');
+    if (fol.length) h += '<h3 class="rowh">Folgen und Lieder</h3><div class="card"><div>' + fol.slice(0, 10).map(function (x) { return sfRow(x, term); }).join('') + '</div></div>' + (fol.length > 10 ? '<div class="muted">… und ' + (fol.length - 10) + ' weitere. Genauer suchen hilft.</div>' : '');
+    if (tob.length) h += '<h3 class="rowh">Tobies</h3><div class="card"><div class="rows">' + tob.map(function (t) { return tobieRow(t); }).join('') + '</div></div>';
+    return h;
+  }
+  function vSuche() {
+    return '<div class="shead"><button class="iconbtn plain" data-act="go" data-arg="bibliothek" data-fk="sback" aria-label="Zurück zur Bibliothek">' + ic('back', 26) + '</button><div class="grow"><label class="sr" for="qsuche">Suchen</label><input class="search" id="qsuche" type="search" placeholder="Hörspiel, Lied, Folge oder Tobie" value="' + esc(S.q) + '" data-fk="qsuche" autocomplete="off"></div></div><div id="qres">' + suchBody() + '</div>';
+  }
+
+  /* ---------- Serienseite wie ein Hörbuch oder Album ---------- */
+  function reinBtn(s) {
+    var p = serieProg(s), cur = P.sid === s.id, label, sub = '';
+    if (cur && P.playing) label = 'Pause';
+    else if (cur && p.started) label = 'Weiterhören';
+    else if (p.mode === 'weiter') label = 'Weiterhören';
+    else if (p.mode === 'nochmal') label = 'Noch einmal hören';
+    else label = 'Reinhören';
+    if (p.mode === 'weiter' && !(cur && P.playing)) { var e = hGet(s.id, p.next), f = s.folgen[p.next]; sub = (s.folgen.length > 1 ? f.t : s.name) + ' · ab ' + clock(e && !fertig(e) ? e.p : 0); }
+    return '<button class="btn primary xl" data-act="reinhoeren" data-arg="' + s.id + '" data-fk="rein">' + ic(cur && P.playing ? 'pause' : 'play', 24) + label + '</button>' + (sub ? '<div class="muted">' + esc(sub) + '</div>' : '');
+  }
+  function folgeZeile(s, f, i) {
+    var e = hGet(s.id, i), fe = fertig(e), cur = P.sid === s.id && P.i === i, pl = cur && P.playing;
     var tb = tobiesAuf(s, i).filter(function (t) { return t.z.t === 'folge'; }).length;
-    return '<div class="frow"><div class="num" style="width:36px;height:36px;border-radius:18px;background:var(--primary-soft);color:var(--primary-ink);display:grid;place-items:center;font-weight:500;flex:none" aria-hidden="true">' + (i + 1) + '</div><div class="grow"><div class="nm">' + esc(f.t) + '</div><div class="muted">' + (f.k > 1 ? f.k + ' Kapitel · ' : '') + f.mb + ' MB' + (tb ? ' · ' + tb + (tb === 1 ? ' Tobie' : ' Tobies') : '') + '</div></div>' +
+    var meta = clock(f.d) + (f.k > 1 ? ' · ' + f.k + ' Kapitel' : '') + (tb ? ' · ' + tb + (tb === 1 ? ' Tobie' : ' Tobies') : '') + (cur ? ' · ' + (pl ? 'läuft' : 'pausiert') : '');
+    var prog = '';
+    if (e && !fe && e.p > 1) prog = '<span class="pbar" role="progressbar" aria-label="Fortschritt" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + Math.round(e.p / f.d * 100) + '"><i style="width:' + Math.round(e.p / f.d * 100) + '%"></i></span><span class="ls">noch ' + clock(f.d - e.p) + '</span>';
+    else if (fe) prog = '<span class="ls ok">' + ic('check', 16) + ' Fertig gehört</span>';
+    return '<div class="frow fz' + (cur ? ' cur' : '') + '"><span class="num" aria-hidden="true">' + (i + 1) + '</span><div class="grow"><div class="nm">' + esc(f.t) + '</div><div class="muted">' + meta + '</div>' + prog + '</div>' +
       (S.reihenfolge ? '<button class="iconbtn" data-act="hoch" data-arg="' + s.id + '|' + i + '" aria-label="' + esc(f.t) + ' nach oben" data-fk="up' + i + '"' + (i === 0 ? ' disabled' : '') + '>▲</button><button class="iconbtn" data-act="runter" data-arg="' + s.id + '|' + i + '" aria-label="' + esc(f.t) + ' nach unten" data-fk="dn' + i + '"' + (i === s.folgen.length - 1 ? ' disabled' : '') + '>▼</button>'
-        : '<button class="btn" data-act="folgeTobie" data-arg="' + s.id + '|' + i + '" data-fk="ft' + i + '" aria-label="Tobie für ' + esc(f.t) + ' anlernen">Tobie</button><button class="iconbtn" data-act="folgeMehr" data-arg="' + s.id + '|' + i + '" data-fk="fm' + i + '" aria-label="Mehr zu ' + esc(f.t) + '">' + ic('more', 22) + '</button>') + '</div>';
+        : '<button class="iconbtn fillp" data-act="playF" data-arg="' + s.id + '|' + i + '" data-fk="pf' + i + '" aria-label="' + esc(f.t) + (pl ? ' pausieren' : ' abspielen') + '">' + ic(pl ? 'pause' : 'play', 24) + '</button><button class="iconbtn plain" data-act="folgeMehr" data-arg="' + s.id + '|' + i + '" data-fk="fm' + i + '" aria-label="Mehr zu ' + esc(f.t) + '">' + ic('more', 22) + '</button>') + '</div>';
   }
   function vSerie(id) {
     var s = serie(id);
     if (!s) return '<div class="note err">Das gibt es nicht mehr. <a href="#bibliothek">Zurück zur Bibliothek</a></div>';
-    var tob = S.tobies.filter(function (t) { return t.z.s === id; }).length, art = ART[s.art];
-    var h = '<button class="back" data-act="go" data-arg="bibliothek" data-fk="back">' + ic('back') + 'Bibliothek</button>';
-    h += '<div class="card"><div class="status" style="align-items:flex-start">' + coverHtml(s, 'lg') + '<div class="txt"><h2 style="margin:0 0 4px">' + esc(s.name) + '</h2><div class="muted">' + art.e + ' · ' + einheit(s) + ' · ' + tob + (tob === 1 ? ' Tobie' : ' Tobies') + '</div><div class="btns" style="margin-top:8px;gap:8px"><button class="btn" data-act="serieName" data-arg="' + id + '" data-fk="sname">Name ändern</button><button class="btn" data-act="coverFoto" data-arg="' + id + '" data-fk="cfoto">' + ic('cam', 20) + 'Cover ändern</button><button class="btn" data-act="artAendern" data-arg="' + id + '" data-fk="art">Art ändern</button></div></div></div></div>';
+    var tob = S.tobies.filter(function (t) { return t.z.s === id; }).length, art = ART[s.art], p = serieProg(s);
+    var h = '<div class="shead2"><button class="back" data-act="go" data-arg="bibliothek" data-fk="back">' + ic('back') + 'Bibliothek</button><button class="iconbtn plain" data-act="serieMenu" data-arg="' + id + '" data-fk="smenu" aria-label="Mehr zu ' + esc(s.name) + '">' + ic('more', 24) + '</button></div>';
+    h += '<div class="hero">' + coverHtml(s, 'xl') + '<div class="htxt"><h2>' + esc(s.name) + '</h2><div class="muted">' + art.e + ' · ' + einheit(s) + ' · ' + dauerText(p.tot) + '</div>' +
+      (tob ? '<div class="muted tbline">' + ic('tag', 16) + tob + (tob === 1 ? ' Tobie' : ' Tobies') + '</div>' : '') +
+      (p.started ? '<div class="muted">' + (p.frac >= 0.999 ? 'Fertig gehört' : 'Schon ' + Math.round(p.frac * 100) + ' % gehört · noch ' + dauerText(p.rest)) + '</div>' : '') +
+      '<div class="hbtns">' + reinBtn(s) + '<button class="btn" data-act="serieTobie" data-arg="' + id + '" data-fk="stobie">' + ic('tag', 20) + 'Tobie zuordnen</button></div></div></div>';
     if (s.pruefen) h += '<div class="note warn"><strong>Bitte kurz ansehen.</strong><br>' + esc(s.pruefen) + '<div class="btns"><button class="btn" data-act="geprueft" data-arg="' + id + '" data-fk="gep">Das ist richtig</button><button class="btn" data-act="stimmtNicht" data-arg="' + id + '" data-fk="stn">Das stimmt nicht</button></div></div>';
-    h += '<div class="card"><h3>Tobie dafür anlernen</h3><div class="muted">Wähle die Box. Danach legst du den Tobie auf, der „' + esc(s.name) + '“ spielen soll.</div><div class="btns" style="margin-top:12px">' +
-      S.boxes.map(function (b) { return '<button class="btn primary" data-act="lern" data-arg="' + id + '||' + b.id + '" data-fk="lern' + b.id + '"' + (b.online ? '' : ' disabled aria-describedby="off-' + b.id + '"') + '>Auf ' + esc(b.name) + '</button>'; }).join('') + '</div>' +
-      S.boxes.filter(function (b) { return !b.online; }).map(function (b) { return '<div class="muted" id="off-' + b.id + '" style="margin-top:8px">' + esc(b.name) + ' ist aus. Schalte sie ein, dann geht es.</div>'; }).join('') + '</div>';
     var n = s.folgen.length;
-    h += '<div class="btns" style="justify-content:space-between;align-items:center"><h2 style="margin:16px 0">' + (s.art === 'musik' ? 'Lieder' : s.art === 'hoerbuch' ? 'Hörbuch' : s.art === 'geschichte' ? 'Geschichten' : 'Folgen') + '</h2>' +
-      (S.admin && n > 1 ? '<button class="btn" data-act="reihe" data-fk="reihe" aria-pressed="' + S.reihenfolge + '">' + (S.reihenfolge ? 'Fertig mit Reihenfolge' : 'Reihenfolge ändern') + '</button>' : '') + '</div>';
+    h += '<div class="btns" style="justify-content:space-between;align-items:center"><h2 style="margin:8px 0">' + (s.art === 'musik' ? 'Lieder' : s.art === 'hoerbuch' ? 'Hörbuch' : s.art === 'geschichte' ? 'Geschichten' : 'Folgen') + '</h2>' +
+      (S.reihenfolge ? '<button class="btn" data-act="reihe" data-fk="reihe">Fertig mit Reihenfolge</button>' : '') + '</div>';
     if (n > 20) h += '<div><label class="sr" for="sterm">In diesem Eintrag suchen</label><input class="search" id="sterm" type="search" placeholder="Hier suchen" value="' + esc(S.serieTerm) + '" data-fk="sterm"></div>';
     var idx = []; s.folgen.forEach(function (f, i) { if (!S.serieTerm || norm(f.t).indexOf(norm(S.serieTerm)) >= 0) idx.push(i); });
     h += '<div class="card"><div>' + idx.slice(0, S.serieShown).map(function (i) { return folgeZeile(s, s.folgen[i], i); }).join('') + '</div></div>';
     if (idx.length > S.serieShown) h += '<div class="btns" style="justify-content:center"><button class="btn" data-act="serieMehr" data-fk="smehr">Mehr zeigen (' + (idx.length - S.serieShown) + ' weitere)</button></div>';
-    h += '<div class="card" style="margin-top:32px"><h3>Aufräumen</h3><div class="muted">Alles Gelöschte landet erst im Papierkorb. Tobias kann es zurückholen.</div><div class="btns" style="margin-top:12px"><button class="btn danger" data-act="serieWeg" data-arg="' + id + '" data-fk="weg">In den Papierkorb …</button>' + (S.admin ? '<button class="btn" data-act="zusammen" data-arg="' + id + '" data-fk="zus">Mit anderem zusammenführen … <span class="vc2" style="background:var(--primary-soft)">Admin</span></button>' : '') + '</div></div>';
     return h;
   }
+  function zielSheet(sid, i) {
+    var s = serie(sid), ganz = i == null, f = ganz ? null : s.folgen[i], wort = ART[s.art].one;
+    var z = ganz ? { t: 'serie', s: sid } : { t: 'folge', s: sid, i: i };
+    var vorh = tobiesAuf(s, ganz ? null : i).filter(function (t) { return ganz ? t.z.t === 'serie' : t.z.t === 'folge'; });
+    var b = '<p class="muted">Der Tobie spielt dann ' + (ganz ? '„' + esc(s.name) + '“' : 'nur „' + esc(f.t) + '“ aus „' + esc(s.name) + '“') + '.</p>' +
+      (vorh.length ? '<div class="note okk">Schon angelernt: ' + vorh.map(function (t) { return esc(t.name || 'Tobie ohne Namen'); }).join(', ') + '.</div>' : '') +
+      '<h3 style="margin-top:12px">Neuen Tobie anlernen</h3><div class="btns" style="margin-top:8px">' + S.boxes.map(function (bx) { return '<button class="btn primary" id="fs-' + bx.id + '"' + (bx.online ? '' : ' disabled') + '>Auf ' + esc(bx.name) + '</button>'; }).join('') + '</div>' +
+      S.boxes.filter(function (bx) { return !bx.online; }).map(function (bx) { return '<div class="muted" style="margin-top:8px">' + esc(bx.name) + ' ist aus. Schalte sie ein, dann geht es.</div>'; }).join('') +
+      '<h3 style="margin-top:20px">Oder einen Tobie umstellen, der schon etwas spielt</h3><div class="btns" style="margin-top:8px"><button class="btn" id="fs-um">Tobie wählen …</button></div>' +
+      (stufeA() ? '' : '<div class="btns" style="margin-top:16px"><button class="btn" disabled>Zu einer Playlist hinzufügen</button> <span class="vc2">Stufe C – Idee</span></div>');
+    openSheet('Tobie anlernen', b, [{ label: 'Schließen' }]);
+    $('sheet-t').textContent = ganz ? (s.art === 'musik' ? 'Tobie für dieses Album' : s.art === 'hoerbuch' ? 'Tobie für dieses Hörbuch' : s.art === 'geschichte' ? 'Tobie für diese Geschichten' : 'Tobie für dieses Hörspiel') : (wort === 'Lied' ? 'Tobie für dieses Lied' : wort === 'Hörbuch' ? 'Tobie für dieses Hörbuch' : wort === 'Geschichte' ? 'Tobie für diese Geschichte' : 'Tobie für diese Folge');
+    S.boxes.forEach(function (bx) { var e = $('fs-' + bx.id); if (e) e.addEventListener('click', function () { closeLayer(); startLern(z, bx.id); }); });
+    $('fs-um').addEventListener('click', function () {
+      closeLayer();
+      openSheet('Welcher Tobie?', '<div class="rows" id="tl">' + S.tobies.slice().sort(function (a, c) { return c.n - a.n; }).filter(function (t) { return t.z.t !== 'aktion'; }).map(tobieRow).join('') + '</div>', [{ label: 'Abbrechen' }]);
+      $('tl').addEventListener('click', function (e) { var r = e.target.closest('[data-act="tobie"]'); if (!r) return; var tb = S.tobies.filter(function (x) { return x.uid === r.dataset.arg; })[0]; closeLayer(); tb.z = z; tb.n = ++tobieN; render(); toast('Fertig: ' + (tb.name || 'Der Tobie') + ' spielt jetzt „' + (ganz ? s.name : f.t) + '“.'); });
+    });
+  }
+  function folgeSheet(sid, i) { zielSheet(sid, i); }
 
   /* ---------- Anlernen ---------- */
   function vAnlernen() {
@@ -877,21 +1078,69 @@ details.zahlen summary { min-height: 44px; display: flex; align-items: center; c
     sv += '<text x="' + (W - R) + '" y="' + (H - 1) + '" text-anchor="end">Uhr</text><line class="axis" x1="' + L + '" x2="' + (W - R) + '" y1="' + (T + ph) + '" y2="' + (T + ph) + '"/></svg>';
     return sv;
   }
+  /* ---------- Rangliste: welche Box hat was wie oft gehört (Stufe B, erfundene Zahlen) ---------- */
+  var ZR = { woche: ['Woche', 0.12], monat: ['Monat', 0.35], jahr: ['Jahr', 0.8], alles: ['Alles', 1] };
+  var ZRW = { woche: 'in der letzten Woche', monat: 'im letzten Monat', jahr: 'im letzten Jahr', alles: 'insgesamt' };
+  var TYP = { hoerspiel: 26, hoerbuch: 42, musik: 3, geschichte: 11 };
+  var RK = null;
+  function rankBase() {
+    if (RK) return RK;
+    var R = rng(21); RK = { mond: {}, stern: {} };
+    var lst = { mond: ['Lange Serie', 'Kommissar Kralle', 'Kinderlieder zum Mitsingen', 'Gute-Nacht-Geschichten', 'Pirat Pippo', 'Die Wolkenreise', 'Schlaflieder', 'Abenteuer im Wald'], stern: ['Kinderlieder zum Mitsingen', 'Schlaflieder', 'Tiergeschichten', 'Pirat Pippo', 'Lange Serie', 'Märchen aus aller Welt', 'Familie Fuchs', 'Die Sternenmühle'] };
+    ['mond', 'stern'].forEach(function (b) {
+      lst[b].forEach(function (nm, ri) {
+        var s = S.series.filter(function (x) { return x.name === nm; })[0]; if (!s) return;
+        RK[b][s.id] = s.folgen.map(function (f, i) { var w = (lst[b].length - ri) * 2.2; return Math.round(R() * w + (i < 3 ? w * 0.5 : 0)); });
+      });
+    });
+    return RK;
+  }
+  function rankRows(box, zr) {
+    var base = rankBase(), f = ZR[zr][1], out = {};
+    ['mond', 'stern'].forEach(function (b) {
+      if (box !== 'beide' && box !== b) return;
+      Object.keys(base[b]).forEach(function (sid) {
+        var s = serie(sid); if (!s) return;
+        var o = out[sid] || (out[sid] = { s: s, folgen: s.folgen.map(function () { return { n: 0, fert: 0, min: 0 }; }) });
+        base[b][sid].forEach(function (c, i) { var n = Math.round(c * f); if (!o.folgen[i]) return; o.folgen[i].n += n; o.folgen[i].fert += Math.round(n * 0.7); o.folgen[i].min += Math.round(n * TYP[s.art] * 0.8); });
+      });
+    });
+    return Object.keys(out).map(function (k) { var o = out[k]; o.n = 0; o.min = 0; o.fertig = 0; o.folgen.forEach(function (x) { o.n += x.n; o.min += x.min; if (x.fert > 0) o.fertig++; }); return o; })
+      .filter(function (o) { return o.n > 0; }).sort(function (a, c) { return c.n - a.n || c.min - a.min; });
+  }
+  function fmtHm(m) { return m >= 60 ? Math.floor(m / 60) + ':' + pad2(m % 60) + ' Std.' : m + ' Min.'; }
+  function boxWort(b) { return b === 'beide' ? 'beide Boxen zusammen' : (b === 'mond' ? 'Mond' : 'Stern'); }
+  function rankCard() {
+    var g = S.gh, rows = rankRows(g.box, g.zr), o = g.serie ? rows.filter(function (x) { return x.s.id === g.serie; })[0] : null;
+    var h = '<div class="card wide">';
+    var legend = '<details class="zahlen"><summary>Was wird gezählt?</summary><p class="muted" style="margin:0 0 8px">„Mal“ ist jede Wiedergabe ab 10 Sekunden. „Fertig“ heißt: bis zum Ende der Folge gehört. In der Rangliste steht, wie viele Folgen mindestens einmal ganz gehört wurden; in den Folgen, wie oft die Folge ganz gehört wurde. Wer nach einer langen Pause weiterhört, zählt als neue Wiedergabe.</p></details>';
+    if (o) {
+      h += '<button class="back" data-act="ghBack" data-fk="ghback">' + ic('back') + 'Rangliste</button><h3>' + esc(o.s.name) + '</h3><div class="muted" style="margin-bottom:8px">Aufteilung nach Folgen · ' + boxWort(g.box) + ' · ' + ZRW[g.zr] + '</div>';
+      h += '<div class="rhead" aria-hidden="true"><span>' + ART[o.s.art].one + '</span><span>Mal</span><span>Hörzeit</span><span>Fertig</span></div>';
+      h += o.s.folgen.map(function (f, i) { var x = o.folgen[i]; return '<div class="rrow' + (x.n ? '' : ' z') + '" role="group" aria-label="' + esc(f.t) + ': ' + x.n + ' Mal gehört, ' + (x.n ? fmtHm(x.min) : 'keine Hörzeit') + ', ' + x.fert + ' Mal fertig"><span class="rt"><span class="rk">' + (i + 1) + '</span><span>' + esc(f.t) + '</span></span><span class="rn">' + x.n + '</span><span class="rn">' + (x.n ? fmtHm(x.min) : '–') + '</span><span class="rn">' + (x.fert ? x.fert + '×' : '–') + '</span></div>'; }).join('');
+      h += '<div class="rtotal muted">Zusammen: ' + o.n + ' Mal gehört, ' + fmtHm(o.min) + ', ' + o.fertig + ' von ' + o.s.folgen.length + ' Folgen fertig gehört.</div>';
+    } else {
+      h += '<h3>Wer hat was gehört?</h3><div class="muted" style="margin-bottom:8px">' + boxWort(g.box)[0].toUpperCase() + boxWort(g.box).slice(1) + ' · ' + ZRW[g.zr] + '. Tippe auf ein Hörspiel, dann siehst du die Folgen.</div>';
+      h += '<div class="rhead" aria-hidden="true"><span>Hörspiel</span><span>Mal</span><span>Hörzeit</span><span>Fertig</span></div>';
+      h += rows.slice(0, 10).map(function (r, i) { return '<button class="rrow" data-act="ghSerie" data-arg="' + r.s.id + '" data-fk="gr' + r.s.id + '" aria-label="' + esc(r.s.name) + ': ' + r.n + ' Mal gehört, ' + fmtHm(r.min) + ', ' + r.fertig + ' von ' + r.s.folgen.length + ' Folgen fertig. Aufteilung nach Folgen öffnen"><span class="rt"><span class="rk">' + (i + 1) + '</span><span>' + esc(r.s.name) + '</span></span><span class="rn">' + r.n + '</span><span class="rn">' + fmtHm(r.min) + '</span><span class="rn">' + r.fertig + '/' + r.s.folgen.length + '</span></button>'; }).join('');
+      if (!rows.length) h += '<div class="muted">In diesem Zeitraum wurde noch nichts gehört.</div>';
+    }
+    return h + legend + '</div>';
+  }
   function vGehoert() {
-    var g = S.gh;
+    var g = S.gh, tage = g.zr === 'woche' ? 7 : 14;
     var h = '<h2 style="margin-top:0">Gehört</h2>';
-    h += '<div class="stufe"><strong>Stufe B – Vorschau.</strong> Beispielzahlen, erfunden. Gebaut wird das erst nach Freigabe. Dazu meldet die Box, was sie gespielt hat (Abschnitt 12 im Entwurf). Die Daten bleiben in Home Assistant und werden unbegrenzt aufbewahrt.</div>';
+    h += '<div class="stufe"><strong>Stufe B – Vorschau.</strong> Erfundene Zahlen. Die Box müsste dafür melden, was sie spielt (Entwurf, Abschnitt 12).</div>';
     h += '<div class="toolbar"><div class="chips wrap" role="group" aria-label="Box"><button class="chip" data-act="ghBox" data-arg="beide" aria-pressed="' + (g.box === 'beide') + '" data-fk="ghb1">Beide Boxen</button><button class="chip" data-act="ghBox" data-arg="mond" aria-pressed="' + (g.box === 'mond') + '" data-fk="ghb2">Mond</button><button class="chip" data-act="ghBox" data-arg="stern" aria-pressed="' + (g.box === 'stern') + '" data-fk="ghb3">Stern</button></div>' +
-      '<div class="chips wrap" role="group" aria-label="Zeitraum"><button class="chip" data-act="ghTage" data-arg="7" aria-pressed="' + (g.tage === 7) + '" data-fk="ght7">7 Tage</button><button class="chip" data-act="ghTage" data-arg="14" aria-pressed="' + (g.tage === 14) + '" data-fk="ght14">14 Tage</button></div></div>';
-    var sumM = HZ.mond.slice(14 - g.tage).reduce(function (a, c) { return a + c; }, 0), sumS = HZ.stern.slice(14 - g.tage).reduce(function (a, c) { return a + c; }, 0);
+      '<div class="chips wrap" role="group" aria-label="Zeitraum">' + ['woche', 'monat', 'jahr', 'alles'].map(function (z) { return '<button class="chip" data-act="ghZr" data-arg="' + z + '" aria-pressed="' + (g.zr === z) + '" data-fk="ghz' + z + '">' + ZR[z][0] + '</button>'; }).join('') + '</div></div>';
+    h += '<div class="charts">' + rankCard();
+    var sumM = HZ.mond.slice(14 - tage).reduce(function (a, c) { return a + c; }, 0), sumS = HZ.stern.slice(14 - tage).reduce(function (a, c) { return a + c; }, 0);
     var sum = g.box === 'mond' ? sumM : g.box === 'stern' ? sumS : sumM + sumS;
-    h += '<div class="charts"><div class="card wide"><h3>Hörzeit pro Tag</h3><div class="muted">In den letzten ' + g.tage + ' Tagen: ' + fmtMin(sum) + (g.box === 'beide' ? ' (Mond ' + fmtMin(sumM) + ', Stern ' + fmtMin(sumS) + ')' : '') + '.</div>' + chartTage() + '</div>';
-    h += '<div class="card"><h3>Lieblings-Hörspiele</h3><div class="muted">' + (g.box === 'beide' ? 'Beide Boxen zusammen, ' : (g.box === 'mond' ? 'Mond, ' : 'Stern, ')) + 'meiste Hörzeit insgesamt.</div>' + chartFav() + '</div>';
+    h += '<div class="card wide"><h3>Hörzeit pro Tag</h3><div class="muted">In den letzten ' + tage + ' Tagen: ' + fmtMin(sum) + (g.box === 'beide' ? ' (Mond ' + fmtMin(sumM) + ', Stern ' + fmtMin(sumS) + ')' : '') + '.' + (g.zr === 'woche' ? '' : ' Das Beispiel zeigt höchstens 14 Tage.') + '</div>' + chartTage() + '</div>';
     h += '<div class="card"><h3>Tageszeiten</h3><div class="muted">Wann gehört wird: am meisten um 19 Uhr.</div>' + chartZeit() + '</div></div>';
     var ser = S.series;
     function row(nm, sub) { var s = ser.filter(function (x) { return x.name === nm; })[0]; return s ? '<button class="tile" data-act="oeffne" data-arg="' + s.id + '" data-fk="g' + s.id + '"><span class="pos">' + coverHtml(s) + '</span><span class="tn">' + esc(s.name) + '</span><span class="tm">' + esc(sub) + '</span></button>' : ''; }
     h += '<h2>Zuletzt gehört' + badgeB() + '</h2><div class="hscroll">' + [['Lange Serie', 'heute 17:40'], ['Kinderlieder zum Mitsingen', 'heute 16:05'], ['Pirat Pippo', 'gestern'], ['Schlaflieder', 'gestern'], ['Kommissar Kralle', 'Mo']].map(function (e) { return row(e[0], e[1]); }).join('') + '</div>';
-    h += '<h2>Meist gehört' + badgeB() + '</h2><div class="hscroll">' + [['Kinderlieder zum Mitsingen', '640 Min.'], ['Lange Serie', '530 Min.'], ['Kommissar Kralle', '320 Min.'], ['Schlaflieder', '300 Min.'], ['Detektiv Dackel', '240 Min.']].map(function (e) { return row(e[0], e[1]); }).join('') + '</div>';
     h += '<h2>Favoriten' + badgeB() + '</h2><div class="muted" style="margin-bottom:8px">Mit dem Stern in jedem Eintrag markiert. Gilt für alle in der Familie.</div><div class="hscroll">' + [['Kinderlieder zum Mitsingen', '★ Favorit'], ['Lange Serie', '★ Favorit'], ['Abenteuer im Wald', '★ Favorit']].map(function (e) { return row(e[0], e[1]); }).join('') + '</div>';
     return h;
   }
@@ -942,6 +1191,7 @@ details.zahlen summary { min-height: 44px; display: flex; align-items: center; c
     if (h.indexOf('serie-') === 0) return { v: 'serie', id: h.slice(6), tab: 'bibliothek' };
     if (h === 'hinzufuegen') return { v: 'hinzufuegen', tab: 'start' };
     if (h === 'anlernen') return { v: 'anlernen', tab: 'bibliothek' };
+    if (h === 'suche') return { v: 'suche', tab: 'bibliothek' };
     if (h === 'technik') return { v: 'technik', tab: 'technik' };
     if (h === 'gehoert' && stufeA()) return { v: 'start', tab: 'start' };
     if (TABS.some(function (t) { return t[0] === h; })) return { v: h, tab: h };
@@ -952,14 +1202,15 @@ details.zahlen summary { min-height: 44px; display: flex; align-items: center; c
     $('tabrow').innerHTML = TABS.filter(function (t) { return t[0] !== 'gehoert' || !stufeA(); }).map(function (t) {
       return '<a href="#' + t[0] + '" data-fk="tab' + t[0] + '"' + (r.tab === t[0] ? ' aria-current="page"' : '') + '>' + ic(t[2]) + '<span>' + t[1] + '</span>' + (t[0] === 'start' && neuN ? '<span class="dot" aria-hidden="true">' + neuN + '</span><span class="sr">' + neuN + ' neuer Tobie</span>' : '') + (t[0] === 'gehoert' ? '<span class="vb" aria-hidden="true">B</span><span class="sr">(Vorschau, Stufe B)</span>' : '') + '</a>';
     }).join('');
-    $('techslot').innerHTML = S.admin ? '<a class="btn tech" href="#technik" data-fk="tech"' + (r.tab === 'technik' ? ' aria-current="page"' : '') + '>' + ic('tool') + 'Technik</a>' : '';
+    $('techslot').innerHTML = '<button class="iconbtn plain" data-act="prevToggle" data-fk="prevbtn" aria-label="Vorschau-Einstellungen" aria-expanded="' + (!$('preview').hidden) + '">' + ic('info', 24) + '</button><a class="iconbtn plain add" href="#hinzufuegen" data-fk="addtop" aria-label="Hinzufügen"' + (r.v === 'hinzufuegen' ? ' aria-current="page"' : '') + '>' + ic('plus', 26) + '</a>' +
+      (S.admin ? '<a class="btn tech" href="#technik" data-fk="tech" aria-label="Technik"' + (r.tab === 'technik' ? ' aria-current="page"' : '') + '>' + ic('tool') + '<span>Technik</span></a>' : '');
   }
   function render() {
     var a = document.activeElement, fk = a && a.dataset ? a.dataset.fk : null, selStart = a && a.selectionStart;
     if (a && a.closest && a.closest('#layer')) fk = null;
     var r = route(), main = $('main');
     renderTabs(r);
-    var V = { start: vStart, bibliothek: vBibliothek, serie: function () { return vSerie(r.id); }, anlernen: vAnlernen, hinzufuegen: vHinzufuegen, abends: vAbends, tobies: vTobies, gehoert: vGehoert, technik: vTechnik };
+    var V = { start: vStart, bibliothek: vBibliothek, suche: vSuche, serie: function () { return vSerie(r.id); }, anlernen: vAnlernen, hinzufuegen: vHinzufuegen, abends: vAbends, tobies: vTobies, gehoert: vGehoert, technik: vTechnik };
     var open = [].map.call(main.querySelectorAll('details.sec'), function (d) { return d.open; });
     var scroll = window.scrollY;
     main.innerHTML = V[r.v]();
@@ -974,19 +1225,21 @@ details.zahlen summary { min-height: 44px; display: flex; align-items: center; c
     if (S.lern && S.lern.timer && route().v !== 'anlernen') { clearInterval(S.lern.timer); }
     S.serieTerm = ''; S.serieShown = 20; S.reihenfolge = false;
     render(); if (lastRoute !== location.hash) { window.scrollTo(0, 0); } lastRoute = location.hash;
+    if (route().v === 'suche') { var qs = $('qsuche'); if (qs) qs.focus(); }
   });
 
   /* ---------- Blatt, Dialog, Meldung (natives dialog-Element) ---------- */
-  var returnFocus = null;
+  var returnFocus = null, returnFk = null;
   function closeLayer() {
     var l = $('layer'), d = l.querySelector('dialog');
     if (d && d.open) { try { d.close(); } catch (e) {} }
     l.innerHTML = '';
     if (returnFocus && document.contains(returnFocus)) returnFocus.focus();
-    returnFocus = null;
+    else if (returnFk) { var rf = document.querySelector('[data-fk="' + returnFk + '"]'); if (rf) rf.focus(); }
+    returnFocus = null; returnFk = null;
   }
   function openSheet(title, body, buttons, role) {
-    if (!returnFocus || !document.contains(returnFocus)) returnFocus = document.activeElement;
+    if (!returnFocus || !document.contains(returnFocus)) { returnFocus = document.activeElement; returnFk = returnFocus && returnFocus.dataset ? returnFocus.dataset.fk : null; }
     var l = $('layer');
     l.innerHTML = '<dialog class="sheet" id="dlg" aria-labelledby="sheet-t"' + (role === 'alertdialog' ? ' role="alertdialog"' : '') + '><div class="sheet-in"><h2 id="sheet-t">' + esc(title) + '</h2><div id="sheet-b">' + body + '</div><div class="btns" id="sheet-btns"></div></div></dialog>';
     var d = $('dlg'), bb = $('sheet-btns');
@@ -1057,25 +1310,226 @@ details.zahlen summary { min-height: 44px; display: flex; align-items: center; c
     });
   }
 
-  /* ---------- Tobie für eine einzelne Folge oder ein Lied ---------- */
-  function folgeSheet(sid, i) {
-    var s = serie(sid), f = s.folgen[i], wort = ART[s.art].one;
-    var vorh = tobiesAuf(s, i).filter(function (t) { return t.z.t === 'folge'; });
-    var b = '<p class="muted">Der Tobie spielt dann nur „' + esc(f.t) + '“ aus „' + esc(s.name) + '“.</p>' +
-      (vorh.length ? '<div class="note okk">Schon angelernt: ' + vorh.map(function (t) { return esc(t.name || 'Tobie ohne Namen'); }).join(', ') + '.</div>' : '') +
-      '<h3 style="margin-top:12px">Neuen Tobie anlernen</h3><div class="btns" style="margin-top:8px">' + S.boxes.map(function (bx) { return '<button class="btn primary" id="fs-' + bx.id + '"' + (bx.online ? '' : ' disabled') + '>Auf ' + esc(bx.name) + '</button>'; }).join('') + '</div>' +
-      S.boxes.filter(function (bx) { return !bx.online; }).map(function (bx) { return '<div class="muted" style="margin-top:8px">' + esc(bx.name) + ' ist aus. Schalte sie ein, dann geht es.</div>'; }).join('') +
-      '<h3 style="margin-top:20px">Oder einen Tobie umstellen, der schon etwas spielt</h3><div class="btns" style="margin-top:8px"><button class="btn" id="fs-um">Tobie wählen …</button></div>' +
-      (stufeA() ? '' : '<div class="btns" style="margin-top:16px"><button class="btn" disabled>Zu einer Playlist hinzufügen</button> <span class="vc2">Stufe C – Idee</span></div>');
-    openSheet('Tobie anlernen', b, [{ label: 'Schließen' }]);
-    $('sheet-t').textContent = wort === 'Lied' ? 'Tobie für dieses Lied' : wort === 'Hörbuch' ? 'Tobie für dieses Hörbuch' : wort === 'Geschichte' ? 'Tobie für diese Geschichte' : 'Tobie für diese Folge';
-    S.boxes.forEach(function (bx) { var e = $('fs-' + bx.id); if (e) e.addEventListener('click', function () { closeLayer(); startLern({ t: 'folge', s: sid, i: i }, bx.id); }); });
-    $('fs-um').addEventListener('click', function () {
-      closeLayer();
-      openSheet('Welcher Tobie?', '<div class="rows" id="tl">' + S.tobies.slice().sort(function (a, c) { return c.n - a.n; }).filter(function (t) { return t.z.t !== 'aktion'; }).map(tobieRow).join('') + '</div>', [{ label: 'Abbrechen' }]);
-      $('tl').addEventListener('click', function (e) { var r = e.target.closest('[data-act="tobie"]'); if (!r) return; var tb = S.tobies.filter(function (x) { return x.uid === r.dataset.arg; })[0]; closeLayer(); tb.z = { t: 'folge', s: sid, i: i }; tb.n = ++tobieN; render(); toast('Fertig: ' + (tb.name || 'Der Tobie') + ' spielt jetzt „' + f.t + '“.'); });
-    });
+  /* ---------- Rev. 3: Zeiten, Hörstelle (Vorschau: localStorage; echt: HA je Benutzer) ---------- */
+  function pad2(n) { return (n < 10 ? '0' : '') + n; }
+  function clock(sec) { sec = Math.max(0, Math.round(sec)); var h = Math.floor(sec / 3600), m = Math.floor(sec % 3600 / 60), s = sec % 60; return h ? h + ':' + pad2(m) + ':' + pad2(s) : m + ':' + pad2(s); }
+  function dauerText(sec) {
+    var m = Math.round(sec / 60);
+    if (sec < 60) return Math.round(sec) + ' Sek.';
+    if (m >= 60) return (Math.floor(m / 60) + ' Std. ' + (m % 60 ? pad2(m % 60) + ' Min.' : '')).trim();
+    return m + ' Min.';
   }
+  function hash(str) { var h = 2166136261; for (var i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+  var HKEY = 'tobibox-proto-hoerstelle-v3', H = { pos: {}, last: null, speed: 1 };
+  var P = { sid: null, i: 0, pos: 0, dur: 0, speed: 1, playing: false, loaded: false, onMeta: null };
+  function hPersist() { try { localStorage.setItem(HKEY, JSON.stringify(H)); } catch (e) {} }
+  function hGet(sid, i) { return H.pos[sid + '|' + i] || null; }
+  function fertig(e) { return !!e && e.d > 0 && e.p >= e.d - 2; }
+  function hSeed() {
+    var now = Date.now();
+    function put(id, i, frac, ago) { var s = serie(id); if (!s) return; var d = s.folgen[i].d; H.pos[id + '|' + i] = { p: frac >= 1 ? d : Math.round(d * frac), d: d, t: now - ago * 60000 }; }
+    put('die-wolkenreise', 0, 1, 3000); put('die-wolkenreise', 1, 0.8, 2900);
+    put('lange-serie', 0, 1, 400); put('lange-serie', 1, 1, 380); put('lange-serie', 2, 0.4, 120);
+    put('mia-und-das-meer', 0, 0.3, 1500);
+  }
+  function hLoad() {
+    var ok = false;
+    try { var r = localStorage.getItem(HKEY); if (r) { var o = JSON.parse(r); if (o && o.pos) { H = o; ok = true; } } } catch (e) {}
+    if (!ok) hSeed();
+    P.speed = H.speed || 1;
+    var l = H.last, s = l && serie(l.sid);
+    if (s && s.folgen[l.i]) { var e = hGet(l.sid, l.i); P.sid = l.sid; P.i = l.i; P.dur = s.folgen[l.i].d; P.pos = e && !fertig(e) ? e.p : 0; }
+  }
+  function serieProg(s) {
+    var tot = 0, played = 0, last = null, li = -1;
+    s.folgen.forEach(function (f, i) { tot += f.d; var e = hGet(s.id, i); if (e) { played += fertig(e) ? f.d : Math.min(e.p, f.d); if (!last || e.t > last.t) { last = e; li = i; } } });
+    var next = 0, mode = 'neu';
+    if (last) { if (!fertig(last)) { next = li; mode = 'weiter'; } else if (li + 1 < s.folgen.length) { next = li + 1; mode = 'weiter'; } else { next = 0; mode = 'nochmal'; } }
+    return { tot: tot, played: played, started: played > 1, frac: tot ? played / tot : 0, next: next, mode: mode, rest: tot - played, t: last ? last.t : 0 };
+  }
+
+  /* ---------- Beispielton (WAV im Script erzeugt) ---------- */
+  var wavUrls = {};
+  function wavFor(s, i) {
+    var key = s.id + '|' + i; if (wavUrls[key]) return wavUrls[key];
+    var f = s.folgen[i], sr = 8000, n = Math.floor(f.d * sr), buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf);
+    function w4(o, t) { for (var k = 0; k < 4; k++) v.setUint8(o + k, t.charCodeAt(k)); }
+    w4(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); w4(8, 'WAVE'); w4(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, sr, true); v.setUint32(28, sr * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); w4(36, 'data'); v.setUint32(40, n * 2, true);
+    var R = rng(hash(key)), scale = [0, 2, 4, 7, 9, 12, 14, 16], base = 174.6 * Math.pow(2, ((hash(s.id) % 6) * 2 + i * 3) % 12 / 12), nl = Math.floor(0.55 * sr), k = 0;
+    while (k < n) {
+      var fr = base * Math.pow(2, scale[Math.floor(R() * scale.length)] / 12), rest = R() < 0.2;
+      for (var j = 0; j < nl && k < n; j++, k++) {
+        var t = j / sr, env = Math.min(1, t / 0.04) * Math.exp(-t * 2.6);
+        var x = rest ? 0 : (Math.sin(2 * Math.PI * fr * t) + 0.3 * Math.sin(4 * Math.PI * fr * t)) * env * 0.22;
+        v.setInt16(44 + k * 2, Math.round(Math.max(-1, Math.min(1, x)) * 32767), true);
+      }
+    }
+    return (wavUrls[key] = URL.createObjectURL(new Blob([buf], { type: 'audio/wav' })));
+  }
+
+  /* ---------- Player ---------- */
+  var aud = new Audio(), lastSave = 0, dragging = false, lastPos = 0;
+  aud.preload = 'auto';
+  function curF() { var s = serie(P.sid); return s ? s.folgen[P.i] : null; }
+  function pSave() {
+    var f = curF(); if (!f || !P.sid) return;
+    var pos = P.loaded ? aud.currentTime : P.pos;
+    H.pos[P.sid + '|' + P.i] = { p: Math.min(Math.max(pos, 0), f.d), d: f.d, t: Date.now() };
+    H.last = { sid: P.sid, i: P.i }; H.speed = P.speed; hPersist();
+  }
+  function pLoad(sid, i, pos, auto) {
+    var s = serie(sid); if (!s || !s.folgen[i]) return;
+    if (P.sid && P.loaded) pSave();
+    if (P.onMeta) aud.removeEventListener('loadedmetadata', P.onMeta);
+    P.sid = sid; P.i = i; P.dur = s.folgen[i].d; P.pos = pos || 0; P.loaded = false;
+    P.onMeta = function () {
+      aud.removeEventListener('loadedmetadata', P.onMeta); P.onMeta = null; P.loaded = true;
+      try { aud.currentTime = P.pos; } catch (e) {}
+      aud.playbackRate = P.speed;
+      if (auto) { var pr = aud.play(); if (pr && pr.catch) pr.catch(function () { pChanged(); }); }
+      pChanged();
+    };
+    aud.addEventListener('loadedmetadata', P.onMeta);
+    aud.src = wavFor(s, i); aud.load();
+    pChanged();
+  }
+  function pToggle() {
+    if (!P.sid) return;
+    if (!P.loaded) { pLoad(P.sid, P.i, P.pos, true); return; }
+    if (aud.ended) aud.currentTime = 0;
+    if (aud.paused || aud.ended) { var pr = aud.play(); if (pr && pr.catch) pr.catch(function () {}); } else aud.pause();
+  }
+  function pNow() { return P.loaded ? aud.currentTime : P.pos; }
+  function pSeek(t) {
+    t = Math.max(0, Math.min(P.dur, t)); P.pos = t;
+    if (P.loaded) aud.currentTime = t;
+    pSave(); pTick();
+  }
+  function pStep(dir) {
+    var s = serie(P.sid); if (!s) return;
+    if (dir < 0 && pNow() > 5) { pSeek(0); return; }
+    var j = P.i + dir; if (j < 0 || j >= s.folgen.length) return;
+    var e = hGet(P.sid, j);
+    pLoad(P.sid, j, dir < 0 ? 0 : (e && !fertig(e) ? e.p : 0), true);
+  }
+  function pSpeed(v) { P.speed = v; aud.playbackRate = v; aud.defaultPlaybackRate = v; H.speed = v; hPersist(); pFullUpdate(); }
+  function pStart(sid, i) { var e = hGet(sid, i); pLoad(sid, i, e && !fertig(e) ? e.p : 0, true); }
+  aud.addEventListener('timeupdate', function () {
+    if (!P.loaded) return; P.pos = aud.currentTime; pTick();
+    var n = Date.now(); if (!aud.paused && n - lastSave >= 10000) { lastSave = n; pSave(); }
+  });
+  aud.addEventListener('play', function () { pChanged(); });
+  aud.addEventListener('pause', function () { if (!aud.ended && P.loaded) pSave(); pChanged(); });
+  aud.addEventListener('ended', function () {
+    var f = curF(), s = serie(P.sid);
+    if (f) { H.pos[P.sid + '|' + P.i] = { p: f.d, d: f.d, t: Date.now() }; H.last = { sid: P.sid, i: P.i }; hPersist(); }
+    if (s && P.i + 1 < s.folgen.length) pLoad(P.sid, P.i + 1, 0, true); else pChanged();
+  });
+  aud.addEventListener('error', function () { if (!aud.getAttribute('src')) return; toast('Das kann dieser Browser nicht abspielen.'); pChanged(); });
+  window.addEventListener('pagehide', function () { if (P.sid && P.loaded) pSave(); });
+  document.addEventListener('visibilitychange', function () { if (document.hidden && P.sid && P.loaded) pSave(); });
+
+  function pChanged() {
+    P.playing = !!P.sid && P.loaded && !aud.paused && !aud.ended;
+    pMini(); pFullUpdate(); pSession();
+    var v = route().v, a = document.activeElement;
+    if (['serie', 'bibliothek', 'start', 'suche'].indexOf(v) >= 0 && !(a && a.tagName === 'INPUT' && a.type !== 'range')) render();
+  }
+  function pMini() {
+    var m = $('mini'), s = serie(P.sid), f = curF();
+    if (!s || !f) { m.hidden = true; return; }
+    m.hidden = false;
+    var key = s.id + '|' + P.i;
+    if (m.dataset.key !== key) { $('mopen').innerHTML = coverHtml(s, 'sm') + '<span class="grow"><span class="mt">' + esc(f.t) + '</span><span class="ms">' + esc(s.name) + '</span></span>'; $('mopen').setAttribute('aria-label', 'Player öffnen: ' + f.t + ', ' + s.name); m.dataset.key = key; }
+    $('mplay').innerHTML = ic(P.playing ? 'pause' : 'play', 28);
+    $('mplay').setAttribute('aria-label', P.playing ? 'Pause' : 'Abspielen');
+    pTick();
+  }
+  function pTick() {
+    var pc = Math.min(100, (P.pos / (P.dur || 1)) * 100), b = $('mbari'); if (b) b.style.width = pc + '%';
+    var d = $('pdlg');
+    if (d && d.open && $('pslider')) {
+      var shown = dragging ? +$('pslider').value : P.pos;
+      if (!dragging) $('pslider').value = Math.round(P.pos);
+      $('ptime').textContent = clock(shown); $('prest').textContent = '−' + clock(Math.max(0, P.dur - shown));
+      $('pslider').setAttribute('aria-valuetext', clock(shown) + ' von ' + clock(P.dur));
+    }
+    if (navigator.mediaSession && navigator.mediaSession.setPositionState && Date.now() - lastPos > 4000) { lastPos = Date.now(); try { navigator.mediaSession.setPositionState({ duration: P.dur, playbackRate: P.speed, position: Math.min(P.pos, P.dur) }); } catch (e) {} }
+  }
+  function ic30(fwd) {
+    return '<svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor"><g' + (fwd ? ' transform="translate(24,0) scale(-1,1)"' : '') + '><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/></g><text x="12" y="16.2" font-size="7.5" font-weight="700" text-anchor="middle" font-family="Roboto, system-ui, sans-serif">30</text></svg>';
+  }
+  function pFullHtml() {
+    var s = serie(P.sid), f = curF(), n = s.folgen.length;
+    return '<div class="pin"><div class="phead"><button class="iconbtn plain" data-p="close" id="pclose" aria-label="Player schließen">' + ic('down', 28) + '</button><span class="muted">Läuft gerade</span><span style="width:44px" aria-hidden="true"></span></div>' + coverHtml(s) +
+      '<div class="ptitle"><h2 id="pt-t">' + esc(f.t) + '</h2><div class="muted">' + esc(s.name) + (n > 1 ? ' · ' + (P.i + 1) + ' von ' + n : '') + '</div></div>' +
+      '<input class="pslider" type="range" id="pslider" min="0" max="' + Math.round(P.dur) + '" step="1" value="' + Math.round(P.pos) + '" aria-label="Position in der Folge"><div class="ptimes"><span id="ptime">0:00</span><span id="prest">−0:00</span></div>' +
+      '<div class="pctl"><button class="pbtn" data-p="prev" aria-label="Vorige Folge"' + (P.i === 0 ? ' disabled' : '') + '>' + ic('prev', 32) + '</button><button class="pbtn" data-p="back" aria-label="30 Sekunden zurück">' + ic30(false) + '</button>' +
+      '<button class="pbtn main" data-p="play" id="pplay" aria-label="' + (P.playing ? 'Pause' : 'Abspielen') + '">' + ic(P.playing ? 'pause' : 'play', 40) + '</button>' +
+      '<button class="pbtn" data-p="fwd" aria-label="30 Sekunden vor">' + ic30(true) + '</button><button class="pbtn" data-p="next" aria-label="Nächste Folge"' + (P.i >= n - 1 ? ' disabled' : '') + '>' + ic('next', 32) + '</button></div>' +
+      '<div class="speed" role="group" aria-label="Geschwindigkeit">' + [[1, '1×'], [1.25, '1,25×'], [1.5, '1,5×']].map(function (o) { return '<button class="chip" data-p="speed" data-v="' + o[0] + '" aria-pressed="' + (P.speed === o[0]) + '">' + o[1] + '</button>'; }).join('') + '</div>' +
+      '<p class="muted pnote">Die Stelle wird gemerkt, auch für das andere Gerät. (Vorschau: nur in diesem Browser. Echt: in Home Assistant, für jeden Benutzer einzeln.)</p></div>';
+  }
+  function pOpen() {
+    if (!P.sid) return;
+    var l = $('playerlayer'); l.innerHTML = '<dialog class="player" id="pdlg" aria-labelledby="pt-t">' + pFullHtml() + '</dialog>';
+    var d = $('pdlg'); d.dataset.key = P.sid + '|' + P.i;
+    d.addEventListener('cancel', function (ev) { ev.preventDefault(); pClose(); });
+    d.addEventListener('click', pClick);
+    d.addEventListener('input', function (e) { if (e.target.id === 'pslider') { dragging = true; pTick(); } });
+    d.addEventListener('change', function (e) { if (e.target.id === 'pslider') { dragging = false; pSeek(+e.target.value); } });
+    d.showModal(); $('pplay').focus(); pTick();
+  }
+  function pClose() {
+    var d = $('pdlg'); if (d && d.open) d.close();
+    $('playerlayer').innerHTML = ''; dragging = false;
+    var m = $('mopen'); if (m && !$('mini').hidden) m.focus();
+  }
+  function pFullUpdate() {
+    var d = $('pdlg'); if (!d || !d.open) return;
+    if (d.dataset.key !== P.sid + '|' + P.i) { d.innerHTML = pFullHtml(); d.dataset.key = P.sid + '|' + P.i; var pp = $('pplay'); if (pp) pp.focus(); }
+    else {
+      $('pplay').innerHTML = ic(P.playing ? 'pause' : 'play', 40); $('pplay').setAttribute('aria-label', P.playing ? 'Pause' : 'Abspielen');
+      [].forEach.call(d.querySelectorAll('[data-p="speed"]'), function (b) { b.setAttribute('aria-pressed', String(+b.dataset.v === P.speed)); });
+    }
+    pTick();
+  }
+  function pClick(e) {
+    var b = e.target.closest('[data-p]'); if (!b || b.disabled) return;
+    var a = b.dataset.p;
+    if (a === 'close') pClose();
+    else if (a === 'play') pToggle();
+    else if (a === 'back') pSeek(pNow() - 30);
+    else if (a === 'fwd') pSeek(pNow() + 30);
+    else if (a === 'prev') pStep(-1);
+    else if (a === 'next') pStep(1);
+    else if (a === 'speed') pSpeed(+b.dataset.v);
+  }
+  $('mini').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-p]'); if (!b) return;
+    if (b.dataset.p === 'open') pOpen(); else if (b.dataset.p === 'toggle') pToggle();
+  });
+  function pSession() {
+    if (!('mediaSession' in navigator)) return;
+    try {
+      var s = serie(P.sid), f = curF(); if (!s || !f) return;
+      navigator.mediaSession.metadata = new MediaMetadata({ title: f.t, artist: s.name, album: ART[s.art].e });
+      navigator.mediaSession.playbackState = P.playing ? 'playing' : 'paused';
+    } catch (e) {}
+  }
+  (function () {
+    if (!('mediaSession' in navigator)) return;
+    var ms = navigator.mediaSession;
+    function set(n, fn) { try { ms.setActionHandler(n, fn); } catch (e) {} }
+    set('play', function () { if (!P.playing) pToggle(); });
+    set('pause', function () { if (P.playing) pToggle(); });
+    set('seekbackward', function () { pSeek(pNow() - 30); });
+    set('seekforward', function () { pSeek(pNow() + 30); });
+    set('previoustrack', function () { pStep(-1); });
+    set('nexttrack', function () { pStep(1); });
+    set('seekto', function (d) { if (d && d.seekTime != null) pSeek(d.seekTime); });
+  })();
+
   var tobieN = 100;
 
   /* ---------- Cover per Foto (Vorschau, Zuschneiden im Browser) ---------- */
@@ -1294,6 +1748,44 @@ details.zahlen summary { min-height: 44px; display: flex; align-items: center; c
     bf: function (t, arg) { S.bib[arg] = !S.bib[arg]; S.bib.shown = 60; render(); },
     bmehr: function () { var old = S.bib.shown; S.bib.shown += 60; render(); var it = document.querySelectorAll('#libbody .tiles .tile, #libbody .frow .btn'); if (it[old]) it[old].focus(); }
   };
+  /* ---------- Rev. 3: weitere Aktionen ---------- */
+  A.sortSheet = function () { sortSheet(); };
+  A.prevToggle = function () { var p = $('preview'); p.hidden = !p.hidden; var b = document.querySelector('[data-act="prevToggle"]'); if (b) b.setAttribute('aria-expanded', String(!p.hidden)); };
+  A.reinhoeren = function (t, arg) {
+    var s = serie(arg); if (!s) return;
+    if (P.sid === arg) { pToggle(); return; }
+    pStart(arg, serieProg(s).next);
+  };
+  A.playF = function (t, arg) {
+    var p = arg.split('|'), i = +p[1];
+    if (P.sid === p[0] && P.i === i) pToggle(); else pStart(p[0], i);
+  };
+  A.serieTobie = function (t, arg) { zielSheet(arg, null); };
+  A.serieMenu = function (t, arg) {
+    var s = serie(arg), h = '<div class="stack"><button class="btn" id="sm-n">Name ändern</button><button class="btn" id="sm-c">' + ic('cam', 20) + 'Cover ändern</button><button class="btn" id="sm-a">Art ändern</button>' +
+      (S.admin && s.folgen.length > 1 ? '<button class="btn" id="sm-r">Reihenfolge ändern <span class="vc2">Admin</span></button>' : '') + (S.admin ? '<button class="btn" id="sm-z">Mit anderem zusammenführen … <span class="vc2">Admin</span></button>' : '') + '</div>' +
+      '<div class="apart"><div class="muted" style="margin-bottom:8px">Alles Gelöschte landet erst im Papierkorb. Tobias kann es zurückholen.</div><button class="btn link danger" id="sm-w">In den Papierkorb …</button></div>';
+    openSheet(s.name, h, [{ label: 'Schließen' }]);
+    $('sm-n').onclick = function () { closeLayer(); A.serieName(null, arg); };
+    $('sm-c').onclick = function () { closeLayer(); A.coverFoto(null, arg); };
+    $('sm-a').onclick = function () { closeLayer(); A.artAendern(null, arg); };
+    if ($('sm-r')) $('sm-r').onclick = function () { closeLayer(); S.reihenfolge = true; render(); };
+    if ($('sm-z')) $('sm-z').onclick = function () { closeLayer(); A.zusammen(null, arg); };
+    $('sm-w').onclick = function () { closeLayer(); A.serieWeg(null, arg); };
+  };
+  A.folgeMehr = function (t, arg) {
+    var p = arg.split('|'), s = serie(p[0]), i = +p[1], f = s.folgen[i];
+    openSheet(f.t, '<div class="stack"><button class="btn" id="fm-t">Tobie für diese ' + ART[s.art].one + '</button><button class="btn" id="fm-n">Name ändern</button><button class="btn" id="fm-v">In anderes verschieben …</button></div><div class="apart"><button class="btn link danger" id="fm-w">Papierkorb …</button></div>', [{ label: 'Schließen' }]);
+    $('fm-t').addEventListener('click', function () { closeLayer(); zielSheet(p[0], i); });
+    $('fm-n').addEventListener('click', function () { closeLayer(); textSheet('Umbenennen', 'Name', f.t, function (v) { f.t = v; toast('Gespeichert.'); render(); }); });
+    $('fm-v').addEventListener('click', function () { closeLayer(); pickZiel('Wohin verschieben?', function (z) { toast('Verschoben nach „' + serie(z.s).name + '“ (Vorschau).'); }); });
+    $('fm-w').addEventListener('click', function () { closeLayer(); confirmDlg('„' + f.t + '“ in den Papierkorb?', 'Es verschwindet aus der Liste.' + (tobiesAuf(s, i).length ? ' Tobies, die genau dieses spielen, spielen dann nichts mehr.' : '') + ' Tobias kann es aus dem Papierkorb zurückholen.', 'In den Papierkorb', function () { s.folgen.splice(i, 1); S.korb.push('„' + f.t + '“ aus „' + s.name + '“'); render(); toast('„' + f.t + '“ ist im Papierkorb.'); }, true); });
+  };
+  A.bmehr = function () { var old = S.bib.shown; S.bib.shown += 60; render(); var it = document.querySelectorAll('#libbody .lrow'); if (it[old]) it[old].focus(); };
+  A.ghZr = function (t, arg) { S.gh.zr = arg; render(); };
+  A.ghSerie = function (t, arg) { S.gh.serie = arg; render(); var b = document.querySelector('[data-fk="ghback"]'); if (b) b.focus(); };
+  A.ghBack = function () { var id = S.gh.serie; S.gh.serie = null; render(); var b = document.querySelector('[data-fk="gr' + id + '"]'); if (b) b.focus(); };
+  A.hReset = function () { try { localStorage.removeItem(HKEY); } catch (e) {} aud.pause(); aud.removeAttribute('src'); P.sid = null; P.loaded = false; H = { pos: {}, last: null, speed: 1 }; hSeed(); $('mini').hidden = true; render(); toast('Hörstellen zurückgesetzt.'); };
   document.addEventListener('click', function (e) {
     var t = e.target.closest('[data-act]'); if (!t || t.closest('#layer')) return;
     var act = t.dataset.act, arg = t.dataset.arg;
@@ -1301,7 +1793,7 @@ details.zahlen summary { min-height: 44px; display: flex; align-items: center; c
   });
   document.addEventListener('input', function (e) {
     var id = e.target.id;
-    if (id === 'bsuche') { S.bib.term = e.target.value; S.bib.shown = 60; render(); }
+    if (id === 'qsuche') { S.q = e.target.value; $('qres').innerHTML = suchBody(); }
     if (id === 'sterm') { S.serieTerm = e.target.value; S.serieShown = 20; render(); }
     if (id === 'tsuche') { S.tobieTerm = e.target.value; render(); }
   });
@@ -1310,7 +1802,7 @@ details.zahlen summary { min-height: 44px; display: flex; align-items: center; c
     if (e.target.id === 'gn-andere' && e.target.value) { S.gn.timer = +e.target.value; render(); }
   });
   document.addEventListener('submit', function (e) {
-    if (e.target.dataset.actForm === 'startSuche') { e.preventDefault(); S.bib.term = $('startsuche').value; S.bib.art = 'alle'; S.bib.ansicht = 'kacheln'; S.bib.shown = 60; if (location.hash === '#bibliothek') render(); else location.hash = '#bibliothek'; }
+    if (e.target.dataset.actForm === 'startSuche') { e.preventDefault(); S.q = $('startsuche').value; if (location.hash === '#suche') render(); else location.hash = '#suche'; }
   });
   document.addEventListener('focusin', function (e) { if (window.innerWidth < 900 && /^(INPUT|TEXTAREA)$/.test(e.target.tagName) && e.target.type !== 'range' && e.target.type !== 'file') document.documentElement.classList.add('kbd'); });
   document.addEventListener('focusout', function () { document.documentElement.classList.remove('kbd'); });
@@ -1334,6 +1826,7 @@ details.zahlen summary { min-height: 44px; display: flex; align-items: center; c
   $('sel-theme').addEventListener('change', function (e) { applyTheme(e.target.value); });
   $('sel-zustand').addEventListener('change', function (e) { S.mode = e.target.value; render(); });
   $('sel-stufe').addEventListener('change', function (e) { S.stufe = e.target.value; if (stufeA() && location.hash === '#gehoert') location.hash = '#start'; render(); });
+  hLoad(); pMini();
   S.boxes[0].folge = serie('lange-serie').folgen[3].t;
   if (!location.hash) { history.replaceState(null, '', '#start'); }
   render();
