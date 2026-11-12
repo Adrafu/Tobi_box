@@ -38,6 +38,8 @@ EGM artifact directory: docs/egm
 
 - Das Tonie-Passwort wird **nie** committet. Firmware liest es aus
   `config.h` (gitignored), im Repo liegt nur `config.example.h`.
+- Das Repo ist öffentlich: **keine echten Namen** der Kinder und der Partnerin, keine Passwörter, keine WLAN-Namen.
+  In Dokumenten „die Partnerin“, „Box 1“/„Box 2“; im Prototyp Platzhalter. Echte Namen nur in HA (Einstellungen, Konten).
 - Entscheidungen und Revisionsstand gehören in `docs/plan/`, nicht nur in den Chat.
 - **Abnahmen und Tests mit Tobias** (am Mac, Breadboard, Pi) gehen wir **gemeinsam im Chat Schritt für
   Schritt** durch: ein Schritt mit Befehlen und dem, was er sehen oder hören soll; Tobias meldet das
