@@ -88,7 +88,7 @@ wird nicht gebraucht. Die Hörstelle wird **je HA-Benutzer in HA** gespeichert (
 
 | Nr. | Frage (Entwurf Rev. 3, Abschnitt 16) | Antwort Tobias |
 |---|---|---|
-| 14 | Gültigkeit Abspiel-Link | Rückfrage „was ist ein Abspiel-Link?“ → erklärt; Empfehlung (1 h, Neusignieren) gilt, solange er nicht widerspricht |
+| 14 | Gültigkeit Abspiel-Link | Nach Erklärung: **1 Stunde ist ok** (Neusignieren still im Hintergrund) |
 | 15 | Reinhören für alle | **Anhören dürfen alle** |
 | 16 | Nur eigene Hörstelle | **Ja** |
 | 17 | Formate im Bestand | **Alle Formate** (MP3, M4A/M4B, AAC, FLAC, OGG, Opus, WAV) |
