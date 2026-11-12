@@ -307,9 +307,12 @@ h3 { font-size: 17px; font-weight: 500; margin: 0 0 4px; }
 .chip[aria-pressed="true"] { background: var(--primary); color: var(--on-primary); border-color: var(--primary-ink); }
 .stepper { display: flex; align-items: center; gap: 12px; margin: 8px 0 16px; }
 .stepper .val { min-width: 130px; text-align: center; font-size: 20px; font-weight: 500; }
-.seg2 { display: inline-flex; border: 1px solid var(--line); border-radius: 24px; overflow: hidden; }
-.seg2 button { min-height: 44px; padding: 0 20px; border: 0; background: var(--card); font-weight: 500; }
-.seg2 button[aria-pressed="true"] { background: var(--primary); color: var(--on-primary); }
+/* Segment-Steuerung (X17): getönte Spur ohne Rahmen, gleich breite Segmente, Auswahl als Pille in der Spur */
+.seg2 { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 0; padding: 4px; border: 0; border-radius: 28px; background: var(--primary-soft); width: 100%; max-width: 420px; }
+.seg2 button { min-height: 44px; padding: 0 12px; border: 0; border-radius: 24px; background: transparent; color: var(--text); font-weight: 500; font-size: 14px; line-height: 1.2; text-align: center; display: flex; align-items: center; justify-content: center; transition: background-color .2s ease, color .2s ease, box-shadow .2s ease; }
+.seg2 button[aria-pressed="true"] { background: var(--primary); color: var(--on-primary); font-weight: 700; box-shadow: inset 0 0 0 2px var(--primary-ink), 0 1px 3px var(--shadow); }
+.seg2 button:focus-visible { outline-offset: 0; border-radius: 24px; }
+@media (prefers-reduced-motion: reduce) { .seg2 button { transition: none; } }
 .field { display: grid; gap: 4px; margin: 12px 0; }
 .field label, .field .lbl { font-size: 14px; color: var(--text2); }
 .field select, .field input[type="text"] { min-height: 48px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); padding: 0 12px; }
@@ -552,8 +555,6 @@ a.iconbtn { text-decoration: none; }
 .speed { flex-wrap: wrap; }
 .kapbtn { display: inline-flex; align-items: center; gap: 6px; }
 .kapbtn svg { width: 20px; height: 20px; fill: currentColor; }
-.seg2.ghq { display: flex; width: 100%; max-width: 420px; }
-.seg2.ghq button { flex: 1; padding: 0 12px; }
 
 /* v6 (Runde 12): Mehr-Seite, leere Zustände, Kacheln beim Hochladen, Wischen */
 .mehr { display: grid; gap: 12px; }
@@ -700,6 +701,8 @@ a.back, a.rowbtn { text-decoration: none; }
 .pchips { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .pchips .pchip { margin-top: 4px; }
 .pchip { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 14px 0 10px; border-radius: 22px; background: var(--primary-soft); color: var(--primary-ink); font-weight: 500; text-decoration: none; border: 1px solid var(--line); max-width: 100%; overflow-wrap: anywhere; }
+.pplus { display: inline-grid; place-items: center; width: 44px; height: 44px; margin-top: 4px; border-radius: 22px; background: var(--primary-soft); color: var(--primary-ink); text-decoration: none; }
+.pplus svg { fill: currentColor; }
 .pchip svg { width: 20px; height: 20px; fill: currentColor; flex: none; }
 .glabel { font-size: 14px; color: var(--text2); margin: 0 0 4px; }
 .curz { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: var(--r-card); background: var(--primary-soft); margin-bottom: 16px; }
@@ -707,8 +710,6 @@ a.back, a.rowbtn { text-decoration: none; }
 .curz .lab { font-size: 13px; color: var(--text2); }
 .curz .lt { font-size: 16px; }
 .seg2.ghq { margin-bottom: 12px; }
-.seg2.ghq button { min-height: 44px; font-size: 14px; padding: 0 6px; }
-.seg2.ghq button + button { border-left: 1px solid var(--line); }
 .seg2.ghq .vc2 { margin-left: 4px; }
 .seg2.ghq button[aria-pressed="true"] .vc2 { background: var(--on-primary); color: var(--primary); }
 .gnrow { margin-top: 12px; width: 100%; min-height: 56px; border: 1px solid var(--line); border-radius: var(--r-card); background: var(--card); display: flex; align-items: center; gap: 12px; padding: 0 16px; text-align: left; margin-bottom: 8px; color: var(--text); }
@@ -1245,7 +1246,7 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     var prog = '';
     if (e && !fe && e.p > 1) prog = '<span class="pbar" role="progressbar" aria-label="Fortschritt" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + Math.round(e.p / f.d * 100) + '"><i style="width:' + Math.round(e.p / f.d * 100) + '%"></i></span><span class="ls">noch ' + clock(f.d - e.p) + '</span>';
     else if (fe) prog = '<span class="ls ok">' + ic('check', 16) + ' Fertig gehört</span>';
-    return '<div class="frow fz' + (cur ? ' cur' : '') + '"><span class="num" aria-hidden="true">' + (i + 1) + '</span><div class="grow"><div class="nm">' + esc(f.t) + '</div><div class="muted">' + meta + '</div>' + prog + chipsHtml(tbl) + '</div>' +
+    return '<div class="frow fz' + (cur ? ' cur' : '') + '"><span class="num" aria-hidden="true">' + (i + 1) + '</span><div class="grow"><div class="nm">' + esc(f.t) + '</div><div class="muted">' + meta + '</div>' + prog + chipsHtml(tbl, s.id + '~' + (s.einzeln ? 0 : i)) + '</div>' +
       (S.reihenfolge ? '<button class="iconbtn" data-act="hoch" data-arg="' + s.id + '|' + i + '" aria-label="' + esc(f.t) + ' nach oben" data-fk="up' + i + '"' + (i === 0 ? ' disabled' : '') + '>▲</button><button class="iconbtn" data-act="runter" data-arg="' + s.id + '|' + i + '" aria-label="' + esc(f.t) + ' nach unten" data-fk="dn' + i + '"' + (i === s.folgen.length - 1 ? ' disabled' : '') + '>▼</button>'
         : '<button class="iconbtn fillp" data-act="playF" data-arg="' + s.id + '|' + i + '" data-fk="pf' + i + '" aria-label="' + esc(f.t) + (pl ? ' pausieren' : ' abspielen') + '">' + ic(pl ? 'pause' : 'play', 24) + '</button><button class="iconbtn more" data-act="folgeMehr" data-arg="' + s.id + '|' + i + '" data-fk="fm' + i + '" aria-label="Mehr zu ' + esc(f.t) + '">' + ic('more', 22) + '</button>') + '</div>';
   }
@@ -1366,10 +1367,11 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     return s.einzeln ? 'Einzeltitel' : s.name + ' · ' + ART[s.art].one;
   }
   function chipHtml(t) { return '<a class="pchip" href="#tobie-' + t.uid + '" data-fk="chip' + t.uid + '">' + ic('tag', 20) + esc(tName(t)) + '</a>'; }
-  function chipsHtml(l) { return l.length ? '<div class="pchips">' + l.map(chipHtml).join('') + '</div>' : ''; }
+  /* X20f: kleines „+“ (44 × 44) neben den Chips führt zur selben Tobie-Auswahl wie „Einem Tobie geben …“ */
+  function chipsHtml(l, tstr) { return l.length ? '<div class="pchips">' + l.map(chipHtml).join('') + (tstr ? '<a class="pplus" href="#geben-' + tstr + '" data-fk="plus' + tstr.replace(/[^\w]/g, '') + '" aria-label="Weiteren Tobie geben">' + ic('plus', 22) + '</a>' : '') + '</div>' : ''; }
   /* „Gespielt von“ auf Serien- und Playlist-Seiten: Chips oder „Noch kein Tobie · Einem Tobie geben …“ */
   function gespieltVonCard(by, tstr) {
-    return '<div class="card"><div class="glabel">Gespielt von' + (by.length ? ':' : '') + '</div>' + (by.length ? chipsHtml(by) : '<div class="pchips"><span>Noch kein Tobie</span><a class="btn link" href="#geben-' + tstr + '" data-fk="geben">Einem Tobie geben …</a></div>') + '</div>';
+    return '<div class="card"><div class="glabel">Gespielt von' + (by.length ? ':' : '') + '</div>' + (by.length ? chipsHtml(by, tstr) : '<div class="pchips"><span>Noch kein Tobie</span><a class="btn link" href="#geben-' + tstr + '" data-fk="geben">Einem Tobie geben …</a></div>') + '</div>';
   }
   function ttile(t) {
     var sr = zielSerie(t.z);
@@ -1626,6 +1628,14 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     ev.preventDefault();
   });
   document.addEventListener('keydown', function (ev) {
+    var sb = ev.target.closest && ev.target.closest('.seg2 button');
+    if (!sb || !/^Arrow(Left|Right|Up|Down)$/.test(ev.key)) return;
+    var bs = [].slice.call(sb.parentNode.children).filter(function (x) { return x.tagName === 'BUTTON'; });
+    var i = bs.indexOf(sb) + (/Left|Up/.test(ev.key) ? -1 : 1), n = bs[(i + bs.length) % bs.length];
+    ev.preventDefault(); n.focus(); n.click();
+    var f = n.dataset.fk && document.querySelector('[data-fk="' + n.dataset.fk + '"]'); if (f && document.activeElement !== f) f.focus(); else if (n.id && document.getElementById(n.id)) document.getElementById(n.id).focus();
+  });
+  document.addEventListener('keydown', function (ev) {
     var g = ev.target.closest && ev.target.closest('.pgrip'); if (!g || (ev.key !== 'ArrowUp' && ev.key !== 'ArrowDown')) return;
     ev.preventDefault(); var k = +g.dataset.grip; plMove(route().id, k, k + (ev.key === 'ArrowUp' ? -1 : 1), 'key');
   });
@@ -1825,7 +1835,7 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     var h = '<h2>Gehört' + badgeB() + '</h2>';
     if (isLeer()) return h + leerKarte('gehoert', 'Noch nichts gehört. Sobald eine Box spielt oder jemand reinhört, steht es hier.', '<a class="btn primary" href="#bibliothek" data-fk="leergh">Zur Bibliothek</a>');
     h += '<div class="field" style="margin-top:12px"><span class="lbl" id="gh-wer-l">Wer?</span><div class="chips wrap" role="group" aria-labelledby="gh-wer-l" id="gh-wer">' + ['alle'].concat(QUELLEN).map(function (k) { return '<button class="chip" data-act="ghWer" data-arg="' + k + '" aria-pressed="' + (w === k) + '" data-fk="ghw' + k + '">' + esc(werName(k)) + '</button>'; }).join('') + '</div></div>';
-    h += '<div class="field"><span class="lbl" id="gh-zr-l">Zeitraum</span><div class="chips wrap" role="group" aria-labelledby="gh-zr-l">' + ['woche', 'monat', 'jahr', 'alles'].map(function (z) { return '<button class="chip" data-act="ghZr" data-arg="' + z + '" aria-pressed="' + (g.zr === z) + '" data-fk="ghz' + z + '">' + ZR[z][0] + '</button>'; }).join('') + '</div></div>';
+    h += '<div class="field"><span class="lbl" id="gh-zr-l">Zeitraum</span><div class="seg2" role="group" aria-labelledby="gh-zr-l">' + ['woche', 'monat', 'jahr', 'alles'].map(function (z) { return '<button data-act="ghZr" data-arg="' + z + '" aria-pressed="' + (g.zr === z) + '" data-fk="ghz' + z + '">' + ZR[z][0] + '</button>'; }).join('') + '</div></div>';
     h += '<div class="charts">' + rankCard();
     var sum = werSumme(w, tage);
     var teile = w === 'alle' ? ' (' + QUELLEN.map(function (q) { return NAMEN[q] + ' ' + fmtMin(werSumme(q, tage)); }).join(', ') + ')' : '';
