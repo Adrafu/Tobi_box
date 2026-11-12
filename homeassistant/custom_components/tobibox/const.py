@@ -14,6 +14,10 @@ VERTRAG_V: Final = 1
 CONF_MEDIEN_PFAD: Final = "medien_pfad"
 CONF_BOXEN: Final = "boxen"
 CONF_UPLOAD_MAX_MIB: Final = "upload_max_mib"
+#: Optionen: Anzeigenamen der Boxen (``box1=Box 1, box2=Box 2``), gespeichert als ``{"box1": "Box 1", …}`` (Vertrag W, 14.9)
+CONF_BOX_ANZEIGEN: Final = "box_anzeigen"
+#: Höchstlänge eines Anzeigenamens einer Box (Zeichen)
+BOX_ANZEIGE_MAX: Final = 40
 UPLOAD_MAX_MIB_VORGABE: Final = 500
 
 # --- Ordner neben ``medien/`` (Vertrag W, 11.1) -------------------------------
@@ -81,6 +85,27 @@ PAPIERKORB_MELDUNG_AB: Final = 3
 UPLOAD_BYTES_JE_STUNDE: Final = 16 * 1024**3
 KONFIG_STAENDE_ANZAHL: Final = 10
 
+# --- Bibliothek: Art, Suche, Blättern (Vertrag W, 14.2) -----------------------------
+ARTEN: Final = ("hoerspiel", "hoerbuch", "musik", "geschichte")
+ART_QUELLEN: Final = ("tags", "geraten", "manuell")
+ART_VORGABE: Final = "hoerspiel"
+FILTER_WERTE: Final = ("ohne_tobie", "neu", "pruefen", "sammlung", "einzeln")
+SERIEN_SORTIERUNGEN: Final = ("name", "neu")
+FOLGEN_SORTIERUNGEN: Final = ("titel", "neu")
+SUCHTEXT_MIN: Final = 2
+SUCHTEXT_MAX: Final = 100
+SERIEN_LIMIT_MAX: Final = 200
+FOLGEN_LIMIT_MAX: Final = 100
+FOLGEN_LIMIT_VORGABE: Final = 60
+#: Filter ``neu``: Einträge, die in den letzten so vielen Tagen angelegt wurden (Design 5.2)
+NEU_TAGE: Final = 14
+#: ``serien/list`` ohne ``limit``: so viele Einträge höchstens (``None`` = alle, wie bis 11.11.; Vertrag W, 14.2)
+SERIEN_OHNE_LIMIT_MAX: Final = None
+#: Art-Vorschlag (Vertrag W, 14.2): „viele“ Tracks, „kurz“ (Mittel unter 8 Minuten), Einzeldatei „unter 30 Minuten“
+ART_VIELE_TRACKS: Final = 5
+ART_KURZE_TRACKS_MITTEL_S: Final = 8 * 60
+ART_GESCHICHTE_MAX_S: Final = 30 * 60
+
 ANFRAGE_ID_ANZAHL: Final = 100
 ANFRAGE_ID_DAUER_S: Final = 600
 
@@ -140,6 +165,8 @@ FAEHIGKEITEN: Final = (
     "upload_fertig_details",
     # Stufe A der HA-Oberfläche (12.11., Vertrag W, 14.1): nur, was das Backend schon liefert
     "konfig_staende",
+    # A3: Art, Suche, Filter, Blättern, Befehle 37 und 38, ``text``/``neu`` bei ``zuordnung/list``, ``erwartet_revision`` (A1)
+    "bibliothek",
 )
 
 # --- MQTT-Themen (``mqtt-v1.md`` Abschnitt 2) ----------------------------------

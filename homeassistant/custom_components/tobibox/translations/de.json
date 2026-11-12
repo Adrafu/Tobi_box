@@ -33,19 +33,22 @@
         "data": {
           "medien_pfad": "Pfad zum Ordner „medien“",
           "boxen": "Boxen (Namen, durch Komma getrennt)",
-          "upload_max_mib": "Größte Datei beim Upload (MiB)"
+          "upload_max_mib": "Größte Datei beim Upload (MiB)",
+          "box_anzeigen": "Namen der Boxen"
         },
         "data_description": {
           "medien_pfad": "Der Ordner „medien“ der NAS-Freigabe, wie er in Home Assistant eingebunden ist. „eingang“, „export“ und „releases“ liegen daneben.",
           "boxen": "Die Box-Namen wie in tobibox.toml, z. B. box1, box2.",
-          "upload_max_mib": "Größere Dateien lehnt der Upload ab (Vorgabe 500)."
+          "upload_max_mib": "Größere Dateien lehnt der Upload ab (Vorgabe 500).",
+          "box_anzeigen": "So heißen die Boxen auf der Seite, zum Beispiel: box1=Box 1, box2=Box 2. Vor dem Gleichheitszeichen steht der Box-Name von oben, danach der ganze Name (bis 40 Zeichen). Leer lassen: dann gilt der Name, den die Box selbst meldet, sonst der Box-Name."
         }
       }
     },
     "error": {
       "medien_pfad_fehlt": "Diesen Ordner gibt es nicht.",
       "boxen_ungueltig": "Box-Namen: Kleinbuchstaben, Ziffern, _ und -, 2 bis 24 Zeichen, ohne Doppelte.",
-      "upload_ungueltig": "Bitte eine Zahl von 1 bis 100000 eingeben."
+      "upload_ungueltig": "Bitte eine Zahl von 1 bis 100000 eingeben.",
+      "box_anzeigen_ungueltig": "So geht es: box1=Box 1, box2=Box 2. Vor dem Gleichheitszeichen steht ein Box-Name von oben, danach der Name (bis 40 Zeichen); mehrere durch Komma trennen, keiner doppelt."
     }
   },
   "exceptions": {

@@ -143,3 +143,23 @@ async def test_eingang_ohne_dateizugriffe_in_der_loop(hass, wache, starte_integr
         await hass.async_block_till_done()
     wache.leer()
     assert not (nas.eingang / "Kopie.mp3").exists()
+
+
+async def test_bibliothek_ohne_dateizugriffe_in_der_loop(hass, wache, starte_integration, nas, lege_mp3):
+    """Paket A3: Suche, Filter, Blättern, ``folgen/list``, ``zuordnung/list`` und ``serie/art_setzen`` (Schreiben im Executor)."""
+    _bibliothek(nas, lege_mp3)
+    nas.serie("mond", "mond", "Der Mond", ["lied.mp3"], einzeln=True)
+    lege_mp3(nas.medien / "mond" / "lied.mp3")
+    hub = await starte_integration()
+    hub.store.konfig["zuordnungen"]["04a1b2c3"] = {"ziel": {"typ": "folge", "serie": "rabe", "folge": "a.mp3"}, "name": "Hase"}
+    with wache.aktiv():
+        await hub.medien.serien_liste(text="rabe", art="hoerspiel", filter_=["ohne_tobie", "neu", "sammlung"], sortierung="neu", limit=10)
+        await hub.medien.serien_liste(text="mond", auch_folgen=True, filter_=["einzeln", "pruefen"], offset=1)
+        folgen = await hub.medien.folgen_liste(text="mp3", filter_=["ohne_tobie"], sortierung="neu", limit=5)
+        assert folgen["gesamt"] >= 1 and folgen["folgen"]
+        await hub.zuordnung_liste(None, 10, 0, None, "hase", True)
+        await hub.medien.serie_art_setzen("mond", "musik")
+        await hub.medien.serie_art_setzen("mond", "geschichte")
+        await hub.medien.serien_liste(art="geschichte")
+    wache.leer()
+    assert nas.serie_json("mond")["art"] == "geschichte"

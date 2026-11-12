@@ -239,6 +239,8 @@ def pruefe_konfig(roh: Any) -> dict[str, Any]:
             if not isinstance(name, str) or anzeigename(name, TOBIE_NAME_MAX) != name or not name:
                 raise Ungueltig(f"zuordnungen.{uid}.name")
             eintrag["name"] = name
+        if isinstance(z.get("angelegt_am"), str) and parse_iso(z["angelegt_am"]) is not None:  # V-5: bleibt erhalten (die Box ignoriert es)
+            eintrag["angelegt_am"] = z["angelegt_am"]
         zuordnungen[uid] = eintrag
 
     leise = pruefe_leise_zeiten(roh.get("leise_zeiten"))

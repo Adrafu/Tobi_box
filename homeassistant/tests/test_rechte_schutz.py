@@ -129,8 +129,8 @@ TABELLE = [
     (34, "konfig/get", "lesen", {}, None, True),
     (35, "einstellungen/get", "lesen", {}, None, True),
     (36, "einstellungen/set", "alltag", {"gute_nacht": {"timer_min": 20, "ausblenden_s": 30}}, None, True),
-    (37, "folgen/list", "lesen", {}, None, False),
-    (38, "serie/art_setzen", "alltag", {}, None, False),
+    (37, "folgen/list", "lesen", {"text": "rabe", "filter": ["ohne_tobie"], "limit": 10}, None, True),
+    (38, "serie/art_setzen", "alltag", {"serie_id": "rabe", "art": "hoerbuch"}, None, True),
     (39, "audio/bereit", "alltag", {"serie_id": "rabe", "folge_id": "a.mp3"}, None, True),
     (40, "hoerstelle/get", "lesen", {}, None, False),
     (41, "hoerstelle/set", "alltag", {}, None, False),
@@ -186,11 +186,11 @@ async def test_tabelle_2_1_normal_benutzer(normal, nr, befehl, recht, felder, ad
         assert antwort["success"] is False and antwort["error"]["code"] == admin_code, antwort
 
 
-async def test_hello_sagt_nur_zu_was_a1_liefert(admin, normal):
+async def test_hello_sagt_nur_zu_was_gebaut_ist(admin, normal):
     for client in (admin, normal):
         f = (await ok(client, "hello", v=1))["faehigkeiten"]
-        assert f[-1] == "konfig_staende"
-        for spaeter in ("cover", "bibliothek", "einsortier_wunsch", "reinhoeren", "hoerkopie"):
+        assert f[-2:] == ["konfig_staende", "bibliothek"]  # A1, dann A3 (Bibliothek-Backend)
+        for spaeter in ("cover", "einsortier_wunsch", "reinhoeren", "hoerkopie"):
             assert spaeter not in f
     assert (await ok(admin, "hello", v=1))["darf_schreiben"] is True
     assert (await ok(normal, "hello", v=1))["darf_schreiben"] is False

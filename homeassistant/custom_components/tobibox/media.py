@@ -25,7 +25,11 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from . import dateien, ffprobe
+from .bibliothek import Bibliothek
 from .const import (
+    ART_QUELLEN,
+    ART_VORGABE,
+    ARTEN,
     ENDUNGEN,
     FOLGE_ANZEIGE_MAX,
     ORDNER_EINGANG,
@@ -43,7 +47,6 @@ from .namen import (
     anzeigename_streng,
     dateiname_bereinigen,
     eindeutiger_name,
-    natuerlicher_schluessel,
     sortiere_natuerlich,
     vergleichsschluessel,
 )
@@ -106,6 +109,12 @@ class Serie:
     pruefen: bool = False
     pruefen_gruende: list[str] = field(default_factory=list)
     folgen_info: dict[str, dict[str, Any]] = field(default_factory=dict)
+    #: Art des Eintrags (``ARTEN``) oder ``None``, wenn die Datei sie nicht nennt (dann gilt ``hoerspiel``, ``data-model.md`` 5)
+    art: str | None = None
+    #: woher ``art`` kommt (``ART_QUELLEN``); ``manuell`` wird nie überschrieben
+    art_quelle: str | None = None
+    #: Einzeltitel: genau eine Folge, steht für sich (Vertrag W, 14.2)
+    einzeln: bool = False
     #: unbekannte Felder der Datei, die beim Schreiben erhalten bleiben (data-model.md, 1.4)
     extra: dict[str, Any] = field(default_factory=dict)
     ordner: str = ""
@@ -129,6 +138,11 @@ class Serie:
         if self.pruefen:
             aus["pruefen"] = True
             aus["pruefen_gruende"] = list(self.pruefen_gruende)
+        if self.art:
+            aus["art"] = self.art
+            aus["art_quelle"] = self.art_quelle or "manuell"
+        if self.einzeln:
+            aus["einzeln"] = True
         if self.folgen_info:
             aus["folgen_info"] = {n: self.folgen_info[n] for n in self.folgen if n in self.folgen_info}
         aus.update(self.extra)
@@ -208,7 +222,13 @@ def serie_aus_json(roh: Any, ordner: str) -> Serie | None:
         return None
     if not all(isinstance(n, str) and n and "/" not in n and "\\" not in n and n not in (".", "..") for n in folgen):
         return None
-    bekannt = {"schema_version", "id", "name", "typ", "folgen", "angelegt_am", "pruefen", "pruefen_gruende", "folgen_info"}
+    bekannt = {
+        "schema_version", "id", "name", "typ", "folgen", "angelegt_am", "pruefen", "pruefen_gruende", "folgen_info",
+        "art", "art_quelle", "einzeln",
+    }
+    art = roh.get("art") if roh.get("art") in ARTEN else None
+    # Eine Art ohne (gültige) Quelle hat ein Mensch von Hand eingetragen: sie gilt als ``manuell`` und wird nie überschrieben
+    art_quelle = (roh.get("art_quelle") if roh.get("art_quelle") in ART_QUELLEN else "manuell") if art else None
     s = Serie(
         id=sid,
         name=name,
@@ -222,6 +242,9 @@ def serie_aus_json(roh: Any, ordner: str) -> Serie | None:
         folgen_info={n: _bereinige_info(i) for n, i in (roh.get("folgen_info") or {}).items() if isinstance(n, str)}
         if isinstance(roh.get("folgen_info"), dict)
         else {},
+        art=art,
+        art_quelle=art_quelle,
+        einzeln=roh.get("einzeln") is True,
         extra={k: v for k, v in roh.items() if k not in bekannt},
         ordner=ordner,
     )
@@ -503,6 +526,8 @@ class Medien:
         self.pruefung_laeuft = False
         self._pruefung_task: asyncio.Task | None = None
         self._sperren: dict[str, asyncio.Lock] = {}
+        #: Suchindex über Einträge und Folgen (``bibliothek.py``)
+        self.bibliothek = Bibliothek(self)
         #: (ordner, name) -> {"sig": …, "ergebnis": …, "hinweis": …}
         self._pruefergebnisse: dict[tuple[str, str], dict[str, Any]] = {}
 
@@ -550,21 +575,26 @@ class Medien:
 
     # --- Serie-Kurzform und Folge-Objekt -------------------------------------------
 
-    def kurzform(self, info: SerieInfo) -> dict[str, Any]:
+    def kurzform(self, info: SerieInfo, tobie_zaehler: dict[str, int] | None = None) -> dict[str, Any]:
+        """Serie-Kurzform (Vertrag W, Abschnitt 3 und 14.2). Listen reichen ``tobie_zaehler`` durch (einmal gezählt)."""
         s = info.serie
         anzahl_pruefen = sum(1 for n in s.folgen if s.info(n).get("pruefen"))
+        anzahl_tobies = len(self.tobies_der_serie(s.id)) if tobie_zaehler is None else tobie_zaehler.get(s.id, 0)
         return {
             "id": s.id,
             "name": s.name,
             "typ": s.typ,
             "ordner": info.ordner,
             "anzahl_folgen": len(s.folgen),
-            "anzahl_tobies": len(self.tobies_der_serie(s.id)),
+            "anzahl_tobies": anzahl_tobies,
             "angelegt_am": s.angelegt_am,
             "stand": s.stand,
             "pruefen": bool(s.pruefen),
             "anzahl_pruefen": anzahl_pruefen,
             "hinweise": list(info.hinweise),
+            "art": s.art or ART_VORGABE,
+            "art_quelle": s.art_quelle if s.art else "geraten",
+            "einzeln": bool(s.einzeln),
         }
 
     def _folge_objekt(
@@ -825,16 +855,71 @@ class Medien:
             except TimeoutError as err:
                 raise TobiboxFehler("medien_nicht_erreichbar") from err
 
-    async def serien_liste(self) -> dict[str, Any]:
+    async def serien_liste(
+        self,
+        *,
+        art: str | None = None,
+        text: str | None = None,
+        auch_folgen: bool = False,
+        filter_: list[str] | None = None,
+        sortierung: str = "name",
+        limit: int | None = None,
+        offset: int = 0,
+    ) -> dict[str, Any]:
+        """``serien/list`` (Vertrag W, Nr. 3 und 14.2). Ohne Eingaben wie bis 11.11.: alle Einträge nach Name."""
         await self._stelle_geprueft_sicher()
-        infos = sorted(self.serien.values(), key=lambda i: natuerlicher_schluessel(i.serie.name))
+        infos, gesamt, weitere, zaehler = self.bibliothek.serien(
+            art=art, text=text, auch_folgen=auch_folgen, filter_=filter_, sortierung=sortierung, limit=limit, offset=offset
+        )
         return {
-            "serien": [self.kurzform(i) for i in infos],
+            "serien": [self.kurzform(i, zaehler) for i in infos],
+            "gesamt": gesamt,
+            "weitere": weitere,
             "ueberraschung": self.ueberraschung_status(),
             "geprueft_am": self.geprueft_am,
             "pruefung_laeuft": self.pruefung_laeuft,
             "hinweise": list(self.reservierte_hinweise),
         }
+
+    async def folgen_liste(
+        self,
+        *,
+        art: str | None = None,
+        text: str | None = None,
+        filter_: list[str] | None = None,
+        sortierung: str = "titel",
+        limit: int = 60,
+        offset: int = 0,
+    ) -> dict[str, Any]:
+        """``folgen/list`` (Vertrag W, Nr. 37): Folgen und Einzeltitel aller Einträge."""
+        await self._stelle_geprueft_sicher()
+        zeilen, gesamt, weitere = self.bibliothek.folgen(
+            art=art, text=text, filter_=filter_, sortierung=sortierung, limit=limit, offset=offset
+        )
+        return {"folgen": zeilen, "gesamt": gesamt, "weitere": weitere}
+
+    async def serie_art_setzen(self, serie_id: str, art: str) -> dict[str, Any]:
+        """``serie/art_setzen`` (Vertrag W, Nr. 38): setzt ``art`` von Hand und löscht den Grund ``art_geraten``."""
+        if art not in ARTEN:
+            raise TobiboxFehler("invalid_format")
+        async with self.sperren(serie_id):
+            serie, pfad = await self._frisch(serie_id)
+            gruende = [g for g in serie.pruefen_gruende if g != "art_geraten"]
+            geaendert = (serie.art, serie.art_quelle) != (art, "manuell") or gruende != serie.pruefen_gruende
+            if geaendert:
+                serie.art, serie.art_quelle = art, "manuell"
+                if "art_geraten" in serie.pruefen_gruende:
+                    serie.pruefen_gruende = gruende
+                    if not gruende:  # der Grund war der einzige: nichts mehr zu prüfen
+                        serie.pruefen = False
+                try:
+                    await self._executor(schreibe_serie, pfad, serie)
+                except OSError as err:
+                    raise self._fehler_schreiben(err) from err
+            info = await self._aktualisiere_cache(serie, pfad.name)
+        if geaendert:
+            self.hub.emit("medien", "serien_geaendert", {"serie_ids": [serie_id]})
+        return self.kurzform(info)
 
     def ueberraschung_status(self) -> str:
         ue = [i for i in self.serien.values() if i.serie.typ == "ueberraschung"]

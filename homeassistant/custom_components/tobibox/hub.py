@@ -29,6 +29,7 @@ from homeassistant.helpers.event import async_call_later, async_track_time_inter
 from .const import (
     ANFRAGE_ID_ANZAHL,
     ANFRAGE_ID_DAUER_S,
+    CONF_BOX_ANZEIGEN,
     CONF_BOXEN,
     CONF_MEDIEN_PFAD,
     CONF_UPLOAD_MAX_MIB,
@@ -55,6 +56,7 @@ from .const import (
     VERTRAG_V,
     ENDUNGEN,
 )
+from .bibliothek import passt, suchform, suchworte
 from .eingang import Eingang
 from .fehler import TobiboxFehler
 from .lernmodus import Lernmodus
@@ -147,6 +149,13 @@ class Hub:
         einstellung = {**entry.data, **entry.options}
         self.pfade = Pfade(Path(einstellung[CONF_MEDIEN_PFAD]))
         self.boxen: list[str] = list(einstellung.get(CONF_BOXEN, []))
+        #: Anzeigenamen aus den Optionen (Box-Name -> ganzer Name, Vertrag W, 14.9); ungültige Einträge zählen nicht
+        roh_anzeigen = einstellung.get(CONF_BOX_ANZEIGEN)
+        self.box_anzeigen_optionen: dict[str, str] = (
+            {b: n.strip() for b, n in roh_anzeigen.items() if isinstance(b, str) and isinstance(n, str) and n.strip()}
+            if isinstance(roh_anzeigen, dict)
+            else {}
+        )
         mib = einstellung.get(CONF_UPLOAD_MAX_MIB, UPLOAD_MAX_MIB_VORGABE)
         self.upload_max_bytes = int(mib) * 1024 * 1024
         self.version = "0"
@@ -318,12 +327,25 @@ class Hub:
 
     # --- Boxen -----------------------------------------------------------------------------------
 
+    def box_anzeige(self, box: str) -> str:
+        """Der Name, den die Seite für die Box zeigt (nie leer, Vertrag W, 14.9).
+
+        Reihenfolge: Name aus den Optionen, sonst ``anzeigename`` der Discovery, sonst der Box-Name."""
+        name = self.box_anzeigen_optionen.get(box)
+        if name:
+            return name
+        z = self.mqtt.boxen.get(box)
+        if z is not None and z.anzeigename:
+            return z.anzeigename
+        return box
+
     def box_objekt(self, box: str, mit_ereignisse: bool = True) -> dict[str, Any]:
         z = self.mqtt.boxen[box]
         v = self.lernmodus.offener_vorgang(box)
         aus: dict[str, Any] = {
             "box": box,
             "anzeigename": z.anzeigename,
+            "anzeige": self.box_anzeige(box),
             "online": z.online,
             "status": z.status,
             "status_empfangen_am": z.status_empfangen_am,
@@ -729,6 +751,8 @@ class Hub:
             neuer = alter_name if name_neu is FEHLT else name_neu
             if neuer:
                 eintrag["name"] = neuer
+            if (bestehend or {}).get("angelegt_am"):  # ein vorhandener Zeitstempel bleibt (V-5)
+                eintrag["angelegt_am"] = bestehend["angelegt_am"]
             k["zuordnungen"][uid] = eintrag
 
         erg = await self.aendere_konfig(setze)
@@ -761,11 +785,22 @@ class Hub:
         self.schutz.liste_gebucht(nutzer)
         return erg
 
-    async def zuordnung_liste(self, serie_id: str | None, limit: int, offset: int, uid: str | None = None) -> dict[str, Any]:
+    async def zuordnung_liste(
+        self,
+        serie_id: str | None,
+        limit: int,
+        offset: int,
+        uid: str | None = None,
+        text: str | None = None,
+        neu: bool = False,
+    ) -> dict[str, Any]:
+        """``zuordnung/list``. ``text``: Tobie-Name oder Ziel enthält die Wörter (ohne Groß-/Kleinschreibung und Umlaute);
+        ``neu``: zuletzt angelegt zuerst (nach ``angelegt_am``; Zuordnungen ohne Zeitstempel folgen, nach Kennung)."""
         if self.medien.geprueft_am is None:
             with contextlib.suppress(TobiboxFehler):
                 await self.medien._stelle_geprueft_sicher()
         k = self.store.konfig
+        worte = suchworte(text) if text else []
         eintraege: list[dict[str, Any]] = []
         for z_uid, z in sorted((k["zuordnungen"] if k else {}).items()):
             ziel = z["ziel"]
@@ -786,7 +821,15 @@ class Hub:
                 vorhanden = bool(info) and ziel["folge"] in info.serie.folgen
                 eintrag["folge_vorhanden"] = vorhanden
                 eintrag["folge_anzeige"] = info.serie.anzeige(ziel["folge"]) if vorhanden else None
+            if z.get("angelegt_am"):
+                eintrag["angelegt_am"] = z["angelegt_am"]
+            if worte:
+                heu = suchform(" ".join(str(x) for x in (z.get("name"), self.ziel_text(ziel), eintrag["serie_name"], eintrag["folge_anzeige"]) if x))
+                if not passt(worte, heu):
+                    continue
             eintraege.append(eintrag)
+        if neu:  # stabil: erst nach Kennung (so waren sie schon), dann nach Zeitstempel, neueste zuerst
+            eintraege.sort(key=lambda e: e.get("angelegt_am") or "", reverse=True)
         return {"konfig": self.konfig_stand(), "zuordnungen": eintraege[offset : offset + limit], "gesamt": len(eintraege)}
 
     # --- Einstellungen (AP 4.7) und Konfig-Stand lesen (Erweiterung v1.1) --------------------------------------------
@@ -861,6 +904,7 @@ class Hub:
             "darf_schreiben": ist_admin,
             "faehigkeiten": list(FAEHIGKEITEN),
             "boxen": list(self.boxen),
+            "box_anzeigen": {b: self.box_anzeige(b) for b in self.boxen},
             "konfig": self.konfig_stand(),
             "grenzen": {
                 "upload_max_bytes": self.upload_max_bytes,

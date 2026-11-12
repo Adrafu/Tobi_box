@@ -49,7 +49,7 @@ async def api_lesend(hass, integration, hass_ws_client, hass_read_only_access_to
 async def test_hello_sagt_die_neuen_faehigkeiten_zu(api, api_lesend):
     for client in (api, api_lesend):
         f = (await ok(client, "hello", v=1))["faehigkeiten"]
-        assert f[-6:-1] == NEUE_FAEHIGKEITEN  # seit 12.11. folgt am Ende ``konfig_staende`` (Paket A1)
+        assert f[-7:-2] == NEUE_FAEHIGKEITEN  # seit 12.11. folgen am Ende ``konfig_staende`` (Paket A1) und ``bibliothek`` (Paket A3)
         assert len(set(f)) == len(f)
     assert (await ok(api, "hello", v=1))["v"] == 1  # additiv: die Version bleibt
 

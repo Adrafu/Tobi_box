@@ -89,6 +89,7 @@ async def test_hello(api, api_lesend, integration):
         "liste_ausrollen", "konfig_export", "sync", "eingang", "korrektur", "serie_loeschen",
         "einstellungen", "eingang_entfernen", "zuordnung_uid", "konfig_lesen", "upload_fertig_details",  # AP 4.7, Erweiterungen v1.1
         "konfig_staende",  # 12.11., Paket A1: frühere Stände der Liste
+        "bibliothek",  # 12.11., Paket A3: Art, Suche, Filter, Blättern
     ]
     assert r["konfig"]["zustand"] == "ok" and r["konfig"]["revision"] == 1
     g = r["grenzen"]
@@ -235,8 +236,11 @@ async def test_serien_list_und_serie_get(hass, api, nas, integration):
     assert r["ueberraschung"] == "leer"
     assert r["pruefung_laeuft"] is False and r["geprueft_am"]
     rabe = next(s for s in r["serien"] if s["id"] == "rabe")
-    assert rabe.keys() == {"id", "name", "typ", "ordner", "anzahl_folgen", "anzahl_tobies", "angelegt_am", "stand", "pruefen", "anzahl_pruefen", "hinweise"}
+    assert rabe.keys() == {"id", "name", "typ", "ordner", "anzahl_folgen", "anzahl_tobies", "angelegt_am", "stand", "pruefen", "anzahl_pruefen", "hinweise",
+                           "art", "art_quelle", "einzeln"}  # seit 12.11. (Paket A3)
     assert (rabe["anzahl_folgen"], rabe["typ"], rabe["ordner"], rabe["pruefen"], rabe["anzahl_pruefen"]) == (2, "normal", "rabe", False, 0)
+    assert (rabe["art"], rabe["art_quelle"], rabe["einzeln"]) == ("hoerspiel", "geraten", False)  # alte serie.json ohne art
+    assert (r["gesamt"], r["weitere"]) == (3, False)
     s = await ok(api, "serie/get", serie_id="rabe")
     assert s["stand"] == rabe["stand"] and s["zuordnungen"] == []
     a, b = s["folgen"]
@@ -547,11 +551,28 @@ async def test_boxen_list(hass, api, box_fabrik, integration):
     r = await ok(api, "boxen/list")
     assert [x["box"] for x in r["boxen"]] == ["box1", "box2"]  # Reihenfolge der Einrichtung
     x = r["boxen"][0]
-    assert x.keys() == {"box", "anzeigename", "online", "status", "status_empfangen_am", "konfig_stand", "lernmodus", "ereignisse"}
-    assert x["anzeigename"] == "Kinderzimmer" and x["online"] is True and x["status"]["version"] == "1.0.0"
+    assert x.keys() == {"box", "anzeigename", "anzeige", "online", "status", "status_empfangen_am", "konfig_stand", "lernmodus", "ereignisse"}
+    assert x["anzeigename"] == "Kinderzimmer" and x["anzeige"] == "Kinderzimmer" and x["online"] is True and x["status"]["version"] == "1.0.0"
     assert x["ereignisse"][0].keys() == {"id", "ts", "art", "daten", "text"}
     assert r["boxen"][1]["online"] is None and r["boxen"][1]["status"] is None and r["boxen"][1]["konfig_stand"] == "unbekannt"
+    assert r["boxen"][1]["anzeige"] == "box2"  # weder Option noch Discovery: der Box-Name
     assert json.dumps(r)  # serialisierbar
+
+
+async def test_anzeige_reihenfolge_der_rueckfaelle(hass, api, box_fabrik, integration):
+    """Vertrag W, 14.9: Name aus den Optionen, sonst ``anzeigename`` der Discovery, sonst der Box-Name; nie ``null``."""
+    box = box_fabrik("box1")
+    anzeigen = lambda r: {b["box"]: b["anzeige"] for b in r["boxen"]}  # noqa: E731
+    assert anzeigen(await ok(api, "boxen/list")) == {"box1": "box1", "box2": "box2"}  # 3. Rückfall: der Box-Name
+    await box.discovery("Kinderzimmer")
+    assert anzeigen(await ok(api, "boxen/list")) == {"box1": "Kinderzimmer", "box2": "box2"}  # 2. Rückfall: Discovery
+    integration.box_anzeigen_optionen = {"box1": "Box 1", "box2": "Box 2"}
+    assert anzeigen(await ok(api, "boxen/list")) == {"box1": "Box 1", "box2": "Box 2"}  # 1. die Optionen gewinnen
+    hello = await ok(api, "hello", v=1)
+    assert hello["box_anzeigen"] == {"box1": "Box 1", "box2": "Box 2"}
+    integration.box_anzeigen_optionen = {"box2": "Box 2"}
+    assert (await ok(api, "hello", v=1))["box_anzeigen"] == {"box1": "Kinderzimmer", "box2": "Box 2"}  # je Box einzeln
+    assert all(a for a in anzeigen(await ok(api, "boxen/list")).values())  # nie leer
 
 
 async def test_box_sync(api, box_fabrik):

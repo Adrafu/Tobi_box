@@ -19,10 +19,19 @@ from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant, callback
 
 from .const import (
+    ARTEN,
     DOMAIN,
     EREIGNIS_THEMEN,
+    FILTER_WERTE,
+    FOLGEN_LIMIT_MAX,
+    FOLGEN_LIMIT_VORGABE,
+    FOLGEN_SORTIERUNGEN,
     KONFIG_STAENDE_ANZAHL,
     RE_ANFRAGE_ID,
+    SERIEN_LIMIT_MAX,
+    SERIEN_SORTIERUNGEN,
+    SUCHTEXT_MAX,
+    SUCHTEXT_MIN,
 )
 from .fehler import TobiboxFehler
 from .hub import FEHLT, Hub
@@ -85,6 +94,19 @@ def _beliebig(x: Any) -> Any:
     """Lässt jeden Wert durch: Die Prüfung der Einstellungen macht ``store.pruefe_*`` (Fehler ``einstellung_ungueltig`` mit Pfad)."""
     return x
 
+
+def _suchtext(x: Any) -> str:
+    """Suchtext: 2 bis 100 Zeichen (ohne Leerraum am Rand; Vertrag W, 14.2)."""
+    if not isinstance(x, str) or not SUCHTEXT_MIN <= len(x.strip()) <= SUCHTEXT_MAX:
+        raise vol.Invalid(f"Text mit {SUCHTEXT_MIN} bis {SUCHTEXT_MAX} Zeichen erwartet")
+    return x
+
+
+#: Eingaben der Bibliothek (Fähigkeit ``bibliothek``): gleiche Namen bei ``serien/list`` und ``folgen/list``
+ART = {vol.Optional("art"): vol.In(ARTEN)}
+SUCHE = {vol.Optional("text"): _suchtext}
+FILTER = {vol.Optional("filter"): vol.All([vol.In(FILTER_WERTE)])}
+OFFSET = {vol.Optional("offset"): _ganz(0, 10_000_000)}
 
 ANFRAGE_ID = {vol.Optional("anfrage_id"): vol.All(_text, vol.Match(RE_ANFRAGE_ID.pattern))}
 SERIE_ID = {vol.Required("serie_id"): _text}
@@ -190,9 +212,29 @@ _HANDLER.append(ws_subscribe)
 # --------------------------------------------------------------------------
 
 
-@befehl("serien/list", recht="lesen")
+@befehl(
+    "serien/list",
+    {
+        **ART,
+        **SUCHE,
+        vol.Optional("auch_folgen"): _wahrheit,
+        **FILTER,
+        vol.Optional("sortierung"): vol.In(SERIEN_SORTIERUNGEN),
+        vol.Optional("limit"): _ganz(1, SERIEN_LIMIT_MAX),
+        **OFFSET,
+    },
+    recht="lesen",
+)
 async def ws_serien_list(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
-    return await hub.medien.serien_liste()
+    return await hub.medien.serien_liste(
+        art=msg.get("art"),
+        text=msg.get("text"),
+        auch_folgen=msg.get("auch_folgen", False),
+        filter_=msg.get("filter"),
+        sortierung=msg.get("sortierung", "name"),
+        limit=msg.get("limit"),
+        offset=msg.get("offset", 0),
+    )
 
 
 @befehl("serie/get", {**SERIE_ID}, recht="lesen")
@@ -234,6 +276,39 @@ async def ws_medien_pruefen(hub: Hub, connection: Any, msg: dict[str, Any]) -> A
     await hub.medien._medien_erreichbar()
     gestartet, laeuft = hub.medien.pruefung_starten()
     return {"gestartet": gestartet, "laeuft_bereits": laeuft}
+
+
+# --------------------------------------------------------------------------
+# 37 und 38: Bibliothek (Fähigkeit ``bibliothek``, Vertrag W, 3.12 und 14.2)
+# --------------------------------------------------------------------------
+
+
+@befehl(
+    "folgen/list",
+    {
+        **ART,
+        **SUCHE,
+        **FILTER,
+        vol.Optional("sortierung"): vol.In(FOLGEN_SORTIERUNGEN),
+        vol.Optional("limit"): _ganz(1, FOLGEN_LIMIT_MAX),
+        **OFFSET,
+    },
+    recht="lesen",
+)
+async def ws_folgen_list(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
+    return await hub.medien.folgen_liste(
+        art=msg.get("art"),
+        text=msg.get("text"),
+        filter_=msg.get("filter"),
+        sortierung=msg.get("sortierung", "titel"),
+        limit=msg.get("limit", FOLGEN_LIMIT_VORGABE),
+        offset=msg.get("offset", 0),
+    )
+
+
+@befehl("serie/art_setzen", {**SERIE_ID, vol.Required("art"): vol.In(ARTEN)}, recht="alltag")
+async def ws_serie_art_setzen(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
+    return {"serie": await hub.medien.serie_art_setzen(msg["serie_id"], msg["art"])}
 
 
 # --------------------------------------------------------------------------
@@ -286,13 +361,17 @@ async def ws_neue_tobies_verwerfen(hub: Hub, connection: Any, msg: dict[str, Any
     {
         vol.Optional("serie_id"): _text,
         vol.Optional("uid"): _text,
+        **SUCHE,
+        vol.Optional("neu"): _wahrheit,
         vol.Optional("limit"): _ganz(1, 100),
-        vol.Optional("offset"): _ganz(0, 10_000_000),
+        **OFFSET,
     },
     recht="lesen",
 )
 async def ws_zuordnung_list(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
-    return await hub.zuordnung_liste(msg.get("serie_id"), msg.get("limit", 100), msg.get("offset", 0), msg.get("uid"))
+    return await hub.zuordnung_liste(
+        msg.get("serie_id"), msg.get("limit", 100), msg.get("offset", 0), msg.get("uid"), msg.get("text"), msg.get("neu", False)
+    )
 
 
 @befehl(

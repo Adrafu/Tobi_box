@@ -270,6 +270,7 @@ TAG_SCHLUESSEL: dict[str, tuple[str, ...]] = {
     "track": ("track", "tracknumber"),
     "disc": ("disc", "discnumber", "part_of_set"),
     "datum": ("date", "originaldate", "original_date", "year"),
+    "genre": ("genre",),
 }
 
 

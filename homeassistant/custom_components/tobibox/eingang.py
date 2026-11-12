@@ -26,6 +26,7 @@ from homeassistant.core import callback
 from homeassistant.helpers.storage import Store
 
 from . import dateien, ffprobe
+from .bibliothek import ArtDatei, art_vorschlag
 from .const import (
     EINGANG_NACHPLAN_S,
     EINGANG_PROTOKOLL_MAX,
@@ -258,6 +259,23 @@ def analysiere_datei(d: Datei) -> None:
         d.sha = ffprobe.pruefsumme(d.pfad)
 
 
+def art_dateien(gruppen: list[Gruppe]) -> list[ArtDatei]:
+    """Was der Art-Vorschlag (``bibliothek.art_vorschlag``) von den Dateien einer neuen Serie braucht."""
+    aus: list[ArtDatei] = []
+    for g in gruppen:
+        for d in g.dateien:
+            aus.append(
+                ArtDatei(
+                    endung=d.endung,
+                    genre=d.felder.get("genre", ""),
+                    dauer_s=d.pruefung.probe.dauer_s if d.pruefung else None,
+                    album=d.felder.get("album", ""),
+                    album_interpret=d.felder.get("album_interpret", ""),
+                )
+            )
+    return aus
+
+
 def tags_zu_feldern(tags: dict[str, str]) -> dict[str, Any]:
     """Normierte Felder aus den Roh-Tags (Vertrag W, 11.2)."""
     album_roh = ffprobe.tag(tags, "album")
@@ -279,6 +297,7 @@ def tags_zu_feldern(tags: dict[str, str]) -> dict[str, Any]:
         "track": zahl_vor_slash(track_roh) if track_roh else None,
         "disc": zahl_vor_slash(disc_roh) if disc_roh else None,
         "datum": datum_aus_tag(datum_roh) if datum_roh else None,
+        "genre": ffprobe.tag(tags, "genre"),
     }
 
 
@@ -928,9 +947,14 @@ class Eingang:
                 if neu:
                     ordner = await hass.async_add_executor_job(medien._lege_ordner_an, ordner_wunsch)
                     serie = Serie(id=sid, name=name[:100], typ="normal", angelegt_am=jetzt_iso(), ordner=ordner)
-                    if eintrag["schwach"]:
+                    # Art aus den Tags vorschlagen (Vertrag W, 14.2); nur für neue Einträge, ein vorhandenes ``art`` bleibt
+                    serie.art, serie.art_quelle = art_vorschlag(art_dateien(gruppen))
+                    gruende = list(eintrag["schwach"])
+                    if serie.art_quelle == "geraten":
+                        gruende.append("art_geraten")
+                    if gruende:
                         serie.pruefen = True
-                        serie.pruefen_gruende = list(eintrag["schwach"])
+                        serie.pruefen_gruende = gruende
                     pfad = medien.pfad_serie(ordner)
                     await hass.async_add_executor_job(schreibe_serie, pfad, serie)
                 else:

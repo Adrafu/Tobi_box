@@ -1,4 +1,4 @@
-"""Einrichtung der Integration: Medienpfad, Boxen, größte Datei beim Upload."""
+"""Einrichtung der Integration: Medienpfad, Boxen, größte Datei beim Upload; in den Optionen auch die Anzeigenamen der Boxen."""
 
 from __future__ import annotations
 
@@ -10,6 +10,8 @@ from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResu
 from homeassistant.core import callback
 
 from .const import (
+    BOX_ANZEIGE_MAX,
+    CONF_BOX_ANZEIGEN,
     CONF_BOXEN,
     CONF_MEDIEN_PFAD,
     CONF_UPLOAD_MAX_MIB,
@@ -17,6 +19,7 @@ from .const import (
     RE_BOX,
     UPLOAD_MAX_MIB_VORGABE,
 )
+from .namen import anzeigename_streng
 
 try:
     import probatio as vol
@@ -32,7 +35,35 @@ def parse_boxen(text: str) -> list[str] | None:
     return namen
 
 
-async def _pruefe(hass: Any, eingabe: dict[str, Any]) -> tuple[dict[str, Any] | None, dict[str, str]]:
+def parse_box_anzeigen(text: str, boxen: list[str] | None = None) -> dict[str, str] | None:
+    """``"box1=Box 1, box2=Box 2"`` -> ``{"box1": "Box 1", "box2": "Box 2"}``; leerer Text -> ``{}``.
+
+    ``None``, wenn die Schreibweise nicht stimmt: Name der Box wie bei ``parse_boxen`` (und, wenn ``boxen`` gegeben ist,
+    eine der eingerichteten Boxen), kein Name doppelt, jeder Anzeigename 1 bis 40 Zeichen (ohne Steuerzeichen).
+    Getrennt wird bei Komma oder Semikolon; der Anzeigename ist der **ganze** Name („Box 1“, „Annas Box“)."""
+    ergebnis: dict[str, str] = {}
+    for teil in re.split(r"[,;]", text):
+        if not teil.strip():
+            continue
+        box, gleich, name = teil.partition("=")
+        box = box.strip()
+        anzeige = anzeigename_streng(name, BOX_ANZEIGE_MAX)
+        if not gleich or not RE_BOX.match(box) or box in ergebnis or anzeige is None:
+            return None
+        if boxen is not None and box not in boxen:
+            return None
+        ergebnis[box] = anzeige
+    return ergebnis
+
+
+def box_anzeigen_text(anzeigen: dict[str, str] | None) -> str:
+    """Die Schreibweise fürs Textfeld (Gegenstück zu ``parse_box_anzeigen``)."""
+    return ", ".join(f"{box}={name}" for box, name in (anzeigen or {}).items())
+
+
+async def _pruefe(
+    hass: Any, eingabe: dict[str, Any], mit_anzeigen: bool = False
+) -> tuple[dict[str, Any] | None, dict[str, str]]:
     fehler: dict[str, str] = {}
     pfad = str(eingabe.get(CONF_MEDIEN_PFAD, "")).strip()
     if pfad and not await hass.async_add_executor_job(Path(pfad).is_dir):
@@ -45,19 +76,31 @@ async def _pruefe(hass: Any, eingabe: dict[str, Any]) -> tuple[dict[str, Any] | 
     mib = eingabe.get(CONF_UPLOAD_MAX_MIB, UPLOAD_MAX_MIB_VORGABE)
     if not isinstance(mib, int) or isinstance(mib, bool) or not 1 <= mib <= 100_000:
         fehler[CONF_UPLOAD_MAX_MIB] = "upload_ungueltig"
+    anzeigen: dict[str, str] = {}
+    if mit_anzeigen:
+        roh = eingabe.get(CONF_BOX_ANZEIGEN, "")
+        anzeigen_neu = parse_box_anzeigen(roh, boxen) if isinstance(roh, str) and boxen is not None else None
+        if anzeigen_neu is None and boxen is not None:
+            fehler[CONF_BOX_ANZEIGEN] = "box_anzeigen_ungueltig"
+        else:
+            anzeigen = anzeigen_neu or {}
     if fehler:
         return None, fehler
-    return {CONF_MEDIEN_PFAD: pfad, CONF_BOXEN: boxen, CONF_UPLOAD_MAX_MIB: mib}, {}
+    daten: dict[str, Any] = {CONF_MEDIEN_PFAD: pfad, CONF_BOXEN: boxen, CONF_UPLOAD_MAX_MIB: mib}
+    if anzeigen:  # ohne Anzeigenamen bleibt der Eintrag so, wie er war (kein leeres Feld)
+        daten[CONF_BOX_ANZEIGEN] = anzeigen
+    return daten, {}
 
 
-def _schema(vorgabe: dict[str, Any]) -> Any:
-    return vol.Schema(
-        {
-            vol.Required(CONF_MEDIEN_PFAD, default=vorgabe.get(CONF_MEDIEN_PFAD, "/media/tobibox/medien")): str,
-            vol.Required(CONF_BOXEN, default=vorgabe.get(CONF_BOXEN, "box1, box2")): str,
-            vol.Required(CONF_UPLOAD_MAX_MIB, default=vorgabe.get(CONF_UPLOAD_MAX_MIB, UPLOAD_MAX_MIB_VORGABE)): int,
-        }
-    )
+def _schema(vorgabe: dict[str, Any], mit_anzeigen: bool = False) -> Any:
+    felder: dict[Any, Any] = {
+        vol.Required(CONF_MEDIEN_PFAD, default=vorgabe.get(CONF_MEDIEN_PFAD, "/media/tobibox/medien")): str,
+        vol.Required(CONF_BOXEN, default=vorgabe.get(CONF_BOXEN, "box1, box2")): str,
+        vol.Required(CONF_UPLOAD_MAX_MIB, default=vorgabe.get(CONF_UPLOAD_MAX_MIB, UPLOAD_MAX_MIB_VORGABE)): int,
+    }
+    if mit_anzeigen:
+        felder[vol.Optional(CONF_BOX_ANZEIGEN, default=vorgabe.get(CONF_BOX_ANZEIGEN, ""))] = str
+    return vol.Schema(felder)
 
 
 class TobiboxConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -84,8 +127,12 @@ class TobiboxOptionsFlow(OptionsFlow):
         fehler: dict[str, str] = {}
         aktuell = {**self.config_entry.data, **self.config_entry.options}
         if user_input is not None:
-            daten, fehler = await _pruefe(self.hass, user_input)
+            daten, fehler = await _pruefe(self.hass, user_input, mit_anzeigen=True)
             if daten is not None:
                 return self.async_create_entry(data=daten)
-        vorgabe = user_input or {**aktuell, CONF_BOXEN: ", ".join(aktuell.get(CONF_BOXEN, []))}
-        return self.async_show_form(step_id="init", data_schema=_schema(vorgabe), errors=fehler)
+        vorgabe = user_input or {
+            **aktuell,
+            CONF_BOXEN: ", ".join(aktuell.get(CONF_BOXEN, [])),
+            CONF_BOX_ANZEIGEN: box_anzeigen_text(aktuell.get(CONF_BOX_ANZEIGEN)),
+        }
+        return self.async_show_form(step_id="init", data_schema=_schema(vorgabe, mit_anzeigen=True), errors=fehler)
