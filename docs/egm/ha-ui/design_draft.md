@@ -1,12 +1,38 @@
-# HA-Oberfläche einfacher und schöner: Design-Entwurf Rev. 3 (EGM Schritt 2)
+# HA-Oberfläche einfacher und schöner: Design-Entwurf Rev. 4 (EGM Schritt 2)
 
-Stand 12.11. · **Rev. 3** (nach Runde 7 in `brainstorm.md`: Bibliothek wie eine Hörbuch-App, Reinhören im Browser; dazu der Zusatz von Tobias zu „Gehört“). Rev. 2 stand nach dem Goldfisch-Review `review_goldfisch.md` und den Antworten Runde 4 bis 6.
+Stand 12.11. · **Rev. 4** (nach Runde 8 in `brainstorm.md`: Antworten auf die Fragen 14 bis 22 und die Rückmeldung zum Hochladen). Rev. 3 stand nach Runde 7 (Bibliothek wie eine Hörbuch-App, Reinhören im Browser), Rev. 2 nach dem Goldfisch-Review `review_goldfisch.md` und den Antworten Runde 4 bis 6.
 Grundlage: `concepts_brief.md` (mit Abschnitt 6: Stufen A, B, C), `brainstorm.md`, `ist.md`, Vertrag W (`docs/protocol/ha-websocket-v1.md`),
-`docs/data-model.md`, `docs/protocol/mqtt-v1.md`. Klickbarer Prototyp v3: `prototyp.html` (erfundene Beispieldaten; der Knopf „i“ oben schaltet Rolle, Aussehen, Zustand und Stufen um).
-Status: **Entwurf Rev. 3, wartet auf Resolve mit Tobias** (Abschnitt 16). Gebaut wird **Stufe A**. B und C sind geplant, haben ihren Platz in der Oberfläche
+`docs/data-model.md`, `docs/protocol/mqtt-v1.md`. Klickbarer Prototyp v4: `prototyp.html` (erfundene Beispieldaten; der Knopf „i“ oben schaltet Rolle, Aussehen, Zustand, Stufen und die gewählten Dateien beim Hochladen um).
+Status: **Entwurf Rev. 4, wartet auf Resolve mit Tobias** (Abschnitt 16, neue Fragen 23 bis 26). Gebaut wird **Stufe A**. B und C sind geplant, haben ihren Platz in der Oberfläche
 und ihre Vertragsentwürfe (Abschnitte 12, 13), werden aber erst nach Freigabe gebaut.
 
-**Änderungen in Rev. 3** (Abschnitte, die sich geändert haben oder neu sind):
+**Änderungen in Rev. 4** (Abschnitte, die sich geändert haben oder neu sind):
+
+| Abschnitt | Änderung |
+|---|---|
+| 1, 1.3 | Kurzfassung und Änderungstabelle angepasst |
+| 2 | Stufe A: Hochladen in Schritten, Einzeltitel, Hörkopien, Kapitelliste; Stufe B: „Mein Reinhören“; Stufe C: Playlist beim Hochladen, Weiterspielen über Playlist |
+| 3.3 | Wort „Einzeltitel“ |
+| 5.2, 5.3, 5.4 | Einzeltitel in Liste, Suche, Serienseite und als Tobie-Ziel; Hörbuch mit **Kapitelliste**; Hinweis „Hörprobe wird vorbereitet“ |
+| **5.6, 7.3** | **Hinzufügen neu:** erst „Was lädst du hoch?“ (fünf Karten), dann Vorschau in Sätzen mit „Ändern“ und „Hochladen“, dann Fortschritt wie bisher; gleiche Wahl für Dateien vom NAS („Anders einsortieren“) |
+| 5.9, 9 | Technik: Stand der Hörkopien; Fundorte |
+| **5.10, 12.5** | **„Gehört“ bekommt den Umschalter Boxen \| Mein Reinhören**; Regel, wer was sieht (Empfehlung und Frage 23) |
+| 5.12 | Kapitel im Player, Hörkopie, Zählung des Reinhörens |
+| 6.1 | neue Fehlertexte (Hörkopie, Wunsch beim Hochladen, Anders einsortieren) |
+| 8, 10.2 | Taps, Rechte der neuen Befehle |
+| **11.1 bis 11.3** | **Vertragsänderungen, alle additiv:** V-7 (Hochladen mit Wunsch, `einsortierung/neu`), V-8 (Einzeltitel, Kapitel), V-9 (Hörkopie); neue Fähigkeiten `einsortier_wunsch`, `kapitel`, `hoerkopie`; neue Felder in `serie.json` |
+| 11.4.2 | „Abspiel-Link“ in Alltagssprache |
+| **11.4.3, 11.4.7, 11.4.8** | **Hörkopie** für Formate, die nicht jeder Browser spielt (Ort, Zeitpunkt, Speicherbedarf, Fehlerfall); **Kapitel** (Quelle, Speicherung, Anzeige) |
+| 11.4.4, 11.4.6 | Dauer, Kapitel und Codec in einem `ffprobe`-Durchgang; Prüfstand (ffmpeg in HA belegt) |
+| 12.2.1, 12.3, 12.4 | Zählregel mit 5-Minuten-Zusammenfassung ist jetzt beschlossen; Speicher und Befehle für „Mein Reinhören“ |
+| 13 | Stufe C: Playlist beim Hochladen, Weiterspielen über Playlist |
+| 14 | Barrierefreiheit: Wahlkarten, Kapitelliste, Umschalter |
+| 15 | neue Pakete A3c, A3d; geänderte A3b, A4c, A7, A8, A8b, A11a, A11b, B3 bis B5 |
+| 16 | Fragen 14 bis 22 mit Antwort, neue Fragen 23 bis 26 |
+| 17 | Prototyp v4 |
+| 18 | unverändert |
+
+**Änderungen in Rev. 3** (zur Erinnerung):
 
 | Abschnitt | Änderung |
 |---|---|
@@ -14,23 +40,18 @@ und ihre Vertragsentwürfe (Abschnitte 12, 13), werden aber erst nach Freigabe g
 | 2 | Stufe A enthält jetzt Serienseite mit Player |
 | 3.1, 3.2 | Kopfzeile mit „+“ und „Technik“; neue Adresse `#suche` |
 | 5.1 | Start: Suchfeld öffnet die Suchansicht, Reihe „Weiterhören“ |
-| **5.2** | **Bibliothek neu:** Inhalt zuerst, eine Zeile Arten, Lupe, Reihen „Weiterhören“ und „Neu“, Liste im Audible-Stil, ein Knopf „Sortieren und Filter“; „Alle Folgen“ und die Filter-Stapel entfallen; Suchansicht |
-| **5.3** | **Serienseite** wie ein Hörbuch: großes Cover, Gesamtdauer, „Reinhören/Weiterhören“, „Tobie zuordnen“, Folgenliste mit Abspielknopf und Menü |
+| 5.2 | Bibliothek neu: Inhalt zuerst, eine Zeile Arten, Lupe, Reihen „Weiterhören“ und „Neu“, Liste im Audible-Stil, ein Knopf „Sortieren und Filter“; „Alle Folgen“ und die Filter-Stapel entfallen; Suchansicht |
+| 5.3 | Serienseite wie ein Hörbuch: großes Cover, Gesamtdauer, „Reinhören/Weiterhören“, „Tobie zuordnen“, Folgenliste mit Abspielknopf und Menü |
 | 5.4, 7.2, 8 | Tobie für eine Folge: jetzt über das Menü der Folge (3 Taps) oder den Suchtreffer (2 Taps) |
 | 5.10 | „Gehört“: Rangliste „Wer hat was gehört?“ je Box mit Aufteilung nach Folgen und wählbarem Zeitraum |
-| **5.12** | **Reinhören (Bedienung)** neu |
+| 5.12 | Reinhören (Bedienung) neu |
 | 6.1 | neue Fehlertexte für das Reinhören |
-| 9 | Fundorte angepasst |
-| 10.2 | Rechte für Reinhören und Hörstelle |
+| 9, 10.2 | Fundorte, Rechte für Reinhören und Hörstelle |
 | 11.1, 11.2 | neue Fähigkeit `reinhoeren`; V-6 (Audio, Dauer, Hörstelle); V-2 um `angehoert` ergänzt |
-| 11.3 | `dauer_s`, `spuren_s` in `serie.json` |
-| **11.4** | **Reinhören: Technik** neu (Audio-Ansicht, signierter Pfad, Range, Pfad-Sicherheit, Formate, Dauer, Hörstelle, Prüfstand) |
+| 11.3, 11.4 | `dauer_s`, `spuren_s` in `serie.json`; Reinhören: Technik (Audio-Ansicht, signierter Pfad, Range, Pfad-Sicherheit, Formate, Dauer, Hörstelle, Prüfstand) |
 | 12.2, 12.3, 12.4 | Zählregel „einmal gehört“, Speicherspalten, `gehoert/zusammenfassung` gruppiert nach Box × Serie × Folge |
-| 14 | Barrierefreiheit des Players |
-| 15 | neue Pakete A3b, A4c, A4d, A8b; A7, A8, A14, A15b, A16, B3 bis B5 angepasst |
-| 16 | Fragen 14 bis 22 neu |
-| 17 | Prototyp v3 |
-| 18 | unverändert |
+| 14, 15 | Barrierefreiheit des Players; Pakete A3b, A4c, A4d, A8b; A7, A8, A14, A15b, A16, B3 bis B5 angepasst |
+| 16, 17 | Fragen 14 bis 22 neu; Prototyp v3 |
 
 ## 1. Kurz gesagt
 
@@ -39,7 +60,13 @@ und ihre Vertragsentwürfe (Abschnitte 12, 13), werden aber erst nach Freigabe g
 * **Bibliothek wie eine Hörbuch-App (neu in Rev. 3, Vorbild Audible):** Cover zuerst, eine Zeile **Arten** (Hörspiele, Hörbücher, Musik, Geschichten), **Lupe** für die Suche über alles,
   **ein** Knopf „Sortieren und Filter“ (Blatt von unten), Reihen „Weiterhören“ und „Neu hinzugefügt“, Liste mit Cover, Untertitel, Fortschrittsbalken und Tobie-Symbol. Etwa 200 Hörbücher und 300 Lieder gehen ohne Blättern (Päckchen von 60).
 * **Reinhören (neu in Rev. 3):** Auf der Serienseite spielt man Folgen **im Browser** an (Handy, Computer, HA-App; nicht auf der Box), mit Leiste unten, Vollansicht, ±30 Sekunden, Geschwindigkeit und **Weiterhören**: die Stelle wird je Folge und **je HA-Benutzer in Home Assistant** gemerkt (Abschnitte 5.12, 11.4).
-* **Ein Tobie für ein einzelnes Lied oder eine einzelne Folge:** „Tobie für diese Folge“ im Menü der Folge, Knopf „Tobie“ im Suchtreffer.
+* **Hochladen in Schritten (neu in Rev. 4):** Nach der Dateiwahl fragt die Seite zuerst **„Was lädst du hoch?“** mit fünf Karten (Neues Hörspiel, Hörbuch oder Album · Folgen zu einem vorhandenen hinzufügen · Einzelne Folge oder einzelnes Lied · Neue Playlist (Stufe C) · „Weiß nicht – sortier du“), je mit einem Satz Erklärung und einem Beispiel.
+  Dann kommt eine **Vorschau in Sätzen** („3 Dateien → neues Hörbuch „Kapitän Knopf“, Kapitel 1–3.“) mit „Ändern“ und „Hochladen“, dann der Fortschritt wie bisher. Dieselbe Wahl gibt es für Dateien, die über den NAS-Eingang kommen („Anders einsortieren“). Abschnitte 5.6, 7.3.
+* **Einzeltitel (neu in Rev. 4):** Ein einzelnes Lied oder eine einzelne Folge, die für sich steht, ist **eine Serie mit genau einer Folge und dem Kennzeichen `einzeln`**. Die Box ändert sich nicht. In der Bibliothek steht „Lied · einzeln · 1:06“, nie „1 Folge“ (Abschnitt 5.4, 11.3, Frage 24).
+* **Hörkopien (neu in Rev. 4):** Formate, die nicht jeder Browser spielt (OGG, Opus, ALAC, auch FLAC und WAV), bekommen **einmal** eine kleine Kopie (AAC/M4A, 96 kbit/s), gespeichert auf dem NAS **neben** `medien/`, nicht auf den Boxen. Damit geht Reinhören überall, mit Springen, ohne Umwandeln beim Abspielen (11.4.7, Frage 26). Die Box bekommt immer das Original.
+* **Kapitel (neu in Rev. 4):** Ein Hörbuch zeigt **eine Zeitleiste über alles und eine Kapitelliste** (Kapitel eines M4B/MP3 oder Tracks eines Ordners). Im Player und auf der Serienseite: Tipp aufs Kapitel springt dorthin, das aktuelle ist markiert (11.4.8).
+* **„Mein Reinhören“ (Stufe B, neu in Rev. 4):** In „Gehört“ gibt es neben den Boxen einen eigenen Bereich für das, was man selbst am Handy oder Computer angehört hat. Er gehört dem HA-Benutzer; jeder sieht nur die eigenen Daten (12.5, Frage 23).
+* **Ein Tobie für ein einzelnes Lied oder eine einzelne Folge:** „Tobie für diese Folge“ im Menü der Folge, Knopf „Tobie“ im Suchtreffer; bei einem Einzeltitel gleich „Tobie zuordnen“ auf seiner Seite.
 * **Name beim Zuordnen gleich abfragen** (überspringbar). **Eigenes Cover per Foto vom Handy.**
 * **Rechte (Runde 6):** Alltag = alle HA-Benutzer, jetzt auch **in den Papierkorb legen**. Leeren, Eingang entfernen, Zusammenführen bleiben bei Administratoren.
   Dazu Schutz gegen Fehlbedienung (Abschnitt 10).
@@ -74,13 +101,25 @@ und ihre Vertragsentwürfe (Abschnitte 12, 13), werden aber erst nach Freigabe g
 | Vorschau-Hinweis im Prototyp | breite Leiste | Knopf „i“ in der Kopfzeile, klappt auf |
 | „Gehört“ (Stufe B) | Diagramme, „Lieblings-Hörspiele“ | + **Rangliste je Box** mit Aufteilung nach Folgen und Zeitraum (5.10, 12) |
 
+### 1.3 Wichtigste Änderungen in Rev. 4 gegenüber Rev. 3
+
+| Thema | Rev. 3 | Rev. 4 |
+|---|---|---|
+| Hochladen, Blatt nach der Dateiwahl | „In welches soll es?“ mit „Abbrechen / In ein bestehendes wählen … / Automatisch (nach den Dateien)“: unverständlich | **„Was lädst du hoch?“** mit fünf Karten, dann Vorschau in Sätzen; 4 Taps statt 3 |
+| Einzelnes Lied oder einzelne Folge | nur als Lied in einem Album oder in „Einzelfolgen“ | **Einzeltitel**: eigene Serie mit einer Folge, Kennzeichen `einzeln` |
+| Reinhören bei OGG, Opus, ALAC | Hinweis „Das kann dieser Browser nicht abspielen“ | **Hörkopie**, einmal erzeugt, auf dem NAS neben `medien/` |
+| Hörbuch | eine Zeitleiste | Zeitleiste **und Kapitelliste** |
+| Reinhören und „Gehört“ | zählt nicht | eigener Bereich **„Mein Reinhören“**, nur eigene Daten (Stufe B) |
+| Zählregel „einmal gehört“ | Frage 19 offen | beschlossen: Lücken bis 5 Minuten sind **eine** Wiedergabe |
+| „Abspiel-Link“ (Frage 14) | Fachwort | in Alltagssprache erklärt (11.4.2, Frage 14) |
+
 ## 2. Stufen im Überblick
 
 | Stufe | Inhalt | Stand |
 |---|---|---|
-| **A** | Alles aus Abschnitt 1: Bibliothek wie eine Hörbuch-App, Suche, Serienseite mit **Reinhören**, Tobie auf Lied/Folge, Name, Cover, Rechte, Technik-Einbettung | **wird gebaut** (Abschnitt 15) |
-| **B** | Reiter „Gehört“ (Hörzeit pro Tag und Box, Lieblings-Hörspiele, Tageszeiten), „Zuletzt gehört“, „Meist gehört“, Favoriten (Stern); in „Technik“ Akku-Verlauf, Ladezeiten, Laufzeit, Syncs, Fehler. Daten unbegrenzt | **geplant**, Vertragsentwurf in Abschnitt 12, Bau nach Freigabe |
-| **C** | Eigene Playlists aus beliebigen Folgen und Liedern als Tobie-Ziel | **Idee**, Skizze in Abschnitt 13 |
+| **A** | Alles aus Abschnitt 1: Bibliothek wie eine Hörbuch-App, Suche, Serienseite mit **Reinhören** und **Kapitelliste**, **Hochladen in Schritten**, **Einzeltitel**, **Hörkopien**, Tobie auf Lied/Folge, Name, Cover, Rechte, Technik-Einbettung | **wird gebaut** (Abschnitt 15) |
+| **B** | Reiter „Gehört“ mit Umschalter **Boxen \| Mein Reinhören** (Hörzeit pro Tag und Box, Lieblings-Hörspiele, Tageszeiten; Reinhören je HA-Benutzer, 12.5), „Zuletzt gehört“, „Meist gehört“, Favoriten (Stern); in „Technik“ Akku-Verlauf, Ladezeiten, Laufzeit, Syncs, Fehler. Daten unbegrenzt | **geplant**, Vertragsentwurf in Abschnitt 12, Bau nach Freigabe |
+| **C** | Eigene Playlists aus beliebigen Folgen und Liedern als Tobie-Ziel, Hochladen als Playlist, Reinhören und Weiterspielen über eine Playlist | **Idee**, Skizze in Abschnitt 13 |
 
 Im Prototyp sind B und C sichtbar, aber mit den Marken „Stufe B – Vorschau“ bzw. „Stufe C – Idee“. Die Vorschau-Leiste hat dafür den Schalter „Nur Stufe A“.
 In der echten Seite erscheint der Reiter „Gehört“ nur, wenn die Fähigkeit `gehoert` gemeldet wird (Abschnitt 12.4).
@@ -116,6 +155,7 @@ Es heißt **Tobie** (Mehrzahl Tobies), **Papierkorb**, **Folge**. Weil die Bibli
 | `musik` | Musik | Lied | „Musik · 20 Lieder“ |
 | `geschichte` | Geschichten | Geschichte | „12 Geschichten“ |
 
+Ein einzelnes Lied oder eine einzelne Folge, die für sich steht (nicht in einem Album oder Hörspiel), heißt **Einzeltitel**. In Listen steht „Lied · einzeln · 1:06“ bzw. „Geschichte · einzeln · 1:39“, nie „Serie mit 1 Folge“; die Wahl beim Hochladen heißt „Einzelne Folge oder einzelnes Lied“.
 Allgemein heißt der Knopf zum Anlegen **„Hinzufügen“**, der Bereich **„Bibliothek“**. Nicht mehr sichtbar für Eltern: Serie, Track, Tags, Kennung, UID, Revision, Eingang (außer im Satz zum NAS und in „Technik“).
 Die Überraschungs-Serie erscheint nur in „Technik“. **Box-Namen** setzt die Seite unverändert ein („Mond spielt …“, „Auf Mond“, „die Mond“). Die Optionen der Integration sagen:
 „Name der Box ohne das Wort Box, zum Beispiel Mond“. Kein „Box Lisas Box“.
@@ -185,12 +225,14 @@ Vorbild ist jetzt **Audible**: Die Bibliothek zeigt **sofort Cover**, alles ande
    rechts ein **kleines Tobie-Symbol mit Anzahl**, wenn ein Tobie auf den Eintrag oder eine seiner Folgen zeigt, und die orange Marke „bitte ansehen“. Die ganze Zeile ist ein Link zur Serienseite. Blättern in Päckchen von 60 („Mehr zeigen“).
 6. **Ein Knopf „Sortieren und Filter“** über der Liste, rechts neben der Zählzeile („60 Einträge“, `aria-live`), mit einem Zahlenpunkt, wenn etwas eingestellt ist. Er öffnet ein **Blatt von unten** (natives `<dialog>`): **Sortieren** (A bis Z, Zuletzt hinzugefügt, **Zuletzt angehört**) und **Nur zeigen** (**Ohne Tobie**, **Neu** in den letzten 14 Tagen, **Bitte ansehen**; mehrere gleichzeitig). Die Liste ändert sich dahinter sofort; „Zurücksetzen“ und „Fertig“.
    Stufe B ergänzt **Zuletzt gehört (Box)** und **Meist gehört** sowie **★ Favoriten**. „Zuletzt angehört“ meint das Reinhören am Handy oder Computer (5.12), „Zuletzt gehört“ die Box (5.10); die Namen bleiben getrennt.
+   **Rev. 4:** Das Blatt hat eine dritte Gruppe **„Was zeigen“** (ein Tap, wählt eines): **Alles · Nur Hörspiele, Bücher, Alben · Nur Einzeltitel (einzelne Lieder und Folgen)**. Sie zählt wie die anderen Einstellungen am Zahlenpunkt des Knopfes mit. Backend: `filter` bekommt die Werte `sammlung` und `einzeln` (V-8).
+   **Einzeltitel in der Liste (Rev. 4):** wie jede Zeile, aber der Untertitel heißt „**Lied · einzeln · 1:06**“ (bei Geschichten „Geschichte · einzeln · 1:39“, bei Hörbüchern „Hörbuch · einzeln · …“); nie „1 Folge“. Sie stehen unter ihrer Art (ein Lied unter „Musik“). 300 einzelne Lieder bleiben damit bedienbar: Arten-Zeile „Musik“ plus „Nur Einzeltitel“ oder „Nur Hörspiele, Bücher, Alben“ trennt sie von den Alben.
 
 **Gestrichen gegenüber Rev. 2:** der Umschalter **Kacheln | Alle Folgen**, die Art-Knöpfe mit Zahlen, die vier Filter-Knöpfe in der Seite, das Auswahlfeld zum Sortieren, das Suchfeld im Seitenkopf und der große „Hinzufügen“-Knopf neben dem Titel. Einzelne Folgen und Lieder findet man jetzt **über die Suche und über die Serienseite**.
 Das Backend bleibt dasselbe (`folgen/list` bedient die Suche und die Zielwahl „Einzelne Folge oder Lied“, 5.4); nur die Seite zeigt den Umschalter nicht mehr.
 
 **Suchansicht (`#suche`).** Zeile mit Zurück-Pfeil und Suchfeld „Hörspiel, Lied, Folge oder Tobie“ (der Fokus liegt gleich im Feld). Ab 2 Zeichen (Verzögerung 250 ms, Umlaute und Groß/Klein egal) erscheinen drei Gruppen mit der Zählzeile „Gefunden: 6 Sammlungen, 102 Folgen und Lieder, 0 Tobies“:
-**„Hörspiele, Bücher, Alben“** (Listenzeilen wie oben, höchstens 8, Treffer hervorgehoben), **„Folgen und Lieder“** (Zeile mit kleinem Cover, Titel, „Serie · Dauer“, **Abspielknopf** und Knopf „Tobie“, höchstens 10) und **„Tobies“** (nach Tobie-Name). Mehr Treffer: „… und 7 weitere. Genauer suchen hilft.“
+**„Hörspiele, Bücher, Alben“** (Listenzeilen wie oben, höchstens 8, Treffer hervorgehoben, **ohne Einzeltitel**), **„Folgen und Lieder“** (Zeile mit kleinem Cover, Titel, „Serie · Dauer“ bzw. bei einem Einzeltitel „Einzeltitel · Dauer“, **Abspielknopf** und Knopf „Tobie“, höchstens 10) und **„Tobies“** (nach Tobie-Name). Mehr Treffer: „… und 7 weitere. Genauer suchen hilft.“
 Kein Treffer: „Nichts gefunden zu „xyz“.“ Leer: „Tippe mindestens 2 Buchstaben. Gesucht wird in Hörspielen, Büchern, Alben, Folgen, Liedern und in den Namen der Tobies.“ Art und Filter der Bibliothek gelten **nicht** für die Suche (sie sucht über alles). Die Startseite hat weiter ihr Suchfeld; Absenden öffnet `#suche` mit dem Wort.
 
 **Leistung (500+ Einträge).** (1) Das Backend blättert (`limit`/`offset`, V-2); die Seite lädt 60 und bei „Mehr zeigen“ die nächsten 60. Suchen, Filtern und Sortieren macht das Backend (Index im Speicher der Integration, Ziel unter 200 ms bei 600 Einträgen und 2 000 Folgen). „Zuletzt angehört“ kennt nur das Backend (die Hörstellen liegen dort, 11.4).
@@ -210,6 +252,10 @@ Aufbau (Prototyp: `#serie-<id>`); oben „‹ Bibliothek“ und rechts ein Drei-
 * **Menü der Folge („⋯“):** „**Tobie für diese Folge**“ (5.4), „**Name ändern**“, „**In anderes verschieben …**“, abgesetzt „**Papierkorb …**“ mit Rückfrage. Rechte wie in Rev. 2 (Abschnitt 10: alle Benutzer, nur in den Papierkorb; nichts endgültig). Das frühere „Tobie“-Knöpfchen in der Zeile entfällt (ein Tap mehr, dafür ruhige Zeilen; im Suchtreffer bleibt es).
 * **Menü des Eintrags („⋯“ oben rechts):** „**Name ändern**“, „**Cover ändern**“ (5.5), „**Art ändern**“ (Blatt „Was ist das?“), nur Administratoren „**Reihenfolge ändern**“ (▲/▼ je Zeile, kein Ziehen) und „**Mit anderem zusammenführen …**“, abgesetzt „**In den Papierkorb …**“ (Rückfrage nennt Tobies, die dann nichts mehr spielen, mit Namen; „Tobias kann es aus dem Papierkorb zurückholen.“). Die frühere Karte „Aufräumen“ unten entfällt.
 
+* **Hörbuch mit Kapiteln (Rev. 4, Runde 8 Nr. 20):** Hat ein Hörbuch **eine** Folge mit Kapiteln (Datei mit eingebetteten Kapiteln oder Ordner mit Tracks), steht statt der Folgenliste der Abschnitt **„Kapitel“**: Satz „12 Kapitel. Tippe auf ein Kapitel, dann geht es dort los. Im Player kannst du über das ganze Buch springen.“, darunter eine Zeile je Kapitel mit **Nummer** (bei schon gehörten ein Häkchen), **Titel**, „**ab 2:49 · 0:19**“ (Start und Länge), Abspielknopf (44 px); das **Kapitel der gemerkten Stelle** ist markiert (`aria-current="true"`, getönte Fläche, „hier weiter“ bzw. „läuft“). Tipp auf eine Zeile springt dorthin und spielt (Quelle der Kapitel: 11.4.8). Die **Zeitleiste über das ganze Buch** liegt im Player (5.12); Kopfbereich („Schon 30 % gehört · noch 3 Min.“) und „Weiterhören“ bleiben wie bei anderen Einträgen.
+* **Einzeltitel (Rev. 4):** Die Seite hat Kopf (Cover, Titel, „Lied · einzeln · 1:01“), „Reinhören/Weiterhören“ und „Tobie zuordnen“, aber **keine Folgenliste**; stattdessen ein Satz „Das ist ein einzelnes Lied. Es steht für sich und gehört zu keinem Album. Du kannst einen Tobie dafür anlernen.“ Das Menü „⋯“ hat Name, Cover, Art und Papierkorb wie jeder Eintrag.
+* **Hörprobe wird vorbereitet (Rev. 4):** Braucht eine Folge eine Hörkopie (11.4.7) und ist sie noch nicht fertig, steht oben eine Karte „**Die Hörprobe wird gerade vorbereitet.** Dieses Format (OGG) spielt nicht jeder Browser. Home Assistant legt dafür einmal eine kleine Kopie an. Probiere es in ein paar Minuten noch einmal. Auf der Box spielt es schon.“; „Reinhören“ zeigt dann denselben Satz kurz als Meldung und startet nichts.
+
 ### 5.4 Tobie für ein einzelnes Lied oder eine einzelne Folge (neu für alle)
 
 Das Datenmodell kennt das schon (`ziel.typ="folge"`, `data-model.md` 2, `lernmodus/start` mit Ziel `folge`); neu ist, dass es **sichtbar einfach** wird:
@@ -220,6 +266,8 @@ Das Datenmodell kennt das schon (`ziel.typ="folge"`, `data-model.md` 2, `lernmod
   Gibt es schon einen Tobie dafür, steht oben „Schon angelernt: Gelber Hase.“ Stufe C: darunter der ausgegraute Knopf „Zu einer Playlist hinzufügen“ (Marke „Stufe C – Idee“).
 * In der Karte „Neuer Tobie“ (Start) und im Blatt „Tobie umstellen“ gibt es eine **Zielwahl** mit Suche und Art-Knöpfen und dem Umschalter „**Ganzes Hörspiel, Buch, Album | Einzelne Folge oder Lied**“; so findet man auch ein Lied unter 572 Folgen (Suche, ein Tap).
 * Tobies mit Ziel Folge heißen in der Tobies-Liste „spielt „Backe, backe Kuchen“ aus „Kinderlieder zum Mitsingen“ (ein Lied)“.
+
+* **Einzeltitel als Ziel (Rev. 4):** Auf der Seite eines Einzeltitels heißt das Blatt „Tobie für dieses Lied“ (bzw. „… diese Folge“, „… diese Geschichte“) und der Satz „Der Tobie spielt dann „Der Mond und der Fuchs“.“ (ohne „aus …“, weil es keinen Eintrag darum gibt). Gespeichert wird `ziel.typ = "folge"` mit der Serie des Einzeltitels (Empfehlung in 11.3 und Frage 24); in der Tobies-Liste steht „spielt „Der Mond und der Fuchs“ (ein Lied)“. In der Zielwahl (Neuer Tobie, „Etwas anderes spielen“) erscheinen Einzeltitel **nur** unter „Einzelne Folge oder Lied“, nicht unter „Ganzes Hörspiel, Buch, Album“.
 
 ### 5.5 Cover (U5, U8, Runde 6)
 
@@ -243,10 +291,23 @@ Administratoren haben in „Technik → Bibliothek aufräumen“ den Knopf „Co
 
 ### 5.6 Hinzufügen
 
-Siehe Ablauf 7.3. Aufbau: „‹ Start“, Überschrift „Hinzufügen“; große Knöpfe „**Dateien wählen**“ (Handy und Computer) und „**Ordner vom Computer wählen**“ (U12a: **nur** bei `matchMedia('(pointer: fine)')`, am Handy nicht);
+Siehe Ablauf 7.3. Aufbau der Seite: „‹ Start“, Überschrift „Hinzufügen“; große Knöpfe „**Dateien wählen**“ (Handy und Computer) und „**Ordner vom Computer wählen**“ (U12a: **nur** bei `matchMedia('(pointer: fine)')`, am Handy nicht);
 am Computer zusätzlich eine Fläche „Auf dem Computer kannst du Dateien oder einen ganzen Ordner auch hierher ziehen.“ Nebentext: „Hörspiele, Hörbücher, Musik, Geschichten. Erlaubt: MP3, M4A, M4B, AAC, FLAC, OGG, Opus, WAV.
 Bis 500 MB je Datei. Kopiergeschützte Dateien (zum Beispiel von Audible) gehen nicht. **Lass den Bildschirm an, bis alles fertig ist.**“ (U12d; die Zahl aus `hello.grenzen.upload_max_bytes`).
-Hinweiskarte: „Du kannst Dateien auch am Computer in den Eingang-Ordner auf dem NAS kopieren. Sie erscheinen hier von selbst. Frag Tobias nach dem Ordner.“ Darunter „**Zuletzt hinzugefügt**“ (Einträge der **letzten 24 Stunden**, U13).
+Hinweiskarte: „Du kannst Dateien auch am Computer in den Eingang-Ordner auf dem NAS kopieren. Sie erscheinen hier von selbst und werden nach den Angaben in den Dateien einsortiert. Stimmt etwas nicht, kannst du es hier anders einsortieren. Frag Tobias nach dem Ordner.“ Darunter „**Zuletzt hinzugefügt**“ (Einträge der **letzten 24 Stunden**, U13).
+
+**Neu in Rev. 4: nach der Dateiwahl öffnet sich das Blatt „Was lädst du hoch?“** (Anlass: Tobias verstand das Blatt „In welches soll es?“ mit „Abbrechen / In ein bestehendes wählen … / Automatisch (nach den Dateien)“ nicht). Es ist ein Blatt von unten (natives `<dialog>`) mit der Zeile „3 Dateien gewählt (01 Der Hafen.mp3 …). Was ist das?“ und **fünf Karten**, je mit Symbol, Titel, **einem Satz Erklärung** und **einem Beispiel**. Die Karten sind große Knöpfe (mindestens 76 px hoch), kein Fachwort:
+
+| Karte | Erklärung | Beispiel |
+|---|---|---|
+| **Neues Hörspiel, Hörbuch oder Album** | „Alle Dateien gehören zusammen und werden etwas Neues.“ | „Zum Beispiel: die Kapitel eines Hörbuchs oder alle Lieder einer CD.“ |
+| **Folgen zu einem vorhandenen hinzufügen** | „Die Dateien kommen zu etwas, das schon da ist.“ | „Zum Beispiel: zwei neue Folgen zu „Lange Serie“.“ |
+| **Einzelne Folge oder einzelnes Lied** | „Jede Datei steht für sich, ohne Serie.“ | „Zum Beispiel: ein Lied, das ein Tobie spielen soll.“ |
+| **Neue Playlist** (Marke „Stufe C – Idee“, gestrichelter Rand, antippbar nur mit Meldung „Playlists gibt es noch nicht. Das kommt später (Stufe C).“) | „Eine eigene Liste aus Liedern und Folgen.“ | „Zum Beispiel: „Autofahrt“ mit fünf Lieblingsliedern.“ |
+| **Weiß nicht – sortier du** (früher „Automatisch“) | „Ich lese die Angaben in den Dateien und sortiere selbst ein.“ | „Wenn ich unsicher bin, steht danach „Bitte ansehen“ da.“ |
+
+Das Blatt hat nur „Abbrechen“ (Esc und Tippen daneben ebenso). **Ein Tap auf eine Karte** führt zur **Vorschau** (7.3): Dort steht ein Satz, was geschehen wird, darunter genau die Eingaben, die dieser Weg braucht (Name und Art; die Wahl eines vorhandenen Eintrags mit Suche und Covern; ein Name je Datei), und die Knöpfe „Abbrechen“, „**Ändern**“ (zurück zu den Karten) und „**Hochladen**“.
+Die Karte „Neue Playlist“ erscheint nur, wenn Stufe C gezeigt wird (im Prototyp: „A, dazu B und C“). Aus dem Eintrag heraus („Dateien in diesen Eintrag“, `serie_id`) wird das Blatt übersprungen: der Weg ist dann „zu einem vorhandenen hinzufügen“.
 
 ### 5.7 Tobies
 
@@ -278,6 +339,7 @@ Meldung: „Gespeichert. Die Boxen bekommen es gleich.“ Die **Zeitzone** zeigt
   das belegt „nichts geht verloren“. Die neue Alltagsseite entsteht daneben in neuen Dateien mit eigenen Tests. Erst danach, wenn Tobias will, wird die eingebettete Seite in aufklappbare Karten zerlegt (reine Schönheit).
 * **Neu in „Technik“ (Stufe A):** Karte „Bibliothek aufräumen“ (Medien neu einlesen, Cover neu suchen, Neues leeres Hörspiel, Überraschungs-Serie, Zusammenführen), Karte „Liste, Sicherung, Export“ um **„Frühere Stände ansehen“** ergänzt (die letzten 10 Stände der Liste, U2),
   „Weitere Einstellungen“ um das Ausblenden bei Gute Nacht ergänzt. Das **Papierkorb-Leeren** und „Eingang entfernen“ stehen nur hier.
+  **Rev. 4:** Die Karte „Bibliothek aufräumen“ zeigt den Stand der **Hörkopien** („41 fertig, 3 warten, 0 mit Fehler · 2,1 GB auf dem NAS“) und den Knopf „Hörkopien neu erzeugen“ (`hoerkopie/neu_erzeugen`, nur Administratoren).
 * **Stufe B:** Karte „Akku-Verlauf“ je Box mit Liniendiagramm (Prozent über 3 Tage, Ladezeiten als Bänder), Laufzeit je Ladung, Ladezeiten, Syncs, Fehler als Liste, Knöpfe „Hördaten als Tabelle sichern“ (CSV) und „Alle Hördaten löschen …“ (Rückfrage). Abschnitt 12.
 * Die Warnleisten zur Liste (`leer_neu`, `export_neuer`, Box mit neuerem Stand) erscheinen für Administratoren oben auf allen Seiten wie heute; Nicht-Administratoren sehen nur den Hinweis aus Abschnitt 6.
 
@@ -285,6 +347,7 @@ Meldung: „Gespeichert. Die Boxen bekommen es gleich.“ Die **Zeitzone** zeigt
 
 Eigener Reiter für alle, **nur wenn die Fähigkeit `gehoert` gemeldet wird**. Oben ein Hinweis „Stufe B – Vorschau“ (nur im Prototyp). Aufbau:
 
+* **Umschalter (Rev. 4, Runde 8 Nr. 21):** Ganz oben zwei gleich breite Knöpfe **„Boxen“ | „Mein Reinhören“** (`aria-pressed`). „Boxen“ ist alles, was unten bis „Favoriten“ steht. „Mein Reinhören“ ist der eigene Bereich für das Hören am Handy oder Computer, mit eigener Regel, wer es sieht (5.10.1, 12.5, Frage 23).
 * **Auswahl:** **Box** (Beide Boxen · Mond · Stern; die Namen sind die der Kinder, die Tobias in den Optionen einträgt) und **Zeitraum: Woche · Monat · Jahr · Alles** (Woche = letzte 7 Tage, Monat = 30, Jahr = 365, immer bis jetzt gerechnet; Abschnitt 12.4).
 * **Rangliste „Wer hat was gehört?“** (neu in Rev. 3, Wunsch von Tobias): je gewählter Box eine Liste der Hörspiele (auch Alben und Bücher) nach **Anzahl Mal gehört**, mit den Spalten **Mal** (Wiedergaben), **Hörzeit** („9:48 Std.“) und **Fertig** („17/20“: so viele Folgen wurden mindestens einmal ganz gehört). Die ersten 10, Zeilen sind Knöpfe.
   **Ein Tap auf ein Hörspiel** öffnet **„Aufteilung nach Folgen“** mit **denselben Spalten je Folge** (Mal, Hörzeit, **Fertig = wie oft die Folge ganz gehört wurde**, „2×“; nicht gehörte Folgen grau mit „0“ und „–“), darunter die Summe; „‹ Rangliste“ geht zurück.
@@ -294,7 +357,20 @@ Eigener Reiter für alle, **nur wenn die Fähigkeit `gehoert` gemeldet wird**. O
 * **Tageszeiten:** 24 Säulen (Stunde 0 bis 23), Achse Minuten; Satz „am meisten um 19 Uhr“.
 * **Zuletzt gehört**, **Favoriten:** Kachel-Reihen (waagerecht scrollbar). Der **Stern** (Favorit) steht in jedem Eintrag und in jeder Folgenzeile; gilt für alle in der Familie. (Das frühere Balkendiagramm „Lieblings-Hörspiele“ und die Reihe „Meist gehört“ sind in der Rangliste aufgegangen; „Meist gehört“ bleibt als Sortierung der Bibliothek.)
 * Farben der Diagramme sind Token (`--chart1`, `--chart2`, `--grid`), in Hell und Dunkel geprüft (3 zu 1 gegen die Karte). Jedes Diagramm hat `role="img"` mit Beschreibung und eine Tabelle; die Rangliste ist selbst eine Tabelle (Spaltenköpfe, Zeilen mit vollständigem `aria-label`).
-* Das Reinhören am Handy (5.12) zählt hier **nicht** mit; die Rangliste zeigt nur, was an den Boxen lief. Die Kennung des Tobies kommt nirgends vor.
+* Das Reinhören am Handy (5.12) zählt in der Ansicht „Boxen“ **nicht** mit; sie zeigt nur, was an den Boxen lief. Das Reinhören hat den eigenen Bereich „Mein Reinhören“ (5.10.1). Die Kennung des Tobies kommt nirgends vor.
+
+#### 5.10.1 Mein Reinhören (Stufe B, Vorschau im Prototyp)
+
+Zweiter Teil des Reiters „Gehört“, zu wählen mit dem Umschalter. Er zeigt, was **der angemeldete HA-Benutzer** (nicht eine Box) sich in der Seite angehört hat. Aufbau von oben nach unten:
+
+* **Hinweiskasten:** „**Nur du siehst das.** Hier steht, was du selbst am Handy oder Computer angehört hast, mit deinem Home-Assistant-Konto (<Anzeigename>). Andere Benutzer sehen es nicht, auch Administratoren nicht. Was die Boxen gespielt haben, steht unter „Boxen“.“
+* **Zeitraum:** Woche · Monat · Jahr · Alles (wie bei den Boxen). Keine Box-Auswahl.
+* **Rangliste „Was habe ich mir angehört?“** mit denselben Spalten (Mal, Hörzeit, Fertig), Aufteilung nach Folgen und „Was wird gezählt?“ (Zusatz: „Gezählt wird, was du selbst am Handy oder Computer anhörst.“). Einzeltitel stehen hier mit ihrem Titel.
+* **Hörzeit pro Tag** als Säulendiagramm (eine Farbe, Legende „Ich“; Zahlen als Tabelle).
+* Karte **„Meine Reinhör-Daten“**: „Sie liegen nur in Home Assistant, bei deinem Konto. Du kannst sie jederzeit löschen. Die Stelle zum Weiterhören bleibt dabei erhalten.“ mit Knopf „Meine Reinhör-Daten löschen …“ (Rückfrage; löscht nur die eigenen).
+* **Nicht dabei:** Tageszeiten, „Zuletzt gehört“ und Favoriten (die gelten für die Familie und die Boxen).
+
+Zählregel und Herkunft der Daten: 12.5.
 
 ### 5.11 Playlist (Stufe C, Idee)
 
@@ -303,13 +379,15 @@ Im Prototyp ausgegraut, mit der Marke „Stufe C – Idee“. Datenmodell und Au
 
 ### 5.12 Reinhören: Bedienung (neu in Rev. 3)
 
-**Wozu:** Man soll am Handy oder Computer **hineinhören**, um zu erkennen, was etwas ist (Runde 7), ohne eine Box zu bemühen. **Nur im Browser** (Handy, Computer, HA-App); **nicht auf der Box**, und es zählt **nicht** in „Gehört“ (Stufe B: das sind die Hörzeiten der Kinder an den Boxen).
+**Wozu:** Man soll am Handy oder Computer **hineinhören**, um zu erkennen, was etwas ist (Runde 7), ohne eine Box zu bemühen. **Nur im Browser** (Handy, Computer, HA-App); **nicht auf der Box**. Es zählt **nicht** bei den Hörzeiten der Boxen in „Gehört“, aber (Stufe B, Rev. 4) im eigenen Bereich „Mein Reinhören“ des angemeldeten Benutzers (5.10.1, 12.5).
 **Wer darf:** **alle HA-Benutzer** (Entscheidung Runde 7, wie Runde 6).
 
 * **Schmale Leiste unten** (Mini-Player), sobald etwas gespielt wurde: Cover, Folgentitel, Name des Eintrags, runder Play/Pause-Knopf (48 px), dünner Fortschrittsstrich oben. Sie sitzt **über** der Reiterleiste (sticky, nie unter der HA-Seitenleiste) und verschwindet bei offener Tastatur. Tippen auf die Leiste öffnet die Vollansicht, auf den Knopf schaltet Play/Pause.
   Nach dem Neuladen der Seite steht die Leiste wieder da (pausiert, bei der gemerkten Stelle, **ohne Ton**); Ton startet **nur nach einem Tap**.
 * **Vollansicht** (natives `<dialog>`; am Handy ganze Fläche, am Computer ein Blatt): „Läuft gerade“, **großes Cover**, Titel, „Eintrag · 2 von 20“, **Zeitleiste** (Schieberegler 44 px hoch mit `aria-valuetext` „1:41 von 2:47“, Zeit links, Restzeit rechts), **Vorige Folge · 30 s zurück · Play/Pause (72 px) · 30 s vor · Nächste Folge**, **Geschwindigkeit 1× · 1,25× · 1,5×** (gilt für alle Folgen, wird gemerkt). Kein Schlaftimer (nicht gewünscht). „Vorige Folge“ springt bei mehr als 5 Sekunden zuerst an den Anfang der Folge.
-* **Spielt weiter** über die Folgen des Eintrags: am Ende einer Folge startet die nächste; nach der letzten ist Schluss. Alben und Hörbücher mit Kapiteln (Ordner-Folgen) laufen ohne Unterbrechung der Zeitleiste über die Tracks (11.4).
+* **Spielt weiter** über die Folgen des Eintrags: am Ende einer Folge startet die nächste; nach der letzten ist Schluss (Runde 8 Nr. 22: bei Alben so; über eine **Playlist** weiterspielen kommt mit Stufe C, Abschnitt 13). Alben und Hörbücher mit Kapiteln (Ordner-Folgen) laufen ohne Unterbrechung der Zeitleiste über die Tracks (11.4).
+* **Kapitel (Rev. 4):** Hat die Folge Kapitel (11.4.8), steht in der Vollansicht unter dem Titel eine Zeile „**Kapitel 8: Das Echo (8 von 12)**“ und neben den Geschwindigkeits-Knöpfen der Knopf **„Kapitel“**. Er öffnet ein Blatt mit der Liste (Titel, „ab 2:49 · 0:19“, schon gehörte mit Häkchen, das aktuelle markiert und beim Öffnen sichtbar). **Tipp = dorthin springen und weiterspielen.** Die **Zeitleiste über das ganze Buch bleibt** (Entscheidung Tobias, Nr. 20: beides). Auf dem Sperrbildschirm kein Kapitel-Sprung (nur vorige/nächste Folge).
+* **Hörkopie (Rev. 4):** Für Formate, die nicht jeder Browser spielt, spielt der Player automatisch die Hörkopie (11.4.7); die Seite merkt davon nichts, außer dem Satz „Die Hörprobe wird gerade vorbereitet …“, wenn sie noch fehlt. Springen geht wie beim Original (Range-Anfragen auf eine fertige Datei).
 * **Weiterhören:** Die Stelle wird **je Folge und je HA-Benutzer in Home Assistant** gespeichert (gleich auf Handy und Computer; 11.4). Sichtbar als Fortschrittsbalken in Liste und Folgenzeilen, als Reihe „Weiterhören“ in Bibliothek und Start, als Knopf „Weiterhören“ und als Sortierung „Zuletzt angehört“. „Fertig gehört“ heißt: bis auf 2 Sekunden ans Ende.
 * **Sperrbildschirm:** `navigator.mediaSession` setzt Titel, Eintrag und Art und verdrahtet Play, Pause, 30 s zurück/vor, vorige/nächste Folge und Springen. Vorschlag, ohne Gewähr auf allen Geräten (zu prüfen in A15b).
 * **Fehlerfälle** (Texte in 6.1): Format spielt dieser Browser nicht; Datei nicht mehr da; Anmeldung abgelaufen (die Seite signiert neu und macht an der Stelle weiter); keine Verbindung.
@@ -362,8 +440,12 @@ die Alltagscodes stehen hier, der Rest bekommt den Standardtext, mit dem Code kl
 | `ziel_ungueltig` | „Das geht als Ziel nicht. Wähle etwas anderes.“ |
 | `zu_viele_aenderungen` (neu, V-4) | „Das waren gerade sehr viele Änderungen. Warte eine Minute und versuche es noch einmal.“ |
 | `cover_ungueltig` (neu, V-1) | „Das Bild geht nicht. Nimm ein anderes Foto.“ |
-| Format nicht abspielbar (Reinhören, Seite stellt es fest) | „Das kann dieser Browser nicht abspielen. Auf der Box spielt es trotzdem.“ |
+| Format nicht abspielbar (Reinhören, Seite stellt es fest; nur noch, wenn es keine Hörkopie gibt, zum Beispiel ohne `ffmpeg`) | „Das kann dieser Browser nicht abspielen. Auf der Box spielt es trotzdem.“ |
+| `hoerkopie_wartet` (neu, V-9) | „Die Hörprobe wird gerade vorbereitet. Versuche es in ein paar Minuten noch einmal. Auf der Box spielt es schon.“ (die Seite versucht es nach 30 Sekunden von selbst noch einmal, wenn der Player offen ist) |
+| `hoerkopie_fehler` (neu, V-9; steht im Folge-Objekt, nicht als Antwort) | „Für diese Datei gibt es keine Hörprobe. Auf der Box spielt sie trotzdem.“ (Administratoren sehen dahinter in „Technik“ den Grund und „Hörkopien neu erzeugen“) |
 | `zu_viele_streams` (neu, V-6) | „Es läuft schon auf mehreren Geräten etwas. Beende dort das Hören und versuche es noch einmal.“ |
+| `wunsch_ungueltig` (neu, V-7) | „Das passt so nicht zusammen. Wähle noch einmal, was du hochlädst.“ |
+| `neu_einsortieren_nicht_moeglich` (neu, V-7) | „Das lässt sich nicht mehr anders einsortieren, weil schon etwas daran geändert wurde. Lege es in den Papierkorb und lade es noch einmal hoch.“ |
 | Audio-Anfrage abgelaufen (401) | (kein Fehler: die Seite signiert neu und macht an der Stelle weiter; klappt es nicht: „Die Verbindung ist abgebrochen. Tippe auf Abspielen, dann geht es weiter.“) |
 | `konfig_zu_gross`, `export_*`, `anfrage_id_konflikt`, `box_unbekannt`, `datei_existiert`, `reihenfolge_ungueltig`, `serie_existiert`, `ueberraschung_existiert` | Standardtext (nur Administratoren sehen den Code) |
 
@@ -408,20 +490,31 @@ Heute: 5 bis 9 Taps (`ist.md`).
 
 Heute: 5 bis 9 Taps.
 
-### 7.3 (c) Hinzufügen: **2 Taps** (Zielwahl kostet im Normalfall nichts), Wartezeit ohne Tippen
+### 7.3 (c) Hinzufügen: **4 Taps** (Rev. 4: eine Wahl mehr, dafür verständlich), Wartezeit ohne Tippen
 
 1. **Tap 1:** „Hinzufügen“ (Start oder Bibliothek). **Tap 2:** „Dateien wählen“ (System-Auswahl) oder am Computer „Ordner vom Computer wählen“ bzw. Hineinziehen.
-2. **Zielwahl (U12c):** Ein Blatt fragt einmal „**In welches soll es?**“ mit der Vorgabe „**Automatisch (nach den Dateien)**“ (primär, Fokus) und „In ein bestehendes wählen …“ (Zielwahl wie 5.4). Der Normalfall braucht einen Tap („Automatisch“), also insgesamt 3; wer aus einem Eintrag heraus hochlädt („Dateien in diesen Eintrag“ im Eintrag), überspringt das Blatt (`serie_id` wird gesendet).
-3. **Hörbuch-Frage (U12b):** „Gehören die Dateien zu einem Hörbuch?“ wird **nur** gestellt, wenn keine Tags gelesen werden können (kein Album), mit Beispiel („Ein Hörbuch besteht aus Kapiteln: Ja. Mehrere Folgen: Nein.“); Vorgabe „Ja“, wenn alle Dateien gleich benannt und durchnummeriert sind.
-   Bei Tags entscheidet das Einsortieren (Vertrag 11.3).
-4. Der Upload startet sofort. Je Datei oder Ordner eine Zeile unter „**Zuletzt hinzugefügt**“:
+2. **Tap 3: „Was lädst du hoch?“** Das Blatt (5.6) fragt mit fünf Karten. Es ersetzt das alte Blatt „In welches soll es?“. Je nach Karte:
+
+   | Karte | Was die Vorschau noch fragt | Satz in der Vorschau (Beispiele aus dem Prototyp) |
+   |---|---|---|
+   | **a) Neues Hörspiel, Hörbuch oder Album** | **Name** (aus den Angaben der ersten Datei vorgeschlagen, sonst aus dem Dateinamen) und **Art**: Hörspiel · Hörbuch · Album · Geschichten (aus den Angaben vorgeschlagen, mit Hinweis „Vorgeschlagen aus den Angaben in den Dateien.“ oder „Geraten, …“) | „3 Dateien → neues Hörbuch „Kapitän Knopf“, Kapitel 1–3.“ · „4 Dateien → neues Album „Sommerlieder“, Lied 1–4.“ · „8 Dateien → neues Hörspiel „Die Wolkenreise“, Folge 1–8.“ · „1 Datei → neues Hörbuch „…“ (ein Kapitel).“ |
+   | **b) Folgen zu einem vorhandenen hinzufügen** | **Wohin?** Sofort die Auswahl **mit Suche, Covern und Art-Knöpfen** (wie in 5.4, aber **nur** Hörspiele, Bücher, Alben; **ohne** Einzeltitel und ohne „Gute Nacht“); danach steht der Eintrag mit Cover in der Vorschau, „Ändern“ wählt neu | „3 Dateien → 3 neue Folgen in „Lange Serie“ (Folge 13–15).“ · „2 Dateien → 2 neue Folgen in „Lange Serie“ (Folge 21–22).“ (hat die Serie 20 Folgen) · bei Hörbuch „… neue Teile …“, bei Album „… neue Lieder …“ |
+   | **c) Einzelne Folge oder einzelnes Lied** | **Art**: Lied · Geschichte · Folge · Hörbuch (Vorgabe Lied) und **ein Name je Datei** (die ersten drei als Felder, der Rest aus den Angaben) | „1 Datei → 1 einzelnes Lied: „Der Mond und der Fuchs“.“ · „5 Dateien → 5 einzelne Lieder.“ (bis 3 Dateien mit Namen) |
+   | **d) Neue Playlist** | – (Stufe C: Name der Playlist, danach wie c), die Dateien werden Einzeltitel und gehören der Playlist, Abschnitt 13) | im Prototyp nur die Meldung „Playlists gibt es noch nicht. Das kommt später (Stufe C).“ |
+   | **e) Weiß nicht – sortier du** | nichts; ein Absatz erklärt: „Ich lese die Angaben in den Dateien (Album, Interpret, Titel). Dateien, die zum selben Album gehören, bleiben zusammen. Passt etwas zu einem Hörspiel, das schon da ist, kommt es dort dazu. Wenn ich unsicher bin, steht danach „Bitte ansehen“ da, und du kannst es ändern.“ | „1 Datei → ich sortiere nach den Angaben in den Dateien ein. Meine Vermutung: ein einzelnes Lied „Der Mond und der Fuchs“.“ · „3 Dateien → ich sortiere … Meine Vermutung: neues Hörbuch „Kapitän Knopf“, Kapitel 1–3.“ |
+
+   Der Satz ändert sich **sofort** beim Tippen im Namensfeld und beim Wechsel der Art (Bereich mit `role="status"`, `aria-live="polite"`). Unter dem Satz stehen bei a) und b) bis zu vier Zeilen „Kapitel 1 · Der Hafen“ (bzw. „Folge 13 · …“, „Lied 1 · …“) als Vorschau, was aus den Dateien wird; „… und 4 weitere“.
+   **Die Nummern sind eine Vorschau** („Folge 13–15“ = nach den vorhandenen 12); Nummern aus den Angaben in den Dateien haben beim Einsortieren Vorrang (Vertrag W 11.4 bis 11.6).
+3. **Vorschau und Start (Tap 4):** Knöpfe „Abbrechen“, „**Ändern**“ (zurück zu den Karten; die Eingaben bleiben erhalten) und „**Hochladen**“ (primär). „Hochladen“ prüft: bei b) fehlt die Wahl → Meldung „Bitte zuerst wählen, wohin es soll.“; bei a) fehlt der Name → „Bitte einen Namen eingeben.“. Wer aus einem Eintrag heraus hochlädt („Dateien in diesen Eintrag“), springt direkt zur Vorschau von b). Die **Hörbuch-Frage** („Gehören die Dateien zu einem Hörbuch?“, U12b) entfällt: die Art in a) beantwortet sie.
+   **Was die Wahl im Backend bewirkt:** Die Seite sendet sie als **Wunsch** mit dem Upload (`ziel`, `art`, `name`, `serie_id`, `gruppe`; V-7). Der Wunsch **gilt vor den Tags**: ein „Hörbuch“ wird **eine** Folge mit den Dateien als Kapitel, ein „Album“ oder „Hörspiel“ je Datei **eine** Folge, auch wenn alle dasselbe Album nennen (bisher machte das Einsortieren aus gleichem Album immer **eine** Folge mit Tracks, Vertrag W 11.3). Der Wunsch „Weiß nicht“ (`auto`) ändert nichts: Es gilt das heutige Einsortieren (Vertrag W 11.3 bis 11.5), dazu der Art-Vorschlag (V-2).
+4. Der Upload startet sofort. **Ein** Eintrag für alle Dateien dieses Hochladens (bei c) mit mehreren Dateien ebenso) unter „**Zuletzt hinzugefügt**“, mit Dateinamen („3 Dateien: 01 Der Hafen.mp3, 02 Die Karte.mp3 …“):
 
    | Schritt | Anzeige |
    |---|---|
    | 1 | **„Wird hochgeladen … 37 %“** mit Balken (`role="progressbar"`), dreiteilige Leiste (Hochladen · Einsortieren · Fertig) |
    | 2 | **„Wird einsortiert …“** |
-   | 3a | **fertig:** grüne Marke, „Lange Serie · Folge 13“, „Öffnen“; bei Musik/Hörbuch zusätzlich „Art: Musik (aus den Tags vorgeschlagen). Stimmt nicht? Im Eintrag „Art ändern“.“ |
-   | 3b | **bitte kurz ansehen:** gelbe Karte mit „Ansehen“, „**Das ist richtig**“ (`einsortierung/bestaetigen`) und „**Das stimmt nicht**“ (Blatt: anderem zuordnen / in den Papierkorb, 5.3; U11) |
+   | 3a | **fertig:** grüne Marke, was daraus geworden ist („Hörbuch „Kapitän Knopf“ · 3 Kapitel“, „„Lange Serie“ · Folge 13–15“, „„Der Mond und der Fuchs“ · einzelnes Lied“) und der Knopf „Öffnen“ (44 px); nur bei „Weiß nicht“ zusätzlich „Art: Musik (aus den Tags vorgeschlagen). Stimmt nicht? Im Eintrag „Art ändern“.“ |
+   | 3b | **bitte kurz ansehen:** gelbe Karte mit dem Grund und „**Daraus ist geworden:** …“, Knöpfen „Ansehen“, „**Das ist richtig**“ (`einsortierung/bestaetigen`) und „**Anders einsortieren …**“ (öffnet dieselbe Wahl wie 5.6, siehe Punkt 10 unten; auf der Serienseite heißt die Karte weiter „Das stimmt nicht“ und bietet als **erste** Möglichkeit „Anders einsortieren …“, dann „Anderem zuordnen …“ und „In den Papierkorb …“, U11) |
    | 3c | **geht nicht:** rote Karte „**Geht leider nicht.** <Grund und nächste Handlung>“ |
 
 5. **Zustand ohne Sitzung (U13):** Die Seite lädt beim Öffnen `eingang/list` und zeigt **Einträge der letzten 24 Stunden** (`fertig_am`), auch vom NAS oder von einem anderen Gerät, mit „vom NAS“/„vom Handy“ (`quelle` ist jetzt **fest** im Vertrag, V-5). Ältere blendet die Seite aus.
@@ -442,6 +535,8 @@ Heute: 5 bis 9 Taps.
    | `folge_gleicher_name` | „Eine Folge mit diesem Namen gibt es schon.“ |
    | `teilweise_doppelt` | „Ein Teil war schon da und wurde nicht noch einmal abgelegt.“ |
    | `vorgabe_serie_fehlt` | „Das gewählte Hörspiel gibt es nicht mehr.“ |
+| `serie_name_doppelt` (neu, V-7) | „Einen Eintrag mit diesem Namen gab es schon. Der neue heißt „Kapitän Knopf (2)“.“ |
+| `art_geraten` (V-2) | „Die Art ist geraten. Stimmt das?“ |
 
    **Gründe „geht nicht“** (Eingangs-`hinweise`, Upload-`fehler`): `kopierschutz`: „Diese Datei ist kopiergeschützt (zum Beispiel von Audible oder Apple Books). Die Box kann sie nicht abspielen. Nimm eine Datei ohne Kopierschutz.“ ·
    `nicht_lesbar`, `probedekodierung_fehlgeschlagen`: „Die Datei ist kaputt oder unvollständig. Bitte noch einmal kopieren.“ · `keine_audiodateien`: „Darin ist keine Audiodatei.“ ·
@@ -451,10 +546,10 @@ Heute: 5 bis 9 Taps.
 7. **Zwei Uploads gleichzeitig:** weitere Dateien warten („wartet“) und gehen nacheinander; kein 429 sichtbar. **Abbrechen** solange hochgeladen wird (`AbortController`).
 8. **Wenn das Handy den Bildschirm sperrt:** Safari und Chrome frieren die Seite ein. Darum der Hinweis in 5.6 und beim Zurückkehren: Zeilen, die bei „wird hochgeladen“ stehen geblieben sind, werden „Unterbrochen. Wähle die Datei noch einmal.“
 9. **Proxy-Grenze (U12e):** HTTP 413 von einem vorgeschalteten Proxy wird als `datei_zu_gross` gezeigt; „Technik“ nennt die tatsächliche Grenze.
-10. **NAS-Weg:** Dateien im Eingang-Ordner erscheinen ohne Hochladeschritt direkt bei „Wird einsortiert …“.
+10. **NAS-Weg (Rev. 4, dieselbe Wahl):** Dateien im Eingang-Ordner erscheinen ohne Hochladeschritt direkt bei „Wird einsortiert …“ und werden wie bisher **automatisch** einsortiert („Weiß nicht – sortier du“). Sie stehen unter „Zuletzt hinzugefügt“ mit „vom NAS“, und der Satz „Daraus ist geworden: …“ sagt, was die Automatik gemacht hat. Sieht es falsch aus, hat die Karte „bitte ansehen“ den Knopf **„Anders einsortieren …“**: Er öffnet **dasselbe Blatt**, nur mit dem Titel „**Was ist das?**“ (die Dateien liegen ja schon da: „6 Dateien im Eingang vom NAS. Was ist das?“), dieselben fünf Karten, dieselbe Vorschau in Sätzen; der Start-Knopf heißt dort **„Neu einsortieren“**. Das Backend holt die Folgen dieses Eintrags aus den Medien in den Eingang zurück und sortiert sie mit dem Wunsch neu ein (`einsortierung/neu`, V-7). Das geht nur, solange **nichts** an ihnen geändert wurde (Name, Verschieben, Tobie, angehört); sonst `neu_einsortieren_nicht_moeglich` mit dem Rat „in den Papierkorb und noch einmal hochladen“. **Machbarkeit zu prüfen in A3d:** Vertrag W kennt heute keinen Weg zurück von den Medien in den Eingang; fällt er zu teuer aus, bleibt für NAS-Einträge nur „In den Papierkorb …“ und neu hochladen (Frage 25, Variante 2: erst fragen, dann einsortieren).
 11. **„Jetzt prüfen“** (`eingang/sortieren`) wird für Nicht-Administratoren **ohne `sofort`** gesendet (U10) und sagt: „Dateien werden erst nach 2 Minuten Ruhe einsortiert.“ `sofort` bleibt in „Technik“.
 
-Heute: 3 bis 5 Taps plus Suchen im Reiter „Eingang“.
+Heute: 3 bis 5 Taps plus Suchen im Reiter „Eingang“. Rev. 3: 3 Taps. Rev. 4: **4** Taps, dafür sagt jeder Schritt, was passiert.
 
 ### 7.4 (d) Abends: **2 bis 3 Taps**
 
@@ -472,14 +567,16 @@ Heute: 3 bis 5 Taps plus Suchen im Reiter „Eingang“.
 | Tobie umstellen | 6 bis 9 | **3** (Tobies, Zeile, Zielwahl; „Rückgängig“ statt Rückfrage) |
 | (b) Eintrag → Tobie anlernen | 5 bis 9 | **3** (Zeile, Tobie zuordnen, Auf Mond; +1 bei „schon belegt“) |
 | Lied/Folge → Tobie anlernen | nur Technik | **3** über die Suche (Lupe, Tobie, Auf Mond), **4** über die Serienseite (Zeile, ⋯, Tobie für diese Folge, Auf Mond) |
-| (c) Hinzufügen | 3 bis 5 + Suchen | **3** (Hinzufügen, Dateien, Automatisch) |
+| (c) Hinzufügen | 3 bis 5 + Suchen | **4** (Hinzufügen, Dateien, Karte, Hochladen; Rev. 3: 3, aber unverständlich). Bei b) +1 für die Wahl des Eintrags |
+| Einzelnes Lied hochladen | nur über „Einzelfolgen“ | **4** (Hinzufügen, Dateien, „Einzelne Folge oder einzelnes Lied“, Hochladen) |
 | (c2) „bitte ansehen“ bestätigen | 3 bis 7 | **1** („Das ist richtig“) |
-| Fehl-Upload korrigieren | Sackgasse | **3** („Das stimmt nicht“, Papierkorb, Bestätigen) |
+| Fehl-Upload korrigieren | Sackgasse | **3** („Das stimmt nicht“, Papierkorb, Bestätigen) oder **4** („Anders einsortieren“, Karte, Neu einsortieren) |
 | (d) Gute Nacht ändern | 3 + Tippen | **3** |
 | Cover ersetzen | nur NAS von Hand | **4** (Cover ändern, Foto, Zuschneiden, Speichern) |
 | Etwas in der Bibliothek finden | – | **1 bis 2** (Lupe, Treffer; plus Tippen) |
 | Hineinhören (Reinhören) | – | **2** (Zeile, „Reinhören“) |
 | Weiterhören | – | **1** (Abspielknopf in der Reihe „Weiterhören“) |
+| In ein Kapitel springen | – | **2** (Zeile „Kapitel“ auf der Serienseite: ein Tap; im Player „Kapitel“, Zeile) |
 
 ## 9. Wohin jede heutige Funktion wandert
 
@@ -488,8 +585,9 @@ Alles bleibt, wie es heute funktioniert; nur Ort und Text ändern sich. **Die ga
 | Heute (Fundort in `ist.md`) | Neu | Wer |
 |---|---|---|
 | Reiter „Serien“ | Reiter „Bibliothek“ (Arten, Liste, Suchansicht, Blatt „Sortieren und Filter“, Reihen „Weiterhören“ und „Neu“) | alle |
-| „Hochladen“-Karte | „Hinzufügen“ (7.3); Vorgabe-Serie über die Zielwahl oder „Dateien in diesen Eintrag“; „Liste leeren“ wird „Erledigte ausblenden (auf diesem Gerät)“ | alle |
+| „Hochladen“-Karte | „Hinzufügen“ (7.3): Blatt „Was lädst du hoch?“ mit fünf Karten, Vorschau in Sätzen; Vorgabe-Serie über Karte b) oder „Dateien in diesen Eintrag“; „Liste leeren“ wird „Erledigte ausblenden (auf diesem Gerät)“ | alle |
 | „Neue Serie“ (leer anlegen), Überraschungs-Serie | Technik → Bibliothek aufräumen | Admin |
+| (neu) Hörkopien | Technik → Bibliothek aufräumen: Stand und „Hörkopien neu erzeugen“ | Admin |
 | „Freigabe prüfen“ | Technik → „Medien neu einlesen“; beim Öffnen der Seite höchstens alle 10 Minuten (`medien/pruefen`, ohne Cover-Suche) | Admin / Auslöser alle |
 | Serie/Folge umbenennen | Serienseite → „⋯“ → „Name ändern“, Folgenzeile → „⋯“ → „Name ändern“ | alle |
 | „Alles geprüft“ | „Das ist richtig“ / „Das stimmt nicht“ | alle |
@@ -533,12 +631,13 @@ Alles bleibt, wie es heute funktioniert; nur Ort und Text ändern sich. **Die ga
 | Stufe | Befehle |
 |---|---|
 | **lesen** (alle) | 1 `hello`, 2 `subscribe`, 3 `serien/list` (erweitert), 4 `serie/get`, 10 `papierkorb/list`, 13 `neue_tobies/list`, 15 `zuordnung/list`, 21 `boxen/list` (ohne `ereignisse`), 29 `eingang/list`, 34 `konfig/get`, 35 `einstellungen/get`, neu `folgen/list`, HTTP-Cover (GET), **neu in Rev. 3:** HTTP-Audio (GET, angemeldet oder signierter Pfad), `hoerstelle/get`, `hoerstelle/liste` (nur die eigene Hörstelle) |
-| **alltag** (alle angemeldeten Benutzer) | 16 `zuordnung/set` (inkl. Name), 17 `zuordnung/remove`, 14 `neue_tobies/verwerfen`, 18 `lernmodus/start` (bisher Admin), 19 `lernmodus/antwort`, 20 `lernmodus/abbrechen`, 6 `serie/rename`, 25 `folge/rename`, 28 `einsortierung/bestaetigen`, 9 `medien/pruefen`, 30 `eingang/sortieren` (**ohne** `sofort`), 36 `einstellungen/set` (ohne Zeitzone und Lesezeichen-Tage), neu `serie/art_setzen`, HTTP-Upload, HTTP-Cover (POST, DELETE `eigen`), **neu in Rev. 3:** `hoerstelle/set` (nur die eigene),
+| **alltag** (alle angemeldeten Benutzer) | 16 `zuordnung/set` (inkl. Name), 17 `zuordnung/remove`, 14 `neue_tobies/verwerfen`, 18 `lernmodus/start` (bisher Admin), 19 `lernmodus/antwort`, 20 `lernmodus/abbrechen`, 6 `serie/rename`, 25 `folge/rename`, 28 `einsortierung/bestaetigen`, 9 `medien/pruefen`, 30 `eingang/sortieren` (**ohne** `sofort`), 36 `einstellungen/set` (ohne Zeitzone und Lesezeichen-Tage), neu `serie/art_setzen`, HTTP-Upload, HTTP-Cover (POST, DELETE `eigen`), **neu in Rev. 3:** `hoerstelle/set` (nur die eigene), **neu in Rev. 4:** `einsortierung/neu` („Anders einsortieren“; Upload-Felder `ziel`, `art`, `name` ohne Recht über den normalen Upload hinaus), Stufe B: `reinhoer/loeschen` (nur die eigenen Daten),
   **8 `folge/delete`, 24 `serie/delete`, 26 `folge/verschieben`** (neu in Rev. 2: nur in den Papierkorb, nichts endgültig) |
-| **admin** | 5 `serie/create`, 27 `serien/zusammenfuehren`, 11 `papierkorb/restore`, **12 `papierkorb/empty`**, **33 `eingang/entfernen`**, 22 `box/sync`, 23 `liste/neu_ausrollen`, 32 `konfig/aus_export`, **31 `konfig/export_lesen`** (U26), `boxen/list`-Feld `ereignisse`, `eingang/sortieren` mit `sofort`, `einstellungen/set` für Zeitzone und Lesezeichen-Tage, neu `cover/neu_suchen`, später Update |
+| **admin** | 5 `serie/create`, 27 `serien/zusammenfuehren`, 11 `papierkorb/restore`, **12 `papierkorb/empty`**, **33 `eingang/entfernen`**, 22 `box/sync`, 23 `liste/neu_ausrollen`, 32 `konfig/aus_export`, **31 `konfig/export_lesen`** (U26), `boxen/list`-Feld `ereignisse`, `eingang/sortieren` mit `sofort`, `einstellungen/set` für Zeitzone und Lesezeichen-Tage, neu `cover/neu_suchen`, **neu in Rev. 4:** `hoerkopie/neu_erzeugen`, später Update |
 
 **Reinhören (Rev. 3):** erlaubt für **alle HA-Benutzer** (Entscheidung Runde 7). Hörstellen sind **nur die eigenen** (die Kennung kommt aus der Verbindung, nie aus der Eingabe; auch Administratoren sehen keine fremden). Die Audio-Ansicht verlangt Anmeldung oder eine gültige Signatur.
 Der HA-Befehl `auth/sign_path` (nicht unser Befehl) darf jeder angemeldete Benutzer aufrufen; die Signatur trägt seine Identität und gibt ihm **keine Rechte, die er nicht ohnehin hat**. Mengen: höchstens 4 gleichzeitige Streams und 30 `hoerstelle/set` je Minute und Benutzer (11.4).
+**Reinhör-Daten (Stufe B, Rev. 4):** wie die Hörstelle **nur die eigenen**, auch für Administratoren; die Kennung kommt aus der Verbindung (12.5, Frage 23). `gehoert/zusammenfassung` mit `quelle="reinhoeren"` ist `lesen`, aber auf den Anfragenden beschränkt.
 
 Begründung (ehrlich, U2): „alltag“ sind Dinge, die Verena selbst tun soll (Brainstorm, Runde 6). Endgültig zerstörbar sind nur `papierkorb/empty` und `eingang/entfernen`; sie bleiben Admin.
 Die Zuordnungsliste ist dagegen **beschädigbar** (`remove` in einer Schleife), darum der Schutz in 10.3. „Lesen bleibt für alle“ ist bewusst, mit Ausnahme der beiden Befehle, die nur Tobias braucht (Liste im Detail, rohe Box-Meldungen).
@@ -564,6 +663,7 @@ Gilt im Befehl für Nicht-Administratoren (Administratoren unverändert):
 Alles Folgende ist **additiv** (neue Felder, Befehle, Fähigkeiten, Codes, optionale Eingaben), **mit einer Ausnahme**: Die Lockerung der Rechte ändert das Verhalten bestehender Befehle (bisher `unauthorized`, jetzt Erfolg).
 Im Vertragskopf steht dafür ein Eintrag „**Änderung 12.11. (HA-Oberfläche, Stufe A):** …“ in der Form der bisherigen Änderungen (Datum, kein „Version 1.2“-Zähler; `v` bleibt 1). **Abschnitt 2.1 („Wer darf was“) wird vollständig ersetzt** (nicht ergänzt), der Satz W-19 (Upload nur für Administratoren) entfällt,
 der Prüfabschnitt „gegen die HA-API“ nennt `async_register_admin_service`. Neue Fähigkeiten nur dort, wo eine alte Seite im Zwischenspeicher sonst etwas Falsches täte: **`cover`**, **`bibliothek`** (neue Eingaben von `serien/list`, Befehl `folgen/list`) und, neu in Rev. 3, **`reinhoeren`** (Audio-Ansicht, `hoerstelle/*`, Felder `dauer_s` und `hoerstelle`; ohne sie zeigt die Seite keinen Reinhören-Knopf).
+**Neu in Rev. 4 (alles additiv, Abschnitt V-7 bis V-9):** **`einsortier_wunsch`** (Upload-Felder `ziel`, `art`, `name`; Befehl `einsortierung/neu`; Feld `einzeln`; Filter `sammlung` und `einzeln`; ohne sie zeigt die Seite das alte, einfache Hochladen ohne Wahl und sendet keinen Wunsch), **`kapitel`** (Feld `kapitel`; ohne sie zeigt die Seite keine Kapitelliste) und **`hoerkopie`** (Audio-Ansicht liefert Kopien, Felder `hoerkopie`, Befehl `hoerkopie/neu_erzeugen`; ohne sie bleibt es bei der Prüfung mit `canPlayType`). In Stufe B kommt `gehoert_reinhoeren` dazu (12.5).
 `box_anzeigenamen` und `rechte_stufen` entfallen (Feld da bzw. Seite und Backend liegen im selben Paket). Eine **alte Seite** im Zwischenspeicher kennt die Befehle nicht, schickt sie nicht und blendet nach `darf_schreiben` (= Administrator) aus: harmlos. Die neue Seite zeigt bei fehlender Fähigkeit „Die Seite ist veraltet. Bitte lade sie neu.“
 
 ### 11.2 Wunschliste im Einzelnen
@@ -593,10 +693,40 @@ der Prüfabschnitt „gegen die HA-API“ nennt `async_register_admin_service`. 
 
 **V-6 Reinhören (Fähigkeit `reinhoeren`, neu in Rev. 3)**
 
-* **HTTP:** `GET /api/tobibox/audio/{serie_id}/{folge_id}` (optional `?track=<n>`), Recht lesen, signierter Pfad oder Anmeldung, Range-fähig; Fehler 404 `folge_nicht_gefunden`, 429 `zu_viele_streams`, 503 `medien_nicht_erreichbar`. Einzelheiten 11.4.1 und 11.4.2.
+* **HTTP:** `GET /api/tobibox/audio/{serie_id}/{folge_id}` (optional `?track=<n>`), Recht lesen, signierter Pfad oder Anmeldung, Range-fähig; Fehler 404 `folge_nicht_gefunden`, 429 `zu_viele_streams`, 503 `medien_nicht_erreichbar`. Einzelheiten 11.4.1 und 11.4.2. **Rev. 4:** Die Ansicht liefert bei Bedarf die Hörkopie (V-9).
 * **Befehle (Recht alltag/lesen, Tabelle 10.2):** `hoerstelle/get`, `hoerstelle/set`, `hoerstelle/liste` (11.4.5). Neuer Code `zu_viele_streams`.
 * **Felder (additiv):** *Serie-Kurzform* `dauer_s`, `hoerstelle` (`anteil`, `rest_s`, `zeit`, `folge`; nur des Anfragenden, nur wenn angefangen); *Folge-Objekt* von `serie/get`: `dauer_s`, `spuren_s` (bei Ordner-Folgen), `hoerstelle` (`position_s`, `fertig`); `hello.grenzen`: `audio_streams_je_benutzer` (4).
 * **`serie.json`:** `folgen_info.<name>.dauer_s`, `spuren_s` (11.3, 11.4.4).
+
+**V-7 Hochladen mit Wunsch und „Anders einsortieren“ (Fähigkeit `einsortier_wunsch`, neu in Rev. 4)**
+
+* **Upload** (`POST /api/tobibox/upload`, Vertrag W 5.1) bekommt **optionale** Felder, wie die vorhandenen als Text im Multipart, **vor** dem Teil `datei`: `ziel` (`auto` Vorgabe, `neu`, `ergaenzen`, `einzeln`; in Stufe C auch `playlist`), `art` (`hoerspiel`, `hoerbuch`, `musik`, `geschichte`), `name` (1 bis 100 Zeichen, nach den Namensregeln aus Vertrag W Abschnitt 12 bereinigt). Die bestehenden Felder `upload_id`, `serie_id` und `gruppe` bleiben. Fehlt `ziel`, gilt `auto`: **genau das heutige Verhalten**. Eine alte Seite sendet nie etwas davon.
+* **Wirkung** (Dateien mit gleicher `gruppe` gehören zusammen; der Wunsch gilt **vor** den Tags):
+
+| `ziel` | Pflicht | Ergebnis |
+|---|---|---|
+| `auto` | – | wie heute (Vertrag W 11.3 bis 11.5), dazu der Art-Vorschlag (V-2) |
+| `neu` | `gruppe`, `art`, `name` | **eine neue Serie** `name`; wird **nie** in eine vorhandene gleichen Namens zusammengeführt (gibt es den Namen, heißt sie „… (2)“, Kennzeichen `serie_name_doppelt`). Die **Gruppierung folgt der Art**, nicht den Tags: `hoerbuch` = **alle** Dateien eine Folge (Folgen-Ordner, die Tracks sind die Kapitel; bei einer Datei die Datei selbst, zum Beispiel eine M4B), `hoerspiel`, `musik`, `geschichte` = **jede Datei eine Folge** (auch wenn alle dasselbe Album nennen). Reihenfolge nach Vertrag W 11.6 und 11.7 (Nummer, Disc und Track, natürliche Sortierung). `art_quelle="manuell"` |
+| `ergaenzen` | `serie_id` | jede Datei eine **neue Folge** der vorhandenen Serie (Einfügeregel Vertrag W 11.6), nie ein Folgen-Ordner. Die Serie darf kein Einzeltitel sein (`wunsch_ungueltig`) |
+| `einzeln` | `art` (Vorgabe `musik`) | **jede Datei eine neue Serie mit genau einer Folge und `einzeln: true`** (V-8); `name` = Titel dieser einen Datei (sonst Tag `title`, sonst Dateiname). Mehrere Dateien: je Datei ein eigener Upload mit eigenem `name`, ohne gemeinsame `gruppe` |
+| `playlist` (Stufe C) | … | erst in Stufe C (13): die Dateien werden Einzeltitel, die Playlist verweist darauf |
+
+* **Fehler:** `wunsch_ungueltig` (400) bei fehlenden Pflichtfeldern oder unpassender Mischung; `serie_nicht_gefunden` wie bisher. Die Prüfung der Datei (Format, Kopierschutz, Probedekodierung) bleibt unverändert (Vertrag W 5.4).
+* **Anzeige:** `eingang/list`-Einträge und das Ereignis `eingang` tragen zusätzlich `wunsch` (`ziel`, `art`), damit die Seite „Daraus ist geworden: …“ schreiben kann.
+* **Neuer Befehl `einsortierung/neu`** (**Alltag**; „Anders einsortieren“ für Einträge aus dem NAS-Eingang und für Uploads, die schon einsortiert wurden): Eingabe `eintrag_id` (aus `eingang/list`), `ziel`, `art`, `name`, `serie_id` (wie oben). Das Backend holt die Folgen, die dieser Eintrag erzeugt hat, aus den Medien in den Eingang zurück und sortiert sie mit dem Wunsch neu ein. Nur möglich, solange an diesen Folgen **nichts** geändert wurde (nicht umbenannt, nicht verschoben, kein Tobie darauf, nicht angehört); sonst Fehler `neu_einsortieren_nicht_moeglich`. Die Serien, die der Eintrag neu angelegt hatte, verschwinden mit ihm (Papierkorb). **Machbarkeit zu prüfen in A3d:** Vertrag W kennt heute keinen Weg Medien → Eingang. Rückfall: nur Papierkorb und neu hochladen (Frage 25).
+
+**V-8 Einzeltitel und Kapitel (Fähigkeiten `einsortier_wunsch`, `kapitel`; neu in Rev. 4)**
+
+* *Serie-Kurzform* bekommt `einzeln` (bool; fehlt = `false`). `serien/list`: `filter` kennt zusätzlich `sammlung` (nur Einträge, die kein Einzeltitel sind) und `einzeln` (nur Einzeltitel). `folgen/list` trägt je Zeile `serie_einzeln`. `folgen_anzahl` ist bei einem Einzeltitel 1; die Seite zeigt sie nie („Lied · einzeln · 1:06“).
+* Ein Einzeltitel ist **eine normale Serie** (eigene ID, Ordner, `serie.json`, Cover, Papierkorb, Umbenennen, `serie/art_setzen`). Neue Folgen kommen nicht hinein: `ergaenzen` und `folge/verschieben` mit einem Einzeltitel als Ziel antworten `wunsch_ungueltig` bzw. `ziel_ungueltig`; `serien/zusammenfuehren` (Admin) darf ihn als Quelle, nicht als Ziel benutzen.
+* **Kapitel:** *Folge-Objekt* von `serie/get` bekommt `kapitel` = Liste aus `titel`, `start_s` und, bei Ordner-Folgen, `track` (0-basiert); nur wenn es mindestens zwei gibt. Quelle und Regeln: 11.4.8. Die Hörstelle bleibt, wie sie ist (`track`, `position_s`).
+
+**V-9 Hörkopie (Fähigkeit `hoerkopie`; neu in Rev. 4)**
+
+* Die Audio-Ansicht (V-6) liefert die **Hörkopie**, wenn die Folge eine braucht und sie fertig ist, sonst das Original. Antwortkopf `X-Tobibox-Quelle: kopie` oder `original` (zum Prüfen). Fehler 503 `hoerkopie_wartet` mit `Retry-After: 60`, solange die Kopie fehlt (die Ansicht reiht die Kopie dann vorn in die Warteschlange ein). Ohne Kopie-Pflicht ändert sich nichts.
+* *Folge-Objekt* von `serie/get`: `hoerkopie` = `original` (braucht keine), `wartet`, `fertig`, `fehler`. `hello.grenzen`: `hoerkopie_kbit` (96).
+* **Befehl `hoerkopie/neu_erzeugen`** (**Admin**): `serie_id` optional (fehlt = alle mit Zustand `fehler`); löscht Kopie und Marke und stellt die Folge neu in die Warteschlange.
+* Speicherort, Zeitpunkt, Bedarf und Fehlerfall: 11.4.7.
 
 **V-3 Anzeigenamen der Boxen** (Feld da, keine Fähigkeit): Optionen der Integration (`config_flow.py`, `strings.json`, `translations/de.json`) bekommen **ein Textfeld** „Namen der Boxen: `box1=Mond, box2=Stern`“ (U21c; gleiche Prüfung wie `parse_boxen`, höchstens 40 Zeichen je Name, Hinweis „ohne das Wort Box“). `boxen/list` trägt `anzeige` (nie `null`: Name aus den Optionen, sonst `anzeigename` der Discovery, sonst der Box-Name);
 `hello.box_anzeigen`. Im Repo steht kein echter Name. Die Seite zeigt nur `anzeige`.
@@ -619,6 +749,10 @@ der Prüfabschnitt „gegen die HA-API“ nennt `async_register_admin_service`. 
 | `folgen_info.<name>.dauer_s` | Zahl (Sekunden) | Länge der Folge (Rev. 3, 11.4.4); fehlt bis zum Nachholen |
 | `folgen_info.<name>.spuren_s` | Liste von Zahlen | bei Ordner-Folgen die Länge jedes Tracks, in Folgenreihenfolge |
 | `cover_suche` | object `{"ergebnis": "tags"|"datei"|"keine", "zeit": <Zeitstempel>}` | Marke „schon gesucht“ (U5) |
+| `einzeln` | bool | **(Rev. 4)** Einzeltitel: genau eine Folge, steht für sich, keine neuen Folgen; fehlt = `false` |
+| `folgen_info.<name>.kapitel` | Liste aus `{"titel": string, "start_s": Zahl, "track": int?}` | **(Rev. 4, 11.4.8)** Kapitel der Folge, aufsteigend nach `start_s`, höchstens 500, Titel höchstens 120 Zeichen; nur wenn mindestens zwei |
+| `folgen_info.<name>.codec` | string | **(Rev. 4)** Audiocodec des Originals aus `ffprobe` (`mp3`, `aac`, `vorbis`, `opus`, `flac`, `alac`, `pcm_s16le` …); entscheidet, ob eine Hörkopie nötig ist (11.4.7) |
+| `folgen_info.<name>.hoerkopie` | object `{"zustand", "zeit", "grund"?}`; `zustand` ist `"wartet"`, `"fertig"` oder `"fehler"`, `zeit` ein Zeitstempel, `grund` ein Code | **(Rev. 4)** Stand der Hörkopie; fehlt = nicht nötig oder noch nicht geprüft |
 
 **Reservierte Dateinamen** im Serien-Ordner (neu, additiv; die Bibliothek der Box liest nur Audioendungen und ignoriert sie schon): `cover.jpg` (automatisch), `cover-eigen.jpg` (Foto, hat Vorrang); als **Quelle** gelesen, nie geschrieben: `folder.jpg`, `cover.png`. Beim **Zusammenführen** übernimmt die Ziel-Serie das Cover der Quelle, wenn sie selbst keines hat;
 im **Papierkorb** wandern die Dateien mit dem Ordner; beim **Umbenennen** bleiben Ordnername und ID, also auch die Cover. Beim Einsortieren aus einem Eingangs-Ordner hat ein mitgeliefertes `cover.jpg`/`folder.jpg` Vorrang vor dem eingebetteten Bild und geht nicht in den Papierkorb.
@@ -626,7 +760,33 @@ im **Papierkorb** wandern die Dateien mit dem Ordner; beim **Umbenennen** bleibe
 **Sync:** `box/src/tobibox/sync.py` nimmt zusätzlich `cover*.jpg`, `cover*.png` und `folder.jpg` aus (zu den Systemdateien und `_upload`, `_papierkorb`, `eingang`). Empfehlung aus dem Review, übernommen: Die Box hat kein Display; 500 Cover à 150 KiB wären 75 MB SD-Platz und Schreibvorgänge für nichts.
 Test in `box/tests`: Sync mit Covern überträgt sie nicht; Zusammenführen; Wiederherstellen aus dem Papierkorb; Serie umbenennen. Das ist die **einzige Änderung am Box-Code in Stufe A**.
 
+**Einzeltitel und Sync (Rev. 4):** Ein Einzeltitel ist ein Serien-Ordner mit einer Datei und einer `serie.json`; die Box liest ihn wie jede Serie und ignoriert `einzeln` (data-model 1.4). 300 einzelne Lieder sind 300 kleine Ordner: `rsync` braucht keine Sonderregel, das Verzeichnis wird etwas länger (eine zusätzliche `serie.json` je Lied, etwa 300 Byte). Hörkopien liegen **nicht** in `medien/` (11.4.7), also gibt es dort nichts auszunehmen: **die Box-Änderung in Stufe A bleibt allein der Cover-Ausschluss.**
+
 Hinweis zum Sync: Die Box gleicht die **ganze** Bibliothek ab (`rsync --delete`). Bei ca. 200 Hörbüchern kann das mehr als 50 GB sein; der erste Abgleich dauert Stunden. Das ist keine Änderung der Oberfläche, aber Tobias sollte den freien Platz der Boxen (`speicher_frei`, „Technik“) im Blick haben (Frage 10).
+
+#### 11.3.1 Wo lebt ein einzelnes Lied? Vergleich (Rev. 4)
+
+Heute ist alles **Serie → Folgen** (`data-model.md` Abschnitt 5; ein Tobie zeigt auf `serie`, `folge` oder `aktion`). Ein Lied, das für sich steht, braucht einen Platz, ohne die Box zu ändern. Zwei Wege, beide ohne Vertragsbruch:
+
+| | **A: eigene Serie mit einer Folge, Kennzeichen `einzeln`** (Empfehlung) | **B: Sammel-Serie je Art** („Einzelne Lieder“, „Einzelne Geschichten“) |
+|---|---|---|
+| Aufbau | Ordner `medien/<lied>/` mit `serie.json` (`einzeln: true`, `folgen: ["lied.mp3"]`) | ein Ordner `Einzelne Lieder` mit allen Liedern als Folgen (wie die heutige Serie `Einzelfolgen`, Vertrag W 11.5) |
+| Anzeige | Eintrag mit eigenem Cover und Titel; „Lied · einzeln · 1:06“, **nicht** „Serie mit 1 Folge“ | ein Eintrag „Einzelne Lieder · 300 Lieder“; ein Lied findet man nur per Suche oder in der langen Folgenliste; **ein Cover für alle** |
+| Tobie-Ziel | `folge` (siehe unten); ein Tobie für „Das Lied vom Mond“ | `folge` einer Folge der Sammel-Serie; **wird die Folge verschoben oder die Reihenfolge geändert, bleibt der Tobie nicht verlässlich** |
+| Löschen, Umbenennen, Cover, Art | je Lied wie bei jedem Eintrag; Papierkorb nennt den Tobie | je Lied nur als „Folge“; Cover der ganzen Sammlung |
+| Suche | Treffer in der Gruppe „Folgen und Lieder“ (Einträge ohne die Gruppe „Hörspiele, Bücher, Alben“) | Treffer in „Folgen und Lieder“ mit dem Hinweis „aus Einzelne Lieder“ |
+| Sync und Box | 300 kleine Ordner, jede `serie.json` wird gelesen; die Box ist unverändert | ein Ordner; unverändert |
+| Hörstelle (Weiterhören) | je Lied, wie sonst | je Folge der Sammlung, wie sonst |
+| Nachteil | viele Einträge in der Bibliothek (Gegenmittel: Filter „Was zeigen“, Arten-Zeile); Aufnahme jedes Liedes kostet einen Ordner | Reiter und Zähler wirken wie **ein** Album; „Zuletzt hinzugefügt“ und „Neu“ zeigen immer nur die Sammlung; Cover fehlt; Tobie auf eine Folge, deren Sammlung wächst und umsortiert wird |
+| Playlist (Stufe C) | Eintrag der Playlist = ein Einzeltitel (`serie`, `folge`) | Eintrag der Playlist = Folge der Sammlung |
+
+**Empfehlung: A.** Sie ist die einfachste Lösung, die die Box nicht ändert und in der Oberfläche wie ein eigener Titel aussieht. **Folgen:**
+* *Tobie-Ziel:* Die Seite speichert `ziel.typ = "folge"` (Serie des Einzeltitels, Folge `lied.mp3`), **nicht** `serie`: Kommt später doch eine Folge in diesen Ordner (etwa von Hand auf dem NAS), spielt der Tobie weiter nur sein Lied. Ein Tobie auf `serie` würde dann alles spielen. Die Box kennt beide Fälle schon (`data-model.md` 2).
+* *Suche:* Einzeltitel stehen in der Gruppe „Folgen und Lieder“ (mit Abspiel- und Tobie-Knopf), nicht in „Hörspiele, Bücher, Alben“; sonst käme jedes Lied doppelt vor. Der Index führt sie als Serie **und** als Folge, die Seite filtert.
+* *Sync:* siehe oben; kein Eingriff in `sync.py`.
+* *Vertrag:* nur das additive Feld `einzeln` in `serie.json` und in der Kurzform, der Filter `sammlung`/`einzeln` und der Upload-Wunsch `einzeln` (V-7, V-8). Kein neuer `ziel.typ`, kein neues Boxen-Schema.
+* *Ohne Wunsch* (`auto`) bleibt die heutige Regel: eine lose Datei ohne Tags landet in der Serie `Einzelfolgen`. Wer einen eigenen Eintrag will, wählt „Einzelne Folge oder einzelnes Lied“.
+* *Rückbau:* Entfernt jemand das Kennzeichen von Hand (`einzeln` aus `serie.json`), ist es eine Serie mit einer Folge; nichts bricht. Ein Knopf dafür ist nicht vorgesehen.
 
 ### 11.4 Reinhören: Technik (neu in Rev. 3)
 
@@ -657,6 +817,8 @@ Ein `<audio src>` kann **keinen Authorization-Header** senden. Darum:
 
 *Beleg:* So macht HA es für Medien: `media_source/resolve_media` (`media_source/http.py`) ruft `async_process_play_media_url` (`media_player/browse_media.py`) auf, und das signiert mit `async_sign_path` und `CONTENT_AUTH_EXPIRY_TIME`. Die Kamera-Bilder von HA nutzen **nicht** diesen Weg, sondern ein eigenes Zugriffs-Token an der Entität (`/api/camera_proxy/<entity_id>`; **nicht** weiter geprüft). Der Beleg ist also der Medienweg von HA, nicht die Kamera.
 
+**Was ist das, in Alltagssprache (Rev. 4, Frage 14):** Wenn du am Handy auf „Reinhören“ tippst, holt sich dein Handy die Audiodatei bei Home Assistant ab. Dafür braucht es eine **Adresse**, ähnlich einer Internetadresse. Der Player in der Seite kann beim Abholen kein Passwort mitschicken; darum hat die Adresse einen **eingebauten Schlüssel**, der nach einer Weile **von selbst abläuft**. Das ist wie eine Eintrittskarte mit Uhrzeit: Nach Ablauf funktioniert genau diese Adresse nicht mehr, und wer sie weitergibt, kann nichts mehr damit anfangen. Die Seite holt sich bei Bedarf eine neue Karte und macht an derselben Stelle weiter. Gefragt war nur: **Wie lange soll die Karte gelten?** (Empfehlung: 1 Stunde.)
+
 #### 11.4.3 Dateiformate
 
 Die Bibliothek erlaubt (`data-model.md` Abschnitt 5, `const.ENDUNGEN`): **MP3, M4A, M4B, AAC, FLAC, OGG, Opus, WAV.** Ob der **Browser** sie spielt (Daten von caniuse.com, am 12.11. aus dem Quell-Repository geholt, „im `audio`-Element“):
@@ -670,16 +832,18 @@ Die Bibliothek erlaubt (`data-model.md` Abschnitt 5, `const.ENDUNGEN`): **MP3, M
 | OGG (Vorbis) | ja | ja | **erst ab 18.4** | **erst ab iOS 18.4** |
 | Opus (OGG) | ja | ja | nur teilweise | erst ab iOS 18.4 |
 
-Folgerungen: **MP3 und M4A/M4B gehen überall** und sind der Normalfall (Audible-Dateien mit Kopierschutz kommen ohnehin nicht herein). **OGG/Opus** brauchen in älteren Safari-Versionen eine Umwandlung; M4A kann auch Apple-Lossless (ALAC) enthalten, das Chrome nicht spielt. Plan für Stufe A: Die Seite prüft vorab mit `canPlayType` und zeigt statt eines stummen Fehlers
-„**Das kann dieser Browser nicht abspielen. Auf der Box spielt es trotzdem.**“ (kein Umwandeln in HA; „Umwandeln mit `ffmpeg` beim Abspielen“ wäre ein eigenes Paket, Frage 17). Kapitel von M4B-Dateien werden im Browser nicht angezeigt; die Datei läuft als eine Zeitleiste. Ob Tobias' Bestand solche Formate enthält, weiß nur er (Frage 17).
+Folgerungen: **MP3 und M4A/M4B (mit AAC) gehen überall** und sind der Normalfall (Audible-Dateien mit Kopierschutz kommen ohnehin nicht herein). **OGG/Opus** brauchen in älteren Safari-Versionen eine Umwandlung; M4A kann auch Apple-Lossless (ALAC) enthalten, das Chrome nicht spielt; FLAC und WAV spielen in neuen Browsern, sind aber groß (WAV etwa 10 MB je Minute) und für Mobilfunk unhandlich.
+**Entscheidung Tobias (Runde 8, Nr. 17): alle Formate im Bestand.** Damit Reinhören überall geht, legt Home Assistant für diese Formate **einmal eine Hörkopie** an (11.4.7): AAC in M4A, 96 kbit/s, mit `ffmpeg`, auf dem NAS **neben** `medien/`, nicht auf den Boxen. Es wird **nicht beim Abspielen umgewandelt**: abgespielt wird immer eine fertige Datei, also geht Springen per Range-Anfrage wie beim Original. Die Seite behält die Vorabprüfung mit `canPlayType` und den Text „**Das kann dieser Browser nicht abspielen. Auf der Box spielt es trotzdem.**“ nur noch als Rückfall (kein `ffmpeg`, Kopie fehlgeschlagen).
+Kapitel eingebetteter M4B-/MP3-Dateien zeigt die Seite jetzt in der Kapitelliste (11.4.8); die Datei selbst läuft weiter als **eine** Zeitleiste.
 
-#### 11.4.4 Dauer (neu, additiv)
+#### 11.4.4 Dauer, Kapitel und Codec (neu, additiv)
 
 Für „Gesamtdauer“, Zeitleiste und Fortschritt braucht die Seite die Länge. `ffprobe` liefert sie beim Einsortieren schon (`ProbeErgebnis.dauer_s`), sie wird nur nicht gespeichert.
 
 * `serie.json`, `folgen_info.<name>.dauer_s` (Zahl, Sekunden, auf ganze Sekunden gerundet) und bei Ordner-Folgen `spuren_s` (Liste der Tracks in der Reihenfolge der Folge). Additiv, die Box ignoriert es (`data-model.md` 1.4).
 * **Beim Einsortieren** gespeichert; für den **Bestand** einmal im Hintergrund nachgeholt, genau wie die Cover-Suche (5.5): nur Folgen ohne `dauer_s`, eine Datei nach der anderen, 20 s Zeitgrenze je Datei, Abbruch bei `medien_nicht_erreichbar`, **kein Dauer-Scan beim Öffnen der Seite**. Bei 5 000 Dateien ist das eine Sache von Minuten bis Stunden im Hintergrund; bis dahin zeigt die Seite „–“ statt der Dauer und blendet die Zeitleiste erst beim Laden der Datei auf (`loadedmetadata`).
 * *Serie-Kurzform* bekommt `dauer_s` (Summe); das *Folge-Objekt* von `serie/get` bekommt `dauer_s`, `spuren_s`.
+* **Ein Durchgang für alles (Rev. 4):** Derselbe `ffprobe`-Aufruf liefert mit `-show_chapters` zusätzlich die **Kapitel** (11.4.8); dazu wird der **Codec** des ersten Audio-Stroms gemerkt (`codec`, für 11.4.7). `ffprobe.py` ergänzt `-show_chapters` in `baue_ffprobe_befehl` (die vorhandenen Tests prüfen die Argumentliste mit „enthält“, nicht auf Gleichheit; geprüft in `test_ffprobe.py`) und `Probe` um `kapitel` und `codec`. **Kein zweiter Lesedurchgang über das NAS:** Beim Einsortieren und beim Nachholen des Bestands (Zeitgrenze 20 s je Datei, Abbruch bei `medien_nicht_erreichbar`, nie beim Öffnen der Seite) kommen `dauer_s`, `spuren_s`, `kapitel` und `codec` aus **einem** Lauf je Datei; erst danach reiht der Hintergrundlauf die Hörkopien ein.
 
 #### 11.4.5 Hörstelle (Weiterhören), je Benutzer in HA
 
@@ -697,6 +861,7 @@ Für „Gesamtdauer“, Zeitleiste und Fortschritt braucht die Seite die Länge.
   `serien/list` bekommt je Kurzform (nur wenn angefangen) `hoerstelle` (`anteil`, `rest_s`, `zeit`, `folge`) **für den Anfragenden** und die Sortierung `angehoert`; `serie/get` bekommt je Folge `hoerstelle` (`position_s`, `fertig`). So braucht die Bibliothek keine zweite Abfrage je Zeile.
 * **Wann die Seite speichert (gedrosselt):** höchstens **alle 10 Sekunden** während der Wiedergabe, **sofort** bei Pause, beim Springen, beim Wechsel der Folge, beim Ende, beim Schließen der Seite (`pagehide`, `visibilitychange`; auf dem Handy nicht verlässlich, darum die 10 Sekunden). Das Backend drosselt zusätzlich (höchstens 30 Schreibaufrufe je Minute und Benutzer, sonst `zu_viele_aenderungen`; dieselbe Grenze wie 10.3, eigener Zähler).
 * **Zwei Geräte:** Es gilt „zuletzt gespeichert gewinnt“ je Folge. Wer auf dem Handy bei 10:00 pausiert und am Computer „Weiterhören“ drückt, holt sich beim Öffnen der Seite die Stelle von dort (`hoerstelle/get`). Gleichzeitig auf zwei Geräten hören ist nicht vorgesehen.
+* **Reinhören in „Gehört“ (Stufe B, Rev. 4):** Die Hörstellen-Aufrufe sind zugleich die Quelle für „Mein Reinhören“: HA leitet daraus Sitzungen ab, die Seite sendet nichts Neues (12.5).
 * **Box und Hörstelle sind getrennt:** Die Box führt ihre eigene Stelle (`resume.json`, `data-model.md`); das Reinhören verändert sie nie und umgekehrt.
 
 #### 11.4.6 Was belegt ist und was noch zu prüfen bleibt
@@ -712,7 +877,31 @@ Für „Gesamtdauer“, Zeitleiste und Fortschritt braucht die Seite die Länge.
 | Sonderzeichen im Pfad (Umlaute, Leerzeichen, Klammern, Punkte) laufen durch die Signatur (die Prüfung vergleicht den **entschlüsselten** Pfad) | **zu prüfen**: Test in A4c mit „Der Wald (Teil 1).mp3“ und „Märchen.m4a“ |
 | Ob `FileResponse` auf dem NAS-Pfad (SMB/NFS) beim Springen schnell genug ist | **zu prüfen** am echten NAS (A16) |
 | Companion-App: spielt `<audio>` bei gesperrtem Bildschirm weiter, zeigt der Sperrbildschirm die Medien-Steuerung? | **zu prüfen** (iOS und Android, A15b); sonst nur „im Vordergrund hören“ |
+| `ffmpeg` ist in HA da: Die Integration `ffmpeg` (`homeassistant/components/ffmpeg`, Zweig `dev`, geholt am 12.11.) legt einen `FFmpegManager` an (`get_ffmpeg_manager(hass).binary` liefert den Pfad, Vorgabe `ffmpeg`); beim offiziellen Container-Image rechnet sie mit `ffmpeg` 6.0 (`OFFICIAL_IMAGE_VERSION`). `ffmpeg` ist also Teil des Images, nicht nur ein Python-Paket. Die Integration `tobibox` nutzt schon `shutil.which("ffmpeg")` (`ffprobe.py`, `ffmpeg_pfad()`) und das README sagt „HA OS bringt beide mit“ | **belegt** (Quellen); `get_ffmpeg_manager` wirft `ValueError`, wenn die Integration `ffmpeg` nicht geladen ist: darum nur als **optionale** Erstwahl, kein Eintrag in `manifest.json`; Version und Encoder in Tobias' HA **zu prüfen** (A16: `ffmpeg -version`, `-encoders | grep aac`) |
+| `ffprobe -show_chapters` liefert Kapitel (Startzeit, Titel) für M4B **und** MP3 (ID3v2 `CHAP`), auch mit erzwungenem Format | **belegt** (Test mit ffprobe 6.1.1: M4B und MP3 mit je 3 Kapiteln, `start_time` und `tags.title` kommen zurück, Aufruf wie `ffprobe.py`); echte Hörbücher von Tobias **zu prüfen** (A3b) |
+| Hörkopie mit dem eingebauten AAC-Encoder: Größe und Zeit | **gemessen** (Testrechner, ffmpeg 6.1.1): 10 Minuten aus OGG Vorbis, Opus, FLAC und ALAC je 7,3 MB (Soll 7,2 MB), Dauer unverändert (600,0 s), Kodierzeit 6,6 bis 9,5 s (60 bis 90 mal Echtzeit); **auf HA-Hardware zu prüfen** (A16) |
 | Safari verlangt eine Geste zum Start | berücksichtigt: Ton startet nur nach Tap; Folgenwechsel nach Ende läuft weiter, weil die Seite schon spielt (zu prüfen auf iOS) |
+
+#### 11.4.7 Hörkopie (neu in Rev. 4)
+
+**Ziel (Runde 8, Nr. 17: alle Formate):** Reinhören geht für jede Datei des Bestands, auf jedem Gerät, mit Springen, ohne Umwandeln beim Abspielen. Die **Box bekommt immer das Original**; die Kopie ist nur für den Browser.
+
+* **Wann braucht eine Folge eine Hörkopie?** Nach dem **Codec des Originals** (`codec`, aus `ffprobe`, 11.4.4): `mp3` und `aac` (also MP3, M4A/M4B mit AAC, AAC) spielen überall: **Original**. Alles andere bekommt eine Kopie: `vorbis` (OGG), `opus`, `alac` (M4A), `flac`, `pcm_*` (WAV) und alles Unbekannte. FLAC und WAV spielen in neuen Browsern; die Kopie spart dort Mobilfunk und Wartezeit (WAV: 10 MB je Minute gegen 0,7 MB). Die Regel steht an **einer** Stelle im Code (eine Funktion `braucht_hoerkopie(codec)`).
+* **Erzeugen:** `ffmpeg -nostdin -v error -protocol_whitelist file -f <Format der Endung> -i file:<Pfad> -vn -map_metadata -1 -c:a aac -b:a 96k -movflags +faststart -f mp4 file:<Ziel>.part`, danach umbenennen. Gleiche Härtung wie `ffprobe.py` (Liste von Argumenten, nie Shell, `RLIMIT_AS`, Zeitgrenze; Programm: Erstwahl `get_ffmpeg_manager(hass).binary`, wenn die Integration `ffmpeg` geladen ist, sonst `shutil.which("ffmpeg")`). **Warum AAC in M4A:** `aac` ist der in ffmpeg eingebaute Encoder (immer da, `libmp3lame` nicht in jedem Bauplan), M4A spielt auf allen Zielgeräten, `+faststart` legt den Index nach vorn, damit der Browser sofort per Range anfragen kann. 96 kbit/s reichen zum Erkennen, was etwas ist. Bei Ordner-Folgen: eine Kopie je Track.
+* **Wo (Entscheidung und Begründung):** Auf dem NAS im Ordner **`hoerkopien/<serie_id>/<kennung>.m4a` neben `medien/`** (wie `export/`, `eingang/` und `releases/`, gleiche Freigabe, Vertrag W 11.1), **nicht** im Medienordner der Boxen und **nicht** in HAs Konfigurationsordner. Gründe: (1) `hoerkopien/` liegt **außerhalb des rsync-Moduls `medien`**; die Box holt sie nie, `rsync --delete` und das Einlesen der Box-Bibliothek berühren sie nicht, und **`sync.py` braucht keine weitere Ausnahme** (Alternative „im Medienordner, vom Sync ausgeschlossen“ wäre eine zweite Box-Änderung und ein Risiko für das Einlesen der Bibliothek); (2) HAs Konfigurationsordner liegt meist auf einer kleinen SD-Karte oder SSD und wandert in jede HA-Sicherung (Kopien wären Sicherungsballast); (3) die Integration schreibt auf diese Freigabe schon heute. `kennung` = die ersten 16 Zeichen von `sha1(folge|track|größe|Änderungszeit)`: ändert sich das Original, entsteht eine neue Kopie; verwaiste Kopien (Serie oder Folge endgültig gelöscht, Kennung veraltet) räumt der Hintergrundlauf weg. `serie.json` verweist **nicht** auf die Datei, sie merkt nur den Zustand (`hoerkopie`, 11.3).
+* **Wann sie entsteht:** (a) **Beim Einsortieren**, nachdem die Prüfung (`pruefe_datei`) gelaufen ist und die Datei in `medien/` liegt: im Hintergrund, die Meldung „fertig“ wartet nicht darauf. (b) **Bestand** im Hintergrund, wie die Dauer (Frage 18, „passt“): derselbe Durchgang (11.4.4), danach die Kopien nacheinander, eine Datei zugleich, mit niedriger Priorität (`nice`), nie beim Öffnen der Seite. (c) **Vorgezogen**: Wird eine Folge ohne fertige Kopie abgespielt, stellt die Audio-Ansicht sie an die Spitze der Warteschlange und antwortet 503 `hoerkopie_wartet`; die Seite sagt „Die Hörprobe wird gerade vorbereitet …“ und versucht es nach 30 Sekunden von selbst noch einmal. Zeitgrenze für `ffmpeg`: `max(120 s, Dauer/8 + 60 s)`, höchstens 2 Stunden.
+* **Speicherbedarf (Schätzung):** 96 kbit/s = 12 KB/s = **43 MB je Stunde**. Gemessen: 10 Minuten werden 7,3 MB (11.4.6). Beispiele: 20 Hörspiel-Folgen zu je 28 Minuten in OGG ≈ **0,4 GB**; 100 Stunden Hörbücher in Opus ≈ **4,3 GB**; **schlechtester Fall:** der ganze Bestand (50 bis 80 GB, grob 1 600 Stunden) läge in keinem Browser-Format: ≈ **70 GB**, also etwa so viel wie die Originale (die Kopie spart bei Quellen unter 100 kbit/s nichts). Realistisch (MP3 und M4A als Normalfall, Tobias nennt „alle Formate“ als Möglichkeit): **wenige GB**. Das NAS muss das tragen, die Boxen nicht (Frage 26).
+* **Rechenzeit:** gemessen auf dem Testrechner 60 bis 90 mal Echtzeit; auf HA-Hardware (Raspberry Pi 4, HA Green) vorsichtig 15 bis 30 mal Echtzeit: ein Hörbuch von 10 Stunden braucht dann 20 bis 40 Minuten, **im Hintergrund** (zu prüfen in A16). Der Bestand wird in Stunden bis Tagen fertig, niemand muss warten: bis dahin gilt `hoerkopie_wartet`.
+* **Fehlerfall:** (1) `ffmpeg` fehlt oder die Fähigkeit nicht gemeldet: keine Kopien, kein Fehler; Formate ohne Browser-Unterstützung zeigen den Rückfalltext (heutiger Stand). (2) Das Kodieren schlägt fehl (kaputte Datei, Zeitgrenze, Platz, NAS weg): `hoerkopie.zustand = "fehler"` mit `grund` (`kodieren_fehlgeschlagen`, `zeitgrenze`, `kein_speicher`, `medien_nicht_erreichbar`). **Keine Dauerschleife:** ein Versuch je Datei und Start der Integration, danach erst wieder auf `hoerkopie/neu_erzeugen` (Admin). NAS weg pausiert die Warteschlange (wie bei der Dauer). Die Seite zeigt „Für diese Datei gibt es keine Hörprobe. Auf der Box spielt sie trotzdem.“ (3) Halbe Dateien (`*.part`) werden beim Start gelöscht. (4) Die Box ist nie betroffen: sie liest nur `medien/`.
+* **Papierkorb, Umbenennen, Verschieben, Zusammenführen:** Kopien hängen an `serie_id` und Kennung; Papierkorb und Umbenennen berühren sie nicht, Verschieben und Zusammenführen ändern die `serie_id` (die Kopie wird beim nächsten Lauf unter der neuen ID wiedergefunden oder neu gemacht), endgültiges Löschen räumt der Hintergrundlauf auf.
+
+#### 11.4.8 Kapitel (neu in Rev. 4)
+
+* **Quellen, in dieser Reihenfolge:** (1) **Eingebettete Kapitel** der Datei (`ffprobe -show_chapters`: M4B-Kapitelspur, MP3 ID3v2 `CHAP`); belegt für beide Formate (11.4.6). (2) Bei einer **Ordner-Folge** ist jeder **Track ein Kapitel**: Titel aus dem Tag `title`, sonst Dateiname ohne Endung und ohne führende Nummer; Start = Summe der vorigen `spuren_s`. (3) Sonst keine Kapitel (die Seite zeigt keine Liste). Eine Datei **mit** eingebetteten Kapiteln gewinnt vor den Tracks.
+* **Speicherung:** `folgen_info.<name>.kapitel` in `serie.json` (11.3), beim Einsortieren gelesen und im Hintergrund für den Bestand nachgeholt (11.4.4, im selben Lauf). Sortiert nach `start_s`; doppelte Startzeiten und Rückwärtssprünge fliegen raus; höchstens 500 Kapitel je Folge. Die Box ignoriert das Feld (data-model 1.4); `serie/get` gibt es als `kapitel` aus (V-8).
+* **Anzeige:** Player-Vollansicht (Zeile „Kapitel 8: Das Echo (8 von 12)“, Knopf „Kapitel“ und Blatt, 5.12) und Serienseite (Abschnitt „Kapitel“ statt Folgenliste, 5.3). **Eine Zeitleiste über alles bleibt** (Entscheidung Tobias, Nr. 20).
+* **Springen:** Bei eingebetteten Kapiteln setzt die Seite `currentTime = start_s`. Bei Ordner-Folgen wechselt sie auf den Track (`?track=n`, neue Signatur, 11.4.2) und setzt die Zeit im Track. Die Hörstelle speichert wie bisher `track` und `position_s`; es gibt kein neues Feld und keinen neuen Befehl.
+* **Grenzen:** Hörspiel-Folgen aus **einer** Datei ohne Kapitel zeigen keine Liste. Ein Hörbuch, dessen Ordner nur **eine** Datei hat, zeigt Kapitel nur, wenn die Datei welche enthält. Titel, die nur aus Zahlen bestehen („1“, „2“), zeigt die Seite als „Kapitel 1“, „Kapitel 2“.
 
 ## 12. Stufe B (geplant): Gehört, Favoriten, Technik-Verlauf
 
@@ -747,17 +936,17 @@ Tobias will sehen, **welche Box welches Hörspiel wie oft gehört hat**. Dafür 
 
 | Begriff | Regel |
 |---|---|
-| **Wiedergabe** („Mal gehört“) | Eine **Sitzung** (`sitzung`) mit **mindestens 10 Sekunden** gespielter Zeit (`dauer_s ≥ 10`; kürzere meldet die Box gar nicht). Zwischenstände (`teilweise`) derselben Sitzung zählen **nicht** doppelt (HA ersetzt den Stand je `sitzung`). |
+| **Wiedergabe** („Mal gehört“) | Eine **Sitzung** (`sitzung`) mit **mindestens 10 Sekunden** gespielter Zeit (`dauer_s ≥ 10`; kürzere meldet die Box gar nicht). Zwischenstände (`teilweise`) derselben Sitzung zählen **nicht** doppelt (HA ersetzt den Stand je `sitzung`). **Beschlossen (Runde 8, Nr. 19): Sitzungen derselben Box und Folge mit höchstens 5 Minuten Lücke zählen als eine Wiedergabe** (Spalte `wiedergabe`, 12.3). |
 | **Hörzeit** | Summe der gespielten Sekunden (`dauer_s`) ohne Pausen. |
 | **fertig** („ganz gehört“) | Eine Sitzung mit `ende = ende_der_folge`. Nur sie macht eine Folge „fertig“. |
 | **Fertig in der Rangliste (je Hörspiel)** | Anzahl **verschiedener Folgen**, die im Zeitraum mindestens einmal fertig gehört wurden, von der heutigen Zahl der Folgen („17/20“). |
 | **Fertig je Folge** (Aufteilung) | Anzahl fertiger Wiedergaben dieser Folge im Zeitraum („2×“). |
 | **Zeitraum** | Woche = letzte 7 Tage, Monat = 30, Jahr = 365, jeweils bis jetzt; Alles = seit Beginn. Gerechnet nach `start` der Sitzung. |
 | **Wer** | Die **Box** (Kind = Box). Die Kennung des Tobies bleibt draußen (Frage 9). |
-| **Reinhören am Handy** | zählt **nicht** (5.12); es sind nur Boxen-Sitzungen. |
+| **Reinhören am Handy** | zählt **nicht** bei den Boxen (5.12); es hat den eigenen Bereich „Mein Reinhören“, zugeordnet dem HA-Benutzer (12.5). |
 
-Grenzfälle: Ein Tobie, der abgenommen und nach einer Minute wieder aufgelegt wird (`tobie_abgenommen`), oder eine Pause über 10 Minuten (`pause_lang`) beenden die Sitzung; das Weiterhören danach ist eine **neue** Sitzung und zählt als zweite Wiedergabe (gehört „2 Mal“, aber nur einmal fertig). Bei Hörbüchern (eine lange Folge, abends in Portionen) ist „Mal“ deshalb hoch und „Hörzeit“ die ehrlichere Zahl; darum stehen beide in der Tabelle.
-Soll eine kurze Unterbrechung nicht doppelt zählen, kann HA beim Aufnehmen Sitzungen derselben Box und Folge, die höchstens 5 Minuten nach dem Ende der vorigen beginnen, zu **einer** Wiedergabe zusammenfassen (Feld `wiedergabe` in der Tabelle). Das ist nicht Teil des Vorschlags, sondern Frage 19.
+Grenzfälle: Ein Tobie, der abgenommen und nach einer Minute wieder aufgelegt wird (`tobie_abgenommen`), ist **eine** Wiedergabe (Lücke höchstens 5 Minuten, Runde 8, Nr. 19); nach einer **längeren** Pause (`pause_lang`, über 10 Minuten, oder Lücke über 5 Minuten) ist das Weiterhören eine **neue** Wiedergabe: gehört „2 Mal“, aber nur einmal fertig. Bei Hörbüchern (eine lange Folge, abends in Portionen) ist „Mal“ deshalb eher hoch und „Hörzeit“ die ehrlichere Zahl; darum stehen beide in der Tabelle.
+Das Zusammenfassen macht HA **beim Aufnehmen**: Beginnt eine Sitzung derselben Box und Folge höchstens 5 Minuten nach dem Ende der vorigen, bekommt sie dieselbe `wiedergabe`-Kennung; die Rangliste zählt `COUNT(DISTINCT wiedergabe)`, die Hörzeit bleibt die Summe der Sitzungen. Dieselbe Regel gilt für „Mein Reinhören“ (12.5).
 
 ### 12.3 Speicherung in HA: Vergleich
 
@@ -772,8 +961,10 @@ Soll eine kurze Unterbrechung nicht doppelt zählen, kann HA beim Aufnehmen Sitz
 **Speicherbedarf (Schätzung, 250 Byte je Zeile mit Index):** 2 Boxen × 20 Sitzungen am Tag ≈ 14 600 Zeilen im Jahr ≈ **3,7 MB**; selbst 100 Sitzungen je Box und Tag nur ≈ 18 MB im Jahr. Technik-Ereignisse (50 je Box und Tag) ≈ 5 MB im Jahr. Akku-Statistik ≈ 2 bis 3 MB im Jahr.
 Zusammen **etwa 10 MB im Jahr**, 100 MB in zehn Jahren: „unbegrenzt“ ist unproblematisch. Eine Aufräumregel ist nicht nötig. Trotzdem: Knopf „Alle Hördaten löschen“ und „Als Tabelle sichern“ in „Technik“ (Hördaten über Kinder sind persönlich; sie bleiben nur in HA, nie in der Cloud).
 
-**Spalten der Tabelle `sitzungen` (SQLite, Rev. 3):** `box`, `seq`, `sitzung`, `serie`, `folge`, `start`, `dauer_s`, `ende`; `UNIQUE(box, seq)`, Indizes `(serie, folge, start)` und `(box, start)`. Die Rangliste ist eine einzige Abfrage: `GROUP BY serie` mit `COUNT(*)` (Wiedergaben), `SUM(dauer_s)` (Hörzeit), `COUNT(DISTINCT folge)` unter `WHERE ende='ende_der_folge'` (fertige Folgen); die Aufteilung dasselbe mit `GROUP BY folge` für eine Serie.
+**Spalten der Tabelle `sitzungen` (SQLite, Rev. 3):** `box`, `seq`, `sitzung`, `wiedergabe`, `serie`, `folge`, `start`, `dauer_s`, `ende`; `UNIQUE(box, seq)`, Indizes `(serie, folge, start)` und `(box, start)`. Die Rangliste ist eine einzige Abfrage: `GROUP BY serie` mit `COUNT(DISTINCT wiedergabe)` (Wiedergaben), `SUM(dauer_s)` (Hörzeit), `COUNT(DISTINCT folge)` unter `WHERE ende='ende_der_folge'` (fertige Folgen); die Aufteilung dasselbe mit `GROUP BY folge` für eine Serie.
 Ziel: unter 50 ms bei 15 000 Zeilen (Jahresbedarf, siehe oben), Test in B3.
+
+**Reinhören (Rev. 4):** Zweite Tabelle `reinhoer_sitzungen` in derselben Datei: `benutzer` (HA-Benutzerkennung), `serie`, `folge`, `wiedergabe`, `start`, `gespielt_s`, `ende`; Indizes `(benutzer, start)` und `(benutzer, serie, folge)`. Größenordnung: 2 Erwachsene × 10 Sitzungen am Tag ≈ 7 300 Zeilen im Jahr ≈ 1,8 MB. Abfragen immer mit `WHERE benutzer = <Verbindung>`.
 
 ### 12.4 Vertragsentwurf `ha-websocket-v1.md` (Stufe B)
 
@@ -781,15 +972,29 @@ Fähigkeit **`gehoert`** (Reiter „Gehört“, Stern und Sortierungen erscheine
 
 | Befehl | Recht | Eingabe → Ausgabe |
 |---|---|---|
-| `gehoert/zusammenfassung` | lesen | **Eingabe:** `box` (optional; Liste von Box-IDs, fehlt = alle), `zeitraum` (`woche`, `monat`, `jahr`, `alles`) **oder** `von`/`bis`, `nach` (Liste aus `box`, `serie`, `folge`, `tag`, `stunde`; **Box × Serie × Folge** geht in einem Aufruf), `serie_id` (optional, schränkt auf einen Eintrag ein), `sortierung` (`wiedergaben` Vorgabe, `sekunden`), `limit` (1 bis 200). **Ausgabe:** `zeilen`, je Zeile die Schlüssel aus `nach` plus `wiedergaben`, `sekunden`, `fertig` (Sitzungen mit `ende_der_folge`) und, wenn `folge` nicht in `nach` steht, `folgen_fertig` und `folgen_gesamt`; dazu `summe` (`wiedergaben`, `sekunden`, `fertig`). Regeln: 12.2.1 |
+| `gehoert/zusammenfassung` | lesen | **Eingabe:** `box` (optional; Liste von Box-IDs, fehlt = alle), `zeitraum` (`woche`, `monat`, `jahr`, `alles`) **oder** `von`/`bis`, `nach` (Liste aus `box`, `serie`, `folge`, `tag`, `stunde`; **Box × Serie × Folge** geht in einem Aufruf), `quelle` (`boxen` Vorgabe, `reinhoeren`; bei `reinhoeren` ist `box` ungültig und die Benutzerkennung kommt **aus der Verbindung**, 12.5), `serie_id` (optional, schränkt auf einen Eintrag ein), `sortierung` (`wiedergaben` Vorgabe, `sekunden`), `limit` (1 bis 200). **Ausgabe:** `zeilen`, je Zeile die Schlüssel aus `nach` plus `wiedergaben`, `sekunden`, `fertig` (Sitzungen mit `ende_der_folge`) und, wenn `folge` nicht in `nach` steht, `folgen_fertig` und `folgen_gesamt`; dazu `summe` (`wiedergaben`, `sekunden`, `fertig`). Regeln: 12.2.1 |
 | `gehoert/zuletzt`, `gehoert/meist` | lesen | `box`, `limit`, `von`, `bis` → Einträge mit Zeit bzw. Sekunden |
 | `favorit/set`, `favoriten/list` | **Alltag** / lesen | `serie_id`, `folge` (optional), `an` → Liste |
 | `technik/verlauf` | admin | `box`, `von`, `bis` → Akku (Statistik), Ladezeiten, Laufzeit je Ladung, Syncs, Fehler |
-| `gehoert/exportieren`, `gehoert/loeschen` | admin | CSV bzw. alles löschen (mit Bestätigungswort) |
+| `gehoert/exportieren`, `gehoert/loeschen` | admin | CSV bzw. alles löschen (mit Bestätigungswort); betrifft **nur die Boxen-Daten** |
+| `reinhoer/loeschen` (Rev. 4) | **Alltag** | löscht die **eigenen** Reinhör-Daten (Rückfrage in der Seite); fremde nie, auch nicht als Administrator |
 
 **Aufrufe der Seite (5.10):** Rangliste je Box: `nach=["serie"]`, `box=["box1"]` (oder beide Boxen addiert: ohne `box`); Vergleich nebeneinander: `nach=["box","serie"]`. Aufteilung nach Folgen: `serie_id`, `nach=["folge"]`. Das Säulendiagramm bleibt `nach=["tag","box"]`, die Tageszeiten `nach=["stunde"]`.
 
-`serien/list` und `folgen/list` bekommen die Sortierungen `zuletzt_gehoert`, `meist_gehoert` und den Filter `favorit` (nur mit Fähigkeit `gehoert`). Hördaten sind lesbar für alle HA-Benutzer (Frage 8).
+`serien/list` und `folgen/list` bekommen die Sortierungen `zuletzt_gehoert`, `meist_gehoert` und den Filter `favorit` (nur mit Fähigkeit `gehoert`). Hördaten der Boxen sind lesbar für alle HA-Benutzer (Frage 8); Reinhör-Daten nur für den eigenen Benutzer (12.5, Frage 23). Fähigkeit **`gehoert_reinhoeren`** (der Umschalter „Mein Reinhören“ erscheint nur damit).
+
+### 12.5 Reinhören in „Gehört“ (Rev. 4, Runde 8 Nr. 21)
+
+**Entscheidung Tobias:** Reinhören wird **doch erfasst**, aber dem **HA-Benutzer** zugeordnet, nicht einer Box.
+
+**Datenquelle (ohne neue Aufrufe der Seite):** Die Hörstellen-Aufrufe (`hoerstelle/set`, 11.4.5) kommen höchstens alle 10 Sekunden während der Wiedergabe und sofort bei Pause, Sprung, Wechsel und Ende. HA leitet daraus **Sitzungen** ab, je Benutzer und Folge: ein offener Zustand mit `start`, `letzte Zeit`, `letzte Position` und `gespielt_s`. Bei jedem Aufruf gilt: `dt` = Sekunden seit dem letzten Aufruf, `dp` = Positionsänderung. Als **gespielt** zählt nur, wenn `0 < dp ≤ 1,5 × dt + 2` **und** `dt ≤ 30` (normale Wiedergabe bis 1,5-fach; Springen und lange Pausen zählen nicht). Die Sitzung endet bei `fertig` (`ende_der_folge`), beim Wechsel der Folge (`anderes`) oder wenn der nächste Aufruf mehr als 5 Minuten später kommt (`pause_lang`). **Gleiche Zählregel wie 12.2.1:** Eine Wiedergabe ist eine Sitzung mit mindestens 10 Sekunden `gespielt_s`; Sitzungen derselben Folge mit höchstens 5 Minuten Lücke zählen als **eine** Wiedergabe; „fertig“ = Ende der Folge; Hörzeit = Summe `gespielt_s`.
+**Genauigkeit:** Schließt jemand die Seite, fehlen bis zu 10 Sekunden; das Handy kann die Seite einfrieren (`pagehide` ist nicht verlässlich). Für Hörzeit pro Tag reicht das, die Zahlen sind „etwa“. Die Erfassung beginnt mit Stufe B (frühere Hörstellen-Aufrufe haben keinen Verlauf); wer die Daten ab dem ersten Tag will, lässt die Ableitung schon in A4d einbauen (kleines Paket, Frage 23).
+
+**Der Widerspruch und die Regel:** Drei Antworten von Tobias treffen hier zusammen. **Nr. 8:** Die Hördaten der **Boxen** sehen alle HA-Benutzer (die Kinder haben kein Konto; Löschen nur Admin). **Nr. 16:** Von der **Hörstelle** sieht jeder nur die **eigene**, auch ein Administrator. **Nr. 21:** Reinhören wird dem **Benutzer** zugeordnet. Nr. 8 und Nr. 16 stehen nicht im Widerspruch (Boxen gegen Benutzer). Nr. 21 macht aber die Reinhör-Daten zu Daten **über Erwachsene** (wer hat wann was angehört); das liegt näher an Nr. 16 als an Nr. 8.
+**Empfehlung: Jeder sieht nur die eigenen Reinhör-Daten, auch Administratoren; die Boxen-Daten bleiben für alle sichtbar.** Gründe: dieselbe Regel wie bei der Hörstelle (nichts Neues zu erklären), Wandtablets und Gäste mit Konto sehen nichts über Tobias und Verena, kein Verwaltungsaufwand. Jeder darf **seine eigenen** Reinhör-Daten löschen (`reinhoer/loeschen`); „Alle Hördaten löschen“ in „Technik“ betrifft nur die Boxen-Daten. **Alternative:** Alle sehen alle (wie Nr. 8): einfacher zu bauen (kein Filter nach Benutzer), aber Verena sähe, was Tobias hört, und umgekehrt, und ebenso jedes Gäste-Konto. **Frage 23 an Tobias.**
+
+**Bedienung:** Reiter „Gehört“ mit dem Umschalter **Boxen | Mein Reinhören**; Inhalt in 5.10.1. Die Benennung „Mein Reinhören“ (statt „Eltern“) steht für den **angemeldeten Benutzer**, wer das auch ist; sie passt zur Regel „nur eigene“. Die Namen von Personen erscheinen nirgends als Auswahl.
+**Vertrag (Stufe B):** `gehoert/zusammenfassung` mit `quelle="reinhoeren"` (12.4), `reinhoer/loeschen`, Fähigkeit `gehoert_reinhoeren`; Paket B3 bis B5 (Abschnitt 15.2).
 
 ## 13. Stufe C (Idee): eigene Playlists
 
@@ -808,6 +1013,9 @@ Fehlt die Datei noch (nicht synchronisiert): wie `serie_fehlt` spielt die Box di
 
 **Auswirkung auf die Oberfläche:** Zielwahl bekommt eine dritte Auswahl „Playlist“, jedes Lied/jede Folge den Knopf „Zu einer Playlist hinzufügen“ (Prototyp: ausgegraut), Reiter „Tobies“ eine Playlist-Karte mit ▲/▼. **Aufwand:** Box-Code, drei Verträge (`data-model`, `core-interface`, `mqtt-v1` Schema-Hinweis), Boxen-Update; als eigener Block C1 bis C4 nach B (Abschnitt 15).
 
+**Hochladen als Playlist (Rev. 4, Karte d):** Die Karte „Neue Playlist“ im Blatt „Was lädst du hoch?“ (5.6) ist im Prototyp sichtbar und mit „Stufe C – Idee“ markiert. In Stufe C fragt die Vorschau nach dem **Namen der Playlist**; jede Datei wird ein **Einzeltitel** (V-7, `ziel=einzeln`), und die Playlist verweist auf diese Titel (`eintraege: [{serie, folge}]`). Der Satz lautet dann „4 Dateien → neue Playlist „Autofahrt“ mit 4 Liedern.“ Weil Einzeltitel schon normale Serien sind, braucht die Playlist **kein** zweites Datenmodell für Dateien. Upload-Wunsch `ziel=playlist` (V-7) und die Befehle aus diesem Abschnitt (`playlist/*`) kommen in C1.
+**Weiterspielen über eine Playlist (Runde 8, Nr. 22):** Reinhören auf einer Playlist spielt die Einträge in ihrer Reihenfolge und geht am Ende eines Titels zum nächsten, auch über Einträge verschiedener Serien. Die Hörstelle bleibt je Folge und Benutzer (11.4.5), braucht also keine Änderung; neu ist nur die **Warteschlange der Seite** (Quelle „Playlist“ statt „Folgen der Serie“) und der Knopf „Reinhören“ auf der Playlist-Karte. Für Alben gilt das Weiterspielen schon in Stufe A (5.12).
+
 ## 14. Barrierefreiheit, Gefahrloses (U24)
 
 * **Tap-Ziele:** mindestens 44 × 44 px (im Prototyp bei 390 und 1280 px geprüft; Ausnahme nur Textlinks im Fließtext). **Kontrast:** Text mindestens 4,5:1, große Schrift und Symbole 3:1, in Hell, Dunkel und im Theme mit hellem Primärton (Abschnitt 4).
@@ -823,6 +1031,9 @@ Fehlt die Datei noch (nicht synchronisiert): wie `serie_fehlt` spielt die Box di
 * **Player (Rev. 3):** Die Vollansicht ist ein natives `<dialog>` (Esc schließt, Fokus beim Öffnen auf Play/Pause, danach zurück auf die Leiste). Die Zeitleiste ist ein Schieberegler mit `aria-valuetext` („1:41 von 2:47“); alle Knöpfe 44 px oder mehr, Play 72 px; Geschwindigkeit als Knopfgruppe mit `aria-pressed`;
   Symbol-Knöpfe haben Namen („30 Sekunden zurück“, „Nächste Folge“). Die Leiste unten ist ein Knopf mit Namen „Player öffnen: <Titel>, <Eintrag>“. Es wird **nie von selbst Ton gestartet** (nur nach Tap); Tastatur: Leertaste = Play/Pause im Dialog. Fortschrittsbalken in Listen haben `role="progressbar"` mit Wert; Farbe nie allein (Text „noch 18 Min.“ / „Fertig gehört“).
 * **Doppeltippen:** Knöpfe, die etwas senden, sind während des Aufrufs gesperrt (`anfrage_id`).
+* **Hochladen (Rev. 4):** Das Blatt „Was lädst du hoch?“ ist ein natives `<dialog>` (Esc, Fokus zurück auf „Dateien wählen“); die fünf Karten sind echte Knöpfe (mindestens 76 px hoch, Titel, Erklärung und Beispiel im Namen); die gestrichelte Karte „Neue Playlist“ hat `aria-disabled="true"` und nennt „Stufe C – Idee“ im Text (kein Ausgrauen durch Deckkraft, damit der Kontrast 4,5:1 hält). Zwischen den Schritten wechselt nur der Inhalt des Blatts; der Fokus geht auf die Überschrift, nicht auf ein Textfeld (am Handy würde sonst die Tastatur aufgehen). Der Satz der Vorschau ist ein `role="status"`-Bereich (`aria-live="polite"`) und ändert sich beim Tippen. Art-Auswahl als Knopfgruppe mit `aria-pressed`.
+* **Kapitelliste (Rev. 4):** Zeilen sind Knöpfe (mindestens 56 px) mit Namen „Kapitel 4: Der Sturm, ab 1:12, aktuelles Kapitel, abspielen“; das aktuelle Kapitel hat `aria-current="true"` und eine getönte Fläche **und** den Text „hier weiter“ bzw. „läuft“ (Farbe nie allein); schon gehörte tragen Häkchen **und** den Text „gehört“. Im Player-Blatt öffnet der Fokus auf dem aktuellen Kapitel.
+* **Umschalter „Boxen | Mein Reinhören“ (Rev. 4):** Knopfgruppe mit `aria-pressed`, jeder Knopf mindestens 44 px hoch; der Hinweis „Nur du siehst das.“ steht als Text, nicht nur als Symbol.
 
 ## 15. Arbeitspakete (Sonnet, billigstes passendes Modell)
 
@@ -836,30 +1047,32 @@ Der Vertrag (A0) wird **zusammen mit A1** geschrieben, nicht davor (er beschreib
 | A0 | **Vertrag W und Datenmodell** einarbeiten (11): Eintrag „Änderung 12.11.“, Abschnitt 2.1 ersetzen, W-19 streichen, `serie.json`-Felder, reservierte Dateinamen. Nur nach Freigabe | Sonnet | – |
 | A1 | **Rechte und Schutz** (10): `befehl(recht=…)`, Tabelle 10.2, Schutz 10.3 (`erwartet_ziel`, bekannte Kennungen, Mengen, `erwartet_revision`, Zeitzone ignorieren, `sofort` nur Admin), `boxen/list`/`export_lesen` nur Admin, 10 frühere Stände der Liste, Upload ohne `require_admin`. **`require_admin` bleibt `True`** | Sonnet | `tests/test_websocket_api.py`: Tabelle 10.2 als Parametertest (Admin und Normal-Benutzer je Befehl); Schutzfälle einzeln; `tests/test_services.py`: jede Aktion als Nicht-Admin = `Unauthorized`; `tests/test_upload.py`: Nicht-Admin 200 |
 | A2 | **Anzeigenamen** (V-3): Textfeld in Optionen, `strings.json`, `translations/de.json`, `anzeige`, `hello.box_anzeigen` | Haiku (Formular) + Sonnet (Hub) | `test_config_flow.py`, Reihenfolge der Rückfälle |
-| A3 | **Art und Bibliothek-Backend** (V-2): Art-Vorschlag beim Einsortieren, `serien/list` erweitert, `folgen/list`, `serie/art_setzen`, `zuordnung/list` mit `text`/`neu`, Index | Sonnet | Art-Regeln mit Tag-Fixtures (Genre, `.m4b`, Albumlänge); Suche, Filter, Sortieren, Blättern; **Leistungstest 600 Einträge / 2 000 Folgen < 200 ms**; alte Aufrufe ohne `limit` unverändert |
-| A3b | **Dauer** (11.4.4): `dauer_s` und `spuren_s` beim Einsortieren aus `ffprobe` speichern, Nachholen im Hintergrund (Zeitgrenze, Abbruch bei NAS weg, nie beim Öffnen), Felder in Kurzform und `serie/get`, `serie.json` additiv | Sonnet | `tests/test_media.py`: Dauer einer MP3 und einer Ordner-Folge, fehlende Datei, Nachholen genau einmal, Box ignoriert die Felder (`box/tests`: `serie.json` mit `dauer_s` wird gelesen) |
+| A3 | **Art und Bibliothek-Backend** (V-2): Art-Vorschlag beim Einsortieren, `serien/list` erweitert (**Rev. 4:** `einzeln`, Filter `sammlung`/`einzeln`), `folgen/list` (`serie_einzeln`), `serie/art_setzen`, `zuordnung/list` mit `text`/`neu`, Index (Einzeltitel als Serie **und** als Folge) | Sonnet | Art-Regeln mit Tag-Fixtures (Genre, `.m4b`, Albumlänge); Suche, Filter, Sortieren, Blättern; **Leistungstest 600 Einträge / 2 000 Folgen < 200 ms** (dazu 300 Einzeltitel); alte Aufrufe ohne `limit` unverändert; Filter `einzeln` liefert nur Einzeltitel |
+| A3b | **Dauer, Kapitel, Codec** (11.4.4, 11.4.8): `ffprobe.py` ergänzt `-show_chapters`; `dauer_s`, `spuren_s`, `kapitel`, `codec` beim Einsortieren aus **einem** Lauf speichern, Nachholen im Hintergrund (Zeitgrenze, Abbruch bei NAS weg, nie beim Öffnen), Felder in Kurzform und `serie/get`, `serie.json` additiv | Sonnet | `tests/test_media.py`: Dauer einer MP3 und einer Ordner-Folge, fehlende Datei, Nachholen genau einmal; **Kapitel** aus einer M4B und einer MP3 (ID3v2 `CHAP`) mit `ffmpeg`-Fixture, Kapitel aus den Tracks eines Ordners, doppelte Startzeiten, mehr als 500; Box ignoriert die Felder (`box/tests`: `serie.json` mit `dauer_s`, `kapitel` wird gelesen); `test_ffprobe.py` bleibt grün |
+| A3c | **Hörkopie** (11.4.7, V-9): `braucht_hoerkopie(codec)`, Warteschlange mit einem Lauf zugleich und `nice`, `ffmpeg`-Aufruf (gehärtet wie `ffprobe.py`, Erstwahl `get_ffmpeg_manager`, Rückfall `shutil.which`), Ordner `hoerkopien/` neben `medien/`, `*.part` und Aufräumen, Zustand in `serie.json`, Fehlerfall ohne Dauerschleife, `hoerkopie/neu_erzeugen` (Admin) | Sonnet | `tests/test_hoerkopie.py` (ffmpeg-Fixture OGG, Opus, FLAC, WAV, ALAC): Kopie entsteht und ist AAC/M4A mit gleicher Dauer; MP3 und AAC bekommen keine; Fehler (kaputte Datei, Zeitgrenze, `kein_speicher`) setzt `fehler` und wiederholt nicht; `*.part` wird beim Start gelöscht; Quelle ändert sich → neue Kennung, alte Kopie wird aufgeräumt; kein `ffmpeg` → keine Fähigkeit, kein Fehler; die Box liest `medien/` unverändert (`box/tests`) |
+| A3d | **Hochladen mit Wunsch und Einzeltitel** (V-7, V-8): Upload-Felder `ziel`, `art`, `name`; Regeln `neu` (Gruppierung nach Art, nie zusammenführen, `serie_name_doppelt`), `ergaenzen`, `einzeln` (`einzeln: true`), `auto` unverändert; `einsortierung/neu` (**Machbarkeit zuerst prüfen**, Rückfall Papierkorb); `wunsch` in `eingang/list`; `ziel_ungueltig` für Einzeltitel als Verschiebeziel | Sonnet | `tests/test_eingang.py` und `test_upload.py`: 12 Dateien mit gleichem Album: `neu`+`hoerbuch` = **eine** Folge mit 12 Tracks, `neu`+`musik` = **12** Folgen; `ergaenzen` ohne Folgen-Ordner, nummerngerecht eingefügt; `einzeln` = je Datei eine Serie mit einer Folge; ohne `ziel` alle bisherigen Testfälle T1 bis T17 unverändert; `wunsch_ungueltig`; Name doppelt → „(2)“; `einsortierung/neu` nur solange unverändert |
 | A4 | **Cover-Backend** (V-1, 5.5): Extraktion mit Marke, Nachholen im Hintergrund mit Zeitgrenze, `ffmpeg` fehlt, GET/POST/DELETE, `cover/neu_suchen`, Zusammenführen und Papierkorb | Sonnet | `tests/test_cover.py` (ffmpeg-Fixture MP3 mit/ohne Bild, kaputtes Bild, Marke verhindert Wiederholung, Zeitgrenze, Foto-Upload: falscher Typ, zu groß, nicht quadratisch, Original wird nicht gespeichert, ETag) |
 | A4b | **Sync-Ausschluss** `cover*.jpg`, `cover*.png`, `folder.jpg` in `box/src/tobibox/sync.py` | Sonnet | `box/tests`: Sync mit Covern überträgt sie nicht, übrige Dateien unverändert |
-| A4c | **Audio-Ausgabe** (11.4.1, 11.4.2): `TobiboxAudioView` (`FileResponse`, MIME-Tabelle, Pfad-Sicherheit, `track`, Stream-Grenze), Fähigkeit `reinhoeren` | Sonnet | `tests/test_audio.py` mit HA-Testclient: Range 200/206/416; 401 ohne Anmeldung und mit abgelaufener oder fremder Signatur; signierter Pfad mit richtigem und falschem Pfad oder `?track`; **`..`, `%2e%2e`, `%2F`, unbekannte Serie oder Folge, Symlink aus dem Medien-Pfad, Ordner statt Datei, Endung `.txt`, Papierkorb- und Eingang-Ordner: alle 404**; Umlaute, Leerzeichen und Klammern im Namen (laufen durch die Signatur); Ordner-Folge mit `track`; fünfter gleichzeitiger Stream 429; NAS weg 503 |
+| A4c | **Audio-Ausgabe** (11.4.1, 11.4.2, V-9): `TobiboxAudioView` (`FileResponse`, MIME-Tabelle, Pfad-Sicherheit, `track`, Stream-Grenze), **liefert die Hörkopie, wenn nötig und fertig; sonst 503 `hoerkopie_wartet` und Vorziehen in der Warteschlange**, Fähigkeit `reinhoeren` | Sonnet | `tests/test_audio.py` mit HA-Testclient: Range 200/206/416; 401 ohne Anmeldung und mit abgelaufener oder fremder Signatur; signierter Pfad mit richtigem und falschem Pfad oder `?track`; **`..`, `%2e%2e`, `%2F`, unbekannte Serie oder Folge, Symlink aus dem Medien-Pfad, Ordner statt Datei, Endung `.txt`, Papierkorb- und Eingang-Ordner, `hoerkopien/` als Serie: alle 404**; Umlaute, Leerzeichen und Klammern im Namen (laufen durch die Signatur); Ordner-Folge mit `track`; fünfter gleichzeitiger Stream 429; NAS weg 503; **OGG-Folge: erst 503 `hoerkopie_wartet`, nach der Kopie 206 mit `audio/mp4` und `X-Tobibox-Quelle: kopie`, Range auf der Kopie** |
 | A4d | **Hörstelle** (11.4.5): `Store` `tobibox.hoerstellen` mit `async_delay_save`, `hoerstelle/get`, `hoerstelle/set`, `hoerstelle/liste`, Drosselung, Aufräumen (Benutzer, Serien, Folgen), Felder `hoerstelle` in Kurzform, `serie/get`, Sortierung `angehoert` | Sonnet | `tests/test_hoerstelle.py`: zwei Benutzer sehen nie die Daten des anderen (auch kein Administrator); Prüfungen (Folge unbekannt, Position über Dauer, Dauer über 24 Stunden); „fertig“ ab Dauer − 2 s; 31. Aufruf in einer Minute `zu_viele_aenderungen`; Daten überleben einen Neustart (Store); gelöschte Serie fällt weg; Sortierung `angehoert` |
 | A5 | **Texte** `texte.js`: Fehlertabelle (6.1), Gründe (7.3), Sätze (5.1.1), vollständig gegen den Vertrag geprüft | Haiku + Sonnet-Review | Test: jeder Code der Vertragstabelle hat einen Text; Texte wörtlich wie hier |
 | A6 | **Panel-Gerüst** (neue Dateien): Reiter und Technik-Knopf (`narrow`, sticky, `visualViewport`), Routen, Theme-Token und Kontrastfunktion, Zustände, `<dialog>`-Blatt, Meldungen; **alte Komponente als `tobibox-technik` mit Schalter `eingebettet`** | Sonnet | jsdom: Reiter und Routen, Nicht-Admin sieht keinen Technik-Knopf, Zustände, Fokus nach Dialog; **alte 121 Tests unverändert grün** |
-| A7 | **Start und Bibliothek (Rev. 3)**: Status-Sätze, Kopfzeile mit „+“, Arten-Zeile, Reihen „Weiterhören“ und „Neu“, Listenzeilen (Fortschritt, Tobie-Symbol), Blatt „Sortieren und Filter“, Suchansicht `#suche` (3 Gruppen), Cover-Laden (`fetchWithAuth`, `blob:`, `IntersectionObserver`), Blättern | Sonnet | jsdom: Satz-Tabelle; Suche entprellt; Blatt sendet die Eingaben von V-2 (`filter`, `sortierung`, `angehoert`); „Mehr zeigen“ sendet `offset`; Platzhalterfarbe stabil; Fortschrittsbalken aus `hoerstelle` |
-| A8 | **Serienseite**: Kopf (Gesamtdauer), „Reinhören/Weiterhören“ (Zustände), „Tobie zuordnen“, Menü des Eintrags und der Folge, Name/Art/Cover ändern (Zuschneiden im Browser), „Das ist richtig/stimmt nicht“, Folgenliste mit Abspielknopf und Fortschritt, Papierkorb | Sonnet | jsdom: Blatt „Tobie für dieses Lied“, Zuschneiden (Canvas-Mock), Löschen mit `tobies_bestaetigt`, Knopf-Beschriftung je Hörstelle (neu, angefangen, fertig, läuft) |
-| A8b | **Player** (5.12, 11.4): `<audio>`, Signatur holen und bei 401 oder Fehler neu holen, nächste Folge vorsignieren, Ordner-Folgen über Tracks, Leiste und Vollansicht, ±30 s, Geschwindigkeit, Hörstelle gedrosselt speichern (10 s, Pause, Wechsel, `pagehide`), `canPlayType`-Vorabprüfung, Media-Session | Sonnet | jsdom mit gemocktem `HTMLMediaElement` (jsdom spielt nichts): Speichern höchstens alle 10 s und sofort bei Pause; Neusignieren bei 401 setzt an der Stelle fort; Folge-Ende startet die nächste; „Vorige“ springt zuerst an den Anfang; Format nicht abspielbar → Text 6.1; **Playwright** (A14) mit echtem Ton gegen eine Testdatei |
+| A7 | **Start und Bibliothek (Rev. 3, Rev. 4)**: Status-Sätze, Kopfzeile mit „+“, Arten-Zeile, Reihen „Weiterhören“ und „Neu“, Listenzeilen (Fortschritt, Tobie-Symbol; **Einzeltitel „Lied · einzeln · 1:06“**), Blatt „Sortieren und Filter“ (**mit Gruppe „Was zeigen“**), Suchansicht `#suche` (3 Gruppen, **Einzeltitel nur in „Folgen und Lieder“**), Cover-Laden (`fetchWithAuth`, `blob:`, `IntersectionObserver`), Blättern | Sonnet | jsdom: Satz-Tabelle; Suche entprellt; Blatt sendet die Eingaben von V-2 (`filter`, `sortierung`, `angehoert`) und **`filter` `sammlung`/`einzeln`**; „Mehr zeigen“ sendet `offset`; Platzhalterfarbe stabil; Fortschrittsbalken aus `hoerstelle`; Einzeltitel erscheint nicht als „1 Folge“ |
+| A8 | **Serienseite**: Kopf (Gesamtdauer), „Reinhören/Weiterhören“ (Zustände), „Tobie zuordnen“, Menü des Eintrags und der Folge, Name/Art/Cover ändern (Zuschneiden im Browser), „Das ist richtig/stimmt nicht“, Folgenliste mit Abspielknopf und Fortschritt, Papierkorb; **Rev. 4: Abschnitt „Kapitel“ für Hörbücher, Seite des Einzeltitels ohne Folgenliste, Karte „Hörprobe wird vorbereitet“, „Anders einsortieren“ als erste Möglichkeit unter „Das stimmt nicht“** | Sonnet | jsdom: Blatt „Tobie für dieses Lied“, Zuschneiden (Canvas-Mock), Löschen mit `tobies_bestaetigt`, Knopf-Beschriftung je Hörstelle (neu, angefangen, fertig, läuft); **Kapitelzeile: Tipp sendet Sprung, aktuelles Kapitel `aria-current`; Einzeltitel: keine Folgenliste, Tobie-Ziel `folge`** |
+| A8b | **Player** (5.12, 11.4): `<audio>`, Signatur holen und bei 401 oder Fehler neu holen, nächste Folge vorsignieren, Ordner-Folgen über Tracks, Leiste und Vollansicht, ±30 s, Geschwindigkeit, Hörstelle gedrosselt speichern (10 s, Pause, Wechsel, `pagehide`), `canPlayType`-Vorabprüfung, Media-Session; **Rev. 4: Kapitelzeile und „Kapitel“-Blatt, Sprung (eingebettet: Zeit; Ordner: Track), `hoerkopie_wartet` mit Wiederholung nach 30 s** | Sonnet | jsdom mit gemocktem `HTMLMediaElement` (jsdom spielt nichts): Speichern höchstens alle 10 s und sofort bei Pause; Neusignieren bei 401 setzt an der Stelle fort; Folge-Ende startet die nächste; „Vorige“ springt zuerst an den Anfang; Format nicht abspielbar → Text 6.1; **Kapitelsprung setzt die Zeit, bei Ordner-Folgen den Track; 503 `hoerkopie_wartet` zeigt den Satz und versucht es nach 30 s erneut**; **Playwright** (A14) mit echtem Ton gegen eine Testdatei |
 | A9 | **Neuer Tobie und Tobies**: Karte, Zielwahl, Fertig-Karte mit Name, Rückgängig (`erwartet_ziel`), Tobies-Liste (zuletzt angelernt, Suche), Blatt, Kachel „Gute Nacht“ | Sonnet | jsdom mit `mock-hass.mjs`: Ereignis `neu` → Karte; Tap → `zuordnung/set`; Name; Rückgängig → `zuordnung/remove` mit `erwartet_ziel` |
 | A10 | **Anlernen** (Ziel Serie und Folge, Name, Wiederaufnahme) | Sonnet | jsdom: alle Zustände aus Vertrag 4.3 → Texte 7.2 |
-| A11a | **Hinzufügen: Hochladen** (Zielwahl, Warteschlange 2 parallel, Fortschritt, Abbruch, Unterbrechung, 413) | Sonnet | jsdom: Fortschrittsschritte, Upload-Fehlercodes, `serie_id` bei Ziel |
-| A11b | **Hinzufügen: Eingang-Anbindung** (24-Stunden-Liste, `quelle`, Gründe, NAS-Einträge, „Das stimmt nicht“) | Sonnet | jsdom: Gründe-Texte, „bitte kurz ansehen“, Wiederaufnahme nach Neuladen |
+| A11a | **Hinzufügen: Wahl, Vorschau, Hochladen (Rev. 4)**: Blatt „Was lädst du hoch?“ mit fünf Karten, Vorschau in Sätzen mit Eingaben je Weg (Name und Art; Auswahl mit Suche und Covern; Namen je Datei), „Ändern“ und „Hochladen“, Warteschlange 2 parallel, Fortschritt, Abbruch, Unterbrechung, 413. **Name-Vorschlag aus den Tags im Browser:** nur der Dateikopf der ersten Datei (`File.slice`, kleines Leseprogramm für ID3v2 und MP4-Atome, Rückfall Datei- und Ordnername); **Machbarkeit zu prüfen**, sonst nur Dateiname | Sonnet | jsdom: Karten und Sätze für jeden Weg und Art (Tabelle 7.3), Satz ändert sich beim Tippen, „Ändern“ erhält die Eingaben, `ziel`/`art`/`name`/`serie_id` im Upload, Fortschrittsschritte, Upload-Fehlercodes, Playlist-Karte nur Meldung |
+| A11b | **Hinzufügen: Eingang-Anbindung** (24-Stunden-Liste, `quelle`, Gründe, NAS-Einträge, „Das stimmt nicht“, **Rev. 4: „Daraus ist geworden: …“, „Anders einsortieren …“ öffnet dieselbe Wahl mit dem Titel „Was ist das?“ und dem Knopf „Neu einsortieren“**) | Sonnet | jsdom: Gründe-Texte, „bitte kurz ansehen“, Wiederaufnahme nach Neuladen; **`einsortierung/neu` mit dem Wunsch, Fehler `neu_einsortieren_nicht_moeglich` in Worten** |
 | A12 | **Abends** (Schnellwahl, Zeilenliste, Blatt, Prüfregeln, `erwartet_revision`) | Sonnet | `panel_quiet.test.mjs` bleibt für die alte Seite; neue Tests: 24-Stunden-Auswahl, krumme Minute bleibt, Fehlerstelle in Worten |
 | A13 | **Technik**: Einbettung, Warnleisten, „Frühere Stände“, „Cover neu suchen“, Ausblenden-Wert | Sonnet | jsdom: Karten, Rechte |
 | A14 | **Playwright-Skript (Pflicht)** unter `homeassistant/tests/frontend/`: Tap-Ziele ≥ 44 px, kein waagerechtes Scrollen (320, 390, 1280 px), Kontrast in **drei Themes**, Screenshots für Tobias; **Rev. 3:** erste Cover der Bibliothek in den oberen 40 % (390 px), Ablauf Suche → Serie → Reinhören → Springen → Neuladen → Weiterhören an der Stelle | Sonnet | das Skript selbst; vom Prototyp übernommen (`audit`, Ablauf) |
 | A15 | **Doku**: `homeassistant/README.md` (Seite für alle, Namen, Cover, **HA-Automation „Neuer Tobie“ als Vorlage**), `docs/betrieb/` „Für Verena“ | Haiku | Abgleich mit `texte.js` |
-| A15b | **Companion-App und Geräte früh prüfen** (iOS und Android: Reiter unten, Safe Area, Tastatur, Foto; **Rev. 3:** läuft `<audio>` bei gesperrtem Bildschirm und in der App weiter, zeigt der Sperrbildschirm Titel und Tasten, spielt Safari/iOS die Formate des Bestands, Springen auf dem NAS-Pfad schnell genug) | Tobias | – |
+| A15b | **Companion-App und Geräte früh prüfen** (Rev. 4 zusätzlich: spielen iPhone und Mac-Safari die Hörkopien, wie lange braucht `ffmpeg` auf Tobias' HA für 10 Minuten Audio, passt der Platz auf dem NAS) (iOS und Android: Reiter unten, Safe Area, Tastatur, Foto; **Rev. 3:** läuft `<audio>` bei gesperrtem Bildschirm und in der App weiter, zeigt der Sperrbildschirm Titel und Tasten, spielt Safari/iOS die Formate des Bestands, Springen auf dem NAS-Pfad schnell genug) | Tobias | – |
 | A16 | **Abnahme mit Tobias**, Schritt für Schritt im Chat (Mac, Handy): Tobie zuordnen (a, b), Lied-Tobie, Hinzufügen vom Handy, Cover per Foto, Abends, Papierkorb als Nicht-Admin; **Rev. 3:** Reinhören am Handy und am Mac, **Stelle am Handy merken und am Mac weiterhören**, Springen, Folgenwechsel, Hörbuch mit Ordner-Folge | Projektleitung + Tobias | – |
 | A17 | **Seite für alle öffnen** (`require_admin=False`) | Sonnet | `test_init.py`: Panel ohne `require_admin`; Tabelle 10.2 mit Testbenutzer ein letztes Mal |
 
-Empfohlene Reihenfolge: A1, A2, A3, A3b, A4, A4b, A4c, A4d (parallel) → A0 → A5 → A6 → A7 → A8, A8b, A9, A10 → A11a, A11b → A12 → A13 → A14 → A15 → A15b/A16 → A17.
+Empfohlene Reihenfolge: A1, A2, A3, A3b, A3c, A3d, A4, A4b, A4c, A4d (parallel) → A0 → A5 → A6 → A7 → A8, A8b, A9, A10 → A11a, A11b → A12 → A13 → A14 → A15 → A15b/A16 → A17.
 
 ### 15.2 Stufe B (eigener Block, nach Freigabe)
 
@@ -867,16 +1080,18 @@ Empfohlene Reihenfolge: A1, A2, A3, A3b, A4, A4b, A4c, A4d (parallel) → A0 →
 |---|---|---|
 | B1 | **Vertrag** `mqtt-v1.md`: `gespielt`, `gehoert_quittung` (12.2); `ha-websocket-v1.md`: Befehle und Fähigkeit `gehoert` (12.4); `data-model.md`: `gehoert.jsonl` der Box | ja |
 | B2 | **Box:** Sitzungserkennung, Puffer `gehoert.jsonl` (Schreibbudget), Senden und Quittung | `mqtt-v1` |
-| B3 | **HA:** SQLite-Speicher (Spalten und Indizes 12.3), Aufnahme mit Doppelerkennung, Quittung, Technik-Ereignisse aus `status`, Favoriten; Test der Zählregel 12.2.1 (10-Sekunden-Grenze, fertig, DISTINCT, Zeiträume) | – |
-| B4 | **HA-Befehle** `gehoert/*` (`zusammenfassung` mit `nach` = Box × Serie × Folge), `favorit/*`, `technik/verlauf`, Sortierungen und Filter in `serien/list`/`folgen/list` | `ha-websocket` |
-| B5 | **Seite:** Reiter „Gehört“ (Rangliste mit Aufteilung nach Folgen, SVG-Diagramme), Stern, Sortierungen, Technik-Karte Akku-Verlauf | – |
+| B3 | **HA:** SQLite-Speicher (Spalten und Indizes 12.3, **mit `wiedergabe`** und der Tabelle `reinhoer_sitzungen`), Aufnahme mit Doppelerkennung, Quittung, Technik-Ereignisse aus `status`, Favoriten; **Sitzungsableitung aus `hoerstelle/set` (12.5)**; Test der Zählregel 12.2.1 (10-Sekunden-Grenze, fertig, DISTINCT, Zeiträume, **5-Minuten-Zusammenfassung**) und der Ableitung (Springen zählt nicht, Pause über 5 Minuten beendet die Sitzung, 1,5-fach, Wechsel der Folge) | – |
+| B4 | **HA-Befehle** `gehoert/*` (`zusammenfassung` mit `nach` = Box × Serie × Folge **und `quelle`**), `favorit/*`, `technik/verlauf`, **`reinhoer/loeschen`**, Sortierungen und Filter in `serien/list`/`folgen/list`; Test: zwei Benutzer sehen nie die Reinhör-Daten des anderen (auch kein Administrator) | `ha-websocket` |
+| B5 | **Seite:** Reiter „Gehört“ (Rangliste mit Aufteilung nach Folgen, SVG-Diagramme, **Umschalter Boxen \| Mein Reinhören**), Stern, Sortierungen, Technik-Karte Akku-Verlauf | – |
 | B6 | **Abnahme** mit Tobi (Box im Hörbetrieb, offline hören und danach verbinden) | – |
 
 ### 15.3 Stufe C (eigener Block, später)
 
-C1 Verträge (`data-model`, `core-interface`, `mqtt-v1` Schema-Hinweis, `ha-websocket` `playlist/*`) · C2 Box (Ziel-Typ, Zeiger, Sync-Regel, Update) · C3 HA (Befehle, Datei, Index, Papierkorb) · C4 Seite (Zielwahl, Karte, Blatt) · C5 Abnahme. Reihenfolge: erst Boxen aktualisieren (Schema 3), dann freischalten.
+C1 Verträge (`data-model`, `core-interface`, `mqtt-v1` Schema-Hinweis, `ha-websocket` `playlist/*`, Upload-Wunsch `ziel=playlist`) · C2 Box (Ziel-Typ, Zeiger, Sync-Regel, Update) · C3 HA (Befehle, Datei, Index, Papierkorb) · C4 Seite (Zielwahl, Karte, Blatt, **Hochladen als Playlist, Reinhören und Weiterspielen über eine Playlist**) · C5 Abnahme. Reihenfolge: erst Boxen aktualisieren (Schema 3), dann freischalten.
 
 ## 16. Offene Fragen für Tobias (mit Empfehlung)
+
+Fragen 1 bis 13 sind entschieden (`resolve.md`). **Fragen 14 bis 22** hat Tobias in Runde 8 (`brainstorm.md`) beantwortet; sie stehen unten mit ihrer **Antwort**. **Neu in Rev. 4: Fragen 23 bis 26**, nur echte Abwägungen, je mit Empfehlung.
 
 | Nr. | Frage | Empfehlung |
 |---|---|---|
@@ -893,31 +1108,38 @@ C1 Verträge (`data-model`, `core-interface`, `mqtt-v1` Schema-Hinweis, `ha-webs
 | 11 | **HA-Automation „Neuer Tobie → Mitteilung aufs Handy“** als Vorlage in der Doku (U9)? | Ja (keine neue Funktion). |
 | 12 | Reihenfolge der geplanten Stufen: **B vor C**? | Ja: B bringt Nutzen ohne Box-Updates am Datenmodell; C braucht ein Boxen-Update. |
 | 13 | **Seite erst nach der Abnahme für alle öffnen** (A17, U7)? | Ja. |
-| 14 | **Wie lange gilt die Signatur** des Audio-Pfads (11.4.2)? | 1 Stunde je Folge mit Neusignieren bei Fehler; alternativ 24 Stunden wie HA bei Medien (dann seltener Aussetzer, aber ein durchgereichter Link gilt länger). |
-| 15 | **Reinhören für alle HA-Benutzer**, auch Wandtablets und Gäste mit Konto (Runde 7)? | Ja; der Zugriff ist auf die Musik und Hörspiele der Familie beschränkt, die Hörstelle ist je Benutzer. |
-| 16 | Darf ein **Administrator fremde Hörstellen** sehen? | Nein (nur eigene), weniger Daten, nichts zu erklären. |
-| 17 | **Formate:** Welche Dateiformate liegen im Bestand? OGG/Opus spielt Safari erst ab Version 18.4; ALAC in M4A spielt Chrome nicht. Was tun, wenn ein Gerät es nicht spielt? | Hinweis „Auf der Box spielt es trotzdem“ in Stufe A; Umwandeln mit `ffmpeg` beim Abspielen wäre ein eigenes Paket. Vorher fünf Dateien je Format an Handy und Mac ausprobieren (A15b). |
-| 18 | **Dauer für den Bestand** im Hintergrund nachholen (11.4.4)? Bei vielen Dateien dauert es Minuten bis Stunden und liest jede Datei einmal vom NAS. | Ja, einmal, mit Zeitgrenze und ohne Scan beim Öffnen. |
-| 19 | **Zählregel „einmal gehört“** (12.2.1): 10 Sekunden, „fertig“ = Ende der Folge. Sollen kurze Unterbrechungen (Tobie 1 Minute abgenommen) **zusammen** als eine Wiedergabe zählen? | Regel wie vorgeschlagen; Zusammenfassen bei höchstens 5 Minuten Abstand: ja, bei der Aufnahme in HA. |
-| 20 | **Hörbuch aus einem Ordner mit vielen Tracks:** Eine Zeitleiste über alles (Vorschlag) oder eine Kapitelliste? | Eine Zeitleiste über alle Tracks (einfach; Kapitelliste später). |
-| 21 | Soll **Reinhören in „Gehört“ zählen**? | Nein: „Gehört“ zeigt, was die Kinder an den Boxen hören. |
-| 22 | **Musik: „Reinhören“ ab dem ersten Lied** und Weiterspielen über das Album (Vorschlag), oder nur ein Lied ohne Weiterspielen? | Über das Album weiterspielen, wie bei Hörspielen. |
+| 14 | **Was ist der Abspiel-Link, und wie lange gilt er?** In Alltagssprache: Wenn du am Handy auf „Reinhören“ tippst, holt sich dein Handy die Audiodatei bei Home Assistant ab. Dafür braucht es eine **Adresse**, und diese Adresse hat einen **eingebauten Schlüssel, der nach einer Weile von selbst abläuft**, wie eine Eintrittskarte mit Uhrzeit (der Player im Browser kann beim Abholen kein Passwort mitschicken, darum der Schlüssel). Wie lange soll die Karte gelten? (11.4.2) | **1 Stunde je Folge.** Läuft sie mitten im Hören ab, holt die Seite von selbst eine neue und macht an derselben Stelle weiter (kurzer Aussetzer, kein Fehler für Verena). Alternative: 24 Stunden wie HA bei Medien (seltener Aussetzer, aber eine weitergereichte Adresse gilt länger). **Beantwortet (Runde 8):** Tobias fragte, was das ist; nach der Erklärung gilt die Empfehlung (1 Stunde, neu signieren), solange er nicht widerspricht. |
+| 15 | **Reinhören für alle HA-Benutzer**, auch Wandtablets und Gäste mit Konto (Runde 7)? | Ja; der Zugriff ist auf die Musik und Hörspiele der Familie beschränkt, die Hörstelle ist je Benutzer. **Beantwortet (Runde 8): Anhören dürfen alle.** |
+| 16 | Darf ein **Administrator fremde Hörstellen** sehen? | Nein (nur eigene), weniger Daten, nichts zu erklären. **Beantwortet (Runde 8): Ja, nur die eigene Hörstelle** (auch der Administrator). Gilt jetzt auch für „Mein Reinhören“ (Empfehlung in Frage 23). |
+| 17 | **Formate:** Welche Dateiformate liegen im Bestand? OGG/Opus spielt Safari erst ab Version 18.4; ALAC in M4A spielt Chrome nicht. Was tun, wenn ein Gerät es nicht spielt? | Hinweis „Auf der Box spielt es trotzdem“ in Stufe A; Umwandeln mit `ffmpeg` beim Abspielen wäre ein eigenes Paket. **Beantwortet (Runde 8): Alle Formate** (MP3, M4A/M4B, AAC, FLAC, OGG, Opus, WAV). **Folge (11.4.7):** Hörkopie, einmal erzeugt, nicht beim Abspielen; Ort und Platz in Frage 26. |
+| 18 | **Dauer für den Bestand** im Hintergrund nachholen (11.4.4)? Bei vielen Dateien dauert es Minuten bis Stunden und liest jede Datei einmal vom NAS. | Ja, einmal, mit Zeitgrenze und ohne Scan beim Öffnen. **Beantwortet (Runde 8): Passt.** Derselbe Lauf holt jetzt auch Kapitel, Codec und die Hörkopien nach (11.4.4, 11.4.7, 11.4.8). |
+| 19 | **Zählregel „einmal gehört“** (12.2.1): 10 Sekunden, „fertig“ = Ende der Folge. Sollen kurze Unterbrechungen (Tobie 1 Minute abgenommen) **zusammen** als eine Wiedergabe zählen? | Regel wie vorgeschlagen; Zusammenfassen bei höchstens 5 Minuten Abstand: ja, bei der Aufnahme in HA. **Beantwortet (Runde 8): Ja**, Unterbrechungen bis 5 Minuten sind **eine** Wiedergabe (jetzt Regel in 12.2.1, gilt auch für „Mein Reinhören“). |
+| 20 | **Hörbuch aus einem Ordner mit vielen Tracks:** Eine Zeitleiste über alles (Vorschlag) oder eine Kapitelliste? | Eine Zeitleiste über alle Tracks (einfach; Kapitelliste später). **Beantwortet (Runde 8): Ja, eine Zeitleiste, und die Kapitelliste will er auch.** Gebaut: beides (5.3, 5.12, 11.4.8); Kapitel sind Tracks eines Ordners oder eingebettete Kapitel von M4B/MP3. |
+| 21 | Soll **Reinhören in „Gehört“ zählen**? | Nein: „Gehört“ zeigt, was die Kinder an den Boxen hören. **Beantwortet (Runde 8): Doch erfassen, aber dem HA-Benutzer zugeordnet, nicht einer Box.** Umgesetzt als Bereich „Mein Reinhören“ in „Gehört“ (Stufe B, 5.10.1, 12.5); wer es sieht: Frage 23. |
+| 22 | **Musik: „Reinhören“ ab dem ersten Lied** und Weiterspielen über das Album (Vorschlag), oder nur ein Lied ohne Weiterspielen? | Über das Album weiterspielen, wie bei Hörspielen. **Beantwortet (Runde 8): Ja, und über eine Playlist**, sobald Stufe C da ist (Abschnitt 13). |
+| 23 | **Wer sieht „Mein Reinhören“?** Drei Antworten stoßen hier zusammen: Hördaten der **Boxen** sehen alle (Nr. 8, die Kinder haben kein Konto), die **Hörstelle** sieht nur man selbst (Nr. 16), und Reinhören ist jetzt dem **HA-Benutzer** zugeordnet (Nr. 21). Reinhör-Daten sind Daten über **Erwachsene**: wer hat wann was angehört. (12.5) | **Jeder sieht nur die eigenen, auch Administratoren** (wie Nr. 16). Die Boxen-Daten bleiben für alle sichtbar (Nr. 8). Jeder darf **seine eigenen** Reinhör-Daten löschen; „Alle Hördaten löschen“ in „Technik“ betrifft nur die Boxen. Alternative: alle sehen alle (einfacher zu bauen, aber Verena sähe, was Tobias hört, und jedes Gäste-Konto auch). Nebenfrage: Soll die Erfassung schon in Stufe A beginnen (kleiner Zusatz in A4d, dann gibt es von Anfang an Verlauf), oder erst mit Stufe B? Empfehlung: erst mit Stufe B. |
+| 24 | **Wo lebt ein einzelnes Lied oder eine einzelne Folge?** Heute ist alles Serie → Folgen. (A) Eigene **Serie mit genau einer Folge** und dem Kennzeichen `einzeln` (eigenes Cover und Titel, in der Liste „Lied · einzeln · 1:06“), oder (B) eine **Sammel-Serie** je Art („Einzelne Lieder“ mit 300 Liedern). (11.3.1) | **A.** Die Box ändert sich nicht; ein Lied hat sein eigenes Cover, einen eigenen Tobie und lässt sich einzeln benennen und löschen. Preis: 300 Einträge mehr in der Bibliothek (Gegenmittel: „Was zeigen“ im Filterblatt, Arten-Zeile) und 300 kleine Ordner auf dem NAS. Der Tobie zeigt auf die **Folge** (nicht die Serie), damit er bei späteren Änderungen nur sein Lied spielt. |
+| 25 | **NAS-Eingang: Was passiert mit Dateien, die einfach in den Ordner gelegt werden?** Heute werden sie automatisch einsortiert. (1) Weiter **automatisch**, bei „bitte ansehen“ gibt es **„Anders einsortieren …“** mit derselben Wahl wie beim Hochladen (die Folgen werden zurück in den Eingang geholt und neu einsortiert, solange nichts daran geändert wurde). (2) Nicht Sichere Fälle **bleiben im Eingang liegen und fragen** zuerst („Was ist das?“), erst nach der Antwort wird einsortiert. (7.3 Punkt 10) | **1.** Wer Dateien in den Ordner legt, will nichts beantworten müssen; die meisten Fälle sind eindeutig. Der Rückweg Medien → Eingang ist in Vertrag W noch nicht vorgesehen und wird in A3d zuerst geprüft; ist er zu teuer, wird es **2** (kein Rückweg nötig, aber es erscheint nichts, bis jemand antwortet) oder nur „In den Papierkorb und neu hochladen“. |
+| 26 | **Hörkopien: Ort, Qualität, Platz.** Für Formate, die nicht jeder Browser spielt, legt HA **einmal** eine Kopie an: AAC/M4A, 96 kbit/s, auf dem **NAS** in einem Ordner `hoerkopien/` **neben** `medien/` (nicht auf den Boxen, nicht in HAs Konfigurationsordner). Auch FLAC und WAV bekommen eine Kopie (sie sind groß). Bedarf: 43 MB je Stunde Audio; meist **wenige GB**, im schlechtesten Fall (alles in OGG/FLAC/WAV, 1 600 Stunden) etwa **70 GB**. (11.4.7) | **Ja so.** Der Ort lässt die Boxen und den Sync völlig in Ruhe. Tobias nennt bitte den freien Platz auf dem NAS; `kein_speicher` stoppt die Erzeugung ohne Schaden. Wer FLAC und WAV lieber ohne Kopie will (nur Hinweis „Auf der Box spielt es trotzdem“), spart Platz und verliert das Reinhören für diese Dateien auf Geräten ohne Unterstützung. |
 
-## 17. Was der Prototyp v3 zeigt und was nicht
+## 17. Was der Prototyp v4 zeigt und was nicht
 
-`prototyp.html` ist eine **Vorschau**, kein Code für den Bau, und schickt nichts an Home Assistant. Er zeigt (alles im Script erzeugt, erfundene Daten): **60 Einträge** (20 Hörspiele, 20 Hörbücher, 12 Musik-Alben, 8 Geschichten, darunter ein Album mit 20 Liedern), **572 Folgen und Lieder**, alle mit einer Dauer.
+`prototyp.html` ist eine **Vorschau**, kein Code für den Bau, und schickt nichts an Home Assistant. Er zeigt (alles im Script erzeugt, erfundene Daten): **64 Einträge** (20 Hörspiele, 20 Hörbücher, 12 Musik-Alben, 8 Geschichten und **4 Einzeltitel**; darunter ein Album mit 20 Liedern und das Hörbuch „Mia und das Meer“ mit **12 Kapiteln**), rund **576 Folgen und Lieder**, alle mit einer Dauer.
 
-**Neu in v3 (Bibliothek wie eine Hörbuch-App):** Kopfzeile mit „+“, „i“ (klappt die Vorschau-Einstellungen auf) und „Technik“; Bibliothek mit einer Zeile Arten, Lupe, den Reihen „Weiterhören“ und „Neu hinzugefügt“, Listenzeilen mit Cover, Untertitel „Art · Folgen · Dauer“, Fortschrittsbalken und Tobie-Symbol, einem Knopf „Sortieren und Filter“ (Blatt von unten);
-Suchansicht mit drei Gruppen; Serienseite mit großem Cover, „Reinhören/Weiterhören“, „Tobie zuordnen“, Folgenliste (Abspielknopf, Fortschritt, „⋯“-Menü) und Menü des Eintrags; **Player** (Leiste unten, Vollansicht, ±30 s, 1× / 1,25× / 1,5×, vorige und nächste Folge, Weiterspielen über die Folgen, `mediaSession`);
-**Weiterhören** über Neuladen (die Stelle liegt im Prototyp in `localStorage`, in der echten Seite in HA je Benutzer); „Gehört“ mit **Rangliste je Box, Zeitraum Woche/Monat/Jahr/Alles und Aufteilung nach Folgen**. **Der Player spielt einen im Script erzeugten Ton:** jede Folge ist eine eigene sanfte Tonfolge (1 bis 5 Minuten, als WAV im Browser gebaut), damit man Wechsel, Springen und Tempo hört; der Ton startet **nur nach einem Tap**.
-Erhalten aus v2: Rollen Administrator/Verena, Name-Abfrage, Cover per Foto, Zielwahl mit „Einzelne Folge oder Lied“, „Das ist richtig / stimmt nicht“, Papierkorb, Abends, Technik mit eingebetteter alter Seite, Stufe-B-Vorschau, Stufe-C-Idee (Playlist), Zustände (lädt, leer, Fehler, Verbindung weg).
+**Neu in v4:**
+* **Hochladen in Schritten:** „Dateien wählen“ öffnet das Blatt **„Was lädst du hoch?“** mit den **fünf Karten** (Playlist mit der Marke „Stufe C – Idee“, nur in der Ansicht „A, dazu B und C“, antippbar nur mit Meldung). Jede Karte führt zur **Vorschau in Sätzen** („3 Dateien → neues Hörbuch „Kapitän Knopf“, Kapitel 1–3.“, „3 Dateien → 3 neue Folgen in „Lange Serie“ (Folge 13–15).“, „1 Datei → 1 einzelnes Lied: „Der Mond und der Fuchs“.“, „… ich sortiere nach den Angaben in den Dateien ein. Meine Vermutung: …“) mit „Abbrechen“, „Ändern“ und „Hochladen“; der Satz ändert sich beim Tippen und beim Wechsel der Art. Für b) öffnet sich die Auswahl mit Suche und Covern (nur Sammlungen). Danach **läuft der Fortschritt wie bisher** und **es entsteht wirklich ein Eintrag** (neues Hörbuch, neue Folgen in „Lange Serie“, ein Einzeltitel), den man in der Bibliothek findet. Im Aufklappfeld „i“ wählt man, welche **Dateien** man „gewählt“ hat (3 mit Tags, 4 Lieder, 1 Datei, 2 ohne Tags, 1 mit Kopierschutz), damit alle Sätze zu sehen sind. Ein **NAS-Eintrag** „bitte ansehen“ („Ordner „Sternenmühle“ (6 Dateien)“, „vom NAS“) hat den Knopf „**Anders einsortieren …**“: dasselbe Blatt mit dem Titel „Was ist das?“ und dem Knopf „Neu einsortieren“ (Knopf „Neuer Ordner im NAS-Eingang (Demo)“ legt einen weiteren an).
+* **Einzeltitel:** in der Bibliothek „Lied · einzeln · 1:06“ (nicht „1 Folge“), eigene Seite ohne Folgenliste, Tobie-Blatt „Tobie für dieses Lied“, im Filterblatt die Gruppe „Was zeigen“ (Alles · Nur Hörspiele, Bücher, Alben · Nur Einzeltitel), in der Suche nur unter „Folgen und Lieder“, in der Zielwahl nicht unter „Ganzes Hörspiel, Buch, Album“. Ein Einzeltitel („Das Lied vom Mond“) zeigt den Zustand **„Hörprobe wird vorbereitet“**.
+* **Kapitel:** Das Hörbuch zeigt auf der Serienseite den Abschnitt „Kapitel“ (12 Zeilen, aktuelles markiert, Häkchen bei gehörten), im Player die Zeile „Kapitel 8: Das Echo (8 von 12)“ und den Knopf „Kapitel“ mit dem Blatt der Kapitel. **Tipp springt mit dem erzeugten Ton** an die Stelle; die Zeitleiste über das ganze Buch bleibt.
+* **„Gehört“:** Umschalter **Boxen | Mein Reinhören** (Stufe B – Vorschau). „Mein Reinhören“ mit Hinweis „Nur du siehst das.“, Rangliste „Was habe ich mir angehört?“ mit Aufteilung nach Folgen, Hörzeit pro Tag, Karte „Meine Reinhör-Daten“ mit Löschknopf (Vorschau).
+* „Technik“: Zeile „Hörkopien“ und Knopf „Hörkopien neu erzeugen“.
+Erhalten aus v3: Bibliothek wie eine Hörbuch-App, Suche, Serienseite, Player (Leiste, Vollansicht, ±30 s, Tempo, Weiterspielen, Weiterhören über Neuladen mit `localStorage`), „Gehört“ mit Rangliste je Box, Rollen Administrator/Verena, Name-Abfrage, Cover per Foto, Zielwahl, „Das ist richtig / stimmt nicht“, Papierkorb, Abends, Technik mit eingebetteter alter Seite, Stufe-C-Idee (Playlist), Zustände (lädt, leer, Fehler, Verbindung weg).
 
-**Prüfung** mit Playwright (Chromium) bei 390 × 844 und 1280 × 900 px, Hell und Dunkel (dazu 3 Ansichten im Theme mit hellem Primärton; die acht Hauptansichten zusätzlich als Verena ohne Administratorrechte, dort enthält das Menü des Eintrags weder „Reihenfolge ändern“ noch „Zusammenführen“): Start, Bibliothek, Suche (leer und mit Treffern), Serienseite, Tobies, Abends, Gehört (Rangliste und Aufteilung nach Folgen), Hinzufügen, Technik, Blatt „Sortieren und Filter“, aufgeklappte Vorschau, Serienseite mit Leiste, Vollansicht des Players, Bibliothek mit Leiste:
-**kein waagerechtes Scrollen, alle Knöpfe, Links, Auswahlfelder und Schieberegler mindestens 44 px, Kontrast mindestens 4,5:1 (3:1 große Schrift): 0 Treffer** (die Prüfung wurde gegen absichtlich eingebaute schlechte Elemente gegengeprüft und schlägt dort an).
-**Erste Cover der Bibliothek am Handy:** unteres Ende bei **38 % der Bildschirmhöhe** (Vorgabe: in den ersten etwa 40 %).
-**Ablauf-Skript:** Lupe → Suche (Fokus im Feld, 3 Gruppen) → Treffer → Serienseite → „Reinhören“ → Leiste erscheint, Zeit läuft → Vollansicht → Klick in die Zeitleiste springt auf 60 % → „30 s zurück“ und „30 s vor“ → 1,5× (Uhr läuft schneller) → „Nächste Folge“ → Springen und Pause → **Seite neu laden** → Leiste steht wieder da (ohne Ton) → Knopf heißt „Weiterhören · ab 0:47“ → Wiedergabe setzt an der gemerkten Stelle in derselben Folge fort → „Weiterhören“-Reihe und Fortschrittsbalken in der Folgenliste: **alle 23 Prüfungen ohne Fehler**.
-Der **Durchgang Korrekturen** behob: die Leiste fehlte nach dem Neuladen (Hörstelle da, Leiste nicht gezeichnet), die Zeitraum-Texte in „Gehört“ („letzte(r) Woche“ → „in der letzten Woche“), der große Hinweiskasten in „Gehört“ (gekürzt, damit die Rangliste früh sichtbar ist) und die Vollansicht des Players am Handy (Inhalt jetzt in der Mitte der Fläche statt oben). Die Bilder bei 390 px (Bibliothek, Serie, Player, Suche, Blatt, Gehört) habe ich selbst durchgesehen.
-**Nicht belegt:** echte HA-Farben und -Themes, die Companion-App (Ton im Hintergrund, Sperrbildschirm), echte Audiodateien über die Audio-Ansicht und signierte Pfade (das ist Sache von A4c und A8b), Safari und iPhone (Autoplay-Regeln, Formate), Springen auf dem NAS-Pfad, Tastatur auf iOS, echte Fotos vom Handy.
+**Prüfung** mit Playwright (Chromium) bei 390 × 844 und 1280 × 900 px, Hell und Dunkel (dazu das Theme mit hellem Primärton und die Rolle Verena ohne Administratorrechte), **170 Ansichten**: Start, Bibliothek, Suche (leer und mit Treffern), Serienseiten (Hörspiel, Hörbuch mit Kapiteln, Einzeltitel, Einzeltitel mit „Hörprobe wird vorbereitet“), Tobies, Abends, Gehört (Boxen und Mein Reinhören, je mit Aufteilung nach Folgen), Hinzufügen, Technik, Blatt „Sortieren und Filter“ (auch mit „Nur Einzeltitel“), **Hochladen: Blatt „Was lädst du hoch?“, Vorschau für neu, zu vorhandenem, einzeln und „Weiß nicht“, Fortschritt, fertig, „bitte ansehen“, Kopierschutz, NAS-Wahl und -Vorschau**, Serienseite mit Leiste, Player mit Kapiteln, Kapitelblatt:
+**kein waagerechtes Scrollen, alle Knöpfe, Links, Auswahlfelder und Schieberegler mindestens 44 px, Kontrast mindestens 4,5:1 (3:1 große Schrift): 0 Treffer** (die Prüfung fand im ersten Lauf den Link „Öffnen“ in der fertigen Upload-Zeile mit 48 × 19 px; er ist jetzt ein Knopf; die Prüfung selbst wurde in v3 gegen absichtlich schlechte Elemente gegengeprüft).
+**Erste Cover der Bibliothek am Handy:** unteres Ende bei **35 % der Bildschirmhöhe** (Vorgabe: in den ersten etwa 40 %).
+**Ablauf-Skripte:** (1) Hochladen: alle fünf Wege (a mit Art-Wechsel, Namensänderung und „Ändern“, b mit Auswahl und Suche, c, d nur Meldung, e), die Sätze wörtlich, Fortschritt bis „fertig“, der neue Eintrag in der Bibliothek, Einzeltitel als „Lied · einzeln“ und nicht als „1 Folge“, Kopierschutz-Karte, NAS „Anders einsortieren“ bis „Neu einsortiert“: **83 Prüfungen ohne Fehler**. (2) Kapitel und „Gehört“: 12 Kapitel, ein markiertes aus der gemerkten Stelle, Tipp auf Kapitel 8 → Ton springt (171 s, Start 169 s), Zeile im Player, Sprung aus dem Kapitelblatt, nach Neuladen bleibt das Kapitel markiert, Filter „Nur Einzeltitel“, Hörprobe-Meldung, Umschalter und Diagramm in „Gehört“: **jeweils beide Breiten, alle Prüfungen ohne Fehler**.
+Der **Durchgang Korrekturen** behob: die fünf Wahlkarten waren zu hoch (die fünfte lag unter dem Rand; Texte gekürzt, jetzt passen alle fünf auf 390 × 844), „Art: … (aus den Tags vorgeschlagen)“ erschien auch nach eigener Wahl (jetzt nur bei „Weiß nicht“), der Link „Öffnen“ war zu klein, der Titel im Player wiederholte bei Hörbüchern den Namen („Mia und das Meer“ zweimal), das Blatt der Kapitel sprang zu weit, und ein **Fehler schon aus v3**: das Säulendiagramm „Hörzeit pro Tag“ in „Gehört“ zeichnete nichts (falsche Variable für die Tage); es ist behoben. Die Bilder bei 390 px (Wahl, Vorschau, Einzeltitel, Kapitel, Player, Kapitelblatt, Gehört, Filter) habe ich selbst durchgesehen.
+**Nicht belegt:** echte HA-Farben und -Themes, die Companion-App (Ton im Hintergrund, Sperrbildschirm), echte Audiodateien über die Audio-Ansicht und signierte Pfade (A4c, A8b), echte Hörkopien und Kapitel aus Tobias' Dateien (A3b, A3c), Safari und iPhone (Autoplay-Regeln, Formate), Springen auf dem NAS-Pfad, Tastatur auf iOS, echte Fotos vom Handy, das Lesen der Tags im Browser beim Hochladen (A11a), der Rückweg Medien → Eingang bei „Anders einsortieren“ (A3d).
 
 ## 18. Befunde des Goldfischs und ihre Behandlung
 
