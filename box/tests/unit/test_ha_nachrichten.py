@@ -420,6 +420,7 @@ async def test_discovery_stimmt_mit_den_beispielen_des_vertrags(box):
     assert zeit["entity_category"] == "diagnostic" and "zeit_ok" in zeit["json_attributes_template"]
     sp = d["homeassistant/sensor/tobibox_box1/speicher_frei/config"]
     assert (sp["unit_of_measurement"], sp["device_class"], sp["state_class"]) == ("MB", "data_size", "measurement")
+    assert (sp["suggested_unit_of_measurement"], sp["suggested_display_precision"]) == ("GB", 0)
     sel = d["homeassistant/select/tobibox_box1/lern_serie/config"]
     assert sel["command_topic"] == "tobibox/box1/ui/lern_serie" and sel["optimistic"] is True
 

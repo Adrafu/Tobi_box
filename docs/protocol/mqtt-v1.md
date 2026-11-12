@@ -6,6 +6,10 @@
 *   **Gilt für:** Modul `ha` des Box-Dienstes und `mqtt.py` der
     HA-Integration `tobibox`. Schemas der Inhalte: `data-model.md`. Ereignisse
     und Befehle im Kern: `core-interface.md`.
+*   **Änderung 11.11. (Anzeige „Freier Speicher“):** Die Discovery des Sensors `speicher_frei` (6.2) trägt zusätzlich
+    `suggested_unit_of_measurement` `GB` und `suggested_display_precision` `0` (Kurzformen `sug_unit_of_meas`, `sug_dsp_prc`; beide Schlüssel kennt
+    der MQTT-Sensor von Home Assistant, auch in 2026.10/11). Reine Anzeige: Statusfeld `speicher_frei_mb`, Einheit `MB` und `v` bleiben. Die Versionsregel
+    (Abschnitt 8) verlangt kein neues `v`. Weil HA eine vorhandene Entität nicht immer umstellt, muss einmalig die Anzeigeeinheit in den Entitätseinstellungen gesetzt werden.
 *   **Änderung 10.11. (Ein/Aus, 10.11.; Klarstellung):** Das Statusfeld `lader` (3.3) und der Sensor „Lader“ (6.2) bleiben, wie sie
     waren: Es war schon immer der Wert „externer Strom“ des PiSugar (`battery_power_plugged`), also Strom am Eingang aus jeder Quelle (Netzteil, Sockel, Kabel,
     Powerbank), nicht „lädt gerade“. Die Bedeutung ändert sich nicht (V8); dieser Text stellt es nur klar. Neu ist nur, woher der Wert kommt: bei zwei Quellen
@@ -606,7 +610,7 @@ mit `value_template` aus.
 | `binary_sensor` | `lader` | Lader | `{% if value_json.lader is none %}None{% else %}{{ 'ON' if value_json.lader else 'OFF' }}{% endif %}` (bei `null` also „unbekannt“, nicht `OFF`; Home Assistant liest den Text `None` als unbekannt). Bedeutung „Strom am Eingang, jede Quelle“ (Ein/Aus, 10.11.) | `device_class` `battery_charging` |
 | `sensor` | `netz` | Netz | `{{ value_json.netz }}` | `device_class` `enum`, Optionen `home`, `hotspot`, `offline` |
 | `sensor` | `sync` | Sync-Stand | `{{ value_json.sync.zustand }}` | `json_attributes_topic` = Status, `json_attributes_template` `{{ value_json.sync \| tojson }}` (zeigt Zeitpunkt, Ergebnis, Grund) |
-| `sensor` | `speicher_frei` | Freier Speicher | `{{ value_json.speicher_frei_mb }}` | Einheit `MB`, `device_class` `data_size`, `state_class` `measurement` |
+| `sensor` | `speicher_frei` | Freier Speicher | `{{ value_json.speicher_frei_mb }}` | Einheit `MB`, `device_class` `data_size`, `state_class` `measurement`; Anzeige (11.11.): `suggested_unit_of_measurement` `GB`, `suggested_display_precision` `0` (HA zeigt „445 GB“ statt „456.194,00 MB“; der gesendete Wert bleibt in MB). Hat HA die Entität schon angelegt, übernimmt es den Vorschlag nicht immer: dann einmalig in den Entitätseinstellungen die Anzeigeeinheit auf GB stellen |
 | `sensor` | `version` | Version | `{{ value_json.version }}` | `entity_category` `diagnostic` |
 | `sensor` | `letzter_fehler` | Letzter Fehler | `{{ value_json.letzter_fehler.text if value_json.letzter_fehler else 'kein Fehler' }}` | Attribute: Zeit |
 | `sensor` | `zeitquelle` | Zeitquelle | `{{ value_json.zeitquelle }}` | Attribut `zeit_ok` (`json_attributes_template` `{{ {'zeit_ok': value_json.zeit_ok} \| tojson }}`); `entity_category` `diagnostic`. Erklärt, warum die Box Lernmodus, Sync und Update ablehnt (3.4) |
