@@ -77,6 +77,9 @@ AUSSCHLUESSE = (
     "._*",
     ".@__*",
     *(_ohne_gross_klein(n) for n in ("#recycle", "$RECYCLE.BIN", ".DS_Store", "Thumbs.db", "desktop.ini")),
+    # Cover-Bilder (12.11., data-model.md "Sync"): die Box hat kein Display, sie braucht keine. Auch hier schützt
+    # ``--exclude`` vor ``--delete``: ein schon auf der Box liegendes Cover bleibt (kein ``--delete-excluded``).
+    *(_ohne_gross_klein(n) for n in ("cover*.jpg", "cover*.png", "folder.jpg")),
 )
 
 #: Ordner der HA-Medienverwaltung, die nie auf die Box gehören (Entscheidung M6, 09.11.): Upload-Zwischenablage, Papierkorb

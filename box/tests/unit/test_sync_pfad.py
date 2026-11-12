@@ -224,3 +224,35 @@ async def test_systemdateien_kommen_nie_auf_die_box_und_lokale_bleiben(rsync_dae
     await sy.warte_ende()
     assert aus.abbruch() is None
     assert dateien(d.box) == {"serie/a.mp3", "lokal/.DS_Store"}
+
+
+# --- Cover (12.11., Paket A4b) ---------------------------------------------------------------------------------
+
+_COVER = [
+    "serie/cover.jpg", "serie/cover-eigen.jpg", "serie/cover.png", "serie/folder.jpg",
+    "serie/COVER.JPG", "serie/Cover.Png", "serie/Folder.JPG", "serie/folge2/cover.jpg", "cover.jpg",
+]
+
+
+@pytest.mark.skipif(shutil.which("rsync") is None, reason="rsync nicht installiert")
+async def test_cover_kommen_nicht_auf_die_box_und_bestehende_bleiben(rsync_daemon):
+    d = rsync_daemon
+    schreibe(d.quelle / "serie" / "a.mp3", b"a")
+    schreibe(d.quelle / "serie" / "serie.json", b"{}")
+    schreibe(d.quelle / "serie" / "folge2" / "b.mp3", b"b")
+    schreibe(d.quelle / "serie" / "cover.txt", b"anderes")  # kein Cover-Name: kommt mit
+    schreibe(d.quelle / "serie" / "mein-cover.jpg", b"anderes")  # nicht ``cover*``: kommt mit
+    for n in _COVER:
+        schreibe(d.quelle / n, b"bild")
+    schreibe(d.box / "alt" / "cover.jpg", b"schon da")  # Vertrag: --exclude schützt vor --delete, bleibt liegen
+    aus = Ereignisse()
+    sy = s.Sync(d.konfig("nas", pfad="medien"), d.box, ausgabe=aus, partial_dir=d.partial)
+    sy.setze_netz("home")
+    sy.setze_lader(False)
+    assert await sy.start("ha")
+    await sy.warte_ende()
+    assert aus.abbruch() is None
+    assert dateien(d.box) == {
+        "serie/a.mp3", "serie/serie.json", "serie/folge2/b.mp3", "serie/cover.txt", "serie/mein-cover.jpg",
+        "alt/cover.jpg",
+    }
