@@ -12,3 +12,12 @@ immer: Konzept, Entwurf, Goldfisch, Resolve, dann einmal bauen. Bestandsaufnahme
 | Gerät | **Gemischt:** Handy für schnell, Computer für Pflege. |
 | Einfach gegen Technik | **Eine einfache Seite und ein eigener Bereich „Für Tobias“** für Technisches (Revision, Export, Papierkorb, Liste neu ausrollen …). |
 | Stil | **HA-Look, aber freundlich:** passt zu Home Assistant (Karten, Hell/Dunkel), mit Bildern/Covern der Serien, großen Knöpfen, wenig Text. |
+
+## Antworten Runde 2 (12.11.)
+
+| Frage | Antwort |
+|---|---|
+| Zuordnen | **Beides anbieten:** (a) Tobie auflegen → oben erscheint „Neuer Tobie – was soll er spielen?“ mit Cover-Kacheln; (b) erst Hörspiel wählen, dann „Jetzt Tobie auflegen“ (Lernmodus). |
+| Woher kommen Hörspiele | **Alle drei:** Dateien auf dem Handy, Ordner am Computer, direkt aufs NAS (Eingang). |
+| Bilder | **Automatisch aus den MP3-Tags, sonst Platzhalter** (farbig mit Anfangsbuchstabe); eigenes Foto hochladbar. Hinweis Projektleitung: Das Cover-Auslesen ist die einzige kleine neue Funktion; sie dient nur der Bedienbarkeit. |
+| Zwei Boxen | **Eine gemeinsame Bibliothek**, Boxen nur als Status-Karten (mit Namen der Kinder). |
