@@ -20,7 +20,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-from PIL import Image
+from PIL import Image, JpegImagePlugin
 
 from custom_components.tobibox import cover as cover_modul
 from custom_components.tobibox import ffprobe
@@ -270,6 +270,97 @@ def test_quadrat_bis_auf_zwei_prozent():
             cover_pruefen_und_skalieren(bild((breite, hoehe)))
         assert err.value.code == "cover_ungueltig"
     cover_pruefen_und_skalieren(bild((800, 600)), quadrat=False)  # eine Datei, die schon im Serien-Ordner liegt
+
+
+# --- Modus ``nachsichtig`` (Tags und mitgelieferte Dateien): verkleinern und mittig quadratisch zuschneiden ---
+
+NACHSICHTIG = {"erlaubt": ("jpeg", "png"), "modus": "nachsichtig"}
+
+
+def zweifarbig(groesse: tuple[int, int], format_: str = "JPEG", **optionen) -> bytes:
+    """Linke Hälfte rot, rechte Hälfte blau (und oben/unten gleich), damit sich Zuschnitt und Drehung prüfen lassen."""
+    im = Image.new("RGB", groesse, (230, 20, 20))
+    im.paste((20, 20, 230), (groesse[0] // 2, 0, groesse[0], groesse[1]))
+    puffer = io.BytesIO()
+    im.save(puffer, format_, quality=95, **optionen)
+    return puffer.getvalue()
+
+
+def test_nachsichtig_tag_bild_3000_mal_3000_wird_angenommen():
+    gross, klein = cover_pruefen_und_skalieren(bild((3000, 3000)), **NACHSICHTIG)
+    assert masse(gross) == (COVER_GROSS_PX, COVER_GROSS_PX)
+    assert masse(klein) == (COVER_KLEIN_PX, COVER_KLEIN_PX)
+
+
+def test_nachsichtig_jpeg_wird_nur_verkleinert_dekodiert():
+    with patch.object(JpegImagePlugin.JpegImageFile, "draft", autospec=True, side_effect=JpegImagePlugin.JpegImageFile.draft) as entwurf:
+        cover_pruefen_und_skalieren(bild((3000, 3000)), **NACHSICHTIG)
+    assert entwurf.call_count == 1
+
+
+@pytest.mark.parametrize("groesse", [(1000, 1500), (1500, 1000), (4000, 2500), (1000, 985)])
+def test_nachsichtig_nicht_quadratisch_wird_mittig_quadratisch(groesse):
+    gross, klein = cover_pruefen_und_skalieren(bild(groesse), **NACHSICHTIG)
+    assert masse(gross) == (COVER_GROSS_PX, COVER_GROSS_PX)
+    assert masse(klein) == (COVER_KLEIN_PX, COVER_KLEIN_PX)
+
+
+def test_nachsichtig_schneidet_aus_der_mitte_und_nicht_vom_rand():
+    # 1500 breit, links rot, rechts blau; die Mitte (500 bis 1000) enthält die Grenze bei 750
+    gross, _ = cover_pruefen_und_skalieren(zweifarbig((1500, 1000)), **NACHSICHTIG)
+    with Image.open(io.BytesIO(gross)) as b:
+        assert b.getpixel((10, 256))[0] > 150 and b.getpixel((500, 256))[2] > 150  # links rot, rechts blau
+    # Hochformat 1000 × 1500: oben rot, unten blau, Mitte um die Grenze bei 750
+    hoch = Image.new("RGB", (1000, 1500), (230, 20, 20))
+    hoch.paste((20, 20, 230), (0, 750, 1000, 1500))
+    puffer = io.BytesIO()
+    hoch.save(puffer, "JPEG", quality=95)
+    gross, _ = cover_pruefen_und_skalieren(puffer.getvalue(), **NACHSICHTIG)
+    with Image.open(io.BytesIO(gross)) as b:
+        assert b.getpixel((256, 10))[0] > 150 and b.getpixel((256, 500))[2] > 150
+
+
+def test_nachsichtig_png_quer_wird_ebenso_zugeschnitten():
+    gross, _ = cover_pruefen_und_skalieren(bild((1800, 900), "PNG"), **NACHSICHTIG)
+    assert masse(gross) == (COVER_GROSS_PX, COVER_GROSS_PX)
+
+
+def test_nachsichtig_pixelbombe_wird_weiter_am_kopf_abgelehnt():
+    bombe = pixelbombe()
+    png = bytearray(bild((64, 64), "PNG"))
+    png[16:24] = struct.pack(">II", 30000, 30000)
+    for daten in (bombe, bytes(png)):
+        with (
+            patch.object(Image, "open", side_effect=AssertionError("Pillow darf nicht geöffnet werden")) as geoeffnet,
+            patch.object(Image.Image, "load", side_effect=AssertionError("kein Pixel darf dekodiert werden")),
+        ):
+            with pytest.raises(TobiboxFehler) as err:
+                cover_pruefen_und_skalieren(daten, **NACHSICHTIG)
+        assert err.value.code == "cover_ungueltig" and geoeffnet.call_count == 0
+
+
+def test_nachsichtig_beachtet_die_exif_drehung_vor_dem_zuschnitt():
+    # 1500 × 1000 (quer), links rot und rechts blau, EXIF "um 90° im Uhrzeigersinn drehen" (6):
+    # angezeigt wird ein Hochformat 1000 × 1500, oben die frühere linke Seite (rot), unten blau
+    exif = Image.Exif()
+    exif[0x0112] = 6
+    daten = zweifarbig((1500, 1000), exif=exif)
+    gross, _ = cover_pruefen_und_skalieren(daten, **NACHSICHTIG)
+    with Image.open(io.BytesIO(gross)) as b:
+        assert b.size == (COVER_GROSS_PX, COVER_GROSS_PX)
+        assert b.getpixel((256, 10))[0] > 150 and b.getpixel((256, 500))[2] > 150  # oben rot, unten blau
+        assert not b.getexif()
+    # ohne Drehung wäre es links rot, rechts blau: die Drehung wurde also wirklich angewendet
+    ohne, _ = cover_pruefen_und_skalieren(zweifarbig((1500, 1000)), **NACHSICHTIG)
+    with Image.open(io.BytesIO(ohne)) as b:
+        assert b.getpixel((10, 256))[0] > 150 and b.getpixel((500, 256))[2] > 150
+
+
+def test_streng_bleibt_streng_fuer_den_upload():
+    for groesse in ((1500, 1000), (3000, 3000), (800, 600)):
+        with pytest.raises(TobiboxFehler) as err:
+            cover_pruefen_und_skalieren(bild(groesse))
+        assert err.value.code == "cover_ungueltig"
 
 
 def test_ueber_drei_mib_ist_datei_zu_gross_auch_im_kern():
@@ -524,7 +615,6 @@ async def test_erste_folge_mit_bild_zaehlt_auch_bei_ordner_folgen(bestand, nas, 
     [
         pytest.param(pixelbombe(), id="pixelbombe"),
         pytest.param(b"\xff\xd8\xff" + b"kein Bild" * 100, id="muell-mit-jpeg-kopf"),
-        pytest.param(bild((800, 600)), id="nicht-quadratisch"),
         pytest.param(b"\x00" * (COVER_UPLOAD_MAX_BYTES + 1000), id="ueber-drei-mib"),
         pytest.param(b"", id="leer"),
     ],

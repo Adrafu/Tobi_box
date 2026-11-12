@@ -4,7 +4,7 @@ Zwei Teile:
 
 * **Reine Funktionen** (laufen im Executor, nie in der Event-Loop): ``cover_pruefen_und_skalieren`` ist **die eine** Prüfung für
   jedes Bild, das ein Cover werden soll (Foto-Upload, aus den Tags gezogenes Bild, mitgelieferte Datei). Reihenfolge: (1) Größe,
-  (2) Typ aus den Kopfbytes, (3) Maße aus dem Kopf **ohne ein Pixel zu dekodieren** und Grenzen für Kante, Pixelzahl und Quadrat,
+  (2) Typ aus den Kopfbytes, (3) Maße aus dem Kopf **ohne ein Pixel zu dekodieren** und Grenzen für Kante und Quadrat (``streng``, Foto-Upload) bzw. Pixelzahl (``nachsichtig``, Tags und mitgelieferte Dateien: verkleinern und mittig quadratisch zuschneiden),
   (4) erst dann dekodieren, auf 512 und 192 px herunterrechnen und neu als JPEG kodieren. Das Original wird nie gespeichert;
   Metadaten (EXIF, Profile) gehen dabei verloren.
 * ``CoverDienst``: Speichern, Lesen, Suchen im Hintergrund (Marke „schon gesucht“ im Store ``tobibox.medieninfo``).
@@ -37,6 +37,7 @@ from .const import (
     COVER_GROSS_PX,
     COVER_JPEG_QUALITAET,
     COVER_KANTE_MAX_PX,
+    COVER_NACHSICHT_PIXEL_MAX,
     COVER_KLEIN_CACHE_ANZAHL,
     COVER_KLEIN_PX,
     COVER_QUADRAT_TOLERANZ,
@@ -139,34 +140,64 @@ def _jpeg(bild: Image.Image, kante: int) -> bytes:
     return puffer.getvalue()
 
 
+def _mittig_quadratisch(bild: Image.Image) -> Image.Image:
+    breite, hoehe = bild.size
+    if breite == hoehe:
+        return bild
+    kante = min(breite, hoehe)
+    links, oben = (breite - kante) // 2, (hoehe - kante) // 2
+    return bild.crop((links, oben, links + kante, oben + kante))
+
+
 def cover_pruefen_und_skalieren(
-    daten: bytes, *, erlaubt: tuple[str, ...] = ("jpeg",), quadrat: bool = True
+    daten: bytes, *, erlaubt: tuple[str, ...] = ("jpeg",), quadrat: bool = True, modus: str = "streng"
 ) -> tuple[bytes, bytes]:
     """Prüft ein Bild und gibt ``(gross, klein)`` als JPEG zurück (höchstens 512 und 192 px je Seite, nie vergrößert).
 
     ``erlaubt``: Typen, die der Aufrufer annimmt. Das Foto aus der Seite ist ``("jpeg",)``; ein Bild aus den Tags oder eine
-    mitgelieferte Datei darf auch ``png`` sein. ``quadrat=False`` nur für eine Datei, die schon im Serien-Ordner liegt.
+    mitgelieferte Datei darf auch ``png`` sein.
+
+    ``modus``:
+
+    * ``streng`` (Foto-Upload aus der Seite): höchstens ``COVER_KANTE_MAX_PX`` je Seite und, wenn ``quadrat``, quadratisch bis auf
+      ``COVER_QUADRAT_TOLERANZ``. ``quadrat=False`` nur für eine Datei, die schon im Serien-Ordner liegt.
+    * ``nachsichtig`` (Tags, mitgelieferte Dateien): jede Kantenlänge, solange die **Pixelzahl** aus dem Kopf höchstens
+      ``COVER_NACHSICHT_PIXEL_MAX`` ist. Das Bild wird (bei JPEG schon beim Dekodieren) verkleinert, nach der EXIF-Drehung
+      mittig quadratisch zugeschnitten und dann wie sonst ausgegeben.
+
     Fehler: ``datei_zu_gross`` (über ``COVER_UPLOAD_MAX_BYTES``), ``cover_ungueltig`` (Typ, Kopf, Maße, Quadrat, kaputte Bilddaten).
     Läuft im Executor."""
+    if modus not in ("streng", "nachsichtig"):
+        raise ValueError(modus)
+    nachsichtig = modus == "nachsichtig"
     if len(daten) > COVER_UPLOAD_MAX_BYTES:
         raise TobiboxFehler("datei_zu_gross")
     typ, breite, hoehe = bildkopf(daten)
     if typ not in erlaubt:
         raise _ungueltig()
-    if not 1 <= breite <= COVER_KANTE_MAX_PX or not 1 <= hoehe <= COVER_KANTE_MAX_PX:
+    if breite < 1 or hoehe < 1:
         raise _ungueltig()
-    if breite * hoehe > COVER_KANTE_MAX_PX * COVER_KANTE_MAX_PX:  # (folgt aus den Kanten; die Pixelzahl bleibt eigene Grenze)
-        raise _ungueltig()
-    if quadrat and abs(breite - hoehe) > COVER_QUADRAT_TOLERANZ * max(breite, hoehe):
-        raise _ungueltig()
+    if nachsichtig:
+        if breite * hoehe > COVER_NACHSICHT_PIXEL_MAX:
+            raise _ungueltig()
+    else:
+        if breite > COVER_KANTE_MAX_PX or hoehe > COVER_KANTE_MAX_PX:
+            raise _ungueltig()
+        if quadrat and abs(breite - hoehe) > COVER_QUADRAT_TOLERANZ * max(breite, hoehe):
+            raise _ungueltig()
     # erst jetzt wird dekodiert; die Maße des Kopfes müssen zum Bild passen
     try:
         with Image.open(io.BytesIO(daten), formats=["JPEG", "PNG"]) as bild:
             if bild.size != (breite, hoehe):
                 raise _ungueltig()
+            if nachsichtig and typ == "jpeg":
+                # nur verkleinert dekodieren (1/2, 1/4, 1/8); beide Kanten bleiben mindestens doppelt so groß wie die große Ausgabe
+                bild.draft("RGB", (2 * COVER_GROSS_PX, 2 * COVER_GROSS_PX))
             bild.load()
             bild = ImageOps.exif_transpose(bild)
             bild = _als_rgb(bild)
+            if nachsichtig:
+                bild = _mittig_quadratisch(bild)
             return _jpeg(bild, COVER_GROSS_PX), _jpeg(bild, COVER_KLEIN_PX)
     except TobiboxFehler:
         raise
@@ -177,7 +208,7 @@ def cover_pruefen_und_skalieren(
 
 def cover_klein(gross: bytes) -> bytes:
     """Die kleine Ansicht (192 px) aus der gespeicherten Datei. ``cover_ungueltig``, wenn die Datei kein brauchbares Bild ist."""
-    return cover_pruefen_und_skalieren(gross, erlaubt=("jpeg", "png"), quadrat=False)[1]
+    return cover_pruefen_und_skalieren(gross, erlaubt=("jpeg", "png"), modus="nachsichtig")[1]
 
 
 # --------------------------------------------------------------------------
@@ -288,7 +319,7 @@ def finde_mitgeliefert(ordner_liste: list[Path], namen: tuple[str, ...]) -> byte
             try:
                 with open(ordner / echt, "rb") as f:
                     roh = f.read(COVER_UPLOAD_MAX_BYTES + 1)
-                return cover_pruefen_und_skalieren(roh, erlaubt=("jpeg", "png"))[0]
+                return cover_pruefen_und_skalieren(roh, erlaubt=("jpeg", "png"), modus="nachsichtig")[0]
             except (OSError, TobiboxFehler):
                 continue
     return None
@@ -390,7 +421,7 @@ def suche_in_serie(ordner: Path, folgen: list[str]) -> tuple[str, bytes | None]:
         if roh is None:
             continue
         try:
-            return "tags", cover_pruefen_und_skalieren(roh, erlaubt=("jpeg", "png"))[0]
+            return "tags", cover_pruefen_und_skalieren(roh, erlaubt=("jpeg", "png"), modus="nachsichtig")[0]
         except TobiboxFehler:
             continue  # ein kaputtes oder zu großes Bild: die nächste Folge versuchen
     return "keine", None

@@ -118,6 +118,9 @@ ART_GESCHICHTE_MAX_S: Final = 30 * 60
 # --- Cover (Vertrag W, 14.3 und 14.10) -------------------------------------------------
 COVER_UPLOAD_MAX_BYTES: Final = 3 * 1024**2
 COVER_KANTE_MAX_PX: Final = 2048
+#: Bilder aus Tags und mitgelieferten Dateien (Modus ``nachsichtig``): Obergrenze der Pixelzahl aus dem Kopf, vor dem Dekodieren.
+#: 3000 × 3000 (9 Mio.) geht durch, eine Pixelbombe wie 30 000 × 30 000 nicht. Größere Kanten werden verkleinert und mittig quadratisch zugeschnitten.
+COVER_NACHSICHT_PIXEL_MAX: Final = 16_000_000
 #: Quadrat bis auf 2 % (Unterschied der Seiten, bezogen auf die längere)
 COVER_QUADRAT_TOLERANZ: Final = 0.02
 COVER_GROSS_PX: Final = 512
