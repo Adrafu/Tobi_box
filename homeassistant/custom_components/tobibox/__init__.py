@@ -17,8 +17,8 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.loader import async_get_integration
 
-from . import websocket_api
-from .const import DOMAIN
+from . import testpanel, websocket_api
+from .const import DOMAIN, TESTPANEL
 from .http import TobiboxUploadView
 from .hub import Hub
 from .services import async_setup_services
@@ -53,6 +53,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         if FRONTEND_PFAD.is_dir():
             await hass.http.async_register_static_paths([StaticPathConfig(STATIC_URL, str(FRONTEND_PFAD), cache_headers=False)])
         hass.data[_GEMERKT] = True
+    if TESTPANEL:  # Messungen A0b; Schalter in const.py
+        testpanel.async_register_views(hass)
+        await testpanel.async_register_panel(hass, FRONTEND_PFAD, STATIC_URL, str(integration.version))
     if (FRONTEND_PFAD / PANEL_DATEI).is_file():
         await panel_custom.async_register_panel(
             hass,
@@ -79,4 +82,6 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if hub is not None:
         await hub.async_stop()
     frontend.async_remove_panel(hass, PANEL_URL, warn_if_unknown=False)
+    if TESTPANEL:
+        testpanel.async_remove_panel(hass)
     return True

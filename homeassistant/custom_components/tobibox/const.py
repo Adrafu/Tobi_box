@@ -165,3 +165,15 @@ GERAETENAMEN: Final = frozenset(
     | {f"com{c}" for c in "\u00b9\u00b2\u00b3"}  # COM¹ bis COM³ (Windows reserviert auch die hochgestellten Ziffern)
     | {f"lpt{c}" for c in "\u00b9\u00b2\u00b3"}
 )
+
+# --- Testpanel und Audio-Ansicht (Paket A0b, Vertrag W 14.5 und 14.10) ----------
+#: Schalter f\u00fcr das Testpanel unter ``/tobibox-neu`` (Messungen A0b). Auf ``False`` setzen, um es zu entfernen.
+TESTPANEL: Final = True
+AUDIO_VERBINDUNGEN_JE_BENUTZER: Final = 6
+AUDIO_LINK_GUELTIG_S: Final = 86400
+#: Mess-Endpunkt: z\u00e4hlt Bytes und verwirft sie (Grenze wie die k\u00fcnftige Dateigr\u00f6\u00dfe, 2 GiB)
+MESS_UPLOAD_MAX_BYTES: Final = 2 * 1024**3
+#: ffmpeg-Messung: L\u00e4nge des umgewandelten St\u00fccks und feste Zeitgrenzen
+MESS_FFMPEG_AUDIO_S: Final = 600
+MESS_FFMPEG_ZEITGRENZE_S: Final = 900
+MESS_FFMPEG_KURZ_ZEITGRENZE_S: Final = 20
