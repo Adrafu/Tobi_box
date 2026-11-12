@@ -83,3 +83,21 @@ Musik- oder Hörbuch-App aufgebaut sein, und man soll dort **reinhören** könne
 Festlegung der Projektleitung: Reinhören geht mit HA allein (Dateien liegen unter dem Medien-Pfad der Integration,
 Ausgabe über eine Ansicht der Integration mit signiertem, kurz gültigem Pfad wie bei Kamerabildern). Music Assistant
 wird nicht gebraucht. Die Hörstelle wird **je HA-Benutzer in HA** gespeichert (gleich auf Handy und PC), nicht nur im Browser.
+
+## Runde 8 (12.11., Rückmeldung zu Prototyp v3)
+
+| Nr. | Frage (Entwurf Rev. 3, Abschnitt 16) | Antwort Tobias |
+|---|---|---|
+| 14 | Gültigkeit Abspiel-Link | Rückfrage „was ist ein Abspiel-Link?“ → erklärt; Empfehlung (1 h, Neusignieren) gilt, solange er nicht widerspricht |
+| 15 | Reinhören für alle | **Anhören dürfen alle** |
+| 16 | Nur eigene Hörstelle | **Ja** |
+| 17 | Formate im Bestand | **Alle Formate** (MP3, M4A/M4B, AAC, FLAC, OGG, Opus, WAV) |
+| 18 | Dauer im Hintergrund nachholen | **Passt** |
+| 19 | Unterbrechungen ≤ 5 min = eine Wiedergabe | **Ja** |
+| 20 | Hörbuch mit vielen Tracks | **Ja (eine Zeitleiste), und die Kapitelliste will er auch** |
+| 21 | Reinhören nicht in „Gehört“ | **Doch erfassen, aber dem HA-Benutzer zugeordnet, nicht einer Box** |
+| 22 | Musik über das Album weiterspielen | **Ja, oder über eine Playlist** (sobald Stufe C da ist) |
+
+**Hochladen (Screenshot Blatt „In welches soll es?“):** Tobias will beim Hochladen wählen können, ob ein **neues
+Hörbuch/Hörspiel/Album**, eine **neue Playlist** oder **nur eine einzelne Folge** (bzw. ein einzelnes Lied) entsteht. Der
+Titel „In welches soll es?“ ist unverständlich; das Blatt muss klar beschreiben, was passiert.
