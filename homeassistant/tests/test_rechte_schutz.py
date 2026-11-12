@@ -131,7 +131,7 @@ TABELLE = [
     (36, "einstellungen/set", "alltag", {"gute_nacht": {"timer_min": 20, "ausblenden_s": 30}}, None, True),
     (37, "folgen/list", "lesen", {}, None, False),
     (38, "serie/art_setzen", "alltag", {}, None, False),
-    (39, "audio/bereit", "alltag", {}, None, False),
+    (39, "audio/bereit", "alltag", {"serie_id": "rabe", "folge_id": "a.mp3"}, None, True),
     (40, "hoerstelle/get", "lesen", {}, None, False),
     (41, "hoerstelle/set", "alltag", {}, None, False),
     (42, "hoerstelle/liste", "lesen", {}, None, False),
