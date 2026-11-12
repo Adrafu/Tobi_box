@@ -332,6 +332,10 @@ table.kv td:first-child { color: var(--text2); width: 45%; padding-right: 8px; }
 .frow .grow { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .frow .btn { min-height: 44px; padding: 0 14px; flex: none; }
 .frow .nm { font-weight: 500; }
+.frow .slink { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; min-height: 44px; color: inherit; text-decoration: none; }
+.sheet-in { position: relative; }
+.wz-top { position: absolute; top: 12px; right: max(8px, env(safe-area-inset-right, 0px)); }
+.sheet-in:has(.wz-top) > h2 { padding-right: 112px; }
 mark { background: var(--primary-soft); color: var(--text); border-radius: 3px; padding: 0 1px; }
 .vb2 { display: inline-block; font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 8px; background: var(--warn-bg); color: var(--warn); vertical-align: 2px; }
 .vc2 { display: inline-block; font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 8px; background: var(--primary-soft); color: var(--primary-ink); vertical-align: 2px; }
@@ -522,10 +526,10 @@ a.iconbtn { text-decoration: none; }
 
 <div class="page" id="page">
   <div class="preview" id="preview" hidden style="order:0">
-    <div class="pt">Vorschau mit Beispieldaten (Rev. 4)</div>
+    <div class="pt">Vorschau mit Beispieldaten (Rev. 5)</div>
     <div class="ctl">
       <label for="sel-rolle">Angemeldet als
-        <select id="sel-rolle"><option value="admin">Administrator (Tobias)</option><option value="user">Benutzer ohne Admin (Partnerin)</option></select>
+        <select id="sel-rolle"><option value="admin" id="opt-admin"></option><option value="user" id="opt-user"></option></select>
       </label>
       <label for="sel-theme">Aussehen
         <select id="sel-theme"><option value="auto">Automatisch</option><option value="light">Hell</option><option value="dark">Dunkel</option><option value="hellprimaer">Theme mit hellem Primärton</option></select>
@@ -537,11 +541,11 @@ a.iconbtn { text-decoration: none; }
         <select id="sel-stufe"><option value="abc">A, dazu B und C als Vorschau</option><option value="a">Nur Stufe A (wird gebaut)</option></select>
       </label>
       <label for="sel-dateien">Gewählte Dateien beim Hochladen (Demo)
-        <select id="sel-dateien"><option value="kapitel">3 Dateien, Album „Kapitän Knopf“ (Tags da)</option><option value="lieder">4 Dateien, Album „Sommerlieder“ (Genre Kinderlieder)</option><option value="eins">1 Datei: „Der Mond und der Fuchs“</option><option value="ohne">2 Dateien ohne Tags (Aufnahme_001)</option><option value="schutz">1 Datei mit Kopierschutz (.m4b)</option></select>
+        <select id="sel-dateien"><option value="kapitel">3 Dateien, Album „Kapitän Knopf“ (Tags da)</option><option value="lieder">4 Dateien, Album „Sommerlieder“ (Genre Kinderlieder)</option><option value="eins">1 Datei: „Der Mond und der Fuchs“</option><option value="ohne">2 Dateien ohne Tags (Aufnahme_001)</option><option value="teilweise">3 Dateien, die dritte kommt nicht an</option><option value="gross">2 Dateien, dazu eine über 2 GB</option><option value="schutz">1 Datei mit Kopierschutz (.m4b)</option></select>
       </label>
       <div class="rights" id="rights" aria-live="polite"></div>
     </div>
-    <div class="btns"><button class="btn" data-act="demoNeu" data-fk="demoNeu">Tobie auf Mond legen (Demo)</button><button class="btn" data-act="demoNas" data-fk="demoNas">Neuer Ordner im NAS-Eingang (Demo)</button><button class="btn" data-act="hReset" data-fk="hreset">Hörstellen zurücksetzen</button></div>
+    <div class="btns"><button class="btn" data-act="demoNeu" data-fk="demoNeu" id="btn-demoneu"></button><button class="btn" data-act="demoNas" data-fk="demoNas">Neuer Ordner im NAS-Eingang (Demo)</button><button class="btn" data-act="hReset" data-fk="hreset">Hörstellen zurücksetzen</button></div>
     <div class="muted" style="margin-top:8px">Reinhören spielt kurze Beispieltöne (1 bis 5 Minuten je Folge), damit man Springen und Weiterhören ausprobieren kann. Die Hörstelle liegt hier im Browser; in der echten Seite liegt sie in Home Assistant, für jeden Benutzer einzeln. Hochladen ist nur eine Simulation: Es entsteht aber wirklich ein neuer Eintrag in der Bibliothek.</div>
   </div>
 
@@ -564,6 +568,8 @@ a.iconbtn { text-decoration: none; }
 <div id="toastbox"></div>
 
 <script>
+/* Alle Namen stehen NUR hier. Im echten Betrieb kommen sie aus Home Assistant (Einstellungen der Integration, Benutzerkonten) und nie ins Repo. */
+const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Person B' };
 (function () {
   'use strict';
   var ICON = {
@@ -655,7 +661,7 @@ a.iconbtn { text-decoration: none; }
     // Rev. 4: Einzeltitel (eine Serie mit genau einer Folge, Kennzeichen einzeln)
     [['Das Lied vom Mond', 'musik', 3, 'ogg'], ['Gute-Nacht-Lied für Mia', 'musik', 9], ['Eulenmärchen', 'geschichte', 12], ['Geburtstagsständchen', 'musik', 40]].forEach(function (e) {
       add(e[0], e[1], [{ t: e[0], k: 1, mb: 4 }], { einzeln: true, ago: e[2] });
-      if (e[3]) out[out.length - 1].folgen[0].kopie = 'wartet';
+      if (e[3]) out[out.length - 1].folgen[0].kopie = 'keine';
     });
     var R2 = rng(77);
     out.forEach(function (s) { s.folgen.forEach(function (f) { f.d = s.art === 'hoerbuch' ? 240 + Math.floor(R2() * 61) : s.art === 'musik' ? 40 + Math.floor(R2() * 36) : s.art === 'geschichte' ? 60 + Math.floor(R2() * 61) : 90 + Math.floor(R2() * 91); }); });
@@ -671,8 +677,8 @@ a.iconbtn { text-decoration: none; }
   var S = {
     admin: true, mode: 'normal', stufe: 'abc',
     boxes: [
-      { id: 'mond', name: 'Mond', online: true, zustand: 'spielt', serie: 'lange-serie', folge: 'Folge 4: Der Rabe', akku: 80, lader: true, stand: 'aktuell' },
-      { id: 'stern', name: 'Stern', online: false, zustand: 'leer', serie: null, folge: null, akku: 35, lader: false, stand: 'veraltet', zuletzt: 'heute um 18:40' }
+      { id: 'box1', name: NAMEN.box1, online: true, zustand: 'spielt', serie: 'lange-serie', folge: 'Folge 4: Der Rabe', akku: 80, lader: true, stand: 'aktuell' },
+      { id: 'box2', name: NAMEN.box2, online: false, zustand: 'leer', serie: null, folge: null, akku: 35, lader: false, stand: 'veraltet', zuletzt: 'heute um 18:40' }
     ],
     series: makeSeries(),
     tobies: [
@@ -680,12 +686,12 @@ a.iconbtn { text-decoration: none; }
       { uid: '04C7D8E9F0A1B2', name: '', z: { t: 'serie', s: 'lange-serie' }, n: 2 },
       { uid: '0412FF99AA3300', name: 'Löwe', z: { t: 'serie', s: 'kommissar-kralle' }, n: 3 },
       { uid: '04BB22CC33DD44', name: '', z: { t: 'serie', s: 'der-zauberlehrling-von-nebel' }, n: 4 },
-      { uid: '04EE55FF66AA77', name: 'Mond-Karte', z: { t: 'aktion' }, n: 5 },
+      { uid: '04EE55FF66AA77', name: 'Nacht-Karte', z: { t: 'aktion' }, n: 5 },
       { uid: '04AA11BB22CC33', name: 'Gelber Hase', z: { t: 'folge', s: 'kinderlieder-zum-mitsingen', i: 4 }, n: 6 },
-      { uid: '04DD44EE55FF66', name: 'Sternchen', z: { t: 'folge', s: 'schlaflieder', i: 1 }, n: 7 },
+      { uid: '04DD44EE55FF66', name: 'Blauer Bär', z: { t: 'folge', s: 'schlaflieder', i: 1 }, n: 7 },
       { uid: '04F1A2B3C4D5E6', name: 'Mia-Tobie', z: { t: 'folge', s: 'gute-nacht-lied-fur-mia', i: 0 }, n: 8 }
     ],
-    neu: [{ uid: '04D1E2F3A4B5C6', box: 'mond', ago: 'vor 2 Minuten', done: null }],
+    neu: [{ uid: '04D1E2F3A4B5C6', box: 'box1', ago: 'vor 2 Minuten', done: null }],
     gn: { timer: 30, savedTimer: 30 },
     windows: [
       { id: 'w1', tage: [7, 1, 2, 3, 4], von: '19:30', bis: '06:30', wirkung: 'stumm', grenze: 25 },
@@ -696,7 +702,7 @@ a.iconbtn { text-decoration: none; }
     reihenfolge: false, nameDone: {},
     bib: { term: '', art: 'alle', typ: 'alle', ansicht: 'kacheln', ohne: false, neu: false, pruefen: false, sort: 'az', shown: 60 },
     serieTerm: '', serieShown: 20,
-    gh: { box: 'beide', zr: 'woche', serie: null, quelle: 'boxen', ben: 'alle' }, q: '',
+    gh: { wer: 'alle', zr: 'woche', serie: null }, q: '',
     tobieTerm: ''
   };
   var DAYS = { 1: 'Mo', 2: 'Di', 3: 'Mi', 4: 'Do', 5: 'Fr', 6: 'Sa', 7: 'So' };
@@ -805,11 +811,11 @@ a.iconbtn { text-decoration: none; }
     var h = '';
     if (S.mode === 'offline') h += '<div class="note err" role="alert"><strong>Keine Verbindung zu Home Assistant.</strong><br>Die Ansicht wird von selbst aktuell, sobald die Verbindung wieder da ist.<div class="btns"><button class="btn" data-act="reload" data-fk="reload">Jetzt neu laden</button></div></div>';
     if (S.mode === 'laedt') return h + '<div class="skel"></div><div class="skel"></div><div class="skel" style="height:140px"></div>';
-    if (S.mode === 'fehler') return '<div class="note err" role="alert"><strong>Die Seite konnte nichts laden.</strong><br>Home Assistant antwortet gerade nicht. Warte kurz und versuche es noch einmal. Wenn es so bleibt, sag Tobias Bescheid.<div class="btns"><button class="btn primary" data-act="reload" data-fk="retry">Noch einmal versuchen</button></div></div>';
+    if (S.mode === 'fehler') return '<div class="note err" role="alert"><strong>Die Seite konnte nichts laden.</strong><br>Home Assistant antwortet gerade nicht. Warte kurz und versuche es noch einmal. Wenn es so bleibt, sag dem Administrator Bescheid.<div class="btns"><button class="btn primary" data-act="reload" data-fk="retry">Noch einmal versuchen</button></div></div>';
     var boxes = S.mode === 'offline' ? S.boxes.map(function (b) { var c = JSON.parse(JSON.stringify(b)); c.online = false; c.zuletzt = 'vor 5 Minuten'; return c; }) : S.boxes;
     if (S.mode === 'leer') boxes = [];
     h += '<div class="grid2">' + boxes.map(boxCard).join('') + '</div>';
-    if (S.mode === 'leer') h += '<div class="note">Noch keine Box eingerichtet. Bitte Tobias Bescheid sagen.</div>';
+    if (S.mode === 'leer') h += '<div class="note">Noch keine Box eingerichtet. Bitte dem Administrator Bescheid sagen.</div>';
     if (S.mode !== 'leer') h += S.neu.filter(function (x, i, a) { return !x.done || true; }).map(neuCard).join('');
     h += '<div class="bigbtns"><a class="btn big primary" href="#hinzufuegen" data-fk="add">' + ic('plus') + 'Hinzufügen</a><a class="btn big" href="#abends" data-fk="abend">' + ic('moon') + 'Abends</a></div>';
     h += uploadSummary();
@@ -865,7 +871,7 @@ a.iconbtn { text-decoration: none; }
   function whRow() {
     var l = S.series.map(function (s) { return { s: s, p: serieProg(s) }; }).filter(function (x) { return x.p.started && x.p.frac < 0.999; }).sort(function (a, c) { return c.p.t - a.p.t; }).slice(0, 8);
     if (!l.length) return '';
-    return '<h3 class="rowh">Weiterhören</h3><div class="hscroll">' + l.map(function (x) {
+    return '<h3 class="rowh">Am Handy weiterhören</h3><div class="hscroll">' + l.map(function (x) {
       var s = x.s, p = x.p;
       return '<div class="wh"><button class="tile" data-act="oeffne" data-arg="' + s.id + '" data-fk="wh' + s.id + '"><span class="pos">' + coverHtml(s) + '</span><span class="pbar" aria-hidden="true"><i style="width:' + Math.round(p.frac * 100) + '%"></i></span><span class="tn">' + esc(s.name) + '</span><span class="tm">noch ' + dauerText(p.rest) + '</span></button>' +
         '<button class="playov" data-act="reinhoeren" data-arg="' + s.id + '" data-fk="whp' + s.id + '" aria-label="' + esc(s.name) + ' weiterhören">' + ic('play', 24) + '</button></div>';
@@ -915,7 +921,7 @@ a.iconbtn { text-decoration: none; }
   /* ---------- Suche ---------- */
   function sfRow(x, term) {
     var s = x.s, f = x.f;
-    return '<div class="frow">' + coverHtml(s, 'sm') + '<div class="grow"><div class="nm">' + hl(f.t, term) + '</div><div class="muted">' + (s.einzeln ? 'Einzeltitel · ' : esc(s.name) + ' · ') + clock(f.d) + '</div></div>' +
+    return '<div class="frow"><a class="slink" href="#serie-' + s.id + '" data-fk="sl' + s.id + x.i + '">' + coverHtml(s, 'sm') + '<span class="grow"><span class="nm" style="display:block">' + hl(f.t, term) + '</span><span class="muted" style="display:block">' + (s.einzeln ? 'Einzeltitel · ' : esc(s.name) + ' · ') + clock(f.d) + '</span></span></a>' +
       '<button class="iconbtn fillp" data-act="playF" data-arg="' + s.id + '|' + x.i + '" data-fk="sp' + s.id + x.i + '" aria-label="' + esc(f.t) + ' anhören">' + ic(P.sid === s.id && P.i === x.i && P.playing ? 'pause' : 'play', 24) + '</button>' +
       '<button class="btn" data-act="folgeTobie" data-arg="' + s.id + '|' + x.i + '" data-fk="st' + s.id + x.i + '" aria-label="Tobie für ' + esc(f.t) + ' anlernen">Tobie</button></div>';
   }
@@ -936,15 +942,16 @@ a.iconbtn { text-decoration: none; }
   }
 
   /* ---------- Serienseite wie ein Hörbuch oder Album ---------- */
+  var HINT = { gesehen: false };
   function reinBtn(s) {
     var p = serieProg(s), cur = P.sid === s.id, label, sub = '';
     if (cur && P.playing) label = 'Pause';
-    else if (cur && p.started) label = 'Weiterhören';
-    else if (p.mode === 'weiter') label = 'Weiterhören';
+    else if (cur && p.started) label = 'Hier weiterhören';
+    else if (p.mode === 'weiter') label = 'Hier weiterhören';
     else if (p.mode === 'nochmal') label = 'Noch einmal hören';
     else label = 'Reinhören';
     if (p.mode === 'weiter' && !(cur && P.playing)) { var e = hGet(s.id, p.next), f = s.folgen[p.next]; sub = (s.folgen.length > 1 ? f.t : s.name) + ' · ab ' + clock(e && !fertig(e) ? e.p : 0); }
-    return '<button class="btn primary xl" data-act="reinhoeren" data-arg="' + s.id + '" data-fk="rein">' + ic(cur && P.playing ? 'pause' : 'play', 24) + label + '</button>' + (sub ? '<div class="muted">' + esc(sub) + '</div>' : '');
+    return '<button class="btn primary xl" data-act="reinhoeren" data-arg="' + s.id + '" data-fk="rein">' + ic(cur && P.playing ? 'pause' : 'play', 24) + label + '</button>' + (sub ? '<div class="muted">' + esc(sub) + '</div>' : '') + (HINT.gesehen ? '' : '<div class="muted">Das spielt hier am Handy oder Computer, nicht auf der Box.</div>');
   }
   function kapIdx(kap, pos) { var k = 0; for (var j = 0; j < kap.length; j++) if (kap[j].s <= pos + 0.5) k = j; return k; }
   function kapSection(s) {
@@ -979,7 +986,7 @@ a.iconbtn { text-decoration: none; }
       (p.started ? '<div class="muted">' + (p.frac >= 0.999 ? 'Fertig gehört' : 'Schon ' + Math.round(p.frac * 100) + ' % gehört · noch ' + dauerText(p.rest)) + '</div>' : '') +
       '<div class="hbtns">' + reinBtn(s) + '<button class="btn" data-act="serieTobie" data-arg="' + id + '" data-fk="stobie">' + ic('tag', 20) + 'Tobie zuordnen</button></div></div></div>';
     if (s.pruefen) h += '<div class="note warn"><strong>Bitte kurz ansehen.</strong><br>' + esc(s.pruefen) + '<div class="btns"><button class="btn" data-act="geprueft" data-arg="' + id + '" data-fk="gep">Das ist richtig</button><button class="btn" data-act="stimmtNicht" data-arg="' + id + '" data-fk="stn">Das stimmt nicht</button></div></div>';
-    if (s.folgen.some(function (f) { return f.kopie === 'wartet'; })) h += '<div class="note" role="status"><strong>Die Hörprobe wird gerade vorbereitet.</strong><br>Dieses Format (OGG) spielt nicht jeder Browser. Home Assistant legt dafür einmal eine kleine Kopie an. Probiere es in ein paar Minuten noch einmal. Auf der Box spielt es schon.</div>';
+    if (s.folgen.some(function (f) { return f.kopie === 'wartet'; })) h += '<div class="note" role="status"><strong>Die Hörprobe wird vorbereitet.</strong><br>Dieses Format (OGG) spielt nicht jeder Browser. Home Assistant legt dafür einmal eine kleine Kopie an. Bei einem Lied dauert das etwa eine Minute, bei einem langen Hörbuch bis zu einer halben Stunde. Du kannst die Seite offen lassen, sie sagt Bescheid. Auf der Box spielt es schon.<div class="bar" style="margin-top:8px" aria-hidden="true"><i style="width:60%"></i></div></div>';
     if (s.einzeln) return h + '<div class="note">Das ist ein einzelnes ' + (s.art === 'musik' ? 'Lied' : s.art === 'geschichte' ? 'Stück' : 'Stück') + '. Es steht für sich und gehört zu keinem Album. Du kannst einen Tobie dafür anlernen.</div>';
     if (s.art === 'hoerbuch' && s.folgen.length === 1 && s.folgen[0].kap) return h + kapSection(s);
     var n = s.folgen.length;
@@ -1034,8 +1041,13 @@ a.iconbtn { text-decoration: none; }
     var h = '<div class="up"><div style="display:flex;gap:8px;justify-content:space-between;align-items:baseline;flex-wrap:wrap"><strong style="overflow-wrap:anywhere">' + esc(u.name) + '</strong><span class="muted">' + esc(u.src) + '</span></div>';
     if (u.step < 3) {
       h += '<div class="steps" aria-hidden="true"><span class="' + (u.step > 0 ? 'done' : 'now') + '"></span><span class="' + (u.step > 1 ? 'done' : u.step === 1 ? 'now' : '') + '"></span><span></span></div>';
-      h += '<div>' + (u.step === 0 ? 'Wird hochgeladen … ' + Math.round(u.p) + ' %' : 'Wird einsortiert …') + '</div>';
-      if (u.step === 0) h += '<div class="bar" role="progressbar" aria-label="' + esc(u.name) + ' hochladen" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + Math.round(u.p) + '"><i style="width:' + u.p + '%"></i></div>';
+      var n = u.n || 1, gesamt = Math.round(((u.k - 1) * 100 + u.p) / n);
+      h += '<div>' + (u.step === 0 ? (n > 1 ? 'Datei ' + u.k + ' von ' + n + ' wird hochgeladen … ' + Math.round(u.p) + ' %' : 'Wird hochgeladen … ' + Math.round(u.p) + ' %') : 'Wird einsortiert …' + (u.warte ? ' Alle ' + n + ' Dateien sind da.' : '')) + '</div>';
+      if (u.step === 0 && u.warte) h += '<div class="muted">Einsortiert wird erst, wenn alle ' + n + ' Dateien da sind.</div>';
+      if (u.step === 0) h += '<div class="bar" role="progressbar" aria-label="' + esc(u.name) + ' hochladen" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + gesamt + '"><i style="width:' + gesamt + '%"></i></div>';
+      if (u.hinweis) h += '<div class="note warn" style="margin:8px 0 0">' + esc(u.hinweis) + '</div>';
+    } else if (u.unterbrochen) {
+      h += '<div class="note warn" style="margin:8px 0 0" role="alert"><strong>Es fehlt noch eine Datei.</strong><br>' + (u.k - 1) + ' von ' + u.n + ' Dateien sind angekommen. Wähle die fehlende Datei noch einmal. Einsortiert wird noch bis zu 30 Minuten nicht. Kommt sie bis dahin nicht, wird mit den vorhandenen Dateien einsortiert und mit „Bitte ansehen“ markiert.</div><div class="btns"><button class="btn" data-act="x" data-arg="Die fehlende Datei wird noch einmal gewählt (Vorschau)" data-fk="fehlt' + u.id + '">Fehlende Datei wählen</button></div>';
     } else if (u.block) {
       h += '<div class="note err" style="margin:8px 0 0" role="alert"><strong>Geht leider nicht.</strong><br>' + esc(u.block) + '</div>';
     } else if (u.pruefen && !u.ok) {
@@ -1050,8 +1062,8 @@ a.iconbtn { text-decoration: none; }
     var h = '<button class="back" data-act="go" data-arg="start" data-fk="back">' + ic('back') + 'Start</button><h2 style="margin-top:8px">Hinzufügen</h2>';
     h += '<div class="drop" id="dropzone">Auf dem Computer kannst du Dateien oder einen ganzen Ordner auch hierher ziehen.</div>';
     h += '<div class="grid2"><button class="btn big primary" data-act="addHandy" data-fk="handy">' + ic('plus') + 'Dateien wählen</button>' + (fine ? '<button class="btn big" data-act="addOrdner" data-fk="ordner">' + ic('lib') + 'Ordner vom Computer wählen</button>' : '') + '</div>';
-    h += '<p class="muted">Hörspiele, Hörbücher, Musik, Geschichten. Erlaubt: MP3, M4A, M4B, AAC, FLAC, OGG, Opus, WAV. Bis 500 MB je Datei. Kopiergeschützte Dateien (zum Beispiel von Audible) gehen nicht. Lass den Bildschirm an, bis alles fertig ist.</p>';
-    h += '<div class="note">Du kannst Dateien auch am Computer in den Eingang-Ordner auf dem NAS kopieren. Sie erscheinen hier von selbst und werden nach den Angaben in den Dateien einsortiert. Stimmt etwas nicht, kannst du es hier anders einsortieren. Frag Tobias nach dem Ordner.</div>';
+    h += '<p class="muted">Hörspiele, Hörbücher, Musik, Geschichten. Erlaubt: MP3, M4A, M4B, AAC, FLAC, OGG, Opus, WAV. Bis 2 GB je Datei. Kopiergeschützte Dateien (zum Beispiel von Audible) gehen nicht. Lass den Bildschirm an, bis alles fertig ist.</p>';
+    h += '<div class="note">Du kannst Dateien auch am Computer in den Eingang-Ordner auf dem NAS kopieren. Sie erscheinen hier von selbst und werden nach den Angaben in den Dateien einsortiert. Stimmt etwas nicht, kannst du es hier anders einsortieren. Frag den Administrator nach dem Ordner.</div>';
     h += '<h2>Zuletzt hinzugefügt</h2>';
     if (!S.uploads.length) h += '<div class="card muted">In den letzten 24 Stunden wurde nichts hinzugefügt.</div>';
     else h += '<div class="card" id="uplist">' + S.uploads.map(uploadItem).join('') + '</div>';
@@ -1090,7 +1102,7 @@ a.iconbtn { text-decoration: none; }
     var dirty = S.gn.timer !== S.gn.savedTimer;
     h += '<button class="btn primary" id="gn-save" data-act="gnSave" data-fk="gns"' + (dirty ? '' : ' disabled') + '>' + (dirty ? 'Speichern' : 'Gespeichert') + '</button>';
     var hat = S.tobies.some(function (t) { return t.z.t === 'aktion'; });
-    h += '<div class="muted" style="margin-top:12px">' + (hat ? 'Ein Gute-Nacht-Tobie ist angelernt („Mond-Karte“).' : 'Noch kein Gute-Nacht-Tobie.') + ' <button class="btn link" data-act="gnHilfe" data-fk="gnh">So legst du einen an</button></div></div>';
+    h += '<div class="muted" style="margin-top:12px">' + (hat ? 'Ein Gute-Nacht-Tobie ist angelernt („Nacht-Karte“).' : 'Noch kein Gute-Nacht-Tobie.') + ' <button class="btn link" data-act="gnHilfe" data-fk="gnh">So legst du einen an</button></div></div>';
     h += '<div class="card"><h3>Leise-Zeiten</h3><div class="muted">In diesen Zeiten ist die Box leiser oder still.</div>';
     h += '<div class="rows" style="margin-top:12px">' + (S.windows.length ? S.windows.map(function (w) {
       return '<button class="rowbtn" data-act="winEdit" data-arg="' + w.id + '" data-fk="w' + w.id + '"><span class="grow"><strong>' + dayLabel(w.tage) + '</strong><br><span class="muted">' + w.von + ' bis ' + w.bis + (mins(w.bis) < mins(w.von) ? ' (bis zum nächsten Morgen)' : '') + ' · ' + wirkText(w) + '</span></span><span class="btn">Ändern</span></button>';
@@ -1100,49 +1112,40 @@ a.iconbtn { text-decoration: none; }
   }
 
   /* ---------- Stufe B: Gehört (Vorschau mit erfundenen Zahlen) ---------- */
-  var HZ = { ich: [12, 0, 25, 8, 30, 0, 18, 22, 5, 0, 35, 14, 0, 20], mond: [42, 55, 38, 61, 70, 28, 45, 50, 36, 64, 72, 31, 47, 58], stern: [30, 22, 45, 18, 52, 40, 12, 26, 33, 20, 48, 55, 15, 38] };
-  var FAV = { mond: [['Lange Serie', 410], ['Kommissar Kralle', 320], ['Kinderlieder zum Mitsingen', 260], ['Gute-Nacht-Geschichten', 210], ['Pirat Pippo', 150]], stern: [['Kinderlieder zum Mitsingen', 380], ['Schlaflieder', 300], ['Detektiv Dackel', 240], ['Lange Serie', 120], ['Tiergeschichten', 90]] };
+  // Quellen = die Schlüssel aus NAMEN: zwei Boxen und die HA-Benutzer, die reingehört haben (gleichberechtigt in "Wer?")
+  var QUELLEN = ['box1', 'box2', 'personA', 'personB'];
+  var HZ = { box1: [42, 55, 38, 61, 70, 28, 45, 50, 36, 64, 72, 31, 47, 58], box2: [30, 22, 45, 18, 52, 40, 12, 26, 33, 20, 48, 55, 15, 38], personA: [8, 0, 15, 5, 20, 0, 12, 14, 3, 0, 22, 9, 0, 12], personB: [4, 0, 10, 3, 10, 0, 6, 8, 2, 0, 13, 5, 0, 8] };
   var STD = [0, 0, 0, 0, 0, 0, 10, 60, 40, 5, 0, 5, 20, 30, 15, 60, 110, 130, 150, 210, 120, 30, 5, 0];
   var WT = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
   function dayInfo(back) { var d = new Date(2026, 10, 12 - back); return { wt: WT[d.getDay()], tag: d.getDate() + '.' }; }
-  function fmtMin(m) { return m >= 60 ? Math.floor(m / 60) + ' Std. ' + (m % 60 ? (m % 60) + ' Min.' : '') : m + ' Min.'; }
+  function fmtMin(m) { return m >= 60 ? (Math.floor(m / 60) + ' Std. ' + (m % 60 ? (m % 60) + ' Min.' : '')).trim() : m + ' Min.'; }
+  function werName(w) { return w === 'alle' ? 'Alle' : NAMEN[w]; }
+  function werTeil(w) { return w === 'alle' ? QUELLEN : [w]; }
+  function werSatz(w) { return w === 'alle' ? 'Alle zusammen' : NAMEN[w]; }
+  function werSumme(w, n) { return werTeil(w).reduce(function (a, q) { return a + HZ[q].slice(14 - n).reduce(function (x, c) { return x + c; }, 0); }, 0); }
   function chartTage() {
-    var n = S.gh.zr === 'woche' ? 7 : 14, G = curBox(), W = 360, H = 220, L = 38, R = 6, T = 26, Bt = 44, pw = W - L - R, ph = H - T - Bt, max = 90;
-    var serien = [];
-    if (G === 'ich') serien.push({ k: 'ich', n: 'Reinhören', c: 'var(--chart1)' });
-    else { if (G !== 'stern') serien.push({ k: 'mond', n: 'Mond', c: 'var(--chart1)' }); if (G !== 'mond') serien.push({ k: 'stern', n: 'Stern', c: 'var(--chart2)' }); }
-    var sv = '<svg class="chart" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Säulendiagramm: Hörzeit pro Tag in Minuten, letzte ' + n + ' Tage, ' + serien.map(function (x) { return x.n; }).join(' und ') + '. Die Zahlen stehen darunter in einer Tabelle.">';
-    [0, 30, 60, 90].forEach(function (v) { var y = T + ph - v / max * ph; sv += '<line class="grid" x1="' + L + '" x2="' + (W - R) + '" y1="' + y + '" y2="' + y + '"/><text x="' + (L - 6) + '" y="' + (y + 4) + '" text-anchor="end">' + v + '</text>'; });
+    var n = S.gh.zr === 'woche' ? 7 : 14, w = S.gh.wer, W = 360, H = 220, L = 38, R = 6, T = 26, Bt = 44, pw = W - L - R, ph = H - T - Bt, max = w === 'alle' ? 180 : 90;
+    var farbe = w === 'box2' ? 'var(--chart2)' : 'var(--chart1)';
+    function val(i) { return werTeil(w).reduce(function (a, q) { return a + HZ[q][14 - n + i]; }, 0); }
+    var sv = '<svg class="chart" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Säulendiagramm: Hörzeit pro Tag in Minuten, letzte ' + n + ' Tage, ' + esc(werSatz(w)) + '. Die Zahlen stehen darunter in einer Tabelle.">';
+    [0, max / 3, max * 2 / 3, max].forEach(function (v) { var y = T + ph - v / max * ph; sv += '<line class="grid" x1="' + L + '" x2="' + (W - R) + '" y1="' + y + '" y2="' + y + '"/><text x="' + (L - 6) + '" y="' + (y + 4) + '" text-anchor="end">' + v + '</text>'; });
     sv += '<text x="2" y="10">Minuten</text>';
-    var gw = pw / n, bw = Math.min(16, (gw - 6) / serien.length);
+    var gw = pw / n, bw = Math.min(16, gw - 6);
     for (var i = 0; i < n; i++) {
-      var di = dayInfo(n - 1 - i), gx = L + i * gw + gw / 2 - bw * serien.length / 2;
-      serien.forEach(function (se, j) {
-        var v = HZ[se.k][14 - n + i], bh = v / max * ph, x = gx + j * bw;
-        sv += '<rect x="' + x + '" y="' + (T + ph - bh) + '" width="' + (bw - 1) + '" height="' + bh + '" rx="2" style="fill:' + se.c + '"/>';
-        if (n <= 7) sv += '<text class="v" x="' + (x + (bw - 1) / 2) + '" y="' + (T + ph - bh - 3) + '" text-anchor="middle">' + v + '</text>';
-      });
+      var di = dayInfo(n - 1 - i), v = val(i), bh = v / max * ph, x = L + i * gw + gw / 2 - bw / 2;
+      sv += '<rect x="' + x + '" y="' + (T + ph - bh) + '" width="' + bw + '" height="' + bh + '" rx="2" style="fill:' + farbe + '"/>';
+      if (n <= 7) sv += '<text class="v" x="' + (x + bw / 2) + '" y="' + (T + ph - bh - 3) + '" text-anchor="middle">' + v + '</text>';
       if (n <= 7 || i % 2 === 0) sv += '<text x="' + (L + i * gw + gw / 2) + '" y="' + (H - 24) + '" text-anchor="middle">' + di.wt + '</text><text x="' + (L + i * gw + gw / 2) + '" y="' + (H - 9) + '" text-anchor="middle">' + di.tag + '</text>';
     }
     sv += '<line class="axis" x1="' + L + '" x2="' + (W - R) + '" y1="' + (T + ph) + '" y2="' + (T + ph) + '"/></svg>';
-    var leg = '<div class="legend" style="margin:8px 0">' + serien.map(function (x) { return '<span><i class="sw" style="background:' + x.c + '"></i>' + x.n + '</span>'; }).join('') + '</div>';
-    var tab = '<details class="zahlen"><summary>Zahlen als Tabelle</summary><table class="kv"><tr><td>Tag</td><td>' + serien.map(function (x) { return x.n; }).join(' / ') + ' (Minuten)</td></tr>';
-    for (var q = 0; q < n; q++) { var dd = dayInfo(n - 1 - q); tab += '<tr><td>' + dd.wt + ' ' + dd.tag + '11.</td><td>' + serien.map(function (x) { return HZ[x.k][14 - n + q]; }).join(' / ') + '</td></tr>'; }
+    var leg = '<div class="legend" style="margin:8px 0"><span><i class="sw" style="background:' + farbe + '"></i>' + esc(werName(w)) + '</span></div>';
+    var kopf = w === 'alle' ? 'Alle (' + QUELLEN.map(function (q) { return NAMEN[q]; }).join(' / ') + ')' : NAMEN[w];
+    var tab = '<details class="zahlen"><summary>Zahlen als Tabelle</summary><table class="kv"><tr><td>Tag</td><td>' + esc(kopf) + ' (Minuten)</td></tr>';
+    for (var q = 0; q < n; q++) {
+      var dd = dayInfo(n - 1 - q);
+      tab += '<tr><td>' + dd.wt + ' ' + dd.tag + '11.</td><td>' + (w === 'alle' ? val(q) + ' (' + QUELLEN.map(function (s2) { return HZ[s2][14 - n + q]; }).join(' / ') + ')' : val(q)) + '</td></tr>';
+    }
     return leg + sv + tab + '</table></details>';
-  }
-  function chartFav() {
-    var G = S.gh.box, map = {};
-    ['mond', 'stern'].forEach(function (b) { if (G === 'beide' || G === b) FAV[b].forEach(function (e) { map[e[0]] = (map[e[0]] || 0) + e[1]; }); });
-    var arr = Object.keys(map).map(function (k) { return [k, map[k]]; }).sort(function (a, c) { return c[1] - a[1]; }).slice(0, 5);
-    var W = 360, rowH = 40, H = arr.length * rowH + 22, L = 4, R = 4, pw = W - L - R, max = Math.ceil(arr[0][1] / 100) * 100;
-    var sv = '<svg class="chart" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Balkendiagramm: meistgehörte Hörspiele, Hörzeit in Minuten. ' + arr.map(function (e) { return e[0] + ' ' + e[1]; }).join(', ') + '">';
-    arr.forEach(function (e, i) {
-      var y = i * rowH, w = e[1] / max * pw;
-      sv += '<text class="v" x="' + L + '" y="' + (y + 14) + '">' + esc(e[0]) + '</text><text x="' + (W - R) + '" y="' + (y + 14) + '" text-anchor="end">' + e[1] + ' Min.</text><rect x="' + L + '" y="' + (y + 20) + '" width="' + w + '" height="12" rx="3" style="fill:var(--chart1)"/>';
-    });
-    sv += '<line class="axis" x1="' + L + '" x2="' + L + '" y1="0" y2="' + (H - 18) + '"/>';
-    [0, max / 2, max].forEach(function (v) { var x = L + v / max * pw; sv += '<text x="' + Math.min(Math.max(x, 14), W - 14) + '" y="' + (H - 4) + '" text-anchor="middle">' + v + '</text>'; });
-    return sv + '</svg>';
   }
   function chartZeit() {
     var W = 360, H = 200, L = 38, R = 6, T = 26, Bt = 30, pw = W - L - R, ph = H - T - Bt, max = 240;
@@ -1155,16 +1158,22 @@ a.iconbtn { text-decoration: none; }
     sv += '<text x="' + (W - R) + '" y="' + (H - 1) + '" text-anchor="end">Uhr</text><line class="axis" x1="' + L + '" x2="' + (W - R) + '" y1="' + (T + ph) + '" y2="' + (T + ph) + '"/></svg>';
     return sv;
   }
-  /* ---------- Rangliste: welche Box hat was wie oft gehört (Stufe B, erfundene Zahlen) ---------- */
+  /* ---------- Rangliste: wer hat was wie oft gehört (Stufe B, erfundene Zahlen) ---------- */
   var ZR = { woche: ['Woche', 0.12], monat: ['Monat', 0.35], jahr: ['Jahr', 0.8], alles: ['Alles', 1] };
   var ZRW = { woche: 'in der letzten Woche', monat: 'im letzten Monat', jahr: 'im letzten Jahr', alles: 'insgesamt' };
   var TYP = { hoerspiel: 26, hoerbuch: 42, musik: 3, geschichte: 11 };
   var RK = null;
   function rankBase() {
     if (RK) return RK;
-    var R = rng(21); RK = { mond: {}, stern: {}, ich: {} };
-    var lst = { mond: ['Lange Serie', 'Kommissar Kralle', 'Kinderlieder zum Mitsingen', 'Gute-Nacht-Geschichten', 'Pirat Pippo', 'Die Wolkenreise', 'Schlaflieder', 'Abenteuer im Wald'], stern: ['Kinderlieder zum Mitsingen', 'Schlaflieder', 'Tiergeschichten', 'Pirat Pippo', 'Lange Serie', 'Märchen aus aller Welt', 'Familie Fuchs', 'Die Sternenmühle'], ich: ['Pirat Pippo', 'Mia und das Meer', 'Kinderlieder zum Mitsingen', 'Die Sternenmühle', 'Frühlingslieder', 'Tiergeschichten'] };
-    ['mond', 'stern', 'ich'].forEach(function (b) {
+    var R = rng(21); RK = {};
+    var lst = {
+      box1: ['Lange Serie', 'Kommissar Kralle', 'Kinderlieder zum Mitsingen', 'Gute-Nacht-Geschichten', 'Pirat Pippo', 'Die Wolkenreise', 'Schlaflieder', 'Abenteuer im Wald'],
+      box2: ['Kinderlieder zum Mitsingen', 'Schlaflieder', 'Tiergeschichten', 'Pirat Pippo', 'Lange Serie', 'Märchen aus aller Welt', 'Familie Fuchs', 'Die Sternenmühle'],
+      personA: ['Pirat Pippo', 'Mia und das Meer', 'Die Sternenmühle', 'Frühlingslieder'],
+      personB: ['Mia und das Meer', 'Kinderlieder zum Mitsingen', 'Tiergeschichten']
+    };
+    QUELLEN.forEach(function (b) {
+      RK[b] = {};
       lst[b].forEach(function (nm, ri) {
         var s = S.series.filter(function (x) { return x.name === nm; })[0]; if (!s) return;
         RK[b][s.id] = s.folgen.map(function (f, i) { var w = (lst[b].length - ri) * 2.2; return Math.round(R() * w + (i < 3 ? w * 0.5 : 0)); });
@@ -1172,10 +1181,9 @@ a.iconbtn { text-decoration: none; }
     });
     return RK;
   }
-  function rankRows(box, zr) {
+  function rankRows(wer, zr) {
     var base = rankBase(), f = ZR[zr][1], out = {};
-    ['mond', 'stern', 'ich'].forEach(function (b) {
-      if (box === 'ich' ? b !== 'ich' : (b === 'ich' || (box !== 'beide' && box !== b))) return;
+    werTeil(wer).forEach(function (b) {
       Object.keys(base[b]).forEach(function (sid) {
         var s = serie(sid); if (!s) return;
         var o = out[sid] || (out[sid] = { s: s, folgen: s.folgen.map(function () { return { n: 0, fert: 0, min: 0 }; }) });
@@ -1186,19 +1194,17 @@ a.iconbtn { text-decoration: none; }
       .filter(function (o) { return o.n > 0; }).sort(function (a, c) { return c.n - a.n || c.min - a.min; });
   }
   function fmtHm(m) { return m >= 60 ? Math.floor(m / 60) + ':' + pad2(m % 60) + ' Std.' : m + ' Min.'; }
-  function boxWort(b) { return b === 'beide' ? 'beide Boxen zusammen' : (b === 'ich' ? 'Reinhören' : (b === 'mond' ? 'Mond' : 'Stern')); }
-  function curBox() { return S.gh.quelle === 'rein' ? 'ich' : S.gh.box; }
   function rankCard() {
-    var g = S.gh, cb = curBox(), rein = cb === 'ich', rows = rankRows(cb, g.zr), o = g.serie ? rows.filter(function (x) { return x.s.id === g.serie; })[0] : null;
+    var g = S.gh, w = g.wer, rows = rankRows(w, g.zr), o = g.serie ? rows.filter(function (x) { return x.s.id === g.serie; })[0] : null;
     var h = '<div class="card wide">';
-    var legend = '<details class="zahlen"><summary>Was wird gezählt?</summary><p class="muted" style="margin:0 0 8px">' + (rein ? 'Gezählt wird, was du selbst am Handy oder Computer anhörst. ' : '') + '„Mal“ ist jede Wiedergabe ab 10 Sekunden. „Fertig“ heißt: bis zum Ende der Folge gehört. In der Rangliste steht, wie viele Folgen mindestens einmal ganz gehört wurden; in den Folgen, wie oft die Folge ganz gehört wurde. Pausen bis 5 Minuten zählen noch zur selben Wiedergabe; wer nach einer längeren Pause weiterhört, zählt als neue.</p></details>';
+    var legend = '<details class="zahlen"><summary>Was wird gezählt?</summary><p class="muted" style="margin:0 0 8px">Gezählt wird, was an den Boxen gespielt und was am Handy oder Computer angehört wird. „Mal“ ist jede Wiedergabe ab 10 Sekunden. „Fertig“ heißt: bis zum Ende der Folge gehört. In der Rangliste steht, wie viele Folgen mindestens einmal ganz gehört wurden; in den Folgen, wie oft die Folge ganz gehört wurde. Pausen bis 5 Minuten zählen noch zur selben Wiedergabe; wer nach einer längeren Pause weiterhört, zählt als neue.</p></details>';
     if (o) {
-      h += '<button class="back" data-act="ghBack" data-fk="ghback">' + ic('back') + 'Rangliste</button><h3>' + esc(o.s.name) + '</h3><div class="muted" style="margin-bottom:8px">Aufteilung nach Folgen · ' + boxWort(cb) + ' · ' + ZRW[g.zr] + '</div>';
+      h += '<button class="back" data-act="ghBack" data-fk="ghback">' + ic('back') + 'Rangliste</button><h3>' + esc(o.s.name) + '</h3><div class="muted" style="margin-bottom:8px">Aufteilung nach Folgen · ' + esc(werSatz(w)) + ' · ' + ZRW[g.zr] + '</div>';
       h += '<div class="rhead" aria-hidden="true"><span>' + ART[o.s.art].one + '</span><span>Mal</span><span>Hörzeit</span><span>Fertig</span></div>';
       h += o.s.folgen.map(function (f, i) { var x = o.folgen[i]; return '<div class="rrow' + (x.n ? '' : ' z') + '" role="group" aria-label="' + esc(f.t) + ': ' + x.n + ' Mal gehört, ' + (x.n ? fmtHm(x.min) : 'keine Hörzeit') + ', ' + x.fert + ' Mal fertig"><span class="rt"><span class="rk">' + (i + 1) + '</span><span>' + esc(f.t) + '</span></span><span class="rn">' + x.n + '</span><span class="rn">' + (x.n ? fmtHm(x.min) : '–') + '</span><span class="rn">' + (x.fert ? x.fert + '×' : '–') + '</span></div>'; }).join('');
       h += '<div class="rtotal muted">Zusammen: ' + o.n + ' Mal gehört, ' + fmtHm(o.min) + ', ' + o.fertig + ' von ' + o.s.folgen.length + ' Folgen fertig gehört.</div>';
     } else {
-      h += '<h3>' + (rein ? 'Was wurde am Handy oder Computer gehört?' : 'Wer hat was gehört?') + '</h3><div class="muted" style="margin-bottom:8px">' + boxWort(cb)[0].toUpperCase() + boxWort(cb).slice(1) + ' · ' + ZRW[g.zr] + '. Tippe auf ein Hörspiel, dann siehst du die Folgen.</div>';
+      h += '<h3>Wer hat was gehört?</h3><div class="muted" style="margin-bottom:8px">' + esc(werSatz(w)) + ' · ' + ZRW[g.zr] + '. Tippe auf ein Hörspiel, dann siehst du die Folgen.</div>';
       h += '<div class="rhead" aria-hidden="true"><span>Hörspiel</span><span>Mal</span><span>Hörzeit</span><span>Fertig</span></div>';
       h += rows.slice(0, 10).map(function (r, i) { return '<button class="rrow" data-act="ghSerie" data-arg="' + r.s.id + '" data-fk="gr' + r.s.id + '" aria-label="' + esc(r.s.name) + ': ' + r.n + ' Mal gehört, ' + fmtHm(r.min) + ', ' + r.fertig + ' von ' + r.s.folgen.length + ' Folgen fertig. Aufteilung nach Folgen öffnen"><span class="rt"><span class="rk">' + (i + 1) + '</span><span>' + esc(r.s.name) + '</span></span><span class="rn">' + r.n + '</span><span class="rn">' + fmtHm(r.min) + '</span><span class="rn">' + r.fertig + '/' + r.s.folgen.length + '</span></button>'; }).join('');
       if (!rows.length) h += '<div class="muted">In diesem Zeitraum wurde noch nichts gehört.</div>';
@@ -1206,27 +1212,21 @@ a.iconbtn { text-decoration: none; }
     return h + legend + '</div>';
   }
   function vGehoert() {
-    var g = S.gh, tage = g.zr === 'woche' ? 7 : 14, rein = g.quelle === 'rein';
+    var g = S.gh, tage = g.zr === 'woche' ? 7 : 14, w = g.wer;
     var h = '<h2 style="margin-top:0">Gehört</h2>';
     h += '<div class="stufe"><strong>Stufe B – Vorschau.</strong> Erfundene Zahlen. Die Box müsste dafür melden, was sie spielt (Entwurf, Abschnitt 12).</div>';
-    h += '<div class="seg2 ghq" role="group" aria-label="Boxen | Reinhören"><button data-act="ghQ" data-arg="boxen" aria-pressed="' + !rein + '" data-fk="ghq1">Boxen</button><button data-act="ghQ" data-arg="rein" aria-pressed="' + rein + '" data-fk="ghq2">Reinhören</button></div>';
-    if (rein) h += '<div class="chips wrap" role="group" aria-label="Benutzer" style="margin-top:12px">' + [['alle', 'Alle'], ['personA', 'Person A'], ['personB', 'Person B']].map(function (o) { return '<button class="chip" data-act="ghBen" data-arg="' + o[0] + '" aria-pressed="' + (S.gh.ben === o[0]) + '" data-fk="ghben' + o[0] + '">' + o[1] + '</button>'; }).join('') + '</div>';
-    if (rein) h += '<div class="note" style="margin-top:12px"><strong>Alle in Home Assistant sehen das.</strong> Hier steht, was am Handy oder Computer angehört wurde. Mit „Alle“ siehst du alle Benutzer zusammen, mit einem Namen nur diesen Benutzer. Die Namen kommen aus Home Assistant. Was die Boxen gespielt haben, steht unter „Boxen“.</div>';
-    h += '<div class="toolbar" style="margin-top:12px">' + (rein ? '' : '<div class="chips wrap" role="group" aria-label="Box"><button class="chip" data-act="ghBox" data-arg="beide" aria-pressed="' + (g.box === 'beide') + '" data-fk="ghb1">Beide Boxen</button><button class="chip" data-act="ghBox" data-arg="mond" aria-pressed="' + (g.box === 'mond') + '" data-fk="ghb2">Mond</button><button class="chip" data-act="ghBox" data-arg="stern" aria-pressed="' + (g.box === 'stern') + '" data-fk="ghb3">Stern</button></div>') +
-      '<div class="chips wrap" role="group" aria-label="Zeitraum">' + ['woche', 'monat', 'jahr', 'alles'].map(function (z) { return '<button class="chip" data-act="ghZr" data-arg="' + z + '" aria-pressed="' + (g.zr === z) + '" data-fk="ghz' + z + '">' + ZR[z][0] + '</button>'; }).join('') + '</div></div>';
+    h += '<div class="field" style="margin-top:12px"><span class="lbl" id="gh-wer-l">Wer?</span><div class="chips wrap" role="group" aria-labelledby="gh-wer-l" id="gh-wer">' + ['alle'].concat(QUELLEN).map(function (k) { return '<button class="chip" data-act="ghWer" data-arg="' + k + '" aria-pressed="' + (w === k) + '" data-fk="ghw' + k + '">' + esc(werName(k)) + '</button>'; }).join('') + '</div></div>';
+    h += '<div class="field"><span class="lbl" id="gh-zr-l">Zeitraum</span><div class="chips wrap" role="group" aria-labelledby="gh-zr-l">' + ['woche', 'monat', 'jahr', 'alles'].map(function (z) { return '<button class="chip" data-act="ghZr" data-arg="' + z + '" aria-pressed="' + (g.zr === z) + '" data-fk="ghz' + z + '">' + ZR[z][0] + '</button>'; }).join('') + '</div></div>';
     h += '<div class="charts">' + rankCard();
-    var sumM = HZ.mond.slice(14 - tage).reduce(function (a, c) { return a + c; }, 0), sumS = HZ.stern.slice(14 - tage).reduce(function (a, c) { return a + c; }, 0), sumI = HZ.ich.slice(14 - tage).reduce(function (a, c) { return a + c; }, 0);
-    var sum = rein ? sumI : g.box === 'mond' ? sumM : g.box === 'stern' ? sumS : sumM + sumS;
-    h += '<div class="card wide"><h3>Hörzeit pro Tag</h3><div class="muted">In den letzten ' + tage + ' Tagen: ' + fmtMin(sum) + (!rein && g.box === 'beide' ? ' (Mond ' + fmtMin(sumM) + ', Stern ' + fmtMin(sumS) + ')' : rein ? (S.gh.ben === 'alle' ? ' (alle Benutzer)' : ' (nur ' + S.gh.ben + ')') : '') + '.' + (g.zr === 'woche' ? '' : ' Das Beispiel zeigt höchstens 14 Tage.') + '</div>' + chartTage() + '</div>';
-    if (rein) {
-      h += '<div class="card"><h3>Reinhör-Daten</h3><div class="muted">Sie liegen nur in Home Assistant. Du kannst deine eigenen Reinhör-Daten jederzeit löschen. Administratoren können alle löschen. Die Stelle zum Weiterhören bleibt dabei erhalten.</div><div class="btns" style="margin-top:12px"><button class="btn danger" data-act="reinDel" data-fk="reindel">Meine Reinhör-Daten löschen …</button>' + (S.admin ? '<button class="btn danger" data-act="reinDelAlle" data-fk="reindelalle">Alle Reinhör-Daten löschen …</button>' : '') + '</div></div></div>';
-      return h;
-    }
+    var sum = werSumme(w, tage);
+    var teile = w === 'alle' ? ' (' + QUELLEN.map(function (q) { return NAMEN[q] + ' ' + fmtMin(werSumme(q, tage)); }).join(', ') + ')' : '';
+    h += '<div class="card wide"><h3>Hörzeit pro Tag</h3><div class="muted">In den letzten ' + tage + ' Tagen: ' + fmtMin(sum) + teile + '.' + (g.zr === 'woche' ? '' : ' Das Beispiel zeigt höchstens 14 Tage.') + '</div>' + chartTage() + '</div>';
     h += '<div class="card"><h3>Tageszeiten</h3><div class="muted">Wann gehört wird: am meisten um 19 Uhr.</div>' + chartZeit() + '</div></div>';
     var ser = S.series;
     function row(nm, sub) { var s = ser.filter(function (x) { return x.name === nm; })[0]; return s ? '<button class="tile" data-act="oeffne" data-arg="' + s.id + '" data-fk="g' + s.id + '"><span class="pos">' + coverHtml(s) + '</span><span class="tn">' + esc(s.name) + '</span><span class="tm">' + esc(sub) + '</span></button>' : ''; }
     h += '<h2>Zuletzt gehört' + badgeB() + '</h2><div class="hscroll">' + [['Lange Serie', 'heute 17:40'], ['Kinderlieder zum Mitsingen', 'heute 16:05'], ['Pirat Pippo', 'gestern'], ['Schlaflieder', 'gestern'], ['Kommissar Kralle', 'Mo']].map(function (e) { return row(e[0], e[1]); }).join('') + '</div>';
     h += '<h2>Favoriten' + badgeB() + '</h2><div class="muted" style="margin-bottom:8px">Mit dem Stern in jedem Eintrag markiert. Gilt für alle in der Familie.</div><div class="hscroll">' + [['Kinderlieder zum Mitsingen', '★ Favorit'], ['Lange Serie', '★ Favorit'], ['Abenteuer im Wald', '★ Favorit']].map(function (e) { return row(e[0], e[1]); }).join('') + '</div>';
+    h += '<div style="margin-top:24px;padding-top:8px;border-top:1px solid var(--divider)"><button class="btn link danger" data-act="reinDel" data-fk="reindel">Meine Reinhör-Daten löschen …</button></div>';
     return h;
   }
 
@@ -1236,7 +1236,7 @@ a.iconbtn { text-decoration: none; }
     var pts = [[0, 100], [9, 92], [12, 78], [16, 60], [20, 100], [28, 96], [34, 80], [38, 52], [41, 38], [45, 100], [52, 98], [58, 84], [62, 50], [64, 41], [68, 100], [72, 95]];
     var bands = [[16, 20], [41, 45], [64, 68]];
     function X(h) { return L + h / 72 * pw; } function Y(v) { return T + ph - v / 100 * ph; }
-    var sv = '<svg class="chart" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Liniendiagramm: Akku-Verlauf von Box Mond in den letzten 3 Tagen in Prozent. Die Box wurde dreimal geladen, jeweils etwa 4 Stunden.">';
+    var sv = '<svg class="chart" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Liniendiagramm: Akku-Verlauf von ' + NAMEN.box1 + ' in den letzten 3 Tagen in Prozent. Die Box wurde dreimal geladen, jeweils etwa 4 Stunden.">';
     bands.forEach(function (b) { sv += '<rect x="' + X(b[0]) + '" y="' + T + '" width="' + (X(b[1]) - X(b[0])) + '" height="' + ph + '" style="fill:var(--primary-soft)"/>'; });
     [0, 25, 50, 75, 100].forEach(function (v) { sv += '<line class="grid" x1="' + L + '" x2="' + (W - R) + '" y1="' + Y(v) + '" y2="' + Y(v) + '"/><text x="' + (L - 6) + '" y="' + (Y(v) + 4) + '" text-anchor="end">' + v + '</text>'; });
     sv += '<text x="2" y="10">Akku in %</text><polyline fill="none" style="stroke:var(--chart1)" stroke-width="2.5" stroke-linejoin="round" points="' + pts.map(function (p) { return X(p[0]) + ',' + Y(p[1]); }).join(' ') + '"/>';
@@ -1247,23 +1247,23 @@ a.iconbtn { text-decoration: none; }
   function altePage() {
     var h = '';
     h += '<details class="sec" open><summary>Eingang im Detail</summary><div class="inner"><table class="kv"><tr><td>Sommer-Abenteuer (4 Dateien)</td><td><span class="badge ok">einsortiert</span> Abenteuer im Wald</td></tr><tr><td>buch.m4b (1 Datei)</td><td><span class="badge">blockiert</span> Kopierschutz</td></tr></table><div class="btns" style="margin-top:12px"><button class="btn" data-act="x" data-arg="Erneut einsortiert" data-fk="x1">Erneut einsortieren</button><button class="btn" data-act="x" data-arg="Sofort einsortiert" data-fk="x2">Sofort, ohne Wartezeit</button><button class="btn danger" data-act="eingangWeg" data-fk="x3">buch.m4b entfernen …</button></div></div></details>';
-    h += '<details class="sec"><summary>Papierkorb (' + (2 + S.korb.length) + ')</summary><div class="inner"><div class="rows">' + S.korb.map(function (k) { return '<div class="row"><div class="grow">' + esc(k) + '<br><span class="muted">gerade eben in den Papierkorb gelegt</span></div><button class="btn" data-act="x" data-arg="Wiederhergestellt" data-fk="pk' + esc(k) + '">Wiederherstellen</button></div>'; }).join('') +
-      '<div class="row"><div class="grow">Folge „Probe 3“ aus Test-Serie<br><span class="muted">gelöscht am 08.11., 11:00</span></div><button class="btn" data-act="x" data-arg="Wiederhergestellt" data-fk="p1">Wiederherstellen</button></div><div class="row"><div class="grow">„Alte Serie“<br><span class="muted">gelöscht am 02.11., 09:30</span></div><button class="btn" data-act="x" data-arg="Wiederhergestellt" data-fk="p2">Wiederherstellen</button></div></div><div style="margin-top:24px"><button class="btn danger" data-act="korbLeer" data-fk="p3">Papierkorb leeren …</button></div></div></details>';
+    h += '<details class="sec"><summary>Papierkorb (' + (2 + S.korb.length) + ')</summary><div class="inner"><div class="muted" style="margin-bottom:12px">Wenn jemand ohne Admin-Rechte einen Eintrag mit Tobies oder mehr als 3 Einträge in einer Stunde in den Papierkorb legt, bekommen Administratoren eine Mitteilung in Home Assistant.</div><div class="btns" style="margin-bottom:12px"><button class="btn" data-act="x" data-arg="Alles der letzten Stunde zurückgeholt (Vorschau)" data-fk="pkstd">Letzte Stunde zurückholen</button></div><div class="rows">' + S.korb.map(function (k) { return '<div class="row"><div class="grow">' + esc(k) + '<br><span class="muted">gerade eben in den Papierkorb gelegt von ' + (S.admin ? NAMEN.personA : NAMEN.personB) + '</span></div><button class="btn" data-act="x" data-arg="Wiederhergestellt" data-fk="pk' + esc(k) + '">Wiederherstellen</button></div>'; }).join('') +
+      '<div class="row"><div class="grow">Folge „Probe 3“ aus Test-Serie<br><span class="muted">gelöscht am 08.11., 11:00 von ' + NAMEN.personB + '</span></div><button class="btn" data-act="x" data-arg="Wiederhergestellt" data-fk="p1">Wiederherstellen</button></div><div class="row"><div class="grow">„Alte Serie“<br><span class="muted">gelöscht am 02.11., 09:30 von ' + NAMEN.personA + '</span></div><button class="btn" data-act="x" data-arg="Wiederhergestellt" data-fk="p2">Wiederherstellen</button></div></div><div style="margin-top:24px"><button class="btn danger" data-act="korbLeer" data-fk="p3">Papierkorb leeren …</button></div></div></details>';
     h += '<details class="sec"><summary>Liste, Sicherung, Export</summary><div class="inner"><table class="kv"><tr><td>Stand der Liste</td><td>Revision 7</td></tr><tr><td>Sicherung auf dem NAS</td><td>ok, 09.11., 08:00</td></tr><tr><td>Frühere Stände</td><td>10 gespeichert (zuletzt Revision 6 vom 09.11.)</td></tr></table><div class="btns" style="margin-top:12px"><button class="btn" data-act="x" data-arg="Export wird angezeigt" data-fk="l1">Export ansehen</button><button class="btn" data-act="x" data-arg="Stände werden angezeigt" data-fk="l3">Frühere Stände ansehen</button><button class="btn danger" data-act="ausrollen" data-fk="l2">Liste neu an die Boxen schicken …</button></div></div></details>';
-    h += '<details class="sec"><summary>Boxen im Detail</summary><div class="inner"><table class="kv"><tr><td>Mond</td><td>online · Liste aktuell · Netz: home · Speicher frei: 5 120 MB · Version 0.3.1 · Sync: ok</td></tr><tr><td>Stern</td><td>offline · Liste veraltet · Netz: offline</td></tr></table><div class="btns" style="margin-top:12px"><button class="btn" data-act="x" data-arg="Abgleich angestoßen" data-fk="b1">Mond jetzt abgleichen</button></div></div></details>';
-    h += '<details class="sec"><summary>Bibliothek aufräumen</summary><div class="inner"><div class="muted" style="margin-bottom:12px">Medien neu einlesen, Überraschung, Zusammenführen für alle Einträge, Cover neu suchen, Hörkopien.</div><table class="kv" style="margin-bottom:12px"><tr><td>Hörkopien (für Reinhören)</td><td>41 fertig, 3 warten, 0 mit Fehler · 2,1 GB auf dem NAS (Ordner neben „medien“)</td></tr></table><div class="btns"><button class="btn" data-act="x" data-arg="Hörkopien werden neu erzeugt" data-fk="a4">Hörkopien neu erzeugen</button><button class="btn" data-act="x" data-arg="Medien werden neu eingelesen" data-fk="a1">Medien neu einlesen</button><button class="btn" data-act="x" data-arg="Cover werden neu gesucht (Marke gelöscht)" data-fk="a2">Cover neu suchen</button><button class="btn" data-act="x" data-arg="Neues leeres Hörspiel (Vorschau)" data-fk="a3">Neues leeres Hörspiel</button></div></div></details>';
+    h += '<details class="sec"><summary>Boxen im Detail</summary><div class="inner"><table class="kv"><tr><td>' + NAMEN.box1 + '</td><td>online · Liste aktuell · Netz: home · Speicher frei: 5 120 MB · Version 0.3.1 · Sync: ok</td></tr><tr><td>' + NAMEN.box2 + '</td><td>offline · Liste veraltet · Netz: offline</td></tr></table><div class="btns" style="margin-top:12px"><button class="btn" data-act="x" data-arg="Abgleich angestoßen" data-fk="b1">' + NAMEN.box1 + ' jetzt abgleichen</button></div></div></details>';
+    h += '<details class="sec"><summary>Bibliothek aufräumen</summary><div class="inner"><div class="muted" style="margin-bottom:12px">Medien neu einlesen, Überraschung, Zusammenführen für alle Einträge, Cover neu suchen, Hörkopien.</div><table class="kv" style="margin-bottom:12px"><tr><td>Hörkopien (für Reinhören)</td><td>41 fertig, 3 warten, 0 mit Fehler, 1 zu lang · 2,1 GB auf dem NAS (Ordner neben „medien“). Neu Einsortiertes sofort, Bestand erst beim ersten Reinhören.</td></tr><tr><td>Warteschlange</td><td>3 von höchstens 20 Dateien · 1,4 von höchstens 50 GB</td></tr></table><div class="btns"><button class="btn" data-act="x" data-arg="Hörkopien werden neu erzeugt" data-fk="a4">Hörkopien neu erzeugen</button><button class="btn" data-act="x" data-arg="Medien werden neu eingelesen" data-fk="a1">Medien neu einlesen</button><button class="btn" data-act="x" data-arg="Cover werden neu gesucht (Marke gelöscht)" data-fk="a2">Cover neu suchen</button><button class="btn" data-act="x" data-arg="Neues leeres Hörspiel (Vorschau)" data-fk="a3">Neues leeres Hörspiel</button></div></div></details>';
     h += '<details class="sec"><summary>Weitere Einstellungen</summary><div class="inner"><div class="field"><label for="zz">Zeitzone</label><input type="text" id="zz" value="Europe/Berlin"></div><div class="field"><label for="lz">Lesezeichen: Tage bis ein Tobie von vorn beginnt (0 = nie)</label><input type="text" id="lz" value="14" inputmode="numeric"></div><div class="field"><label for="ab">Gute Nacht: Wie lange wird es leiser (Sekunden)</label><input type="text" id="ab" value="60" inputmode="numeric"></div><button class="btn primary" data-act="x" data-arg="Gespeichert" data-fk="e1">Speichern</button></div></details>';
-    h += '<details class="sec"><summary>Meldungen der Boxen</summary><div class="inner"><table class="kv"><tr><td>heute 18:41</td><td>Stern: Liste abgelehnt (Revision zu niedrig)</td></tr><tr><td>gestern 21:02</td><td>Mond: Sync fertig, 2 neue Dateien</td></tr></table></div></details>';
+    h += '<details class="sec"><summary>Meldungen der Boxen</summary><div class="inner"><table class="kv"><tr><td>heute 18:41</td><td>' + NAMEN.box2 + ': Liste abgelehnt (Revision zu niedrig)</td></tr><tr><td>gestern 21:02</td><td>' + NAMEN.box1 + ': Sync fertig, 2 neue Dateien</td></tr></table></div></details>';
     return h;
   }
   function vTechnik() {
-    if (!S.admin) return '<div class="note warn"><strong>Dieser Bereich ist nur für Administratoren.</strong><br>Wenn du etwas Technisches brauchst, frag Tobias.</div>';
+    if (!S.admin) return '<div class="note warn"><strong>Dieser Bereich ist nur für Administratoren.</strong><br>Wenn du etwas Technisches brauchst, frag den Administrator.</div>';
     var h = '<h2 style="margin-top:0">Technik</h2><div class="note warn"><strong>Nur für Administratoren.</strong> Hier liegt alles Technische. Normale Benutzer sehen diesen Bereich nicht.</div>';
     if (!stufeA()) {
       h += '<div class="stufe"><strong>Stufe B – Vorschau.</strong> Neue Karte in „Technik“: Verlauf von Akku, Ladezeiten, Laufzeit, Syncs und Fehlern (Daten unbegrenzt aufbewahrt).</div>';
-      h += '<div class="card"><h3>Akku-Verlauf Mond' + badgeB() + '</h3><div class="muted">Letzte 3 Tage. Geladen: 3 mal, im Mittel 4 Std. 05 Min. Laufzeit mit einer Ladung: im Mittel 9 Std. 40 Min. Syncs: 2, Fehler: 1.</div>' + chartAkku() +
+      h += '<div class="card"><h3>Akku-Verlauf ' + NAMEN.box1 + badgeB() + '</h3><div class="muted">Letzte 3 Tage. Geladen: 3 mal, im Mittel 4 Std. 05 Min. Laufzeit mit einer Ladung: im Mittel 9 Std. 40 Min. Syncs: 2, Fehler: 1.</div>' + chartAkku() +
         '<details class="zahlen"><summary>Ladezeiten, Syncs und Fehler als Liste</summary><table class="kv"><tr><td>Di 10.11., 16:00–20:00</td><td>geladen (60 % → 100 %)</td></tr><tr><td>Mi 11.11., 17:00–21:00</td><td>geladen (38 % → 100 %)</td></tr><tr><td>Do 12.11., 16:00–20:00</td><td>geladen (41 % → 100 %)</td></tr><tr><td>Mi 11.11., 21:02</td><td>Sync fertig, 2 neue Dateien</td></tr><tr><td>Do 12.11., 18:41</td><td>Fehler: Liste abgelehnt</td></tr></table></details>' +
-        '<div class="btns" style="margin-top:8px"><button class="btn" data-act="x" data-arg="Export als Tabelle (CSV) wird erstellt (Vorschau)" data-fk="csv">Hördaten als Tabelle sichern</button><button class="btn danger" data-act="x" data-arg="In der Vorschau nicht ausgeführt" data-fk="hdel">Alle Hördaten löschen …</button></div></div>';
+        '<div class="btns" style="margin-top:8px"><button class="btn" data-act="x" data-arg="Export als Tabelle (CSV) wird erstellt (Vorschau)" data-fk="csv">Hördaten als Tabelle sichern</button><button class="btn danger" data-act="x" data-arg="In der Vorschau nicht ausgeführt" data-fk="hdel">Alle Hördaten der Boxen löschen …</button><button class="btn danger" data-act="reinDelAlle" data-fk="reindelalle">Alle Reinhör-Daten löschen …</button></div></div>';
     }
     h += '<div class="embed"><div class="cap">Darunter ist die bisherige Technik-Seite unverändert eingebettet (Rev. 2: einbetten statt umbauen). Ihre eigene Kopfzeile und Reiterleiste sind ausgeblendet.</div>' + altePage() + '</div>';
     return h;
@@ -1505,7 +1505,15 @@ a.iconbtn { text-decoration: none; }
   function pSpeed(v) { P.speed = v; aud.playbackRate = v; aud.defaultPlaybackRate = v; H.speed = v; hPersist(); pFullUpdate(); }
   function pStart(sid, i) {
     var sk = serie(sid);
-    if (sk && sk.folgen[i] && sk.folgen[i].kopie === 'wartet') { toast('Die Hörprobe wird gerade vorbereitet. Versuche es in ein paar Minuten noch einmal. Auf der Box spielt es schon.'); return; }
+    HINT.gesehen = true;
+    var kf = sk && sk.folgen[i];
+    if (kf && kf.kopie === 'keine') {
+      // Die Seite fragt vor dem Abspielen (WebSocket-Befehl), ob die Datei bereit ist: hier „fehlt“ -> Vorbereitung anstoßen
+      kf.kopie = 'wartet'; toast('Die Hörprobe wird vorbereitet. Das dauert einen Moment.'); render();
+      setTimeout(function () { kf.kopie = 'fertig'; render(); toast('Die Hörprobe ist fertig. Tippe auf Reinhören.'); }, 5000);
+      return;
+    }
+    if (kf && kf.kopie === 'wartet') { toast('Die Hörprobe wird noch vorbereitet. Die Seite sagt Bescheid, sobald sie fertig ist.'); return; }
     var e = hGet(sid, i); pLoad(sid, i, e && !fertig(e) ? e.p : 0, true); }
   aud.addEventListener('timeupdate', function () {
     if (!P.loaded) return; P.pos = aud.currentTime; pTick();
@@ -1742,14 +1750,19 @@ a.iconbtn { text-decoration: none; }
   /* ---------- Hochladen (Simulation) ---------- */
   var upId = 1, upTimer = null;
   function startUploads(list) {
-    list.forEach(function (u) { u.id = ++upId; u.step = 0; u.p = 0; S.uploads.unshift(u); });
+    list.forEach(function (u) { u.id = ++upId; u.step = 0; u.p = 0; u.k = 1; u.n = u.n || 1; S.uploads.unshift(u); });
     if (!upTimer) upTimer = setInterval(tick, 400);
     render();
   }
   function tick() {
     var busy = false;
     S.uploads.forEach(function (u) {
-      if (u.step === 0) { u.p = Math.min(100, u.p + 9 + Math.random() * 8); if (u.p >= 100) { u.step = 1; u.t = 0; } busy = true; }
+      if (u.step === 0) {
+        u.p = Math.min(100, u.p + 9 + Math.random() * 8);
+        if (u.abortAt && u.k === u.abortAt && u.p >= 55) { u.step = 3; u.unterbrochen = true; }
+        else if (u.p >= 100) { if (u.k < u.n) { u.k++; u.p = 0; } else { u.step = 1; u.t = 0; } }
+        busy = true;
+      }
       else if (u.step === 1) { u.t++; if (u.t >= 4) { u.step = 3; if (u.apply && !u.applied && !u.block) { u.applied = true; u.apply(); } } busy = true; }
     });
     if (!busy) { clearInterval(upTimer); upTimer = null; }
@@ -1765,6 +1778,8 @@ a.iconbtn { text-decoration: none; }
     eins: { album: '', art: 'musik', geraten: false, files: ['Der Mond und der Fuchs.mp3'], titles: ['Der Mond und der Fuchs'] },
     ohne: { album: 'Aufnahme', art: 'hoerspiel', geraten: true, kein: true, files: ['Aufnahme_001.mp3', 'Aufnahme_002.mp3'], titles: ['Aufnahme 001', 'Aufnahme 002'] },
     schutz: { album: 'Buch mit Schutz', art: 'hoerbuch', geraten: false, block: 'Diese Datei ist kopiergeschützt (zum Beispiel von Audible). Die Box kann sie nicht abspielen. Nimm eine Datei ohne Kopierschutz.', files: ['Hoerbuch_mit_Schutz.m4b'], titles: ['Buch mit Schutz'] },
+    teilweise: { album: 'Die Sternenreise', art: 'hoerbuch', geraten: false, abort: 3, files: ['01 Aufbruch.mp3', '02 Die Insel.mp3', '03 Heimkehr.mp3'], titles: ['Aufbruch', 'Die Insel', 'Heimkehr'] },
+    gross: { album: 'Der Zauberer vom See', art: 'hoerbuch', geraten: false, gross: '03 Der See komplett.m4b', files: ['01 Das Boot.mp3', '02 Der Nebel.mp3'], titles: ['Das Boot', 'Der Nebel'] },
     nas: { album: 'Sternenmühle', art: 'hoerspiel', geraten: true, kein: true, files: ['01.mp3', '02.mp3', '03.mp3', '04.mp3', '05.mp3', '06.mp3'], titles: ['Der Mühlenstein', 'Das Sternenmehl', 'Die Nachtwache', 'Der Windbote', 'Das Tor im Berg', 'Der letzte Sack'] }
   };
   var ZIELE = [
@@ -1813,7 +1828,7 @@ a.iconbtn { text-decoration: none; }
     return d + n + ' ' + (n === 1 ? w2[2] : w2[3]) + (n <= 3 ? ': ' + pl.titel.slice(0, n).map(function (x) { return '„' + (x || '…') + '“'; }).join(', ') : '') + '.';
   }
   function wzStep1() {
-    var n = WZ.files.length, h = '<p class="muted" id="wz-files">' + (WZ.nas ? nD(n) + ' im Eingang vom NAS. Was ist das?' : nD(n) + ' gewählt (' + esc(WZ.files[0]) + (n > 1 ? ' …' : '') + '). Was ist das?') + '</p><div class="stack" id="wz-cards">';
+    var n = WZ.files.length, h = '<p class="muted" id="wz-files">' + (WZ.nas ? nD(n) + ' im Eingang vom NAS. Was ist das?' : nD(n) + ' gewählt (' + esc(WZ.files[0]) + (n > 1 ? ' …' : '') + '). Was ist das?') + (WZ.set.gross ? ' <strong>Eine weitere Datei („' + esc(WZ.set.gross) + '“) ist zu groß (mehr als 2 GB) und wird nicht hochgeladen.</strong>' : '') + '</p><div class="stack" id="wz-cards">';
     ZIELE.forEach(function (z) {
       if (z[0] === 'playlist' && stufeA()) return;
       var dis = z[0] === 'playlist';
@@ -1823,13 +1838,15 @@ a.iconbtn { text-decoration: none; }
   }
   function wzStep2() {
     var W = WZ, pl = wzPlan(W), h = '<div class="vsatz" id="wz-satz" role="status" aria-live="polite">' + esc(wzSatz()) + '</div>';
+    if (W.set.gross) h += '<div class="note warn">Die Datei „' + esc(W.set.gross) + '“ ist zu groß (mehr als 2 GB). Kopiere sie am Computer in den Eingang-Ordner auf dem NAS. Frag den Administrator nach dem Ordner.</div>';
+    if (W.files.length > 1 && W.ziel !== 'einzeln' && W.ziel !== 'auto') h += '<div class="muted">Die Dateien bleiben zusammen. Einsortiert wird, wenn alle ' + W.files.length + ' da sind.</div>';
     var n = W.files.length, ti = W.set.titles;
     function artChips(list) {
       return '<div class="chips wrap" role="group" aria-labelledby="wz-l-art">' + list.map(function (a) { return '<button class="chip" data-wa="' + a[0] + '" aria-pressed="' + (W.art === a[0]) + '">' + a[1] + '</button>'; }).join('') + '</div>';
     }
     if (W.ziel === 'neu') {
       h += '<div class="field"><label for="wz-name">Name</label><input type="text" id="wz-name" maxlength="100" value="' + esc(W.name) + '"></div><div class="muted">' + (W.set.album ? 'Der Name steht in den Dateien (Angabe „Album“ der ersten Datei).' : 'In den Dateien steht kein Name. Er ist aus dem Dateinamen vorgeschlagen.') + '</div>';
-      h += '<div class="field"><span class="lbl" id="wz-l-art">Was ist es?</span>' + artChips(ARTWAHL) + '<div class="muted">' + ARTHINT[W.art] + ' ' + (W.artQuelle === 'tags' ? 'Vorgeschlagen aus den Angaben in den Dateien.' : W.artQuelle === 'geraten' ? 'Geraten, weil in den Dateien nichts dazu steht.' : '') + '</div></div>';
+      h += '<div class="field"><span class="lbl" id="wz-l-art">Welche Art?</span>' + artChips(ARTWAHL) + '<div class="muted">' + ARTHINT[W.art] + ' ' + (W.artQuelle === 'tags' ? 'Vorgeschlagen aus den Angaben in den Dateien.' : W.artQuelle === 'geraten' ? 'Geraten, weil in den Dateien nichts dazu steht.' : '') + '</div></div>';
       var lw = W.art === 'hoerbuch' ? 'Kapitel' : W.art === 'musik' ? 'Lied' : W.art === 'geschichte' ? 'Geschichte' : 'Folge';
       h += '<div class="flist" aria-label="Was aus den Dateien wird">' + ti.slice(0, 4).map(function (x, i) { return '<div>' + lw + ' ' + (i + 1) + ' · ' + esc(x) + '</div>'; }).join('') + (n > 4 ? '<div class="muted">… und ' + (n - 4) + ' weitere</div>' : '') + '</div>';
     } else if (W.ziel === 'ergaenzen') {
@@ -1837,9 +1854,9 @@ a.iconbtn { text-decoration: none; }
       h += '<div class="field"><span class="lbl">Wohin soll es?</span><button class="btn wzpick" id="wz-pick">' + (s ? coverHtml(s, 'sm') + '<span class="grow" style="flex:1;text-align:left">' + esc(s.name) + '<br><span class="muted">' + ART[s.art].e + ' · ' + einheit(s) + '</span></span><span class="muted">Ändern</span>' : 'Hörspiel, Buch oder Album wählen …') + '</button></div>';
       if (s) { var a = s.folgen.length + 1; h += '<div class="flist">' + ti.slice(0, 4).map(function (x, i) { return '<div>' + EIN[s.art][0] + ' ' + (a + i) + ' · ' + esc(x) + '</div>'; }).join('') + (n > 4 ? '<div class="muted">… und ' + (n - 4) + ' weitere</div>' : '') + '</div><div class="muted">Die Nummern sind eine Vorschau. Nummern aus den Angaben in den Dateien haben Vorrang.</div>'; }
     } else if (W.ziel === 'einzeln') {
-      h += '<div class="field"><span class="lbl" id="wz-l-art">Was ist es?</span>' + artChips([['musik', 'Lied'], ['geschichte', 'Geschichte'], ['hoerspiel', 'Folge'], ['hoerbuch', 'Hörbuch']]) + '<div class="muted">Jede Datei bekommt ihren eigenen Platz in der Bibliothek, ohne Serie und ohne Album.</div></div>';
+      h += '<div class="field"><span class="lbl" id="wz-l-art">Welche Art?</span>' + artChips([['musik', 'Lied'], ['geschichte', 'Geschichte'], ['hoerspiel', 'Folge'], ['hoerbuch', 'Hörbuch']]) + '<div class="muted">Jede Datei bekommt ihren eigenen Platz in der Bibliothek, ohne Serie und ohne Album.</div></div>';
       for (var i = 0; i < Math.min(n, 3); i++) h += '<div class="field"><label for="wz-t' + i + '">Name' + (n > 1 ? ' von Datei ' + (i + 1) : '') + '</label><input type="text" id="wz-t' + i + '" maxlength="100" value="' + esc(W.titel[i]) + '"></div>';
-      if (n > 3) h += '<div class="muted">… und ' + (n - 3) + ' weitere (Name aus den Angaben in den Dateien).</div>';
+      if (n > 3) h += '<div class="muted">Die übrigen ' + (n - 3) + ' Dateien heißen wie in ihren Angaben.</div>';
     } else {
       h += '<p>Ich lese die Angaben in den Dateien (Album, Interpret, Titel). Dateien, die zum selben Album gehören, bleiben zusammen. Passt etwas zu einem Hörspiel, das schon da ist, kommt es dort dazu. Wenn ich unsicher bin, steht danach „Bitte ansehen“ da, und du kannst es ändern.</p>';
     }
@@ -1847,7 +1864,7 @@ a.iconbtn { text-decoration: none; }
   }
   function wzShow(step, fresh) {
     var title, body, btns;
-    if (step === 1) { title = WZ.nas ? 'Was ist das?' : 'Was lädst du hoch?'; body = wzStep1(); btns = [{ label: 'Abbrechen' }]; }
+    if (step === 1) { title = WZ.nas ? 'Was ist das?' : 'Was lädst du hoch?'; body = '<button class="btn link wz-top" id="wz-cancel">Abbrechen</button>' + wzStep1(); btns = []; }
     else { title = 'Das passiert gleich'; body = wzStep2(); btns = [{ label: 'Abbrechen', kind: 'link' }, { label: 'Ändern', fn: function () { wzShow(1); return false; } }, { label: WZ.nas ? 'Neu einsortieren' : 'Hochladen', kind: 'primary', fn: wzGo }]; }
     if (fresh) { openSheet(title, body, btns); wzBind(); }
     else { setSheet(title, body, btns); var tt = $('sheet-t'); tt.tabIndex = -1; tt.focus(); }
@@ -1859,6 +1876,7 @@ a.iconbtn { text-decoration: none; }
       if (c) { wzChoose(c.dataset.z); return; }
       var a = e.target.closest('[data-wa]');
       if (a) { WZ.art = a.dataset.wa; WZ.artQuelle = 'manuell'; setSheet('Das passiert gleich', wzStep2(), null); wzButtons2(); var again = $('sheet-b').querySelector('[data-wa="' + WZ.art + '"]'); if (again) again.focus(); return; }
+      if (e.target.closest('#wz-cancel')) { closeLayer(); return; }
       if (e.target.closest('#wz-pick')) wzPick();
     });
     sb.addEventListener('input', function (e) {
@@ -1881,7 +1899,7 @@ a.iconbtn { text-decoration: none; }
   function wzPick() {
     var keep = WZ;
     closeLayer();
-    pickZiel('Zu welchem soll es dazu?', function (z) { WZ = keep; WZ.serie = z.s; wzShow(2, true); }, { nurSammlung: true, abbruch: function () { setTimeout(function () { WZ = keep; wzShow(keep.serie ? 2 : 1, true); }, 0); } });
+    pickZiel('Wohin soll es?', function (z) { WZ = keep; WZ.serie = z.s; wzShow(2, true); }, { nurSammlung: true, abbruch: function () { setTimeout(function () { WZ = keep; wzShow(keep.serie ? 2 : 1, true); }, 0); } });
   }
   function uniqueId(base) { var id = base || 'neu', k = 2; while (serie(id)) id = base + '-' + (k++); return id; }
   function wzIds(pl, W) {
@@ -1931,7 +1949,7 @@ a.iconbtn { text-decoration: none; }
       else { fix(); render(); toast('Neu einsortiert (Vorschau): ' + res.text + '.'); }
       return;
     }
-    startUploads([{ name: nD(n) + ': ' + W.files.slice(0, 2).join(', ') + (n > 2 ? ' …' : ''), src: W.src, ergebnis: res.text, ziel: ids[0], art: W.ziel === 'auto' ? res.art : null, pruefen: W.ziel === 'auto' && set.kein ? GRUND.tags_fehlen : null, block: set.block || null, apply: function () { wzApply(pl, W, ids); } }]);
+    startUploads([{ n: n, abortAt: set.abort || 0, warte: n > 1 && pl.ziel !== 'einzeln', hinweis: set.gross ? 'Die Datei „' + set.gross + '“ ist zu groß (mehr als 2 GB) und wurde nicht hochgeladen. Kopiere sie am Computer in den Eingang-Ordner auf dem NAS. Frag den Administrator nach dem Ordner.' : null, name: nD(n) + ': ' + W.files.slice(0, 2).join(', ') + (n > 2 ? ' …' : ''), src: W.src, ergebnis: res.text, ziel: ids[0], art: W.ziel === 'auto' ? res.art : null, pruefen: W.ziel === 'auto' && set.kein ? GRUND.tags_fehlen : null, block: set.block || null, apply: function () { wzApply(pl, W, ids); } }]);
   }
   function wzStart(o) {
     var set = o.set;
@@ -1966,7 +1984,7 @@ a.iconbtn { text-decoration: none; }
     neuOk: function (t, arg) { S.neu = S.neu.filter(function (x) { return x.uid !== arg; }); render(); toast('Der Tobie steht jetzt unter „Tobies“.'); $('main').focus(); },
     nameSave: function (t, arg) { var p = arg.split('|'), v = $(p[1]).value.trim(); if (!v) { toast('Bitte einen Namen eingeben oder „Ohne Namen weiter“ wählen.'); return; } setName(p[0], v); render(); toast('Name gespeichert.'); },
     neuWeg: function (t, arg) { confirmDlg('Nicht merken?', 'Dieser Tobie spielt dann weiter die Überraschung. Legst du ihn noch einmal auf, taucht er wieder hier auf.', 'Nicht merken', function () { S.neu = S.neu.filter(function (x) { return x.uid !== arg; }); render(); }, false); },
-    demoNeu: function () { if (!S.neu.length) { S.neu.push({ uid: newUid(), box: 'mond', ago: 'gerade eben', done: null }); } render(); toast('Ein neuer Tobie wurde gemeldet.'); },
+    demoNeu: function () { if (!S.neu.length) { S.neu.push({ uid: newUid(), box: 'box1', ago: 'gerade eben', done: null }); } render(); toast('Ein neuer Tobie wurde gemeldet.'); },
     serieName: function (t, arg) { var s = serie(arg); textSheet('Umbenennen', 'Name', s.name, function (v) { s.name = v; toast('Gespeichert.'); render(); }); },
     artAendern: function (t, arg) {
       var s = serie(arg), sel = s.art;
@@ -1990,7 +2008,7 @@ a.iconbtn { text-decoration: none; }
       openSheet(f.t, '<div class="stack"><button class="btn" id="fm-n">Name ändern</button><button class="btn" id="fm-v">In anderes verschieben …</button></div><div class="apart"><button class="btn link danger" id="fm-w">Papierkorb …</button></div>', [{ label: 'Schließen' }]);
       $('fm-n').addEventListener('click', function () { closeLayer(); textSheet('Umbenennen', 'Name', f.t, function (v) { f.t = v; toast('Gespeichert.'); render(); }); });
       $('fm-v').addEventListener('click', function () { closeLayer(); pickZiel('Wohin verschieben?', function (z) { toast('Verschoben nach „' + serie(z.s).name + '“ (Vorschau).'); }); });
-      $('fm-w').addEventListener('click', function () { closeLayer(); confirmDlg('„' + f.t + '“ in den Papierkorb?', 'Es verschwindet aus der Liste.' + (tobiesAuf(s, i).length ? ' Tobies, die genau dieses spielen, spielen dann nichts mehr.' : '') + ' Tobias kann es aus dem Papierkorb zurückholen.', 'In den Papierkorb', function () { s.folgen.splice(i, 1); S.korb.push('„' + f.t + '“ aus „' + s.name + '“'); render(); toast('„' + f.t + '“ ist im Papierkorb.'); }, true); });
+      $('fm-w').addEventListener('click', function () { closeLayer(); confirmDlg('„' + f.t + '“ in den Papierkorb?', 'Es verschwindet aus der Liste.' + (tobiesAuf(s, i).length ? ' Tobies, die genau dieses spielen, spielen dann nichts mehr.' : '') + ' Der Administrator bekommt eine Mitteilung und kann es zurückholen.', 'In den Papierkorb', function () { s.folgen.splice(i, 1); S.korb.push('„' + f.t + '“ aus „' + s.name + '“'); render(); toast('„' + f.t + '“ ist im Papierkorb.'); }, true); });
     },
     reihe: function () { S.reihenfolge = !S.reihenfolge; render(); },
     hoch: function (t, arg) { var p = arg.split('|'), a = serie(p[0]).folgen, i = +p[1]; if (i > 0) { var x = a[i]; a[i] = a[i - 1]; a[i - 1] = x; } render(); var el = document.querySelector('[data-fk="up' + (i - 1) + '"]'); if (el && !el.disabled) el.focus(); },
@@ -1998,7 +2016,7 @@ a.iconbtn { text-decoration: none; }
     serieMehr: function () { S.serieShown += 20; render(); },
     serieWeg: function (t, arg) {
       var s = serie(arg), tc = S.tobies.filter(function (x) { return x.z.s === arg; });
-      confirmDlg('„' + s.name + '“ in den Papierkorb?', 'Es verschwindet aus der Bibliothek.' + (tc.length ? ' ' + tc.length + (tc.length === 1 ? ' Tobie spielt' : ' Tobies spielen') + ' dann nichts mehr: ' + tc.map(function (x) { return x.name || 'Tobie ohne Namen'; }).join(', ') + '.' : '') + ' Tobias kann es aus dem Papierkorb zurückholen.', 'In den Papierkorb', function () { S.series = S.series.filter(function (x) { return x.id !== arg; }); S.tobies = S.tobies.filter(function (x) { return x.z.s !== arg; }); S.korb.push('„' + s.name + '“'); location.hash = '#bibliothek'; toast('„' + s.name + '“ ist im Papierkorb.'); }, true);
+      confirmDlg('„' + s.name + '“ in den Papierkorb?', 'Es verschwindet aus der Bibliothek.' + (tc.length ? ' ' + tc.length + (tc.length === 1 ? ' Tobie spielt' : ' Tobies spielen') + ' dann nichts mehr: ' + tc.map(function (x) { return x.name || 'Tobie ohne Namen'; }).join(', ') + '.' : '') + ' Der Administrator bekommt eine Mitteilung und kann es zurückholen.', 'In den Papierkorb', function () { S.series = S.series.filter(function (x) { return x.id !== arg; }); S.tobies = S.tobies.filter(function (x) { return x.z.s !== arg; }); S.korb.push('„' + s.name + '“'); location.hash = '#bibliothek'; toast('„' + s.name + '“ ist im Papierkorb.'); }, true);
     },
     zusammen: function (t, arg) { pickZiel('Mit welchem zusammenführen?', function (z) { if (z.s === arg) { toast('Bitte ein anderes wählen.'); return; } toast('In der Vorschau nicht ausgeführt.'); }); },
     lern: function (t, arg) { var p = arg.split('|'); startLern({ t: 'serie', s: p[0] }, p[2]); },
@@ -2016,8 +2034,7 @@ a.iconbtn { text-decoration: none; }
       S.uploads.unshift({ id: id, name: 'Ordner „Der Wald (CD 1 bis 3)“ (31 Dateien)', src: 'vom NAS', nas: true, step: 3, pruefen: 'Die Art ist geraten. Stimmt das?', ziel: 'die-sternenmuhle', ergebnis: 'Hörspiel „Der Wald“ · 1 Folge mit 31 Kapiteln' });
       render(); toast('Ein Ordner ist im NAS-Eingang angekommen.');
     },
-    ghQ: function (t, arg) { S.gh.quelle = arg; S.gh.serie = null; render(); },
-    ghBen: function (t, arg) { S.gh.ben = arg; render(); },
+    ghWer: function (t, arg) { S.gh.wer = arg; S.gh.serie = null; render(); },
     reinDel: function () { confirmDlg('Meine Reinhör-Daten löschen?', 'Gelöscht wird nur, was zu deinem Konto gehört. Die Stelle zum Weiterhören bleibt erhalten.', 'Löschen', function () { toast('In der Vorschau nicht ausgeführt.'); }, true); },
     reinDelAlle: function () { confirmDlg('Alle Reinhör-Daten löschen?', 'Gelöscht werden die Reinhör-Daten aller HA-Benutzer. Die Stelle zum Weiterhören und die Daten der Boxen bleiben erhalten.', 'Löschen', function () { toast('In der Vorschau nicht ausgeführt.'); }, true); },
     playK: function (t, arg) {
@@ -2041,7 +2058,7 @@ a.iconbtn { text-decoration: none; }
     eingangWeg: function () { confirmDlg('Aus dem Eingang entfernen?', 'Die Datei „buch.m4b“ wird gelöscht. Das kann nicht rückgängig gemacht werden.', 'Entfernen', function () { toast('In der Vorschau nicht ausgeführt.'); }, true); },
     korbLeer: function () { confirmDlg('Papierkorb leeren?', (2 + S.korb.length) + ' Einträge werden endgültig gelöscht. Das kann nicht rückgängig gemacht werden.', 'Endgültig löschen', function () { S.korb = []; render(); toast('Papierkorb geleert (Vorschau: nur die neuen Einträge).'); }, true); },
     ausrollen: function () { confirmDlg('Liste neu an die Boxen schicken?', 'Alle Boxen bekommen den Stand aus Home Assistant. Ein neuerer Stand auf einer Box geht dabei verloren.', 'Neu schicken', function () { toast('In der Vorschau nicht ausgeführt.'); }, true); },
-    ghBox: function (t, arg) { S.gh.box = arg; render(); }, ghTage: function (t, arg) { S.gh.tage = +arg; render(); },
+    ghTage: function (t, arg) { S.gh.tage = +arg; render(); },
     bart: function (t, arg) { S.bib.art = arg; S.bib.shown = 60; render(); }, bansicht: function (t, arg) { S.bib.ansicht = arg; S.bib.shown = 60; render(); },
     bf: function (t, arg) { S.bib[arg] = !S.bib[arg]; S.bib.shown = 60; render(); },
     bmehr: function () { var old = S.bib.shown; S.bib.shown += 60; render(); var it = document.querySelectorAll('#libbody .tiles .tile, #libbody .frow .btn'); if (it[old]) it[old].focus(); }
@@ -2062,7 +2079,7 @@ a.iconbtn { text-decoration: none; }
   A.serieMenu = function (t, arg) {
     var s = serie(arg), h = '<div class="stack"><button class="btn" id="sm-n">Name ändern</button><button class="btn" id="sm-c">' + ic('cam', 20) + 'Cover ändern</button><button class="btn" id="sm-a">Art ändern</button>' +
       (S.admin && s.folgen.length > 1 ? '<button class="btn" id="sm-r">Reihenfolge ändern <span class="vc2">Admin</span></button>' : '') + (S.admin ? '<button class="btn" id="sm-z">Mit anderem zusammenführen … <span class="vc2">Admin</span></button>' : '') + '</div>' +
-      '<div class="apart"><div class="muted" style="margin-bottom:8px">Alles Gelöschte landet erst im Papierkorb. Tobias kann es zurückholen.</div><button class="btn link danger" id="sm-w">In den Papierkorb …</button></div>';
+      '<div class="apart"><div class="muted" style="margin-bottom:8px">Alles Gelöschte landet erst im Papierkorb. Der Administrator bekommt eine Mitteilung und kann es zurückholen.</div><button class="btn link danger" id="sm-w">In den Papierkorb …</button></div>';
     openSheet(s.name, h, [{ label: 'Schließen' }]);
     $('sm-n').onclick = function () { closeLayer(); A.serieName(null, arg); };
     $('sm-c').onclick = function () { closeLayer(); A.coverFoto(null, arg); };
@@ -2077,13 +2094,13 @@ a.iconbtn { text-decoration: none; }
     $('fm-t').addEventListener('click', function () { closeLayer(); zielSheet(p[0], i); });
     $('fm-n').addEventListener('click', function () { closeLayer(); textSheet('Umbenennen', 'Name', f.t, function (v) { f.t = v; toast('Gespeichert.'); render(); }); });
     $('fm-v').addEventListener('click', function () { closeLayer(); pickZiel('Wohin verschieben?', function (z) { toast('Verschoben nach „' + serie(z.s).name + '“ (Vorschau).'); }); });
-    $('fm-w').addEventListener('click', function () { closeLayer(); confirmDlg('„' + f.t + '“ in den Papierkorb?', 'Es verschwindet aus der Liste.' + (tobiesAuf(s, i).length ? ' Tobies, die genau dieses spielen, spielen dann nichts mehr.' : '') + ' Tobias kann es aus dem Papierkorb zurückholen.', 'In den Papierkorb', function () { s.folgen.splice(i, 1); S.korb.push('„' + f.t + '“ aus „' + s.name + '“'); render(); toast('„' + f.t + '“ ist im Papierkorb.'); }, true); });
+    $('fm-w').addEventListener('click', function () { closeLayer(); confirmDlg('„' + f.t + '“ in den Papierkorb?', 'Es verschwindet aus der Liste.' + (tobiesAuf(s, i).length ? ' Tobies, die genau dieses spielen, spielen dann nichts mehr.' : '') + ' Der Administrator bekommt eine Mitteilung und kann es zurückholen.', 'In den Papierkorb', function () { s.folgen.splice(i, 1); S.korb.push('„' + f.t + '“ aus „' + s.name + '“'); render(); toast('„' + f.t + '“ ist im Papierkorb.'); }, true); });
   };
   A.bmehr = function () { var old = S.bib.shown; S.bib.shown += 60; render(); var it = document.querySelectorAll('#libbody .lrow'); if (it[old]) it[old].focus(); };
   A.ghZr = function (t, arg) { S.gh.zr = arg; render(); };
   A.ghSerie = function (t, arg) { S.gh.serie = arg; render(); var b = document.querySelector('[data-fk="ghback"]'); if (b) b.focus(); };
   A.ghBack = function () { var id = S.gh.serie; S.gh.serie = null; render(); var b = document.querySelector('[data-fk="gr' + id + '"]'); if (b) b.focus(); };
-  A.hReset = function () { try { localStorage.removeItem(HKEY); } catch (e) {} aud.pause(); aud.removeAttribute('src'); P.sid = null; P.loaded = false; H = { pos: {}, last: null, speed: 1 }; hSeed(); $('mini').hidden = true; render(); toast('Hörstellen zurückgesetzt.'); };
+  A.hReset = function () { S.series.forEach(function (x) { x.folgen.forEach(function (f) { if (f.kopie) f.kopie = 'keine'; }); }); HINT.gesehen = false; try { localStorage.removeItem(HKEY); } catch (e) {} aud.pause(); aud.removeAttribute('src'); P.sid = null; P.loaded = false; H = { pos: {}, last: null, speed: 1 }; hSeed(); $('mini').hidden = true; render(); toast('Hörstellen zurückgesetzt.'); };
   document.addEventListener('click', function (e) {
     var t = e.target.closest('[data-act]'); if (!t || t.closest('#layer')) return;
     var act = t.dataset.act, arg = t.dataset.arg;
@@ -2120,6 +2137,7 @@ a.iconbtn { text-decoration: none; }
       r.style.setProperty('--primary-soft', '#fff8c5');
     } else r.setAttribute('data-theme', v);
   }
+  $('opt-admin').textContent = 'Administrator (' + NAMEN.personA + ')'; $('opt-user').textContent = 'Benutzer ohne Admin (' + NAMEN.personB + ')'; $('btn-demoneu').textContent = 'Tobie auf ' + NAMEN.box1 + ' legen (Demo)';
   $('sel-rolle').addEventListener('change', function (e) { S.admin = e.target.value === 'admin'; if (!S.admin && route().v === 'technik') location.hash = '#start'; render(); });
   $('sel-theme').addEventListener('change', function (e) { applyTheme(e.target.value); });
   $('sel-zustand').addEventListener('change', function (e) { S.mode = e.target.value; render(); });
