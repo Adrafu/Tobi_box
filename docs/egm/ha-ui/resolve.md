@@ -87,3 +87,19 @@ Alle übrigen Befunde G1–G31 und die offenen U-Punkte (U2, U6, U8, U10, U15, U
   `docs/protocol/ha-websocket-v1.md` und `docs/data-model.md`.
 - **(Tobias)** Bestehende Tests dürfen im jeweiligen Paket angepasst werden, soweit `a0_freigabe.md` Abschnitt 4 sie nennt;
   jede Änderung einzeln im Diff und im Bericht.
+
+## Runde 12 (12.11., UX-Durchsicht des Prototyps v5, von Tobias eingebracht)
+
+**(Tobias)** Alle Punkte umsetzen, im Design und im Prototyp, vor dem Bau der Seite (A6 ff.):
+
+| Nr. | Punkt | Umsetzung (PL) |
+|---|---|---|
+| X1 | Reiterleiste mit fünf Punkten zu voll | Höchstens **vier Reiter: Start, Bibliothek, Tobies, Mehr**. „Abends“ und „Gehört“ wandern nach „Mehr“. „Mehr“ sehen **alle** Benutzer (Abends ist Alltag für die Partnerin); „Technik“ bleibt der Admin-Knopf oben. |
+| X2 | Reiter-Beschriftung 12 px | Beschriftung größer (mind. 13–14 px), bei vier Reitern immer sichtbar. |
+| X3 | Leere Zustände wirken technisch | Freundliche, eigene Illustrationen (Inline-SVG, Farben aus Tokens) mit einem kurzen Satz und einem Knopf; keine fremden Marken oder Figuren. |
+| X4 | Formsprache | Karten mit `border-radius` 16 px, Blätter und große Kacheln 24 px. |
+| X5 | Hochladen zu textlastig | Wahl „Was lädst du hoch?“ mit großen Symbolen und kurzen Titeln, höchstens eine kurze Zeile Erklärung. |
+| X6 | Mini-Player | Zusätzlich Wischen nach oben öffnet, nach unten schließt (Knopf bleibt für Barrierefreiheit). |
+| X7 | Meldungen | Erfolg verschwindet nach etwa 4,5 s; **Fehler bleiben**, bis man sie wegwischt oder bestätigt. |
+| X8 | Tippflächen in Listen | „Mehr“ (drei Punkte), Pfeile usw. mindestens 44 × 44 px, auch einhändig. |
+| X9 | Kontrast im Theme mit hellem Primärton | Warn- und Hinweiskarten, Ränder und dünne Symbole mit mind. 3:1 Nicht-Text-Kontrast prüfen und sichern. |
