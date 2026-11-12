@@ -51,3 +51,16 @@ keine Technikerin ist, kann damit die drei Alltagsaufgaben nicht erledigen (`ist
 - Cover: Wie werden sie zwischengespeichert, wie groß, und gilt ein Cover je Serie oder je Folge?
 - Upload vom Handy: Grenzen (500 MiB), Abbruch, mehrere Dateien.
 - Barrierefreiheit (Kontrast, Schriftgröße, Bedienung ohne Ziehen).
+
+## 6. Erweiterung nach Runde 4: große Bibliothek (12.11.)
+
+Tobias rechnet mit etwa 200 Hörbüchern und 300 Liedern. Daraus folgt eine Gliederung in Stufen:
+
+| Stufe | Inhalt | Art der Änderung |
+|---|---|---|
+| **A** | Bereiche nach **Art** (Hörspiele, Hörbücher, Musik, Geschichten), je Serie eine Art (aus den Tags vorgeschlagen, korrigierbar); Ansicht **„Alle Folgen“** über alle Serien; **Suche über alles** (auch Folgen- und Liedtitel); **Filter** (Art, ohne Tobie, neu, bitte ansehen); **Sortieren** (A–Z, zuletzt hinzugefügt); ein Tobie auf eine einzelne Folge oder ein einzelnes Lied wird sichtbar einfach. | Oberfläche plus ein kleines Feld `art` in `serie.json` (Vertrag W, `data-model.md`) |
+| **B** | **Zuletzt gehört, meist gehört, Favoriten** (Stern je Serie). | Box meldet über MQTT, was sie gespielt hat (`mqtt-v1.md`), HA zählt; Favoriten nur in HA |
+| **C** | **Eigene Playlists** aus beliebigen Folgen und Liedern, als Ziel für Tobies. | Neues Ziel im Datenmodell und auf der Box (Verträge `data-model.md`, `core-interface.md`, Box-Code) |
+
+Stufe A gehört in diesen Entwurf. B und C werden im Entwurf mitgedacht (Platz in der Oberfläche), aber erst nach
+Freigabe gebaut.

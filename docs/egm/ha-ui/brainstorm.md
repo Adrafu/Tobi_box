@@ -28,3 +28,21 @@ immer: Konzept, Entwurf, Goldfisch, Resolve, dann einmal bauen. Bestandsaufnahme
 |---|---|
 | Rechte | Verena ist keine Administratorin: **Alltagsseite für alle**, „Für Tobias“ nur für Administratoren. |
 | Box-Namen | **Tobias trägt Anzeigenamen in den Einstellungen der Integration ein**; im Repo stehen keine Namen. |
+
+## Antworten Runde 4 (12.11., nach dem ersten Prototyp)
+
+Tobias: „Schaut schon mal nicht schlecht aus.“ Er braucht aber mehr Möglichkeiten in der Verwaltung; bei etwa
+200 Hörbüchern und 300 Liedern wird es sonst unübersichtlich.
+
+| Frage | Antwort |
+|---|---|
+| Arten von Inhalten | **Hörspiel-Serien, Hörbücher, Lieder/Musik, einzelne Geschichten** |
+| „Folgen und Serien trennen“ | **Beides:** Bereiche nach Art **und** neben den Serien eine durchsuchbare Ansicht „Alle Folgen“ über alle Serien |
+| Lieder auf einen Tobie | **Alben, eigene Playlists und sogar einzelne Lieder** |
+| Finden | **Suche über alles** (auch Folgen- und Liedtitel), **Filter**, **Sortieren**, **Zuletzt gehört / Favoriten** |
+
+**Einordnung der Projektleitung:** Damit wächst das Thema über „nur Oberfläche“ hinaus. Schon heute möglich: ein
+Tobie auf eine einzelne Folge (also auch ein einzelnes Lied eines Albums). Neu wären: eine **Art** je Serie
+(Hörspiel, Hörbuch, Musik, Geschichte; aus den Tags vorgeschlagen, korrigierbar), **eigene Playlists** (neues
+Ziel für Tobies, betrifft Datenmodell und Box) und **Zuletzt gehört / meist gehört** (Box meldet, was gespielt
+wurde). Vorschlag: in Stufen bauen, siehe `concepts_brief.md` Abschnitt 6.
