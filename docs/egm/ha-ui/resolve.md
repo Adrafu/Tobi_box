@@ -103,3 +103,4 @@ Alle übrigen Befunde G1–G31 und die offenen U-Punkte (U2, U6, U8, U10, U15, U
 | X7 | Meldungen | Erfolg verschwindet nach etwa 4,5 s; **Fehler bleiben**, bis man sie wegwischt oder bestätigt. |
 | X8 | Tippflächen in Listen | „Mehr“ (drei Punkte), Pfeile usw. mindestens 44 × 44 px, auch einhändig. |
 | X9 | Kontrast im Theme mit hellem Primärton | Warn- und Hinweiskarten, Ränder und dünne Symbole mit mind. 3:1 Nicht-Text-Kontrast prüfen und sichern. |
+| X10 | „Ändern“-Knöpfe in Listen (Tobies-Liste): springen je nach Textlänge hin und her, wiederholen sich, wirken schwer | **(Tobias, „echt ungut“)** PL: Ganze Zeile ist die Tippfläche (öffnet das Bearbeiten-Blatt), rechts ein ruhiger Pfeil „›“ an fester Stelle; keine wiederholten umrandeten Knöpfe in Listen. Gilt für alle Listen mit gleicher Aktion je Zeile. |
