@@ -35,6 +35,7 @@
   --grid: #c9cdd2;
   --pos: #1b5e20;
   --line: #7c8187;
+  --navh: calc(64px + env(safe-area-inset-bottom, 0px));
   --r-card: 16px;
   --r-big: 24px;
   color-scheme: light;
@@ -475,7 +476,7 @@ details.zahlen summary { min-height: 44px; display: flex; align-items: center; c
 .fz.cur .nm { color: var(--primary-ink); }
 .fz .grow { display: grid; gap: 1px; }
 
-.mini { order: 8; position: sticky; bottom: calc(65px + env(safe-area-inset-bottom, 0px)); touch-action: pan-x; user-select: none; z-index: 19; background: var(--card); border-top: 1px solid var(--divider); box-shadow: 0 -2px 8px var(--shadow); margin-left: calc(-1 * max(16px, env(safe-area-inset-left, 0px))); margin-right: calc(-1 * max(16px, env(safe-area-inset-right, 0px))); }
+.mini { order: 8; position: sticky; bottom: var(--navh, calc(64px + env(safe-area-inset-bottom, 0px))); touch-action: pan-x; user-select: none; z-index: 19; background: var(--card); border-top: 1px solid var(--divider); box-shadow: 0 -2px 8px var(--shadow); margin-left: calc(-1 * max(16px, env(safe-area-inset-left, 0px))); margin-right: calc(-1 * max(16px, env(safe-area-inset-right, 0px))); }
 .mini[hidden] { display: none; }
 .mbar { height: 3px; background: var(--divider); }
 .mbar i { display: block; height: 100%; width: 0; background: var(--primary-ink); }
@@ -675,11 +676,68 @@ a.card .chev svg { width: 24px; height: 24px; fill: currentColor; display: block
 .top .iconbtn.tech { padding: 0; min-height: 48px; border: 1px solid var(--line); background: var(--card); color: var(--text); }
 .top .iconbtn.tech[aria-current="page"] { background: var(--primary-soft); color: var(--primary-ink); border-color: var(--primary-ink); }
 .timeinp { min-height: 48px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--text); padding: 0 12px; font-size: 16px; }
+
+/* Runde 16 (X20): Tobie zuerst – Regal, Zielwahl, „Gespielt von“-Chips */
+.cover.xs { width: 32px; font-size: 15px; border-radius: 8px; flex: none; }
+.cover.act { background-color: var(--primary); color: var(--on-primary); background-image: none; }
+.plc.xs { width: 32px; border-radius: 8px; flex: none; } .plc.xs .cover { font-size: 8px; }
+a.back, a.rowbtn { text-decoration: none; }
+.shelf { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+.ttile { border: 0; background: var(--card); box-shadow: 0 1px 3px var(--shadow); border-radius: var(--r-card); padding: 14px 12px 12px; min-height: 148px; text-align: left; display: grid; gap: 10px; align-content: start; color: var(--text); min-width: 0; text-decoration: none; }
+.ttile:active { background: var(--primary-soft); }
+@media (hover: hover) { .ttile:hover { background: var(--primary-soft); } }
+.fig { width: 52px; height: 52px; border-radius: 26px; background: var(--primary-soft); color: var(--primary-ink); display: grid; place-items: center; flex: none; }
+.fig svg { width: 28px; height: 28px; fill: currentColor; }
+.ttile .tn { font-weight: 500; font-size: 17px; line-height: 1.25; overflow-wrap: anywhere; }
+.ttile .spielt { display: flex; align-items: flex-start; gap: 8px; min-width: 0; }
+.ttile .sz { display: grid; gap: 1px; min-width: 0; }
+.ttile .zt, .ttile .zs { font-size: 13px; line-height: 1.25; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; }
+.ttile .zt { -webkit-line-clamp: 2; color: var(--text); }
+.ttile .zs { -webkit-line-clamp: 1; color: var(--text2); }
+.ttile.neu { border: 2px dashed var(--primary-ink); background: none; box-shadow: none; align-content: center; justify-items: start; color: var(--primary-ink); }
+.ttile.neu .fig { background: var(--primary); color: var(--on-primary); }
+.ttile.neu .tn { color: var(--primary-ink); }
+.pchips { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.pchips .pchip { margin-top: 4px; }
+.pchip { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 14px 0 10px; border-radius: 22px; background: var(--primary-soft); color: var(--primary-ink); font-weight: 500; text-decoration: none; border: 1px solid var(--line); max-width: 100%; overflow-wrap: anywhere; }
+.pchip svg { width: 20px; height: 20px; fill: currentColor; flex: none; }
+.glabel { font-size: 14px; color: var(--text2); margin: 0 0 4px; }
+.curz { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: var(--r-card); background: var(--primary-soft); margin-bottom: 16px; }
+.curz .grow { min-width: 0; display: grid; }
+.curz .lab { font-size: 13px; color: var(--text2); }
+.curz .lt { font-size: 16px; }
+.seg2.ghq { margin-bottom: 12px; }
+.seg2.ghq button { min-height: 44px; font-size: 14px; padding: 0 6px; }
+.seg2.ghq button + button { border-left: 1px solid var(--line); }
+.seg2.ghq .vc2 { margin-left: 4px; }
+.seg2.ghq button[aria-pressed="true"] .vc2 { background: var(--on-primary); color: var(--primary); }
+.gnrow { margin-top: 12px; width: 100%; min-height: 56px; border: 1px solid var(--line); border-radius: var(--r-card); background: var(--card); display: flex; align-items: center; gap: 12px; padding: 0 16px; text-align: left; margin-bottom: 8px; color: var(--text); }
+.gnrow .grow { flex: 1; min-width: 0; }
+.gnrow svg { width: 24px; height: 24px; fill: var(--primary-ink); flex: none; }
+.manage { margin-top: 24px; padding-top: 8px; border-top: 1px solid var(--divider); }
+.rowbtn.open .chev { transform: rotate(180deg); }
+.sub { padding-left: 16px; border-left: 3px solid var(--primary-soft); margin: 0 0 8px 12px; }
+.sub .rowbtn { min-height: 48px; }
+.wcrow { width: 100%; display: flex; align-items: center; gap: 14px; min-height: 80px; padding: 12px 16px; background: var(--card); border: 1px solid var(--line); border-radius: var(--r-card); text-align: left; margin-bottom: 12px; color: var(--text); }
+.wcrow .wc-i { width: 44px; height: 44px; border-radius: 22px; flex: none; }
+.wcrow .grow { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.wcrow .wc-t { font-weight: 500; font-size: 17px; line-height: 1.3; }
+.wcrow .chev svg { width: 24px; height: 24px; fill: var(--text2); display: block; }
+@media (hover: hover) { .wcrow:hover { background: var(--primary-soft); } }
+.boxcard { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.boxcard .grow { min-width: 0; flex: 1 1 180px; }
+button.card { display: flex; align-items: center; gap: 12px; width: 100%; border: 0; text-align: left; color: inherit; }
+button.card .chev { flex: none; color: var(--text2); }
+button.card .chev svg { width: 24px; height: 24px; fill: currentColor; display: block; }
+button.card.alert { background: var(--warn-bg); color: var(--warn); border: 2px solid var(--warn); }
+button.card.alert .muted, button.card.alert .chev { color: var(--warn); }
+button.card .grow { flex: 1; min-width: 0; }
+.frow .pchips { margin-top: 2px; }
 </style>
 
 <div class="page" id="page">
   <div class="preview" id="preview" hidden style="order:0">
-    <div class="pt">Vorschau mit Beispieldaten (v7, Runde 15)</div>
+    <div class="pt">Vorschau mit Beispieldaten (v8, Runde 16)</div>
     <div class="ctl">
       <label for="sel-rolle">Angemeldet als
         <select id="sel-rolle"><option value="admin" id="opt-admin"></option><option value="user" id="opt-user"></option></select>
@@ -758,7 +816,8 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     chev: 'M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z',
     lock: 'M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z',
     grip: 'M11 18c0 1.1-.9 2-2 2s-2-.9-2-2 .9-2 2-2 2 .9 2 2zm-2-8c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0-6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm6 4c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z',
-    more: 'M6 10c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm12 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm-6 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z'
+    more: 'M6 10c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm12 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm-6 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z',
+    clock: 'M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z'
   };
   function ic(n, sz) { return '<svg viewBox="0 0 24 24" aria-hidden="true"' + (sz ? ' width="' + sz + '" height="' + sz + '"' : '') + ' fill="currentColor"><path d="' + ICON[n] + '"/></svg>'; }
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
@@ -969,20 +1028,9 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     if (S.nameDone[uid]) return '<div style="margin-top:8px">Name gespeichert: <strong>' + esc(S.nameDone[uid]) + '</strong></div>';
     return '<div class="namefield"><label class="sr" for="' + id + '">Name für diesen Tobie</label><input type="text" id="' + id + '" maxlength="60" placeholder="Name, zum Beispiel Farbe oder Tier" data-fk="' + id + '"><button class="btn primary" data-act="nameSave" data-arg="' + uid + '|' + id + '" data-fk="ns' + id + '">Name speichern</button></div>';
   }
-  function neuCard(n) {
+  function neuAlert(n) {
     var b = box(n.box);
-    if (n.done) {
-      return '<div class="note okk" role="status"><div class="big-ok" style="margin:0 0 8px">' + ic('check') + '</div><h3>Fertig!</h3><div>' + (n.auto ? 'Auf ' + esc(b.name) + ' aufgelegt. ' : '') + 'Dieser Tobie spielt jetzt ' + esc(zielText(n.done)) + '.</div>' +
-        '<div style="margin-top:12px"><strong>Wie soll er heißen?</strong> <span class="muted" style="color:inherit">Damit du ihn später wiederfindest. Du kannst das auch überspringen.</span>' + nameField(n.uid, 'nm' + n.uid) + '</div>' +
-        '<div class="btns"><button class="btn" data-act="neuUndo" data-arg="' + n.uid + '" data-fk="undo">Rückgängig</button><button class="btn primary" data-act="neuOk" data-arg="' + n.uid + '" data-fk="ok">' + (S.nameDone[n.uid] ? 'OK' : 'Ohne Namen weiter') + '</button></div></div>';
-    }
-    var neue = S.series.slice().sort(function (a, c) { return a.ago - c.ago; }).slice(0, 5);
-    var tiles = neue.map(function (s) { return tileFor(s, 'neuWahl'); }).join('') + actionTile('Gute Nacht', 'neuWahl', 'aktion', 'Timer, dann still');
-    var multi = S.neu.filter(function (x) { return !x.done; }).length > 1;
-    return '<div class="card" style="border:2px solid var(--primary-ink)"><h3>Neuer Tobie auf ' + esc(b.name) + '</h3><div class="muted" style="margin-bottom:12px">Gerade aufgelegt, ' + esc(n.ago) + '. Bist du nicht sicher, welcher es ist? Lege den Tobie noch einmal auf. Was soll er spielen?</div>' +
-      '<div class="tiles small" data-uid="' + n.uid + '">' + tiles + '</div>' +
-      '<div class="btns" style="margin-top:12px"><button class="btn primary" data-act="neuSuche" data-arg="' + n.uid + '" data-fk="nsu">Anderes suchen …</button></div>' +
-      '<div style="margin-top:12px"><button class="btn link" data-act="neuWeg" data-arg="' + n.uid + '" data-fk="weg">Das war ein Versehen, nicht merken</button></div>' + (multi ? '<div class="muted">Mehrere neue Tobies: Der zuletzt aufgelegte steht oben.</div>' : '') + '</div>';
+    return '<button class="card alert" data-act="startNeu" data-arg="' + n.uid + '" data-fk="neu' + n.uid + '"><span class="grow"><strong>Neuer Tobie auf ' + esc(b.name) + ' – was soll er spielen?</strong><br><span class="muted">Gerade aufgelegt, ' + esc(n.ago) + '</span></span><span class="chev" aria-hidden="true">' + ic('chev') + '</span></button>';
   }
   function uploadSummary() {
     var aktiv = S.uploads.filter(function (u) { return u.step < 3; }).length, pruef = S.uploads.filter(function (u) { return u.step === 3 && u.pruefen && !u.ok; }).length;
@@ -1031,7 +1079,7 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     if (isLeer()) boxes = [];
     h += '<div class="grid2">' + boxes.map(boxCard).join('') + '</div>';
     if (isLeer()) h += leerKarte('box', 'Noch keine Box eingerichtet. Bitte dem Administrator Bescheid sagen.', '<button class="btn primary" data-act="reload" data-fk="reload2">Jetzt neu laden</button>');
-    if (!isLeer()) h += S.neu.map(neuCard).join('') + wartCard();
+    if (!isLeer()) h += S.neu.map(neuAlert).join('') + wartCard();
     h += '<h2>Abends</h2>' + abendsCards();
     if (!stufeA()) h += vGehoert();
     return h;
@@ -1099,8 +1147,6 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     }).join('') + '</div>';
     if (B.art === 'playlists') return h + vPlaylists();
     if (isLeer() || !S.series.length) return h + leerKarte('bib', 'Noch nichts da. Tippe auf „Hinzufügen“.', '<a class="btn primary" href="#hinzufuegen" data-fk="leeradd">' + ic('plus', 20) + 'Hinzufügen</a>');
-    var rows = B.art === 'alle' && !filtCount(B);
-    if (rows) h += whRow() + neuRow();
     var l = seriesFiltered(B, true), n = filtCount(B);
     h += '<div class="libbar"><span class="count" aria-live="polite">' + l.length + (l.length === 1 ? ' Eintrag' : ' Einträge') + '</span><button class="btn" data-act="sortSheet" data-fk="sortbtn" aria-haspopup="dialog">' + ic('tune', 20) + 'Sortieren &amp; Filter' + (n ? '<span class="nbadge" aria-label="' + n + ' aktiv">' + n + '</span>' : '') + '</button></div>';
     if (!l.length) return h + leerKarte('suche', 'Nichts gefunden. Nimm einen Filter weg.', '<button class="btn primary" data-act="bReset" data-fk="breset">Filter zurücksetzen</button>');
@@ -1194,12 +1240,12 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
   }
   function folgeZeile(s, f, i) {
     var e = hGet(s.id, i), fe = fertig(e), cur = P.sid === s.id && P.i === i, pl = cur && P.playing;
-    var tb = tobiesAuf(s, i).filter(function (t) { return t.z.t === 'folge'; }).length;
-    var meta = clock(f.d) + (f.k > 1 ? ' · ' + f.k + ' Kapitel' : '') + (tb ? ' · ' + tb + (tb === 1 ? ' Tobie' : ' Tobies') : '') + (cur ? ' · ' + (pl ? 'läuft' : 'pausiert') : '');
+    var tbl = tobiesAuf(s, i).filter(function (t) { return t.z.t === 'folge'; });
+    var meta = clock(f.d) + (f.k > 1 ? ' · ' + f.k + ' Kapitel' : '') + (cur ? ' · ' + (pl ? 'läuft' : 'pausiert') : '');
     var prog = '';
     if (e && !fe && e.p > 1) prog = '<span class="pbar" role="progressbar" aria-label="Fortschritt" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + Math.round(e.p / f.d * 100) + '"><i style="width:' + Math.round(e.p / f.d * 100) + '%"></i></span><span class="ls">noch ' + clock(f.d - e.p) + '</span>';
     else if (fe) prog = '<span class="ls ok">' + ic('check', 16) + ' Fertig gehört</span>';
-    return '<div class="frow fz' + (cur ? ' cur' : '') + '"><span class="num" aria-hidden="true">' + (i + 1) + '</span><div class="grow"><div class="nm">' + esc(f.t) + '</div><div class="muted">' + meta + '</div>' + prog + '</div>' +
+    return '<div class="frow fz' + (cur ? ' cur' : '') + '"><span class="num" aria-hidden="true">' + (i + 1) + '</span><div class="grow"><div class="nm">' + esc(f.t) + '</div><div class="muted">' + meta + '</div>' + prog + chipsHtml(tbl) + '</div>' +
       (S.reihenfolge ? '<button class="iconbtn" data-act="hoch" data-arg="' + s.id + '|' + i + '" aria-label="' + esc(f.t) + ' nach oben" data-fk="up' + i + '"' + (i === 0 ? ' disabled' : '') + '>▲</button><button class="iconbtn" data-act="runter" data-arg="' + s.id + '|' + i + '" aria-label="' + esc(f.t) + ' nach unten" data-fk="dn' + i + '"' + (i === s.folgen.length - 1 ? ' disabled' : '') + '>▼</button>'
         : '<button class="iconbtn fillp" data-act="playF" data-arg="' + s.id + '|' + i + '" data-fk="pf' + i + '" aria-label="' + esc(f.t) + (pl ? ' pausieren' : ' abspielen') + '">' + ic(pl ? 'pause' : 'play', 24) + '</button><button class="iconbtn more" data-act="folgeMehr" data-arg="' + s.id + '|' + i + '" data-fk="fm' + i + '" aria-label="Mehr zu ' + esc(f.t) + '">' + ic('more', 22) + '</button>') + '</div>';
   }
@@ -1209,11 +1255,11 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     var tob = S.tobies.filter(function (t) { return t.z.s === id; }).length, art = ART[s.art], p = serieProg(s);
     var h = '<div class="shead2"><button class="back" data-act="go" data-arg="bibliothek" data-fk="back">' + ic('back') + 'Bibliothek</button><button class="iconbtn plain" data-act="serieMenu" data-arg="' + id + '" data-fk="smenu" aria-label="Mehr zu ' + esc(s.name) + '">' + ic('more', 24) + '</button></div>';
     h += '<div class="hero">' + coverHtml(s, 'xl') + '<div class="htxt"><h2>' + esc(s.name) + '</h2><div class="muted">' + (s.einzeln ? art.one + ' · einzeln · ' + clock(p.tot) : art.e + ' · ' + einheit(s) + ' · ' + dauerText(p.tot)) + '</div>' +
-      (tob ? '<div class="muted tbline">' + ic('tag', 16) + tob + (tob === 1 ? ' Tobie' : ' Tobies') + '</div>' : '') +
       (p.started ? '<div class="muted">' + (p.frac >= 0.999 ? 'Fertig gehört' : 'Schon ' + Math.round(p.frac * 100) + ' % gehört · noch ' + dauerText(p.rest)) + '</div>' : '') +
-      '<div class="hbtns">' + reinBtn(s) + '<button class="btn" data-act="serieTobie" data-arg="' + id + '" data-fk="stobie">' + ic('tag', 20) + 'Tobie zuordnen</button></div></div></div>';
+      '<div class="hbtns">' + reinBtn(s) + '</div></div></div>';
     if (s.pruefen) h += '<div class="note warn"><strong>Bitte kurz ansehen.</strong><br>' + esc(s.pruefen) + '<div class="btns"><button class="btn" data-act="geprueft" data-arg="' + id + '" data-fk="gep">Das ist richtig</button><button class="btn" data-act="stimmtNicht" data-arg="' + id + '" data-fk="stn">Das stimmt nicht</button></div></div>';
     if (s.folgen.some(function (f) { return f.kopie === 'wartet'; })) h += '<div class="note" role="status"><strong>Die Hörprobe wird vorbereitet.</strong><br>Dieses Format (OGG) spielt nicht jeder Browser. Home Assistant legt dafür einmal eine kleine Kopie an. Bei einem Lied dauert das etwa eine Minute, bei einem langen Hörbuch bis zu einer halben Stunde. Du kannst die Seite offen lassen, sie sagt Bescheid. Auf der Box spielt es schon.<div class="bar" style="margin-top:8px" aria-hidden="true"><i style="width:60%"></i></div></div>';
+    h += gespieltVonCard(tobiesAuf(s), id);
     if (s.einzeln) return h;
     if (s.art === 'hoerbuch' && s.folgen.length === 1 && s.folgen[0].kap) return h + kapSection(s);
     var n = s.folgen.length;
@@ -1225,40 +1271,9 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     if (idx.length > S.serieShown) h += '<div class="btns" style="justify-content:center"><button class="btn" data-act="serieMehr" data-more="1" data-fk="smehr">Mehr laden (' + (idx.length - S.serieShown) + ' weitere)</button></div>';
     return h;
   }
-  function zielSheet(sid, i) {
-    var s = serie(sid), ganz = i == null, f = ganz ? null : s.folgen[i], wort = ART[s.art].one;
-    var z = ganz ? { t: 'serie', s: sid } : { t: 'folge', s: sid, i: i };
-    var vorh = tobiesAuf(s, ganz ? null : i).filter(function (t) { return ganz ? t.z.t === 'serie' : t.z.t === 'folge'; });
-    var b = '<p class="muted">Der Tobie spielt dann ' + (ganz ? '„' + esc(s.name) + '“' : s.einzeln ? '„' + esc(f.t) + '“' : 'nur „' + esc(f.t) + '“ aus „' + esc(s.name) + '“') + '.</p>' +
-      (vorh.length ? '<div class="note okk">Schon angelernt: ' + vorh.map(function (t) { return esc(t.name || 'Tobie ohne Namen'); }).join(', ') + '.</div>' : '') +
-      qButtons() +
-      '<h3 style="margin-top:20px">Oder einen Tobie umstellen, der schon etwas spielt</h3><div class="btns" style="margin-top:8px"><button class="btn" id="fs-um">Tobie wählen …</button></div>' + '';
-    openSheet('Tobie anlernen', b, [{ label: 'Schließen' }]);
-    $('sheet-t').textContent = ganz ? (s.art === 'musik' ? 'Tobie für dieses Album' : s.art === 'hoerbuch' ? 'Tobie für dieses Hörbuch' : s.art === 'geschichte' ? 'Tobie für diese Geschichten' : 'Tobie für dieses Hörspiel') : (wort === 'Lied' ? 'Tobie für dieses Lied' : wort === 'Hörbuch' ? 'Tobie für dieses Hörbuch' : wort === 'Geschichte' ? 'Tobie für diese Geschichte' : 'Tobie für diese Folge');
-    qBind(z);
-    $('fs-um').addEventListener('click', function () {
-      closeLayer();
-      openSheet('Welcher Tobie?', '<div class="rows" id="tl">' + S.tobies.slice().sort(function (a, c) { return c.n - a.n; }).filter(function (t) { return t.z.t !== 'aktion'; }).map(tobieRow).join('') + '</div>', [{ label: 'Abbrechen' }]);
-      $('tl').addEventListener('click', function (e) { var r = e.target.closest('[data-act="tobie"]'); if (!r) return; var tb = S.tobies.filter(function (x) { return x.uid === r.dataset.arg; })[0]; closeLayer(); tb.z = z; tb.n = ++tobieN; render(); toast('Fertig: ' + (tb.name || 'Der Tobie') + ' spielt jetzt „' + (ganz ? s.name : f.t) + '“.'); });
-    });
-  }
-  function folgeSheet(sid, i) { zielSheet(sid, i); }
-
   /* ---------- X13: Warteschlange „Nächster neuer Tobie spielt …“ (nur HA, nichts wird auf den Tobie geschrieben) ---------- */
   var qN = 0;
   function qBoxName(b) { return b === 'any' ? 'irgendeiner Box' : box(b).name; }
-  function qButtons() {
-    return '<h3 style="margin-top:12px">Nächster neuer Tobie</h3><div class="btns" style="margin-top:8px">' + S.boxes.map(function (bx) { return '<button class="btn" id="fs-' + bx.id + '">Auf ' + esc(bx.name) + '</button>'; }).join('') + '<button class="btn" id="fs-any">Auf irgendeiner Box</button></div>';
-  }
-  function qBind(z) {
-    S.boxes.map(function (bx) { return bx.id; }).concat(['any']).forEach(function (id) { var e = $('fs-' + id); if (e) e.addEventListener('click', function () { closeLayer(); qAdd(z, id); }); });
-  }
-  function qAdd(z, boxId) {
-    if (S.queue.some(function (q) { return q.box === boxId && JSON.stringify(q.z) === JSON.stringify(z); })) { toast('Das wartet schon.'); return; }
-    if (S.queue.length >= 5) { toastErr('Es warten schon 5 Tobies. Warte, bis einer aufgelegt ist, oder nimm einen aus der Liste.'); return; }
-    S.queue.push({ id: ++qN, z: z, box: boxId }); render();
-    toast('Der nächste neue Tobie auf ' + qBoxName(boxId) + ' spielt ' + zielText(z) + '.');
-  }
   function wartCard() {
     if (!S.queue.length || isLeer()) return '';
     return '<div class="card"><h3>Wartet auf einen neuen Tobie</h3><div class="rows" style="margin-top:8px">' + S.queue.map(function (q, k) {
@@ -1316,19 +1331,214 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     return h;
   }
 
-  /* ---------- Tobies ---------- */
+  /* ---------- Tobies (Runde 16, X20 „Tobie zuerst“): Das Regal ist der Einstieg, Zuordnen beginnt immer beim Tobie ---------- */
+  var NEU = { uid: null, box: 'box1', active: false, vorziel: null, zurueck: null, name: '', qbox: 'any', queued: null };
+  var PK = { mode: 'serie', art: 'alle', term: '', open: null, shown: 30 };
+  function resetPK() { PK = { mode: 'serie', art: 'alle', term: '', open: null, shown: 30 }; }
+  function tName(t) { return t.name || 'Tobie ohne Namen'; }
+  function tobieBy(uid) { return S.tobies.filter(function (x) { return x.uid === uid; })[0]; }
+  /* Ziel als Text in der Adresse: „<serie>“ = ganze Serie (ein Einzeltitel = sein einziger Titel), „<serie>~<n>“ = eine Folge, „@<playlist>“ = Playlist */
+  function parseT(s) {
+    if (s.charAt(0) === '@') return { t: 'playlist', p: s.slice(1) };
+    var p = s.split('~'), sr = serie(p[0]);
+    if (p.length > 1) return { t: 'folge', s: p[0], i: +p[1] };
+    if (sr && sr.einzeln) return { t: 'folge', s: p[0], i: 0 };
+    return { t: 'serie', s: p[0] };
+  }
+  function backOf(z) { return z.t === 'playlist' ? '#playlist-' + z.p : '#serie-' + z.s; }
+  function zielCover(z, size) {
+    if (z.t === 'aktion') return '<div class="cover act ' + size + '" aria-hidden="true">' + ic('moon', size === 'xs' ? 18 : 24) + '</div>';
+    if (z.t === 'playlist') { var pq = plById(z.p); return pq ? plCover(pq, size) : '<div class="cover ph ' + size + '" aria-hidden="true">?</div>'; }
+    var s = serie(z.s); return s ? coverHtml(s, size) : '<div class="cover ph ' + size + '" aria-hidden="true">?</div>';
+  }
+  function zielTitel(z) {
+    if (z.t === 'aktion') return 'Gute Nacht';
+    if (z.t === 'playlist') { var pq = plById(z.p); return pq ? pq.name : '?'; }
+    var s = serie(z.s); if (!s) return '?';
+    return z.t === 'folge' ? (s.folgen[z.i] ? s.folgen[z.i].t : '?') : s.name;
+  }
+  function zielSerie(z) { if (z.t !== 'folge') return ''; var s = serie(z.s); return s && !s.einzeln ? s.name : ''; }
+  function zielArt(z) {
+    if (z.t === 'aktion') return 'Aktion';
+    if (z.t === 'playlist') return 'Playlist';
+    var s = serie(z.s); if (!s) return '';
+    if (z.t === 'serie') return { hoerspiel: 'Ganzes Hörspiel', hoerbuch: 'Ganzes Hörbuch', musik: 'Ganzes Album', geschichte: 'Alle Geschichten' }[s.art];
+    return s.einzeln ? 'Einzeltitel' : s.name + ' · ' + ART[s.art].one;
+  }
+  function chipHtml(t) { return '<a class="pchip" href="#tobie-' + t.uid + '" data-fk="chip' + t.uid + '">' + ic('tag', 20) + esc(tName(t)) + '</a>'; }
+  function chipsHtml(l) { return l.length ? '<div class="pchips">' + l.map(chipHtml).join('') + '</div>' : ''; }
+  /* „Gespielt von“ auf Serien- und Playlist-Seiten: Chips oder „Noch kein Tobie · Einem Tobie geben …“ */
+  function gespieltVonCard(by, tstr) {
+    return '<div class="card"><div class="glabel">Gespielt von' + (by.length ? ':' : '') + '</div>' + (by.length ? chipsHtml(by) : '<div class="pchips"><span>Noch kein Tobie</span><a class="btn link" href="#geben-' + tstr + '" data-fk="geben">Einem Tobie geben …</a></div>') + '</div>';
+  }
+  function ttile(t) {
+    var sr = zielSerie(t.z);
+    return '<a class="ttile" href="#tobie-' + t.uid + '" data-fk="tt' + t.uid + '" aria-label="' + esc(tName(t) + ', spielt ' + zielTitel(t.z) + (sr ? ' aus ' + sr : '')) + '"><span class="fig" aria-hidden="true">' + ic('tag') + '</span><span class="tn">' + esc(tName(t)) + '</span><span class="spielt">' + zielCover(t.z, 'xs') + '<span class="sz"><span class="zt">' + esc(zielTitel(t.z)) + '</span>' + (sr ? '<span class="zs">' + esc(sr) + '</span>' : '') + '</span></span></a>';
+  }
+  function newTile(href) { return '<a class="ttile neu" href="' + href + '" data-fk="neutile"><span class="fig" aria-hidden="true">' + ic('plus') + '</span><span class="tn">+ Neuer Tobie</span></a>'; }
+  /* Zeile für die Suche (Treffer „Tobies“) */
   function tobieRow(t) {
-    var act = t.z.t === 'aktion', s = act ? null : serie(t.z.s), pq = t.z.t === 'playlist' ? plById(t.z.p) : null;
-    return '<button class="rowbtn" data-act="tobie" data-arg="' + t.uid + '" data-fk="t' + t.uid + '" aria-label="' + esc(t.name || 'Tobie ohne Namen') + ' bearbeiten">' + (s ? coverHtml(s, 'sm') : pq ? plCover(pq, 'sm') : '<div class="cover sm" style="background-color:var(--primary);color:var(--on-primary)" aria-hidden="true">' + ic('moon', 24) + '</div>') +
-      '<span class="grow"><strong>' + esc(t.name || 'Tobie ohne Namen') + '</strong><br><span class="muted">spielt ' + esc(zielText(t.z)) + (t.z.t === 'folge' ? (s.art === 'musik' ? ' (ein Lied)' : ' (eine Folge)') : t.z.t === 'playlist' ? ' (eine Playlist)' : '') + '</span></span>' + '<span class="chev" aria-hidden="true">' + ic('chev', 24) + '</span>' + '</button>';
+    var sr = zielSerie(t.z);
+    return '<a class="rowbtn" href="#tobie-' + t.uid + '" data-fk="t' + t.uid + '" aria-label="' + esc(tName(t)) + ' bearbeiten">' + zielCover(t.z, 'sm') +
+      '<span class="grow"><strong>' + esc(tName(t)) + '</strong><br><span class="muted">spielt „' + esc(zielTitel(t.z)) + '“' + (sr ? ' aus „' + esc(sr) + '“' : '') + '</span></span><span class="chev" aria-hidden="true">' + ic('chev', 24) + '</span></a>';
+  }
+  function wartKarten() {
+    return S.queue.map(function (q) {
+      return '<div class="card boxcard"><span class="fig" aria-hidden="true">' + ic('clock') + '</span><div class="grow"><strong>Nächster neuer Tobie auf ' + esc(qBoxName(q.box)) + ' spielt ' + esc(zielText(q.z)) + '</strong><br><span class="muted">Wartet auf einen unbekannten Tobie</span></div><button class="btn" data-act="qAbbr" data-arg="' + q.id + '" data-fk="qa' + q.id + '">Abbrechen</button></div>';
+    }).join('');
   }
   function vTobies() {
-    var h = '<h2 style="margin-top:0">Tobies</h2>' + wartCard();
-    if (isLeer() || !S.tobies.length) return h + leerKarte('tobies', 'Noch keine Tobies. Lege einen Tobie auf eine Box, dann erscheint er unter „Geräte“.', '<a class="btn primary" href="#geraete" data-fk="leerstart">Zu den Geräten</a>');
-    var term = norm(S.tobieTerm);
+    var h = '<h2 style="margin-top:0">Tobies</h2>' + (isLeer() ? '' : wartKarten());
+    if (isLeer()) return h + leerKarte('tobies', 'Noch keine Tobies. Lege einen Tobie auf eine Box, dann erscheint er unter „Geräte“.', '<a class="btn primary" href="#geraete" data-fk="leerstart">Zu den Geräten</a>');
+    var term = norm(S.tobieTerm), viele = S.tobies.length > 8;
+    if (!viele) term = '';
     var l = S.tobies.slice().sort(function (a, c) { return c.n - a.n; }).filter(function (t) { return !term || norm(t.name || 'ohne namen').indexOf(term) >= 0 || norm(zielName(t.z)).indexOf(term) >= 0; });
-    h += '<div><label class="sr" for="tsuche">Tobies suchen</label><input class="search" id="tsuche" type="search" placeholder="Tobie suchen (Name oder was er spielt)" value="' + esc(S.tobieTerm) + '" data-fk="tsuche"></div>';
-    h += l.length ? '<div class="card"><div class="rows">' + l.map(tobieRow).join('') + '</div></div>' : leerKarte('suche', 'Nichts gefunden zu „' + S.tobieTerm + '“.', '<button class="btn primary" data-act="tClear" data-fk="tclear">Suche löschen</button>');
+    if (viele) h += '<div><label class="sr" for="tsuche">Tobies suchen</label><input class="search" id="tsuche" type="search" placeholder="Tobie suchen (Name oder was er spielt)" value="' + esc(S.tobieTerm) + '" data-fk="tsuche"></div>';
+    h += '<div class="shelf">' + newTile('#neu') + l.map(ttile).join('') + '</div>';
+    if (viele && !l.length) h += '<div class="muted" style="margin-top:12px">Kein Tobie gefunden zu „' + esc(S.tobieTerm) + '“. <button class="btn link" data-act="tClear" data-fk="tclear">Suche löschen</button></div>';
+    return h;
+  }
+
+  /* ---------- Zielwahl (gemeinsam für „Was soll … spielen?“ und „Neuer Tobie“) ---------- */
+  function pkRow(act, arg, cv, titel, sub, term) {
+    return '<button class="rowbtn" data-act="' + act + '" data-arg="' + arg + '">' + cv + '<span class="grow"><span class="nm">' + hl(titel, term) + '</span><br><span class="muted">' + esc(sub) + '</span></span><span class="chev" aria-hidden="true">' + ic('chev', 24) + '</span></button>';
+  }
+  function pickerResults() {
+    var term = PK.term, h = '', mehr = '';
+    if (PK.mode === 'playlist') {
+      var pq = S.playlists.filter(function (x) { return !term || norm(x.name).indexOf(norm(term)) >= 0; });
+      return pq.length ? '<div class="card"><div class="rows">' + pq.map(function (x) { return pkRow('pkP', x.id, plCover(x, 'sm'), x.name, plSub(x), term); }).join('') + '</div></div>' : '<div class="card muted">Noch keine Playlists.</div>';
+    }
+    var B = { term: term, art: PK.art, ohne: false, neu: false, pruefen: false, sort: 'az', typ: 'alle' };
+    if (PK.mode === 'serie') {
+      var l = seriesFiltered(B).filter(function (s) { return !s.einzeln; });
+      if (!l.length) return '<div class="card muted">Nichts gefunden' + (term ? ' zu „' + esc(term) + '“' : '') + '.</div>';
+      if (l.length > PK.shown) mehr = '<div class="btns" style="justify-content:center;margin-top:12px"><button class="btn" data-act="pkMehr" data-fk="pkmehr">Mehr zeigen</button></div>';
+      if (!term) return '<div class="count" aria-live="polite">' + l.length + ' Einträge</div><div class="tiles small">' + l.slice(0, PK.shown).map(function (s) { return tileFor(s, 'pkS'); }).join('') + '</div>' + mehr;
+      return '<div class="card"><div class="rows">' + l.slice(0, PK.shown).map(function (s) { return pkRow('pkS', s.id, coverHtml(s, 'sm'), s.name, ART[s.art].e + ' · ' + einheit(s), term); }).join('') + '</div></div>' + mehr;
+    }
+    /* Folge oder Lied */
+    if (!term) {
+      var ls = seriesFiltered(B).filter(function (s) { return s.einzeln || s.art !== 'hoerbuch'; });
+      if (!ls.length) return '<div class="card muted">Nichts gefunden.</div>';
+      if (ls.length > PK.shown) mehr = '<div class="btns" style="justify-content:center;margin-top:12px"><button class="btn" data-act="pkMehr" data-fk="pkmehr">Mehr zeigen</button></div>';
+      return '<div class="card"><div class="rows">' + ls.slice(0, PK.shown).map(function (s) {
+        if (s.einzeln) return pkRow('pkF', s.id + '|0', coverHtml(s, 'sm'), s.name, 'Einzeltitel · ' + clock(s.folgen[0].d), '');
+        var op = PK.open === s.id;
+        var r = '<button class="rowbtn' + (op ? ' open' : '') + '" data-act="pOpen" data-arg="' + s.id + '" aria-expanded="' + op + '">' + coverHtml(s, 'sm') + '<span class="grow"><span class="nm">' + esc(s.name) + '</span><br><span class="muted">' + einheit(s) + '</span></span><span class="chev" aria-hidden="true">' + ic('down', 24) + '</span></button>';
+        if (op) r += '<div class="sub">' + s.folgen.map(function (f, i) { return '<button class="rowbtn" data-act="pkF" data-arg="' + s.id + '|' + i + '"><span class="muted" style="width:24px;text-align:center">' + (i + 1) + '</span><span class="grow"><span class="nm">' + esc(f.t) + '</span></span></button>'; }).join('') + '</div>';
+        return r;
+      }).join('') + '</div></div>' + mehr;
+    }
+    var f = folgenFiltered(B);
+    if (!f.length) return '<div class="card muted">Nichts gefunden zu „' + esc(term) + '“.</div>';
+    if (f.length > PK.shown) mehr = '<div class="btns" style="justify-content:center;margin-top:12px"><button class="btn" data-act="pkMehr" data-fk="pkmehr">Mehr zeigen</button></div>';
+    return '<div class="count" aria-live="polite">' + f.length + ' Folgen und Lieder</div><div class="card"><div class="rows">' + f.slice(0, PK.shown).map(function (x) { return pkRow('pkF', x.s.id + '|' + x.i, coverHtml(x.s, 'sm'), x.f.t, x.s.einzeln ? 'Einzeltitel' : x.s.name, term); }).join('') + '</div></div>' + mehr;
+  }
+  function pickerHtml(cur) {
+    var h = '';
+    if (cur) h += '<div class="curz">' + zielCover(cur, 'sm') + '<div class="grow"><span class="lab">Spielt jetzt</span><span class="lt">' + esc(zielTitel(cur)) + '</span><span class="lab">' + esc(zielArt(cur)) + '</span></div></div>';
+    h += '<div class="seg2 ghq" role="group" aria-label="Was soll er spielen?"><button data-act="pMode" data-arg="serie" data-fk="pmserie" aria-pressed="' + (PK.mode === 'serie') + '">Ganze Serie</button><button data-act="pMode" data-arg="folge" data-fk="pmfolge" aria-pressed="' + (PK.mode === 'folge') + '">Folge oder Lied</button>' +
+      (stufeC() ? '<button data-act="pMode" data-arg="playlist" data-fk="pmpl" aria-pressed="' + (PK.mode === 'playlist') + '">Playlist <span class="vc2" title="Stufe C – Vorschau">C</span></button>' : '') + '</div>';
+    if (PK.mode !== 'playlist') {
+      h += '<label class="sr" for="pksuche">In der Bibliothek suchen</label><input class="search" id="pksuche" type="search" placeholder="In der Bibliothek suchen" value="' + esc(PK.term) + '" data-fk="pksuche" autocomplete="off">' +
+        '<div class="artrow" role="group" aria-label="Art">' + ['alle'].concat(ARTEN).map(function (a) { return '<button class="arttab" data-act="pkArt" data-arg="' + a + '" aria-pressed="' + (PK.art === a) + '" data-fk="pa' + a + '">' + (a === 'alle' ? 'Alle' : ART[a].n) + '</button>'; }).join('') + '</div>';
+    }
+    h += '<div id="pkres">' + pickerResults() + '</div>';
+    h += '<button class="gnrow" data-act="pkA" data-fk="pkgn">' + ic('moon', 24) + '<span class="grow"><strong>Gute-Nacht-Karte</strong><br><span class="muted">Timer, dann wird es still</span></span></button>';
+    return h;
+  }
+  /* Ziel gewählt: je nach Seite */
+  function pickDone(z) {
+    var r = route();
+    if (r.v === 'tobie') {
+      var t = tobieBy(r.id); if (!t) return;
+      var alt = t.z, altN = t.n; t.z = z; t.n = ++tobieN;
+      toast('Fertig: ' + tName(t) + ' spielt jetzt ' + zielText(z) + '.', false, { text: 'Rückgängig', fn: function () { t.z = alt; t.n = altN; render(); } });
+      location.hash = '#tobies';
+    } else if (r.v === 'neu-ziel') finishNeu(z);
+    else if (r.v === 'neu-queue') queueSet(z);
+  }
+
+  /* ---------- „Was soll … spielen?“ (ein Tobie bearbeiten) ---------- */
+  function vTobie(uid) {
+    var t = tobieBy(uid);
+    if (!t) return '<div class="note err">Das gibt es nicht mehr. <a href="#tobies">Zurück zu den Tobies</a></div>';
+    var h = '<a class="back" href="#tobies" data-fk="back">' + ic('back') + 'Tobies</a>';
+    h += '<h2 style="margin-top:4px">Was soll <strong>' + esc(t.name || 'dieser Tobie') + '</strong> spielen?</h2>';
+    h += pickerHtml(t.z);
+    h += '<div class="manage"><h3 style="margin:12px 0 0">Namen ändern</h3><div class="namefield"><label class="sr" for="rename">Name</label><input id="rename" type="text" maxlength="60" value="' + esc(t.name) + '" placeholder="Name, zum Beispiel Farbe oder Tier" autocomplete="off" data-fk="rename"><button class="btn" data-act="rename" data-arg="' + t.uid + '" data-fk="renamebtn">Name speichern</button></div>';
+    h += '<button class="btn link danger" data-act="forget" data-arg="' + t.uid + '" data-fk="forget">Diesen Tobie vergessen …</button></div>';
+    return h;
+  }
+
+  /* ---------- Neuer Tobie ---------- */
+  function vNeu() {
+    var h = '<a class="back" href="' + (NEU.zurueck || '#tobies') + '" data-fk="back">' + ic('back') + 'Zurück</a><h2 style="margin-top:4px">Neuer Tobie</h2>';
+    if (NEU.vorziel) h += '<div class="curz">' + zielCover(NEU.vorziel, 'sm') + '<div class="grow"><span class="lab">Er soll spielen</span><span class="lt">' + esc(zielTitel(NEU.vorziel)) + '</span></div></div>';
+    h += '<button class="wcrow" data-act="neuJetzt" data-fk="neujetzt"><span class="wc-i">' + ic('tag') + '</span><span class="grow"><span class="wc-t">Leg ihn jetzt auf eine Box</span><span class="muted">Die Seite wartet auf ihn</span></span><span class="chev" aria-hidden="true">' + ic('chev') + '</span></button>';
+    h += '<button class="wcrow" data-act="neuSpaeter" data-fk="neuspaeter"><span class="wc-i">' + ic('clock') + '</span><span class="grow"><span class="wc-t">Später auflegen</span><span class="muted">Erst wählen, was er spielen soll</span></span><span class="chev" aria-hidden="true">' + ic('chev') + '</span></button>';
+    return h;
+  }
+  function vNeuWarten() {
+    var bn = S.boxes.map(function (b) { return esc(b.name); }).join(' oder ');
+    return '<a class="back" href="#neu" data-fk="back">' + ic('back') + 'Zurück</a><div class="wait"><div class="ring" aria-hidden="true">' + ic('tag') + '</div><h2 style="margin:0 0 8px">Leg den Tobie auf ' + bn + '</h2><div class="muted">Ich warte auf einen Tobie, den ich noch nicht kenne.</div><div class="btns" style="justify-content:center;margin-top:20px"><a class="btn" href="#neu" data-fk="abbr">Abbrechen</a></div></div>';
+  }
+  function neuNameCard() {
+    return '<div class="card"><h3>Wie soll er heißen?</h3><div class="muted">Du kannst das überspringen.</div><div class="namefield" style="margin-bottom:0"><label class="sr" for="neuname">Name</label><input id="neuname" type="text" maxlength="60" value="' + esc(NEU.name) + '" placeholder="Name, zum Beispiel Farbe oder Tier" autocomplete="off" data-fk="neuname"></div></div>';
+  }
+  function vNeuZiel() {
+    var h = '<div class="note okk" style="margin-top:4px" role="status"><strong>Neuer Tobie erkannt</strong> auf ' + esc(box(NEU.box).name) + '.</div>' + neuNameCard();
+    if (NEU.vorziel) h += '<div class="curz">' + zielCover(NEU.vorziel, 'sm') + '<div class="grow"><span class="lab">Er spielt</span><span class="lt">' + esc(zielTitel(NEU.vorziel)) + '</span></div></div><div class="btns"><button class="btn primary" data-act="neuFertig" data-fk="neufertig">Fertig</button></div>';
+    else h += '<h2 style="margin-top:8px">Was soll er spielen?</h2>' + pickerHtml(null);
+    h += '<div style="margin-top:16px"><button class="btn link" data-act="neuWeg" data-fk="weg">Das war ein Versehen, nicht merken</button></div>';
+    return h;
+  }
+  function vNeuQueue() {
+    var q = NEU.queued ? S.queue.filter(function (x) { return x.id === NEU.queued; })[0] : null;
+    var h = '<a class="back" href="#neu" data-fk="back">' + ic('back') + 'Zurück</a>';
+    if (q) {
+      return h + '<div class="wait"><div class="ring" aria-hidden="true">' + ic('clock') + '</div><h2 style="margin:0 0 8px">Nächster neuer Tobie auf ' + esc(qBoxName(q.box)) + ' spielt ' + esc(zielText(q.z)) + '</h2><div class="muted">Kein Zeitlimit. Du musst die Seite nicht offen lassen.</div><div class="btns" style="justify-content:center;margin-top:20px"><button class="btn" data-act="qAbbr" data-arg="' + q.id + '" data-fk="qa">Abbrechen</button><a class="btn primary" href="#tobies" data-fk="qfertig">Fertig</a></div></div>';
+    }
+    h += '<h2 style="margin-top:4px">Später auflegen</h2><div class="glabel">Auf welcher Box?</div><div class="seg2 ghq" role="group" aria-label="Box">' + S.boxes.map(function (b) { return [b.id, b.name]; }).concat([['any', 'Egal welche']]).map(function (b) { return '<button data-act="qBox" data-arg="' + b[0] + '" data-fk="qb' + b[0] + '" aria-pressed="' + (NEU.qbox === b[0]) + '">' + esc(b[1]) + '</button>'; }).join('') + '</div>';
+    if (NEU.vorziel) h += '<div class="curz">' + zielCover(NEU.vorziel, 'sm') + '<div class="grow"><span class="lab">Er soll spielen</span><span class="lt">' + esc(zielTitel(NEU.vorziel)) + '</span></div></div><div class="btns"><button class="btn primary" data-act="qSet" data-fk="qset">Vormerken</button></div>';
+    else h += '<h3 style="margin:16px 0 8px">Was soll er spielen?</h3>' + pickerHtml(null);
+    return h;
+  }
+  function neuVon(tstr) { /* „+ Neuer Tobie“ aus „Einem Tobie geben“: das Ziel steht schon fest */
+    var z = parseT(tstr);
+    NEU.vorziel = z; NEU.zurueck = backOf(z); NEU.name = ''; NEU.queued = null; resetPK();
+    location.replace('#neu');
+  }
+  function finishNeu(z) {
+    var nm = ($('neuname') ? $('neuname').value : NEU.name).trim(), uid = NEU.uid || newUid(), bx = NEU.box;
+    S.neu = S.neu.filter(function (u) { return u.uid !== uid; });
+    var t = { uid: uid, name: nm, z: z, n: ++tobieN }; S.tobies.push(t);
+    var back = NEU.vorziel && NEU.zurueck ? NEU.zurueck : '#tobies';
+    NEU.active = false; NEU.uid = null; NEU.vorziel = null; NEU.name = ''; NEU.zurueck = null;
+    toast('Fertig: ' + tName(t) + ' spielt jetzt ' + zielText(z) + '.', false, { text: 'Rückgängig', fn: function () { S.tobies = S.tobies.filter(function (x) { return x.uid !== uid; }); S.neu.unshift({ uid: uid, box: bx, ago: 'gerade eben' }); render(); } });
+    location.hash = back;
+  }
+  function queueSet(z) {
+    var bx = NEU.qbox;
+    if (S.queue.some(function (q) { return q.box === bx && JSON.stringify(q.z) === JSON.stringify(z); })) { toast('Das wartet schon.'); return; }
+    if (S.queue.length >= 5) { toastErr('Es warten schon 5 Tobies. Warte, bis einer aufgelegt ist, oder nimm einen aus der Liste.'); return; }
+    var q = { id: ++qN, z: z, box: bx }; S.queue.push(q); NEU.queued = q.id; NEU.vorziel = null;
+    render();
+  }
+
+  /* ---------- Bibliothek: Einem Tobie geben (Ziel steht fest, der Tobie wird gewählt) ---------- */
+  function vGeben(tstr) {
+    var z = parseT(tstr);
+    if (z.t !== 'playlist' && !serie(z.s)) return '<div class="note err">Das gibt es nicht mehr. <a href="#bibliothek">Zurück zur Bibliothek</a></div>';
+    if (z.t === 'playlist' && !plById(z.p)) return '<div class="note err">Das gibt es nicht mehr. <a href="#bibliothek">Zurück zur Bibliothek</a></div>';
+    var sr = z.t === 'playlist' ? plById(z.p).name : serie(z.s).name;
+    var h = '<a class="back" href="' + backOf(z) + '" data-fk="back">' + ic('back') + esc(sr) + '</a><h2 style="margin-top:4px">Welcher Tobie soll das spielen?</h2>';
+    h += '<div class="curz">' + zielCover(z, 'sm') + '<div class="grow"><span class="lab">' + esc(zielArt(z)) + '</span><span class="lt">' + esc(zielTitel(z)) + '</span></div></div>';
+    h += '<div class="shelf">' + newTile('#neu-von-' + tstr) + S.tobies.slice().sort(function (a, c) { return c.n - a.n; }).map(function (t) {
+      var s2 = zielSerie(t.z);
+      return '<button class="ttile" data-act="geben" data-arg="' + tstr + '|' + t.uid + '" data-fk="gb' + t.uid + '"><span class="fig" aria-hidden="true">' + ic('tag') + '</span><span class="tn">' + esc(tName(t)) + '</span><span class="spielt">' + zielCover(t.z, 'xs') + '<span class="sz"><span class="zt">' + esc(zielTitel(t.z)) + '</span>' + (s2 ? '<span class="zs">' + esc(s2) + '</span>' : '') + '</span></span></button>';
+    }).join('') + '</div>';
     return h;
   }
   /* ---------- Stufe C: Playlists, wie bei Spotify (X12). Bau erst in Stufe C. ---------- */
@@ -1379,8 +1589,8 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     var tb = plTobies(id).length, ok = plOk(pl), cur = P.plId === id && P.playing;
     var h = '<div class="shead2"><button class="back" data-act="plBack" data-fk="back">' + ic('back') + 'Bibliothek</button><button class="iconbtn plain" data-act="plMenu" data-arg="' + id + '" data-fk="plmenu" aria-label="Mehr zu ' + esc(pl.name) + '">' + ic('more', 24) + '</button></div>';
     h += '<div class="hero">' + plCover(pl, 'xl') + '<div class="htxt"><h2>' + esc(pl.name) + '</h2><div class="muted">' + esc(plSub(pl)) + '</div><div>' + badgeC().trim() + '</div>' +
-      (tb ? '<div class="muted tbline">' + ic('tag', 16) + tb + (tb === 1 ? ' Tobie' : ' Tobies') + '</div>' : '') +
-      '<div class="hbtns"><button class="btn primary xl" data-act="plSpiel" data-arg="' + id + '" data-fk="plrein"' + (ok.length ? '' : ' disabled') + '>' + ic(cur ? 'pause' : 'play', 24) + (cur ? 'Pause' : 'Reinhören') + '</button><button class="btn" data-act="plTobie" data-arg="' + id + '" data-fk="pltobie">' + ic('tag', 20) + 'Tobie zuordnen</button></div></div></div>';
+      '<div class="hbtns"><button class="btn primary xl" data-act="plSpiel" data-arg="' + id + '" data-fk="plrein"' + (ok.length ? '' : ' disabled') + '>' + ic(cur ? 'pause' : 'play', 24) + (cur ? 'Pause' : 'Reinhören') + '</button></div></div></div>';
+    h += gespieltVonCard(plTobies(id), '@' + id);
     if (!pl.items.length) return h + leerKarte('suche', 'Noch nichts in dieser Playlist.', '<a class="btn primary" href="#suche" data-fk="plsuche">Lied oder Folge suchen</a>');
     return h + '<div class="card"><div id="pllist">' + pl.items.map(function (e, k) { return plZeile(pl, e, k, pl.items.length); }).join('') + '</div></div>';
   }
@@ -1439,20 +1649,6 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
       }
       if (id === '__neu') { closeLayer(); textSheet('Neue Playlist', 'Name', '', function (v) { var pl = { id: 'pl-' + (++plN) + '-' + slug(v), name: v, items: [] }; S.playlists.push(pl); put(pl); }); return; }
       put(plById(id));
-    });
-  }
-  function plZielSheet(id) {
-    var pl = plById(id), z = { t: 'playlist', p: id }, vorh = plTobies(id);
-    var b = '<p class="muted">Der Tobie spielt dann die Playlist „' + esc(pl.name) + '“ der Reihe nach.' + badgeC() + '</p>' +
-      (vorh.length ? '<div class="note okk">Schon angelernt: ' + vorh.map(function (t) { return esc(t.name || 'Tobie ohne Namen'); }).join(', ') + '.</div>' : '') +
-      qButtons() +
-      '<h3 style="margin-top:20px">Oder einen Tobie umstellen, der schon etwas spielt</h3><div class="btns" style="margin-top:8px"><button class="btn" id="fs-um">Tobie wählen …</button></div>';
-    openSheet('Tobie für diese Playlist', b, [{ label: 'Schließen' }]);
-    qBind(z);
-    $('fs-um').addEventListener('click', function () {
-      closeLayer();
-      openSheet('Welcher Tobie?', '<div class="rows" id="tl">' + S.tobies.slice().sort(function (a, c) { return c.n - a.n; }).filter(function (t) { return t.z.t !== 'aktion'; }).map(tobieRow).join('') + '</div>', [{ label: 'Abbrechen' }]);
-      $('tl').addEventListener('click', function (e) { var r = e.target.closest('[data-act="tobie"]'); if (!r) return; var tb = S.tobies.filter(function (x) { return x.uid === r.dataset.arg; })[0]; closeLayer(); tb.z = z; tb.n = ++tobieN; render(); toast('Fertig: ' + (tb.name || 'Der Tobie') + ' spielt jetzt „' + pl.name + '“.'); });
     });
   }
   function plStart(id, k) {
@@ -1705,6 +1901,10 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
   function route() {
     var h = (location.hash || '#start').slice(1);
     if (h.indexOf('serie-') === 0) return { v: 'serie', id: h.slice(6), tab: 'bibliothek' };
+    if (h.indexOf('tobie-') === 0) return { v: 'tobie', id: h.slice(6), tab: 'tobies' };
+    if (h.indexOf('neu-von-') === 0) return { v: 'neuvon', id: h.slice(8), tab: 'tobies' };
+    if (h === 'neu' || h === 'neu-warten' || h === 'neu-ziel' || h === 'neu-queue') return { v: h, tab: 'tobies' };
+    if (h.indexOf('geben-') === 0) return { v: 'geben', id: h.slice(6), tab: 'bibliothek' };
     if (h.indexOf('box-') === 0) return { v: 'box', id: h.slice(4), tab: 'geraete' };
     if (h.indexOf('playlist-') === 0) return stufeC() ? { v: 'playlist', id: h.slice(9), tab: 'bibliothek' } : { v: 'bibliothek', tab: 'bibliothek' };
     if (h === 'hinzufuegen') return { v: 'hinzufuegen', tab: 'bibliothek' };
@@ -1717,7 +1917,7 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     return { v: 'start', tab: 'start' };
   }
   function renderTabs(r) {
-    var neuN = isLeer() ? 0 : S.neu.filter(function (n) { return !n.done; }).length;
+    var neuN = isLeer() ? 0 : S.neu.length;
     $('tabrow').innerHTML = TABS.map(function (t) {
       return '<a href="#' + t[0] + '" data-fk="tab' + t[0] + '"' + (r.tab === t[0] ? ' aria-current="page"' : '') + '><span class="ti">' + ic(t[2]) + '</span><span>' + t[1] + '</span>' + (t[0] === 'geraete' && neuN ? '<span class="dot" aria-hidden="true">' + neuN + '</span><span class="sr">' + neuN + ' neuer Tobie</span>' : '') + '</a>';
     }).join('');
@@ -1725,12 +1925,18 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     $('techslot').innerHTML = (r.v === 'start' ? '<a class="iconbtn plain" href="#suche" data-fk="lupetop" aria-label="Suchen">' + ic('search', 24) + '</a>' : '') + '<button class="iconbtn plain" data-act="prevToggle" data-fk="prevbtn" aria-label="Vorschau-Einstellungen" aria-expanded="' + (!$('preview').hidden) + '">' + ic('info', 24) + '</button>' +
       (S.admin ? '<a class="iconbtn tech" href="#technik" data-fk="tech" aria-label="Technik"' + (r.tab === 'technik' ? ' aria-current="page"' : '') + '>' + ic('tool', 24) + '</a>' : '');
   }
+  var lastRk = '';
   function render() {
     var a = document.activeElement, fk = a && a.dataset ? a.dataset.fk : null, selStart = a && a.selectionStart;
     if (a && a.closest && a.closest('#layer')) fk = null;
     var r = route(), main = $('main');
+    if (r.v === 'neuvon') { neuVon(r.id); return; }
+    if (r.v === 'neu-ziel' && !NEU.active) { location.replace('#tobies'); return; }
+    if (r.v === 'tobies') { NEU.vorziel = null; NEU.zurueck = null; NEU.queued = null; }
+    var rk = r.v + '|' + (r.id || '');
+    if (rk !== lastRk) { if (r.v === 'tobie' || r.v === 'neu-ziel' || r.v === 'neu-queue') resetPK(); lastRk = rk; }
     renderTabs(r);
-    var V = { start: vStart, bibliothek: vBibliothek, suche: vSuche, serie: function () { return vSerie(r.id); }, playlist: function () { return vPlaylist(r.id); }, box: function () { return vBox(r.id); }, anlernen: vAnlernen, hinzufuegen: vHinzufuegen, geraete: vGeraete, tobies: vTobies, technik: function () { return vTechnik(r.sub); } };
+    var V = { start: vStart, bibliothek: vBibliothek, suche: vSuche, serie: function () { return vSerie(r.id); }, playlist: function () { return vPlaylist(r.id); }, box: function () { return vBox(r.id); }, anlernen: vAnlernen, hinzufuegen: vHinzufuegen, geraete: vGeraete, tobies: vTobies, tobie: function () { return vTobie(r.id); }, neu: vNeu, 'neu-warten': vNeuWarten, 'neu-ziel': vNeuZiel, 'neu-queue': vNeuQueue, geben: function () { return vGeben(r.id); }, technik: function () { return vTechnik(r.sub); } };
     var open = [].map.call(main.querySelectorAll('details.sec'), function (d) { return d.open; });
     var scroll = window.scrollY;
     main.innerHTML = V[r.v]();
@@ -1806,15 +2012,20 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     else { if (TB.parentNode !== document.body) document.body.appendChild(TB); TB.classList.remove('inmodal'); }
   }
   function toastDrop(el) { if (el && el.parentNode) el.parentNode.removeChild(el); }
-  function toast(msg, err) {
+  /* Mit Aktion (act = { text, fn }), zum Beispiel „Rückgängig“: ausnahmsweise etwa 6 s sichtbar, damit man sie erreicht. */
+  function toast(msg, err, act) {
     toastPlace();
     [].slice.call(TB.querySelectorAll('.toast:not(.err)')).forEach(toastDrop);
     var el = document.createElement('div');
     el.className = 'toast' + (err ? ' err' : '');
     el.setAttribute('role', err ? 'alert' : 'status');
-    el.innerHTML = '<span class="tmsg">' + esc(msg) + '</span>' + (err ? '<button type="button" class="tok" data-fk="toastok">OK</button>' : '');
+    el.innerHTML = '<span class="tmsg">' + esc(msg) + '</span>' + (err ? '<button type="button" class="tok" data-fk="toastok">OK</button>' : act ? '<button type="button" class="tok" data-fk="toastact">' + esc(act.text) + '</button>' : '');
     TB.appendChild(el);
-    if (!err) { $('live').textContent = msg; setTimeout(function () { toastDrop(el); }, 4500); return; }
+    if (!err) {
+      $('live').textContent = msg;
+      if (act) el.querySelector('.tok').addEventListener('click', function () { toastDrop(el); act.fn(); if (act.text === 'Rückgängig') $('live').textContent = 'Rückgängig gemacht.'; });
+      setTimeout(function () { toastDrop(el); }, act ? 6000 : 4500); return;
+    }
     el.querySelector('.tok').addEventListener('click', function () { toastDrop(el); });
     var x0 = null, dx = 0;
     el.addEventListener('pointerdown', function (e) { if (e.target.closest('.tok')) return; x0 = e.clientX; dx = 0; try { el.setPointerCapture(e.pointerId); } catch (er) {} });
@@ -2491,27 +2702,22 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     qClear: function () { S.q = ''; var e = $('qsuche'); if (e) { e.value = ''; $('qres').innerHTML = suchBody(); e.focus(); } },
     oeffne: function (t, arg) { location.hash = '#serie-' + arg; },
     reload: function () { S.mode = 'normal'; S.leer = false; $('chk-leer').checked = false; $('sel-zustand').value = 'normal'; render(); toast('Neu geladen.'); },
-    neuWahl: function (t, arg) {
-      var uid = t.closest('[data-uid]').dataset.uid, n = S.neu.filter(function (x) { return x.uid === uid; })[0];
-      var z = arg === 'aktion' ? { t: 'aktion' } : { t: 'serie', s: arg };
-      n.done = z; S.tobies.push({ uid: uid, name: '', z: z, n: ++tobieN }); render(); $('live').textContent = 'Fertig. Dieser Tobie spielt jetzt ' + zielName(z);
-    },
-    neuSuche: function (t, arg) {
-      var n = S.neu.filter(function (x) { return x.uid === arg; })[0];
-      pickZiel('Was soll der Tobie spielen?', function (z) { n.done = z; S.tobies.push({ uid: arg, name: '', z: z, n: ++tobieN }); render(); $('live').textContent = 'Fertig. Dieser Tobie spielt jetzt ' + zielName(z); }, { aktion: true, mitPlaylist: true });
-    },
-    neuUndo: function (t, arg) { var n = S.neu.filter(function (x) { return x.uid === arg; })[0]; n.done = null; delete S.nameDone[arg]; S.tobies = S.tobies.filter(function (x) { return x.uid !== arg; }); render(); },
-    neuOk: function (t, arg) { S.neu = S.neu.filter(function (x) { return x.uid !== arg; }); render(); toast('Der Tobie steht jetzt unter „Tobies“.'); $('main').focus(); },
     nameSave: function (t, arg) { var p = arg.split('|'), v = $(p[1]).value.trim(); if (!v) { toastErr('Bitte einen Namen eingeben oder „Ohne Namen weiter“ wählen.'); return; } setName(p[0], v); render(); toast('Name gespeichert.'); },
-    neuWeg: function (t, arg) { confirmDlg('Nicht merken?', 'Dieser Tobie spielt dann weiter die Überraschung. Legst du ihn noch einmal auf, taucht er wieder hier auf.', 'Nicht merken', function () { S.neu = S.neu.filter(function (x) { return x.uid !== arg; }); render(); }, false); },
+    neuWeg: function () { confirmDlg('Nicht merken?', 'Dieser Tobie spielt dann weiter die Überraschung. Legst du ihn noch einmal auf, taucht er wieder auf.', 'Nicht merken', function () { S.neu = S.neu.filter(function (x) { return x.uid !== NEU.uid; }); NEU.active = false; NEU.uid = null; location.hash = '#geraete'; }, false); },
     demoNeu: function (t, arg) {
-      var bx = arg || 'box1', qi = S.queue.findIndex(function (q) { return q.box === bx || q.box === 'any'; });
+      var bx = arg || 'box1';
+      if (route().v === 'neu-warten') { NEU.uid = newUid(); NEU.box = bx; NEU.active = true; NEU.name = ''; resetPK(); location.hash = '#neu-ziel'; return; }
+      var qi = S.queue.findIndex(function (q) { return q.box === bx || q.box === 'any'; });
       if (qi >= 0) {
         var q = S.queue.splice(qi, 1)[0], uid = newUid();
-        S.neu.unshift({ uid: uid, box: bx, ago: 'gerade eben', done: q.z, auto: true }); S.tobies.push({ uid: uid, name: '', z: q.z, n: ++tobieN });
-        render(); toast(box(bx).name + ': Der neue Tobie spielt jetzt ' + zielText(q.z) + '.' + (S.queue.length ? ' Es warten noch ' + S.queue.length + '.' : '')); return;
+        S.tobies.push({ uid: uid, name: '', z: q.z, n: ++tobieN });
+        var warQueue = NEU.queued === q.id; if (warQueue) NEU.queued = null;
+        if (warQueue && route().v === 'neu-queue') location.hash = '#tobies'; else render();
+        toast(box(bx).name + ': Der neue Tobie spielt jetzt ' + zielText(q.z) + '.' + (S.queue.length ? ' Es warten noch ' + S.queue.length + '.' : ''), false, { text: 'Name geben', fn: function () { location.hash = '#tobie-' + uid; } });
+        return;
       }
-      if (!S.neu.length) { S.neu.push({ uid: newUid(), box: bx, ago: 'gerade eben', done: null }); } render(); toast('Ein neuer Tobie wurde gemeldet.');
+      if (!S.neu.some(function (u) { return u.box === bx; })) S.neu.unshift({ uid: newUid(), box: bx, ago: 'gerade eben' });
+      render(); toast('Ein neuer Tobie wurde gemeldet.', false, { text: 'Zu Geräte', fn: function () { location.hash = '#geraete'; } });
     },
     demoBekannt: function () { toast('Ein bekannter Tobie wurde aufgelegt (Vorschau): Er spielt weiter wie bisher, die Warteschlange bleibt.'); },
     qSheet: function (t, arg) {
@@ -2535,8 +2741,6 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
       $('sn-ver').addEventListener('click', function () { closeLayer(); pickZiel('In welches soll es gehören?', function (z) { if (z.s === arg) { toastErr('Bitte ein anderes wählen.'); return; } s.pruefen = null; toast('Verschoben nach „' + serie(z.s).name + '“ (Vorschau).'); render(); }); });
       $('sn-weg').addEventListener('click', function () { closeLayer(); A.serieWeg(null, arg); });
     },
-    folgeTobie: function (t, arg) { var p = arg.split('|'); folgeSheet(p[0], +p[1]); },
-    bfolgeTobie: function (t, arg) { var p = arg.split('|'); folgeSheet(p[0], +p[1]); },
     folgeMehr: function (t, arg) {
       var p = arg.split('|'), s = serie(p[0]), i = +p[1], f = s.folgen[i];
       openSheet(f.t, '<div class="stack"><button class="btn" id="fm-n">Name ändern</button><button class="btn" id="fm-v">In anderes verschieben …</button></div><div class="apart"><button class="btn link danger" id="fm-w">Papierkorb …</button></div>', [{ label: 'Schließen' }]);
@@ -2578,17 +2782,10 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
       else pLoad(p[0], 0, st, true);
     },
     upOk: function (t, arg) { S.uploads.forEach(function (u) { if (String(u.id) === arg) u.ok = true; }); render(); toast('Danke, ist erledigt.'); },
-    gnHilfe: function () { openSheet('Gute-Nacht-Tobie anlegen', '<ol style="padding-left:20px"><li>Lege einen neuen Tobie auf eine Box. Auf der Startseite erscheint „Neuer Tobie“.</li><li>Wähle dort die Kachel „Gute Nacht“.</li></ol><p>Ein Tobie, der schon etwas spielt, geht auch: Unter „Tobies“ den Tobie antippen, „Etwas anderes spielen“ und die Kachel „Gute Nacht“ wählen.</p>', [{ label: 'Verstanden', kind: 'primary' }]); },
+    gnHilfe: function () { openSheet('Gute-Nacht-Tobie anlegen', '<ol style="padding-left:20px"><li>Tippe unter „Tobies“ auf „+ Neuer Tobie“ und lege ihn auf eine Box.</li><li>Wähle unten „Gute-Nacht-Karte“.</li></ol><p>Ein Tobie, der schon etwas spielt, geht auch: Unter „Tobies“ den Tobie antippen und unten „Gute-Nacht-Karte“ wählen.</p>', [{ label: 'Verstanden', kind: 'primary' }]); },
     gnWahl: function (t, arg) { S.gn.timer = +arg; render(); },
     gnSave: function () { S.gn.savedTimer = S.gn.timer; render(); toast('Gespeichert. Die Boxen bekommen es gleich.'); },
     winEdit: function (t, arg) { winSheet(arg); }, winNeu: function () { winSheet(null); },
-    tobie: function (t, arg) {
-      var tb = S.tobies.filter(function (x) { return x.uid === arg; })[0];
-      openSheet(tb.name || 'Tobie ohne Namen', '<p class="muted">Spielt ' + esc(zielText(tb.z)) + '.</p><div class="stack"><button class="btn" id="tb-name">Namen ändern</button><button class="btn" id="tb-ziel">Etwas anderes spielen</button></div><div class="apart"><button class="btn link danger" id="tb-weg">Diesen Tobie vergessen …</button></div>', [{ label: 'Schließen' }]);
-      $('tb-name').onclick = function () { closeLayer(); textSheet('Namen für den Tobie', 'Name', tb.name, function (v) { tb.name = v; toast('Name gespeichert.'); render(); }); };
-      $('tb-ziel').onclick = function () { closeLayer(); pickZiel('Was soll dieser Tobie spielen?', function (z) { tb.z = z; tb.n = ++tobieN; render(); toast('Fertig: spielt jetzt ' + zielText(z) + '.'); }, { aktion: true, mitPlaylist: true }); };
-      $('tb-weg').onclick = function () { closeLayer(); confirmDlg('Tobie vergessen?', 'Er spielt dann nichts mehr, bis du ihn wieder anlernst.', 'Vergessen', function () { S.tobies = S.tobies.filter(function (x) { return x.uid !== arg; }); render(); toast('Der Tobie wurde vergessen.'); }, true); };
-    },
     x: function (t, arg) { toast(arg + ' (Vorschau)'); },
     eingangWeg: function () { confirmDlg('Aus dem Eingang entfernen?', 'Die Datei „buch.m4b“ wird gelöscht. Das kann nicht rückgängig gemacht werden.', 'Entfernen', function () { toast('In der Vorschau nicht ausgeführt.'); }, true); },
     korbLeer: function () { confirmDlg('Papierkorb leeren?', (2 + S.korb.length) + ' Einträge werden endgültig gelöscht. Das kann nicht rückgängig gemacht werden.', 'Endgültig löschen', function () { S.korb = []; render(); toast('Papierkorb geleert (Vorschau: nur die neuen Einträge).'); }, true); },
@@ -2599,13 +2796,43 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     bmehr: function () { var old = S.bib.shown; S.bib.shown += 60; render(); var it = document.querySelectorAll('#libbody .tiles .tile, #libbody .frow .btn'); if (it[old]) it[old].focus(); }
   };
   /* ---------- Rev. 3: weitere Aktionen ---------- */
+  /* ---------- Runde 16 (X20): Aktionen „Tobie zuerst“ ---------- */
+  A.startNeu = function (t, arg) {
+    var n = S.neu.filter(function (x) { return x.uid === arg; })[0]; if (!n) return;
+    NEU.uid = n.uid; NEU.box = n.box; NEU.active = true; NEU.vorziel = null; NEU.zurueck = null; NEU.name = ''; resetPK();
+    location.hash = '#neu-ziel';
+  };
+  A.neuJetzt = function () { location.hash = '#neu-warten'; };
+  A.neuSpaeter = function () { NEU.queued = null; resetPK(); location.hash = '#neu-queue'; };
+  A.neuFertig = function () { finishNeu(NEU.vorziel); };
+  A.qBox = function (t, arg) { NEU.qbox = arg; render(); };
+  A.qSet = function () { queueSet(NEU.vorziel); };
+  A.qAbbr = function (t, arg) { S.queue = S.queue.filter(function (q) { return String(q.id) !== arg; }); if (String(NEU.queued) === arg) NEU.queued = null; render(); toast('Vormerkung abgebrochen.'); };
+  A.pMode = function (t, arg) { PK.mode = arg; PK.open = null; PK.shown = 30; render(); };
+  A.pkArt = function (t, arg) { PK.art = arg; PK.open = null; PK.shown = 30; render(); };
+  A.pOpen = function (t, arg) { PK.open = PK.open === arg ? null : arg; $('pkres').innerHTML = pickerResults(); var b = document.querySelector('#pkres [data-act="pOpen"][data-arg="' + arg + '"]'); if (b) b.focus(); };
+  A.pkMehr = function () { PK.shown += 30; $('pkres').innerHTML = pickerResults(); };
+  A.pkS = function (t, arg) { pickDone({ t: 'serie', s: arg }); };
+  A.pkF = function (t, arg) { var p = arg.split('|'); pickDone({ t: 'folge', s: p[0], i: +p[1] }); };
+  A.pkP = function (t, arg) { pickDone({ t: 'playlist', p: arg }); };
+  A.pkA = function () { pickDone({ t: 'aktion' }); };
+  A.rename = function (t, arg) { var tb = tobieBy(arg); tb.name = $('rename').value.trim(); render(); toast(tb.name ? 'Name gespeichert.' : 'Der Name ist entfernt.'); };
+  A.forget = function (t, arg) {
+    var tb = tobieBy(arg);
+    confirmDlg(tName(tb) + ' vergessen?', 'Er spielt dann nichts mehr, bis du ihn wieder anlernst.', 'Vergessen', function () { S.tobies = S.tobies.filter(function (x) { return x.uid !== arg; }); location.hash = '#tobies'; toast('Der Tobie wurde vergessen.'); }, true);
+  };
+  A.geben = function (t, arg) {
+    var i = arg.lastIndexOf('|'), z = parseT(arg.slice(0, i)), tb = tobieBy(arg.slice(i + 1)); if (!tb) return;
+    var alt = tb.z, altN = tb.n; tb.z = z; tb.n = ++tobieN;
+    toast('Fertig: ' + tName(tb) + ' spielt jetzt ' + zielText(z) + '.', false, { text: 'Rückgängig', fn: function () { tb.z = alt; tb.n = altN; render(); } });
+    location.hash = backOf(z);
+  };
   A.sortSheet = function () { sortSheet(); };
   A.plBack = function () { S.bib.art = 'playlists'; location.hash = '#bibliothek'; };
   A.plNeu = function () { textSheet('Neue Playlist', 'Name', '', function (v) { var pl = { id: 'pl-' + (++plN) + '-' + slug(v), name: v, items: [] }; S.playlists.push(pl); S.bib.art = 'playlists'; location.hash = '#playlist-' + pl.id; toast('Die Playlist „' + v + '“ ist da.'); }); };
   A.plSpiel = function (t, arg) { if (P.plId === arg && P.sid) pToggle(); else plStart(arg, 0); };
   A.plAb = function (t, arg) { var p = arg.split('|'), x = plLookup(plById(p[0]).items[+p[1]]); if (!x) return; if (P.plId === p[0] && P.sid === x.s.id && P.i === x.i) pToggle(); else plStart(p[0], +p[1]); };
-  A.plTobie = function (t, arg) { plZielSheet(arg); };
-  A.upPlaylist = function (t, arg) { var u = S.uploads.filter(function (x) { return String(x.id) === arg; })[0], en = []; u.plAdd.forEach(function (id) { var sr = serie(id); if (sr) sr.folgen.forEach(function (f) { en.push({ s: id, f: f }); }); }); plAddSheet(en, u.ergebnis); };
+    A.upPlaylist = function (t, arg) { var u = S.uploads.filter(function (x) { return String(x.id) === arg; })[0], en = []; u.plAdd.forEach(function (id) { var sr = serie(id); if (sr) sr.folgen.forEach(function (f) { en.push({ s: id, f: f }); }); }); plAddSheet(en, u.ergebnis); };
   A.plMenu = function (t, arg) {
     var pl = plById(arg);
     openSheet(pl.name, '<div class="stack"><button class="btn" id="pm-n">Umbenennen</button></div><div class="apart"><button class="btn link danger" id="pm-w">In den Papierkorb …</button></div>', [{ label: 'Schließen' }]);
@@ -2622,10 +2849,10 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
   A.plEintrag = function (t, arg) {
     var p = arg.split('|'), pl = plById(p[0]), k = +p[1], e = pl.items[k], x = plLookup(e), n = pl.items.length;
     openSheet(e.f.t, '<div class="stack"><button class="btn" id="pe-up"' + (k === 0 ? ' disabled' : '') + '>Nach oben</button><button class="btn" id="pe-dn"' + (k === n - 1 ? ' disabled' : '') + '>Nach unten</button>' +
-      (x ? '<button class="btn" id="pe-t">Tobie für ' + (x.s.einzeln || x.s.art !== 'hoerspiel' ? 'dieses ' + ART[x.s.art].one : 'diese Folge') + '</button>' : '') + '<button class="btn" id="pe-w">Aus der Playlist entfernen</button></div>', [{ label: 'Schließen' }]);
+      (x ? '<button class="btn" id="pe-t">Einem Tobie geben …</button>' : '') + '<button class="btn" id="pe-w">Aus der Playlist entfernen</button></div>', [{ label: 'Schließen' }]);
     $('pe-up').onclick = function () { closeLayer(); plMove(pl.id, k, k - 1, 'menu'); };
     $('pe-dn').onclick = function () { closeLayer(); plMove(pl.id, k, k + 1, 'menu'); };
-    if ($('pe-t')) $('pe-t').onclick = function () { closeLayer(); zielSheet(x.s.id, x.s.einzeln ? 0 : x.i); };
+    if ($('pe-t')) $('pe-t').onclick = function () { closeLayer(); location.hash = '#geben-' + x.s.id + '~' + (x.s.einzeln ? 0 : x.i); };
     $('pe-w').onclick = function () { closeLayer(); pl.items.splice(k, 1); if (P.plId === pl.id) P.q = null; render(); toast('„' + e.f.t + '“ ist nicht mehr in der Playlist.'); };
   };
   A.prevToggle = function () { var p = $('preview'); p.hidden = !p.hidden; var b = document.querySelector('[data-act="prevToggle"]'); if (b) b.setAttribute('aria-expanded', String(!p.hidden)); };
@@ -2638,8 +2865,7 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     var p = arg.split('|'), i = +p[1];
     if (P.sid === p[0] && P.i === i) pToggle(); else pStart(p[0], i);
   };
-  A.serieTobie = function (t, arg) { zielSheet(arg, serie(arg).einzeln ? 0 : null); };
-  A.serieMenu = function (t, arg) {
+    A.serieMenu = function (t, arg) {
     var s = serie(arg), h = '<div class="stack">' + (stufeC() ? '<button class="btn" id="sm-p">' + ic('queue', 20) + 'Zur Playlist hinzufügen' + badgeC() + '</button>' : '') + '<button class="btn" id="sm-n">Name ändern</button><button class="btn" id="sm-c">' + ic('cam', 20) + 'Cover ändern</button><button class="btn" id="sm-a">Art ändern</button>' +
       (S.admin && s.folgen.length > 1 ? '<button class="btn" id="sm-r">Reihenfolge ändern <span class="vc2">Admin</span></button>' : '') + (S.admin ? '<button class="btn" id="sm-z">Mit anderem zusammenführen … <span class="vc2">Admin</span></button>' : '') + '</div>' +
       '<div class="apart"><button class="btn link danger" id="sm-w">In den Papierkorb …</button></div>';
@@ -2654,8 +2880,8 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
   };
   A.folgeMehr = function (t, arg) {
     var p = arg.split('|'), s = serie(p[0]), i = +p[1], f = s.folgen[i];
-    openSheet(f.t, '<div class="stack"><button class="btn" id="fm-t">Tobie für diese ' + ART[s.art].one + '</button>' + (stufeC() ? '<button class="btn" id="fm-p">' + ic('queue', 20) + 'Zur Playlist hinzufügen' + badgeC() + '</button>' : '') + '<button class="btn" id="fm-n">Name ändern</button><button class="btn" id="fm-v">In anderes verschieben …</button></div><div class="apart"><button class="btn link danger" id="fm-w">Papierkorb …</button></div>', [{ label: 'Schließen' }]);
-    $('fm-t').addEventListener('click', function () { closeLayer(); zielSheet(p[0], i); });
+    openSheet(f.t, '<div class="stack"><button class="btn" id="fm-t">Einem Tobie geben …</button>' + (stufeC() ? '<button class="btn" id="fm-p">' + ic('queue', 20) + 'Zur Playlist hinzufügen' + badgeC() + '</button>' : '') + '<button class="btn" id="fm-n">Name ändern</button><button class="btn" id="fm-v">In anderes verschieben …</button></div><div class="apart"><button class="btn link danger" id="fm-w">Papierkorb …</button></div>', [{ label: 'Schließen' }]);
+    $('fm-t').addEventListener('click', function () { closeLayer(); location.hash = '#geben-' + p[0] + '~' + i; });
     if ($('fm-p')) $('fm-p').addEventListener('click', function () { closeLayer(); plAddSheet([{ s: p[0], f: f }], f.t); });
     $('fm-n').addEventListener('click', function () { closeLayer(); textSheet('Umbenennen', 'Name', f.t, function (v) { f.t = v; toast('Gespeichert.'); render(); }); });
     $('fm-v').addEventListener('click', function () { closeLayer(); pickZiel('Wohin verschieben?', function (z) { toast('Verschoben nach „' + serie(z.s).name + '“ (Vorschau).'); }); });
@@ -2676,6 +2902,8 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     if (id === 'qsuche') { S.q = e.target.value; $('qres').innerHTML = suchBody(); }
     if (id === 'sterm') { S.serieTerm = e.target.value; S.serieShown = 20; render(); }
     if (id === 'tsuche') { S.tobieTerm = e.target.value; render(); }
+    if (id === 'pksuche') { PK.term = e.target.value; PK.shown = 30; PK.open = null; $('pkres').innerHTML = pickerResults(); }
+    if (id === 'neuname') NEU.name = e.target.value;
   });
   document.addEventListener('change', function (e) {
     if (e.target.id === 'bsort') { S.bib.sort = e.target.value; S.bib.shown = 60; render(); }
@@ -2708,6 +2936,11 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
   $('chk-leer').addEventListener('change', function (e) { S.leer = e.target.checked; render(); });
   $('sel-zustand').addEventListener('change', function (e) { S.mode = e.target.value; render(); });
   $('sel-stufe').addEventListener('change', function (e) { S.stufe = e.target.value; if (!stufeC()) { if (S.bib.art === 'playlists') S.bib.art = 'alle'; if (location.hash.indexOf('#playlist-') === 0) location.hash = '#bibliothek'; } render(); });
+  /* X31: Der Mini-Player sitzt bündig auf der Reiterleiste (0 px Abstand, auch mit Safe-Area). Die Höhe der Leiste wird gemessen. */
+  function navH() { var n = $('tabs'), hh = n ? n.getBoundingClientRect().height : 0; if (hh > 0 && window.innerWidth < 900) document.documentElement.style.setProperty('--navh', hh + 'px'); else document.documentElement.style.removeProperty('--navh'); }
+  window.addEventListener('resize', navH); window.addEventListener('orientationchange', navH);
+  if (window.ResizeObserver) new ResizeObserver(navH).observe($('tabs'));
+  navH();
   S.playlists = makePlaylists();
   hLoad(); pMini();
   S.boxes[0].folge = serie('lange-serie').folgen[3].t;
