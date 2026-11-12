@@ -51,12 +51,28 @@ test('Das Modul lädt, auch ohne DOM, und trägt die feste Lit-Version im Kopf',
   assert.doesNotMatch(pj, /unsafeHTML|innerHTML|https?:\/\/(?!www\.w3)/, 'kein HTML aus Namen, keine Netz-Adressen');
 });
 
+// Vertrag W, Änderung 12.11.: Texte kommen mit der neuen Seite (Design ha-oberflaeche, Paket A5)
+const NEU_FUER_NEUE_SEITE = [
+  'zu_viele_aenderungen',
+  'cover_ungueltig',
+  'cover_nicht_gefunden',
+  'wunsch_ungueltig',
+  'neu_einsortieren_nicht_moeglich',
+  'hoerkopie_warteschlange_voll',
+  'zu_viele_streams',
+  'hoerkopie_wartet',
+];
+
 test('Alle Fehlercodes des Vertrags (Abschnitt 7) haben einen deutschen Text', () => {
   const doc = readFileSync(join(HIER, '../../../docs/protocol/ha-websocket-v1.md'), 'utf8');
   const tabelle = doc.slice(doc.indexOf('## 7. Gemeinsame Fehlercodes'), doc.indexOf('## 8. Grenzen'));
   const codes = [...tabelle.matchAll(/^\| `([a-z_]+)` \|/gm)].map((m) => m[1]);
   assert.ok(codes.length >= 30, `gefunden: ${codes.length}`);
-  for (const c of codes) assert.ok(FEHLERTEXTE[c], `Text für ${c} fehlt`);
+  for (const c of NEU_FUER_NEUE_SEITE) assert.ok(codes.includes(c), `${c} steht nicht mehr in Abschnitt 7 – Liste NEU_FUER_NEUE_SEITE aktualisieren`);
+  for (const c of codes) {
+    if (NEU_FUER_NEUE_SEITE.includes(c)) continue;
+    assert.ok(FEHLERTEXTE[c], `Text für ${c} fehlt`);
+  }
   assert.equal(fehlerText('neuer_code_x', 'Klartext vom Backend'), 'Klartext vom Backend');
   assert.equal(fehlerText('neuer_code_x'), FEHLERTEXTE.unknown_error);
 });

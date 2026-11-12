@@ -12,6 +12,13 @@
     Ordner mit mehreren Tracks; der Zeiger hat einen Track. `config.json` und
     `resume.json` haben deshalb `schema_version` 2. Im Code heißt ein Tobie aus
     historischen Gründen `figur`.
+*   **Änderung 12.11. (HA-Oberfläche, Stufe A, Paket A0; Entwurf, wartet auf die Freigabe durch Tobias; alles additiv, `schema_version` bleibt):**
+    `serie.json` bekommt die von **Menschen** gesetzten Felder `art`, `art_quelle` und `einzeln` (Abschnitt 5); alles, was ein Hintergrundlauf
+    berechnet (Dauer, Spuren, Kapitel, Codecs, Hörkopie-Zustand, Cover-Marke), liegt **nicht** in `serie.json`, sondern im HA-Store
+    `tobibox.medieninfo` (neuer Abschnitt 5a). Reservierte Dateinamen im Serien-Ordner für Cover (`cover.jpg`, `cover-eigen.jpg`), der Sync nimmt
+    `cover*.jpg`, `cover*.png` und `folder.jpg` aus (Abschnitt 5, 1.6; **einzige Änderung am Box-Code in Stufe A**, `box/src/tobibox/sync.py`).
+    Neuer Ordner `hoerkopien/` neben `medien/` (Abschnitt 11, nie gesynct). Papierkorb-`meta.json` bekommt `geloescht_von` (Abschnitt 9). Die Box ändert
+    sich sonst nicht (1.4). Stufe B (Gehört) und Stufe C (Playlists): geplant, siehe `docs/designs/ha-oberflaeche.md`, Abschnitte 12 und 13; nicht Teil dieser Änderung.
 *   **Änderung 11.11. (Entscheidung Z, 11.11.):** Neue Tondatei `box/sounds/akku_warnung.wav` (Piepser) und `box/sounds/sprache/akku_warnung.wav`
     (Sprache: „Mein Akku wird leer. Bitte bald laden.“), beide −18 LUFS, Einträge in `box/lautheit.json`. Pegel eines gewöhnlichen Tons; unter „stumm“ spielt `hinweis`.
 *   **Änderung 10.11. (Entscheidung R, 10.11.):** Neue Tondatei `box/sounds/gute_nacht.wav` (Piepser) und `box/sounds/sprache/gute_nacht.wav`
@@ -150,6 +157,9 @@ Beim Start (und bei jedem Lesen) in dieser Reihenfolge:
 | Ereignisprotokoll | Pi: journald (stdout); Mac: rotierende Datei | `eventlog` | Tobias | nie |
 | `export/config.json` | NAS, `tobibox/export/` | HA-Integration, nach jeder Änderung (nach dem Veröffentlichen, im Hintergrund) | Tobias, HA (`konfig/export_lesen`, `konfig/aus_export`) | – |
 | `_papierkorb/<id>/meta.json` | NAS, `medien/_papierkorb/` | HA-Integration (`media.py`) | HA-Integration | **nie** (vom Sync ausgenommen) |
+| `cover.jpg`, `cover-eigen.jpg` (12.11.) | NAS, `medien/<ordner>/` | HA-Integration (`cover.jpg` automatisch, `cover-eigen.jpg` aus dem Foto-Upload) | HA-Integration | **nie** (vom Sync ausgenommen, Abschnitt 5) |
+| `tobibox.medieninfo`, `tobibox.hoerstellen` (12.11.) | HA, `.storage/` (HA-`Store`), nicht auf dem NAS | HA-Integration | HA-Integration | **nie**; bei Verlust neu berechenbar (`medieninfo`) bzw. Hörstellen weg (`hoerstellen`) |
+| `hoerkopien/<serie_id>/<kennung>.m4a` (12.11.) | NAS, `hoerkopien/` (neben `medien/`) | HA-Integration | HA-Integration (Audio-Ansicht) | **nie** (außerhalb des Moduls `medien`, Abschnitt 11) |
 | Eingang | NAS, `tobibox/eingang/` (neben `medien/`) | Tobias (PC, Dateimanager) und HA (Upload, Einsortieren) | HA-Integration (`eingang.py`) | **nie** (liegt außerhalb des Sync-Moduls und ist ausdrücklich ausgenommen) |
 
 *   `update.json` schreiben zwei Programme, aber nie gleichzeitig: `guard.py`
@@ -462,6 +472,9 @@ HA-Integration legt sie an und pflegt sie; die Boxen lesen sie nur.
 | `angelegt_am` | string (Zeitstempel) | ja | Anlegezeit. Bei doppelter `id` entscheidet das spätere `angelegt_am` (jüngere Kopie bekommt eine neue ID). |
 | `pruefen` | bool | nein | **(09.11., Entscheidung M)** Die Serie wurde beim Einsortieren aus schwachen Angaben (Interpret, Ordnername) angelegt: „bitte prüfen“. Fehlt = `false`. |
 | `pruefen_gruende` | array von string | nein | Codes zu `pruefen` (Vertrag W, 11.9). |
+| `art` | `"hoerspiel"`, `"hoerbuch"`, `"musik"`, `"geschichte"` | nein | **(12.11.)** Art des Eintrags; fehlt = `"hoerspiel"`. Nur von Menschen gesetzt (Beschriftung beim Hochladen, „Art ändern“) oder beim Einsortieren aus den Tags vorgeschlagen (Vertrag W, 14.2). |
+| `art_quelle` | `"tags"`, `"geraten"`, `"manuell"` | nein | **(12.11.)** woher `art` kommt; `"manuell"` wird nie überschrieben; fehlt = `"geraten"`, wenn `art` fehlt |
+| `einzeln` | bool | nein | **(12.11.)** Einzeltitel: genau eine Folge, steht für sich, keine neuen Folgen; fehlt = `false`. Ein Tobie auf einen Einzeltitel zeigt auf die **Folge** (`ziel.typ="folge"`). |
 | `folgen_info` | object | nein | **(09.11.)** Schlüssel = Name einer Folge aus `folgen`; Wert = Objekt mit den optionalen Feldern `anzeige` (string, 1–200 Zeichen: Anzeigename), `nummer` (int ≥ 0: Folgen-Nummer aus den Tags oder dem Albumnamen), `datum` (string `YYYY-MM-DD`: Erscheinungsdatum), `pruefen` (bool) und `pruefen_gruende` (array von string). Nur die HA-Integration schreibt es. Einträge für Namen, die nicht in `folgen` stehen, sind bedeutungslos und werden beim nächsten Schreiben entfernt. |
 
 Regeln (aus dem Design, hier zusammengefasst):
@@ -521,7 +534,7 @@ Regeln (aus dem Design, hier zusammengefasst):
 
     Beispiele (aufsteigend): `folge-2.mp3`, `folge-10.mp3`; `a1.mp3`, `a1b.mp3`;
     `01.mp3`, `1.mp3`, `2.mp3`, `10.mp3`; `Folge.mp3`, `folge.mp3`.
-*   **Die Box ignoriert `pruefen`, `pruefen_gruende` und `folgen_info`** (1.4); sie
+*   **Die Box ignoriert `pruefen`, `pruefen_gruende`, `folgen_info`, `art`, `art_quelle` und `einzeln`** (1.4); sie
     spielt nach Dateinamen und `folgen`. Das **Umbenennen** einer Serie oder Folge in
     HA ändert nur `name` bzw. `folgen_info.<name>.anzeige`, nie einen Datei- oder
     Ordnernamen; Zeiger und Zuordnungen bleiben gültig. Der **Sortierschlüssel**
@@ -535,6 +548,8 @@ Regeln (aus dem Design, hier zusammengefasst):
     `@Recycle`, `.@__thumb`, `.@__qini`, `#recycle`, `$RECYCLE.BIN`; Groß-/Kleinschreibung egal) nimmt der
     Sync ebenfalls aus, und die Bibliothek der Box liest Ordner mit `.`, `@`, `#` oder `$` am Anfang nie ein. Namensregeln für neue Dateien und
     Ordner: Vertrag W, Abschnitt 12.
+*   **Reservierte Dateinamen im Serien-Ordner (12.11., additiv):** `cover.jpg` (automatisches Cover, aus den Tags oder einer mitgelieferten Bilddatei **kopiert**) und `cover-eigen.jpg` (Foto aus der Seite, hat Vorrang vor `cover.jpg`). Als **Quelle** gelesen, nie geschrieben: `folder.jpg`, `cover.png`. Es sind keine Folgen (die Endung ist keine Audioendung; die Bibliothek der Box liest nur Audioendungen). Beim **Zusammenführen** übernimmt die Ziel-Serie das Cover der Quelle, wenn sie selbst keines hat; im **Papierkorb** wandern die Dateien mit dem Ordner (sie sind eine Kopie des Originals und mit dem Eintrag wiederherstellbar); beim **Umbenennen** bleiben Ordnername und ID, also auch die Cover. Ein Cover ist höchstens 512 px je Seite (JPEG); die kleine Ansicht (192 px) rechnet die Integration bei Bedarf aus dieser Datei.
+*   **Sync (12.11.):** Der Sync der Box (`box/src/tobibox/sync.py`) nimmt zusätzlich zu den Systemdateien und `_upload`, `_papierkorb`, `eingang` auch `cover*.jpg`, `cover*.png` und `folder.jpg` aus (an jeder Tiefe, Groß-/Kleinschreibung egal; `--exclude` schützt sie auch vor `--delete`). Grund: Die Box hat kein Display; 500 Cover à 150 KiB wären 75 MB SD-Platz und Schreibvorgänge für nichts. Ein späteres Display bräuchte eine neue Entscheidung. Einzeltitel sind 300 kleine Ordner mit je einer Datei und einer `serie.json` (etwa 300 Byte); `rsync` braucht dafür keine Sonderregel. Hörkopien liegen nicht in `medien/` (Abschnitt 11), also gibt es dort nichts auszunehmen.
 *   **Ungültige `serie.json`:** behandelt die Box wie eine fehlende; die Datei
     wird nicht repariert, aber protokolliert. (Die Integration repariert sie.)
 *   **Überraschungs-Serie:** genau eine Serie mit `typ="ueberraschung"`. Keine,
@@ -605,6 +620,21 @@ Beispiel (Überraschungs-Serie):
   "angelegt_am": "2026-11-05T09:05:00Z"
 }
 ```
+
+## 5a. Store `tobibox.medieninfo` (12.11., Vertrag W, 14.7)
+
+Abgeleitete Werte, die ein Hintergrundlauf berechnet und jederzeit neu berechnen kann. Sie liegen im HA-`Store` `tobibox.medieninfo` (`.storage/`, gespeichert mit `async_delay_save`), **nicht** in `serie.json`: Der Fingerabdruck `stand` einer Serie rechnet nur über `name`, `folgen` und die von Menschen gesetzten Felder von `folgen_info` (`anzeige`, `nummer`, `datum`, `pruefen`); ein Hintergrundlauf darf ihn nie ändern, und er darf keine `serie.json` auf das NAS schreiben, die die Boxen mitsynchronisieren. Schlüssel `serie_id`, dann Folge. Der Store wird nicht gesynct, ist nicht Teil der Konfiguration und der Box unbekannt; bei Verlust wird er neu berechnet (Dauer, Kapitel, Codecs, Cover-Marke) bzw. Hörkopien werden bei Bedarf neu erzeugt.
+
+| Feld | Typ | Bedeutung |
+|---|---|---|
+| `<serie_id>.folgen.<name>.dauer_s` | Zahl (Sekunden, ganz), höchstens `DAUER_DECKEL_S` | Länge der Folge; fehlt bis zum Nachholen; **über dem Dauerdeckel wird nichts gespeichert** |
+| `….spuren_s` | Liste von Zahlen | bei Ordner-Folgen die Länge jedes Tracks, in Folgenreihenfolge |
+| `….kapitel` | Liste aus `{"titel": string, "start_s": Zahl, "track": int?}` | Kapitel, aufsteigend nach `start_s`, höchstens `KAPITEL_MAX`, Titel höchstens `KAPITEL_TITEL_MAX` Zeichen; nur wenn mindestens zwei |
+| `….codecs` | Liste von Strings, **je Track** | Audiocodec aus `ffprobe` (`mp3`, `aac`, `vorbis`, `opus`, `flac`, `alac`, `pcm_s16le` …); `braucht_hoerkopie(codec)` entscheidet je Track |
+| `….hoerkopie` | object `{"zustand", "zeit", "grund"?}` | `zustand`: `"nicht_angelegt"`, `"wartet"`, `"fertig"`, `"fehler"`; fehlt = nicht nötig oder noch nicht geprüft |
+| `<serie_id>.cover_suche` | object `{"ergebnis": "tags"\|"datei"\|"keine", "zeit": <Zeitstempel>}` | Marke „schon gesucht“ |
+
+Die Hörstellen (`tobibox.hoerstellen`, Vertrag W, 14.6) sind ein zweiter Store mit eigener Form; sie gehören je Benutzer und liegen ebenfalls nur in HA.
 
 ## 6. `manifest.json` (Update-Paket)
 
@@ -732,6 +762,7 @@ ausgenommen).
 | `typ` | `"folge"`, `"serie"` oder `"eingang"` | ja | was es war |
 | `grund` | `"manuell"`, `"zusammengefuehrt"`, `"doppelt"` oder `"eingang_rest"` | ja | wie es in den Papierkorb kam |
 | `geloescht_am` | string (Zeitstempel) | ja | |
+| `geloescht_von` | object oder `null` | nein | **(12.11.)** `{"id": <HA-Benutzerkennung>, "name": <Name aus Home Assistant zum Zeitpunkt des Löschens>}`; fehlt oder `null` bei Einträgen von vor dem 12.11. und bei Löschungen ohne Benutzer. Der Name kommt zur Laufzeit aus HA und steht nie im Repo. |
 | `serie_id` | string oder `null` | ja | Serie, aus der es kam (`null` bei `eingang`) |
 | `serie_name` | string oder `null` | ja | Anzeigename der Serie zum Zeitpunkt des Löschens |
 | `serie_ordner` | string oder `null` | ja | Ordnername der Serie auf der Freigabe (`typ="serie"`: der Ordner, der zurückkommt) |
@@ -762,6 +793,10 @@ nicht auf dem NAS.
 *   Dateifilter wie bei den Tracks (Abschnitt 5): kein Dotfile, Endung aus der Liste.
 *   Die Box-Software ändert sich dadurch nicht: Was einsortiert ist, hat die Form von
     Abschnitt 5 (Serien-Ordner, `serie.json`, Dateien oder Folgen-Ordner).
+
+## 11. Hörkopien `hoerkopien/` (12.11., Vertrag W, 14.8)
+
+Ordner `hoerkopien/` auf der NAS-Freigabe, **neben** `medien/` (wie `export/`, `eingang/`, `releases/`; gleiche Freigabe). Inhalt: `hoerkopien/<serie_id>/<kennung>.m4a`, eine kleine Kopie (AAC in M4A, 96 kbit/s, Stereo) für Formate, die nicht jeder Browser spielt. Schreiber und Leser ist allein die HA-Integration. Der Ordner liegt **außerhalb des rsync-Moduls `medien`**, die Boxen holen ihn nie, und `sync.py` braucht keine weitere Ausnahme; die Box bekommt immer das Original. `kennung` sind die ersten 16 Zeichen von `sha1(folge|track|größe|Änderungszeit)` (ändert sich das Original, entsteht eine neue Kopie). Zwischendateien heißen `*.part` und werden beim Start gelöscht. Kein JSON mit Schema auf dem NAS: der Zustand steht im Store `tobibox.medieninfo` (Abschnitt 5a). Das Kontingent für den Ordner ist eine Konstante (Vertrag W, 14.10, vorläufig).
 
 ## Festlegungen in diesem Vertrag (Stand 05.11.)
 
