@@ -1,0 +1,795 @@
+<title>Tobie zuerst</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap">
+<style>
+:root {
+  --bg: #fafafa;
+  --card: #ffffff;
+  --text: #212121;
+  --text2: #5f6368;
+  --divider: #dcdfe3;
+  --primary: #01689f;
+  --on-primary: #ffffff;
+  --primary-soft: #e1f2fb;
+  --ok: #1b5e20;
+  --ok-bg: #e6f4e7;
+  --warn: #8a4b00;
+  --warn-bg: #fff1d6;
+  --danger: #b71c1c;
+  --danger-bg: #fdeaea;
+  --focus: #e65100;
+  --shadow: rgba(0, 0, 0, 0.12);
+  --scrim: rgba(0, 0, 0, 0.5);
+  --shine: rgba(255, 255, 255, 0.2);
+  --c1: #ad1457;
+  --c2: #00695c;
+  --c3: #5e35b1;
+  --c4: #8d4a00;
+  --c5: #1565c0;
+  --c6: #2e7d32;
+  --on-cover: #ffffff;
+  --primary-ink: #01689f;
+  --line: #7c8187;
+  --r-card: 16px;
+  --r-big: 24px;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111315;
+    --card: #1c1e21;
+    --text: #e8eaed;
+    --text2: #aeb4bb;
+    --divider: #3a3f45;
+    --primary: #4fc3f7;
+    --on-primary: #00212f;
+    --primary-soft: #153446;
+    --ok: #81c784;
+    --ok-bg: #17301a;
+    --warn: #ffcc80;
+    --warn-bg: #3a2a0c;
+    --danger: #ef9a9a;
+    --danger-bg: #3a1717;
+    --focus: #ffb74d;
+    --shadow: rgba(0, 0, 0, 0.5);
+    --scrim: rgba(0, 0, 0, 0.65);
+    --shine: rgba(255, 255, 255, 0.12);
+    --primary-ink: #4fc3f7;
+    --line: #7d848c;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111315;
+  --card: #1c1e21;
+  --text: #e8eaed;
+  --text2: #aeb4bb;
+  --divider: #3a3f45;
+  --primary: #4fc3f7;
+  --on-primary: #00212f;
+  --primary-soft: #153446;
+  --ok: #81c784;
+  --ok-bg: #17301a;
+  --warn: #ffcc80;
+  --warn-bg: #3a2a0c;
+  --danger: #ef9a9a;
+  --danger-bg: #3a1717;
+  --focus: #ffb74d;
+  --shadow: rgba(0, 0, 0, 0.5);
+  --scrim: rgba(0, 0, 0, 0.65);
+  --shine: rgba(255, 255, 255, 0.12);
+  --primary-ink: #4fc3f7;
+  --line: #7d848c;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--text); font-family: Roboto, system-ui, sans-serif; font-size: 16px; line-height: 1.45; }
+button, select, input { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; border-radius: 6px; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+.page {
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-top: max(12px, env(safe-area-inset-top, 0px));
+  max-width: 1180px; margin: 0 auto; min-width: 0; min-height: 100vh; min-height: 100dvh;
+  display: flex; flex-direction: column;
+}
+.page > * { min-width: 0; }
+#main { flex: 1 0 auto; padding-bottom: 24px; outline: none; }
+
+/* Vorschau-Kasten */
+.preview { background: var(--primary-soft); border-radius: var(--r-card); padding: 10px 14px; margin-bottom: 8px; font-size: 14px; order: 0; }
+.preview .pt { font-weight: 700; margin: 2px 0 4px; font-size: 15px; }
+.preview ol { margin: 0 0 4px; padding-left: 20px; }
+.preview li { margin: 2px 0; }
+.preview summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; font-weight: 500; color: var(--primary-ink); }
+.preview .ctl { display: grid; gap: 8px; padding: 0 0 8px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr)); }
+.preview label { display: grid; gap: 4px; font-size: 13px; color: var(--text2); min-width: 0; }
+.preview select { min-height: 44px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); padding: 0 8px; width: 100%; min-width: 0; }
+.preview .btns { gap: 8px; }
+.preview .btns .btn { min-height: 44px; padding: 0 14px; background: var(--card); border-color: var(--line); }
+
+/* Kopf und Reiter */
+.top { display: flex; align-items: center; gap: 4px; margin: 0 0 4px; min-height: 52px; }
+.top h1 { font-size: 22px; margin: 0; font-weight: 500; flex: 1; }
+nav.tabs {
+  order: 9; position: sticky; bottom: 0; z-index: 20;
+  background: var(--card); box-shadow: 0 -2px 12px var(--shadow);
+  margin-left: calc(-1 * max(16px, env(safe-area-inset-left, 0px)));
+  margin-right: calc(-1 * max(16px, env(safe-area-inset-right, 0px)));
+  padding-left: max(8px, env(safe-area-inset-left, 0px));
+  padding-right: max(8px, env(safe-area-inset-right, 0px));
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+nav.tabs .tr { display: flex; max-width: 1180px; margin: 0 auto; }
+nav.tabs a {
+  flex: 1 1 0; min-width: 0; min-height: 64px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  text-decoration: none; color: var(--text2); font-size: 14px; font-weight: 500; position: relative; padding: 4px 2px; border-radius: 8px;
+}
+nav.tabs a svg { width: 26px; height: 26px; fill: currentColor; }
+nav.tabs a[aria-current="page"] { color: var(--primary-ink); }
+nav.tabs .ti { display: grid; place-items: center; width: 56px; height: 32px; border-radius: 16px; }
+nav.tabs a[aria-current="page"] .ti { background: var(--primary-soft); }
+nav.tabs .dot { position: absolute; top: 4px; left: calc(50% + 6px); min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--danger); color: var(--card); font-size: 12px; line-height: 18px; text-align: center; font-weight: 700; }
+.side { display: contents; }
+@media (min-width: 900px) {
+  .page { max-width: none; padding: 0; display: grid; grid-template-columns: 264px minmax(0, 1fr); grid-template-rows: auto 1fr; align-items: start; }
+  .preview { grid-column: 1 / -1; grid-row: 1; margin: 12px 16px; }
+  .side { display: flex; flex-direction: column; grid-column: 1; grid-row: 2; position: sticky; top: 0; height: 100vh; height: 100dvh; align-self: start; background: var(--card); box-shadow: 2px 0 12px var(--shadow); padding: 20px 12px 16px; overflow-y: auto; z-index: 20; }
+  .top { display: contents; }
+  .top h1 { order: 0; padding: 0 12px 16px; flex: none; }
+  nav.tabs { order: 1; position: static; background: transparent; box-shadow: none; margin: 0; padding: 0; }
+  nav.tabs .tr { flex-direction: column; max-width: none; gap: 4px; margin: 0; }
+  nav.tabs a { flex: none; flex-direction: row; justify-content: flex-start; gap: 12px; font-size: 16px; padding: 0 16px; min-height: 52px; border-radius: 26px; }
+  nav.tabs a[aria-current="page"] { background: var(--primary-soft); }
+  nav.tabs .ti { width: 28px; height: 28px; background: none !important; }
+  nav.tabs .dot { position: static; }
+  #main { grid-column: 2; grid-row: 2; padding: 24px 32px 0; max-width: 1100px; min-width: 0; width: 100%; }
+}
+
+/* Karten, Knöpfe */
+h2 { font-size: 20px; font-weight: 500; margin: 24px 0 12px; }
+h3 { font-size: 17px; font-weight: 500; margin: 0 0 4px; }
+.card { background: var(--card); border-radius: var(--r-card); box-shadow: 0 1px 3px var(--shadow); padding: 16px; margin-bottom: 16px; min-width: 0; }
+.muted { color: var(--text2); font-size: 14px; }
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; padding: 0 20px; border-radius: 24px;
+  border: 1px solid transparent; background: var(--primary-soft); font-weight: 500; text-align: center; text-decoration: none; color: var(--primary-ink);
+}
+.btn svg { width: 22px; height: 22px; fill: currentColor; }
+.btn.primary { background: var(--primary); color: var(--on-primary); border-color: var(--primary-ink); }
+.btn.danger { color: var(--danger); background: var(--danger-bg); }
+.btn.link { border: 0; background: none; color: var(--primary-ink); min-height: 44px; padding: 0 8px; border-radius: 8px; }
+.btn.link.danger { color: var(--danger); background: none; }
+.btns { display: flex; flex-wrap: wrap; gap: 12px; }
+.badge { display: inline-block; font-size: 13px; font-weight: 500; padding: 2px 10px; border-radius: 12px; background: var(--warn-bg); color: var(--warn); }
+.badge.ok { background: var(--ok-bg); color: var(--ok); }
+.vc2 { display: inline-block; font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 8px; background: var(--primary-soft); color: var(--primary-ink); vertical-align: 2px; }
+.note { border-radius: var(--r-card); padding: 12px 16px; margin-bottom: 16px; background: var(--primary-soft); border: 1px solid var(--line); }
+.note.warn { background: var(--warn-bg); color: var(--warn); border: 2px solid var(--warn); }
+.note.okk { background: var(--ok-bg); color: var(--ok); border: 2px solid var(--ok); }
+.note .btns { margin-top: 8px; }
+.back { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; border: 0; background: none; color: var(--primary-ink); font-weight: 500; padding: 0 8px 0 0; text-decoration: none; }
+.back svg { width: 24px; height: 24px; fill: currentColor; }
+.search { width: 100%; min-height: 48px; border-radius: 24px; border: 1px solid var(--line); background: var(--card); padding: 0 16px; margin-bottom: 12px; }
+
+/* Cover */
+.cover { background-size: cover; background-position: center; aspect-ratio: 1; border-radius: 12px; display: grid; place-items: center; color: var(--on-cover); font-weight: 700; font-size: 44px; background-image: linear-gradient(135deg, var(--shine), transparent 60%); width: 100%; }
+.c1 { background-color: var(--c1); } .c2 { background-color: var(--c2); } .c3 { background-color: var(--c3); }
+.c4 { background-color: var(--c4); } .c5 { background-color: var(--c5); } .c6 { background-color: var(--c6); }
+.cover.xs { width: 32px; font-size: 15px; border-radius: 8px; flex: none; }
+.cover.sm { width: 48px; font-size: 22px; border-radius: 10px; flex: none; }
+.cover.lr { width: 72px; font-size: 32px; flex: none; }
+.cover.xl { width: min(46vw, 190px); font-size: 80px; border-radius: var(--r-card); }
+.cover.act { background-color: var(--primary); color: var(--on-primary); }
+.tiles { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); }
+@media (min-width: 900px) { .tiles { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 16px; } }
+.tile { border: 0; background: none; padding: 4px; text-align: left; display: grid; gap: 6px; align-content: start; border-radius: var(--r-card); min-width: 0; color: var(--text); }
+.tile:active { background: var(--primary-soft); }
+@media (hover: hover) { .tile:hover { background: var(--primary-soft); } }
+.tile .tn { font-weight: 500; font-size: 15px; line-height: 1.25; overflow-wrap: anywhere; }
+.tile .tm { font-size: 13px; color: var(--text2); }
+
+/* Zeilen */
+.rows { display: grid; }
+.rowbtn { width: 100%; border: 0; background: none; color: inherit; text-align: left; padding: 10px 4px; margin: 0; display: flex; align-items: center; gap: 12px; min-height: 56px; border-top: 1px solid var(--divider); border-radius: 0; text-decoration: none; }
+.rowbtn:first-child { border-top: 0; }
+.rowbtn .grow { flex: 1; min-width: 0; overflow-wrap: anywhere; display: grid; }
+.rowbtn .chev { flex: none; width: 24px; height: 24px; display: grid; place-items: center; color: var(--text2); }
+.rowbtn .chev svg { width: 24px; height: 24px; fill: currentColor; display: block; }
+.rowbtn .nm { font-weight: 500; }
+.rowbtn:active { background: var(--primary-soft); }
+@media (hover: hover) { .rowbtn:hover { background: var(--primary-soft); } }
+.rowbtn:focus-visible { outline-offset: -3px; border-radius: 8px; }
+.rowbtn.open .chev { transform: rotate(180deg); }
+.rowbtn.cur .nm { color: var(--primary-ink); }
+.sub { padding-left: 16px; border-left: 3px solid var(--primary-soft); margin: 0 0 8px 12px; }
+.sub .rowbtn { min-height: 48px; }
+.artrow { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; border-bottom: 1px solid var(--divider); margin: 0 0 12px; }
+.artrow::-webkit-scrollbar { display: none; }
+.arttab { flex: none; min-height: 44px; padding: 0 12px; border: 0; background: none; font-weight: 500; color: var(--text2); border-bottom: 3px solid transparent; border-radius: 0; }
+.arttab[aria-pressed="true"] { color: var(--primary-ink); border-bottom-color: var(--primary-ink); }
+.seg2 { display: flex; width: 100%; border: 1px solid var(--line); border-radius: 24px; overflow: hidden; margin-bottom: 12px; }
+.seg2 button { flex: 1; min-height: 44px; padding: 0 6px; border: 0; background: var(--card); font-weight: 500; font-size: 14px; }
+.seg2 button + button { border-left: 1px solid var(--line); }
+.seg2 button[aria-pressed="true"] { background: var(--primary); color: var(--on-primary); }
+.seg2 .vc2 { margin-left: 4px; }
+.seg2 button[aria-pressed="true"] .vc2 { background: var(--on-primary); color: var(--primary); }
+
+/* Tobie-Regal */
+.shelf { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+.ttile { border: 0; background: var(--card); box-shadow: 0 1px 3px var(--shadow); border-radius: var(--r-card); padding: 14px 12px 12px; min-height: 148px; text-align: left; display: grid; gap: 10px; align-content: start; color: var(--text); min-width: 0; text-decoration: none; }
+.ttile:active { background: var(--primary-soft); }
+@media (hover: hover) { .ttile:hover { background: var(--primary-soft); } }
+.fig { width: 52px; height: 52px; border-radius: 26px; background: var(--primary-soft); color: var(--primary-ink); display: grid; place-items: center; }
+.fig svg { width: 28px; height: 28px; fill: currentColor; }
+.ttile .tn { font-weight: 500; font-size: 17px; line-height: 1.25; overflow-wrap: anywhere; }
+.ttile .spielt { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.ttile .spielt span { font-size: 13px; line-height: 1.25; color: var(--text2); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.ttile.neu { border: 2px dashed var(--primary-ink); background: none; box-shadow: none; align-content: center; justify-items: start; color: var(--primary-ink); }
+.ttile.neu .fig { background: var(--primary); color: var(--on-primary); }
+.ttile.neu .tn { color: var(--primary-ink); }
+.ttile.sel { outline: 3px solid var(--primary-ink); outline-offset: -3px; }
+
+.pchips { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.pchip { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 14px 0 10px; border-radius: 22px; background: var(--primary-soft); color: var(--primary-ink); font-weight: 500; text-decoration: none; border: 1px solid var(--line); }
+.pchip svg { width: 20px; height: 20px; fill: currentColor; }
+.pchip.small { min-height: 44px; }
+.glabel { font-size: 14px; color: var(--text2); margin: 0 0 4px; }
+
+.hero { display: grid; justify-items: center; text-align: center; gap: 8px; margin: 4px 0 16px; }
+.hero h2 { margin: 4px 0 2px; font-size: 24px; overflow-wrap: anywhere; }
+@media (min-width: 900px) {
+  .hero { grid-template-columns: 220px 1fr; justify-items: start; text-align: left; gap: 8px 28px; align-items: center; }
+  .hero .htxt { display: grid; gap: 2px; justify-items: start; }
+  .cover.xl { width: 220px; }
+}
+.lrow { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--divider); text-decoration: none; color: inherit; min-height: 84px; }
+.lrow:first-child { border-top: 0; }
+.lrow .grow { flex: 1; min-width: 0; display: grid; gap: 1px; }
+.lt { display: block; font-weight: 500; line-height: 1.3; overflow-wrap: anywhere; }
+.ls { display: block; font-size: 14px; color: var(--text2); }
+.frow { padding: 8px 0; border-top: 1px solid var(--divider); display: grid; gap: 4px; min-height: 56px; align-content: center; }
+.frow:first-child { border-top: 0; }
+.frow .fn { font-weight: 500; }
+.frow .fnum { color: var(--text2); font-weight: 400; margin-right: 6px; }
+
+.cur { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: var(--r-card); background: var(--primary-soft); margin-bottom: 16px; }
+.cur .grow { min-width: 0; display: grid; }
+.cur .lab { font-size: 13px; color: var(--text2); }
+.cur .lt { font-size: 16px; }
+.optrow { margin-top: 12px; width: 100%; min-height: 56px; border: 1px solid var(--line); border-radius: var(--r-card); background: var(--card); display: flex; align-items: center; gap: 12px; padding: 0 16px; text-align: left; margin-bottom: 8px; }
+.optrow .grow { flex: 1; min-width: 0; }
+.optrow svg { width: 24px; height: 24px; fill: var(--primary-ink); flex: none; }
+.manage { margin-top: 24px; padding-top: 8px; border-top: 1px solid var(--divider); }
+.namefield { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 8px 0 16px; }
+.namefield input { flex: 1 1 200px; min-height: 48px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); padding: 0 12px; min-width: 0; }
+.stufe { border: 2px dashed var(--primary-ink); border-radius: var(--r-card); padding: 12px 16px; margin-bottom: 12px; background: var(--primary-soft); color: var(--text); }
+
+.wchoice { width: 100%; display: flex; align-items: center; gap: 14px; min-height: 80px; padding: 12px 16px; background: var(--card); border: 1px solid var(--line); border-radius: var(--r-card); text-align: left; margin-bottom: 12px; color: var(--text); }
+.wchoice .wc-i { width: 44px; height: 44px; border-radius: 22px; background: var(--primary-soft); color: var(--primary-ink); display: grid; place-items: center; flex: none; }
+.wchoice .wc-i svg { width: 26px; height: 26px; fill: currentColor; }
+.wchoice .grow { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.wchoice .wc-t { font-weight: 500; font-size: 17px; line-height: 1.3; }
+.wchoice .chev svg { width: 24px; height: 24px; fill: var(--text2); display: block; }
+@media (hover: hover) { .wchoice:hover { background: var(--primary-soft); } }
+
+.wait { text-align: center; padding: 24px 8px; }
+.ring { width: 120px; height: 120px; margin: 8px auto 16px; border-radius: 60px; border: 4px solid var(--primary-ink); display: grid; place-items: center; animation: ring 1.6s ease-in-out infinite; }
+.ring svg { width: 48px; height: 48px; fill: var(--primary-ink); }
+@keyframes ring { 50% { transform: scale(1.08); box-shadow: 0 0 0 12px var(--primary-soft); } }
+.boxcard { display: flex; align-items: center; gap: 12px; }
+.boxcard .grow { min-width: 0; flex: 1; }
+.dotx { display: inline-block; width: 10px; height: 10px; border-radius: 5px; margin-right: 6px; background: var(--ok); }
+a.card { display: flex; align-items: center; gap: 12px; color: inherit; text-decoration: none; }
+a.card .chev, button.card .chev { flex: none; color: var(--text2); }
+a.card .chev svg, button.card .chev svg { width: 24px; height: 24px; fill: currentColor; display: block; }
+button.card { display: flex; align-items: center; gap: 12px; width: 100%; border: 0; text-align: left; color: inherit; }
+.alert { background: var(--warn-bg); color: var(--warn); border: 2px solid var(--warn); }
+.alert .muted { color: var(--warn); }
+
+dialog.sheet { border: 0; padding: 0; background: var(--card); color: var(--text); width: 100%; max-width: 560px; max-height: 92vh; overflow: auto; border-radius: var(--r-big); box-shadow: 0 8px 32px var(--shadow); }
+dialog.sheet::backdrop { background: var(--scrim); }
+.sheet-in { padding: 20px max(16px, env(safe-area-inset-right, 0px)) max(20px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
+.sheet h2 { margin: 0 0 8px; }
+.sheet .btns { margin-top: 16px; }
+@media (max-width: 699px) { dialog.sheet { margin: auto 0 0; max-width: none; border-radius: var(--r-big) var(--r-big) 0 0; } }
+.toastbox { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(80px + env(safe-area-inset-bottom, 0px)); z-index: 2000; display: grid; gap: 8px; width: min(92vw, 520px); pointer-events: none; }
+.toastbox > * { pointer-events: auto; }
+.toast { display: flex; align-items: center; gap: 12px; background: var(--text); color: var(--bg); padding: 12px 16px; border-radius: var(--r-card); }
+.toast .tmsg { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.toast .tok { min-width: 56px; min-height: 44px; border-radius: 22px; border: 1px solid currentColor; background: none; color: inherit; font-weight: 700; padding: 0 16px; flex: none; }
+@media (min-width: 900px) { .toastbox { bottom: 24px; } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+</style>
+
+<div class="page" id="page">
+  <div class="preview" id="preview">
+    <div class="pt">Vorschau X20 – Variante c</div>
+    <ol>
+      <li>Zuordnen beginnt immer beim Tobie: Der Reiter „Tobies“ ist ein Regal, ein Tipp auf einen Tobie fragt „Was soll er spielen?“.</li>
+      <li>In der Bibliothek gibt es keinen Zuordnen-Knopf mehr, sie zeigt nur, welche Tobies etwas spielen, und führt zu ihnen.</li>
+      <li>Ein neuer Tobie entsteht über „+ Neuer Tobie“ (jetzt auflegen oder später vormerken) oder über die Meldung im Reiter „Geräte“.</li>
+    </ol>
+    <details>
+      <summary>Menü der Vorschau</summary>
+      <div class="ctl">
+        <label for="sel-theme">Aussehen
+          <select id="sel-theme"><option value="auto">Automatisch</option><option value="light">Hell</option><option value="dark">Dunkel</option></select>
+        </label>
+      </div>
+      <div class="btns">
+        <button class="btn" data-act="auflegen" data-arg="box1" id="btn-a1"></button>
+        <button class="btn" data-act="auflegen" data-arg="box2" id="btn-a2"></button>
+        <button class="btn" data-act="hochladen" id="btn-up">Hochladen simulieren</button>
+        <button class="btn" data-act="reset" id="btn-reset">Zurücksetzen</button>
+      </div>
+    </details>
+  </div>
+
+  <div class="side">
+    <div class="top"><h1>Tobi Box</h1></div>
+    <nav class="tabs" aria-label="Bereiche"><div class="tr" id="tabrow"></div></nav>
+  </div>
+
+  <main id="main" tabindex="-1"></main>
+</div>
+<div id="layer"></div>
+<div id="live" class="sr" aria-live="polite" role="status"></div>
+<div id="toastbox" class="toastbox"></div>
+
+<script>
+/* Alle Namen stehen NUR hier. Im echten Betrieb kommen sie aus Home Assistant und nie ins Repo. */
+const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Person B' };
+(function () {
+  'use strict';
+  var ICON = {
+    home: 'M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z',
+    lib: 'M4 5v13h17V5H4zm10 2v3.5h-3V7h3zM6 7h3v3.5H6V7zm0 9v-3.5h3V16H6zm5 0v-3.5h3V16h-3zm8 0h-3v-3.5h3V16zm-3-5.5V7h3v3.5h-3z',
+    tag: 'M17.63 5.84C17.27 5.33 16.67 5 16 5L5 5.01C3.9 5.01 3 5.9 3 7v10c0 1.1.9 1.99 2 1.99L16 19c.67 0 1.27-.33 1.63-.84L22 12l-4.37-6.16z',
+    spk: 'M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 7.97v8.05c1.48-.73 2.5-2.25 2.5-4.02z',
+    moon: 'M12 3a9 9 0 1 0 9 9c0-.46-.04-.92-.1-1.36a5.389 5.389 0 0 1-4.4 2.26 5.403 5.403 0 0 1-3.14-9.8c-.44-.06-.9-.1-1.36-.1z',
+    plus: 'M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z',
+    back: 'M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z',
+    check: 'M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z',
+    chev: 'M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z',
+    down: 'M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z',
+    note: 'M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z',
+    clock: 'M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z',
+    queue: 'M4 10h12v2H4zm0-4h12v2H4zm0 8h8v2H4zm10 0v6l5-3z'
+  };
+  function ic(n) { return '<svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor"><path d="' + ICON[n] + '"/></svg>'; }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function $(id) { return document.getElementById(id); }
+  function norm(s) { return String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''); }
+
+  /* ---------- Beispieldaten (erfunden) ---------- */
+  var ARTEN = { hoerspiel: { n: 'Hörspiele', e: 'Hörspiel', u: 'Folge' }, musik: { n: 'Musik', e: 'Musik', u: 'Lied' }, hoerbuch: { n: 'Hörbücher', e: 'Hörbuch', u: 'Kapitel' }, geschichte: { n: 'Geschichten', e: 'Geschichten', u: 'Geschichte' } };
+  function kapitel(n) { var a = []; for (var i = 1; i <= n; i++) a.push('Kapitel ' + i); return a; }
+  var SERIEN = [
+    { id: 'wolkenreiter', name: 'Die Wolkenreiter', art: 'hoerspiel', c: 'c5', f: ['Der erste Flug', 'Gewitter über dem Tal', 'Der Wind hat Schnupfen', 'Die verlorene Wolke', 'Nachts am Himmel', 'Landung im Garten'] },
+    { id: 'pippo', name: 'Pirat Pippo', art: 'hoerspiel', c: 'c2', f: ['Die Schatzkarte', 'Der Papagei spricht', 'Sturm auf See', 'Die Insel der Krebse', 'Pippo und der Krake'] },
+    { id: 'kralle', name: 'Kommissar Kralle', art: 'hoerspiel', c: 'c1', f: ['Der Fall mit dem Fischkopf', 'Das Rätsel im Heu', 'Die gestohlene Glocke', 'Tatort Schneckenhaus', 'Der Schatten im Schuppen', 'Kralle schläft nicht', 'Das letzte Indiz'] },
+    { id: 'lieder', name: 'Kinderlieder zum Mitsingen', art: 'musik', c: 'c3', f: ['Der Regenwurm tanzt', 'Hopp, hopp, Hase', 'Wir bauen eine Burg', 'Zehn kleine Sterne', 'Brummbär, Brummbär', 'Im Garten wächst ein Lied', 'Fuchs auf Zehenspitzen', 'Das Lied vom Wind'] },
+    { id: 'schlaf', name: 'Schlaflieder', art: 'musik', c: 'c4', f: ['Sternenwiege', 'Der Mond singt leise', 'Müde Bären', 'Schaf Nummer eins', 'Dunkel und warm', 'Gute Nacht, kleiner Fuchs'] },
+    { id: 'knopf', name: 'Kapitän Knopf', art: 'hoerbuch', c: 'c6', f: kapitel(12) },
+    { id: 'eulen', name: 'Eulenmärchen', art: 'geschichte', c: 'c1', f: ['Der Mond und der Fuchs', 'Die Eule ohne Namen', 'Das Haus im Schnee', 'Der kleine Regenbogen'] }
+  ];
+  var PLAYLISTS = [
+    { id: 'pl-auto', name: 'Autofahrt', n: 5, c: 'c5' },
+    { id: 'pl-ein', name: 'Zum Einschlafen', n: 3, c: 'c3' },
+    { id: 'pl-fest', name: 'Geburtstagsfeier', n: 1, c: 'c4' }
+  ];
+  function serie(id) { for (var i = 0; i < SERIEN.length; i++) if (SERIEN[i].id === id) return SERIEN[i]; return null; }
+  function plById(id) { for (var i = 0; i < PLAYLISTS.length; i++) if (PLAYLISTS[i].id === id) return PLAYLISTS[i]; return null; }
+
+  var S;
+  function initState() {
+    S = {
+      n: 10,
+      tobies: [
+        { id: 't1', name: 'Löwe', z: { t: 'serie', s: 'pippo' } },
+        { id: 't2', name: 'Gelber Hase', z: { t: 'folge', s: 'pippo', i: 1 } },
+        { id: 't3', name: 'Blaue Eule', z: { t: 'serie', s: 'schlaf' } },
+        { id: 't4', name: 'Roter Fuchs', z: { t: 'serie', s: 'lieder' } },
+        { id: 't5', name: 'Mond', z: { t: 'aktion' } }
+      ],
+      queue: [],
+      unknown: [],
+      neu: { box: 'box1', vorziel: null, zurueck: null, name: '', qbox: 'egal', queued: null },
+      P: { mode: 'serie', art: 'alle', term: '', open: null },
+      extra: 0
+    };
+  }
+  initState();
+
+  function tobie(id) { for (var i = 0; i < S.tobies.length; i++) if (S.tobies[i].id === id) return S.tobies[i]; return null; }
+  function boxName(b) { return b === 'egal' ? 'irgendeiner Box' : NAMEN[b]; }
+  function boxIn(b) { return b === 'egal' ? 'irgendeiner Box' : NAMEN[b]; }
+  function initial(s) { return s.replace(/^(Die|Der|Das)\s+/, '').charAt(0).toUpperCase(); }
+  function folgeText(s, i) { return s.f[i] + (s.art === 'hoerbuch' ? '' : ''); }
+  function zielName(z) {
+    if (z.t === 'aktion') return 'Gute Nacht';
+    if (z.t === 'playlist') return plById(z.p).name;
+    var s = serie(z.s);
+    return z.t === 'folge' ? folgeText(s, z.i) : s.name;
+  }
+  function zielArt(z) {
+    if (z.t === 'folge') { var s = serie(z.s); return s.name + ' · ' + ARTEN[s.art].u + ' ' + (z.i + 1); }
+    if (z.t === 'serie') return 'ganze Serie';
+    if (z.t === 'playlist') return 'Playlist';
+    return 'Aktion';
+  }
+  function zielCover(z, size) {
+    if (z.t === 'aktion') return '<div class="cover act ' + size + '" aria-hidden="true">' + ic('moon').replace('<svg ', '<svg width="60%" height="60%" ') + '</div>';
+    if (z.t === 'playlist') { var p = plById(z.p); return '<div class="cover ' + p.c + ' ' + size + '" aria-hidden="true">' + ic('note').replace('<svg ', '<svg width="55%" height="55%" ') + '</div>'; }
+    var s = serie(z.s);
+    return '<div class="cover ' + s.c + ' ' + size + '" aria-hidden="true">' + esc(initial(s.name)) + '</div>';
+  }
+  function serieCover(s, size) { return '<div class="cover ' + s.c + ' ' + size + '" aria-hidden="true">' + esc(initial(s.name)) + '</div>'; }
+  function tName(t) { return t.name || 'Tobie ohne Namen'; }
+  function playedBy(sid, idx) {
+    return S.tobies.filter(function (t) { return t.z.s === sid && (idx === undefined || (t.z.t === 'folge' && t.z.i === idx)); });
+  }
+  function chipHtml(t) { return '<a class="pchip" href="#tobie-' + t.id + '">' + ic('tag') + esc(tName(t)) + '</a>'; }
+
+  /* ---------- Meldungen ---------- */
+  var toastTimer = null;
+  function toast(msg, action) {
+    var box = $('toastbox');
+    box.innerHTML = '<div class="toast"><span class="tmsg">' + esc(msg) + '</span>' + (action ? '<button class="tok" data-act="toastGo" data-arg="' + esc(action.hash) + '">' + esc(action.text) + '</button>' : '<button class="tok" data-act="toastOk">OK</button>') + '</div>';
+    $('live').textContent = msg;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { box.innerHTML = ''; }, 6000);
+  }
+
+  /* ---------- Routen ---------- */
+  function route() { var h = (location.hash || '#start').slice(1); return h || 'start'; }
+  function go(h) { if (location.hash === '#' + h) render(); else location.hash = h; }
+  function tabOf(r) {
+    if (r === 'start') return 'start';
+    if (r === 'bibliothek' || r.indexOf('serie-') === 0 || r.indexOf('geben-') === 0) return 'bibliothek';
+    if (r === 'geraete') return 'geraete';
+    return 'tobies';
+  }
+  function renderTabs(r) {
+    var cur = tabOf(r), n = S.unknown.length;
+    var T = [['start', 'Start', 'home'], ['bibliothek', 'Bibliothek', 'lib'], ['tobies', 'Tobies', 'tag'], ['geraete', 'Geräte', 'spk']];
+    $('tabrow').innerHTML = T.map(function (t) {
+      return '<a href="#' + t[0] + '"' + (t[0] === cur ? ' aria-current="page"' : '') + '><span class="ti">' + ic(t[2]) + '</span>' + t[1] +
+        (t[0] === 'geraete' && n ? '<span class="dot" aria-hidden="true">' + n + '</span><span class="sr">' + n + ' neuer Tobie</span>' : '') + '</a>';
+    }).join('');
+  }
+
+  /* ---------- Start ---------- */
+  function vStart() {
+    var h = '<h2 style="margin-top:0">Guten Abend</h2><div class="card muted">Platzhalter: Schaufenster für Inhalte (Schnellzugriff, „Am Handy weiterhören“, „Neu hinzugefügt“).</div>';
+    h += '<h2>Neu hinzugefügt</h2><div class="tiles">' + SERIEN.slice(0, 4).map(function (s) { return '<a class="tile" href="#serie-' + s.id + '">' + serieCover(s, '') + '<span class="tn">' + esc(s.name) + '</span><span class="tm">' + ARTEN[s.art].e + '</span></a>'; }).join('') + '</div>';
+    return h;
+  }
+  function vGeraete() {
+    var h = '<h2 style="margin-top:0">Geräte</h2>';
+    S.unknown.forEach(function (u) {
+      h += '<button class="card alert" data-act="startNeu" data-arg="' + u.box + '"><span class="grow"><strong>Neuer Tobie auf ' + esc(NAMEN[u.box]) + ' – was soll er spielen?</strong><br><span class="muted">Gerade aufgelegt</span></span><span class="chev" aria-hidden="true">' + ic('chev') + '</span></button>';
+    });
+    h += '<div class="card boxcard">' + serieCover(serie('pippo'), 'sm') + '<div class="grow"><strong>' + esc(NAMEN.box1) + '</strong><br><span class="muted"><span class="dotx"></span>spielt „Pirat Pippo“ · Akku 82 %</span></div></div>';
+    h += '<div class="card boxcard"><div class="cover sm c3" aria-hidden="true" style="opacity:.45">' + esc(initial(NAMEN.box2)) + '</div><div class="grow"><strong>' + esc(NAMEN.box2) + '</strong><br><span class="muted">bereit · Akku 64 %</span></div></div>';
+    return h;
+  }
+
+  /* ---------- Bibliothek ---------- */
+  var BIBART = 'alle';
+  function artRow(cur, act) {
+    var A = [['alle', 'Alle']].concat(Object.keys(ARTEN).map(function (k) { return [k, ARTEN[k].n]; }));
+    return '<div class="artrow" role="group" aria-label="Art">' + A.map(function (a) { return '<button class="arttab" data-act="' + act + '" data-arg="' + a[0] + '" aria-pressed="' + (a[0] === cur) + '">' + a[1] + '</button>'; }).join('') + '</div>';
+  }
+  function einheit(s) { var n = s.f.length, u = ARTEN[s.art].u; return n + ' ' + (u === 'Folge' ? (n === 1 ? 'Folge' : 'Folgen') : u === 'Lied' ? (n === 1 ? 'Lied' : 'Lieder') : u === 'Kapitel' ? 'Kapitel' : (n === 1 ? 'Geschichte' : 'Geschichten')); }
+  function vBib() {
+    var h = '<h2 style="margin-top:0">Bibliothek</h2>' + artRow(BIBART, 'bibArt');
+    var l = SERIEN.filter(function (s) { return BIBART === 'alle' || s.art === BIBART; });
+    h += '<div class="card"><div class="rows">' + l.map(function (s) {
+      return '<a class="lrow" href="#serie-' + s.id + '">' + serieCover(s, 'lr') + '<span class="grow"><span class="lt">' + esc(s.name) + '</span><span class="ls">' + ARTEN[s.art].e + ' · ' + einheit(s) + '</span></span><span class="chev" aria-hidden="true" style="color:var(--text2)">' + ic('chev') + '</span></a>';
+    }).join('') + '</div></div>';
+    return h;
+  }
+  function vSerie(id) {
+    var s = serie(id);
+    if (!s) return vBib();
+    var by = playedBy(id);
+    var h = '<a class="back" href="#bibliothek">' + ic('back') + 'Bibliothek</a>';
+    h += '<div class="hero">' + serieCover(s, 'xl') + '<div class="htxt"><h2>' + esc(s.name) + '</h2><div class="muted">' + ARTEN[s.art].e + ' · ' + einheit(s) + '</div></div></div>';
+    h += '<div class="card"><div class="glabel">' + (by.length ? 'Gespielt von:' : 'Gespielt von') + '</div>';
+    if (by.length) h += '<div class="pchips">' + by.map(chipHtml).join('') + '</div>';
+    else h += '<div class="pchips"><span>Noch kein Tobie</span><a class="btn link" href="#geben-' + id + '">Einem Tobie geben …</a></div>';
+    h += '</div>';
+    h += '<h2>' + (s.art === 'musik' ? 'Lieder' : s.art === 'hoerbuch' ? 'Kapitel' : s.art === 'geschichte' ? 'Geschichten' : 'Folgen') + '</h2><div class="card">';
+    h += s.f.map(function (t, i) {
+      var p = playedBy(id, i);
+      return '<div class="frow"><div class="fn"><span class="fnum">' + (i + 1) + '</span>' + esc(t) + '</div>' + (p.length ? '<div class="pchips">' + p.map(chipHtml).join('') + '</div>' : '') + '</div>';
+    }).join('') + '</div>';
+    return h;
+  }
+
+  /* ---------- Tobies: Regal ---------- */
+  function ttile(t, href) {
+    return '<a class="ttile" href="' + href + '" aria-label="' + esc(tName(t)) + ', spielt ' + esc(zielName(t.z)) + '"><span class="fig" aria-hidden="true">' + ic('tag') + '</span><span class="tn">' + esc(tName(t)) + '</span><span class="spielt">' + zielCover(t.z, 'xs') + '<span>' + esc(zielName(t.z)) + (t.z.t === 'folge' ? ' (' + ARTEN[serie(t.z.s).art].u + ' ' + (t.z.i + 1) + ')' : '') + '</span></span></a>';
+  }
+  function newTile(href) { return '<a class="ttile neu" href="' + href + '"><span class="fig" aria-hidden="true">' + ic('plus') + '</span><span class="tn">+ Neuer Tobie</span></a>'; }
+  function vTobies() {
+    var h = '<h2 style="margin-top:0">Tobies</h2>';
+    S.queue.forEach(function (q) {
+      h += '<div class="card boxcard"><span class="fig" aria-hidden="true">' + ic('clock') + '</span><div class="grow"><strong>Nächster neuer Tobie auf ' + esc(boxIn(q.box)) + ' spielt „' + esc(zielName(q.z)) + '“</strong><br><span class="muted">Wartet auf einen unbekannten Tobie</span></div><button class="btn" data-act="qAbbr" data-arg="' + q.id + '">Abbrechen</button></div>';
+    });
+    h += '<div class="shelf">' + newTile('#neu') + S.tobies.slice().reverse().map(function (t) { return ttile(t, '#tobie-' + t.id); }).join('') + '</div>';
+    return h;
+  }
+
+  /* ---------- Zielwahl (gemeinsam) ---------- */
+  function resetP() { S.P = { mode: 'serie', art: 'alle', term: '', open: null }; }
+  function pickBtn(arg) { return 'data-act="pick" data-arg="' + arg + '"'; }
+  function pickerResults() {
+    var P = S.P, term = norm(P.term), h = '';
+    if (P.mode === 'playlist') {
+      h += '<div class="stufe"><span class="vc2">Stufe C</span> Playlists kommen erst später. So würde die Auswahl aussehen.</div><div class="card"><div class="rows">';
+      h += PLAYLISTS.map(function (p) {
+        return '<button class="rowbtn" ' + pickBtn('pl:' + p.id) + '>' + zielCover({ t: 'playlist', p: p.id }, 'sm') + '<span class="grow"><span class="nm">' + esc(p.name) + '</span><span class="muted">' + p.n + (p.n === 1 ? ' Titel' : ' Titel') + '</span></span><span class="chev" aria-hidden="true">' + ic('chev') + '</span></button>';
+      }).join('') + '</div></div>';
+      return h;
+    }
+    var list = SERIEN.filter(function (s) { return P.art === 'alle' || s.art === P.art; });
+    if (P.mode === 'serie') {
+      if (!term) {
+        h += '<div class="tiles">' + list.map(function (s) { return '<button class="tile" ' + pickBtn('serie:' + s.id) + '>' + serieCover(s, '') + '<span class="tn">' + esc(s.name) + '</span><span class="tm">' + ARTEN[s.art].e + '</span></button>'; }).join('') + '</div>';
+      } else {
+        list = list.filter(function (s) { return norm(s.name).indexOf(term) >= 0; });
+        h += list.length ? '<div class="card"><div class="rows">' + list.map(function (s) {
+          return '<button class="rowbtn" ' + pickBtn('serie:' + s.id) + '>' + serieCover(s, 'sm') + '<span class="grow"><span class="nm">' + esc(s.name) + '</span><span class="muted">' + ARTEN[s.art].e + ' · ' + einheit(s) + '</span></span><span class="chev" aria-hidden="true">' + ic('chev') + '</span></button>';
+        }).join('') + '</div></div>' : '<div class="card muted">Nichts gefunden zu „' + esc(P.term) + '“.</div>';
+      }
+      return h;
+    }
+    /* Folge oder Lied */
+    if (!term) {
+      h += '<div class="card"><div class="rows">' + list.map(function (s) {
+        var op = P.open === s.id;
+        var r = '<button class="rowbtn' + (op ? ' open' : '') + '" data-act="pOpen" data-arg="' + s.id + '" aria-expanded="' + op + '">' + serieCover(s, 'sm') + '<span class="grow"><span class="nm">' + esc(s.name) + '</span><span class="muted">' + einheit(s) + '</span></span><span class="chev" aria-hidden="true">' + ic('down') + '</span></button>';
+        if (op) r += '<div class="sub">' + s.f.map(function (t, i) { return '<button class="rowbtn" ' + pickBtn('folge:' + s.id + ':' + i) + '><span class="muted" style="width:24px;text-align:center">' + (i + 1) + '</span><span class="grow"><span class="nm">' + esc(t) + '</span></span></button>'; }).join('') + '</div>';
+        return r;
+      }).join('') + '</div></div>';
+    } else {
+      var hits = [];
+      list.forEach(function (s) { s.f.forEach(function (t, i) { if (norm(t).indexOf(term) >= 0 || norm(s.name).indexOf(term) >= 0) hits.push([s, i]); }); });
+      h += hits.length ? '<div class="card"><div class="rows">' + hits.slice(0, 20).map(function (x) {
+        return '<button class="rowbtn" ' + pickBtn('folge:' + x[0].id + ':' + x[1]) + '>' + serieCover(x[0], 'sm') + '<span class="grow"><span class="nm">' + esc(x[0].f[x[1]]) + '</span><span class="muted">' + esc(x[0].name) + ' · ' + ARTEN[x[0].art].u + ' ' + (x[1] + 1) + '</span></span><span class="chev" aria-hidden="true">' + ic('chev') + '</span></button>';
+      }).join('') + '</div></div>' : '<div class="card muted">Nichts gefunden zu „' + esc(P.term) + '“.</div>';
+    }
+    return h;
+  }
+  function pickerHtml(cur) {
+    var P = S.P, h = '';
+    if (cur) h += '<div class="cur">' + zielCover(cur, 'sm') + '<div class="grow"><span class="lab">Spielt jetzt</span><span class="lt">' + esc(zielName(cur)) + '</span><span class="lab">' + esc(zielArt(cur)) + '</span></div></div>';
+    h += '<div class="seg2" role="group" aria-label="Was soll er spielen?">' +
+      '<button data-act="pMode" data-arg="serie" aria-pressed="' + (P.mode === 'serie') + '">Ganze Serie</button>' +
+      '<button data-act="pMode" data-arg="folge" aria-pressed="' + (P.mode === 'folge') + '">Folge oder Lied</button>' +
+      '<button data-act="pMode" data-arg="playlist" aria-pressed="' + (P.mode === 'playlist') + '">Playlist<span class="vc2">C</span></button></div>';
+    if (P.mode !== 'playlist') {
+      h += '<label class="sr" for="psuche">In der Bibliothek suchen</label><input class="search" id="psuche" type="search" placeholder="In der Bibliothek suchen" value="' + esc(P.term) + '" autocomplete="off">' + artRow(P.art, 'pArt');
+    }
+    h += '<div id="pres">' + pickerResults() + '</div>';
+    h += '<button class="optrow" ' + pickBtn('aktion') + '>' + ic('moon') + '<span class="grow"><strong>Gute-Nacht-Karte</strong><br><span class="muted">Timer, dann wird es still</span></span></button>';
+    return h;
+  }
+  function parseZiel(arg) {
+    var p = arg.split(':');
+    if (p[0] === 'serie') return { t: 'serie', s: p[1] };
+    if (p[0] === 'folge') return { t: 'folge', s: p[1], i: +p[2] };
+    if (p[0] === 'pl') return { t: 'playlist', p: p[1] };
+    return { t: 'aktion' };
+  }
+
+  /* ---------- Tobie bearbeiten ---------- */
+  function vTobie(id) {
+    var t = tobie(id);
+    if (!t) return vTobies();
+    var h = '<a class="back" href="#tobies">' + ic('back') + 'Tobies</a>';
+    h += '<h2 style="margin-top:4px">Was soll <strong>' + esc(t.name || 'dieser Tobie') + '</strong> spielen?</h2>';
+    h += pickerHtml(t.z);
+    h += '<div class="manage"><h3 style="margin:12px 0 0">Namen ändern</h3><div class="namefield"><label class="sr" for="rename">Name</label><input id="rename" type="text" value="' + esc(t.name) + '" placeholder="Name, zum Beispiel Farbe oder Tier" autocomplete="off"><button class="btn" data-act="rename" data-arg="' + t.id + '">Name speichern</button></div>';
+    h += '<button class="btn link danger" data-act="forget" data-arg="' + t.id + '">Diesen Tobie vergessen …</button></div>';
+    return h;
+  }
+
+  /* ---------- Neuer Tobie ---------- */
+  function vNeu() {
+    var h = '<a class="back" href="' + (S.neu.zurueck || '#tobies') + '">' + ic('back') + 'Zurück</a><h2 style="margin-top:4px">Neuer Tobie</h2>';
+    if (S.neu.vorziel) h += '<div class="cur">' + zielCover(S.neu.vorziel, 'sm') + '<div class="grow"><span class="lab">Er soll spielen</span><span class="lt">' + esc(zielName(S.neu.vorziel)) + '</span></div></div>';
+    h += '<button class="wchoice" data-act="neuJetzt"><span class="wc-i">' + ic('tag') + '</span><span class="grow"><span class="wc-t">Leg ihn jetzt auf eine Box</span><span class="muted">Die Seite wartet auf ihn</span></span><span class="chev" aria-hidden="true">' + ic('chev') + '</span></button>';
+    h += '<button class="wchoice" data-act="neuSpaeter"><span class="wc-i">' + ic('clock') + '</span><span class="grow"><span class="wc-t">Später auflegen</span><span class="muted">Erst wählen, was er spielen soll</span></span><span class="chev" aria-hidden="true">' + ic('chev') + '</span></button>';
+    return h;
+  }
+  function vNeuWarten() {
+    return '<a class="back" href="#neu">' + ic('back') + 'Zurück</a><div class="wait"><div class="ring" aria-hidden="true">' + ic('tag') + '</div><h2 style="margin:0 0 8px">Leg den Tobie auf ' + esc(NAMEN.box1) + ' oder ' + esc(NAMEN.box2) + '</h2><div class="muted">Ich warte auf einen Tobie, den ich noch nicht kenne.</div><div class="btns" style="justify-content:center;margin-top:20px"><a class="btn" href="#neu">Abbrechen</a></div></div>';
+  }
+  function nameField() {
+    return '<div class="card"><h3>Wie soll er heißen?</h3><div class="muted">Du kannst das überspringen.</div><div class="namefield" style="margin-bottom:0"><label class="sr" for="neuname">Name</label><input id="neuname" type="text" value="' + esc(S.neu.name) + '" placeholder="Name, zum Beispiel Farbe oder Tier" autocomplete="off"></div></div>';
+  }
+  function vNeuZiel() {
+    var h = '<div class="note okk" style="margin-top:4px"><strong>Neuer Tobie erkannt</strong> auf ' + esc(NAMEN[S.neu.box]) + '.</div>' + nameField();
+    if (S.neu.vorziel) {
+      h += '<div class="cur">' + zielCover(S.neu.vorziel, 'sm') + '<div class="grow"><span class="lab">Er spielt</span><span class="lt">' + esc(zielName(S.neu.vorziel)) + '</span></div></div><div class="btns"><button class="btn primary" data-act="neuFertig">Fertig</button></div>';
+    } else {
+      h += '<h2 style="margin-top:8px">Was soll er spielen?</h2>' + pickerHtml(null);
+    }
+    return h;
+  }
+  function boxSeg() {
+    var B = [['box1', NAMEN.box1], ['box2', NAMEN.box2], ['egal', 'Egal welche']];
+    return '<div class="glabel">Auf welcher Box?</div><div class="seg2" role="group" aria-label="Box">' + B.map(function (b) { return '<button data-act="qBox" data-arg="' + b[0] + '" aria-pressed="' + (S.neu.qbox === b[0]) + '">' + esc(b[1]) + '</button>'; }).join('') + '</div>';
+  }
+  function vNeuQueue() {
+    var q = S.neu.queued ? S.queue.filter(function (x) { return x.id === S.neu.queued; })[0] : null;
+    var h = '<a class="back" href="#neu">' + ic('back') + 'Zurück</a>';
+    if (q) {
+      return h + '<div class="wait"><div class="ring" aria-hidden="true">' + ic('clock') + '</div><h2 style="margin:0 0 8px">Nächster neuer Tobie auf ' + esc(boxIn(q.box)) + ' spielt „' + esc(zielName(q.z)) + '“</h2><div class="muted">Kein Zeitlimit. Du musst die Seite nicht offen lassen.</div><div class="btns" style="justify-content:center;margin-top:20px"><button class="btn" data-act="qAbbr" data-arg="' + q.id + '">Abbrechen</button><a class="btn primary" href="#tobies">Fertig</a></div></div>';
+    }
+    h += '<h2 style="margin-top:4px">Später auflegen</h2>' + boxSeg();
+    if (S.neu.vorziel) h += '<div class="cur">' + zielCover(S.neu.vorziel, 'sm') + '<div class="grow"><span class="lab">Er soll spielen</span><span class="lt">' + esc(zielName(S.neu.vorziel)) + '</span></div></div><div class="btns"><button class="btn primary" data-act="qSet">Vormerken</button></div>';
+    else h += '<h3 style="margin:16px 0 8px">Was soll er spielen?</h3>' + pickerHtml(null);
+    return h;
+  }
+
+  /* ---------- Bibliothek: Tobie wählen ---------- */
+  function vGeben(sid) {
+    var s = serie(sid);
+    if (!s) return vBib();
+    var h = '<a class="back" href="#serie-' + sid + '">' + ic('back') + esc(s.name) + '</a><h2 style="margin-top:4px">Welcher Tobie soll das spielen?</h2>';
+    h += '<div class="cur">' + serieCover(s, 'sm') + '<div class="grow"><span class="lab">' + ARTEN[s.art].e + '</span><span class="lt">' + esc(s.name) + '</span></div></div>';
+    h += '<div class="shelf">' + newTile('#neu-von-' + sid) + S.tobies.slice().reverse().map(function (t) {
+      return '<button class="ttile" data-act="geben" data-arg="' + sid + ':' + t.id + '"><span class="fig" aria-hidden="true">' + ic('tag') + '</span><span class="tn">' + esc(tName(t)) + '</span><span class="spielt">' + zielCover(t.z, 'xs') + '<span>' + esc(zielName(t.z)) + '</span></span></button>';
+    }).join('') + '</div>';
+    return h;
+  }
+
+  
+  /* ---------- Rendern ---------- */
+  var lastRoute = null;
+  function render() {
+    var r = route(), h;
+    if (r.indexOf('neu-von-') === 0) { /* + Neuer Tobie aus der Bibliothek */
+      var sid = r.slice(8);
+      S.neu.vorziel = { t: 'serie', s: sid }; S.neu.zurueck = '#serie-' + sid; S.neu.name = ''; S.neu.queued = null;
+      location.replace('#neu'); return;
+    }
+    if (r !== lastRoute) { if (r.indexOf('tobie-') === 0 || r.indexOf('neu') === 0) { if (lastRoute === null || r.indexOf('tobie-') === 0 || r === 'neu-ziel' || r === 'neu-queue') resetP(); } }
+    if (r === 'start') h = vStart();
+    else if (r === 'bibliothek') h = vBib();
+    else if (r.indexOf('serie-') === 0) h = vSerie(r.slice(6));
+    else if (r.indexOf('geben-') === 0) h = vGeben(r.slice(6));
+    else if (r === 'tobies') { S.neu.vorziel = null; S.neu.zurueck = null; h = vTobies(); }
+    else if (r.indexOf('tobie-') === 0) h = vTobie(r.slice(6));
+    else if (r === 'neu') h = vNeu();
+    else if (r === 'neu-warten') h = vNeuWarten();
+    else if (r === 'neu-ziel') h = S.unknownActive ? vNeuZiel() : (go('tobies'), '');
+    else if (r === 'neu-queue') h = vNeuQueue();
+    else if (r === 'geraete') h = vGeraete();
+    else h = vStart();
+    $('main').innerHTML = h;
+    renderTabs(r);
+    if (r !== lastRoute) { window.scrollTo(0, 0); lastRoute = r; }
+  }
+
+  /* ---------- Aktionen ---------- */
+  function createTobie(name, z) {
+    var t = { id: 't' + (++S.n), name: name, z: z };
+    S.tobies.push(t);
+    return t;
+  }
+  function finishNeu(z) {
+    var nm = ($('neuname') ? $('neuname').value : S.neu.name).trim();
+    var t = createTobie(nm, z);
+    S.unknown = S.unknown.filter(function (u) { return u.box !== S.neu.box; });
+    S.unknownActive = false;
+    var back = S.neu.vorziel ? S.neu.zurueck : '#tobies';
+    S.neu.vorziel = null; S.neu.name = ''; S.neu.zurueck = null;
+    toast('Fertig: ' + tName(t) + ' spielt jetzt „' + zielName(z) + '“.');
+    go(back.slice(1));
+  }
+  var ACT = {
+    auflegen: function (box) {
+      var r = route();
+      if (r === 'neu-warten') { S.neu.box = box; S.unknownActive = true; S.neu.name = ''; go('neu-ziel'); return; }
+      var qi = -1;
+      S.queue.forEach(function (q, i) { if (qi < 0 && (q.box === box || q.box === 'egal')) qi = i; });
+      if (qi >= 0) {
+        var q = S.queue.splice(qi, 1)[0], t = createTobie('', q.z);
+        if (S.neu.queued === q.id) S.neu.queued = null;
+        toast('Neuer Tobie auf ' + NAMEN[box] + ' spielt jetzt „' + zielName(q.z) + '“.', { text: 'Name geben', hash: 'tobie-' + t.id });
+        render(); return;
+      }
+      if (!S.unknown.some(function (u) { return u.box === box; })) S.unknown.push({ box: box });
+      toast('Unbekannter Tobie auf ' + NAMEN[box] + ' aufgelegt.', { text: 'Zu Geräte', hash: 'geraete' });
+      render();
+    },
+    startNeu: function (box) { S.neu.box = box; S.neu.vorziel = null; S.neu.zurueck = null; S.neu.name = ''; S.unknownActive = true; resetP(); go('neu-ziel'); },
+    hochladen: function () {
+      S.extra++;
+      var s = { id: 'neu' + S.extra, name: 'Die Mondfähre ' + S.extra, art: 'hoerspiel', c: 'c6', f: ['Start im Nebel', 'Kratergeschichten', 'Heimflug'] };
+      SERIEN.unshift(s);
+      toast('Fertig: „' + s.name + '“ ist in der Bibliothek.', { text: 'Ansehen', hash: 'serie-' + s.id });
+      if (route() === 'bibliothek') render();
+    },
+    reset: function () { SERIEN = SERIEN.filter(function (s) { return s.id.indexOf('neu') !== 0; }); initState(); $('toastbox').innerHTML = ''; BIBART = 'alle'; go('start'); render(); },
+    toastOk: function () { $('toastbox').innerHTML = ''; },
+    toastGo: function (h) { $('toastbox').innerHTML = ''; go(h); },
+    bibArt: function (a) { BIBART = a; render(); },
+    pArt: function (a) { S.P.art = a; S.P.open = null; render(); },
+    pMode: function (m) { S.P.mode = m; S.P.open = null; var inp = $('neuname'), v = inp ? inp.value : null; render(); if (v !== null && $('neuname')) $('neuname').value = v; },
+    pOpen: function (id) { S.P.open = S.P.open === id ? null : id; $('pres').innerHTML = pickerResults(); },
+    pick: function (arg) {
+      var z = parseZiel(arg), r = route();
+      if (r.indexOf('tobie-') === 0) {
+        var t = tobie(r.slice(6)); t.z = z;
+        toast('Fertig: ' + tName(t) + ' spielt jetzt „' + zielName(z) + '“.');
+        go('tobies');
+      } else if (r === 'neu-ziel') finishNeu(z);
+      else if (r === 'neu-queue') queueSet(z);
+    },
+    rename: function (id) { var t = tobie(id); t.name = $('rename').value.trim(); toast(t.name ? 'Fertig: Der Tobie heißt jetzt „' + t.name + '“.' : 'Fertig: Der Name ist entfernt.'); render(); },
+    forget: function (id) {
+      var t = tobie(id);
+      var d = document.createElement('dialog'); d.className = 'sheet';
+      d.setAttribute('aria-labelledby', 'fgt');
+      d.innerHTML = '<div class="sheet-in"><h2 id="fgt">' + esc(tName(t)) + ' vergessen?</h2><div>Die Box kennt diesen Tobie danach nicht mehr. Du kannst ihn später wieder neu anlegen.</div><div class="btns"><button class="btn" data-dlg="no" autofocus>Nein, behalten</button><button class="btn danger" data-dlg="yes">Ja, vergessen</button></div></div>';
+      $('layer').appendChild(d); d.showModal();
+      d.addEventListener('click', function (e) {
+        var b = e.target.closest('[data-dlg]');
+        if (!b) return;
+        d.close(); d.remove();
+        if (b.getAttribute('data-dlg') === 'yes') { S.tobies = S.tobies.filter(function (x) { return x.id !== id; }); toast('Fertig: ' + tName(t) + ' ist vergessen.'); go('tobies'); }
+      });
+    },
+    neuJetzt: function () { go('neu-warten'); },
+    neuSpaeter: function () { S.neu.queued = null; resetP(); go('neu-queue'); },
+    neuFertig: function () { finishNeu(S.neu.vorziel); },
+    qBox: function (b) { S.neu.qbox = b; render(); },
+    qSet: function () { queueSet(S.neu.vorziel); },
+    qAbbr: function (id) { S.queue = S.queue.filter(function (q) { return q.id !== id; }); if (S.neu.queued === id) S.neu.queued = null; toast('Vormerkung abgebrochen.'); render(); },
+    geben: function (arg) {
+      var p = arg.split(':'), t = tobie(p[1]); t.z = { t: 'serie', s: p[0] };
+      toast('Fertig: ' + tName(t) + ' spielt jetzt „' + serie(p[0]).name + '“.');
+      go('serie-' + p[0]);
+    }
+  };
+  function queueSet(z) {
+    var q = { id: 'q' + (++S.n), box: S.neu.qbox, z: z };
+    S.queue.push(q); S.neu.queued = q.id; S.neu.vorziel = null;
+    render();
+  }
+
+  document.addEventListener('click', function (e) {
+    var el = e.target.closest('[data-act]');
+    if (!el) return;
+    var fn = ACT[el.getAttribute('data-act')];
+    if (fn) { e.preventDefault(); fn(el.getAttribute('data-arg')); }
+  });
+  document.addEventListener('input', function (e) {
+    if (e.target.id === 'psuche') { S.P.term = e.target.value; S.P.open = null; $('pres').innerHTML = pickerResults(); }
+    else if (e.target.id === 'neuname') S.neu.name = e.target.value;
+  });
+  window.addEventListener('hashchange', function () { render(); var m = $('main'); if (m) m.focus({ preventScroll: true }); });
+
+  $('btn-a1').textContent = 'Auflegen simulieren (' + NAMEN.box1 + ')';
+  $('btn-a2').textContent = 'Auflegen simulieren (' + NAMEN.box2 + ')';
+  $('sel-theme').addEventListener('change', function (e) {
+    var v = e.target.value, r = document.documentElement;
+    if (v === 'auto') r.removeAttribute('data-theme'); else r.setAttribute('data-theme', v);
+  });
+  S.unknownActive = false;
+  render();
+})();
+</script>
