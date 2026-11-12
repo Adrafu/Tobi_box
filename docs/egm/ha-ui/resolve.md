@@ -162,3 +162,6 @@ Beim Bau aufgefallen; der Code folgt jeweils der hier genannten Lösung (PL), de
 | X22a | Gute Nacht bleibt eine Dauer mit Schnellwahl; der Zeitwähler gilt nur für Leise-Zeiten. |
 | X27a | „Am Handy weiterhören“ und „Neu hinzugefügt“ nur auf dem Start, nicht mehr in der Bibliothek. |
 | X31 | Kein Spalt zwischen Mini-Player und Reiterleiste: der Player sitzt bündig auf der Leiste. |
+| X20e | **(Tobias)** „Einem Tobie geben …“ auch im „⋯“-Menü von einzelnen Folgen, Liedern und Playlist-Einträgen. |
+| X20f | **(Tobias)** Neben „Gespielt von“-Chips ein kleines „+“, das zur Tobie-Auswahl führt (zweiter Tobie für denselben Eintrag). |
+| X32 | **(Tobias)** Segment-Umschalter sauber: gleich breite Segmente, Text mittig, getönte Spur ohne Rahmen, Auswahl als Pille innerhalb der Spur; einheitlich für alle Umschalter. |
