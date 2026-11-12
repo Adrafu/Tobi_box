@@ -68,3 +68,18 @@ letzten 20 Box-Meldungen. Was gehört wurde, meldet die Box nicht gesondert.
 | Cover selbst ersetzen | **Ja, mit Foto vom Handy.** |
 
 Außerdem sofort behoben (nicht Teil des Umbaus): Sicherheitsbefund U1, alle HA-Aktionen nur für Administratoren (Commit d41e319).
+
+## Runde 7 (12.11., Rückmeldung zu Prototyp v2)
+
+Tobias zum Reiter „Bibliothek“ (Screenshot Handy, dunkel): „unglaublich unübersichtlich“. Die Bibliothek soll wie eine
+Musik- oder Hörbuch-App aufgebaut sein, und man soll dort **reinhören** können, um zu erkennen, was etwas ist.
+
+| Frage | Antwort |
+|---|---|
+| Vorbild | **Audible / Hörbuch-App** |
+| Wo reinhören? | **Nur am Handy/PC** (Browser bzw. HA-App), nicht auf der Box |
+| Wie viel Player? | **Mit Weiterhören:** merkt sich je Folge, wo man war |
+
+Festlegung der Projektleitung: Reinhören geht mit HA allein (Dateien liegen unter dem Medien-Pfad der Integration,
+Ausgabe über eine Ansicht der Integration mit signiertem, kurz gültigem Pfad wie bei Kamerabildern). Music Assistant
+wird nicht gebraucht. Die Hörstelle wird **je HA-Benutzer in HA** gespeichert (gleich auf Handy und PC), nicht nur im Browser.
