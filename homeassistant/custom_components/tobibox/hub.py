@@ -60,6 +60,7 @@ from .fehler import TobiboxFehler
 from .lernmodus import Lernmodus
 from .media import Medien, name_pruefen
 from .mqtt import MqttSchicht
+from .schutz import Nutzer, Schutz, ist_admin
 from .store import (
     ZUSTAND_EXPORT_NEUER,
     ZUSTAND_LEER_NEU,
@@ -68,6 +69,7 @@ from .store import (
     einstellungen_aus,
     export_ist_neuer,
     lese_export,
+    lese_staende,
     neue_konfig,
     pruefe_gute_nacht,
     pruefe_leise_zeiten,
@@ -151,6 +153,7 @@ class Hub:
         self.texte: dict[str, str] = {}
         self.abos: list[Abo] = []
         self.store = TobiboxStore(hass)
+        self.schutz = Schutz(self)
         self.medien = Medien(self)
         self.eingang = Eingang(self)
         self.mqtt = MqttSchicht(self)
@@ -331,8 +334,9 @@ class Hub:
             aus["ereignisse"] = list(self.store.box_ereignisse.get(box, []))
         return aus
 
-    def boxen_liste(self) -> list[dict[str, Any]]:
-        return [self.box_objekt(b) for b in self.boxen]
+    def boxen_liste(self, mit_ereignisse: bool = True) -> list[dict[str, Any]]:
+        """``mit_ereignisse=False`` für Nicht-Administratoren: das Feld ``ereignisse`` ist seit 12.11. nur Administratoren erlaubt."""
+        return [self.box_objekt(b, mit_ereignisse) for b in self.boxen]
 
     async def box_sync(self, box: str) -> dict[str, Any]:
         z = self.mqtt.boxen.get(box)
@@ -529,10 +533,13 @@ class Hub:
 
     # --- Wege aus leer_neu und export_neuer -------------------------------------------------------------------
 
-    async def konfig_export_lesen(self) -> dict[str, Any]:
-        export = await self.hass.async_add_executor_job(lese_export, self.pfade.export)
+    async def konfig_export_lesen(self, stand: int | None = None) -> dict[str, Any]:
+        """``stand``: ein früherer Stand der Liste (``export/config.<stand>.json``, Vertrag W, 2.4); ``None`` = der aktuelle Export."""
+        export = await self.hass.async_add_executor_job(lese_export, self.pfade.export, stand)
         if export.status == "unerreichbar":
             raise TobiboxFehler("medien_nicht_erreichbar")
+        if stand is not None and export.status == "fehlt":
+            raise TobiboxFehler("export_nicht_gefunden")
         aus: dict[str, Any] = {
             "vorhanden": False,
             "liste_id": None,
@@ -553,14 +560,18 @@ class Hub:
                     "exportiert_am": export.exportiert_am,
                     "anzahl_zuordnungen": len(k["zuordnungen"]),
                     "anzahl_fenster": len(k["leise_zeiten"]["fenster"]),
-                    "neuer_als_ha": True if self.store.konfig is None else export_ist_neuer(export, self.store.konfig, self.store.export_geschrieben_am),
+                    "neuer_als_ha": stand is None
+                    and (True if self.store.konfig is None else export_ist_neuer(export, self.store.konfig, self.store.export_geschrieben_am)),
                 }
             )
+        aus["staende"] = await self.hass.async_add_executor_job(lese_staende, self.pfade.export)
         return aus
 
-    async def konfig_aus_export(self) -> dict[str, Any]:
-        """Holt die Konfiguration aus dem Export zurück: neue Listen-ID, Revision 1, ``zustand=ok`` (Vertrag W, Nr. 32)."""
-        export = await self.hass.async_add_executor_job(lese_export, self.pfade.export)
+    async def konfig_aus_export(self, stand: int | None = None) -> dict[str, Any]:
+        """Holt die Konfiguration aus dem Export zurück: neue Listen-ID, Revision 1, ``zustand=ok`` (Vertrag W, Nr. 32).
+
+        Mit ``stand`` aus einem früheren Stand der Liste (2.4)."""
+        export = await self.hass.async_add_executor_job(lese_export, self.pfade.export, stand)
         if export.status == "unerreichbar":
             raise TobiboxFehler("medien_nicht_erreichbar")
         if export.status == "fehlt":
@@ -626,6 +637,15 @@ class Hub:
         self.emit("neue_tobies", ereignis, {"eintrag": eintrag})
         await self.mqtt.sende_ack(box, uid, zuletzt, art, "neu" if ereignis == "neu" else "bekannt")
 
+    def kennung_bekannt(self, uid: str) -> bool:
+        """Ist die Kennung gemeldet (``neue_tobies``), schon zugeordnet oder Ergebnis eines Lernmodus? (Vertrag W, 2.4)"""
+        k = self.store.konfig
+        if uid in self.store.neue_tobies or (k is not None and uid in k["zuordnungen"]):
+            return True
+        if any(e.get("uid") == uid for e in self.store.lern_verlauf):
+            return True
+        return any(v.uid == uid for v in self.lernmodus.vorgaenge.values())
+
     def kennung_zugeordnet(self, uid: str) -> None:
         if self.store.neue_tobies_entfernen(uid):
             self.emit("neue_tobies", "entfernt", {"uid": uid, "grund": "zugeordnet"})
@@ -669,11 +689,17 @@ class Hub:
         name: Any = FEHLT,
         ueberschreiben: bool = False,
         erwartet_ziel: Any = FEHLT,
+        nutzer: Nutzer | None = None,
     ) -> dict[str, Any]:
+        if not ist_admin(nutzer) and ueberschreiben and erwartet_ziel is FEHLT:  # Schutz, Vertrag W, 2.4
+            raise TobiboxFehler("unauthorized")
         if not isinstance(uid, str) or not RE_UID.match(uid):
+            raise TobiboxFehler("kennung_ungueltig")
+        if not ist_admin(nutzer) and not self.kennung_bekannt(uid):
             raise TobiboxFehler("kennung_ungueltig")
         if self.store.zustand != ZUSTAND_OK:
             raise TobiboxFehler("konfig_nicht_bereit")
+        self.schutz.liste_pruefen(nutzer)
         ziel = await self.pruefe_ziel(ziel_roh)
         name_neu: Any = FEHLT
         if name is None:
@@ -706,14 +732,18 @@ class Hub:
             k["zuordnungen"][uid] = eintrag
 
         erg = await self.aendere_konfig(setze)
+        self.schutz.liste_gebucht(nutzer)
         self.kennung_zugeordnet(uid)
         return erg
 
-    async def zuordnung_entfernen(self, uid: str, erwartet_ziel: Any = FEHLT) -> dict[str, Any]:
+    async def zuordnung_entfernen(self, uid: str, erwartet_ziel: Any = FEHLT, nutzer: Nutzer | None = None) -> dict[str, Any]:
+        if not ist_admin(nutzer) and erwartet_ziel is FEHLT:  # Schutz, Vertrag W, 2.4
+            raise TobiboxFehler("unauthorized")
         if not isinstance(uid, str) or not RE_UID.match(uid):
             raise TobiboxFehler("kennung_ungueltig")
         if self.store.zustand != ZUSTAND_OK:
             raise TobiboxFehler("konfig_nicht_bereit")
+        self.schutz.liste_pruefen(nutzer)
         erwartet: Any = FEHLT
         if erwartet_ziel is not FEHLT:
             try:
@@ -727,7 +757,9 @@ class Hub:
                 raise TobiboxFehler("zuordnung_geaendert")
             k["zuordnungen"].pop(uid, None)
 
-        return await self.aendere_konfig(entferne)
+        erg = await self.aendere_konfig(entferne)
+        self.schutz.liste_gebucht(nutzer)
+        return erg
 
     async def zuordnung_liste(self, serie_id: str | None, limit: int, offset: int, uid: str | None = None) -> dict[str, Any]:
         if self.medien.geprueft_am is None:
@@ -777,20 +809,35 @@ class Hub:
         lesezeichen_tage: Any = FEHLT,
         *,
         teilweise: bool = False,
+        nutzer: Nutzer | None = None,
+        erwartet_revision: int | None = None,
     ) -> dict[str, Any]:
         """``tobibox/einstellungen/set``: setzt ganze Objekte und/oder ``lesezeichen_tage``.
 
         Die Prüfung ist die der Box (``store.pruefe_*``); ist irgendein Teil ungültig, wird **nichts** geändert
         (``einstellung_ungueltig``, der Pfad steht im Klartext). ``teilweise`` (HA-Aktionen): Felder, die fehlen,
         bleiben wie sie sind, statt dass die Aktion das ganze Objekt ersetzt. Eine Änderung erhöht die Revision
-        und geht an ``tobibox/config``; dieselben Werte wie schon gespeichert ergeben ``geaendert=false``."""
+        und geht an ``tobibox/config``; dieselben Werte wie schon gespeichert ergeben ``geaendert=false``.
+
+        Schutz (Vertrag W, 2.4): ``lesezeichen_tage`` nur für Administratoren (sonst ``unauthorized``); für Nicht-Administratoren
+        bleibt die gespeicherte ``leise_zeiten.zeitzone`` (der Wert im Objekt wird ignoriert); ``erwartet_revision`` muss die
+        aktuelle Revision sein (``stand_veraltet``)."""
         if leise_zeiten is FEHLT and gute_nacht is FEHLT and lesezeichen_tage is FEHLT:
             raise TobiboxFehler("invalid_format")
+        if not ist_admin(nutzer) and lesezeichen_tage is not FEHLT:
+            raise TobiboxFehler("unauthorized")
+        if self.store.zustand == ZUSTAND_OK:
+            self.schutz.liste_pruefen(nutzer)
 
         def setze(k: dict[str, Any]) -> None:
+            if erwartet_revision is not None and erwartet_revision != k["revision"]:
+                raise TobiboxFehler("stand_veraltet")
             try:
                 if leise_zeiten is not FEHLT:
-                    neu = {**k["leise_zeiten"], **leise_zeiten} if teilweise and isinstance(leise_zeiten, dict) else leise_zeiten
+                    lz = leise_zeiten
+                    if not ist_admin(nutzer) and isinstance(lz, dict):
+                        lz = {**lz, "zeitzone": k["leise_zeiten"]["zeitzone"]}
+                    neu = {**k["leise_zeiten"], **lz} if teilweise and isinstance(lz, dict) else lz
                     k["leise_zeiten"] = pruefe_leise_zeiten(neu)
                 if gute_nacht is not FEHLT:
                     neu = {**k["gute_nacht"], **gute_nacht} if teilweise and isinstance(gute_nacht, dict) else gute_nacht
@@ -801,6 +848,7 @@ class Hub:
                 raise TobiboxFehler("einstellung_ungueltig", pfad=err.pfad) from err
 
         erg = await self.aendere_konfig(setze)
+        self.schutz.liste_gebucht(nutzer)
         assert self.store.konfig is not None  # aendere_konfig hat sonst konfig_nicht_bereit geworfen
         return {**erg, **einstellungen_aus(self.store.konfig)}
 

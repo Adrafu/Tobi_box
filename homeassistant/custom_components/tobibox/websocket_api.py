@@ -3,6 +3,10 @@
 Reihenfolge der Dekoratoren wie in HA-Core: ``require_admin`` außen, dann ``websocket_command``, innen
 ``async_response``. Die Befehle rufen nur Funktionen des ``Hub``; Fehler (``TobiboxFehler``) werden zu
 ``connection.send_error(id, code, Klartext)``.
+
+Rechte (Vertrag W, 2.1): ``befehl(..., recht="lesen" | "alltag" | "admin")``. ``lesen`` und ``alltag`` haben keinen
+Dekorator (jeder angemeldete Benutzer); für Nicht-Administratoren prüfen die Zusatzregeln aus 2.4 im Befehl bzw. im
+``Hub`` (``Nutzer`` wird durchgereicht). ``admin`` hat ``require_admin``.
 """
 
 from __future__ import annotations
@@ -17,10 +21,12 @@ from homeassistant.core import HomeAssistant, callback
 from .const import (
     DOMAIN,
     EREIGNIS_THEMEN,
+    KONFIG_STAENDE_ANZAHL,
     RE_ANFRAGE_ID,
 )
 from .fehler import TobiboxFehler
 from .hub import FEHLT, Hub
+from .schutz import Nutzer
 
 try:  # HA 2026.10 und neuer: ``probatio``; ältere Versionen: ``voluptuous``
     import probatio as vol
@@ -30,6 +36,11 @@ except ImportError:  # pragma: no cover
 _LOGGER = logging.getLogger(__name__)
 
 _HANDLER: list[Callable[..., Any]] = []
+
+#: die drei Stufen aus Vertrag W, 2.1
+RECHTE = ("lesen", "alltag", "admin")
+#: Befehlsname -> Recht (für Tests und die Übersicht)
+BEFEHL_RECHTE: dict[str, str] = {}
 
 
 # --------------------------------------------------------------------------
@@ -92,9 +103,13 @@ def befehl(
     name: str,
     schema: dict[Any, Any] | None = None,
     *,
-    admin: bool = False,
+    recht: str,
 ):
-    """Meldet einen Befehl ``tobibox/<name>`` an. Die Funktion bekommt ``(hub, connection, msg)`` und gibt das Ergebnis zurück."""
+    """Meldet einen Befehl ``tobibox/<name>`` an. Die Funktion bekommt ``(hub, connection, msg)`` und gibt das Ergebnis zurück.
+
+    ``recht`` ist Pflicht (Tabelle 2.1 des Vertrags): ``lesen``, ``alltag`` oder ``admin``."""
+    if recht not in RECHTE:
+        raise ValueError(f"unbekanntes Recht {recht!r} für {name}")
 
     def deko(func: Callable[[Hub, Any, dict[str, Any]], Awaitable[Any]]):
         @websocket_api.async_response
@@ -114,12 +129,17 @@ def befehl(
         handler.__name__ = f"ws_{name.replace('/', '_')}"
         schema_voll = {vol.Required("type"): f"tobibox/{name}", **(schema or {})}
         gesamt = websocket_api.websocket_command(schema_voll)(handler)
-        if admin:
+        if recht == "admin":
             gesamt = websocket_api.require_admin(gesamt)
+        BEFEHL_RECHTE[name] = recht
         _HANDLER.append(gesamt)
         return gesamt
 
     return deko
+
+
+def _nutzer(connection: Any) -> Nutzer:
+    return Nutzer.aus_verbindung(connection)
 
 
 def _felder(msg: dict[str, Any], *ohne: str) -> dict[str, Any]:
@@ -132,7 +152,7 @@ def _felder(msg: dict[str, Any], *ohne: str) -> dict[str, Any]:
 # --------------------------------------------------------------------------
 
 
-@befehl("hello", {vol.Required("v"): _ganz(0, 1_000_000)})
+@befehl("hello", {vol.Required("v"): _ganz(0, 1_000_000)}, recht="lesen")
 async def ws_hello(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
     return hub.hello(msg["v"], bool(connection.user and connection.user.is_admin))
 
@@ -170,17 +190,17 @@ _HANDLER.append(ws_subscribe)
 # --------------------------------------------------------------------------
 
 
-@befehl("serien/list")
+@befehl("serien/list", recht="lesen")
 async def ws_serien_list(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
     return await hub.medien.serien_liste()
 
 
-@befehl("serie/get", {**SERIE_ID})
+@befehl("serie/get", {**SERIE_ID}, recht="lesen")
 async def ws_serie_get(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
     return await hub.medien.serie_holen(msg["serie_id"])
 
 
-@befehl("serie/create", {vol.Required("name"): _text, vol.Optional("typ"): vol.In(["normal", "ueberraschung"]), **ANFRAGE_ID}, admin=True)
+@befehl("serie/create", {vol.Required("name"): _text, vol.Optional("typ"): vol.In(["normal", "ueberraschung"]), **ANFRAGE_ID}, recht="admin")
 async def ws_serie_create(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
     async def tu() -> Any:
         return {"serie": await hub.medien.serie_anlegen(msg["name"], msg.get("typ", "normal"))}
@@ -188,12 +208,12 @@ async def ws_serie_create(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any
     return await hub.mit_anfrage_id(msg.get("anfrage_id"), "serie/create", _felder(msg), tu)
 
 
-@befehl("serie/rename", {**SERIE_ID, vol.Required("name"): _text}, admin=True)
+@befehl("serie/rename", {**SERIE_ID, vol.Required("name"): _text}, recht="alltag")
 async def ws_serie_rename(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
     return {"serie": await hub.medien.serie_umbenennen(msg["serie_id"], msg["name"])}
 
 
-@befehl("folgen/order", {**SERIE_ID, vol.Required("folgen"): LISTE_TEXT, **STAND}, admin=True)
+@befehl("folgen/order", {**SERIE_ID, vol.Required("folgen"): LISTE_TEXT, **STAND}, recht="admin")
 async def ws_folgen_order(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
     return {"serie": await hub.medien.folgen_ordnen(msg["serie_id"], msg["folgen"], msg.get("stand"))}
 
@@ -201,13 +221,15 @@ async def ws_folgen_order(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any
 @befehl(
     "folge/delete",
     {**SERIE_ID, vol.Required("folge"): _text, vol.Optional("tobies_bestaetigt"): _wahrheit, **STAND},
-    admin=True,
+    recht="alltag",
 )
 async def ws_folge_delete(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
-    return await hub.medien.folge_loeschen(msg["serie_id"], msg["folge"], msg.get("tobies_bestaetigt", False), msg.get("stand"))
+    return await hub.medien.folge_loeschen(
+        msg["serie_id"], msg["folge"], msg.get("tobies_bestaetigt", False), msg.get("stand"), _nutzer(connection)
+    )
 
 
-@befehl("medien/pruefen", admin=True)
+@befehl("medien/pruefen", recht="alltag")
 async def ws_medien_pruefen(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
     await hub.medien._medien_erreichbar()
     gestartet, laeuft = hub.medien.pruefung_starten()
@@ -215,23 +237,28 @@ async def ws_medien_pruefen(hub: Hub, connection: Any, msg: dict[str, Any]) -> A
 
 
 # --------------------------------------------------------------------------
-# 10 bis 12: Papierkorb
+# 10 bis 12 und 46: Papierkorb
 # --------------------------------------------------------------------------
 
 
-@befehl("papierkorb/list", {vol.Optional("limit"): _ganz(1, 200), vol.Optional("offset"): _ganz(0, 10_000_000)})
+@befehl("papierkorb/list", {vol.Optional("limit"): _ganz(1, 200), vol.Optional("offset"): _ganz(0, 10_000_000)}, recht="lesen")
 async def ws_papierkorb_list(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
     return await hub.medien.papierkorb_liste(msg.get("limit", 100), msg.get("offset", 0))
 
 
-@befehl("papierkorb/restore", {vol.Required("eintrag_id"): _text, vol.Optional("serie_id"): _text}, admin=True)
+@befehl("papierkorb/restore", {vol.Required("eintrag_id"): _text, vol.Optional("serie_id"): _text}, recht="admin")
 async def ws_papierkorb_restore(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
     return await hub.medien.papierkorb_wiederherstellen(msg["eintrag_id"], msg.get("serie_id"))
 
 
-@befehl("papierkorb/empty", {vol.Required("bestaetigt"): _wahr, vol.Optional("eintrag_ids"): LISTE_TEXT}, admin=True)
+@befehl("papierkorb/empty", {vol.Required("bestaetigt"): _wahr, vol.Optional("eintrag_ids"): LISTE_TEXT}, recht="admin")
 async def ws_papierkorb_empty(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
     return await hub.medien.papierkorb_leeren(msg.get("eintrag_ids"))
+
+
+@befehl("papierkorb/restore_letzte_stunde", {vol.Required("bestaetigt"): _wahr}, recht="admin")
+async def ws_papierkorb_restore_letzte_stunde(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
+    return await hub.medien.papierkorb_letzte_stunde_zurueck()
 
 
 # --------------------------------------------------------------------------
@@ -239,12 +266,12 @@ async def ws_papierkorb_empty(hub: Hub, connection: Any, msg: dict[str, Any]) ->
 # --------------------------------------------------------------------------
 
 
-@befehl("neue_tobies/list", {vol.Optional("limit"): _ganz(1, 200), vol.Optional("offset"): _ganz(0, 10_000_000)})
+@befehl("neue_tobies/list", {vol.Optional("limit"): _ganz(1, 200), vol.Optional("offset"): _ganz(0, 10_000_000)}, recht="lesen")
 async def ws_neue_tobies_list(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
     return hub.neue_tobies_liste(msg.get("limit", 100), msg.get("offset", 0))
 
 
-@befehl("neue_tobies/verwerfen", {vol.Required("uid"): _text}, admin=True)
+@befehl("neue_tobies/verwerfen", {vol.Required("uid"): _text}, recht="alltag")
 async def ws_neue_tobies_verwerfen(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
     return hub.neue_tobies_verwerfen(msg["uid"])
 
@@ -262,6 +289,7 @@ async def ws_neue_tobies_verwerfen(hub: Hub, connection: Any, msg: dict[str, Any
         vol.Optional("limit"): _ganz(1, 100),
         vol.Optional("offset"): _ganz(0, 10_000_000),
     },
+    recht="lesen",
 )
 async def ws_zuordnung_list(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
     return await hub.zuordnung_liste(msg.get("serie_id"), msg.get("limit", 100), msg.get("offset", 0), msg.get("uid"))
@@ -276,7 +304,7 @@ async def ws_zuordnung_list(hub: Hub, connection: Any, msg: dict[str, Any]) -> A
         vol.Optional("ueberschreiben"): _wahrheit,
         vol.Optional("erwartet_ziel"): vol.Any(None, _objekt),
     },
-    admin=True,
+    recht="alltag",
 )
 async def ws_zuordnung_set(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
     return await hub.zuordnung_setzen(
@@ -285,12 +313,13 @@ async def ws_zuordnung_set(hub: Hub, connection: Any, msg: dict[str, Any]) -> An
         name=msg["name"] if "name" in msg else FEHLT,
         ueberschreiben=msg.get("ueberschreiben", False),
         erwartet_ziel=msg["erwartet_ziel"] if "erwartet_ziel" in msg else FEHLT,
+        nutzer=_nutzer(connection),
     )
 
 
-@befehl("zuordnung/remove", {vol.Required("uid"): _text, vol.Optional("erwartet_ziel"): vol.Any(None, _objekt)}, admin=True)
+@befehl("zuordnung/remove", {vol.Required("uid"): _text, vol.Optional("erwartet_ziel"): vol.Any(None, _objekt)}, recht="alltag")
 async def ws_zuordnung_remove(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
-    return await hub.zuordnung_entfernen(msg["uid"], msg["erwartet_ziel"] if "erwartet_ziel" in msg else FEHLT)
+    return await hub.zuordnung_entfernen(msg["uid"], msg["erwartet_ziel"] if "erwartet_ziel" in msg else FEHLT, _nutzer(connection))
 
 
 # --------------------------------------------------------------------------
@@ -301,7 +330,7 @@ async def ws_zuordnung_remove(hub: Hub, connection: Any, msg: dict[str, Any]) ->
 @befehl(
     "lernmodus/start",
     {vol.Required("box"): _text, vol.Required("ziel"): _objekt, vol.Optional("name"): _text, **ANFRAGE_ID},
-    admin=True,
+    recht="alltag",
 )
 async def ws_lernmodus_start(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
     async def tu() -> Any:
@@ -310,12 +339,12 @@ async def ws_lernmodus_start(hub: Hub, connection: Any, msg: dict[str, Any]) -> 
     return await hub.mit_anfrage_id(msg.get("anfrage_id"), "lernmodus/start", _felder(msg), tu)
 
 
-@befehl("lernmodus/antwort", {vol.Required("befehl_id"): _text, vol.Required("ueberschreiben"): _wahrheit}, admin=True)
+@befehl("lernmodus/antwort", {vol.Required("befehl_id"): _text, vol.Required("ueberschreiben"): _wahrheit}, recht="alltag")
 async def ws_lernmodus_antwort(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
     return await hub.lernmodus.antwort(msg["befehl_id"], msg["ueberschreiben"])
 
 
-@befehl("lernmodus/abbrechen", {vol.Required("box"): _text}, admin=True)
+@befehl("lernmodus/abbrechen", {vol.Required("box"): _text}, recht="alltag")
 async def ws_lernmodus_abbrechen(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
     return {"abgebrochen": await hub.lernmodus.abbrechen(msg["box"])}
 
@@ -325,12 +354,12 @@ async def ws_lernmodus_abbrechen(hub: Hub, connection: Any, msg: dict[str, Any])
 # --------------------------------------------------------------------------
 
 
-@befehl("boxen/list")
+@befehl("boxen/list", recht="lesen")
 async def ws_boxen_list(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
-    return {"boxen": hub.boxen_liste()}
+    return {"boxen": hub.boxen_liste(mit_ereignisse=_nutzer(connection).ist_admin)}  # ``ereignisse`` nur für Administratoren (2.1)
 
 
-@befehl("box/sync", {vol.Required("box"): _text, **ANFRAGE_ID}, admin=True)
+@befehl("box/sync", {vol.Required("box"): _text, **ANFRAGE_ID}, recht="admin")
 async def ws_box_sync(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
     async def tu() -> Any:
         return await hub.box_sync(msg["box"])
@@ -343,7 +372,7 @@ async def ws_box_sync(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
 # --------------------------------------------------------------------------
 
 
-@befehl("liste/neu_ausrollen", {vol.Required("bestaetigt"): _wahr, **ANFRAGE_ID}, admin=True)
+@befehl("liste/neu_ausrollen", {vol.Required("bestaetigt"): _wahr, **ANFRAGE_ID}, recht="admin")
 async def ws_liste_neu_ausrollen(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
     async def tu() -> Any:
         return await hub.liste_neu_ausrollen()
@@ -356,12 +385,12 @@ async def ws_liste_neu_ausrollen(hub: Hub, connection: Any, msg: dict[str, Any])
 # --------------------------------------------------------------------------
 
 
-@befehl("serie/delete", {**SERIE_ID, vol.Optional("tobies_bestaetigt"): _wahrheit, **STAND}, admin=True)
+@befehl("serie/delete", {**SERIE_ID, vol.Optional("tobies_bestaetigt"): _wahrheit, **STAND}, recht="alltag")
 async def ws_serie_delete(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
-    return await hub.medien.serie_loeschen(msg["serie_id"], msg.get("tobies_bestaetigt", False), msg.get("stand"))
+    return await hub.medien.serie_loeschen(msg["serie_id"], msg.get("tobies_bestaetigt", False), msg.get("stand"), _nutzer(connection))
 
 
-@befehl("folge/rename", {**SERIE_ID, vol.Required("folge"): _text, vol.Required("name"): _text, **STAND}, admin=True)
+@befehl("folge/rename", {**SERIE_ID, vol.Required("folge"): _text, vol.Required("name"): _text, **STAND}, recht="alltag")
 async def ws_folge_rename(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
     return await hub.medien.folge_umbenennen(msg["serie_id"], msg["folge"], msg["name"], msg.get("stand"))
 
@@ -375,11 +404,11 @@ async def ws_folge_rename(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any
         vol.Optional("tobies_bestaetigt"): _wahrheit,
         **STAND,
     },
-    admin=True,
+    recht="alltag",
 )
 async def ws_folge_verschieben(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
     return await hub.medien.folge_verschieben(
-        msg["serie_id"], msg["folge"], msg["ziel_serie_id"], msg.get("tobies_bestaetigt", False), msg.get("stand")
+        msg["serie_id"], msg["folge"], msg["ziel_serie_id"], msg.get("tobies_bestaetigt", False), msg.get("stand"), _nutzer(connection)
     )
 
 
@@ -392,15 +421,20 @@ async def ws_folge_verschieben(hub: Hub, connection: Any, msg: dict[str, Any]) -
         vol.Optional("stand_quelle"): _text,
         vol.Optional("stand_ziel"): _text,
     },
-    admin=True,
+    recht="admin",
 )
 async def ws_serien_zusammenfuehren(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
     return await hub.medien.serien_zusammenfuehren(
-        msg["quelle_id"], msg["ziel_id"], msg.get("tobies_bestaetigt", False), msg.get("stand_quelle"), msg.get("stand_ziel")
+        msg["quelle_id"],
+        msg["ziel_id"],
+        msg.get("tobies_bestaetigt", False),
+        msg.get("stand_quelle"),
+        msg.get("stand_ziel"),
+        _nutzer(connection),
     )
 
 
-@befehl("einsortierung/bestaetigen", {**SERIE_ID, vol.Optional("folgen"): LISTE_TEXT}, admin=True)
+@befehl("einsortierung/bestaetigen", {**SERIE_ID, vol.Optional("folgen"): LISTE_TEXT}, recht="alltag")
 async def ws_einsortierung_bestaetigen(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
     return {"serie": await hub.medien.bestaetigen(msg["serie_id"], msg.get("folgen"))}
 
@@ -417,17 +451,20 @@ async def ws_einsortierung_bestaetigen(hub: Hub, connection: Any, msg: dict[str,
         vol.Optional("limit"): _ganz(1, 100),
         vol.Optional("offset"): _ganz(0, 10_000_000),
     },
+    recht="lesen",
 )
 async def ws_eingang_list(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
     return await hub.eingang.liste(msg.get("filter", "offen"), msg.get("limit", 50), msg.get("offset", 0))
 
 
-@befehl("eingang/sortieren", {vol.Optional("eintrag_ids"): LISTE_TEXT, vol.Optional("sofort"): _wahrheit}, admin=True)
+@befehl("eingang/sortieren", {vol.Optional("eintrag_ids"): LISTE_TEXT, vol.Optional("sofort"): _wahrheit}, recht="alltag")
 async def ws_eingang_sortieren(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
+    if msg.get("sofort") and not _nutzer(connection).ist_admin:  # die Ruhezeit schützt halb kopierte Dateien (2.4)
+        raise TobiboxFehler("unauthorized")
     return await hub.eingang.starte_durchlauf(msg.get("eintrag_ids"), msg.get("sofort", False))
 
 
-@befehl("eingang/entfernen", {vol.Required("eintrag_id"): _text, vol.Required("bestaetigt"): _wahr}, admin=True)
+@befehl("eingang/entfernen", {vol.Required("eintrag_id"): _text, vol.Required("bestaetigt"): _wahr}, recht="admin")
 async def ws_eingang_entfernen(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
     return await hub.eingang.entferne_eintrag(msg["eintrag_id"])
 
@@ -437,21 +474,25 @@ async def ws_eingang_entfernen(hub: Hub, connection: Any, msg: dict[str, Any]) -
 # --------------------------------------------------------------------------
 
 
-@befehl("konfig/export_lesen")
+@befehl("konfig/export_lesen", {vol.Optional("stand"): _ganz(1, KONFIG_STAENDE_ANZAHL)}, recht="admin")
 async def ws_konfig_export_lesen(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
-    return await hub.konfig_export_lesen()
+    return await hub.konfig_export_lesen(msg.get("stand"))
 
 
-@befehl("konfig/aus_export", {vol.Required("bestaetigt"): _wahr, **ANFRAGE_ID}, admin=True)
+@befehl(
+    "konfig/aus_export",
+    {vol.Required("bestaetigt"): _wahr, vol.Optional("stand"): _ganz(1, KONFIG_STAENDE_ANZAHL), **ANFRAGE_ID},
+    recht="admin",
+)
 async def ws_konfig_aus_export(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
     async def tu() -> Any:
-        return await hub.konfig_aus_export()
+        return await hub.konfig_aus_export(msg.get("stand"))
 
     return await hub.mit_anfrage_id(msg.get("anfrage_id"), "konfig/aus_export", _felder(msg), tu)
 
 
 # 34: Lesebefehl für den Konfig-Stand (Erweiterung v1.1, 09.11.)
-@befehl("konfig/get")
+@befehl("konfig/get", recht="lesen")
 async def ws_konfig_get(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
     return hub.konfig_lesen()
 
@@ -461,7 +502,7 @@ async def ws_konfig_get(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
 # --------------------------------------------------------------------------
 
 
-@befehl("einstellungen/get")
+@befehl("einstellungen/get", recht="lesen")
 async def ws_einstellungen_get(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
     return hub.einstellungen_lesen()
 
@@ -472,14 +513,17 @@ async def ws_einstellungen_get(hub: Hub, connection: Any, msg: dict[str, Any]) -
         vol.Optional("leise_zeiten"): _beliebig,
         vol.Optional("gute_nacht"): _beliebig,
         vol.Optional("lesezeichen_tage"): _beliebig,
+        vol.Optional("erwartet_revision"): _ganz(0, 2**53),
     },
-    admin=True,
+    recht="alltag",
 )
 async def ws_einstellungen_set(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
     return await hub.einstellungen_setzen(
         msg["leise_zeiten"] if "leise_zeiten" in msg else FEHLT,
         msg["gute_nacht"] if "gute_nacht" in msg else FEHLT,
         msg["lesezeichen_tage"] if "lesezeichen_tage" in msg else FEHLT,
+        nutzer=_nutzer(connection),
+        erwartet_revision=msg.get("erwartet_revision"),
     )
 
 

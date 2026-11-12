@@ -24,7 +24,6 @@ from typing import TYPE_CHECKING, Any
 from aiohttp import web
 
 from homeassistant.components.http import KEY_HASS, HomeAssistantView
-from homeassistant.components.http.decorators import require_admin
 
 from . import dateien, ffprobe
 from .const import (
@@ -39,6 +38,7 @@ from .const import (
     VERTRAG_V,
 )
 from .fehler import TobiboxFehler
+from .schutz import Nutzer
 from .namen import NamenErschoepft, dateiname_bereinigen, eindeutiger_name, vergleichsschluessel
 
 if TYPE_CHECKING:
@@ -58,26 +58,25 @@ def _fehler_antwort(hub: Hub, code: str, status: int | None = None) -> web.Respo
 
 
 class TobiboxUploadView(HomeAssistantView):
-    """Der Upload-Endpunkt (nur Administratoren, mit Anmeldung)."""
+    """Der Upload-Endpunkt (jeder angemeldete Benutzer; Recht „alltag“, Vertrag W, 2.1; Schutzgrenzen in 2.4)."""
 
     url = "/api/tobibox/upload"
     name = "api:tobibox:upload"
     requires_auth = True
     cors_allowed = False
 
-    @require_admin
     async def post(self, request: web.Request) -> web.StreamResponse:
         hass = request.app[KEY_HASS]
         hub: Hub | None = hass.data.get(DOMAIN)
         if hub is None:
             return web.json_response({"v": VERTRAG_V, "fehler": {"code": "unknown_error", "text": "nicht geladen"}}, status=500)
-        nutzer_id = request["hass_user"].id
+        nutzer = Nutzer.aus_user(request["hass_user"])
         # (a) höchstens zwei Uploads gleichzeitig
         if hub.upload_zaehler >= UPLOAD_PARALLEL:
             return _fehler_antwort(hub, "zu_viele_uploads")
         hub.upload_zaehler += 1
         try:
-            return await _empfange(hub, request, nutzer_id)
+            return await _empfange(hub, request, nutzer)
         finally:
             hub.upload_zaehler -= 1
 
@@ -106,12 +105,17 @@ async def _verwerfe_rest(part: Any) -> None:
         pass
 
 
-async def _empfange(hub: Hub, request: web.Request, nutzer_id: str | None) -> web.StreamResponse:
+async def _empfange(hub: Hub, request: web.Request, nutzer: Nutzer) -> web.StreamResponse:
     hass = hub.hass
+    nutzer_id = nutzer.id
+    # Menge je Stunde (Vertrag W, 2.4): Administratoren sind ausgenommen (``rest`` ist dann ``None``)
+    rest = hub.schutz.upload_rest(nutzer)
     # (b) vor dem Körper: Größe und Platz
     laenge = request.content_length
     if laenge is not None and laenge > hub.upload_max_bytes:
         return _fehler_antwort(hub, "datei_zu_gross")
+    if rest is not None and laenge is not None and laenge > rest:
+        return _fehler_antwort(hub, "zu_viele_aenderungen")
     if not await hass.async_add_executor_job(hub.pfade.eingang.is_dir) or not await hass.async_add_executor_job(
         hub.pfade.medien.is_dir
     ):
@@ -201,6 +205,12 @@ async def _empfange(hub: Hub, request: web.Request, nutzer_id: str | None) -> we
                 if upload_id:
                     hub.uploads_laufend.discard(upload_id)
                 return _fehler_antwort(hub, "datei_zu_gross")
+            if rest is not None and gesamt > rest:
+                await hass.async_add_executor_job(datei.close)
+                _loesche_leise(part_pfad)
+                if upload_id:
+                    hub.uploads_laufend.discard(upload_id)
+                return _fehler_antwort(hub, "zu_viele_aenderungen")
             await hass.async_add_executor_job(datei.write, block)
         await hass.async_add_executor_job(_fsync_und_schliessen, datei)
     except BaseException:  # Abbruch des Clients (CancelledError) oder Fehler beim Schreiben: nichts bleibt
@@ -210,6 +220,8 @@ async def _empfange(hub: Hub, request: web.Request, nutzer_id: str | None) -> we
         if upload_id:
             hub.uploads_laufend.discard(upload_id)
         raise
+
+    hub.schutz.upload_gebucht(nutzer, gesamt)
 
     # --- Phase B: Abschluss als eigene Aufgabe, vom Handler mit shield abgewartet ---
     aufgabe = hass.async_create_background_task(

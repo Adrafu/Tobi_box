@@ -73,6 +73,14 @@ EINGANG_PROTOKOLL_MAX: Final = 100
 INDEX_MAX: Final = 20000
 PRUEF_INTERVALL_S: Final = 600
 
+# --- Schutz für Nicht-Administratoren (Vertrag W, 2.4 und 14.10) -----------------
+AENDERUNGEN_JE_MINUTE: Final = 30
+PAPIERKORB_AKTIONEN_JE_10_MIN: Final = 20
+#: Mitteilung an die Administratoren bei **mehr als** so vielen Einträgen eines Benutzers in einer Stunde
+PAPIERKORB_MELDUNG_AB: Final = 3
+UPLOAD_BYTES_JE_STUNDE: Final = 16 * 1024**3
+KONFIG_STAENDE_ANZAHL: Final = 10
+
 ANFRAGE_ID_ANZAHL: Final = 100
 ANFRAGE_ID_DAUER_S: Final = 600
 
@@ -130,6 +138,8 @@ FAEHIGKEITEN: Final = (
     "zuordnung_uid",
     "konfig_lesen",
     "upload_fertig_details",
+    # Stufe A der HA-Oberfläche (12.11., Vertrag W, 14.1): nur, was das Backend schon liefert
+    "konfig_staende",
 )
 
 # --- MQTT-Themen (``mqtt-v1.md`` Abschnitt 2) ----------------------------------

@@ -44,6 +44,7 @@ HTTP_STATUS: Final = {
     "keine_version": 404,
     "einstellung_ungueltig": 400,
     "sortierung_laeuft": 409,
+    "zu_viele_aenderungen": 429,
 }
 
 

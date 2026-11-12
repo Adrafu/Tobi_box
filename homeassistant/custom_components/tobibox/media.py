@@ -20,6 +20,7 @@ import logging
 import os
 import shutil
 from dataclasses import dataclass, field
+from datetime import timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -46,6 +47,7 @@ from .namen import (
     sortiere_natuerlich,
     vergleichsschluessel,
 )
+from .schutz import Nutzer, ist_admin
 from .util import fingerabdruck, jetzt, jetzt_iso, neue_id12, parse_iso
 
 if TYPE_CHECKING:
@@ -86,6 +88,10 @@ def gueltige_serien_id(x: Any) -> bool:
 # --------------------------------------------------------------------------
 # serie.json
 # --------------------------------------------------------------------------
+
+
+#: Felder von ``folgen_info``, die von Menschen gesetzt werden und den ``stand`` einer Serie bestimmen
+STAND_FELDER = ("anzeige", "nummer", "datum", "pruefen")
 
 
 @dataclass
@@ -130,9 +136,17 @@ class Serie:
 
     @property
     def stand(self) -> str:
-        """Fingerabdruck von ``name``, ``folgen`` und ``folgen_info`` (16 Zeichen)."""
+        """Fingerabdruck von ``name``, ``folgen`` und den **von Menschen gesetzten** Feldern von ``folgen_info`` (16 Zeichen).
+
+        Das sind ``anzeige``, ``nummer``, ``datum`` und ``pruefen`` (Vertrag W, Serie-Kurzform, seit 12.11.). Werte aus
+        Hintergrundläufen (Dauer, Kapitel, Art, Cover und alles, was später dazukommt) ändern ihn nie."""
         self.bereinige()
-        return fingerabdruck({"name": self.name, "folgen": self.folgen, "folgen_info": self.folgen_info})
+        menschlich: dict[str, dict[str, Any]] = {}
+        for name in self.folgen:
+            info = {k: v for k, v in self.folgen_info.get(name, {}).items() if k in STAND_FELDER}
+            if info:
+                menschlich[name] = info
+        return fingerabdruck({"name": self.name, "folgen": self.folgen, "folgen_info": menschlich})
 
     def info(self, name: str) -> dict[str, Any]:
         return self.folgen_info.get(name, {})
@@ -313,6 +327,7 @@ def papierkorb_anlegen(
     folge_info: dict[str, Any] | None = None,
     serie_json: dict[str, Any] | None = None,
     pruefsummen: list[str] | None = None,
+    geloescht_von: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Verschiebt ``quelle`` in einen neuen Papierkorb-Eintrag ``_papierkorb/<id>/`` und gibt den Eintrag zurück.
 
@@ -352,6 +367,8 @@ def papierkorb_anlegen(
     }
     if pruefsummen:
         meta["index_pruefsummen"] = pruefsummen
+    if geloescht_von:
+        meta["geloescht_von"] = geloescht_von
     try:
         dateien.schreibe_json_atomar(eintrag_pfad / "meta.json", meta)
         (eintrag_pfad / "inhalt").mkdir()
@@ -411,6 +428,7 @@ def eintrag_fuer_seite(meta: dict[str, Any]) -> dict[str, Any]:
         "groesse_bytes": meta.get("groesse_bytes", 0),
         "grund": meta.get("grund", "manuell"),
         "geloescht_am": meta.get("geloescht_am"),
+        "geloescht_von": meta.get("geloescht_von") if isinstance(meta.get("geloescht_von"), dict) else None,
     }
 
 
@@ -945,7 +963,10 @@ class Medien:
     def _index_pruefsummen(self, praefix: str) -> list[str]:
         return self.hub.eingang.index_entferne_praefix(praefix)
 
-    async def folge_loeschen(self, serie_id: str, folge: str, tobies_bestaetigt: bool, stand: str | None) -> dict[str, Any]:
+    async def folge_loeschen(
+        self, serie_id: str, folge: str, tobies_bestaetigt: bool, stand: str | None, nutzer: Nutzer | None = None
+    ) -> dict[str, Any]:
+        self.hub.schutz.papierkorb_pruefen(nutzer)
         async with self.sperren(serie_id):
             serie, pfad = await self._frisch(serie_id)
             self._pruefe_stand(serie, stand)
@@ -970,6 +991,7 @@ class Medien:
                         serie_ordner=pfad.name,
                         folge_info=copy.deepcopy(serie.folgen_info.get(folge)),
                         pruefsummen=summen,
+                        geloescht_von=nutzer.geloescht_von if nutzer else None,
                     )
                 )
             except OSError as err:
@@ -983,11 +1005,16 @@ class Medien:
             except OSError as err:
                 raise self._fehler_schreiben(err) from err
             await self._aktualisiere_cache(serie, pfad.name)
+        eintrag = eintrag_fuer_seite(meta)
+        self.hub.schutz.papierkorb_gebucht(nutzer, eintrag, tobies)
         self.hub.emit("medien", "serien_geaendert", {"serie_ids": [serie_id]})
         self.hub.emit("medien", "papierkorb_geaendert", {})
-        return {"eintrag": eintrag_fuer_seite(meta), "betroffene_tobies": tobies}
+        return {"eintrag": eintrag, "betroffene_tobies": tobies}
 
-    async def serie_loeschen(self, serie_id: str, tobies_bestaetigt: bool, stand: str | None) -> dict[str, Any]:
+    async def serie_loeschen(
+        self, serie_id: str, tobies_bestaetigt: bool, stand: str | None, nutzer: Nutzer | None = None
+    ) -> dict[str, Any]:
+        self.hub.schutz.papierkorb_pruefen(nutzer)
         async with self.sperren(serie_id):
             serie, pfad = await self._frisch(serie_id)
             self._pruefe_stand(serie, stand)
@@ -1007,6 +1034,7 @@ class Medien:
                         serie_ordner=pfad.name,
                         serie_json=serie.to_json(),
                         pruefsummen=summen,
+                        geloescht_von=nutzer.geloescht_von if nutzer else None,
                     )
                 )
             except OSError as err:
@@ -1015,10 +1043,12 @@ class Medien:
             self.serien.pop(serie_id, None)
             for k in [k for k in self._pruefergebnisse if k[0] == pfad.name]:
                 self._pruefergebnisse.pop(k, None)
+        eintrag = eintrag_fuer_seite(meta)
+        self.hub.schutz.papierkorb_gebucht(nutzer, eintrag, tobies)
         self.hub.emit("medien", "serien_geaendert", {"serie_ids": [serie_id]})
         self.hub.emit("medien", "papierkorb_geaendert", {})
         return {
-            "eintrag": eintrag_fuer_seite(meta),
+            "eintrag": eintrag,
             "betroffene_tobies": tobies,
             "ueberraschung": self.ueberraschung_status(),
         }
@@ -1030,13 +1060,16 @@ class Medien:
             raise TobiboxFehler("konfig_nicht_bereit")
 
     async def folge_verschieben(
-        self, serie_id: str, folge: str, ziel_serie_id: str, tobies_bestaetigt: bool, stand: str | None
+        self, serie_id: str, folge: str, ziel_serie_id: str, tobies_bestaetigt: bool, stand: str | None, nutzer: Nutzer | None = None
     ) -> dict[str, Any]:
         if ziel_serie_id == serie_id:
             raise TobiboxFehler("ziel_ungueltig")
         await self._stelle_geprueft_sicher()
         self.finde(serie_id)
-        self.finde(ziel_serie_id)
+        ziel_info = self.finde(ziel_serie_id)
+        if ziel_info.serie.typ == "ueberraschung" and not ist_admin(nutzer):
+            # Die Überraschungs-Serie bestimmt, was die Box beim unbekannten Tobie spielt: nur Administratoren (Vertrag W, 2.4)
+            raise TobiboxFehler("ziel_ungueltig")
         async with self.hub.eingang.sperre, self.sperren(serie_id, ziel_serie_id):
             quelle_serie, quelle_pfad = await self._frisch(serie_id)
             ziel_serie, ziel_pfad = await self._frisch(ziel_serie_id)
@@ -1109,7 +1142,13 @@ class Medien:
         return name
 
     async def serien_zusammenfuehren(
-        self, quelle_id: str, ziel_id: str, tobies_bestaetigt: bool, stand_quelle: str | None, stand_ziel: str | None
+        self,
+        quelle_id: str,
+        ziel_id: str,
+        tobies_bestaetigt: bool,
+        stand_quelle: str | None,
+        stand_ziel: str | None,
+        nutzer: Nutzer | None = None,
     ) -> dict[str, Any]:
         if quelle_id == ziel_id:
             raise TobiboxFehler("ziel_ungueltig")
@@ -1173,6 +1212,7 @@ class Medien:
                         serie_ordner=quelle_pfad.name,
                         serie_json=quelle.to_json(),
                         pruefsummen=self.hub.eingang.index_entferne_praefix(f"{quelle_pfad.name}/"),
+                        geloescht_von=nutzer.geloescht_von if nutzer else None,
                     )
                 )
             except OSError as err:
@@ -1196,6 +1236,8 @@ class Medien:
                 erg = await self.hub.aendere_konfig(schreibe_um)
                 konfig, veroeffentlicht = erg["konfig"], erg["veroeffentlicht"]
             zinfo = await self._aktualisiere_cache(ziel, ziel_pfad.name)
+        eintrag = eintrag_fuer_seite(meta)
+        self.hub.schutz.papierkorb_gebucht(nutzer, eintrag, tobies)
         self.hub.emit("medien", "serien_geaendert", {"serie_ids": sorted({quelle_id, ziel_id})})
         self.hub.emit("medien", "papierkorb_geaendert", {})
         return {
@@ -1203,7 +1245,7 @@ class Medien:
             "verschoben": verschoben,
             "umbenannt": umbenannt,
             "betroffene_tobies": tobies,
-            "eintrag": eintrag_fuer_seite(meta),
+            "eintrag": eintrag,
             "konfig": konfig,
             "veroeffentlicht": veroeffentlicht,
         }
@@ -1297,6 +1339,30 @@ class Medien:
             self.hub.emit("medien", "papierkorb_geaendert", {})
             return {"serie": self.kurzform(info), "folge": None}
         raise TobiboxFehler("eintrag_nicht_gefunden")
+
+    async def papierkorb_letzte_stunde_zurueck(self) -> dict[str, Any]:
+        """Holt alles zurück, was in der letzten Stunde in den Papierkorb kam (Vertrag W, Nr. 46).
+
+        Neueste zuerst: Wurde erst eine Folge und dann ihre Serie gelöscht, kommt die Serie vor der Folge zurück.
+        Was sich nicht zurückholen lässt, steht mit seinem Code in ``uebersprungen``; der Rest wird trotzdem geholt."""
+        await self._medien_erreichbar()
+        alle = await self._executor(lese_papierkorb, self.pfade.papierkorb)
+        grenze = jetzt() - timedelta(hours=1)
+        wiederhergestellt = 0
+        uebersprungen: list[dict[str, str]] = []
+        for meta in alle:  # neueste zuerst
+            am = parse_iso(meta.get("geloescht_am"))
+            if am is None or am < grenze:
+                continue
+            try:
+                await self.papierkorb_wiederherstellen(meta["id"], None)
+            except TobiboxFehler as err:
+                if err.code in ("medien_nicht_erreichbar", "medien_schreibfehler"):
+                    raise
+                uebersprungen.append({"eintrag_id": meta["id"], "code": err.code})
+            else:
+                wiederhergestellt += 1
+        return {"wiederhergestellt": wiederhergestellt, "uebersprungen": uebersprungen}
 
     def _stelle_in_eingang_wieder_her(self, inhalt: Path, eintrag_pfad: Path) -> None:
         self.pfade.eingang.mkdir(parents=True, exist_ok=True)

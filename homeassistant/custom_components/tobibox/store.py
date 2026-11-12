@@ -16,6 +16,7 @@ import asyncio
 import copy
 import json
 import logging
+import os
 import re
 from collections.abc import Callable
 from pathlib import Path
@@ -30,6 +31,7 @@ from .const import (
     BOX_EREIGNISSE_MAX,
     EXPORT_DATEI,
     KONFIG_MAX_BYTES,
+    KONFIG_STAENDE_ANZAHL,
     LERN_VERLAUF_MAX,
     LESEZEICHEN_TAGE_MAX,
     LESEZEICHEN_TAGE_VORGABE,
@@ -318,11 +320,16 @@ class ExportLesen:
         self.fehler = fehler
 
 
-def lese_export(export_ordner: Path) -> ExportLesen:
-    """Liest ``export/config.json`` (synchron, im Executor aufrufen)."""
+def stand_datei(n: int) -> str:
+    """Dateiname eines früheren Standes: ``config.<n>.json`` (``n`` = 1 ist der jüngste frühere Stand)."""
+    return f"config.{n}.json"
+
+
+def lese_export(export_ordner: Path, stand: int | None = None) -> ExportLesen:
+    """Liest ``export/config.json`` oder, mit ``stand``, ``export/config.<stand>.json`` (synchron, im Executor aufrufen)."""
     if not export_ordner.is_dir():
         return ExportLesen("unerreichbar")
-    datei = export_ordner / EXPORT_DATEI
+    datei = export_ordner / (EXPORT_DATEI if stand is None else stand_datei(stand))
     if not datei.exists():
         return ExportLesen("fehlt")
     try:
@@ -337,9 +344,52 @@ def lese_export(export_ordner: Path) -> ExportLesen:
     return ExportLesen("ok", k, am)
 
 
+def lese_staende(export_ordner: Path) -> list[dict[str, Any]]:
+    """Die vorhandenen früheren Stände (Vertrag W, 2.4): ``stand``, ``exportiert_am``, ``anzahl_zuordnungen``; nur lesbare Dateien."""
+    aus: list[dict[str, Any]] = []
+    for n in range(1, KONFIG_STAENDE_ANZAHL + 1):
+        export = lese_export(export_ordner, n)
+        if export.status == "ok" and export.konfig is not None:
+            aus.append({"stand": n, "exportiert_am": export.exportiert_am, "anzahl_zuordnungen": len(export.konfig["zuordnungen"])})
+    return aus
+
+
+def _lege_stand_ab(aktuell: Path, ziel: Path) -> None:
+    """``config.json`` als früheren Stand ablegen: wenn die Freigabe es kann, als harte Verknüpfung (schnell, ohne Lücke), sonst als Kopie.
+
+    Der neue ``config.json`` ersetzt die Datei atomar durch eine neue; die Verknüpfung behält den alten Inhalt."""
+    try:
+        os.link(aktuell, ziel)
+    except OSError:
+        dateien.schreibe_json_atomar(ziel, dateien.lese_json(aktuell))
+
+
+def _schiebe_staende(export_ordner: Path, k: dict[str, Any]) -> None:
+    """Legt den bisherigen ``config.json`` als ``config.1.json`` ab, wenn er ein anderer Stand ist als der neue (alles eine Stelle weiter)."""
+    aktuell = export_ordner / EXPORT_DATEI
+    if not aktuell.exists():
+        return
+    try:
+        alt = pruefe_konfig(dateien.lese_json(aktuell))
+    except (OSError, ValueError, Ungueltig):
+        return  # unlesbar: kein Stand, den man später zurückholen könnte
+    if (alt["liste_id"], alt["revision"]) == (k["liste_id"], k["revision"]):
+        return  # derselbe Stand wird nur neu geschrieben
+    try:
+        for n in range(KONFIG_STAENDE_ANZAHL - 1, 0, -1):
+            try:
+                os.replace(export_ordner / stand_datei(n), export_ordner / stand_datei(n + 1))
+            except FileNotFoundError:
+                continue
+        _lege_stand_ab(aktuell, export_ordner / stand_datei(1))
+    except (OSError, ValueError) as err:  # ein verlorener früherer Stand ist besser als kein neuer Export
+        _LOGGER.warning("Früherer Stand der Liste nicht abgelegt: %s", err)
+
+
 def schreibe_export(export_ordner: Path, k: dict[str, Any], exportiert_am: str) -> None:
-    """Schreibt ``export/config.json`` atomar (synchron, im Executor aufrufen)."""
+    """Schreibt ``export/config.json`` atomar; der bisherige Stand wird ``config.1.json`` (synchron, im Executor aufrufen)."""
     export_ordner.mkdir(parents=True, exist_ok=True)
+    _schiebe_staende(export_ordner, k)
     dateien.schreibe_json_atomar(export_ordner / EXPORT_DATEI, konfig_zu_export(k, exportiert_am))
 
 

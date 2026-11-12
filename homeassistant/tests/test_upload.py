@@ -162,11 +162,13 @@ async def test_ohne_anmeldung_401(hass, integration, hass_client_no_auth, nas, m
     assert eingang_namen(nas) == []
 
 
-async def test_nur_administratoren(hass, integration, hass_client, hass_read_only_access_token, nas, mp3):
+async def test_auch_nicht_administratoren_duerfen_hochladen(hass, integration, hass_client, hass_read_only_access_token, nas, mp3):
+    """Seit 12.11. (Vertrag W, 2.1; W-19 entfällt): Recht „alltag“, jeder angemeldete Nutzer."""
     lesend = await hass_client(hass_read_only_access_token)
     antwort = await post(lesend, formular(mp3))
-    assert antwort.status in (401, 403)
-    assert eingang_namen(nas) == []
+    assert antwort.status == 200, await antwort.text()
+    assert eingang_namen(nas) == ["x.mp3"]
+    integration.eingang.abbrechen()
 
 
 # --- Namen (Abschnitt 12) ---

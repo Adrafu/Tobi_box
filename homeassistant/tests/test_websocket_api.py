@@ -88,6 +88,7 @@ async def test_hello(api, api_lesend, integration):
         "medien", "upload", "zuordnung", "tobie_namen", "neue_tobies", "lernmodus", "boxen", "papierkorb",
         "liste_ausrollen", "konfig_export", "sync", "eingang", "korrektur", "serie_loeschen",
         "einstellungen", "eingang_entfernen", "zuordnung_uid", "konfig_lesen", "upload_fertig_details",  # AP 4.7, Erweiterungen v1.1
+        "konfig_staende",  # 12.11., Paket A1: frühere Stände der Liste
     ]
     assert r["konfig"]["zustand"] == "ok" and r["konfig"]["revision"] == 1
     g = r["grenzen"]
@@ -149,27 +150,31 @@ async def test_subscribe_alle_themen_und_ungueltiges_thema(hass, api):
 
 ADMIN_BEFEHLE = [
     ("serie/create", {"name": "X"}),
-    ("serie/rename", {"serie_id": "rabe", "name": "X"}),
     ("folgen/order", {"serie_id": "rabe", "folgen": ["a.mp3", "b.mp3"]}),
-    ("folge/delete", {"serie_id": "rabe", "folge": "a.mp3"}),
-    ("medien/pruefen", {}),
     ("papierkorb/restore", {"eintrag_id": "0123456789ab"}),
     ("papierkorb/empty", {"bestaetigt": True}),
+    ("box/sync", {"box": "box1"}),
+    ("liste/neu_ausrollen", {"bestaetigt": True}),
+    ("serien/zusammenfuehren", {"quelle_id": "rabe", "ziel_id": "z"}),
+    ("konfig/export_lesen", {}),  # seit 12.11. nur Administratoren (vorher lesen)
+    ("konfig/aus_export", {"bestaetigt": True}),
+]
+#: seit 12.11. (Paket A1) „alltag“: für jeden angemeldeten Nutzer erlaubt (bisher Administratoren); Schutzregeln: test_rechte_schutz.py
+ALLTAG_BEFEHLE = [
+    ("serie/rename", {"serie_id": "rabe", "name": "X"}),
+    ("folge/delete", {"serie_id": "rabe", "folge": "a.mp3"}),
+    ("medien/pruefen", {}),
     ("neue_tobies/verwerfen", {"uid": UID}),
     ("zuordnung/set", {"uid": UID, "ziel": SERIE}),
-    ("zuordnung/remove", {"uid": UID}),
+    ("zuordnung/remove", {"uid": UID, "erwartet_ziel": None}),
     ("lernmodus/start", {"box": "box1", "ziel": SERIE}),
     ("lernmodus/antwort", {"befehl_id": "x", "ueberschreiben": True}),
     ("lernmodus/abbrechen", {"box": "box1"}),
-    ("box/sync", {"box": "box1"}),
-    ("liste/neu_ausrollen", {"bestaetigt": True}),
     ("serie/delete", {"serie_id": "rabe"}),
     ("folge/rename", {"serie_id": "rabe", "folge": "a.mp3", "name": "X"}),
     ("folge/verschieben", {"serie_id": "rabe", "folge": "a.mp3", "ziel_serie_id": "z"}),
-    ("serien/zusammenfuehren", {"quelle_id": "rabe", "ziel_id": "z"}),
     ("einsortierung/bestaetigen", {"serie_id": "rabe"}),
     ("eingang/sortieren", {}),
-    ("konfig/aus_export", {"bestaetigt": True}),
 ]
 LESE_BEFEHLE = [
     ("hello", {"v": 1}),
@@ -180,7 +185,6 @@ LESE_BEFEHLE = [
     ("zuordnung/list", {}),
     ("boxen/list", {}),
     ("eingang/list", {}),
-    ("konfig/export_lesen", {}),
 ]
 
 
@@ -189,6 +193,13 @@ async def test_schreibende_befehle_nur_fuer_administratoren(api_lesend, typ, fel
     antwort = await senden(api_lesend, typ, **felder)
     assert antwort["success"] is False
     assert antwort["error"]["code"] == "unauthorized"
+
+
+@pytest.mark.parametrize(("typ", "felder"), ALLTAG_BEFEHLE, ids=[b[0] for b in ALLTAG_BEFEHLE])
+async def test_alltagsbefehle_sind_nicht_mehr_nur_fuer_administratoren(api_lesend, typ, felder):
+    """Ob der Befehl gelingt, hängt von den Schutzregeln und vom Bestand ab; ``unauthorized`` wegen der Rolle gibt es nicht mehr."""
+    antwort = await senden(api_lesend, typ, **felder)
+    assert antwort["success"] is True or antwort["error"]["code"] != "unauthorized", antwort
 
 
 @pytest.mark.parametrize(("typ", "felder"), LESE_BEFEHLE, ids=[b[0] for b in LESE_BEFEHLE])
@@ -206,7 +217,7 @@ async def test_admin_befehle_sind_vollstaendig_aufgelistet():
         "liste/neu_ausrollen", "serie/delete", "folge/rename", "folge/verschieben", "serien/zusammenfuehren", "einsortierung/bestaetigen",
         "eingang/list", "eingang/sortieren", "konfig/export_lesen", "konfig/aus_export",
     }
-    assert {b[0] for b in ADMIN_BEFEHLE} | {b[0] for b in LESE_BEFEHLE} == erwartet
+    assert {b[0] for b in ADMIN_BEFEHLE} | {b[0] for b in ALLTAG_BEFEHLE} | {b[0] for b in LESE_BEFEHLE} == erwartet
 
 
 # --------------------------------------------------------------------------
@@ -350,7 +361,7 @@ async def test_papierkorb_list_restore_empty(api, nas):
     liste = await ok(api, "papierkorb/list")
     assert [e["id"] for e in liste["eintraege"]] == [e2["id"], e1["id"]]  # neueste zuerst
     assert liste["gesamt"] == 2 and liste["gesamt_bytes"] > 0
-    assert liste["eintraege"][0].keys() == {"id", "typ", "serie_id", "serie_name", "folge", "anzeige", "art", "tracks", "groesse_bytes", "grund", "geloescht_am"}
+    assert liste["eintraege"][0].keys() == {"id", "typ", "serie_id", "serie_name", "folge", "anzeige", "art", "tracks", "groesse_bytes", "grund", "geloescht_am", "geloescht_von"}
     assert (await ok(api, "papierkorb/list", limit=1, offset=1))["eintraege"][0]["id"] == e1["id"]
     assert await fehler(api, "papierkorb/list", limit=201) == "invalid_format"
     assert await fehler(api, "papierkorb/list", offset=-1) == "invalid_format"
@@ -675,7 +686,7 @@ async def test_export_lesen_und_aus_export(hass, api, nas, integration, box_fabr
     await ok(api, "zuordnung/set", uid=UID, ziel=SERIE, name="Rabe aus Holz", erwartet_ziel=None)
     await warte_auf(hass, lambda: integration.export_ok)
     r = await ok(api, "konfig/export_lesen")
-    assert r.keys() == {"vorhanden", "liste_id", "revision", "exportiert_am", "anzahl_zuordnungen", "anzahl_fenster", "neuer_als_ha", "konfig"}
+    assert r.keys() == {"vorhanden", "liste_id", "revision", "exportiert_am", "anzahl_zuordnungen", "anzahl_fenster", "neuer_als_ha", "konfig", "staende"}
     assert r["vorhanden"] is True and r["revision"] == 2 and r["anzahl_zuordnungen"] == 1 and r["anzahl_fenster"] == 0
     assert r["neuer_als_ha"] is False and r["konfig"]["zustand"] == "ok"
     assert await fehler(api, "konfig/aus_export") == "invalid_format"
@@ -687,6 +698,7 @@ async def test_export_lesen_und_aus_export(hass, api, nas, integration, box_fabr
     assert a["veroeffentlicht"] is True
     assert box_fabrik("box1").konfigs()[-1]["zuordnungen"][UID]["name"] == "Rabe aus Holz"  # Namen kommen mit
     assert await ok(api, "konfig/aus_export", bestaetigt=True, anfrage_id="export-0001") == a
+    await warte_auf(hass, lambda: integration.export_ok)  # der Export nach aus_export läuft im Hintergrund; sonst schreibt er config.json nach dem Löschen neu
     (nas.export / "config.json").unlink()
     assert (await ok(api, "konfig/export_lesen"))["vorhanden"] is False
     assert await fehler(api, "konfig/aus_export", bestaetigt=True) == "export_nicht_gefunden"
