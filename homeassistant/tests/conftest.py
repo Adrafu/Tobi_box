@@ -326,6 +326,16 @@ def schnelle_zeiten(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(eingang_modul, "EINGANG_STILLE_S", 0)
 
 
+@pytest.fixture(autouse=True)
+def viel_freier_platz(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Die Upload-Tests hängen nicht vom freien Platz der CI-Platte ab: standardmäßig 100 GiB frei.
+
+    Tests, die die Reserve prüfen, setzen ihren Wert selbst (``patch(\"…http.dateien.freier_platz\", return_value=…)``)."""
+    from custom_components.tobibox import dateien as dateien_modul
+
+    monkeypatch.setattr(dateien_modul, "freier_platz", lambda _pfad: 100 * 1024**3)
+
+
 @pytest.fixture
 def einrichtung_daten(nas: Nas) -> dict[str, Any]:
     return {CONF_MEDIEN_PFAD: str(nas.medien), CONF_BOXEN: ["box1", "box2"], CONF_UPLOAD_MAX_MIB: 500}

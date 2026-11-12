@@ -46,6 +46,8 @@ HTTP_STATUS: Final = {
     "sortierung_laeuft": 409,
     "zu_viele_aenderungen": 429,
     "wunsch_ungueltig": 400,
+    "cover_ungueltig": 400,
+    "cover_nicht_gefunden": 404,
 }
 
 

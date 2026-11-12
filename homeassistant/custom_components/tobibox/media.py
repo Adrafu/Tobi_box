@@ -26,6 +26,7 @@ from typing import TYPE_CHECKING, Any
 
 from . import dateien, ffprobe
 from .bibliothek import Bibliothek
+from .cover import cover_zustand, uebernimm_cover
 from .const import (
     ART_QUELLEN,
     ART_VORGABE,
@@ -503,6 +504,9 @@ class SerieInfo:
     ordner: str
     folgen_objekte: list[dict[str, Any]] = field(default_factory=list)
     hinweise: list[dict[str, Any]] = field(default_factory=list)
+    #: Fingerabdruck der angezeigten Cover-Datei und ihre Quelle (``eigen`` oder ``auto``); ``None``: kein Cover (Vertrag W, 14.2)
+    cover_stand: str | None = None
+    cover_quelle: str | None = None
 
 
 @dataclass
@@ -522,6 +526,9 @@ class Medien:
         self.pfade = hub.pfade
         self.serien: dict[str, SerieInfo] = {}
         self.reservierte_hinweise: list[dict[str, Any]] = []
+        #: Hinweise, die nur das Einsortieren kennt (``serie_name_doppelt``): Serien-ID -> (Name der Serie, Hinweis). Im Arbeitsspeicher;
+        #: der Hinweis gilt, solange die Serie diesen Namen trägt (ein Umbenennen blendet ihn aus)
+        self.zusatz_hinweise: dict[str, tuple[str, dict[str, Any]]] = {}
         self.geprueft_am: str | None = None
         self.pruefung_laeuft = False
         self._pruefung_task: asyncio.Task | None = None
@@ -591,10 +598,12 @@ class Medien:
             "stand": s.stand,
             "pruefen": bool(s.pruefen),
             "anzahl_pruefen": anzahl_pruefen,
-            "hinweise": list(info.hinweise),
+            "hinweise": self._hinweise_der_serie(info),
             "art": s.art or ART_VORGABE,
             "art_quelle": s.art_quelle if s.art else "geraten",
             "einzeln": bool(s.einzeln),
+            "cover_stand": info.cover_stand,
+            "cover_quelle": info.cover_quelle,
         }
 
     def _folge_objekt(
@@ -632,22 +641,35 @@ class Medien:
         """``SerieInfo`` für mehrere Serien mit **einem** Executor-Aufruf für alle Plattenzugriffe.
 
         Der Executor liest nur die Platte; Zwischenspeicher und Tobies liest die Event-Loop danach."""
-        scan = await self._executor(
-            scanne_serien,
-            [
-                (self.pfad_serie(o), list(s.folgen), {n for n in s.folgen if (o, n) in self._pruefergebnisse})
-                for s, o, _ in auftraege
-            ],
-        )
+        scan_auftraege = [
+            (self.pfad_serie(o), list(s.folgen), {n for n in s.folgen if (o, n) in self._pruefergebnisse})
+            for s, o, _ in auftraege
+        ]
+
+        def lies_platte() -> tuple[Any, list[tuple[str | None, str | None]]]:
+            return scanne_serien(scan_auftraege), [cover_zustand(a[0]) for a in scan_auftraege]
+
+        scan, covers = await self._executor(lies_platte)
         infos = []
-        for (s, o, hinweise), platte in zip(auftraege, scan, strict=True):
-            info = SerieInfo(serie=s, ordner=o, hinweise=list(hinweise))
-            info.folgen_objekte = [self._folge_objekt(s, o, n, platte[n]) for n in s.folgen]
+        for (s, o, hinweise), platte_je_serie, (cover_stand, cover_quelle) in zip(auftraege, scan, covers, strict=True):
+            info = SerieInfo(serie=s, ordner=o, hinweise=list(hinweise), cover_stand=cover_stand, cover_quelle=cover_quelle)
+            info.folgen_objekte = [self._folge_objekt(s, o, n, platte_je_serie[n]) for n in s.folgen]
             infos.append(info)
         return infos
 
-    def _hinweis(self, code: str, folge: str | None = None) -> dict[str, Any]:
-        return {"code": code, "folge": folge, "text": self.hub.t(f"hinweis_{code}", folge=folge or "", datei=folge or "")}
+    def _hinweis(self, code: str, folge: str | None = None, **mehr: Any) -> dict[str, Any]:
+        return {"code": code, "folge": folge, "text": self.hub.t(f"hinweis_{code}", folge=folge or "", datei=folge or "", **mehr)}
+
+    def merke_hinweis(self, serie: Serie, code: str, **mehr: Any) -> None:
+        """Hält einen Hinweis fest, der zur Serie in ihrem jetzigen Namen gehört (``serie_name_doppelt``, Vertrag W, 14.4)."""
+        self.zusatz_hinweise[serie.id] = (serie.name, self._hinweis(code, None, **mehr))
+
+    def _hinweise_der_serie(self, info: SerieInfo) -> list[dict[str, Any]]:
+        hinweise = list(info.hinweise)
+        zusatz = self.zusatz_hinweise.get(info.serie.id)
+        if zusatz is not None and zusatz[0] == info.serie.name and all(h["code"] != zusatz[1]["code"] for h in hinweise):
+            hinweise.append(dict(zusatz[1]))
+        return hinweise
 
     # --- Prüfung der Freigabe (Vertrag W, Nr. 9) ---------------------------------------
 
@@ -1328,6 +1350,11 @@ class Medien:
                 await self._aktualisiere_cache(quelle, quelle_pfad.name)
                 self.hub.emit("medien", "serien_geaendert", {"serie_ids": sorted({quelle_id, ziel_id})})
                 raise self._fehler_schreiben(fehler) from fehler
+            cover_kopiert = False
+            try:  # hat das Ziel kein Cover, bekommt es eine Kopie von dem der Quelle (die Quelle behält ihres im Papierkorb; G11)
+                cover_kopiert = await self._executor(uebernimm_cover, quelle_pfad, ziel_pfad)
+            except OSError as err:
+                _LOGGER.warning("Cover beim Zusammenführen nicht übernommen: %s", err)
             try:
                 meta = await self._executor(
                     lambda: papierkorb_anlegen(
@@ -1364,6 +1391,7 @@ class Medien:
                 erg = await self.hub.aendere_konfig(schreibe_um)
                 konfig, veroeffentlicht = erg["konfig"], erg["veroeffentlicht"]
             zinfo = await self._aktualisiere_cache(ziel, ziel_pfad.name)
+            self.hub.cover.nach_zusammenfuehren(quelle_id, ziel_id, cover_kopiert)
         eintrag = eintrag_fuer_seite(meta)
         self.hub.schutz.papierkorb_gebucht(nutzer, eintrag, tobies)
         self.hub.emit("medien", "serien_geaendert", {"serie_ids": sorted({quelle_id, ziel_id})})

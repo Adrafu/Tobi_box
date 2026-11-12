@@ -15,3 +15,5 @@ home-assistant-frontend==20260930.5
 # Zusätzlich für die Tests dieses Ordners: eine ffmpeg-Installation im System (ffmpeg und ffprobe in
 # $PATH; erzeugt die Testdateien mit Tags) und optional mosquitto + mosquitto_passwd (prüft die
 # Zugriffsrechte der Vorlage gegen einen echten Broker; ohne sie werden diese Tests übersprungen).
+
+# Pillow (Cover, "requirements" in manifest.json) bringt homeassistant selbst mit; in der Test-venv ist keine eigene Zeile nötig.

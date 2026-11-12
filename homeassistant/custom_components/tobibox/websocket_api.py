@@ -311,6 +311,11 @@ async def ws_serie_art_setzen(hub: Hub, connection: Any, msg: dict[str, Any]) ->
     return {"serie": await hub.medien.serie_art_setzen(msg["serie_id"], msg["art"])}
 
 
+@befehl("cover/neu_suchen", {vol.Optional("serie_id"): _text}, recht="admin")
+async def ws_cover_neu_suchen(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
+    return await hub.cover.neu_suchen(msg.get("serie_id"))
+
+
 # --------------------------------------------------------------------------
 # 10 bis 12 und 46: Papierkorb
 # --------------------------------------------------------------------------

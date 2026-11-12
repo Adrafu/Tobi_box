@@ -115,6 +115,25 @@ ART_VIELE_TRACKS: Final = 5
 ART_KURZE_TRACKS_MITTEL_S: Final = 8 * 60
 ART_GESCHICHTE_MAX_S: Final = 30 * 60
 
+# --- Cover (Vertrag W, 14.3 und 14.10) -------------------------------------------------
+COVER_UPLOAD_MAX_BYTES: Final = 3 * 1024**2
+COVER_KANTE_MAX_PX: Final = 2048
+#: Quadrat bis auf 2 % (Unterschied der Seiten, bezogen auf die längere)
+COVER_QUADRAT_TOLERANZ: Final = 0.02
+COVER_GROSS_PX: Final = 512
+COVER_KLEIN_PX: Final = 192
+COVER_JE_STUNDE: Final = 20
+COVER_SUCHE_ZEITGRENZE_S: Final = 20
+#: Lesen aus den Tags: höchstens so viele Dateien je Eintrag (Schutz vor 300 Aufrufen von ``ffmpeg`` bei einem Eintrag ohne Bild)
+COVER_SUCHE_DATEIEN_MAX: Final = 5
+COVER_JPEG_QUALITAET: Final = 85
+#: Namen im Serien-Ordner (``data-model.md``, Abschnitt 5): automatisch, Foto aus der Seite; als Quelle gelesen, nie geschrieben
+COVER_AUTO: Final = "cover.jpg"
+COVER_EIGEN: Final = "cover-eigen.jpg"
+COVER_QUELLEN: Final = ("folder.jpg", "cover.png")
+#: Zwischenspeicher der kleinen Ansicht (192 px, rund 15 KiB): so viele Bilder höchstens
+COVER_KLEIN_CACHE_ANZAHL: Final = 256
+
 ANFRAGE_ID_ANZAHL: Final = 100
 ANFRAGE_ID_DAUER_S: Final = 600
 
@@ -176,6 +195,10 @@ FAEHIGKEITEN: Final = (
     "konfig_staende",
     # A3: Art, Suche, Filter, Blättern, Befehle 37 und 38, ``text``/``neu`` bei ``zuordnung/list``, ``erwartet_revision`` (A1)
     "bibliothek",
+    # A3d: Upload-Felder ``ziel``, ``art``, ``name``, ``gruppe_anzahl`` (Befehl 43 ``einsortierung/neu`` gehört zu A-3 und fehlt noch)
+    "einsortier_wunsch",
+    # A4: Foto-Upload, Cover-Ansicht, Befehl 44; das Lesen aus den Tags nur mit ``ffmpeg`` (Skalieren macht Pillow)
+    "cover",
 )
 
 # --- MQTT-Themen (``mqtt-v1.md`` Abschnitt 2) ----------------------------------

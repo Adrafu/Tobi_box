@@ -19,7 +19,7 @@ from homeassistant.loader import async_get_integration
 
 from . import testpanel, websocket_api
 from .const import CONF_UPLOAD_MAX_MIB, DOMAIN, TESTPANEL, UPLOAD_MAX_MIB_ALT, UPLOAD_MAX_MIB_VORGABE
-from .http import TobiboxUploadView
+from .http import TobiboxCoverView, TobiboxUploadView
 from .hub import Hub
 from .services import async_setup_services
 
@@ -67,6 +67,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Upload-Endpunkt und statische Dateien der Seite lassen sich nicht abmelden: einmal je HA-Lauf
     if not hass.data.get(_GEMERKT):
         hass.http.register_view(TobiboxUploadView())
+        hass.http.register_view(TobiboxCoverView())
         if frontend_da:
             await hass.http.async_register_static_paths([StaticPathConfig(STATIC_URL, str(FRONTEND_PFAD), cache_headers=False)])
         hass.data[_GEMERKT] = True

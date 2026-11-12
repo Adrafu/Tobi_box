@@ -28,8 +28,10 @@ from aiohttp import web
 from homeassistant.components.http import KEY_HASS, HomeAssistantView
 
 from . import dateien, ffprobe
+from .cover import cover_pruefen_und_skalieren
 from .const import (
     ARTEN,
+    COVER_UPLOAD_MAX_BYTES,
     DOMAIN,
     ENDUNGEN,
     GRUPPE_ANZAHL_MAX,
@@ -45,7 +47,7 @@ from .const import (
     WUNSCH_ZIELE,
 )
 from .fehler import TobiboxFehler
-from .media import name_pruefen
+from .media import gueltige_serien_id, name_pruefen
 from .namen import NamenErschoepft, dateiname_bereinigen, eindeutiger_name, vergleichsschluessel
 from .schutz import Nutzer
 
@@ -438,3 +440,120 @@ def _in_den_eingang(hub: Hub, part_pfad: Path, name: str, gruppe: str | None) ->
             continue
         return (f"{rel_ordner}/{ziel}" if rel_ordner else ziel), ziel
     raise NamenErschoepft(name)
+
+
+# --------------------------------------------------------------------------
+# Cover (Vertrag W, 14.3)
+# --------------------------------------------------------------------------
+
+COVER_LESEBLOCK = 65536
+COVER_CACHE_KONTROLLE = "private, max-age=86400"
+
+
+def _etag_passt(kopf: str | None, stand: str) -> bool:
+    """``If-None-Match``: eine Liste von ETags (mit oder ohne ``W/``, in Anführungszeichen) oder ``*``."""
+    if not kopf:
+        return False
+    for teil in kopf.split(","):
+        teil = teil.strip()
+        if teil == "*":
+            return True
+        if teil.startswith("W/"):
+            teil = teil[2:]
+        if teil.strip('"') == stand:
+            return True
+    return False
+
+
+class TobiboxCoverView(HomeAssistantView):
+    """``/api/tobibox/cover/<serie_id>``: GET (lesen), POST (Foto-Upload) und DELETE ``?quelle=eigen`` (alltag).
+
+    Jeder angemeldete Benutzer (Vertrag W, 2.1); die Anmeldung kommt im ``Authorization``-Kopf, die Seite lädt mit ``fetchWithAuth``."""
+
+    url = "/api/tobibox/cover/{serie_id}"
+    name = "api:tobibox:cover"
+    requires_auth = True
+    cors_allowed = False
+
+    @staticmethod
+    def _hub(request: web.Request) -> Hub | None:
+        return request.app[KEY_HASS].data.get(DOMAIN)
+
+    async def _serie_pruefen(self, hub: Hub, serie_id: str) -> web.Response | None:
+        """Antwort mit Fehler, wenn die Serie unbekannt ist oder die Freigabe nicht antwortet; sonst ``None``."""
+        if not gueltige_serien_id(serie_id):
+            return _fehler_antwort(hub, "serie_nicht_gefunden")
+        try:
+            await hub.medien._stelle_geprueft_sicher()
+        except TobiboxFehler as err:
+            return _fehler_antwort(hub, err.code)
+        if serie_id not in hub.medien.serien:
+            return _fehler_antwort(hub, "serie_nicht_gefunden")
+        return None
+
+    async def get(self, request: web.Request, serie_id: str) -> web.StreamResponse:
+        hub = self._hub(request)
+        if hub is None:
+            return web.json_response({"v": VERTRAG_V, "fehler": {"code": "unknown_error", "text": "nicht geladen"}}, status=500)
+        groesse = request.query.get("groesse", "gross")
+        if groesse not in ("klein", "gross"):
+            return _fehler_antwort(hub, "invalid_format")
+        if (fehler := await self._serie_pruefen(hub, serie_id)) is not None:
+            return fehler
+        stand = hub.medien.serien[serie_id].cover_stand
+        if stand is None:
+            return _fehler_antwort(hub, "cover_nicht_gefunden")
+        kopf = {"ETag": f'"{stand}"', "Cache-Control": COVER_CACHE_KONTROLLE}
+        if _etag_passt(request.headers.get("If-None-Match"), stand):
+            return web.Response(status=304, headers=kopf)
+        try:
+            stand, daten = await hub.cover.lies(serie_id, groesse)
+        except TobiboxFehler as err:
+            return _fehler_antwort(hub, err.code)
+        except OSError:
+            return _fehler_antwort(hub, "medien_nicht_erreichbar")
+        return web.Response(body=daten, content_type="image/jpeg", headers={**kopf, "ETag": f'"{stand}"'})
+
+    async def post(self, request: web.Request, serie_id: str) -> web.StreamResponse:
+        hub = self._hub(request)
+        if hub is None:
+            return web.json_response({"v": VERTRAG_V, "fehler": {"code": "unknown_error", "text": "nicht geladen"}}, status=500)
+        nutzer = Nutzer.aus_user(request["hass_user"])
+        try:
+            hub.schutz.cover_pruefen(nutzer)
+        except TobiboxFehler as err:
+            return _fehler_antwort(hub, err.code)
+        if request.content_length is not None and request.content_length > COVER_UPLOAD_MAX_BYTES:
+            return _fehler_antwort(hub, "datei_zu_gross")
+        if (fehler := await self._serie_pruefen(hub, serie_id)) is not None:
+            return fehler
+        # Der Rumpf wird in Blöcken gelesen und gezählt: die Grenze gilt auch ohne ``Content-Length`` (Transfer-Encoding: chunked)
+        daten = bytearray()
+        async for block in request.content.iter_chunked(COVER_LESEBLOCK):
+            daten += block
+            if len(daten) > COVER_UPLOAD_MAX_BYTES:
+                return _fehler_antwort(hub, "datei_zu_gross")
+        if not daten:
+            return _fehler_antwort(hub, "cover_ungueltig")
+        hub.schutz.cover_gebucht(nutzer)
+        hass = hub.hass
+        try:
+            gross, klein = await hass.async_add_executor_job(cover_pruefen_und_skalieren, bytes(daten))
+            ergebnis = await hub.cover.setze_eigen(serie_id, gross, klein)
+        except TobiboxFehler as err:
+            return _fehler_antwort(hub, err.code)
+        return web.json_response({"v": VERTRAG_V, "serie_id": serie_id, **ergebnis})
+
+    async def delete(self, request: web.Request, serie_id: str) -> web.StreamResponse:
+        hub = self._hub(request)
+        if hub is None:
+            return web.json_response({"v": VERTRAG_V, "fehler": {"code": "unknown_error", "text": "nicht geladen"}}, status=500)
+        if request.query.get("quelle") != "eigen":
+            return _fehler_antwort(hub, "invalid_format")
+        if (fehler := await self._serie_pruefen(hub, serie_id)) is not None:
+            return fehler
+        try:
+            ergebnis = await hub.cover.entferne_eigen(serie_id)
+        except TobiboxFehler as err:
+            return _fehler_antwort(hub, err.code)
+        return web.json_response({"v": VERTRAG_V, "serie_id": serie_id, **ergebnis})

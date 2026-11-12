@@ -211,3 +211,43 @@ async def test_upload_mit_wunsch_gruppen_warten_und_reserve_ohne_dateizugriffe_i
     integration.eingang.abbrechen()
     for fn in list(integration._timer):
         fn()
+
+
+async def test_cover_ohne_dateizugriffe_in_der_loop(hass, wache, starte_integration, hass_client, hass_ws_client, nas, lege_mp3):
+    """Paket A4: Nachholen nach dem Start (Datei und Tag), GET/POST/DELETE, Suche, ``cover/neu_suchen``, Zusammenführen,
+    Löschen und Wiederherstellen mit Cover, Einsortieren mit mitgeliefertem ``cover.jpg``. Bildverarbeitung und ``ffmpeg`` nur im Executor."""
+    from .test_cover import bild, setze_bild
+
+    for sid in ("rabe", "zwei", "drei"):
+        lege_mp3(nas.medien / sid / "a.mp3")
+        nas.serie(sid, sid, f"Serie {sid}", ["a.mp3"])
+    setze_bild(nas.medien / "rabe" / "a.mp3", bild((700, 700)))
+    (nas.medien / "zwei" / "folder.jpg").write_bytes(bild((700, 700)))
+    foto = bild((900, 900))
+    erzeuge_audio(nas.eingang / "Buch" / "a.mp3", frequenz=333, album="Das Buch", album_artist="Autor A")
+    (nas.eingang / "Buch" / "cover.jpg").write_bytes(bild((600, 600)))
+    with wache.aktiv():
+        hub = await starte_integration()  # Prüfung der Freigabe und das Nachholen der Cover im Hintergrund
+        await hub.cover.warte_auf_ende()
+        client = await hass_client()
+        api = await hass_ws_client(hass)
+        assert (await client.post("/api/tobibox/cover/drei", data=foto)).status == 200
+        for ziel in ("rabe", "zwei", "drei"):
+            for groesse in ("klein", "gross"):
+                assert (await client.get(f"/api/tobibox/cover/{ziel}?groesse={groesse}")).status == 200
+        stand = (await hub.medien.serien_liste())["serien"][0]["cover_stand"]
+        assert (await client.get("/api/tobibox/cover/rabe", headers={"If-None-Match": f'"{stand}"'})).status in (200, 304)
+        assert (await client.delete("/api/tobibox/cover/drei?quelle=eigen")).status == 200
+        await api.send_json_auto_id({"type": "tobibox/cover/neu_suchen"})
+        assert (await api.receive_json())["success"] is True
+        await hub.cover.warte_auf_ende()
+        await hub.medien.serien_zusammenfuehren("rabe", "drei", False, None, None)
+        antwort = await hub.medien.serie_loeschen("zwei", False, None)
+        await hub.medien.papierkorb_wiederherstellen(antwort["eintrag"]["id"], None)
+        await hub.medien.serie_umbenennen("zwei", "Zwei neu")
+        await hub.eingang.durchlauf_und_warten(sofort=True)  # mitgeliefertes cover.jpg wird kopiert, Rest in den Papierkorb
+        await hub.cover.warte_auf_ende()
+        await hass.async_block_till_done()
+    wache.leer()
+    assert (nas.medien / "zwei" / "cover.jpg").is_file()
+    assert any(p.name == "cover.jpg" for p in nas.medien.glob("*/cover.jpg") if p.parent.name not in ("rabe", "zwei", "drei"))

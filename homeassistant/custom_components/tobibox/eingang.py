@@ -143,6 +143,8 @@ class EintragZustand:
     wunsch: dict[str, Any] | None = None
     #: der Durchlauf hat eine Upload-Gruppe einsortiert, in der Dateien fehlten (Status bleibt ``teilweise``)
     gruppe_unvollstaendig: bool = False
+    #: woher der Eintrag kam: ``upload`` oder ``nas`` (Vertrag W, 3.9 und 14.4); fest, die Integration weiß es
+    quelle: str = "nas"
 
     def zu_json(self) -> dict[str, Any]:
         return {
@@ -159,6 +161,8 @@ class EintragZustand:
             "ergebnis": list(self.ergebnis),
             "fertig_am": self.fertig_am,
             "wunsch": dict(self.wunsch) if self.wunsch else None,
+            "quelle": self.quelle,
+            "pruefen": any(bool(r.get("pruefen")) for r in self.ergebnis),
         }
 
 
@@ -544,6 +548,9 @@ class Eingang:
         #: Pfad im Eingang -> {"serie_id", "gruppe"} (Vorgaben aus dem Upload)
         self.vorgaben: dict[str, dict[str, Any]] = {}
         self.upload_eintraege: set[str] = set()
+        #: Namen der Einträge, die ein Upload erzeugt hat (``quelle="upload"``); anders als ``upload_eintraege`` bleibt das
+        #: über blockierte Durchläufe und Neustarts erhalten (persistent)
+        self.upload_quelle: set[str] = set()
         self._benachrichtigt: set[str] = set()
         self._nachholen: set[str] | None = None
         self._nachplan_abbruch = None
@@ -560,9 +567,10 @@ class Eingang:
             self.protokoll = list(daten.get("protokoll") or [])
             self.index = dict(daten.get("index") or {})
             self.vorgaben = dict(daten.get("vorgaben") or {})
+            self.upload_quelle = {n for n in (daten.get("uploads") or []) if isinstance(n, str)}
 
     def _daten(self) -> dict[str, Any]:
-        return {"protokoll": self.protokoll, "index": self.index, "vorgaben": self.vorgaben}
+        return {"protokoll": self.protokoll, "index": self.index, "vorgaben": self.vorgaben, "uploads": sorted(self.upload_quelle)}
 
     def speichern(self) -> None:
         self._store.async_delay_save(self._daten, 3.0)
@@ -638,8 +646,9 @@ class Eingang:
         offen = [e for e in self.eintraege.values() if e.status != "erledigt"]
         for e in offen:
             e.wunsch = self._wunsch_von_eintrag(e.name)
+            e.quelle = "upload" if e.name in self.upload_quelle else "nas"
         offen.sort(key=lambda e: (parse_iso(e.zuerst_gesehen) or jetzt(), natuerlicher_schluessel(e.name)), reverse=True)
-        erledigt = [dict(p) for p in reversed(self.protokoll)]
+        erledigt = [self._protokoll_zeile(p) for p in reversed(self.protokoll)]
         if filter_ == "offen":
             alle = [e.zu_json() for e in offen]
         elif filter_ == "erledigt":
@@ -652,6 +661,14 @@ class Eingang:
             "sortierung_laeuft": self.laeuft,
             "geprueft_am": self.geprueft_am,
         }
+
+    @staticmethod
+    def _protokoll_zeile(p: dict[str, Any]) -> dict[str, Any]:
+        """Eine Zeile aus dem Protokoll; ältere Zeilen ohne ``quelle`` und ``pruefen`` (vor dem 12.11.) bekommen sie ergänzt."""
+        zeile = dict(p)
+        zeile.setdefault("quelle", "nas")
+        zeile.setdefault("pruefen", any(bool(r.get("pruefen")) for r in zeile.get("ergebnis") or []))
+        return zeile
 
     async def _stelle_gescannt_sicher(self) -> None:
         if self.geprueft_am is not None:
@@ -682,6 +699,7 @@ class Eingang:
                 z = self.eintraege.pop(name)
                 self.vorgaben = {k: v for k, v in self.vorgaben.items() if not k.startswith(z.name + "/") and k != z.name}
                 self.upload_eintraege.discard(name)
+                self.upload_quelle.discard(name)
                 self._benachrichtigt.discard(name)
         for e in scan:
             z = self.eintraege.get(e.name)
@@ -697,6 +715,7 @@ class Eingang:
             del z.scans[:-20]
             z.signatur = (len(e.dateien), e.groesse, e.neueste_mtime)
             z.wunsch = self._wunsch_von_eintrag(e.name)
+            z.quelle = "upload" if e.name in self.upload_quelle else "nas"
             if z.status == "laeuft" or z.status in ("blockiert", "teilweise"):
                 continue
             z.status = "bereit" if (self._ist_bereit(e) or sofort) else "wartet"
@@ -1071,6 +1090,7 @@ class Eingang:
         gruppen: list[Gruppe] = sorted(eintrag["gruppen"], key=lambda g: g.sortier)
         neu = eintrag["neu"]
         wunsch = eintrag.get("wunsch")
+        doppelter_name = False
         if neu:
             name = eintrag["name"]
             ordner_wunsch, _ = dateiname_bereinigen(name, mit_endung=False, fuer_serienordner=True)
@@ -1091,6 +1111,7 @@ class Eingang:
                             eindeutig = eindeutiger_name(name[: SERIE_NAME_MAX - 6], belegt, mit_endung=False)
                         if eindeutig != name:
                             name = eindeutig
+                            doppelter_name = True
                             hinweise[gruppen[0].eintrag].append(self._hinweis("serie_name_doppelt", None, name=name))
                     ordner = await hass.async_add_executor_job(medien._lege_ordner_an, ordner_wunsch)
                     serie = Serie(id=sid, name=name[:100], typ="normal", angelegt_am=jetzt_iso(), ordner=ordner)
@@ -1160,8 +1181,12 @@ class Eingang:
                 await hass.async_add_executor_job(schreibe_serie, pfad, serie)
             except OSError as err:
                 raise medien._fehler_schreiben(err) from err
+            if neue_folgen:
+                await self._cover_uebernehmen(serie, pfad, neue_folgen)
             serie.ordner = ordner
             await medien._aktualisiere_cache(serie, ordner)
+            if doppelter_name:
+                medien.merke_hinweis(serie, "serie_name_doppelt", name=serie.name)
             for g, endname in neue_folgen:
                 tracks = len(g.dateien)
                 zaehler["folgen"] += 1
@@ -1183,6 +1208,24 @@ class Eingang:
             if neu and neue_folgen:
                 zaehler["serien_neu"] += 1
         self.hub.emit("medien", "serien_geaendert", {"serie_ids": [serie.id]})
+
+    async def _cover_uebernehmen(self, serie: Serie, pfad: Path, neue_folgen: list[tuple[Gruppe, str]]) -> None:
+        """Cover zum Einsortieren (Vertrag W, 14.3): ein mitgeliefertes Bild im Eingangs-Eintrag wird **kopiert**; die Datei dort folgt
+        danach der Regel aus 11.10 (Papierkorb). Ein Fehler hier darf das Einsortieren nie aufhalten."""
+        wurzel = self.pfade.eingang
+        ordner: dict[Path, None] = {}
+        for g, _ in neue_folgen:
+            for d in g.dateien:
+                p = d.pfad.parent
+                while p != wurzel and p.is_relative_to(wurzel):  # nie der Eingang selbst: dort liegen die Dateien anderer Einträge
+                    ordner[p] = None
+                    p = p.parent
+        try:
+            await self.hub.cover.beim_einsortieren(serie, pfad, list(ordner))
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            _LOGGER.exception("Cover beim Einsortieren von %s nicht übernommen", serie.name)
 
     def _verschiebe_gruppe(self, g: Gruppe, serie_pfad: Path, serie: Serie) -> tuple[str, list[tuple[str, str, int]]]:
         """Verschiebt die Dateien einer Gruppe in den Serien-Ordner (11.11, Schritt 3).
@@ -1259,6 +1302,7 @@ class Eingang:
         z.ergebnis = ergebnis
         z.hinweise = hinweise
         z.wunsch = self._wunsch_von_eintrag(e.name)
+        z.quelle = "upload" if e.name in self.upload_quelle else "nas"
         pfad = self.pfade.eingang / e.name
         rest = await hass.async_add_executor_job(self._audio_uebrig, pfad)
         if not e.dateien:
@@ -1281,6 +1325,7 @@ class Eingang:
             self.eintraege.pop(e.name, None)
             self._benachrichtigt.discard(e.name)
             self.upload_eintraege.discard(e.name)
+            self.upload_quelle.discard(e.name)
             self.vorgaben = {k: v for k, v in self.vorgaben.items() if not k.startswith(e.name + "/") and k != e.name}
         elif ergebnis:
             z.fertig_am = jetzt_iso()
@@ -1395,6 +1440,7 @@ class Eingang:
         self.eintraege.pop(z.name, None)
         self.vorgaben = {k: v for k, v in self.vorgaben.items() if not k.startswith(z.name + "/") and k != z.name}
         self.upload_eintraege.discard(z.name)
+        self.upload_quelle.discard(z.name)
         self._benachrichtigt.discard(z.name)
         self.hub.benachrichtigung_entfernen(f"tobibox_eingang_{z.id}")
 
@@ -1407,6 +1453,9 @@ class Eingang:
         bleibt der Eintrag genau ``{"serie_id", "gruppe"}``."""
         top = rel.split("/", 1)[0]
         self.upload_eintraege.add(top)
+        self.upload_quelle.add(top)
+        if top in self.eintraege:
+            self.eintraege[top].quelle = "upload"
         if serie_id or gruppe or wunsch:
             vorgabe: dict[str, Any] = {"serie_id": serie_id, "gruppe": gruppe}
             if wunsch:

@@ -138,6 +138,13 @@ class Schutz:
         if not ist_admin(nutzer) and nutzer is not None and nutzer.id:
             self.mengen.buche("upload_bytes", nutzer.id, menge)
 
+    def cover_pruefen(self, nutzer: Nutzer | None) -> None:
+        """Vor einem Foto-Upload: höchstens ``COVER_JE_STUNDE`` je Benutzer (``zu_viele_aenderungen``); Administratoren sind ausgenommen."""
+        self.mengen.pruefe("cover", nutzer, const.COVER_JE_STUNDE, STUNDE_S)
+
+    def cover_gebucht(self, nutzer: Nutzer | None) -> None:
+        self.mengen.buche_fuer("cover", nutzer)
+
     # --- Papierkorb: Protokoll und Mitteilung (2.4) -------------------------------------------------------
 
     def papierkorb_gebucht(self, nutzer: Nutzer | None, eintrag: dict[str, Any], tobies: list[dict[str, Any]]) -> None:

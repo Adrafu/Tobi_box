@@ -160,6 +160,12 @@
     "wunsch_ungueltig": {
       "message": "Das passt so nicht zusammen. Wähle noch einmal, was du hochlädst."
     },
+    "cover_ungueltig": {
+      "message": "Das Bild geht nicht. Nimm ein anderes Foto."
+    },
+    "cover_nicht_gefunden": {
+      "message": "Dieser Eintrag hat kein Cover."
+    },
     "format_nicht_erlaubt": {
       "message": "Dieses Dateiformat spielt die Box nicht."
     },

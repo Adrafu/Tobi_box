@@ -913,3 +913,62 @@ async def test_wunsch_steht_mit_ankunftszeit_in_den_persistenten_vorgaben(hass, 
     assert gespeichert[f"{ORDNER}/01.mp3"]["wunsch"] == w and gespeichert[f"{ORDNER}/01.mp3"]["am"].endswith("Z")
     json.dumps(gespeichert)  # persistierbar
     integration.eingang.abbrechen()
+
+
+# --------------------------------------------------------------------------
+# Nachlese A3d (12.11.): ``quelle`` und ``pruefen`` in ``eingang/list``, ``serie_name_doppelt`` an der Serie
+# --------------------------------------------------------------------------
+
+
+async def test_eingang_list_quelle_upload_und_nas_pruefen_und_persistenz(hass, integration, nas):
+    # ein Upload ohne Gruppe, ohne Serie, ohne Wunsch: früher spurlos in den Vorgaben, jetzt trotzdem als „upload“ gemerkt
+    erzeuge_audio(nas.eingang / "hochgeladen.mp3", frequenz=311, album="Hoch", album_artist="Autor A")
+    integration.eingang.registriere_upload("hochgeladen.mp3", None, None, None)
+    erzeuge_audio(nas.eingang / "vom_nas.mp3", frequenz=322, album="Nas", album_artist="Autor B")
+    stille_zeitgeber(integration)
+    integration.eingang.geprueft_am = None  # (die Liste liest den Eingang neu)
+    liste = (await integration.eingang.liste("offen", 50, 0))["eintraege"]
+    assert {e["name"]: (e["quelle"], e["pruefen"]) for e in liste} == {"hochgeladen.mp3": ("upload", False), "vom_nas.mp3": ("nas", False)}
+    # die Quelle gehört dem Eintrag und überlebt einen Neustart (Store) und einen blockierten Durchlauf
+    assert integration.eingang._daten()["uploads"] == ["hochgeladen.mp3"]
+    integration.eingang.upload_eintraege.clear()
+    integration.eingang.eintraege.clear()
+    integration.eingang.geprueft_am = None
+    liste = (await integration.eingang.liste("offen", 50, 0))["eintraege"]
+    assert {e["name"]: e["quelle"] for e in liste} == {"hochgeladen.mp3": "upload", "vom_nas.mp3": "nas"}
+    await sortiere(integration)
+    erledigt = (await integration.eingang.liste("erledigt", 50, 0))["eintraege"]
+    assert {e["name"]: e["quelle"] for e in erledigt} == {"hochgeladen.mp3": "upload", "vom_nas.mp3": "nas"}
+    assert integration.eingang.upload_quelle == set()  # erledigt: nichts mehr zu merken
+
+
+async def test_eingang_list_pruefen_ist_wahr_wenn_ein_ergebnis_pruefen_hat(hass, integration, nas):
+    # ohne Tags: Serie und Folge werden geraten, das Ergebnis trägt „pruefen“
+    erzeuge_audio(nas.eingang / "ohne tags.mp3", frequenz=333)
+    await sortiere(integration)
+    e = (await integration.eingang.liste("erledigt", 50, 0))["eintraege"][0]
+    assert e["pruefen"] is True and any(r["pruefen"] for r in e["ergebnis"])
+    # ein altes Protokoll ohne die neuen Felder wird ergänzt
+    integration.eingang.protokoll.append({"id": "0" * 12, "name": "alt", "art": "datei", "status": "erledigt", "ergebnis": [{"pruefen": True}]})
+    alt = (await integration.eingang.liste("erledigt", 50, 0))["eintraege"][0]
+    assert (alt["quelle"], alt["pruefen"]) == ("nas", True)
+
+
+async def test_serie_name_doppelt_steht_auch_bei_serien_list_und_serie_get(hass, integration, nas):
+    nas.serie("mond", "mond", "Mondlieder", [])
+    await integration.medien.pruefen()
+    lege_upload(integration, nas, 1, wunsch("neu", "musik", "Mondlieder"), gruppe=None, title="Lied")
+    await pass_ohne_sofort(hass, integration)
+    neu = next(s for s in alle_serien(nas).values() if s["name"] == "Mondlieder (2)")
+    liste = (await integration.medien.serien_liste())["serien"]
+    zeile = next(s for s in liste if s["id"] == neu["id"])
+    assert [h["code"] for h in zeile["hinweise"]] == ["serie_name_doppelt"]
+    assert "Mondlieder (2)" in zeile["hinweise"][0]["text"] and zeile["hinweise"][0]["folge"] is None
+    assert next(s for s in liste if s["id"] == "mond")["hinweise"] == []
+    assert [h["code"] for h in (await integration.medien.serie_holen(neu["id"]))["hinweise"]] == ["serie_name_doppelt"]
+    # eine Prüfung der Freigabe lässt ihn stehen, ein Umbenennen blendet ihn aus
+    await integration.medien.pruefen()
+    assert [h["code"] for h in (await integration.medien.serie_holen(neu["id"]))["hinweise"]] == ["serie_name_doppelt"]
+    await integration.medien.serie_umbenennen(neu["id"], "Sternlieder")
+    assert (await integration.medien.serie_holen(neu["id"]))["hinweise"] == []
+    integration.eingang.abbrechen()

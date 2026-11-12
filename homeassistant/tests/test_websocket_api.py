@@ -90,6 +90,8 @@ async def test_hello(api, api_lesend, integration):
         "einstellungen", "eingang_entfernen", "zuordnung_uid", "konfig_lesen", "upload_fertig_details",  # AP 4.7, Erweiterungen v1.1
         "konfig_staende",  # 12.11., Paket A1: frühere Stände der Liste
         "bibliothek",  # 12.11., Paket A3: Art, Suche, Filter, Blättern
+        "einsortier_wunsch",  # 12.11., Paket A3d: Upload mit Wunsch (ohne Befehl 43)
+        "cover",  # 12.11., Paket A4: Foto-Upload, Cover-Ansicht, Befehl 44
     ]
     assert r["konfig"]["zustand"] == "ok" and r["konfig"]["revision"] == 1
     g = r["grenzen"]
@@ -238,7 +240,7 @@ async def test_serien_list_und_serie_get(hass, api, nas, integration):
     assert r["pruefung_laeuft"] is False and r["geprueft_am"]
     rabe = next(s for s in r["serien"] if s["id"] == "rabe")
     assert rabe.keys() == {"id", "name", "typ", "ordner", "anzahl_folgen", "anzahl_tobies", "angelegt_am", "stand", "pruefen", "anzahl_pruefen", "hinweise",
-                           "art", "art_quelle", "einzeln"}  # seit 12.11. (Paket A3)
+                           "art", "art_quelle", "einzeln", "cover_stand", "cover_quelle"}  # seit 12.11. (Pakete A3, A4)
     assert (rabe["anzahl_folgen"], rabe["typ"], rabe["ordner"], rabe["pruefen"], rabe["anzahl_pruefen"]) == (2, "normal", "rabe", False, 0)
     assert (rabe["art"], rabe["art_quelle"], rabe["einzeln"]) == ("hoerspiel", "geraten", False)  # alte serie.json ohne art
     assert (r["gesamt"], r["weitere"]) == (3, False)
@@ -676,7 +678,7 @@ async def test_eingang_list_und_sortieren(hass, api, nas, ereignisse, integratio
     assert liste["gesamt"] == 2 and {e["status"] for e in liste["eintraege"]} == {"wartet"}
     assert liste.keys() == {"eintraege", "gesamt", "sortierung_laeuft", "geprueft_am"}
     eintrag = next(e for e in liste["eintraege"] if e["name"] == "a.mp3")
-    assert eintrag.keys() == {"id", "name", "art", "dateien", "ignoriert", "groesse_bytes", "zuerst_gesehen", "geaendert_am", "status", "hinweise", "ergebnis", "fertig_am", "wunsch"}  # "wunsch": Vertrag W 12.11. (A3d)
+    assert eintrag.keys() == {"id", "name", "art", "dateien", "ignoriert", "groesse_bytes", "zuerst_gesehen", "geaendert_am", "status", "hinweise", "ergebnis", "fertig_am", "wunsch", "quelle", "pruefen"}  # "wunsch": Vertrag W 12.11. (A3d), "quelle"/"pruefen": Nacharbeit A3d
     assert eintrag["wunsch"] is None  # ohne Wunsch
     r = await ok(api, "eingang/sortieren", eintrag_ids=[eintrag["id"]], sofort=True)
     assert r["eintraege"] == 1

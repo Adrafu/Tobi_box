@@ -136,7 +136,7 @@ TABELLE = [
     (41, "hoerstelle/set", "alltag", {}, None, False),
     (42, "hoerstelle/liste", "lesen", {}, None, False),
     (43, "einsortierung/neu", "alltag", {}, None, False),
-    (44, "cover/neu_suchen", "admin", {}, None, False),
+    (44, "cover/neu_suchen", "admin", {}, None, True),
     (45, "hoerkopie/neu_erzeugen", "admin", {}, None, False),
     (46, "papierkorb/restore_letzte_stunde", "admin", {"bestaetigt": True}, None, True),
 ]
@@ -189,8 +189,8 @@ async def test_tabelle_2_1_normal_benutzer(normal, nr, befehl, recht, felder, ad
 async def test_hello_sagt_nur_zu_was_gebaut_ist(admin, normal):
     for client in (admin, normal):
         f = (await ok(client, "hello", v=1))["faehigkeiten"]
-        assert f[-2:] == ["konfig_staende", "bibliothek"]  # A1, dann A3 (Bibliothek-Backend)
-        for spaeter in ("cover", "einsortier_wunsch", "reinhoeren", "hoerkopie"):
+        assert f[-4:] == ["konfig_staende", "bibliothek", "einsortier_wunsch", "cover"]  # A1, A3, A3d, A4
+        for spaeter in ("reinhoeren", "hoerkopie"):
             assert spaeter not in f
     assert (await ok(admin, "hello", v=1))["darf_schreiben"] is True
     assert (await ok(normal, "hello", v=1))["darf_schreiben"] is False

@@ -57,9 +57,11 @@ from .const import (
     ENDUNGEN,
 )
 from .bibliothek import passt, suchform, suchworte
+from .cover import CoverDienst
 from .eingang import Eingang
 from .fehler import TobiboxFehler
 from .lernmodus import Lernmodus
+from .medieninfo import MedienInfo
 from .media import Medien, name_pruefen
 from .mqtt import MqttSchicht
 from .schutz import Nutzer, Schutz, ist_admin
@@ -163,6 +165,8 @@ class Hub:
         self.abos: list[Abo] = []
         self.store = TobiboxStore(hass)
         self.schutz = Schutz(self)
+        self.medieninfo = MedienInfo(hass)
+        self.cover = CoverDienst(self)
         self.medien = Medien(self)
         self.eingang = Eingang(self)
         self.mqtt = MqttSchicht(self)
@@ -193,6 +197,7 @@ class Hub:
         self.texte = await self.hass.async_add_executor_job(_lade_texte)
         await self.store.async_laden()
         await self.eingang.async_laden()
+        await self.medieninfo.async_laden()
         await self.mqtt.async_start()
         self._start_task = self.hass.async_create_background_task(self._start_pruefung(), "tobibox_start")
         self._abmelden.append(
@@ -221,6 +226,7 @@ class Hub:
             self.lernmodus._timer_loeschen(v)
         self.mqtt.async_stop()
         self.eingang.abbrechen()
+        self.cover.abbrechen()
         for t in (self._start_task, self._export_task):
             if t is not None and not t.done():
                 t.cancel()
@@ -231,6 +237,7 @@ class Hub:
         with contextlib.suppress(Exception):
             await self.store.async_speichern()
             await self.eingang.speichern_sofort()
+            await self.medieninfo.async_speichern()
 
     async def _timer_pruefung(self, _now: Any) -> None:
         """Alle 10 min: Freigabe prüfen, danach den Eingang (Vertrag W, Nr. 9 und 30)."""
@@ -520,6 +527,7 @@ class Hub:
         # die erste Prüfung der Freigabe und des Eingangs
         with contextlib.suppress(Exception):
             await self._timer_pruefung(None)
+        self.cover.nachholen_beim_start()  # einmal, im Hintergrund, nur Einträge ohne Marke (Vertrag W, 14.3)
 
     async def _bestimme_zustand(self) -> None:
         store = self.store
