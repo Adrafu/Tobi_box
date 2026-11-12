@@ -130,3 +130,14 @@ Beim Bau aufgefallen; der Code folgt jeweils der hier genannten Lösung (PL), de
 | X17 | Tonale Knöpfe | Sekundäre Knöpfe ohne Rahmen, getönter Hintergrund `--primary-soft`, Schrift `--primary-ink` (Kontrast ≥ 4,5:1 in allen Themes prüfen). |
 | X18 | Aktiver Reiter als Pille | Statt Linie: abgerundeter Hintergrund (`--primary-soft`) hinter dem Symbol des aktiven Reiters. |
 | X19 | Reiterleiste schwebend/Glas | Leicht durchscheinender Hintergrund aus Tokens (hell und dunkel) mit `backdrop-filter: blur(12px)`, ohne harte Linie; Rückfall ohne `backdrop-filter` mit deckendem Hintergrund; Kontrast der Beschriftung gegen den ungünstigsten Inhalt dahinter sichern. |
+
+## Runde 14 (12.11., weitere Durchsicht, von Tobias eingebracht)
+
+| Nr. | Punkt | Umsetzung (PL) |
+|---|---|---|
+| X20 | Bruch zwischen Bibliothek (digital) und Tobies (physisch) | Nach dem Hochladen und auf jeder Serien-/Playlist-Seite ist **„Einem Tobie geben“** die erste Aktion: wählt einen bekannten Tobie oder legt einen Eintrag in der Warteschlange an („nächster neuer Tobie auf <Box>“, X13). Auf der Tobies-Seite umgekehrt „Ziel wählen“ direkt mit Bibliothek-Suche. Der Reiter Tobies bleibt (Figuren verwalten). |
+| X21 | Status (Start) und Diagnose (Technik) getrennt | Tipp auf eine Box-Karte auf Start öffnet die **Box-Detailseite**: für alle Akku, Laden, online, was läuft; für Admins darunter die Technik-Details dieser Box (dieselbe Unterseite wie „Technik › Boxen › <Box>“). |
+| X22 | Zeiteingabe mit Auswahllisten | `<input type="time">` (System-Zeitwähler) für Leise-Zeiten und Gute Nacht, 5-Minuten-Schritte. |
+| X23 | „Mehr zeigen“-Knopf in langen Listen | Endloses Nachladen beim Scrollen (IntersectionObserver), Knopf „Mehr laden“ bleibt als Rückfall für Tastatur und Screenreader; Ansage über `aria-live`. |
+| X24 | Breite Bildschirme | Ab 900 px **Seitenleiste links** (wie Musik-Apps) statt Kopfleiste; Inhalt nutzt die volle Höhe; Player-Leiste unten über die Inhaltsbreite. |
+| X25 | „⋯“ in Zeilen löst versehentlich aus | „⋯“ deutlich abgesetzt (eigene 44 × 44-Fläche mit Abstand und Trennung zur Zeilenfläche), Antippen öffnet nur ein Menü, nie eine Aktion direkt; Zeilenfläche endet vor dem „⋯“. |
