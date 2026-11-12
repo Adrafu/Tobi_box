@@ -31,6 +31,8 @@ EGM artifact directory: docs/egm
 
 - Angenommenes Design der Box-Software: `docs/designs/box-software.md`
   (Entstehung und Reviews: `docs/egm/software-prototyp/`).
+- Angenommenes Design der HA-Oberfläche: `docs/designs/ha-oberflaeche.md`
+  (Entstehung, Prototyp und Reviews: `docs/egm/ha-ui/`). Bau ab Paket A0.
 - Verträge (Stufe 0): `docs/protocol/`, `docs/data-model.md`. Agents ändern
   sie nicht eigenmächtig.
 
