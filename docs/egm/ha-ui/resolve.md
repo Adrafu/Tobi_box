@@ -79,3 +79,11 @@ Alle übrigen Befunde G1–G31 und die offenen U-Punkte (U2, U6, U8, U10, U15, U
 | 27 | **(Tobias)** Reinhör-Daten löschen nur in „Technik“ (Administrator); kommt praktisch nicht vor. |
 | 28 | **(Tobias)** „Alle“ ist die Summe aus Boxen und Reinhören. |
 | 29 | Erklärt; Grenzen nach Messung in A0b. |
+
+## Freigabe A0 (12.11.)
+
+- **(Tobias)** Vertragsänderungen A0 freigegeben (`a0_freigabe.md`, Entwurf in `a0_entwurf/`), inklusive der vier Ergänzungen des Agents
+  (frühere Stände, `geloescht_von`, `pruefen` am Eingangs-Eintrag, `unauthorized` ohne `erwartet_ziel`). Übernommen nach
+  `docs/protocol/ha-websocket-v1.md` und `docs/data-model.md`.
+- **(Tobias)** Bestehende Tests dürfen im jeweiligen Paket angepasst werden, soweit `a0_freigabe.md` Abschnitt 4 sie nennt;
+  jede Änderung einzeln im Diff und im Bericht.
