@@ -46,3 +46,14 @@ Tobie auf eine einzelne Folge (also auch ein einzelnes Lied eines Albums). Neu w
 (Hörspiel, Hörbuch, Musik, Geschichte; aus den Tags vorgeschlagen, korrigierbar), **eigene Playlists** (neues
 Ziel für Tobies, betrifft Datenmodell und Box) und **Zuletzt gehört / meist gehört** (Box meldet, was gespielt
 wurde). Vorschlag: in Stufen bauen, siehe `concepts_brief.md` Abschnitt 6.
+
+## Antworten Runde 5 (12.11.): Analyse-Seite
+
+Heute gibt es keine eigene Analyse; HA zeichnet nur die Sensor-Verläufe auf (Akku, Lader, Netz, Zustand), dazu die
+letzten 20 Box-Meldungen. Was gehört wurde, meldet die Box nicht gesondert.
+
+| Frage | Antwort |
+|---|---|
+| Inhalt | **Hörzeit pro Tag und Kind**, **Lieblings-Hörspiele** (je Box und gesamt), **Tageszeiten**, **Technik und Akku** (Akku-Verlauf, Ladezeiten, Laufzeit, Syncs, Fehler) |
+| Ort | **Eigener Reiter in der Tobi-Box-Seite** für alle; der Technik-Teil unter „Für Tobias“ |
+| Aufbewahrung | **Unbegrenzt** |

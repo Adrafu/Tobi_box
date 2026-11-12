@@ -59,7 +59,7 @@ Tobias rechnet mit etwa 200 Hörbüchern und 300 Liedern. Daraus folgt eine Glie
 | Stufe | Inhalt | Art der Änderung |
 |---|---|---|
 | **A** | Bereiche nach **Art** (Hörspiele, Hörbücher, Musik, Geschichten), je Serie eine Art (aus den Tags vorgeschlagen, korrigierbar); Ansicht **„Alle Folgen“** über alle Serien; **Suche über alles** (auch Folgen- und Liedtitel); **Filter** (Art, ohne Tobie, neu, bitte ansehen); **Sortieren** (A–Z, zuletzt hinzugefügt); ein Tobie auf eine einzelne Folge oder ein einzelnes Lied wird sichtbar einfach. | Oberfläche plus ein kleines Feld `art` in `serie.json` (Vertrag W, `data-model.md`) |
-| **B** | **Zuletzt gehört, meist gehört, Favoriten** (Stern je Serie). | Box meldet über MQTT, was sie gespielt hat (`mqtt-v1.md`), HA zählt; Favoriten nur in HA |
+| **B** | **Zuletzt gehört, meist gehört, Favoriten** (Stern je Serie) und ein Reiter **„Gehört“** (Analyse, Runde 5): Hörzeit pro Tag und Box, Lieblings-Hörspiele je Box und gesamt, Tageszeiten; unter „Für Tobias“ Technik und Akku (Akku-Verlauf, Ladezeiten, Laufzeit, Syncs, Fehler). Daten unbegrenzt aufbewahrt. | Box meldet über MQTT, was sie gespielt hat (`mqtt-v1.md`), HA zählt; Favoriten nur in HA |
 | **C** | **Eigene Playlists** aus beliebigen Folgen und Liedern, als Ziel für Tobies. | Neues Ziel im Datenmodell und auf der Box (Verträge `data-model.md`, `core-interface.md`, Box-Code) |
 
 Stufe A gehört in diesen Entwurf. B und C werden im Entwurf mitgedacht (Platz in der Oberfläche), aber erst nach
