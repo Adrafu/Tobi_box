@@ -1,0 +1,189 @@
+/* Tests der Texte (AP A5). Aufruf: node --test homeassistant/tests/frontend
+ *
+ * Prüft texte.js gegen vertraglich festgelegte Codes und Gründe (docs/protocol/ha-websocket-v1.md)
+ * und gegen das Design (docs/designs/ha-oberflaeche.md).
+ */
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const HIER = fileURLToPath(new URL('.', import.meta.url));
+const ROOT = join(HIER, '../../..');
+const texte = await import('../../custom_components/tobibox/frontend/texte.js');
+const { FEHLER, GRUENDE, HINWEISE, HOERPROBE, STATUS, LEER, MEHR, KACHELN, fehlerText, fuellen, statusSatz, FALLBACK } = texte;
+
+const vertrag = readFileSync(join(ROOT, 'docs/protocol/ha-websocket-v1.md'), 'utf8');
+const design = readFileSync(join(ROOT, 'docs/designs/ha-oberflaeche.md'), 'utf8');
+
+/* Abschnitt eines Markdown-Dokuments: von `start` bis zur nächsten Überschrift derselben oder höheren Ebene. */
+function abschnitt(doc, start, ende = null) {
+  const i = doc.indexOf(start);
+  assert.ok(i >= 0, `Abschnitt nicht gefunden: ${start}`);
+  let j = ende ? doc.indexOf(ende, i + start.length) : -1;
+  if (j < 0) j = doc.indexOf('\n## ', i + start.length);
+  return doc.slice(i, j < 0 ? undefined : j);
+}
+
+/* Alle Texte (Strings) in einem beliebig verschachtelten Objekt. */
+function alleTexte(obj, pfad = '') {
+  if (typeof obj === 'string') return [[pfad, obj]];
+  if (Array.isArray(obj)) return obj.flatMap((v, i) => alleTexte(v, `${pfad}[${i}]`));
+  if (obj && typeof obj === 'object') return Object.entries(obj).flatMap(([k, v]) => alleTexte(v, pfad ? `${pfad}.${k}` : k));
+  return [];
+}
+
+const GRUPPEN = { FEHLER, GRUENDE, HINWEISE, HOERPROBE, LEER, MEHR, KACHELN };
+
+/* ------------------------------------------------------------------ Vertrag */
+
+test('Jeder Fehlercode aus Vertrag Abschnitt 7 hat einen Text in FEHLER', () => {
+  const tabelle = abschnitt(vertrag, '## 7. Gemeinsame Fehlercodes', '## 8. Grenzen');
+  const codes = [...tabelle.matchAll(/^\| `([a-z_]+)` \|/gm)].map((m) => m[1]);
+  assert.ok(codes.length >= 40, `gefunden: ${codes.length}`);
+  for (const c of codes) {
+    assert.ok(typeof FEHLER[c] === 'string', `Text für ${c} fehlt in FEHLER`);
+  }
+});
+
+test('Jeder gemeldete Prüfgrund aus Vertrag 11.9 hat einen Text in GRUENDE', () => {
+  const abs = abschnitt(vertrag, '### 11.9 ', '\n### ');
+  const codes = [...abs.matchAll(/^\| `([a-z_]+)`/gm)].map((m) => m[1]);
+  assert.ok(codes.length >= 10, `gefunden: ${codes.length}`);
+  for (const c of codes) assert.ok(typeof GRUENDE[c] === 'string', `${c} fehlt in GRUENDE`);
+});
+
+test('Hinweis-Codes aus Vertrag 3.2 (Serien) haben einen Text', () => {
+  // Codes „in Version 1“ laut Vertrag 3.2 (`hinweise[]`); serie_name_doppelt steht bei den Gründen.
+  const codes = ['datei_fehlt', 'kopierschutz', 'nicht_lesbar', 'probedekodierung_fehlgeschlagen',
+    'pruefung_nicht_moeglich', 'serie_name_doppelt', 'doppelte_id_korrigiert',
+    'serie_json_ungueltig_repariert', 'reservierter_ordner'];
+  for (const c of codes) assert.ok(HINWEISE[c] || GRUENDE[c], `${c} fehlt`);
+});
+
+/* ------------------------------------------------------------------ Design */
+
+test('Jeder Grund „bitte kurz ansehen“ aus Design 7.3 hat einen Text in GRUENDE', () => {
+  const abs = abschnitt(design, '### 7.3 ', '### 7.4 ');
+  const teil = abs.slice(abs.indexOf('| Code | Text für Eltern |'), abs.indexOf('**Gründe „geht nicht“**'));
+  const codes = [...teil.matchAll(/^\s*\| `([a-z_]+)`/gm)].map((m) => m[1]);
+  assert.ok(codes.length >= 14, `gefunden: ${codes.length}`);
+  for (const c of codes) assert.ok(typeof GRUENDE[c] === 'string', `${c} fehlt in GRUENDE`);
+});
+
+test('Jeder Grund „geht nicht“ aus Design 7.3 hat einen Text in HINWEISE', () => {
+  const abs = abschnitt(design, '### 7.3 ', '### 7.4 ');
+  const teil = abs.slice(abs.indexOf('**Gründe „geht nicht“**'), abs.indexOf('7. **Zwei Uploads'));
+  const codes = [...teil.matchAll(/`([a-z_]+)`/g)].map((m) => m[1]).filter((c) => c !== 'hinweise' && c !== 'fehler');
+  assert.ok(codes.length >= 6, `gefunden: ${codes.length}`);
+  for (const c of codes) assert.ok(typeof HINWEISE[c] === 'string', `${c} fehlt in HINWEISE`);
+});
+
+test('Die Alltagscodes aus Design 6.1 haben den Text des Designs', () => {
+  assert.equal(fuellen(FEHLER.medien_nicht_erreichbar), 'Das NAS antwortet gerade nicht. Versuche es in ein paar Minuten noch einmal. Wenn es so bleibt, sag dem Administrator Bescheid.');
+  assert.equal(FEHLER.format_nicht_erlaubt, 'Dieses Dateiformat spielt die Box nicht. Erlaubt sind MP3, M4A, M4B, AAC, FLAC, OGG, Opus und WAV.');
+  assert.equal(fuellen(FEHLER.lernmodus_laeuft), 'Auf Box 1 läuft schon das Anlernen für ein anderes Hörspiel. Beende es zuerst.');
+  assert.equal(GRUENDE.art_geraten, 'Die Art ist geraten. Stimmt das?');
+});
+
+/* ------------------------------------------------------------------ Regeln */
+
+test('Kein Text ist leer', () => {
+  for (const [name, gruppe] of Object.entries(GRUPPEN)) {
+    for (const [pfad, text] of alleTexte(gruppe)) {
+      assert.ok(text.trim().length > 0, `${name}.${pfad} ist leer`);
+    }
+  }
+});
+
+test('Kein Text enthält UID, Revision oder Listen-ID', () => {
+  for (const [name, gruppe] of Object.entries(GRUPPEN)) {
+    for (const [pfad, text] of alleTexte(gruppe)) {
+      assert.doesNotMatch(text, /\bUID\b/i, `${name}.${pfad}`);
+      assert.doesNotMatch(text, /Revision/i, `${name}.${pfad}`);
+      assert.doesNotMatch(text, /Listen-ID/i, `${name}.${pfad}`);
+    }
+  }
+});
+
+test('Jeder Text lässt sich mit den Vorgabewerten vollständig füllen', () => {
+  // STATUS-Vorlagen füllt statusSatz (eigener Test), darum hier nicht.
+  for (const [name, gruppe] of Object.entries(GRUPPEN)) {
+    for (const [pfad, text] of alleTexte(gruppe)) {
+      assert.doesNotMatch(fuellen(text), /\{[a-z_]+\}/, `${name}.${pfad} hat einen offenen Platzhalter`);
+    }
+  }
+});
+
+test('fehlerText mit unbekanntem Code liefert den Rückfall', () => {
+  assert.equal(fehlerText('neuer_code_x'), fuellen(FALLBACK));
+  assert.equal(fehlerText('neuer_code_x'), fehlerText('unknown_error'));
+  assert.match(fehlerText('neuer_code_x'), /sag dem Administrator Bescheid\.$/);
+  assert.equal(fehlerText('neuer_code_x', { admin: true }), `${fuellen(FALLBACK)} (Code: neuer_code_x)`);
+  assert.doesNotMatch(fehlerText('neuer_code_x'), /Code:/);
+});
+
+test('fehlerText setzt Platzhalter aus den Werten ein', () => {
+  assert.match(fehlerText('box_offline', { box: 'Box 2' }), /^Box 2 ist aus oder nicht im WLAN\./);
+  assert.match(fehlerText('datei_zu_gross', { grenze: '2 GB' }), /\(mehr als 2 GB\)/);
+  assert.equal(fehlerText('unauthorized'), 'Dafür fehlt dir die Berechtigung. Frag den Administrator.');
+});
+
+/* ------------------------------------------------------------------ Status-Sätze (5.1.1) */
+
+test('Status: spielt mit Akku und Laden', () => {
+  const s = statusSatz({ anzeige: 'Box 1', online: true, zustand: 'spielt', serie: 'Lange Serie', folge: 'Der Rabe', folge_nummer: 4, akku_prozent: 80, lader: true });
+  assert.deepEqual(s, { lage: 'spielt', satz: 'Box 1 spielt „Lange Serie“ · Folge 4: Der Rabe.', nebentext: 'Akku 80 %, lädt.', warnung: false });
+});
+
+test('Status: pausiert ohne Laden', () => {
+  const s = statusSatz({ anzeige: 'Box 1', online: true, zustand: 'pausiert', serie: 'Lange Serie', akku_prozent: 80, lader: false });
+  assert.equal(s.satz, 'Box 1 ist pausiert bei „Lange Serie“.');
+  assert.equal(s.nebentext, 'Akku 80 %.');
+});
+
+test('Status: leer, beendet, gehalten und unbekannt sind „bereit“', () => {
+  for (const zustand of ['leer', 'beendet', 'gehalten', 'unbekannt']) {
+    assert.equal(statusSatz({ anzeige: 'Box 1', online: true, zustand }).satz, 'Box 1 ist bereit. Es liegt kein Tobie auf.');
+  }
+});
+
+test('Status: herunterfahren ohne Nebentext', () => {
+  assert.deepEqual(statusSatz({ anzeige: 'Box 1', online: true, zustand: 'herunterfahren', akku_prozent: 50 }),
+    { lage: 'herunterfahren', satz: 'Box 1 geht gerade aus.', nebentext: '', warnung: false });
+});
+
+test('Status: Akku bis 20 % ohne Laden ist eine Warnung', () => {
+  const s = statusSatz({ anzeige: 'Box 1', online: true, zustand: 'leer', akku_prozent: 15, lader: false });
+  assert.deepEqual(s, { lage: 'bereit', satz: 'Box 1 ist bereit. Es liegt kein Tobie auf.', nebentext: 'Akku fast leer (15 %). Bitte laden.', warnung: true });
+  assert.equal(statusSatz({ anzeige: 'Box 1', online: true, zustand: 'leer', akku_prozent: 15, lader: true }).warnung, false);
+});
+
+test('Status: offline mit letzter Meldung', () => {
+  const s = statusSatz({ anzeige: 'Box 2', online: false, zeit_letzte_meldung: 'heute um 18:40', akku_prozent: 35 });
+  assert.deepEqual(s, { lage: 'offline', satz: 'Box 2 ist aus oder nicht im WLAN.', nebentext: 'Zuletzt gesehen: heute um 18:40. Akku war bei 35 %.', warnung: false });
+});
+
+test('Status: noch keine Meldung', () => {
+  assert.deepEqual(statusSatz({ anzeige: 'Box 2', online: null }),
+    { lage: 'nie_gemeldet', satz: 'Box 2 hat sich noch nicht gemeldet.', nebentext: '', warnung: false });
+});
+
+test('Status: Hinweis zu neuen Zuordnungen nur bei Offline oder Abweichung über 5 Minuten', () => {
+  const satzNeu = 'Neue Zuordnungen kommen auf die Box, sobald sie wieder im WLAN ist.';
+  assert.match(statusSatz({ anzeige: 'Box 2', online: false, konfig_stand: 'neu' }).nebentext, new RegExp(satzNeu));
+  assert.match(statusSatz({ anzeige: 'Box 1', online: true, zustand: 'leer', konfig_stand: 'neu', abweichung_min: 10 }).nebentext, new RegExp(satzNeu));
+  assert.doesNotMatch(statusSatz({ anzeige: 'Box 1', online: true, zustand: 'leer', konfig_stand: 'neu', abweichung_min: 2 }).nebentext, /Neue Zuordnungen/);
+  assert.doesNotMatch(statusSatz({ anzeige: 'Box 1', online: true, zustand: 'leer', konfig_stand: 'aktuell' }).nebentext, /Neue Zuordnungen/);
+});
+
+/* ------------------------------------------------------------------ Leere Zustände, Mehr, Kacheln */
+
+test('Leere Zustände, „Mehr“ und Kacheln: Design-Texte stehen wörtlich drin', () => {
+  assert.equal(fuellen(LEER.bibliothek.satz), 'Noch nichts da. Tippe auf „Hinzufügen“.');
+  assert.equal(fuellen(LEER.keine_box.satz), 'Noch keine Box eingerichtet. Bitte dem Administrator Bescheid sagen.');
+  assert.equal(fuellen(MEHR.abends.erklaerung), 'Gute Nacht und Leise-Zeiten');
+  assert.equal(Object.keys(KACHELN).length, 5);
+  assert.equal(KACHELN.sortier_du.zeile, 'Ich lese die Angaben');
+});
