@@ -548,17 +548,18 @@ class Eingang:
         for sha, rel, groesse in await self.hub.hass.async_add_executor_job(lauf):
             self.index_aufnehmen(sha, rel, groesse)
 
-    def _index_treffer(self, sha: str) -> str | None:
-        """Pfad der Datei in ``medien/``, wenn der Index sie kennt und sie noch dort liegt (gleiche Größe)."""
-        e = self.index.get(sha)
-        if not e:
-            return None
-        try:
-            if (self.pfade.medien / e["p"]).stat().st_size == e["s"]:
-                return e["p"]
-        except OSError:
-            pass
-        return None
+    def _index_treffer_alle(self, kandidaten: dict[str, tuple[str, int]]) -> set[str]:
+        """Welche Prüfsummen kennt der Index, deren Datei noch in ``medien/`` liegt (gleiche Größe)?
+
+        Läuft im Executor und rechnet nur: ``kandidaten`` ist ein Schnappschuss ``sha -> (Pfad, Größe)`` aus dem Index."""
+        treffer: set[str] = set()
+        for sha, (rel, groesse) in kandidaten.items():
+            try:
+                if (self.pfade.medien / rel).stat().st_size == groesse:
+                    treffer.add(sha)
+            except OSError:
+                pass
+        return treffer
 
     # --- Liste ------------------------------------------------------------------------
 
@@ -760,7 +761,7 @@ class Eingang:
             self.eintraege[e.name].hinweise = []
         self.hub.emit("eingang", "geaendert", {})
         # Ohne ffprobe gibt es keine Tags: der ganze Durchlauf bleibt liegen (11.10)
-        if ffprobe.ffprobe_pfad() is None:
+        if await hass.async_add_executor_job(ffprobe.ffprobe_pfad) is None:
             for e in bereit:
                 z = self.eintraege[e.name]
                 z.status = "blockiert"
@@ -792,12 +793,14 @@ class Eingang:
                     hinweise_je_eintrag[g.eintrag].append(self._hinweis(d.block, d.rel))
                     zaehler["blockiert"] += 1
         # --- Doppelte (Prüfsumme): vor dem Berechnen, damit eine Gruppe mit einer Datei übrig eine Datei-Folge wird ---
+        kandidaten = {d.sha: (self.index[d.sha]["p"], self.index[d.sha]["s"]) for g in gute for d in g.dateien if d.sha and d.sha in self.index}
+        im_index = await hass.async_add_executor_job(self._index_treffer_alle, kandidaten) if kandidaten else set()
         gesehen: dict[str, Datei] = {}
         doppelte_je_eintrag: dict[str, list[Datei]] = {e.name: [] for e in bereit}
         for g in sorted(gute, key=lambda g: (g.eingangsindex, natuerlicher_schluessel(g.dateien[0].rel))):
             rest = []
             for d in g.dateien:
-                if d.sha and (self._index_treffer(d.sha) or d.sha in gesehen):
+                if d.sha and (d.sha in im_index or d.sha in gesehen):
                     d.doppelt = True
                     doppelte_je_eintrag[g.eintrag].append(d)
                 else:

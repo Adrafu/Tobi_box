@@ -201,13 +201,13 @@ async def _empfange(hub: Hub, request: web.Request, nutzer: Nutzer) -> web.Strea
             gesamt += len(block)
             if gesamt > hub.upload_max_bytes:
                 await hass.async_add_executor_job(datei.close)
-                _loesche_leise(part_pfad)
+                await asyncio.shield(hass.async_add_executor_job(_loesche_leise, part_pfad))
                 if upload_id:
                     hub.uploads_laufend.discard(upload_id)
                 return _fehler_antwort(hub, "datei_zu_gross")
             if rest is not None and gesamt > rest:
                 await hass.async_add_executor_job(datei.close)
-                _loesche_leise(part_pfad)
+                await asyncio.shield(hass.async_add_executor_job(_loesche_leise, part_pfad))
                 if upload_id:
                     hub.uploads_laufend.discard(upload_id)
                 return _fehler_antwort(hub, "zu_viele_aenderungen")
@@ -216,7 +216,7 @@ async def _empfange(hub: Hub, request: web.Request, nutzer: Nutzer) -> web.Strea
     except BaseException:  # Abbruch des Clients (CancelledError) oder Fehler beim Schreiben: nichts bleibt
         with contextlib.suppress(Exception):
             datei.close()
-        _loesche_leise(part_pfad)
+        await asyncio.shield(hass.async_add_executor_job(_loesche_leise, part_pfad))
         if upload_id:
             hub.uploads_laufend.discard(upload_id)
         raise

@@ -191,7 +191,7 @@ async def ws_ffmpeg_messen(hass: HomeAssistant, connection: Any, msg: dict[str, 
     if hub is None:
         connection.send_error(msg["id"], "unknown_error", "Die Integration ist nicht geladen.")
         return
-    programm, quelle = ffmpeg_programm(hass)
+    programm, quelle = await hass.async_add_executor_job(ffmpeg_programm, hass)
     if programm is None:
         connection.send_result(msg["id"], {"v": VERTRAG_V, "ffmpeg": False, "meldung": "ffmpeg wurde nicht gefunden."})
         return
@@ -228,7 +228,7 @@ def async_register_views(hass: HomeAssistant) -> None:
 
 async def async_register_panel(hass: HomeAssistant, frontend_pfad: Path, static_url: str, version: str) -> None:
     """Die Seite ``/tobibox-neu`` (nur Administratoren). Die alte Seite bleibt unberührt."""
-    if not (frontend_pfad / PANEL_DATEI).is_file():
+    if not await hass.async_add_executor_job((frontend_pfad / PANEL_DATEI).is_file):
         _LOGGER.warning("Das Testpanel %s fehlt", frontend_pfad / PANEL_DATEI)
         return
     await panel_custom.async_register_panel(

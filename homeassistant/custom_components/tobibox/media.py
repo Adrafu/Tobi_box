@@ -297,6 +297,23 @@ def pruefung_signatur(pfad: Path) -> tuple:
         return ()
 
 
+def scanne_serien(
+    auftraege: list[tuple[Path, list[str], set[str]]],
+) -> list[dict[str, tuple[tuple[str, int, int, bool], tuple | None]]]:
+    """Alle Dateizugriffe für den Aufbau der Folgen-Objekte, gebündelt für mehrere Serien (Executor).
+
+    ``auftraege``: je Serie ``(Ordner-Pfad, Folgen, Namen, deren Prüfsignatur gebraucht wird)``. Ergebnis je Serie:
+    Folge -> ``(stat_folge, signatur | None)``. Rechnet nur; verändert keinen Zustand."""
+    ergebnis = []
+    for ordner_pfad, namen, mit_sig in auftraege:
+        je_serie: dict[str, tuple[tuple[str, int, int, bool], tuple | None]] = {}
+        for n in namen:
+            statistik = stat_folge(ordner_pfad, n)
+            je_serie[n] = (statistik, pruefung_signatur(ordner_pfad / n) if statistik[3] and n in mit_sig else None)
+        ergebnis.append(je_serie)
+    return ergebnis
+
+
 def pruefe_folge_pfad(pfad: Path) -> tuple[str, str | None]:
     """D5 für eine Datei oder einen Folgen-Ordner: ``("ok" | "warnung" | "nicht_moeglich", Code)``."""
     dateien_liste = [pfad] if pfad.is_file() else [pfad / t for t in dateien.tracks_in_ordner(pfad)]
@@ -550,14 +567,16 @@ class Medien:
             "hinweise": list(info.hinweise),
         }
 
-    def _folge_objekt(self, s: Serie, ordner: str, name: str) -> dict[str, Any]:
-        pfad = self.pfad_serie(ordner)
-        art, tracks, groesse, vorhanden = stat_folge(pfad, name)
+    def _folge_objekt(
+        self, s: Serie, ordner: str, name: str, platte: tuple[tuple[str, int, int, bool], tuple | None]
+    ) -> dict[str, Any]:
+        """Baut das Folge-Objekt in der Event-Loop; ``platte`` kommt aus ``scanne_serien`` (Executor)."""
+        (art, tracks, groesse, vorhanden), signatur = platte
         info = s.info(name)
         cache = self._pruefergebnisse.get((ordner, name))
         if not vorhanden:
             pruefung, hinweis = "nicht_geprueft", "datei_fehlt"
-        elif cache and cache["sig"] == pruefung_signatur(pfad / name):
+        elif cache and cache["sig"] == signatur:
             pruefung = cache["ergebnis"]
             hinweis = cache["hinweis"]
         else:
@@ -579,10 +598,23 @@ class Medien:
             "tobies": self.tobies_der_folge(s.id, name),
         }
 
-    def _baue_info(self, s: Serie, ordner: str, hinweise: list[dict[str, Any]]) -> SerieInfo:
-        info = SerieInfo(serie=s, ordner=ordner, hinweise=list(hinweise))
-        info.folgen_objekte = [self._folge_objekt(s, ordner, n) for n in s.folgen]
-        return info
+    async def _baue_infos(self, auftraege: list[tuple[Serie, str, list[dict[str, Any]]]]) -> list[SerieInfo]:
+        """``SerieInfo`` für mehrere Serien mit **einem** Executor-Aufruf für alle Plattenzugriffe.
+
+        Der Executor liest nur die Platte; Zwischenspeicher und Tobies liest die Event-Loop danach."""
+        scan = await self._executor(
+            scanne_serien,
+            [
+                (self.pfad_serie(o), list(s.folgen), {n for n in s.folgen if (o, n) in self._pruefergebnisse})
+                for s, o, _ in auftraege
+            ],
+        )
+        infos = []
+        for (s, o, hinweise), platte in zip(auftraege, scan, strict=True):
+            info = SerieInfo(serie=s, ordner=o, hinweise=list(hinweise))
+            info.folgen_objekte = [self._folge_objekt(s, o, n, platte[n]) for n in s.folgen]
+            infos.append(info)
+        return infos
 
     def _hinweis(self, code: str, folge: str | None = None) -> dict[str, Any]:
         return {"code": code, "folge": folge, "text": self.hub.t(f"hinweis_{code}", folge=folge or "", datei=folge or "")}
@@ -616,24 +648,26 @@ class Medien:
             ordner, reserviert = await self._executor(self._liste_ordner)
             await self._executor(self._raeume_part_dateien)
             alt = {sid: i.serie.stand for sid, i in self.serien.items()}
-            neu: dict[str, SerieInfo] = {}
+            gesehen: dict[str, tuple[Serie, list[dict[str, Any]]]] = {}
             ids_gesehen: dict[str, list[tuple[str, Serie]]] = {}
             for name in ordner:
                 try:
                     schnell_id = await self._executor(self._schnelle_id, name)
                     async with self.sperren(schnell_id):
-                        info = await self._executor(self._pruefe_ordner, name)
+                        bekannt = {n: c for (o, n), c in self._pruefergebnisse.items() if o == name}  # Schnappschuss für den Executor
+                        info = await self._executor(self._pruefe_ordner, name, bekannt)
                 except OSError as err:
                     _LOGGER.warning("Ordner %s nicht lesbar: %s", name, err)
                     continue
                 if info is None:
                     continue
-                s, hinweise, delta = info
+                s, hinweise, delta, neue_ergebnisse = info
+                self._pruefergebnisse.update({(name, n): c for n, c in neue_ergebnisse.items()})
                 ergebnis.neue_serien += delta["neue_serie"]
                 ergebnis.neue_folgen += delta["neue_folgen"]
                 ergebnis.entfernte_folgen += delta["entfernte_folgen"]
                 ids_gesehen.setdefault(s.id, []).append((name, s))
-                neu[name] = self._baue_info(s, name, hinweise)  # vorläufig, nach Ordnername
+                gesehen[name] = (s, hinweise)
             # Doppelte IDs: die jüngere Kopie bekommt eine neue ID (data-model.md, Abschnitt 5)
             for sid, kopien in ids_gesehen.items():
                 if len(kopien) < 2:
@@ -643,8 +677,11 @@ class Medien:
                     async with self.sperren(sid):
                         s.id = neue_id12()
                         await self._executor(schreibe_serie, self.pfad_serie(name), s)
-                    neu[name] = self._baue_info(s, name, [*neu[name].hinweise, self._hinweis("doppelte_id_korrigiert")])
+                    gesehen[name] = (s, [*gesehen[name][1], self._hinweis("doppelte_id_korrigiert")])
                     ergebnis.hinweise += 1
+            # Ein Executor-Aufruf für die Plattenzugriffe aller Serien (nach Ordnername, vorläufig)
+            infos = await self._baue_infos([(s, name, hinweise) for name, (s, hinweise) in gesehen.items()])
+            neu: dict[str, SerieInfo] = dict(zip(gesehen, infos, strict=True))
             self.serien = {i.serie.id: i for i in neu.values()}
             self.reservierte_hinweise = [
                 self._hinweis("reservierter_ordner", folge=r) for r in reserviert if not ist_systemordner(r)
@@ -704,8 +741,13 @@ class Medien:
             pass
         return ordner if gueltige_serien_id(ordner) else f"ordner:{ordner}"
 
-    def _pruefe_ordner(self, ordner: str) -> tuple[Serie, list[dict[str, Any]], dict[str, int]] | None:
-        """Prüft einen Serien-Ordner und schreibt ``serie.json`` bei Bedarf (läuft im Executor, unter der Sperre)."""
+    def _pruefe_ordner(
+        self, ordner: str, bekannt: dict[str, dict[str, Any]]
+    ) -> tuple[Serie, list[dict[str, Any]], dict[str, int], dict[str, dict[str, Any]]] | None:
+        """Prüft einen Serien-Ordner und schreibt ``serie.json`` bei Bedarf (läuft im Executor, unter der Sperre).
+
+        ``bekannt``: Schnappschuss der Prüfergebnisse dieses Ordners (Folge -> Eintrag). Neue Ergebnisse kommen als
+        letztes Element zurück; die Event-Loop übernimmt sie (der Executor verändert den Zwischenspeicher nicht)."""
         pfad = self.pfad_serie(ordner)
         hinweise: list[dict[str, Any]] = []
         delta = {"neue_serie": 0, "neue_folgen": 0, "entfernte_folgen": 0}
@@ -756,20 +798,21 @@ class Medien:
         if geaendert:
             schreibe_serie(pfad, serie)
         serie.ordner = ordner
+        neue_ergebnisse: dict[str, dict[str, Any]] = {}
         # Format- und Kopierschutz-Prüfung (D5): neue Dateien immer, bekannte nur, wenn sie sich geändert haben
         for n in serie.folgen:
             sig = pruefung_signatur(pfad / n)
-            cache = self._pruefergebnisse.get((ordner, n))
+            cache = bekannt.get(n)
             if cache and cache["sig"] == sig:
                 continue
             if n in neue or cache is not None:
                 ergebnis, code = pruefe_folge_pfad(pfad / n)
-                self._pruefergebnisse[(ordner, n)] = {"sig": sig, "ergebnis": ergebnis, "hinweis": code}
+                bekannt[n] = neue_ergebnisse[n] = {"sig": sig, "ergebnis": ergebnis, "hinweis": code}
         for n in serie.folgen:
-            c = self._pruefergebnisse.get((ordner, n))
+            c = bekannt.get(n)
             if c and c["ergebnis"] in ("warnung", "nicht_moeglich") and c["hinweis"]:
                 hinweise.append(self._hinweis(c["hinweis"], n))
-        return serie, hinweise, delta
+        return serie, hinweise, delta, neue_ergebnisse
 
     # --- Lesen ----------------------------------------------------------------------
 
@@ -829,7 +872,7 @@ class Medien:
 
     async def _aktualisiere_cache(self, serie: Serie, ordner: str, hinweise: list[dict[str, Any]] | None = None) -> SerieInfo:
         alt = self.serien.get(serie.id)
-        info = await self._executor(self._baue_info, serie, ordner, hinweise if hinweise is not None else (alt.hinweise if alt else []))
+        (info,) = await self._baue_infos([(serie, ordner, hinweise if hinweise is not None else (alt.hinweise if alt else []))])
         self.serien[serie.id] = info
         return info
 

@@ -46,17 +46,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hub = Hub(hass, entry)
     hass.data[DOMAIN] = hub
     await hub.async_start(str(integration.version))
+    # Dateisystem-Zugriffe gebündelt im Executor (nicht in der Event-Loop)
+    frontend_da, panel_da = await hass.async_add_executor_job(_pruefe_frontend)
 
     # Upload-Endpunkt und statische Dateien der Seite lassen sich nicht abmelden: einmal je HA-Lauf
     if not hass.data.get(_GEMERKT):
         hass.http.register_view(TobiboxUploadView())
-        if FRONTEND_PFAD.is_dir():
+        if frontend_da:
             await hass.http.async_register_static_paths([StaticPathConfig(STATIC_URL, str(FRONTEND_PFAD), cache_headers=False)])
         hass.data[_GEMERKT] = True
     if TESTPANEL:  # Messungen A0b; Schalter in const.py
         testpanel.async_register_views(hass)
         await testpanel.async_register_panel(hass, FRONTEND_PFAD, STATIC_URL, str(integration.version))
-    if (FRONTEND_PFAD / PANEL_DATEI).is_file():
+    if panel_da:
         await panel_custom.async_register_panel(
             hass,
             frontend_url_path=PANEL_URL,
@@ -71,6 +73,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         _LOGGER.warning("Die Seite %s fehlt; die Seitenleiste zeigt \"Tobi Box\" erst nach der Installation der Seite", FRONTEND_PFAD / PANEL_DATEI)
     entry.async_on_unload(entry.add_update_listener(_neu_laden))
     return True
+
+
+def _pruefe_frontend() -> tuple[bool, bool]:
+    """``(Ordner da, Panel-Datei da)``; läuft im Executor."""
+    return FRONTEND_PFAD.is_dir(), (FRONTEND_PFAD / PANEL_DATEI).is_file()
 
 
 async def _neu_laden(hass: HomeAssistant, entry: ConfigEntry) -> None:
