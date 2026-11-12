@@ -49,3 +49,11 @@ Weiterhören je Folge und je HA-Benutzer in HA gespeichert. Wird in Entwurf Rev.
 | 24 | **(Tobias)** Jedes einzelne Lied ist ein eigener Eintrag (Serie mit einer Folge, `einzeln: true`); der Tobie zeigt auf die Folge. |
 | 25 | **(Tobias)** NAS-Eingang weiter automatisch, „Anders einsortieren …“ bei „bitte ansehen“; ist der Rückweg zu teuer, Rückfall nach Entwurf 16 Nr. 25. |
 | 26 | **(Tobias)** NAS hat einige TB frei: Hörkopien auf dem NAS neben `medien/`, AAC 96 kbit/s, auch für FLAC und WAV. |
+
+## Runde 10
+
+| Nr. | Entscheidung |
+|---|---|
+| 23a | **(Tobias)** „Gehört“ ohne Umschalter Boxen/Reinhören und ohne Hinweistext: eine Auswahl „Wer?“ mit Alle, Box 1, Box 2 (Anzeigenamen aus HA) und den HA-Benutzern, die reingehört haben. |
+| 25 | **(Tobias)** Rückfall wie im Entwurf: passt. |
+| N | **(Tobias)** Echte Namen (Kinder und Eltern) nie im Repo; Prototyp im Repo mit Platzhaltern. |

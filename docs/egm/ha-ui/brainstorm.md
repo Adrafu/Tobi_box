@@ -110,3 +110,12 @@ Titel „In welches soll es?“ ist unverständlich; das Blatt muss klar beschre
 | 24 | Wo lebt ein einzelnes Lied? | **Jedes Lied ein eigener Eintrag** (Variante A, `einzeln`) |
 | 25 | NAS-Eingang | **Passt:** weiter automatisch, „Anders einsortieren …“ bei „bitte ansehen“ |
 | 26 | Hörkopien, Platz auf dem NAS | **Einige TB frei** → Hörkopien wie vorgeschlagen, auch für FLAC und WAV |
+
+## Runde 10 (12.11.)
+
+- Frage 25: Rückfall-Formulierung im Entwurf **passt so** (Tobias).
+- „Gehört“: **Kein Umschalter „Boxen | Reinhören“ und kein Hinweis** „Alle in Home Assistant sehen das.“ Stattdessen **eine
+  Auswahl „Wer?“**: Alle, die beiden Boxen (mit ihrem Anzeigenamen aus den Integrations-Einstellungen) und die HA-Benutzer,
+  die reingehört haben (Name aus HA). Boxen und Personen stehen gleichberechtigt nebeneinander.
+- **Echte Namen nie ins Repo** (auch nicht die der Eltern): Im Prototyp im Repo stehen Platzhalter; die echten Namen
+  kommen erst in HA aus den Einstellungen bzw. den HA-Konten.
