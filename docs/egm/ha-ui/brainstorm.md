@@ -57,3 +57,14 @@ letzten 20 Box-Meldungen. Was gehört wurde, meldet die Box nicht gesondert.
 | Inhalt | **Hörzeit pro Tag und Kind**, **Lieblings-Hörspiele** (je Box und gesamt), **Tageszeiten**, **Technik und Akku** (Akku-Verlauf, Ladezeiten, Laufzeit, Syncs, Fehler) |
 | Ort | **Eigener Reiter in der Tobi-Box-Seite** für alle; der Technik-Teil unter „Für Tobias“ |
 | Aufbewahrung | **Unbegrenzt** |
+
+## Antworten Runde 6 (12.11., zum Goldfisch-Review `review_goldfisch.md`)
+
+| Frage | Antwort |
+|---|---|
+| Wer darf die Alltags-Funktionen? | **Alle HA-Benutzer** (bewusst; Wandtablets und Gäste mit Konto inklusive). Ausgleich (Projektleitung, U2): `zuordnung/remove` nur mit `erwartet_ziel`, `zuordnung/set` nur für gemeldete bzw. bekannte Kennungen, Mengen begrenzt. |
+| Darf Verena in den Papierkorb legen? | **Ja.** Endgültig löschen (Papierkorb leeren, Eingang entfernen) bleibt bei Tobias. |
+| Name beim Zuordnen | **Gleich mit abfragen, überspringbar.** |
+| Cover selbst ersetzen | **Ja, mit Foto vom Handy.** |
+
+Außerdem sofort behoben (nicht Teil des Umbaus): Sicherheitsbefund U1, alle HA-Aktionen nur für Administratoren (Commit d41e319).
