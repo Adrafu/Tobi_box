@@ -8,7 +8,7 @@ Runden 6 und 7. **(Tobias)** = von Tobias entschieden, **(Empf.)** = Empfehlung 
 | Nr. | Frage | Entscheidung |
 |---|---|---|
 | 1 | „Technik“ statt „Für Tobias“ | **(Tobias)** Knopf „Technik“ oben, nur für Admins sichtbar. |
-| 2 | Verena stellt aus dem Papierkorb wieder her | **(Tobias)** Erst mal nein: Wiederherstellen und Leeren bleiben Admin. Nach einigen Wochen neu abwägen. |
+| 2 | Die Partnerin stellt aus dem Papierkorb wieder her | **(Tobias)** Erst mal nein: Wiederherstellen und Leeren bleiben Admin. Nach einigen Wochen neu abwägen. |
 | 3 | Letzte 10 Stände der Liste aufbewahren | **(Tobias)** Ja; Zurückdrehen nur Admin unter „Technik“. |
 | 4 | Regeln für den Art-Vorschlag | **(Empf.)** An je fünf echten Dateien pro Art prüfen, bevor das Paket fertig ist; Korrektur über „Art ändern“. |
 | 5 | `cover*.jpg` nicht auf die Boxen | **(Empf.)** Ja. |

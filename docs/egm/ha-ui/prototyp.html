@@ -525,7 +525,7 @@ a.iconbtn { text-decoration: none; }
     <div class="pt">Vorschau mit Beispieldaten (Rev. 4)</div>
     <div class="ctl">
       <label for="sel-rolle">Angemeldet als
-        <select id="sel-rolle"><option value="admin">Administrator (Tobias)</option><option value="user">Benutzer ohne Admin (Verena)</option></select>
+        <select id="sel-rolle"><option value="admin">Administrator (Tobias)</option><option value="user">Benutzer ohne Admin (Partnerin)</option></select>
       </label>
       <label for="sel-theme">Aussehen
         <select id="sel-theme"><option value="auto">Automatisch</option><option value="light">Hell</option><option value="dark">Dunkel</option><option value="hellprimaer">Theme mit hellem Primärton</option></select>
@@ -1210,7 +1210,7 @@ a.iconbtn { text-decoration: none; }
     var h = '<h2 style="margin-top:0">Gehört</h2>';
     h += '<div class="stufe"><strong>Stufe B – Vorschau.</strong> Erfundene Zahlen. Die Box müsste dafür melden, was sie spielt (Entwurf, Abschnitt 12).</div>';
     h += '<div class="seg2 ghq" role="group" aria-label="Boxen | Reinhören"><button data-act="ghQ" data-arg="boxen" aria-pressed="' + !rein + '" data-fk="ghq1">Boxen</button><button data-act="ghQ" data-arg="rein" aria-pressed="' + rein + '" data-fk="ghq2">Reinhören</button></div>';
-    if (rein) h += '<div class="chips wrap" role="group" aria-label="Benutzer" style="margin-top:12px">' + [['alle', 'Alle'], ['Tobias', 'Tobias'], ['Verena', 'Verena']].map(function (o) { return '<button class="chip" data-act="ghBen" data-arg="' + o[0] + '" aria-pressed="' + (S.gh.ben === o[0]) + '" data-fk="ghben' + o[0] + '">' + o[1] + '</button>'; }).join('') + '</div>';
+    if (rein) h += '<div class="chips wrap" role="group" aria-label="Benutzer" style="margin-top:12px">' + [['alle', 'Alle'], ['personA', 'Person A'], ['personB', 'Person B']].map(function (o) { return '<button class="chip" data-act="ghBen" data-arg="' + o[0] + '" aria-pressed="' + (S.gh.ben === o[0]) + '" data-fk="ghben' + o[0] + '">' + o[1] + '</button>'; }).join('') + '</div>';
     if (rein) h += '<div class="note" style="margin-top:12px"><strong>Alle in Home Assistant sehen das.</strong> Hier steht, was am Handy oder Computer angehört wurde. Mit „Alle“ siehst du alle Benutzer zusammen, mit einem Namen nur diesen Benutzer. Die Namen kommen aus Home Assistant. Was die Boxen gespielt haben, steht unter „Boxen“.</div>';
     h += '<div class="toolbar" style="margin-top:12px">' + (rein ? '' : '<div class="chips wrap" role="group" aria-label="Box"><button class="chip" data-act="ghBox" data-arg="beide" aria-pressed="' + (g.box === 'beide') + '" data-fk="ghb1">Beide Boxen</button><button class="chip" data-act="ghBox" data-arg="mond" aria-pressed="' + (g.box === 'mond') + '" data-fk="ghb2">Mond</button><button class="chip" data-act="ghBox" data-arg="stern" aria-pressed="' + (g.box === 'stern') + '" data-fk="ghb3">Stern</button></div>') +
       '<div class="chips wrap" role="group" aria-label="Zeitraum">' + ['woche', 'monat', 'jahr', 'alles'].map(function (z) { return '<button class="chip" data-act="ghZr" data-arg="' + z + '" aria-pressed="' + (g.zr === z) + '" data-fk="ghz' + z + '">' + ZR[z][0] + '</button>'; }).join('') + '</div></div>';

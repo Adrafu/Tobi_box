@@ -1,6 +1,6 @@
 # HA-Oberfläche einfacher und schöner: Brainstorm (EGM Schritt 1, läuft)
 
-Anlass (12.11.): Alle Funktionen der Integration sind gut und funktionieren. Tobias kann sie bedienen, Verena
+Anlass (12.11.): Alle Funktionen der Integration sind gut und funktionieren. Tobias kann sie bedienen, die Partnerin
 (keine Technikerin) hätte keine Chance. Ziel: **nur UI und Bedienbarkeit**, keine neuen Funktionen. Vorgehen wie
 immer: Konzept, Entwurf, Goldfisch, Resolve, dann einmal bauen. Bestandsaufnahme: `ist.md` (in Arbeit).
 
@@ -8,7 +8,7 @@ immer: Konzept, Entwurf, Goldfisch, Resolve, dann einmal bauen. Bestandsaufnahme
 
 | Frage | Antwort |
 |---|---|
-| Was soll Verena selbst erledigen? | **Tobie einem Hörspiel zuordnen**, **neues Hörspiel hochladen**, **Gute Nacht und Leise-Zeiten** einstellen. (Nicht ausgewählt: „nur Status sehen“ als einzige Aufgabe.) |
+| Was soll die Partnerin selbst erledigen? | **Tobie einem Hörspiel zuordnen**, **neues Hörspiel hochladen**, **Gute Nacht und Leise-Zeiten** einstellen. (Nicht ausgewählt: „nur Status sehen“ als einzige Aufgabe.) |
 | Gerät | **Gemischt:** Handy für schnell, Computer für Pflege. |
 | Einfach gegen Technik | **Eine einfache Seite und ein eigener Bereich „Für Tobias“** für Technisches (Revision, Export, Papierkorb, Liste neu ausrollen …). |
 | Stil | **HA-Look, aber freundlich:** passt zu Home Assistant (Karten, Hell/Dunkel), mit Bildern/Covern der Serien, großen Knöpfen, wenig Text. |
@@ -26,7 +26,7 @@ immer: Konzept, Entwurf, Goldfisch, Resolve, dann einmal bauen. Bestandsaufnahme
 
 | Frage | Antwort |
 |---|---|
-| Rechte | Verena ist keine Administratorin: **Alltagsseite für alle**, „Für Tobias“ nur für Administratoren. |
+| Rechte | Die Partnerin ist keine Administratorin: **Alltagsseite für alle**, „Für Tobias“ nur für Administratoren. |
 | Box-Namen | **Tobias trägt Anzeigenamen in den Einstellungen der Integration ein**; im Repo stehen keine Namen. |
 
 ## Antworten Runde 4 (12.11., nach dem ersten Prototyp)
@@ -63,7 +63,7 @@ letzten 20 Box-Meldungen. Was gehört wurde, meldet die Box nicht gesondert.
 | Frage | Antwort |
 |---|---|
 | Wer darf die Alltags-Funktionen? | **Alle HA-Benutzer** (bewusst; Wandtablets und Gäste mit Konto inklusive). Ausgleich (Projektleitung, U2): `zuordnung/remove` nur mit `erwartet_ziel`, `zuordnung/set` nur für gemeldete bzw. bekannte Kennungen, Mengen begrenzt. |
-| Darf Verena in den Papierkorb legen? | **Ja.** Endgültig löschen (Papierkorb leeren, Eingang entfernen) bleibt bei Tobias. |
+| Darf die Partnerin in den Papierkorb legen? | **Ja.** Endgültig löschen (Papierkorb leeren, Eingang entfernen) bleibt bei Tobias. |
 | Name beim Zuordnen | **Gleich mit abfragen, überspringbar.** |
 | Cover selbst ersetzen | **Ja, mit Foto vom Handy.** |
 

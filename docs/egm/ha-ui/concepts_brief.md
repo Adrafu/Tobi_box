@@ -6,7 +6,7 @@ Stand 12.11. · Grundlage: `brainstorm.md` (Antworten von Tobias), `ist.md` (Bes
 
 Die Seite „Tobi Box“ in Home Assistant kann alles, was gebraucht wird, und es funktioniert. Sie ist aber für
 Tobias gebaut: fünf Reiter mit Fachbegriffen (Revision, Listen-ID, UID, Eingang, Tags), Rohwerte statt Sätze,
-technische Fehlertexte, kleine Knöpfe auf dem Handy, und sie ist nur für Administratoren sichtbar. Verena, die
+technische Fehlertexte, kleine Knöpfe auf dem Handy, und sie ist nur für Administratoren sichtbar. Die Partnerin, die
 keine Technikerin ist, kann damit die drei Alltagsaufgaben nicht erledigen (`ist.md`, Abschnitt 6, zehn Hürden).
 
 ## 2. Ziel und Grenzen
@@ -14,7 +14,7 @@ keine Technikerin ist, kann damit die drei Alltagsaufgaben nicht erledigen (`ist
 - **Nur Oberfläche und Bedienbarkeit.** Alle Funktionen bleiben, wie sie sind. Einzige kleine Ergänzung: Cover aus
   den MP3-Tags (dient nur der Bedienbarkeit). Vertrag W (`docs/protocol/ha-websocket-v1.md`) ändert sich nur dort,
   wo die Oberfläche Daten braucht, die es noch nicht gibt (Cover, Status „spielt gerade“, Rechte).
-- **Verena erledigt selbst:** Tobie einem Hörspiel zuordnen, neues Hörspiel hochladen, Gute Nacht und Leise-Zeiten einstellen.
+- **Die Partnerin erledigt selbst:** Tobie einem Hörspiel zuordnen, neues Hörspiel hochladen, Gute Nacht und Leise-Zeiten einstellen.
 - **Geräte:** Handy (Hochformat, Daumen) **und** Computer. Beides gleich gut.
 - **Stil:** Home-Assistant-Look (Karten, Hell/Dunkel, HA-Farben), aber freundlich: Cover-Kacheln, große Knöpfe, wenig Text, Alltagssprache.
 - **Rechte:** Die Alltagsseite sehen **alle** HA-Benutzer. Der Bereich **„Für Tobias“** ist nur für Administratoren.

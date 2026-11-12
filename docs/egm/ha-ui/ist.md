@@ -179,7 +179,7 @@ abgeleitet, nicht mit einer Person gemessen.
 
 Fundstelle = Zeile in `tobibox-panel.js`, sofern nichts anderes steht.
 
-| Text | Wo | Problem für Verena |
+| Text | Wo | Problem für die Partnerin |
 |---|---|---|
 | **„Revision 7 · Export ok (09.11., 08:00)“**, „Export: Revision 9 … (neuer als HA)“, „Revision ${…}“ im Dialog | Boxen L1456, L1459; Rückfrage L821 | Revision = Versionszähler der Liste, nie erklärt. |
 | **„Listen-ID“** („mit neuer Listen-ID an alle Boxen“) | L801, L821 | Interne Kennung. |
@@ -243,7 +243,7 @@ Beobachtungen:
 * **Boxen-Karte:** Meta-Zeile mit Speicher, Netz, Akku und Version in einer Fließzeile (umbrechend), Akku nicht als eigene Zahl hervorgehoben.
 * **Dateiauswahl:** native Browser-Eingabe, Beschriftung nicht anpassbar; am Handy öffnet sie die Dateiauswahl des Systems. Dateien aus Apple Books/Audible
   sind nicht erreichbar (kopiergeschützt, „Kopierschutz“).
-* **Admin-Zwang:** Die Seite erscheint nur für Administratoren (README, Schritt 3). Verena bräuchte ein Admin-Konto in HA.
+* **Admin-Zwang:** Die Seite erscheint nur für Administratoren (README, Schritt 3). Die Partnerin bräuchte ein Admin-Konto in HA.
 
 ## 5. Was Home Assistant selbst schon bietet
 

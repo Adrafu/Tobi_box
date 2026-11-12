@@ -46,7 +46,7 @@ für Tobias nützlich): die letzten 10 Stände der Liste als `export/config.<n>.
 Ist das zu viel, bleibt als Mindestes: `remove` für Nicht-Admins nur mit `erwartet_ziel`, und die Begründung in 9.2 ehrlicher
 formulieren.
 
-**U3 · hoch · Abschnitt 9.1, 13 Frage 1 · „Alle angemeldeten Benutzer“ ist ein weiterer Kreis als „Verena“**
+**U3 · hoch · Abschnitt 9.1, 13 Frage 1 · „Alle angemeldeten Benutzer“ ist ein weiterer Kreis als „die Partnerin“**
 Problem: In HA-Haushalten gibt es oft ein Wandtablet im Dauerbetrieb, ein Gästekonto, Konten für Familienmitglieder, die nur Licht
 schalten sollen, und langlebige Zugriffstoken für Skripte. Alle bekommen mit dem Entwurf Zuordnen, Lernmodus, Hochladen (bis 500 MB
 je Datei, ohne Obergrenze insgesamt, ohne Zuordnung zu einem Benutzer) und Leise-Zeiten. Ist HA aus dem Internet erreichbar, gilt das
@@ -60,7 +60,7 @@ Die Frage 1 bleibt trotzdem für Tobias offen (unten).
 **U4 · hoch · Abschnitt 4.5, 6.1, 7 (Tabelle „Tobie umstellen: 3 Taps“) · Tobies sind in der Liste nicht zu unterscheiden**
 Problem: Nach dem Zuordnen hat ein Tobie keinen Namen (der Name ist in der „Fertig“-Karte nur ein Knopf „Namen geben“). Im Prototyp
 sind es sofort zwei Zeilen „Tobie ohne Namen · spielt „Lange Serie““ untereinander; bei 20 Figuren sind es viele. Die Aufgabe „Tobie auf
-ein anderes Hörspiel umstellen“ oder „diesen Tobie vergessen“ lässt sich dann nicht lösen: Verena sieht keine Kennung (gewollt), kann
+ein anderes Hörspiel umstellen“ oder „diesen Tobie vergessen“ lässt sich dann nicht lösen: die Partnerin sieht keine Kennung (gewollt), kann
 die Figur nicht „auflegen, um sie in der Liste zu finden“ (der Entwurf hat das nicht) und kann nicht raten. Die 3 Taps in Abschnitt 7 stimmen
 nur, wenn man die richtige Zeile schon kennt.
 Vorschlag: (1) Der Name wird beim Zuordnen **mit abgefragt**, als Textfeld direkt in der Fertig-Karte (nicht als Blatt hinter einem
@@ -120,7 +120,7 @@ Vorschlag: `cover.jpg` im Datenmodell (Abschnitt 5, additiv) als reservierte Dat
 Cover, Zusammenführen, Wiederherstellen aus dem Papierkorb, Serie umbenennen (Ordnername bleibt, ID bleibt).
 
 **U9 · mittel · Abschnitt 6.1 und 7 · „Neuer Tobie: 1 Tap“ ist die halbe Wahrheit**
-Problem: (a) Die Seite muss offen sein; ohne Push (Frage 9) muss Verena selbst nachsehen. Am Handy heißt das: HA-App öffnen, Seitenleiste,
+Problem: (a) Die Seite muss offen sein; ohne Push (Frage 9) muss die Partnerin selbst nachsehen. Am Handy heißt das: HA-App öffnen, Seitenleiste,
 „Tobi Box“ (nach `ist.md` zwei Taps). Die Zählung „1 Tap“ lässt das weg, die „heute“-Zahl in Abschnitt 7 zählte es genauso nicht mit, aber
 das Ziel „höchstens drei“ gilt für den ganzen Weg. (b) **Welche Figur ist das?** Die Karte sagt nur Box und Zeit. Kinder legen oft zuerst
 einen unbekannten Tobie auf; bei zwei Karten ist die Zuordnung ein Ratespiel, und der Tap ist sofort gültig. (c) Die Kacheln in der Karte
@@ -134,14 +134,14 @@ wenn du nicht sicher bist“ **über** den Kacheln zeigen und bei mehr als einer
 **U10 · mittel · Abschnitt 9.2 `eingang/sortieren` (auch `sofort`) · „Sofort“ übergeht den Schutz vor halb kopierten Dateien**
 Problem: Die Ruhezeit (120 s und gleiche Größe über 30 s, Vertrag 11.1) schützt davor, eine Datei einzusortieren, die ein Kopierprogramm
 auf dem NAS noch schreibt. `sofort=true` hebt das auf. Im Entwurf ist `sofort` für alle Alltag, und „Jetzt prüfen“ steht in „Gerade eben“. Drückt
-Verena das, während Tobias einen großen Ordner kopiert, entstehen verstümmelte Folgen.
+die Partnerin das, während Tobias einen großen Ordner kopiert, entstehen verstümmelte Folgen.
 Vorschlag: `eingang/sortieren` für Nicht-Admins ohne `sofort` (im Befehl prüfen, wie `einstellungen/set`); „Jetzt prüfen“ ruft ohne `sofort` auf
 und sagt, dass Dateien erst nach 2 Minuten Ruhe dran sind. `sofort` bleibt bei Tobias.
 
 **U11 · mittel · Abschnitt 6.3, 8, 13 Frage 2 · Sackgassen, wenn der Upload falsch einsortiert wird**
-Problem: Das Einsortieren nach Tags legt bei leicht anderer Schreibweise ein **zweites** Hörspiel an („Lange Serie“ und „Lange serie“). Verena
+Problem: Das Einsortieren nach Tags legt bei leicht anderer Schreibweise ein **zweites** Hörspiel an („Lange Serie“ und „Lange serie“). Die Partnerin
 sieht „bitte kurz ansehen“, kann umbenennen und „Passt so“ drücken, aber nicht zusammenführen und nicht löschen (beides Admin). Dasselbe
-gilt für eine falsch hochgeladene Datei. Die Seite endet dann in „Frag Tobias“, und „Passt so“ ist die einzige Taste, die Verena findet,
+gilt für eine falsch hochgeladene Datei. Die Seite endet dann in „Frag Tobias“, und „Passt so“ ist die einzige Taste, die die Partnerin findet,
 obwohl nichts passt. Dabei sind `folge/delete` und `serie/delete` nicht endgültig (Papierkorb, Tobias kann zurückholen); nur
 `papierkorb/empty` ist es. Die Begründung 9.2 („nichts endgültig zerstören“) spricht also eher **für** das Löschen in den Papierkorb als
 dagegen.
@@ -156,7 +156,7 @@ Chrome: nur über die Systemauswahl); der Prototyp zeigt den Knopf auch bei 390 
 anderes. (b) **Die Hörbuch-Frage** („Gehören die Dateien zu einem Hörbuch?“) ist für Laien schwer; nach Vertrag 11.3 gruppiert das Einsortieren
 Dateien mit gleichem Album-Tag ohnehin zu einer Folge, die Frage wirkt nur bei Dateien **ohne** Tags. Wer bei 30 Kapitel-Dateien ohne Tags
 „Nein“ nimmt, bekommt 30 Folgen (`tags_fehlen`), ohne es selbst zu reparieren (nur Tobias kann zusammenführen/löschen). (c) Es fehlt die
-**Zielwahl**: Vom Start aus kann Verena nicht sagen „in dieses Hörspiel“ (nur über die Hörspiel-Seite, die Abschnitt 6.3 so nebenbei
+**Zielwahl**: Vom Start aus kann die Partnerin nicht sagen „in dieses Hörspiel“ (nur über die Hörspiel-Seite, die Abschnitt 6.3 so nebenbei
 erwähnt). (d) Der Upload bricht ab, wenn das Handy den Bildschirm sperrt oder die App in den Hintergrund geht (Safari und Chrome frieren
 Seiten ein); ein Hinweis „Bildschirm anlassen, bis alle Dateien fertig sind“ fehlt, die Wiederaufnahme auch (Abbruch ist behandelt, aber
 nicht der häufige Fall). (e) Die genannte Obergrenze „500 MB“ gilt für HA; ein vorgeschalteter Reverse Proxy (nginx
@@ -210,7 +210,7 @@ prüfen lassen (eigener Schritt in U13). Keine Fehler zu erwarten, aber nachweis
 **U16 · mittel · Abschnitt 4.6, 6.4, 7 · Abends: Zählweise, Stepper und der Gute-Nacht-Tobie**
 Problem: (a) Abschnitt 7 nennt für „Gute Nacht ändern“ 3 Taps. Der Stepper geht in 5-Minuten-Schritten; von 30 auf 60 Minuten sind es 6
 Taps, auf 240 sind es 42. Die Tabelle sagt „heute 3 + Tippen“, „neu 3“, ohne Verbesserung. (b) „Dann wird sie leiser über 1 Minute“
-(Ausblenden) ist ein technischer Wert, der kaum geändert wird; er macht die Karte länger. (c) Den **Gute-Nacht-Tobie** kann Verena nur über
+(Ausblenden) ist ein technischer Wert, der kaum geändert wird; er macht die Karte länger. (c) Den **Gute-Nacht-Tobie** kann die Partnerin nur über
 Weg A (neuer, unbekannter Tobie, Kachel „Gute Nacht“) anlegen. Ein bereits zugeordneter Tobie lässt sich nicht auf Gute Nacht
 umstellen (Blatt „Anderes Hörspiel“ zeigt nur Hörspiele), und Weg B (Lernmodus) gibt es für Aktionen nicht (Abschnitt 8 nennt „Einzelne
 Folge“, nicht „Aktion“). Die Hilfe „Nimm einen Tobie, der noch nichts spielt“ gilt dann nicht, wenn alle Tobies schon belegt sind.
@@ -220,7 +220,7 @@ Alltag), „Status“ bleibt bei Tobias.
 
 **U17 · mittel · Abschnitt 9.1 Punkt 4, 10 W-4, Vertrag 3.11 · `einstellungen/set`: Zeitzone und letzte-Schreiber-gewinnt**
 Problem: (a) Die Seite sendet die Zeitzone „unverändert mit“. Der Befehl ersetzt das **ganze** Objekt `leise_zeiten`; fehlt `zeitzone`, gilt
-`Europe/Berlin` (Vertrag). Ändert Tobias die Zeitzone, während Verenas Seite offen ist, sendet sie den alten Wert, und der Befehl
+`Europe/Berlin` (Vertrag). Ändert Tobias die Zeitzone, während die Seite der Partnerin offen ist, sendet sie den alten Wert, und der Befehl
 antwortet für sie mit `unauthorized` („Dafür fehlt dir die Berechtigung“): irreführend, und ein Nicht-Admin kann nichts dafür.
 (b) Es gibt keine Versionsprüfung (`stand`) bei Einstellungen: Zwei Eltern an zwei Geräten überschreiben sich still (letzter gewinnt).
 Gleiches gilt für `gute_nacht`.
@@ -273,8 +273,8 @@ Das steht nirgends. (c) Das Optionsformular (`config_flow.py`) kennt heute nur d
 „box1=Mond, box2=Stern“ mit der gleichen Prüfung wie `parse_boxen`, kein mehrstufiger Dialog.
 
 **U22 · niedrig · Abschnitte 2.4, 4.7 · Begriffe**
-(a) Der Reiter „Für Tobias“ trägt einen Personennamen: Ist ein zweiter Administrator, etwa Verena später, dabei, stimmt er nicht; Vorschlag
-„Technik“ (Hinweiskarte darin: „Nur für Administratoren“). (b) Der Prototyp-Text „Verena sieht diese Seite nicht“ gehört nicht in das
+(a) Der Reiter „Für Tobias“ trägt einen Personennamen: Ist ein zweiter Administrator, etwa die Partnerin später, dabei, stimmt er nicht; Vorschlag
+„Technik“ (Hinweiskarte darin: „Nur für Administratoren“). (b) Der Prototyp-Text „die Partnerin sieht diese Seite nicht“ gehört nicht in das
 Produkt; der Entwurf merkt das schon an. (c) „Passt so“, „Bitte kurz ansehen“, „Nicht merken“ sind nicht selbsterklärend (siehe U11); „Gerade
 eben“ stimmt für Einträge von gestern nicht. (d) „Papierkorb“ taucht im Alltag nur in den Rückfragen auf; dort „Tobias kann es
 zurückholen“ ist gut.
@@ -286,7 +286,7 @@ Stufe 1 reichen die Zeilen („Mo–Do, So · 19:30 bis 06:30 · Stumm“); die 
 eigenem Fokus ist für Folgen eines Hörspiels, die meist durch Tags richtig stehen, selten nötig; für Stufe 1 Tobias. (c) **Start**
 zeigt Statuskarten, Neuer Tobie, zwei Knöpfe, Hinweiskarte und Kacheln; der Reiter „Hörspiele“ zeigt dasselbe Raster noch einmal. Wer
 den Reiter „Hörspiele“ streicht und „Alle ansehen“ auf der Startseite lässt, spart einen Reiter (vier statt fünf für Admin, drei statt vier für
-Verena). (d) Die zweite Zeile der Statuskarte („Neue Zuordnungen kommen auf die Box …“) erscheint auch bei Normalbetrieb kurz nach
+die Partnerin). (d) Die zweite Zeile der Statuskarte („Neue Zuordnungen kommen auf die Box …“) erscheint auch bei Normalbetrieb kurz nach
 jeder Änderung; ein dauernd wechselnder Satz macht unruhig. (e) „Name ändern“ je Folge: selten; im Blatt „Mehr“ statt als Knopf in jeder Zeile
 (spart pro Zeile einen 44-px-Knopf).
 
@@ -352,14 +352,14 @@ echte HA-Farben (U14), Reiter und Seitenleiste (U15), Shadow-DOM-Fokus (U24).
 ## Fragen, die nur der Auftraggeber entscheiden kann
 
 1. **Wer darf Alltag?** Alle HA-Benutzer (Entwurf) oder nur eine Liste von Benutzern (U3)? Gibt es ein Wandtablet oder Gäste mit Konto?
-2. **Darf Verena Dinge in den Papierkorb legen** (`folge/delete`, `serie/delete`, `folge/verschieben`), damit sie nach einem Fehl-Upload nicht
+2. **Darf die Partnerin Dinge in den Papierkorb legen** (`folge/delete`, `serie/delete`, `folge/verschieben`), damit sie nach einem Fehl-Upload nicht
    bei „Frag Tobias“ endet (U11)? Der Papierkorb bleibt, nur das Leeren ist endgültig und bleibt bei Tobias.
 3. **Wie sicher soll die Liste sein?** Reicht eine einfache Sperre (U2: `remove` nur mit `erwartet_ziel`, nur bekannte Kennungen), oder soll es
    zusätzlich einen Verlauf der letzten Stände geben (bessere Sicherung, etwas mehr Arbeit im Backend)?
 4. **Mitteilung auf das Handy** bei einem neuen Tobie (Frage 9, Empfehlung „nein“): Als HA-Automation (ohne neue Funktion) wäre es eine Vorlage in der
    Doku. Soll sie mitgeliefert werden?
 5. **Namenspflicht beim Zuordnen** (U4): Soll die Seite nach dem Namen fragen (Textfeld in der Fertig-Karte, überspringbar) oder nur anbieten?
-6. **Eigenes Foto und „Cover neu suchen“** (Frage 7, U8): Reicht in Stufe 1 ein Admin-Knopf „Cover neu suchen“ in „Für Tobias“, oder soll Verena
+6. **Eigenes Foto und „Cover neu suchen“** (Frage 7, U8): Reicht in Stufe 1 ein Admin-Knopf „Cover neu suchen“ in „Für Tobias“, oder soll die Partnerin
    ein Cover selbst ersetzen können?
 7. **Stufe 1 schlanker?** Wochenplan-Grafik und „Reihenfolge ändern“ später (U23), ja oder nein?
 8. **Gute-Nacht-Tobie auch für schon belegte Tobies und im Lernmodus** (U16): Ja (kleine Alltagserweiterung: Kachel „Gute Nacht“ im Blatt
