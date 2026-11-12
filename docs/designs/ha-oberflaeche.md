@@ -1,13 +1,28 @@
-# HA-Oberfläche: Angenommenes Design (Stand Rev. 5, 12.11.)
+# HA-Oberfläche: Angenommenes Design (Stand Rev. 5 mit Runde 12, 12.11.)
 
 > **Angenommen am 12.11.** nach den Resolve-Runden 1–11 (`docs/egm/ha-ui/resolve.md`). Entstehung, Prototyp und Reviews: `docs/egm/ha-ui/`. Wo dieses Dokument „offene Fragen“ nennt, gelten die Antworten aus `resolve.md`. Änderungen nur mit Entscheidung von Tobias; Verträge (`docs/protocol/`, `docs/data-model.md`) ändert erst Paket A0 nach Freigabe.
+
+> **Runde 12 (12.11.): X1–X9 eingearbeitet** (UX-Durchsicht des Prototyps v5 durch Tobias, `resolve.md` Abschnitt „Runde 12“; Prototyp jetzt v6). Neu: **vier Reiter (Start · Bibliothek · Tobies · Mehr)** mit größerer Beschriftung, „Abends“ und „Gehört“ in **„Mehr“** (3.4), freundliche **leere Zustände mit Bildern** (6.2), **Kacheln** statt Karten beim Hochladen (5.6), **Wischen** am Mini-Player (5.12), **Meldungen**: Erfolg weg nach 4,5 s, Fehler bleiben (6.3), Radien 16 und 24 px (4), Tippflächen in Listen mindestens 44 × 44 px (14), **3:1-Kontrast** für Ränder, Symbole und Warnkarten (4, 14). Rechte, Abläufe, Stufen und Verträge bleiben unverändert. Tabelle in 1.5.
 
 
 Stand 12.11. · **Rev. 5** (arbeitet das Goldfisch-Review `review_goldfisch_rev4.md` mit den Befunden G1 bis G31 und den nachgeprüften Punkten U2, U6, U8, U10, U15, U18, U22, U25 ein, dazu die Entscheidungen in `resolve.md`, Abschnitte „Runde 10“ und „Goldfisch-Review Rev. 4a“). Rev. 4a stand nach Runde 9, Rev. 4 nach Runde 8, Rev. 3 nach Runde 7, Rev. 2 nach dem ersten Goldfisch-Review `review_goldfisch.md` (U1 bis U26) und den Antworten Runde 4 bis 6.
 Grundlage: `concepts_brief.md` (mit Abschnitt 6: Stufen A, B, C), `brainstorm.md`, `ist.md`, Vertrag W (`docs/protocol/ha-websocket-v1.md`),
-`docs/data-model.md`, `docs/protocol/mqtt-v1.md`. Klickbarer Prototyp v5: `prototyp.html` (erfundene Beispieldaten; **alle Namen kommen aus einem Objekt `NAMEN` am Anfang des Scripts**: Box 1, Box 2, Person A, Person B; der Knopf „i“ oben schaltet Rolle, Aussehen, Zustand, Stufen und die gewählten Dateien beim Hochladen um).
+`docs/data-model.md`, `docs/protocol/mqtt-v1.md`. Klickbarer Prototyp v6: `prototyp.html` (erfundene Beispieldaten; **alle Namen kommen aus einem Objekt `NAMEN` am Anfang des Scripts**: Box 1, Box 2, Person A, Person B; der Knopf „i“ oben schaltet Rolle, Aussehen, Zustand, Stufen, die gewählten Dateien beim Hochladen und **„Leer zeigen“** um).
 Status: **Entwurf Rev. 5, Resolve Runde 10 abgeschlossen (Fragen 1–26 beantwortet, Fragen 27–29 neu), bereit für eine zweite Goldfisch-Runde.** Gebaut wird **Stufe A in drei Teilen** mit je eigener Abnahme: **A-1 Alltag**, **A-2 Reinhören mit Weiterhören**, **A-3 Hörkopien und Kapitel** (Abschnitt 15). B und C sind geplant, haben ihren Platz in der Oberfläche
 und ihre Vertragsentwürfe (Abschnitte 12, 13), werden aber erst nach Freigabe gebaut.
+
+**Änderungen in Runde 12** (X1 bis X9, Entscheidung Tobias; Quelle `resolve.md`; Rev.-Nummer bleibt 5):
+
+| Nr. | Abschnitte | Änderung |
+|---|---|---|
+| X1, X2 | 1, 2, 3.1, 3.2, **3.4**, 5.10, 8, 9, 14 | **Vier Reiter:** Start · Bibliothek · Tobies · **Mehr**. „Abends“ und „Gehört“ wandern nach „Mehr“ (für alle Benutzer); „Technik“ bleibt der Knopf oben. Beschriftung **14 px**, Reiter **64 px** hoch, immer sichtbar |
+| X3 | 5.1, 5.2, 5.7, 6, **6.2** | Leere Zustände mit eigenen kleinen Bildern (Inline-SVG, Farben aus Tokens), **einem Satz und einem Knopf** |
+| X4 | 4 | Karten **16 px**, Blätter und große Kacheln **24 px** (Cover bleiben 12 px) |
+| X5 | 5.6, 7.3, 14 | Wahl „Was lädst du hoch?“ als **große Kacheln** mit Symbol, kurzem Titel und **höchstens einer Zeile** Erklärung |
+| X6 | 5.12, 14 | Mini-Player: **Wischen nach oben öffnet, nach unten schließt** (Knopf bleibt) |
+| X7 | 6, **6.3**, 14 | **Erfolg** verschwindet nach 4,5 s; **Fehler bleiben** mit „OK“ oder lassen sich wegwischen |
+| X8 | 14 | Alle Listenaktionen (Menü „⋯“, Abspielen, Pfeile, „Ändern“) mindestens **44 × 44 px** |
+| X9 | 4, 14 | Ränder, Symbole und Warnkarten mindestens **3:1**, Text 4,5:1 (Token `--line`, Rand in Warnkarten), Prüfung auch im Theme mit hellem Primärton |
 
 **Änderungen in Rev. 5** (Befunde G1 bis G31 stehen mit „eingearbeitet (Abschnitt)“ oder „abgelehnt, weil …“ in Abschnitt 18):
 
@@ -79,12 +94,12 @@ und ihre Vertragsentwürfe (Abschnitte 12, 13), werden aber erst nach Freigabe g
 
 ## 1. Kurz gesagt
 
-* Eine Seite „Tobi Box“ für **alle** HA-Benutzer. Reiter: **Start · Bibliothek · Tobies · Abends** (Stufe B: dazu **Gehört**). **Technik** (früher „Für Tobias“) ist
-  kein Reiter, sondern ein Knopf oben rechts, nur für Administratoren.
+* Eine Seite „Tobi Box“ für **alle** HA-Benutzer. Reiter: **Start · Bibliothek · Tobies · Mehr** (immer vier, Runde 12). **„Mehr“** ist eine Liste großer Zeilen: **Abends** (Gute Nacht, Leise-Zeiten), in Stufe B **Gehört**, später **Playlists** (3.4). **Technik** (früher „Für Tobias“) ist
+  kein Reiter, sondern ein Knopf oben rechts, nur für Administratoren. Auf dem Start bleibt der große Knopf „Abends“ als Abkürzung.
 * **Bibliothek wie eine Hörbuch-App (neu in Rev. 3, Vorbild Audible):** Cover zuerst, eine Zeile **Arten** (Hörspiele, Hörbücher, Musik, Geschichten), **Lupe** für die Suche über alles,
   **ein** Knopf „Sortieren und Filter“ (Blatt von unten), Reihen „Am Handy weiterhören“ und „Neu hinzugefügt“, Liste mit Cover, Untertitel, Fortschrittsbalken und Tobie-Symbol. Etwa 200 Hörbücher und 300 Lieder gehen ohne Blättern (Päckchen von 60).
 * **Reinhören (neu in Rev. 3):** Auf der Serienseite spielt man Folgen **im Browser** an (Handy, Computer, HA-App; nicht auf der Box), mit Leiste unten, Vollansicht, ±30 Sekunden, Geschwindigkeit und **Weiterhören**: die Stelle wird je Folge und **je HA-Benutzer in Home Assistant** gemerkt (Abschnitte 5.12, 11.4). Weil das **nicht** die Stelle der Box ist, heißt der Knopf „**Hier weiterhören**“ und die Reihe „**Am Handy weiterhören**“ (G17).
-* **Hochladen in Schritten (neu in Rev. 4):** Nach der Dateiwahl fragt die Seite zuerst **„Was lädst du hoch?“** mit fünf Karten (Neues Hörspiel, Hörbuch oder Album · Folgen zu einem vorhandenen hinzufügen · Einzelne Folge oder einzelnes Lied · Neue Playlist (Stufe C) · „Weiß nicht – sortier du“), je mit einem Satz Erklärung und einem Beispiel.
+* **Hochladen in Schritten (neu in Rev. 4):** Nach der Dateiwahl fragt die Seite zuerst **„Was lädst du hoch?“** mit fünf **großen Kacheln** (Neu anlegen · Zu Vorhandenem · Einzeln · Playlist (Stufe C) · Sortier du), je mit Symbol, kurzem Titel und **höchstens einer Zeile** Erklärung (Runde 12, X5).
   Dann kommt eine **Vorschau in Sätzen** („3 Dateien → neues Hörbuch „Kapitän Knopf“, Kapitel 1–3.“) mit „Ändern“ und „Hochladen“, dann der Fortschritt wie bisher. Dieselbe Wahl gibt es für Dateien, die über den NAS-Eingang kommen („Anders einsortieren“). Abschnitte 5.6, 7.3.
 * **Einzeltitel (neu in Rev. 4):** Ein einzelnes Lied oder eine einzelne Folge, die für sich steht, ist **eine Serie mit genau einer Folge und dem Kennzeichen `einzeln`**. Die Box ändert sich nicht. In der Bibliothek steht „Lied · einzeln · 1:06“, nie „1 Folge“ (Abschnitt 5.4, 11.3, Frage 24).
 * **Hörkopien (Rev. 4, Rev. 5 mit harten Grenzen):** Formate, die nicht jeder Browser spielt (OGG, Opus, ALAC, auch FLAC und WAV), bekommen **einmal** eine kleine Kopie (AAC/M4A, 96 kbit/s), gespeichert auf dem NAS **neben** `medien/`, nicht auf den Boxen. **Neu Einsortiertes bekommt sie sofort, der Bestand erst beim ersten Reinhören** („Die Hörprobe wird vorbereitet“, Entscheidung Runde 10). Die Erzeugung hat **harte Grenzen** (Dauerdeckel, feste Zeitgrenze, `-t`/`-fs`, Schlangenlimit, Kontingent; sie gelten auch für `ffprobe`), sonst könnte ein Konto mit einer präparierten Datei die Schlange tagelang blockieren (11.4.7, G1). Die Box bekommt immer das Original.
@@ -154,6 +169,13 @@ und ihre Vertragsentwürfe (Abschnitte 12, 13), werden aber erst nach Freigabe g
 | Abgeleitete Werte | in `serie.json`, ändern den `stand` | im Store `tobibox.medieninfo`, `stand` bleibt ruhig |
 | Alte Seite | „umbenennen in `tobibox-technik`“ | Datei und Elementname bleiben, neues Element `tobibox-app` |
 
+### 1.5 Wichtigste Änderungen in Runde 12 (X1 bis X9)
+
+* **Vier Reiter statt fünf (X1, X2):** Start · Bibliothek · Tobies · **Mehr**. Beschriftung 14 px, Symbol 26 px, Reiter 64 px hoch; bei 390 px je 97 px, nichts wird abgeschnitten. Stufe B braucht keinen fünften Reiter mehr: „Gehört“ liegt in „Mehr“.
+* **„Mehr“ für alle (X1):** große Zeilen, zuerst „Abends“. Die Partnerin kommt weiter mit **einem** Tap vom Start zu „Abends“ (großer Knopf auf dem Start), von jedem anderen Reiter mit **zwei** (Mehr, Abends). Abschnitte 3.4, 7.4, 8.
+* **Leere Zustände (X3):** sechs eigene Bilder (Bibliothek leer, keine Tobies, keine Box, Suche ohne Treffer, Papierkorb leer, Gehört ohne Daten), je ein Satz und ein Knopf (6.2). Prototyp: Schalter „Leer zeigen“ im Menü „i“.
+* **Formsprache (X4), Kacheln (X5), Wischen (X6), Meldungen (X7), Tippflächen (X8), Kontrast (X9):** Abschnitte 4, 5.6, 5.12, 6.3, 14.
+
 ## 2. Stufen im Überblick
 
 | Stufe | Inhalt | Stand |
@@ -161,11 +183,11 @@ und ihre Vertragsentwürfe (Abschnitte 12, 13), werden aber erst nach Freigabe g
 | **A-1 Alltag** | Bibliothek wie eine Hörbuch-App mit Suche und Serienseite (ohne Player), **Hochladen in Schritten** (mit `gruppe_anzahl`, 2 GiB), **Einzeltitel**, Tobie auf Lied/Folge, Name, Cover, Abends, Rechte und Schutz, Papierkorb mit Mitteilung, Technik-Einbettung, Anzeigenamen der Boxen | **wird gebaut** (Abschnitt 15), Abnahme 1 |
 | **A-2 Reinhören** | Player (Leiste, Vollansicht, ±30 s, Tempo), **Weiterhören** je Benutzer in HA, Audio-Ansicht mit signiertem Pfad (24 Stunden) und Vorabfrage, Reihe „Am Handy weiterhören“, nur Originale in Formaten, die der Browser spielt | **wird gebaut** nach A-1, Abnahme 2 |
 | **A-3 Hörkopien und Kapitel** | **Hörkopien** (neu Einsortiertes sofort, Bestand beim ersten Reinhören, mit harten Grenzen), **Kapitelliste** und Dauer-Nachholen im Hintergrund, „Anders einsortieren“ (nur wenn der Rückweg machbar ist) | **wird gebaut** nach A-2, Abnahme 3 |
-| **B** | Reiter „Gehört“ mit der Auswahl **Wer?** (Alle, Box 1, Box 2, Personen; Hörzeit pro Tag, Rangliste, Tageszeiten; Reinhör-Daten für alle sichtbar, 12.5), „Zuletzt gehört“, „Meist gehört“, Favoriten (Stern); in „Technik“ Akku-Verlauf, Ladezeiten, Laufzeit, Syncs, Fehler. Daten unbegrenzt | **geplant**, Vertragsentwurf in Abschnitt 12, Bau nach Freigabe |
+| **B** | Eintrag „Gehört“ in „Mehr“ (3.4) mit der Auswahl **Wer?** (Alle, Box 1, Box 2, Personen; Hörzeit pro Tag, Rangliste, Tageszeiten; Reinhör-Daten für alle sichtbar, 12.5), „Zuletzt gehört“, „Meist gehört“, Favoriten (Stern); in „Technik“ Akku-Verlauf, Ladezeiten, Laufzeit, Syncs, Fehler. Daten unbegrenzt | **geplant**, Vertragsentwurf in Abschnitt 12, Bau nach Freigabe |
 | **C** | Eigene Playlists aus beliebigen Folgen und Liedern als Tobie-Ziel, Hochladen als Playlist, Reinhören und Weiterspielen über eine Playlist | **Idee**, Skizze in Abschnitt 13 |
 
 Im Prototyp sind B und C sichtbar, aber mit den Marken „Stufe B – Vorschau“ bzw. „Stufe C – Idee“. Die Vorschau-Leiste hat dafür den Schalter „Nur Stufe A“.
-In der echten Seite erscheint der Reiter „Gehört“ nur, wenn die Fähigkeit `gehoert` gemeldet wird (Abschnitt 12.4). **Reihenfolge ist bindend:** A-1 muss abgenommen sein, bevor A-2 beginnt, und A-2 vor A-3 (Abhängigkeiten in 15.1).
+In der echten Seite erscheint der Eintrag „Gehört“ in „Mehr“ nur, wenn die Fähigkeit `gehoert` gemeldet wird (Abschnitt 12.4); ohne sie hat „Mehr“ nur „Abends“. **Reihenfolge ist bindend:** A-1 muss abgenommen sein, bevor A-2 beginnt, und A-2 vor A-3 (Abhängigkeiten in 15.1).
 
 ## 3. Navigation
 
@@ -175,16 +197,16 @@ In der echten Seite erscheint der Reiter „Gehört“ nur, wenn die Fähigkeit 
 * Die untere Leiste ist **nicht `fixed`**, sondern `position: sticky; bottom: 0` am Ende des Seitenrahmens (der Rahmen füllt `height: 100%`, der Inhalt scrollt). So läuft sie nie unter die
   HA-Seitenleiste und springt nicht mit der Adressleiste. Bei offener Tastatur (Fokus in einem Textfeld, `visualViewport`) wird sie ausgeblendet. Unten gilt `env(safe-area-inset-bottom)`;
   ob die Companion-App die Werte liefert, prüft Tobias früh (Arbeitspaket A15).
-* **Reiternamen (U22):** Start · Bibliothek · Tobies · Abends · (B) Gehört. 4 Reiter in Stufe A, 5 in Stufe B (390 px: je 75 px, Beschriftung 12 px, kurze Wörter).
+* **Reiternamen (U22, Runde 12 X1/X2):** **Start · Bibliothek · Tobies · Mehr**, immer vier (Stufe B ändert die Zahl nicht). 390 px: je 97 px, **Beschriftung 14 px** (Prototyp; Untergrenze 13 px), Symbol 26 px, Reiter **64 px** hoch, Beschriftung immer sichtbar, nie nur Symbole. „Abends“, „Gehört“ und später „Playlists“ liegen in „Mehr“ (3.4); wer dort eine Unterseite offen hat, sieht den Reiter „Mehr“ markiert.
   Roter Punkt am Reiter „Start“ mit Zahl hat einen Text für Screenreader („1 neuer Tobie“).
-* **Kopfzeile (Rev. 3):** eine schlanke Zeile „Tobi Box“ mit rechts **„+“ (Hinzufügen, 44 px)**; „Hinzufügen“ ist kein großer Knopf mehr neben dem Titel jeder Ansicht. Auf der Startseite bleibt der große Knopf „Hinzufügen“ als ruhiger Hauptplatz (5.1).
+* **Kopfzeile (Rev. 3):** eine schlanke Zeile „Tobi Box“ mit rechts **„+“ (Hinzufügen, 44 px)**; „Hinzufügen“ ist kein großer Knopf mehr neben dem Titel jeder Ansicht. Auf der Startseite bleiben die großen Knöpfe „Hinzufügen“ und „Abends“ als ruhiger Hauptplatz (5.1).
 * **Technik:** Knopf „Technik“ (Werkzeug-Symbol, 44 px hoch, am Handy nur das Symbol mit Beschriftung für Screenreader) oben rechts in der Kopfzeile, **nur für Administratoren**. Der Name trägt keinen Personennamen (U22a).
   Zeigt den Knopf nicht, wer kein Administrator ist; ruft jemand `#technik` trotzdem auf, steht dort: „Dieser Bereich ist nur für Administratoren. Wenn du etwas Technisches brauchst, frag den Administrator.“ (Texte, die auf den Administrator verweisen, benutzen **einen** Texteintrag `verwalter` in `texte.js`; Vorgabe „den Administrator“. Ein Name aus Home Assistant darf dort erst zur Laufzeit stehen, nie im Repo; G24.)
 
 ### 3.2 Unterseiten, Adressen
 
-Unterseiten: **Suche**, **Serienseite** (Hörspiel, Hörbuch, Album, Geschichten), **Hinzufügen**, **Tobie anlernen**. Der Player ist keine Unterseite, sondern eine Leiste und eine Vollansicht über jeder Seite (5.12). Oben links „‹ Bibliothek“ bzw. „‹ Start“; Browser-Zurück geht denselben Weg.
-Adressen (nach `#`, nur einfache Namen): `#start`, `#bibliothek`, `#suche`, `#serie-<id>`, `#hinzufuegen`, `#anlernen`, `#tobies`, `#abends`, `#gehoert` (B), `#technik`.
+Unterseiten: **Suche**, **Serienseite** (Hörspiel, Hörbuch, Album, Geschichten), **Hinzufügen**, **Tobie anlernen**, und von „Mehr“ aus **Abends** und (B) **Gehört** (oben links „‹ Mehr“). Der Player ist keine Unterseite, sondern eine Leiste und eine Vollansicht über jeder Seite (5.12). Oben links „‹ Bibliothek“ bzw. „‹ Start“; Browser-Zurück geht denselben Weg.
+Adressen (nach `#`, nur einfache Namen): `#start`, `#bibliothek`, `#suche`, `#serie-<id>`, `#hinzufuegen`, `#anlernen`, `#tobies`, **`#mehr`**, `#abends`, `#gehoert` (B), `#technik`. `#abends` und `#gehoert` sind **Unterseiten von „Mehr“** (der Reiter „Mehr“ ist markiert); `#gehoert` ohne Fähigkeit `gehoert` führt nach `#mehr`. Alte Lesezeichen auf `#abends` gelten weiter.
 Nicht `settings`, `sidebar` und Ähnliches. Der Menüknopf von HA (`ha-menu-button`) steht in der Kopfzeile, wenn `narrow` gesetzt ist.
 
 ### 3.3 Sprache (U22c, U21)
@@ -202,6 +224,24 @@ Ein einzelnes Lied oder eine einzelne Folge, die für sich steht (nicht in einem
 Allgemein heißt der Knopf zum Anlegen **„Hinzufügen“**, der Bereich **„Bibliothek“**. Nicht mehr sichtbar für Eltern: Serie, Track, Tags, Kennung, UID, Revision, Eingang (außer im Satz zum NAS und in „Technik“).
 Die Überraschungs-Serie erscheint nur in „Technik“. **Box-Namen** setzt die Seite unverändert ein („Box 1 spielt …“, „Auf Box 2“). Die Optionen der Integration sagen: „Anzeigename der Box, zum Beispiel Box 1“. **Runde 11 (Tobias):** Der Anzeigename ist der **ganze Name der Box** (z. B. „Box 1“ oder „Annas Box“), damit Sätze wie „Neuer Tobie auf Annas Box“ und die Auswahl „Wer?“ Boxen und Personen klar trennen. Die echten Namen stehen nur in den Einstellungen in Home Assistant, nie im Repo (CLAUDE.md); in diesem Entwurf und im Prototyp heißen die Boxen „Box 1“ und „Box 2“, die Personen „Person A“ und „Person B“.
 
+### 3.4 „Mehr“ (neu in Runde 12, X1)
+
+* **Wer:** **alle** HA-Benutzer, nicht nur Administratoren. Grund: „Abends“ ist Alltag der Partnerin (Gute Nacht, Leise-Zeiten). **Technik** bleibt der Knopf oben und nur für Administratoren; er steht **nicht** in „Mehr“.
+* **Aufbau:** Überschrift „Mehr“, darunter eine **Liste großer Zeilen** (Karten mit 16 px Radius, Rand 3:1, mindestens **80 px** hoch, ganze Fläche tippbar): links ein Symbol im Kreis, Titel (18 px), eine Zeile Erklärung, rechts ein Pfeil. Keine Verschachtelung, kein Suchfeld, kein Blättern.
+* **Einträge:**
+
+  | Eintrag | Erklärung | Wann sichtbar | Ziel |
+  |---|---|---|---|
+  | **Abends** | „Gute Nacht und Leise-Zeiten“ | immer | `#abends` (5.8) |
+  | **Gehört** | „Wer hat was gehört“ | Stufe B und Fähigkeit `gehoert`; bis dahin **ausgeblendet** | `#gehoert` (5.10) |
+  | **Playlists** | „Eigene Listen aus Liedern und Folgen“ | Stufe C; bis dahin ausgeblendet (im Prototyp mit „Stufe C – Idee“, gestrichelt, Meldung beim Antippen) | später |
+
+* **Regel für weitere Einträge:** nur, wenn sie für **alle** Benutzer gedacht sind und ein eigener Reiter zu viel wäre. Alles Technische gehört nach „Technik“. Wächst die Liste über etwa sieben Zeilen, kommt eine Gruppierung mit Zwischenüberschriften, kein fünfter Reiter.
+* **Unterseiten** haben oben links „‹ Mehr“ (44 px); Browser-Zurück geht denselben Weg. Der Reiter „Mehr“ bleibt markiert.
+* **Weg zu „Abends“ (Tap-Zahl):** **vom Start 1 Tap** (der große Knopf „Abends“ bleibt auf dem Start, 5.1 Punkt 4); **von jedem anderen Reiter 2 Taps** (Mehr, Abends). Ein Gute-Nacht-Timer ändern kostet damit **3 Taps vom Start** und 4 von den anderen Reitern (7.4, 8).
+* **Stufe A allein:** „Mehr“ hat dann nur „Abends“. Das ist gewollt; die Zeile zeigt, dass der Platz für Stufe B und C schon da ist, ohne die Leiste später umzubauen.
+* **Prototyp:** Reiter „Mehr“ mit den drei Zeilen (Schalter „Stufen zeigen“ blendet „Gehört“ und „Playlists“ aus).
+
 ## 4. Stil (U14)
 
 * **Flächen** (Hintergrund, Karten, Trennlinien, Schatten, Eckenradius) kommen aus **HA-Variablen** mit Rückfall: `--primary-background-color`, `--card-background-color`, `--secondary-background-color`,
@@ -212,9 +252,11 @@ Die Überraschungs-Serie erscheint nur in „Technik“. **Box-Namen** setzt die
   Für Text in Primärfarbe (Links, aktiver Reiter) gibt es das Token `--primary-ink`: so weit abgedunkelt, dass 4,5 zu 1 gegen die hellste und die dunkelste Fläche gilt.
   Der Prototyp zeigt das mit dem Aussehen „Theme mit hellem Primärton“ (Gelb): Knopfschrift wird schwarz, Linkfarbe wird dunkelgelb-braun.
 * HA-eigene Elemente sparsam: nur `ha-menu-button` und `ha-icon`. Alles andere ist eigenes HTML (nativ: `<dialog>`, `<details>`, `<select>`).
+* **Formsprache (Runde 12, X4):** **Karten** (Status, Hinweise, Listen-Karten, „Mehr“-Zeilen) Radius **16 px**; **Blätter, Player-Vollansicht, große Kacheln** (Hochladen-Wahl, große Startknöpfe, leere Zustände) Radius **24 px**; Knöpfe und Chips bleiben Kapseln. Als Token `--r-card: 16px`, `--r-big: 24px` (kein Farbwert, gelten in Hell und Dunkel gleich).
+* **Kontrast (Runde 12, X9):** Text 4,5:1. **Ränder von Bedienelementen, Symbole und Hinweiskarten mindestens 3:1** gegen die Fläche dahinter. Dafür gibt es das Token **`--line`** (Hell `#7c8187`, Dunkel `#7d848c`: 3,4 bis 5,4 zu 1 gegen Seite, Karte und Primärton-Hinweis) für Ränder von Knöpfen, Chips, Eingabefeldern, Kacheln und Zeilen; die dünnen Trennlinien in Listen (`--divider`) bleiben dezent, weil sie nur gliedern. **Warn-, Fehler- und Erfolgskarten** (Fläche kaum heller als die Seite) haben **2 px Rand in ihrer Textfarbe**, Hinweiskarten 1 px `--line`. Alles, was die Primärfarbe als **Fläche oder Rand** nutzt (Primärknopf, gewählter Chip, Fortschrittsbalken, Reiter-Strich, Symbolkreis), bekommt **`--primary-ink`** als Rand bzw. Strich: bei Blau sieht man keinen Unterschied, beim Theme mit hellem Primärton (Gelb) ist es der dunkelgelbe Rand, ohne den der Knopf auf Weiß nur 1,2 zu 1 hätte.
 * Cover-Kacheln quadratisch, Radius 12 px; Platzhalter: sechs feste Farben (aus der ID), großer Anfangsbuchstabe; die orange Marke „bitte ansehen“ sitzt **unten links** im Cover und verdeckt den Buchstaben nie (U24b).
-* Tap-Ziele mindestens 44 × 44 px, Hauptknöpfe 48 px, große Startknöpfe 64 px. Schrift Roboto, Fließtext 16 px, Nebentext 14 px, nirgends unter 12 px.
-* Playwright prüft mit **drei Themes** (HA-Standard hell, dunkel, ein Theme mit sehr hellem Primärton), siehe Arbeitspaket A14.
+* Tap-Ziele mindestens 44 × 44 px, Hauptknöpfe 48 px, große Startknöpfe 64 px. Schrift Roboto, Fließtext 16 px, Nebentext 14 px, **Reiterbeschriftung 14 px**, sonst nirgends unter 12 px (nur Marken und Zähler).
+* Playwright prüft mit **drei Themes** (HA-Standard hell, dunkel, ein Theme mit sehr hellem Primärton), siehe Arbeitspaket A14; geprüft werden Text (4,5:1), **Rand und Symbole (3:1, Runde 12)**, Tippziele (44 px) und waagerechtes Scrollen.
 
 ## 5. Seiten und Texte
 
@@ -225,9 +267,9 @@ Alle Texte wörtlich. Box-Namen sind Beispiele und kommen aus den Einstellungen 
 Von oben nach unten:
 
 1. **Warnband** (nur bei Bedarf, Abschnitt 6): Verbindung weg, Liste gesperrt.
-2. **Status-Karten** der Boxen (am Computer nebeneinander), siehe 5.1.1.
+2. **Status-Karten** der Boxen (am Computer nebeneinander), siehe 5.1.1. Ohne eingerichtete Box: leerer Zustand „Noch keine Box eingerichtet. Bitte dem Administrator Bescheid sagen.“ mit Bild und Knopf „Jetzt neu laden“ (6.2).
 3. **Karte „Neuer Tobie“** (nur wenn eine Box einen unbekannten Tobie meldet), Ablauf 7.1.
-4. Zwei große Knöpfe: „**Hinzufügen**“ (blau) und „**Abends**“.
+4. Zwei große Knöpfe (Kacheln, 72 px hoch, Radius 24 px): „**Hinzufügen**“ (blau) und „**Abends**“. „Abends“ ist die **Abkürzung** zur Unterseite von „Mehr“ (3.4): 1 Tap statt 2.
 5. Hinweiskarte zum Hinzufügen (nur wenn etwas läuft oder angesehen werden soll): „2 Einträge werden gerade hinzugefügt.“ / „1 neuer Eintrag bitte kurz ansehen.“ / „Alles hinzugefügt.“ Ziel `#hinzufuegen`.
 6. **Suchfeld** „Hörspiel, Lied, Folge oder Tobie suchen“: Absenden öffnet die Suchansicht (`#suche`, 5.2) mit dem Suchwort.
 6a. **Reihe „Am Handy weiterhören“** (nur wenn etwas angefangen ist, 5.2 Punkt 4).
@@ -270,12 +312,14 @@ Vorbild ist jetzt **Audible**: Die Bibliothek zeigt **sofort Cover**, alles ande
    **Rev. 4:** Das Blatt hat eine dritte Gruppe **„Was zeigen“** (ein Tap, wählt eines): **Alles · Nur Hörspiele, Bücher, Alben · Nur Einzeltitel (einzelne Lieder und Folgen)**. Sie zählt wie die anderen Einstellungen am Zahlenpunkt des Knopfes mit. Backend: `filter` bekommt die Werte `sammlung` und `einzeln` (V-8).
    **Einzeltitel in der Liste (Rev. 4):** wie jede Zeile, aber der Untertitel heißt „**Lied · einzeln · 1:06**“ (bei Geschichten „Geschichte · einzeln · 1:39“, bei Hörbüchern „Hörbuch · einzeln · …“); nie „1 Folge“. Sie stehen unter ihrer Art (ein Lied unter „Musik“). 300 einzelne Lieder bleiben damit bedienbar: Arten-Zeile „Musik“ plus „Nur Einzeltitel“ oder „Nur Hörspiele, Bücher, Alben“ trennt sie von den Alben.
 
+**Leere Zustände der Bibliothek (Runde 12, X3, 6.2):** Bibliothek ganz leer: Bild „leeres Regal“, „Noch nichts da. Tippe auf „Hinzufügen“.“, Knopf „Hinzufügen“. Filter ohne Treffer: „Nichts gefunden. Nimm einen Filter weg.“ mit Knopf „Filter zurücksetzen“.
+
 **Gestrichen gegenüber Rev. 2:** der Umschalter **Kacheln | Alle Folgen**, die Art-Knöpfe mit Zahlen, die vier Filter-Knöpfe in der Seite, das Auswahlfeld zum Sortieren, das Suchfeld im Seitenkopf und der große „Hinzufügen“-Knopf neben dem Titel. Einzelne Folgen und Lieder findet man jetzt **über die Suche und über die Serienseite**.
 Das Backend bleibt dasselbe (`folgen/list` bedient die Suche und die Zielwahl „Einzelne Folge oder Lied“, 5.4); nur die Seite zeigt den Umschalter nicht mehr.
 
 **Suchansicht (`#suche`).** Zeile mit Zurück-Pfeil und Suchfeld „Hörspiel, Lied, Folge oder Tobie“ (der Fokus liegt gleich im Feld). Ab 2 Zeichen (Verzögerung 250 ms, Umlaute und Groß/Klein egal) erscheinen drei Gruppen mit der Zählzeile „Gefunden: 6 Sammlungen, 102 Folgen und Lieder, 0 Tobies“:
 **„Hörspiele, Bücher, Alben“** (Listenzeilen wie oben, höchstens 8, Treffer hervorgehoben, **ohne Einzeltitel**), **„Folgen und Lieder“** (Zeile mit kleinem Cover, Titel, „Serie · Dauer“ bzw. bei einem Einzeltitel „Einzeltitel · Dauer“, **Abspielknopf** und Knopf „Tobie“, höchstens 10) und **„Tobies“** (nach Tobie-Name). Mehr Treffer: „… und 7 weitere. Genauer suchen hilft.“
-**Jede Zeile ist ein Link** (G25): bei einer Folge zur Serienseite, bei einem Einzeltitel zu seiner Seite (dort stehen Name, Cover, Art und Papierkorb); „Abspielen“ und „Tobie“ bleiben eigene Knöpfe. Kein Treffer: „Nichts gefunden zu „xyz“.“ Leer: „Tippe mindestens 2 Buchstaben. Gesucht wird in Hörspielen, Büchern, Alben, Folgen, Liedern und in den Namen der Tobies.“ Art und Filter der Bibliothek gelten **nicht** für die Suche (sie sucht über alles). Die Startseite hat weiter ihr Suchfeld; Absenden öffnet `#suche` mit dem Wort.
+**Jede Zeile ist ein Link** (G25): bei einer Folge zur Serienseite, bei einem Einzeltitel zu seiner Seite (dort stehen Name, Cover, Art und Papierkorb); „Abspielen“ und „Tobie“ bleiben eigene Knöpfe (beide mindestens 44 × 44 px, X8). Kein Treffer: leerer Zustand mit Bild, „Nichts gefunden zu „xyz“.“ und Knopf „Suche löschen“ (6.2) Leer: „Tippe mindestens 2 Buchstaben. Gesucht wird in Hörspielen, Büchern, Alben, Folgen, Liedern und in den Namen der Tobies.“ Art und Filter der Bibliothek gelten **nicht** für die Suche (sie sucht über alles). Die Startseite hat weiter ihr Suchfeld; Absenden öffnet `#suche` mit dem Wort.
 
 **Leistung (500+ Einträge).** (1) Das Backend blättert (`limit`/`offset`, V-2); die Seite lädt 60 und bei „Mehr zeigen“ die nächsten 60. Suchen, Filtern und Sortieren macht das Backend (Index im Speicher der Integration, Ziel unter 200 ms bei 600 Einträgen und 2 000 Folgen). „Zuletzt angehört“ kennt nur das Backend (die Hörstellen liegen dort, 11.4); die Liste zeigt in A-1 noch keine Dauer und keine Hörstellen, die Kapitelzahl erst in A-3 (Abschnitt 15).
 (2) Listenzeilen tragen `content-visibility: auto`; eine eigene virtuelle Liste ist **nicht** nötig (bis 1 000 Zeilen im Dokument geprüft). (3) Cover laden erst, wenn die Zeile sichtbar wird (`IntersectionObserver`), in der kleinen Größe 192 px (ca. 15 KiB, V-1), als `blob:` zwischengespeichert nach `cover_stand`. Bei 60 Zeilen sind das etwa 1 MB statt 8 MB.
@@ -338,18 +382,19 @@ am Computer zusätzlich eine Fläche „Auf dem Computer kannst du Dateien oder 
 Bis 2 GB je Datei. Kopiergeschützte Dateien (zum Beispiel von Audible) gehen nicht. **Lass den Bildschirm an, bis alles fertig ist.**“ (U12d; die Zahl aus `hello.grenzen.upload_max_bytes`, hier 2 GiB).
 Hinweiskarte: „Du kannst Dateien auch am Computer in den Eingang-Ordner auf dem NAS kopieren. Sie erscheinen hier von selbst und werden nach den Angaben in den Dateien einsortiert. Stimmt etwas nicht, kannst du es hier anders einsortieren. Frag den Administrator nach dem Ordner.“ Darunter „**Zuletzt hinzugefügt**“ (Einträge der **letzten 24 Stunden**, U13).
 
-**Neu in Rev. 4: nach der Dateiwahl öffnet sich das Blatt „Was lädst du hoch?“** (Anlass: Tobias verstand das Blatt „In welches soll es?“ mit „Abbrechen / In ein bestehendes wählen … / Automatisch (nach den Dateien)“ nicht). Es ist ein Blatt von unten (natives `<dialog>`) mit der Zeile „3 Dateien gewählt (01 Der Hafen.mp3 …). Was ist das?“ und **fünf Karten**, je mit Symbol, Titel, **einem Satz Erklärung** und **einem Beispiel**. Die Karten sind große Knöpfe (mindestens 76 px hoch), kein Fachwort:
+**Nach der Dateiwahl öffnet sich das Blatt „Was lädst du hoch?“** (Rev. 4; **Runde 12, X5: Kacheln statt Karten**). Anlass der Rev. 4: Tobias verstand das Blatt „In welches soll es?“ mit „Abbrechen / In ein bestehendes wählen … / Automatisch (nach den Dateien)“ nicht; Anlass der Runde 12: die fünf Karten mit Satz **und** Beispiel waren zu textlastig. Es ist ein Blatt von unten (natives `<dialog>`, Radius 24 px) mit der Zeile „3 Dateien gewählt (01 Der Hafen.mp3 …). Was ist das?“ und **fünf großen Kacheln** in **zwei Spalten** (die letzte, ungerade, über die ganze Breite). Jede Kachel hat ein **Symbol** im Kreis, einen **kurzen Titel** und **höchstens eine Zeile** Erklärung; Beispiele entfallen. Kachel mindestens **132 px** hoch (die breite 88 px), Radius 24 px, Rand `--line`, kein Fachwort. **Die Zeile darunter passt in einer Zeile in die Kachel (bei 390 px sind das etwa 22 Zeichen); der Prototyp misst das.**
 
-| Karte | Erklärung | Beispiel |
-|---|---|---|
-| **Neues Hörspiel, Hörbuch oder Album** | „Alle Dateien gehören zusammen und werden etwas Neues.“ | „Zum Beispiel: die Kapitel eines Hörbuchs oder alle Lieder einer CD.“ |
-| **Folgen zu einem vorhandenen hinzufügen** | „Die Dateien kommen zu etwas, das schon da ist.“ | „Zum Beispiel: zwei neue Folgen zu „Lange Serie“.“ |
-| **Einzelne Folge oder einzelnes Lied** | „Jede Datei steht für sich, ohne Serie.“ | „Zum Beispiel: ein Lied, das ein Tobie spielen soll.“ |
-| **Neue Playlist** (Marke „Stufe C – Idee“, gestrichelter Rand, antippbar nur mit Meldung „Playlists gibt es noch nicht. Das kommt später (Stufe C).“) | „Eine eigene Liste aus Liedern und Folgen.“ | „Zum Beispiel: „Autofahrt“ mit fünf Lieblingsliedern.“ |
-| **Weiß nicht – sortier du** (früher „Automatisch“) | „Ich lese die Angaben in den Dateien und sortiere selbst ein.“ | „Wenn ich unsicher bin, steht danach „Bitte ansehen“ da.“ |
+| Kachel | Symbol | Titel | Zeile darunter | Bisherige Karte (Backend-Weg, 7.3) |
+|---|---|---|---|---|
+| 1 | Bücherregal | **Neu anlegen** | „Hörspiel, Buch, Album“ | a) Neues Hörspiel, Hörbuch oder Album |
+| 2 | Regal mit Plus | **Zu Vorhandenem** | „Neue Folgen dazu“ | b) Folgen zu einem vorhandenen hinzufügen |
+| 3 | Note | **Einzeln** | „Lied oder Folge für sich“ | c) Einzelne Folge oder einzelnes Lied |
+| 4 | Playlist | **Playlist** | „Stufe C – Idee“ (gestrichelter Rand, `aria-disabled`, antippbar nur mit Meldung „Playlists gibt es noch nicht. Das kommt später (Stufe C).“) | d) Neue Playlist |
+| 5 | Zauberstab | **Sortier du** | „Ich lese die Angaben“ (breite Kachel) | e) Weiß nicht – sortier du |
 
-Das Blatt hat nur „**Abbrechen**“, **oben rechts** im Blatt (auf dem Handy gibt es kein Esc, und unten lag der Knopf zur Hälfte unter der Kante; Tippen daneben schließt ebenso, G26a). **Ein Tap auf eine Karte** führt zur **Vorschau** (7.3): Dort steht ein Satz, was geschehen wird, darunter genau die Eingaben, die dieser Weg braucht (Name und „**Welche Art?**“ in einer Zeile unter dem Namen, vorausgewählt, G26b; die Wahl eines vorhandenen Eintrags mit Suche und Covern, Titel der Auswahl „**Wohin soll es?**“, G26c; ein Name je Datei, bei mehr als drei Dateien der Satz „Die übrigen 2 Dateien heißen wie in ihren Angaben.“, G26d), bei mehreren Dateien der Satz „Die Dateien bleiben zusammen. Einsortiert wird, wenn alle 3 da sind.“, und die Knöpfe „Abbrechen“, „**Ändern**“ (zurück zu den Karten) und „**Hochladen**“.
-Die Karte „Neue Playlist“ erscheint nur, wenn Stufe C gezeigt wird (im Prototyp: „A, dazu B und C“). Aus dem Eintrag heraus („Dateien in diesen Eintrag“, `serie_id`) wird das Blatt übersprungen: der Weg ist dann „zu einem vorhandenen hinzufügen“.
+Die **ausführlichen Sätze** der Rev. 4 („Alle Dateien gehören zusammen und werden etwas Neues.“ usw.) stehen als **nur für Screenreader sichtbarer Text** in jeder Kachel und in der Vorschau (7.3); sehende Nutzer lesen sie dort. Der Satz zu „Sortier du“ steht in der Vorschau („Ich lese die Angaben in den Dateien …“).
+Das Blatt hat nur „**Abbrechen**“, **oben rechts** im Blatt (auf dem Handy gibt es kein Esc, und unten lag der Knopf zur Hälfte unter der Kante; Tippen daneben schließt ebenso, G26a). **Ein Tap auf eine Kachel** führt zur **Vorschau** (7.3): Dort steht ein Satz, was geschehen wird, darunter genau die Eingaben, die dieser Weg braucht (Name und „**Welche Art?**“ in einer Zeile unter dem Namen, vorausgewählt, G26b; die Wahl eines vorhandenen Eintrags mit Suche und Covern, Titel der Auswahl „**Wohin soll es?**“, G26c; ein Name je Datei, bei mehr als drei Dateien der Satz „Die übrigen 2 Dateien heißen wie in ihren Angaben.“, G26d), bei mehreren Dateien der Satz „Die Dateien bleiben zusammen. Einsortiert wird, wenn alle 3 da sind.“, und die Knöpfe „Abbrechen“, „**Ändern**“ (zurück zu den Kacheln) und „**Hochladen**“.
+Die Kachel „Playlist“ erscheint nur, wenn Stufe C gezeigt wird (im Prototyp: „A, dazu B und C“). Aus dem Eintrag heraus („Dateien in diesen Eintrag“, `serie_id`) wird das Blatt übersprungen: der Weg ist dann „zu einem vorhandenen hinzufügen“.
 
 ### 5.6a Upload-Grenze 2 GiB: Folgen (Rev. 5, Runde 10, G15)
 
@@ -375,10 +420,12 @@ Entscheidung Tobias: die Grenze je Datei steigt von 500 MiB auf **2 GiB** (Hörb
 * Tippen öffnet ein Blatt: „**Namen ändern**“, „**Etwas anderes spielen**“ (Zielwahl wie in 5.4, **mit Kachel „Gute Nacht“**, U16c), abgesetzt „**Diesen Tobie vergessen …**“ (Rückfrage; Backend: `zuordnung/remove` mit `erwartet_ziel`).
   Bestätigung nach dem Umstellen: „Fertig: spielt jetzt „…“.“
 * **Auflegen zum Finden** (U4, wenn die Box die Kennung beim Auflegen meldet, V-5): Die Zeile des aufgelegten Tobies wird hervorgehoben. Fehlt das Datenfeld, bleiben Name, Sortierung und Suche.
-* Leer: „Noch keine Tobies. Lege einen Tobie auf eine Box, dann erscheint er auf der Startseite.“
+* Leer (X3, 6.2): Bild „Tobie wartet auf die Box“, „Noch keine Tobies. Lege einen Tobie auf eine Box, dann erscheint er auf der Startseite.“, Knopf „Zur Startseite“. Suche ohne Treffer: „Nichts gefunden zu „…“.“ mit Knopf „Suche löschen“.
 * Stufe C: darunter die Karte „Playlist“ (5.11).
 
-### 5.8 Abends
+### 5.8 Abends (Unterseite von „Mehr“, 3.4)
+
+Oben links „‹ Mehr“. Vom Start führt der große Knopf „Abends“ ebenfalls hierher (1 Tap).
 
 Zwei Karten. **Gute Nacht**: „Lege den Gute-Nacht-Tobie auf. Dann läuft ein Timer. Danach wird es leise und die Box hört auf.“ „Die Box spielt noch“ mit **Schnellwahl 15 · 30 · 45 · 60 · 90 Minuten** (Knöpfe, U16a) und einem Auswahlfeld „Anderer Wert …“ (5 bis 240 Minuten).
 Knopf „Speichern“ (grau mit „Gespeichert“, solange nichts geändert ist). Das **Ausblenden** („Dann wird sie leiser über …“) ist ein selten geänderter technischer Wert und liegt in „Technik → Weitere Einstellungen“ (U16b).
@@ -405,7 +452,7 @@ Meldung: „Gespeichert. Die Boxen bekommen es gleich.“ Die **Zeitzone** zeigt
 
 ### 5.10 Gehört (Stufe B, Vorschau im Prototyp)
 
-Eigener Reiter für alle, **nur wenn die Fähigkeit `gehoert` gemeldet wird**. Oben ein Hinweis „Stufe B – Vorschau“ (nur im Prototyp). **Rev. 5 (Runde 10): kein Umschalter „Boxen \| Reinhören“ und kein Hinweistext „Alle in Home Assistant sehen das.“** Aufbau:
+Unterseite von „Mehr“ (3.4, Runde 12: nicht mehr eigener Reiter) für alle, **nur wenn die Fähigkeit `gehoert` gemeldet wird**; oben links „‹ Mehr“. Ohne Daten: leerer Zustand „Noch nichts gehört. Sobald eine Box spielt oder jemand reinhört, steht es hier.“ mit Bild „Kopfhörer“ und Knopf „Zur Bibliothek“ (6.2). Oben ein Hinweis „Stufe B – Vorschau“ (nur im Prototyp). **Rev. 5 (Runde 10): kein Umschalter „Boxen \| Reinhören“ und kein Hinweistext „Alle in Home Assistant sehen das.“** Aufbau:
 
 * **Auswahl „Wer?“** (eine einzige, 5.10.1): Knopfgruppe mit sichtbarer Beschriftung **Alle · Box 1 · Box 2 · Person A · Person B**. Die Boxen heißen so, wie sie in den Einstellungen der Integration benannt sind (`anzeige`); die Personen sind die **HA-Benutzer, die reingehört haben** (Name aus Home Assistant). Boxen und Personen stehen gleichberechtigt nebeneinander; „Alle“ ist die Summe aller Quellen. Rangliste, Hörzeit pro Tag, Tageszeiten und die Aufteilung nach Folgen gelten für die Auswahl.
 * **Zeitraum:** **Woche · Monat · Jahr · Alles** (Woche = letzte 7 Tage, Monat = 30, Jahr = 365, immer bis jetzt gerechnet; Abschnitt 12.4).
@@ -439,7 +486,7 @@ Im Prototyp ausgegraut, mit der Marke „Stufe C – Idee“. Datenmodell und Au
 **Wozu:** Man soll am Handy oder Computer **hineinhören**, um zu erkennen, was etwas ist (Runde 7), ohne eine Box zu bemühen. **Nur im Browser** (Handy, Computer, HA-App); **nicht auf der Box**. Es zählt **nicht** als Wiedergabe einer Box, aber (Stufe B) in „Gehört“ unter dem Namen des HA-Benutzers (Auswahl „Wer?“, 5.10.1, 12.5), für alle HA-Benutzer sichtbar.
 **Wer darf:** **alle HA-Benutzer** (Entscheidung Runde 7, wie Runde 6).
 
-* **Schmale Leiste unten** (Mini-Player), sobald etwas gespielt wurde: Cover, Folgentitel, Name des Eintrags, runder Play/Pause-Knopf (48 px), dünner Fortschrittsstrich oben. Sie sitzt **über** der Reiterleiste (sticky, nie unter der HA-Seitenleiste) und verschwindet bei offener Tastatur. Tippen auf die Leiste öffnet die Vollansicht, auf den Knopf schaltet Play/Pause.
+* **Schmale Leiste unten** (Mini-Player), sobald etwas gespielt wurde: Cover, Folgentitel, Name des Eintrags, runder Play/Pause-Knopf (48 px), dünner Fortschrittsstrich oben. Sie sitzt **über** der Reiterleiste (sticky, nie unter der HA-Seitenleiste) und verschwindet bei offener Tastatur. Tippen auf die Leiste öffnet die Vollansicht, auf den Knopf schaltet Play/Pause. **Wischen (Runde 12, X6):** In der Leiste öffnet **Wischen nach oben** (mindestens 40 px, deutlich mehr senkrecht als waagerecht) die Vollansicht; in der Vollansicht schließt **Wischen nach unten** (mindestens 70 px, von irgendwo außer vom Zeitregler) sie wieder. Die Vollansicht zeigt dafür einen kleinen **Griff** oben. Umsetzung mit **Pointer-Events** (Maus, Touch, Stift gleich) und Schwelle; `touch-action: pan-x` auf der Leiste und im Inhalt der Vollansicht, damit der Browser das senkrechte Wischen nicht selbst als Scrollen nimmt (bei niedrigem Fenster unter 560 px Höhe entfällt es, dort darf man scrollen). Ein Wisch löst **keinen** Tipp aus (Tipp-Sperre 250 ms danach). **Der Knopf bleibt**: Antippen der Leiste, Knopf „Player schließen“ und Esc gehen weiter (Barrierefreiheit: Wischen ist nur eine zweite Möglichkeit, nie die einzige). Ein kürzeres Wischen unter der Schwelle und Wischen nach unten in der Leiste tun nichts.
   Nach dem Neuladen der Seite steht die Leiste wieder da (pausiert, bei der gemerkten Stelle, **ohne Ton**); Ton startet **nur nach einem Tap**.
 * **Vollansicht** (natives `<dialog>`; am Handy ganze Fläche, am Computer ein Blatt): „Läuft gerade“, **großes Cover**, Titel, „Eintrag · 2 von 20“, **Zeitleiste** (Schieberegler 44 px hoch mit `aria-valuetext` „1:41 von 2:47“, Zeit links, Restzeit rechts), **Vorige Folge · 30 s zurück · Play/Pause (72 px) · 30 s vor · Nächste Folge**, **Geschwindigkeit 1× · 1,25× · 1,5×** (gilt für alle Folgen, wird gemerkt). Kein Schlaftimer (nicht gewünscht). „Vorige Folge“ springt bei mehr als 5 Sekunden zuerst an den Anfang der Folge.
 * **Spielt weiter** über die Folgen des Eintrags: am Ende einer Folge startet die nächste; nach der letzten ist Schluss (Runde 8 Nr. 22: bei Alben so; über eine **Playlist** weiterspielen kommt mit Stufe C, Abschnitt 13). Alben und Hörbücher mit Kapiteln (Ordner-Folgen) laufen ohne Unterbrechung der Zeitleiste über die Tracks (11.4).
@@ -457,7 +504,7 @@ Im Prototyp ausgegraut, mit der Marke „Stufe C – Idee“. Datenmodell und Au
 | Zustand | Was die Seite zeigt |
 |---|---|
 | **Lädt** | Graue, leicht pulsierende Platzhalter-Karten (statt „Lade …“). Mit „reduzierte Bewegung“ ohne Pulsieren. Nach 10 s ohne Antwort wird es der Fehlerzustand. |
-| **Leer** (noch nichts eingerichtet) | Start: statt Boxen „Noch keine Box eingerichtet. Bitte dem Administrator Bescheid sagen.“; Bibliothek: „Noch nichts da. Tippe auf „Hinzufügen“.“; Tobies siehe 5.7. Es gibt immer einen Knopf als nächsten Schritt. |
+| **Leer** (noch nichts eingerichtet) | Start: statt Boxen „Noch keine Box eingerichtet. Bitte dem Administrator Bescheid sagen.“; Bibliothek: „Noch nichts da. Tippe auf „Hinzufügen“.“; Tobies siehe 5.7. **Seit Runde 12 mit eigenem Bild, einem Satz und einem Knopf, Abschnitt 6.2.** Es gibt immer einen Knopf als nächsten Schritt. |
 | **Fehler beim Laden** | Rote Karte: „**Die Seite konnte nichts laden.** Home Assistant antwortet gerade nicht. Warte kurz und versuche es noch einmal. Wenn es so bleibt, sag dem Administrator Bescheid.“ Knopf „Noch einmal versuchen“. |
 | **Verbindung weg** (Websocket zu) | Rotes Band oben: „**Keine Verbindung zu Home Assistant.** Die Ansicht wird von selbst aktuell, sobald die Verbindung wieder da ist.“ Knopf „Jetzt neu laden“. Boxen grau. Schreibende Knöpfe grau, bis die Verbindung wieder da ist. |
 | **Box offline** | Statuskarte grau (5.1.1). Knopf „Auf Box 2“ grau mit Erklärung. |
@@ -510,7 +557,30 @@ die Alltagscodes stehen hier, der Rest bekommt den Standardtext, mit dem Code kl
 | Abspiel-Link abgelaufen (kommt nur nach über 24 Stunden Pause vor, G4) | (kein Fehler: die Seite fragt per `audio/bereit` neu und macht an der Stelle weiter; klappt es nicht: „Die Verbindung ist abgebrochen. Tippe auf Abspielen, dann geht es weiter.“) Die Seite erneuert den Link vorher (bei jedem Start und nach 20 Stunden), damit HA nie einen 401 sieht: jeder 401 einer Ansicht mit Anmeldung löst dort eine Meldung „Login attempt failed“ aus (11.4.2) |
 | `konfig_zu_gross`, `export_*`, `anfrage_id_konflikt`, `box_unbekannt`, `datei_existiert`, `reihenfolge_ungueltig`, `serie_existiert`, `ueberraschung_existiert` | Standardtext (nur Administratoren sehen den Code) |
 
-Fehler stehen als Karte am Ort der Handlung (nicht nur oben), bleiben bis „OK“ und werden Screenreadern über `role="alert"` vorgelesen. Erfolg: kurze Meldung unten (4,5 s, `role="status"`).
+Fehler stehen als Karte am Ort der Handlung (nicht nur oben) **oder**, bei kurzen Fehlern zu einer Eingabe oder Aktion („Bitte einen Namen eingeben.“), als **Fehlermeldung unten**; beide bleiben, bis man „OK“ tippt oder die Meldung wegwischt (6.3), und werden Screenreadern über `role="alert"` vorgelesen. Erfolg: kurze Meldung unten (4,5 s, `role="status"`, 6.3).
+
+### 6.2 Leere Zustände (neu in Runde 12, X3)
+
+Tobias fand die leeren Zustände „technisch“. Jeder bekommt jetzt ein **eigenes kleines Bild**, **einen Satz** und **einen Knopf** als nächsten Schritt. Die Bilder sind **Inline-SVG** (200 × 150, `aria-hidden`, kein Alt-Text nötig, weil der Satz alles sagt), **ohne fremde Marken oder Figuren**, gezeichnet nur mit **Farben aus den Tokens** (`--primary-soft`, `--primary-ink`, `--card`, `--warn`, `--warn-bg`, `--ok`, `--text2`): in Hell, Dunkel und im Theme mit hellem Primärton stimmig, ohne eigene Dunkelvariante. Sie stehen in einer Karte mit 24 px Radius, Bild etwa 220 px breit, Satz 18 px, Knopf darunter.
+
+| Zustand | Bild | Satz | Knopf |
+|---|---|---|---|
+| Bibliothek leer | leeres Regal mit Lücke und Note | „Noch nichts da. Tippe auf „Hinzufügen“.“ | **Hinzufügen** (primär, führt zu `#hinzufuegen`) |
+| Filter ohne Treffer (Bibliothek) | Lupe mit Fragezeichen | „Nichts gefunden. Nimm einen Filter weg.“ | **Filter zurücksetzen** |
+| Keine Tobies | lächelnder Tobie über der Box | „Noch keine Tobies. Lege einen Tobie auf eine Box, dann erscheint er auf der Startseite.“ | **Zur Startseite** |
+| Keine Box eingerichtet (Start) | schlafende Box mit Zzz und gezogenem Stecker | „Noch keine Box eingerichtet. Bitte dem Administrator Bescheid sagen.“ | **Jetzt neu laden** |
+| Suche ohne Treffer (Suchansicht, Tobies-Suche) | Lupe mit Fragezeichen | „Nichts gefunden zu „xyz“.“ | **Suche löschen** |
+| Papierkorb leer (Technik) | Papierkorb mit Haken | „Der Papierkorb ist leer.“ | **Zur Bibliothek** |
+| Gehört ohne Daten (Stufe B) | Kopfhörer mit leerem Diagramm | „Noch nichts gehört. Sobald eine Box spielt oder jemand reinhört, steht es hier.“ | **Zur Bibliothek** |
+
+Der Suchbegriff steht im Satz als Text (`textContent`, nie als HTML). **Prototyp:** Im Menü „i“ gibt es den Schalter **„Leer zeigen“**; er zeigt alle sechs Bilder (Start, Bibliothek, Tobies, Suche, Technik → Papierkorb, Gehört), ohne dass man Daten löschen muss. Der Papierkorb liegt in „Technik“ unter „Papierkorb“ (aufklappen). Die Bilder sind ein Teil von **A6** (Arbeitspaket 15.1).
+
+### 6.3 Meldungen: Erfolg geht, Fehler bleiben (neu in Runde 12, X7)
+
+* **Erfolg** („Gespeichert. Die Boxen bekommen es gleich.“, „Fertig: spielt jetzt …“): kleine dunkle Meldung unten, über der Reiterleiste (und über dem Mini-Player, wenn er da ist), `role="status"`, **verschwindet nach 4,5 Sekunden** von selbst. Eine neue Erfolgsmeldung ersetzt die alte.
+* **Fehler** („Bitte einen Namen eingeben.“, „Das kann dieser Browser nicht abspielen.“, Texte aus 6.1 als Meldung): Meldung in Fehlerfarben mit **2 px Rand**, `role="alert"`, mit Knopf **„OK“** (mindestens 44 px) und **bleibt, bis man „OK“ tippt oder sie nach links oder rechts wegwischt** (Schwelle 70 px, Pointer-Events). Mehrere Fehler stehen übereinander. Ein Erfolg entfernt keinen Fehler. Der Fokus wird nicht entführt.
+* **Über einem offenen Blatt:** Ein offenes Blatt (`<dialog>`) liegt im Top-Layer und deckt alles andere zu. Der Meldungsbereich **zieht deshalb in den offenen Dialog um** und steht dann **oben** im Blatt (sonst wäre die Fehlermeldung zu „Namen eingeben“ unsichtbar und ihr „OK“ nicht bedienbar, weil der Rest der Seite gesperrt ist); nach dem Schließen geht er zurück nach unten.
+* Gilt auch für die Fehlertexte aus 6.1 (Meldung am Ort der Handlung bleibt eine Karte). Texte stehen wörtlich in `texte.js` (A5), das Verhalten im Gerüst (A6).
 
 ## 7. Die Kernaufgaben als Abläufe
 
@@ -552,7 +622,7 @@ Heute: 5 bis 9 Taps (`ist.md`).
 ### 7.3 (c) Hinzufügen: **4 Taps** (Rev. 4: eine Wahl mehr, dafür verständlich), Wartezeit ohne Tippen
 
 1. **Tap 1:** „Hinzufügen“ (Start oder Bibliothek). **Tap 2:** „Dateien wählen“ (System-Auswahl) oder am Computer „Ordner vom Computer wählen“ bzw. Hineinziehen.
-2. **Tap 3: „Was lädst du hoch?“** Das Blatt (5.6) fragt mit fünf Karten. Es ersetzt das alte Blatt „In welches soll es?“. Je nach Karte:
+2. **Tap 3: „Was lädst du hoch?“** Das Blatt (5.6) fragt mit fünf **Kacheln** (Runde 12; die Zeilen a) bis e) der Tabelle sind die Kacheln 1 bis 5). Es ersetzt das alte Blatt „In welches soll es?“. Je nach Karte:
 
    | Karte | Was die Vorschau noch fragt | Satz in der Vorschau (Beispiele aus dem Prototyp) |
    |---|---|---|
@@ -612,8 +682,9 @@ Heute: 5 bis 9 Taps (`ist.md`).
 
 Heute: 3 bis 5 Taps plus Suchen im Reiter „Eingang“. Rev. 3: 3 Taps. Rev. 4: **4** Taps, dafür sagt jeder Schritt, was passiert. Rev. 5 ändert die Zahl nicht.
 
-### 7.4 (d) Abends: **2 bis 3 Taps**
+### 7.4 (d) Abends: **3 Taps vom Start, 4 von den anderen Reitern** (Runde 12: „Abends“ liegt in „Mehr“, der Startknopf bleibt)
 
+* **Weg dorthin:** auf dem Start der große Knopf „Abends“ (1 Tap); sonst Reiter „Mehr“ (1), Zeile „Abends“ (2). Die Zahlen unten zählen **vom Start**; von einem anderen Reiter kommt **ein Tap** dazu.
 * Gute Nacht ändern: „Abends“ (1), Schnellwahl-Knopf, z. B. „60 Min.“ (2), „Speichern“ (3). Von 30 auf 240: Auswahlfeld statt 42 Taps (U16a).
 * Leise-Zeit hinzufügen mit Vorgabe (So–Do, 19:30–06:30, Still): „Abends“ (1), „+ Zeit hinzufügen“ (2), „Speichern“ (3). Andere Tage +1 (Schnellwahl), andere Zeiten +2 je Feld.
 * Bestehende Zeit ändern: „Abends“ (1), „Ändern“ (2), Wert ändern, „Speichern“ (3+).
@@ -632,7 +703,9 @@ Heute: 3 bis 5 Taps plus Suchen im Reiter „Eingang“. Rev. 3: 3 Taps. Rev. 4:
 | Einzelnes Lied hochladen | nur über „Einzelfolgen“ | **4** (Hinzufügen, Dateien, „Einzelne Folge oder einzelnes Lied“, Hochladen) |
 | (c2) „bitte ansehen“ bestätigen | 3 bis 7 | **1** („Das ist richtig“) |
 | Fehl-Upload korrigieren | Sackgasse | **3** („Das stimmt nicht“, Papierkorb, Bestätigen) oder **4** („Anders einsortieren“, Karte, Neu einsortieren) |
-| (d) Gute Nacht ändern | 3 + Tippen | **3** |
+| (d) Gute Nacht ändern | 3 + Tippen | **3** vom Start (Knopf „Abends“), **4** von den anderen Reitern (Mehr, Abends, Schnellwahl, Speichern) |
+| „Abends“ öffnen | 1 (Reiter) | **1** vom Start, **2** sonst (Mehr, Abends) |
+| „Gehört“ öffnen (Stufe B) | – | **2** (Mehr, Gehört) |
 | Cover ersetzen | nur NAS von Hand | **4** (Cover ändern, Foto, Zuschneiden, Speichern) |
 | Etwas in der Bibliothek finden | – | **1 bis 2** (Lupe, Treffer; plus Tippen) |
 | Hineinhören (Reinhören) | – | **2** (Zeile, „Reinhören“) |
@@ -646,7 +719,7 @@ Alles bleibt, wie es heute funktioniert; nur Ort und Text ändern sich. **Die ga
 | Heute (Fundort in `ist.md`) | Neu | Wer |
 |---|---|---|
 | Reiter „Serien“ | Reiter „Bibliothek“ (Arten, Liste, Suchansicht, Blatt „Sortieren und Filter“, Reihen „Weiterhören“ und „Neu“) | alle |
-| „Hochladen“-Karte | „Hinzufügen“ (7.3): Blatt „Was lädst du hoch?“ mit fünf Karten, Vorschau in Sätzen; Vorgabe-Serie über Karte b) oder „Dateien in diesen Eintrag“; „Liste leeren“ wird „Erledigte ausblenden (auf diesem Gerät)“ | alle |
+| „Hochladen“-Karte | „Hinzufügen“ (7.3): Blatt „Was lädst du hoch?“ mit fünf Kacheln, Vorschau in Sätzen; Vorgabe-Serie über Kachel b) („Zu Vorhandenem“) oder „Dateien in diesen Eintrag“; „Liste leeren“ wird „Erledigte ausblenden (auf diesem Gerät)“ | alle |
 | „Neue Serie“ (leer anlegen), Überraschungs-Serie | Technik → Bibliothek aufräumen | Admin |
 | (neu) Hörkopien | Technik → Bibliothek aufräumen: Stand und „Hörkopien neu erzeugen“ | Admin |
 | „Freigabe prüfen“ | Technik → „Medien neu einlesen“; beim Öffnen der Seite höchstens alle 10 Minuten (`medien/pruefen`, ohne Cover-Suche) | Admin / Auslöser alle |
@@ -667,8 +740,8 @@ Alles bleibt, wie es heute funktioniert; nur Ort und Text ändern sich. **Die ga
 | Liste, Revision, Export, „Liste neu ausrollen“ | Technik → Liste, Sicherung, Export (plus „Frühere Stände ansehen“) | Admin |
 | Warnleisten | Admin oben auf jeder Seite; Nicht-Admin: „Änderungen sind gerade gesperrt.“ | Admin / alle |
 | Reiter „Korb“ | Technik → Papierkorb (Wiederherstellen, **Letzte Stunde zurückholen**, **Leeren**, mit „gelöscht von …“) | Admin |
-| Einstellungen: Leise-Zeiten | Reiter „Abends“ (Zeilen, Blatt); Zeitzone in Technik | alle / Admin |
-| Einstellungen: Gute Nacht (Timer) | Reiter „Abends“ (Schnellwahl); „Ausblenden“ in Technik → Weitere Einstellungen | alle / Admin |
+| Einstellungen: Leise-Zeiten | „Mehr“ → „Abends“ (Zeilen, Blatt; Abkürzung: Knopf auf dem Start); Zeitzone in Technik | alle / Admin |
+| Einstellungen: Gute Nacht (Timer) | „Mehr“ → „Abends“ (Schnellwahl); „Ausblenden“ in Technik → Weitere Einstellungen | alle / Admin |
 | Einstellungen: Lesezeichen-Tage, Upload-Grenze | Technik → Weitere Einstellungen; Grenze in der Integration | Admin |
 | HA-Entitäten, HA-Aktionen | unverändert in HA; Aktionen nur für Administratoren (U1, behoben in Commit d41e319) | – |
 
@@ -1067,7 +1140,7 @@ Ziel: unter 50 ms bei 15 000 Zeilen (Jahresbedarf, siehe oben), Test in B3.
 
 ### 12.4 Vertragsentwurf `ha-websocket-v1.md` (Stufe B)
 
-Fähigkeit **`gehoert`** (Reiter „Gehört“, Stern und Sortierungen erscheinen nur damit). Neue Befehle:
+Fähigkeit **`gehoert`** (Eintrag „Gehört“ in „Mehr“, Stern und Sortierungen erscheinen nur damit). Neue Befehle:
 
 | Befehl | Recht | Eingabe → Ausgabe |
 |---|---|---|
@@ -1091,7 +1164,7 @@ Fähigkeit **`gehoert`** (Reiter „Gehört“, Stern und Sortierungen erscheine
 
 **Die Regel (Frage 23, Entscheidung Tobias in Runde 9):** Alle HA-Benutzer sehen die Reinhör-Daten (Auswahl „Alle“ oder ein Benutzer). Die Empfehlung (nur die eigenen sehen) ist damit verworfen. Die **Hörstelle** bleibt privat (Nr. 16): Sie ist die Stelle zum Weiterhören und wird nie fremd angezeigt. Folge: die Partnerin sieht, was der Administrator am Handy hört, und ein Gäste-Konto sieht es auch. **Löschen:** Jeder löscht seine **eigenen** Reinhör-Daten (`reinhoer/loeschen`, Alltag); Administratoren löschen alle (`alle`, mit Rückfrage, in „Technik“). „Alle Hördaten der Boxen löschen“ in „Technik“ betrifft nur die Boxen.
 
-**Bedienung (Rev. 5, Runde 10):** Reiter „Gehört“ mit **einer** Auswahl „Wer?“ (5.10, 5.10.1); **kein Umschalter und kein Hinweistext** mehr. Die Namen der Personen kommen aus Home Assistant und stehen nie im Repo. **Löschen:** jeder seine eigenen Reinhör-Daten (`reinhoer/loeschen`, Knopf unten in „Gehört“, Frage 27), **alle** Reinhör-Daten und alle Hördaten der Boxen nur Administratoren, in „Technik“.
+**Bedienung (Rev. 5, Runde 10; seit Runde 12 als Unterseite von „Mehr“):** „Gehört“ mit **einer** Auswahl „Wer?“ (5.10, 5.10.1); **kein Umschalter und kein Hinweistext** mehr. Die Namen der Personen kommen aus Home Assistant und stehen nie im Repo. **Löschen:** jeder seine eigenen Reinhör-Daten (`reinhoer/loeschen`, Knopf unten in „Gehört“, Frage 27), **alle** Reinhör-Daten und alle Hördaten der Boxen nur Administratoren, in „Technik“.
 **Vertrag (Stufe B):** `gehoert/zusammenfassung` mit `wer` (12.4), `reinhoer/loeschen` (mit `alle` nur Admin), Fähigkeit `gehoert_reinhoeren`; Paket B3 bis B5 (Abschnitt 15.2).
 
 ## 13. Stufe C (Idee): eigene Playlists
@@ -1111,25 +1184,27 @@ Fehlt die Datei noch (nicht synchronisiert): wie `serie_fehlt` spielt die Box di
 
 **Auswirkung auf die Oberfläche:** Zielwahl bekommt eine dritte Auswahl „Playlist“, jedes Lied/jede Folge den Knopf „Zu einer Playlist hinzufügen“ (Prototyp: ausgegraut), Reiter „Tobies“ eine Playlist-Karte mit ▲/▼. **Aufwand:** Box-Code, drei Verträge (`data-model`, `core-interface`, `mqtt-v1` Schema-Hinweis), Boxen-Update; als eigener Block C1 bis C4 nach B (Abschnitt 15).
 
-**Hochladen als Playlist (Rev. 4, Karte d):** Die Karte „Neue Playlist“ im Blatt „Was lädst du hoch?“ (5.6) ist im Prototyp sichtbar und mit „Stufe C – Idee“ markiert. In Stufe C fragt die Vorschau nach dem **Namen der Playlist**; jede Datei wird ein **Einzeltitel** (V-7, `ziel=einzeln`), und die Playlist verweist auf diese Titel (`eintraege: [{serie, folge}]`). Der Satz lautet dann „4 Dateien → neue Playlist „Autofahrt“ mit 4 Liedern.“ Weil Einzeltitel schon normale Serien sind, braucht die Playlist **kein** zweites Datenmodell für Dateien. Upload-Wunsch `ziel=playlist` (V-7) und die Befehle aus diesem Abschnitt (`playlist/*`) kommen in C1.
+**Hochladen als Playlist (Rev. 4, Wahl d; seit Runde 12 die Kachel „Playlist“):** Die Kachel „Playlist“ im Blatt „Was lädst du hoch?“ (5.6) ist im Prototyp sichtbar und mit „Stufe C – Idee“ markiert. In Stufe C fragt die Vorschau nach dem **Namen der Playlist**; jede Datei wird ein **Einzeltitel** (V-7, `ziel=einzeln`), und die Playlist verweist auf diese Titel (`eintraege: [{serie, folge}]`). Der Satz lautet dann „4 Dateien → neue Playlist „Autofahrt“ mit 4 Liedern.“ Weil Einzeltitel schon normale Serien sind, braucht die Playlist **kein** zweites Datenmodell für Dateien. Upload-Wunsch `ziel=playlist` (V-7) und die Befehle aus diesem Abschnitt (`playlist/*`) kommen in C1.
 **Weiterspielen über eine Playlist (Runde 8, Nr. 22):** Reinhören auf einer Playlist spielt die Einträge in ihrer Reihenfolge und geht am Ende eines Titels zum nächsten, auch über Einträge verschiedener Serien. Die Hörstelle bleibt je Folge und Benutzer (11.4.5), braucht also keine Änderung; neu ist nur die **Warteschlange der Seite** (Quelle „Playlist“ statt „Folgen der Serie“) und der Knopf „Reinhören“ auf der Playlist-Karte. Für Alben gilt das Weiterspielen schon in Stufe A (5.12).
 
 ## 14. Barrierefreiheit, Gefahrloses (U24)
 
-* **Tap-Ziele:** mindestens 44 × 44 px (im Prototyp bei 390 und 1280 px geprüft; Ausnahme nur Textlinks im Fließtext). **Kontrast:** Text mindestens 4,5:1, große Schrift und Symbole 3:1, in Hell, Dunkel und im Theme mit hellem Primärton (Abschnitt 4).
+* **Tap-Ziele:** mindestens 44 × 44 px (im Prototyp bei 390 und 1280 px geprüft; Ausnahme nur Textlinks im Fließtext). **Runde 12, X8: auch alle Listenaktionen**, also „⋯“ (Mehr zu dieser Folge), Abspielen, ▲/▼, „Ändern“, Zeilen von Tobies, Kapiteln und „Mehr“ (im Prototyp 48 × 48 px bei Symbolknöpfen, Zeilen 56 bis 84 px), damit man sie **einhändig mit dem Daumen** trifft. **Kontrast:** Text mindestens 4,5:1; **Ränder von Bedienelementen, Symbole, Warn- und Hinweiskarten mindestens 3:1** gegen den Hintergrund (Runde 12, X9; Token `--line`, 2 px Rand in Warnkarten, `--primary-ink` statt `--primary` für Ränder und Striche, Abschnitt 4), in Hell, Dunkel und im Theme mit hellem Primärton. Wo ein Rand fehlt (Karten nur mit Schatten), trägt der Text die Erkennbarkeit; Trennlinien in Listen sind reine Gliederung.
   Farbe nie allein: Zustände haben Text („bitte ansehen“, „fertig“, „Still/Leiser“); Diagramme haben Beschriftung, Zahlen und Tabelle.
 * **Dialoge:** das native **`<dialog>` mit `showModal()`** (Esc, Fokusfalle und Hintergrundsperre kostenlos); Fokus beim Öffnen auf die **harmlose** Antwort („Abbrechen“, „Nein, so lassen“); danach zurück zum auslösenden Knopf. Im Shadow DOM prüft man den Fokus mit `getRootNode().activeElement`, nicht `document.activeElement`.
   Wo kein Dialog möglich ist, bekommt der Seitenrahmen `inert`.
 * **Screenreader:** ein `aria-live`-Bereich sagt Ergebnisse an („Fertig. Dieser Tobie spielt jetzt Lange Serie“); die **Fertig-Karte erhält den Fokus**, wenn sie die Karte ersetzt (`aria-live` allein genügt Tastaturnutzern nicht, 24c). Fortschrittsbalken `role="progressbar"`; Cover `aria-hidden` (der Name steht daneben);
-  Tag-Knöpfe `aria-pressed`; Zählzeile der Bibliothek `aria-live="polite"`; Reiter-Zahl „1 neuer Tobie“ als Text (24e).
-* **Schriftgröße:** alles in `rem`; bleibt bei 200 % Zoom und bei 320 px benutzbar (Kacheln brechen um, kein waagerechtes Scrollen). Reiterschrift 12 px ist die Grenze; bei Systemschrift „groß“ bricht der Reiter „Bibliothek“ nicht, weil die Beschriftung kurz ist (24d).
-* **Bewegung:** `prefers-reduced-motion`: kein Pulsieren, keine Übergänge. **Sprache:** Uhrzeiten 24 Stunden, Datum „12.11., 08:30“, unabhängig von der Browsersprache.
+  Tag-Knöpfe `aria-pressed`; Zählzeile der Bibliothek `aria-live="polite"`; Reiter-Zahl „1 neuer Tobie“ als Text (24e). **Reiter „Mehr“ (Runde 12):** die Leiste ist `<nav aria-label="Bereiche">`, der aktive Reiter trägt `aria-current="page"`, auch wenn eine Unterseite (Abends, Gehört) offen ist; die Zeilen in „Mehr“ sind echte Links (der Titel ist der Name, die Erklärung die Beschreibung), Playlists (Stufe C) `aria-disabled="true"` mit dem Text „Stufe C – Idee“.
+* **Schriftgröße:** alles in `rem`; bleibt bei 200 % Zoom und bei 320 px benutzbar (Kacheln brechen um, kein waagerechtes Scrollen). **Reiterschrift 14 px (Runde 12, X2; Untergrenze 13 px)**; bei Systemschrift „groß“ bricht der Reiter „Bibliothek“ nicht, weil die Beschriftung kurz ist und bei vier Reitern 97 px je Reiter zur Verfügung stehen (24d); bei 200 % Zoom oder 320 px darf die Beschriftung auf zwei Zeilen umbrechen, nie abgeschnitten werden.
+* **Bewegung:** `prefers-reduced-motion`: kein Pulsieren, keine Übergänge. **Wischen (Runde 12, X6):** nur eine zweite Möglichkeit neben den Knöpfen; wer nicht wischen kann, tippt die Leiste an und schließt mit dem Knopf oder Esc. Die Wischschwelle verhindert versehentliches Öffnen beim Scrollen. **Sprache:** Uhrzeiten 24 Stunden, Datum „12.11., 08:30“, unabhängig von der Browsersprache.
 * **Löschen:** nur mit Rückfrage und rot; die Rückfrage sagt, was geschieht und was bleibt. Löschknöpfe stehen **nie in einer Reihe mit häufigen Knöpfen** (eigene Karte oder Blattende, durch Linie und mindestens 32 px abgesetzt). „Rückgängig“ statt Rückfrage dort, wo es sich zurückdrehen lässt (Zuordnen, Umstellen).
 * **Reihenfolge ohne Ziehen:** ▲/▼ (nur Administratoren); der Fokus bleibt auf dem Knopf der verschobenen Folge. **Foto zuschneiden ohne Ziehen:** vier Pfeilknöpfe und Regler.
 * **Player (Rev. 3):** Die Vollansicht ist ein natives `<dialog>` (Esc schließt, Fokus beim Öffnen auf Play/Pause, danach zurück auf die Leiste). Die Zeitleiste ist ein Schieberegler mit `aria-valuetext` („1:41 von 2:47“); alle Knöpfe 44 px oder mehr, Play 72 px; Geschwindigkeit als Knopfgruppe mit `aria-pressed`;
   Symbol-Knöpfe haben Namen („30 Sekunden zurück“, „Nächste Folge“). Die Leiste unten ist ein Knopf mit Namen „Player öffnen: <Titel>, <Eintrag>“. Es wird **nie von selbst Ton gestartet** (nur nach Tap); Tastatur: Leertaste = Play/Pause im Dialog. Fortschrittsbalken in Listen haben `role="progressbar"` mit Wert; Farbe nie allein (Text „noch 18 Min.“ / „Fertig gehört“).
+* **Meldungen (Runde 12, X7):** Erfolg `role="status"` (höflich, verschwindet nach 4,5 s, das reicht, weil das Ergebnis auch in der Seite steht); Fehler `role="alert"`, mit „OK“-Knopf (44 px), bleiben, bis bestätigt oder weggewischt; der Fokus bleibt, wo er war. Über einem offenen Blatt zieht der Meldungsbereich in das Blatt um (6.3), sonst wäre er verdeckt und nicht bedienbar.
+* **Leere Zustände (Runde 12, X3):** Bild `aria-hidden`, der Satz steht als normaler Text, der Knopf ist ein echter Knopf oder Link (44 px); keine Information steckt nur im Bild.
 * **Doppeltippen:** Knöpfe, die etwas senden, sind während des Aufrufs gesperrt (`anfrage_id`).
-* **Hochladen (Rev. 4):** Das Blatt „Was lädst du hoch?“ ist ein natives `<dialog>` (Esc, Fokus zurück auf „Dateien wählen“; „Abbrechen“ steht **oben rechts** im Blatt, 44 px, damit es am Handy nie unter der Kante liegt); die fünf Karten sind echte Knöpfe (mindestens 76 px hoch, Titel, Erklärung und Beispiel im Namen); die gestrichelte Karte „Neue Playlist“ hat `aria-disabled="true"` und nennt „Stufe C – Idee“ im Text (kein Ausgrauen durch Deckkraft, damit der Kontrast 4,5:1 hält). Zwischen den Schritten wechselt nur der Inhalt des Blatts; der Fokus geht auf die Überschrift, nicht auf ein Textfeld (am Handy würde sonst die Tastatur aufgehen). Der Satz der Vorschau ist ein `role="status"`-Bereich (`aria-live="polite"`) und ändert sich beim Tippen. Art-Auswahl als Knopfgruppe mit `aria-pressed`.
+* **Hochladen (Rev. 4, Runde 12 X5):** Das Blatt „Was lädst du hoch?“ ist ein natives `<dialog>` (Esc, Fokus zurück auf „Dateien wählen“; „Abbrechen“ steht **oben rechts** im Blatt, 44 px, damit es am Handy nie unter der Kante liegt); die fünf **Kacheln** sind echte Knöpfe (mindestens 132 px hoch, Titel und Zeile darunter sichtbar, der ausführliche Satz der Rev. 4 als nur für Screenreader sichtbarer Text im Namen; das Symbol ist `aria-hidden`); die gestrichelte Kachel „Playlist“ hat `aria-disabled="true"` und nennt „Stufe C – Idee“ im Text (kein Ausgrauen durch Deckkraft, damit der Kontrast 4,5:1 hält). Zwischen den Schritten wechselt nur der Inhalt des Blatts; der Fokus geht auf die Überschrift, nicht auf ein Textfeld (am Handy würde sonst die Tastatur aufgehen). Der Satz der Vorschau ist ein `role="status"`-Bereich (`aria-live="polite"`) und ändert sich beim Tippen. Art-Auswahl als Knopfgruppe mit `aria-pressed`.
 * **Kapitelliste (Rev. 4):** Zeilen sind Knöpfe (mindestens 56 px) mit Namen „Kapitel 4: Der Sturm, ab 1:12, aktuelles Kapitel, abspielen“; das aktuelle Kapitel hat `aria-current="true"` und eine getönte Fläche **und** den Text „hier weiter“ bzw. „läuft“ (Farbe nie allein); schon gehörte tragen Häkchen **und** den Text „gehört“. Im Player-Blatt öffnet der Fokus auf dem aktuellen Kapitel.
 * **Auswahl „Wer?“ (Rev. 5, ersetzt den Umschalter Boxen | Reinhören):** Knopfgruppe mit sichtbarer Beschriftung „Wer?“ (`aria-labelledby`) und `aria-pressed`, jeder Knopf mindestens 44 px hoch, bricht bei vielen Benutzern um; die Rangliste nennt die Auswahl im Text („Alle zusammen · in der letzten Woche“), das Diagramm hat sie in `aria-label` und Tabelle.
 
@@ -1144,7 +1219,7 @@ Regeln: Vor dem Bau Resolve mit Tobias. Jedes Paket hat eigene Tests und ist all
 **Abhängigkeiten (Pfeil = „braucht zuerst“):**
 
 ```
-A0 (Vertrag, Freigabe Tobias)  ──►  A1 ─► A2 ─► A3 ─► A3d ─► A4 ─► A4b ─► A5 ─► A6 ─► A7, A8, A9, A10, A11a/b, A12, A13 ─► A14 ─► A15 ─► A16-1 ─► A17
+A0 (Vertrag, Freigabe Tobias)  ──►  A1 ─► A2 ─► A3 ─► A3d ─► A4 ─► A4b ─► A5 ─► A6 ─► A6b ─► A7, A8, A9, A10, A11a/b, A12, A13 ─► A14 ─► A15 ─► A16-1 ─► A17
 A0b (Testpanel, Messungen)  ──► (Konstanten für A-2 und A-3; Nabu Casa vor A3d: Grenze 2 GiB)
 A-1 abgenommen ─► A3b ─► A4c ─► A4d ─► A8b (+ A7b, A8c) ─► A14b ─► A16-2
 A-2 abgenommen ─► A3b3 ─► A3c ─► A4c3 ─► A8d ─► A3e ─► A11c ─► A16-3
@@ -1167,17 +1242,18 @@ A-2 abgenommen ─► A3b3 ─► A3c ─► A4c3 ─► A8d ─► A3e ─► A
 | A3d | **Hochladen mit Wunsch und Einzeltitel** (V-7, V-8) **ohne** `einsortierung/neu`: Felder `ziel`, `art`, `name` (400 Bytes), **`gruppe_anzahl`** (der Eingang wartet auf alle, 30 Minuten Ruhe → `teilweise`), Regeln `neu`/`ergaenzen`/`einzeln`/`auto`, `wunsch` in `eingang/list`; **Upload 2 GiB** (Vorgabe, bestehenden Eintrag anheben, Reserve 2 GiB, laufende Zwischendateien abziehen) | Sonnet | `test_eingang.py`, `test_upload.py`: 12 Dateien gleiches Album: `neu`+`hoerbuch` = **eine** Folge mit 12 Tracks, `neu`+`musik` = **12** Folgen; **drei Dateien im Abstand von 60 s bleiben eine Gruppe (G2)**; letzte Datei fehlt → `teilweise` nach 30 Minuten; `neu` mit mehreren Dateien ohne `gruppe_anzahl` = `wunsch_ungueltig`; ohne `ziel` alle bisherigen Testfälle T1 bis T17 unverändert; 2-GiB-Datei (sparse) wird angenommen, zwei parallele bei Platz für eine: zweite `kein_speicher`; Name mit 100 Emojis (400 Bytes) nicht abgeschnitten |
 | A4 | **Cover-Backend** (V-1, 5.5): `cover_pruefen_und_skalieren` (Kopf zuerst, Zähler, Pixelzahl), Extraktion mit Marke im Store, Nachholen im Hintergrund, `ffmpeg` fehlt, GET/POST/DELETE, 20 je Stunde, `cover/neu_suchen`, `"requirements": ["Pillow"]`, mitgeliefertes `cover.jpg` wird **kopiert** | Sonnet | `tests/test_cover.py`: MP3 mit/ohne Bild, kaputtes Bild, **Pixelbombe (3-MiB-JPEG mit 30 000 × 30 000 px)**, **3-MiB-Grenze ohne `Content-Length`**, CMYK und progressiv, PNG mit JPEG-Endung, präpariertes `APIC`, Marke, Zeitgrenze, Foto-Upload, Original wird nicht gespeichert, ETag; **Zusammenführen, Wiederherstellen, Umbenennen** (G11); `test_reste_kommen_in_den_papierkorb_…` bleibt unverändert grün |
 | A4b | **Sync-Ausschluss** `cover*.jpg`, `cover*.png`, `folder.jpg` in `box/src/tobibox/sync.py` | Sonnet | `box/tests`: Sync mit Covern überträgt sie nicht, übrige Dateien unverändert |
-| A5 | **Texte** `texte.js` (nach A0, G13c): Fehlertabelle (6.1), Gründe (7.3), Sätze (5.1.1), Eintrag `verwalter` | Haiku + Sonnet-Review | jeder Code der Vertragstabelle hat einen Text; Texte wörtlich wie hier |
-| A6 | **Panel-Gerüst** (neue Dateien `tobibox-app.js`): Reiter und Technik-Knopf (`narrow`, sticky, `visualViewport`), Routen, Token und Kontrastfunktion, Zustände, `<dialog>`-Blatt, Meldungen; **alte Komponente unverändert, nur Attribut `eingebettet`**; Panel `/tobibox-neu` (Admin) neben `/tobibox`; Option „Alltagsseite für alle Benutzer“ | Sonnet | jsdom: Reiter, Routen, Nicht-Admin ohne Technik-Knopf, Fokus nach Dialog; **alte 121 Tests unverändert grün** |
-| A7 | **Start und Bibliothek**: Status-Sätze, Kopfzeile mit „+“, Arten-Zeile, Reihe „Neu“, Listenzeilen (Tobie-Symbol, Einzeltitel „Lied · einzeln“), Blatt „Sortieren und Filter“ (mit „Was zeigen“), Suchansicht (3 Gruppen, **Zeilen sind Links**), Cover-Laden, Blättern | Sonnet | jsdom wie bisher; Suchtreffer-Zeile verlinkt auf die Serienseite bzw. den Einzeltitel |
+| A5 | **Texte** `texte.js` (nach A0, G13c): Fehlertabelle (6.1), Gründe (7.3), Sätze (5.1.1), Eintrag `verwalter`, **Texte der leeren Zustände (6.2), der „Mehr“-Zeilen (3.4) und der Kacheln beim Hochladen (5.6: Titel, Zeile, Satz für Screenreader)** | Haiku + Sonnet-Review | jeder Code der Vertragstabelle hat einen Text; Texte wörtlich wie hier |
+| A6 | **Panel-Gerüst** (neue Dateien `tobibox-app.js`): **vier Reiter (Start · Bibliothek · Tobies · Mehr, 14 px, 64 px hoch) und Mehr-Seite** (3.4: große Zeilen, „Abends“ immer, „Gehört“ nur mit Fähigkeit `gehoert`, Unterseiten mit „‹ Mehr“, Reiter „Mehr“ bleibt markiert) und Technik-Knopf (`narrow`, sticky, `visualViewport`), Routen (`#mehr`, `#abends`, `#gehoert`), Token (**`--line`, `--r-card` 16 px, `--r-big` 24 px**, Ränder und Striche mit `--primary-ink`) und Kontrastfunktion, Zustände, `<dialog>`-Blatt, **Meldungen nach 6.3 (Erfolg 4,5 s weg, Fehler mit „OK“ und Wegwischen, Umzug in offene Blätter)**; **alte Komponente unverändert, nur Attribut `eingebettet`**; Panel `/tobibox-neu` (Admin) neben `/tobibox`; Option „Alltagsseite für alle Benutzer“ | Sonnet | jsdom: **vier Reiter, „Mehr“ für Nicht-Admin mit „Abends“**, Routen (`#abends` markiert „Mehr“; `#gehoert` ohne Fähigkeit → `#mehr`), Nicht-Admin ohne Technik-Knopf, Fokus nach Dialog; **Fehlermeldung bleibt (Zeit vorstellen), Erfolg geht nach 4,5 s, Umzug in ein offenes `<dialog>`**; **alte 121 Tests unverändert grün** |
+| **A6b** | **Illustrationen und leere Zustände** (neu, Runde 12, X3; klein): sechs Inline-SVG-Bilder aus dem Prototyp v6 (`ILLU`) in eine Datei `bilder.js`, Baustein `leerKarte(art, satz, knopf)` (6.2); nur Token-Farben | Haiku (Sonnet prüft) | jsdom: jede der sechs Arten zeigt Bild (`aria-hidden`), **einen** Satz und einen Knopf; Datei enthält **keinen** Farbwert (`#…`, `rgb(`), nur `var(--…)`; Suchbegriff wird als Text eingesetzt (kein HTML); Screenshots Hell, Dunkel, Theme mit hellem Primärton von Tobias gesichtet |
+| A7 | **Start und Bibliothek**: Status-Sätze, Kopfzeile mit „+“, Arten-Zeile, Reihe „Neu“, Listenzeilen (Tobie-Symbol, Einzeltitel „Lied · einzeln“), Blatt „Sortieren und Filter“ (mit „Was zeigen“), Suchansicht (3 Gruppen, **Zeilen sind Links**), Cover-Laden, Blättern; **leere Zustände Bibliothek, Filter ohne Treffer, Suche ohne Treffer und „keine Box“ (6.2)**; Listenaktionen mindestens 44 × 44 px | Sonnet | jsdom wie bisher; Suchtreffer-Zeile verlinkt auf die Serienseite bzw. den Einzeltitel |
 | A8 | **Serienseite ohne Player**: Kopf, „Tobie zuordnen“, Menüs, Name/Art/Cover ändern, „Das ist richtig/stimmt nicht“, Folgenliste, Papierkorb, Einzeltitel-Seite | Sonnet | jsdom: Blatt „Tobie für dieses Lied“, Zuschneiden (Canvas-Mock), Löschen mit `tobies_bestaetigt`; Einzeltitel ohne Folgenliste, Ziel `folge` |
-| A9, A10 | **Neuer Tobie und Tobies**; **Anlernen** | Sonnet | wie Rev. 4 |
-| A11a | **Hinzufügen: Wahl, Vorschau, Hochladen**: fünf Karten, Vorschau in Sätzen, Abbrechen oben rechts, „Welche Art?“, „Wohin soll es?“, `gruppe_anzahl`, „Datei 2 von 3“, „Es fehlt noch eine Datei“, 2 GiB und `datei_zu_gross` mit Zahl und Rat, Warteschlange, Abbruch, Unterbrechung, 413. **Name-Vorschlag aus den Tags im Browser entfällt** (G14: „Daraus ist geworden“ und „Name ändern“ reichen) | Sonnet | jsdom: Karten und Sätze je Weg, `gruppe_anzahl` im Upload, Fortschritt je Datei, Fehlercodes |
+| A9, A10 | **Neuer Tobie und Tobies** (mit leerem Zustand „keine Tobies“, 6.2; Zeilen und „Ändern“ mindestens 44 × 44 px); **Anlernen** | Sonnet | wie Rev. 4 |
+| A11a | **Hinzufügen: Wahl, Vorschau, Hochladen**: fünf **Kacheln** (5.6, zwei Spalten, Symbol, Titel, eine Zeile; Radius 24 px), Vorschau in Sätzen, Abbrechen oben rechts, „Welche Art?“, „Wohin soll es?“, `gruppe_anzahl`, „Datei 2 von 3“, „Es fehlt noch eine Datei“, 2 GiB und `datei_zu_gross` mit Zahl und Rat, Warteschlange, Abbruch, Unterbrechung, 413. **Name-Vorschlag aus den Tags im Browser entfällt** (G14: „Daraus ist geworden“ und „Name ändern“ reichen) | Sonnet | jsdom: Karten und Sätze je Weg, `gruppe_anzahl` im Upload, Fortschritt je Datei, Fehlercodes |
 | A11b | **Hinzufügen: Eingang-Anbindung** (24-Stunden-Liste, `quelle`, Gründe, NAS-Einträge, „Das stimmt nicht“, „Daraus ist geworden: …“); **ohne** „Anders einsortieren“ (kommt in A-3) | Sonnet | jsdom: Gründe-Texte, „bitte kurz ansehen“, Wiederaufnahme nach Neuladen |
-| A12, A13 | **Abends**; **Technik** (Einbettung, Warnleisten, Frühere Stände, „Cover neu suchen“, Papierkorb mit „gelöscht von“ und „Letzte Stunde zurückholen“, Ausblenden-Wert) | Sonnet | `panel_quiet.test.mjs` bleibt; neue jsdom-Tests |
-| A14 | **Playwright-Skript (Pflicht)** unter `homeassistant/tests/frontend/`: Tap-Ziele ≥ 44 px, kein waagerechtes Scrollen (320, 390, 1280 px), Kontrast in drei Themes, Screenshots; Abläufe Hochladen mit mehreren Dateien | Sonnet | das Skript; vom Prototyp übernommen |
+| A12, A13 | **Abends** (Unterseite von „Mehr“ mit „‹ Mehr“; Abkürzung vom Start); **Technik** (Einbettung, Warnleisten, Frühere Stände, „Cover neu suchen“, Papierkorb mit „gelöscht von“, „Letzte Stunde zurückholen“ und leerem Zustand, Ausblenden-Wert) | Sonnet | `panel_quiet.test.mjs` bleibt; neue jsdom-Tests |
+| A14 | **Playwright-Skript (Pflicht)** unter `homeassistant/tests/frontend/`: Tap-Ziele ≥ 44 px (**auch Listenaktionen**), kein waagerechtes Scrollen (320, 390, 1280 px), **Text 4,5:1 und Rand/Symbole 3:1** in drei Themes (Hell, Dunkel, Theme mit hellem Primärton; Rolle Admin und Benutzer), Screenshots; Abläufe Hochladen mit mehreren Dateien; **Start → Mehr → Abends, „Gehört“ nur über Mehr, Fehlermeldung bleibt und Erfolg geht nach 4,5 s, sechs leere Zustände sichtbar, Kacheln mit höchstens einer Zeile Erklärung** (der Prototyp-Test `v6` ist die Vorlage) | Sonnet | das Skript; vom Prototyp übernommen |
 | A15 | **Doku**: `homeassistant/README.md` (Seite für alle, Namen, Cover, 2 GiB, Papierkorb-Mitteilung und Vorlage fürs Handy, HA-Automation „Neuer Tobie“), `docs/betrieb/` „Für die Partnerin“, Rückweg (Adressen tauschen) | Haiku | Abgleich mit `texte.js` |
-| **A16-1** | **Abnahme 1 mit Tobias**, Schritt für Schritt im Chat (Mac, Handy): Tobie zuordnen (a, b), Lied-Tobie, **Hinzufügen vom Handy mit mehreren Dateien (ein Hörbuch aus 3 Dateien, ein Upload über 500 MiB)**, Einzeltitel, Cover per Foto, Abends, Papierkorb als Nicht-Admin und Mitteilung, Rechte | Projektleitung + Tobias | – |
+| **A16-1** | **Abnahme 1 mit Tobias**, Schritt für Schritt im Chat (Mac, Handy): Tobie zuordnen (a, b), Lied-Tobie, **Hinzufügen vom Handy mit mehreren Dateien (ein Hörbuch aus 3 Dateien, ein Upload über 500 MiB)**, Einzeltitel, Cover per Foto, **Abends (vom Start und über „Mehr“, mit der Partnerin)**, **Kacheln beim Hochladen (verständlich?)**, **leere Zustände** (Bilder ansehen), **Fehlermeldung bleibt, Erfolg geht**, Papierkorb als Nicht-Admin und Mitteilung, Rechte | Projektleitung + Tobias | – |
 | A17 | **Seite für alle öffnen**: Adressen tauschen (`/tobibox` = neue Seite, `/tobibox-alt` = alte, jederzeit zurücktauschbar), `require_admin=False` | Sonnet | `test_init.py`: Panel ohne `require_admin`; Tabelle 10.2 mit Testbenutzer ein letztes Mal |
 
 **A-2 Reinhören mit Weiterhören** (nur Originale in Formaten, die der Browser spielt; Formate ohne Unterstützung zeigen den Rückfalltext, bis A-3 da ist):
@@ -1187,9 +1263,9 @@ A-2 abgenommen ─► A3b3 ─► A3c ─► A4c3 ─► A8d ─► A3e ─► A
 | A3b | **Dauer** (11.4.4) und Store `tobibox.medieninfo`: `dauer_s`, `spuren_s` beim Einsortieren, Nachholen im Hintergrund (feste Zeitgrenze, Abbruch bei NAS weg, nie beim Öffnen), **Dauerdeckel 48 Stunden**, Plausibilität; Felder in Kurzform und `serie/get`; Listenzeilen zeigen die Dauer | Sonnet | **Hintergrundlauf ändert den `stand` nicht**; Dauer einer MP3 und einer Ordner-Folge; FLAC-Stille (Deckel) ohne `dauer_s`; Nachholen genau einmal |
 | A4c | **Audio-Ansicht und `audio/bereit`** (11.4.1, 11.4.2, V-6): `TobiboxAudioView` als `FileResponse`-Unterklasse (Zähler in `prepare()`/`finally`), Zweig **Original**, MIME-Tabelle, `track`, **6 offene Verbindungen**, `audio/bereit` (`bereit`/`fehlt`, signierter Pfad 24 Stunden), Fähigkeit `reinhoeren` | Sonnet | HA-Testclient: Range 200/206/416; 401 ohne Anmeldung und mit fremder Signatur; **`..`, `%2e%2e`, `%2F`, unbekannte Serie oder Folge, Symlink hinaus, Ordner statt Datei, Endung `.txt`, Papierkorb/Eingang/`hoerkopien/` als Serie: alle 404**; **Namen „Teil 1 #2 (Ende)?.mp3“, „100% Mond+Sterne.mp3“, Umlaute, Klammern, führender Punkt** durch die Signatur; **langsam lesender Client: siebte Verbindung 429**; NAS weg 503 |
 | A4d | **Hörstelle** (11.4.5): `Store` mit 60 s Verzögerung, `get`/`set`/`liste`, `dauer_s` aus dem Store, Drosselung, Aufräumen, Sortierung `angehoert` | Sonnet | zwei Benutzer sehen nie die Daten des anderen (auch kein Administrator); Prüfungen; gesendetes `dauer_s` wird ignoriert, wenn bekannt; Store überlebt Neustart |
-| A8b | **Player** (5.12): `<audio>`, **`audio/bereit` vor jedem Start und nach jedem Fehler**, Link erneuern bei jedem Start und nach 20 Stunden (kein 401), nächste Folge im Voraus, Ordner-Folgen über Tracks, Leiste, Vollansicht, ±30 s, Tempo, Hörstelle gesammelt speichern, `canPlayType`, Media-Session, `encodeURIComponent` je Segment | Sonnet | jsdom mit gemocktem `HTMLMediaElement`; **Playwright mit echtem Chromium und einer Testdatei** (jsdom spielt nichts und kennt `MediaError` nicht, G3): Fehler 401/503 führen zu neuem `audio/bereit`, nie zu „Format“-Text; Sonderzeichen-Namen |
+| A8b | **Player** (5.12): **Wischen nach oben öffnet, nach unten schließt (Pointer-Events mit Schwelle, Knopf bleibt, 6.3/14)**, `<audio>`, **`audio/bereit` vor jedem Start und nach jedem Fehler**, Link erneuern bei jedem Start und nach 20 Stunden (kein 401), nächste Folge im Voraus, Ordner-Folgen über Tracks, Leiste, Vollansicht, ±30 s, Tempo, Hörstelle gesammelt speichern, `canPlayType`, Media-Session, `encodeURIComponent` je Segment | Sonnet | jsdom mit gemocktem `HTMLMediaElement`; **Playwright mit echtem Chromium und einer Testdatei** (jsdom spielt nichts und kennt `MediaError` nicht, G3); **Wischgeste mit `page.mouse` und per CDP-Touch (öffnen, schließen, unter der Schwelle nichts, Regler zieht nicht zu)**: Fehler 401/503 führen zu neuem `audio/bereit`, nie zu „Format“-Text; Sonderzeichen-Namen |
 | A7b, A8c | **Reihe „Am Handy weiterhören“**, Knopf „Hier weiterhören“ mit Satz „Das spielt hier am Handy, nicht auf der Box.“, Fortschritt in Liste und Folgenzeilen, Sortierung „Zuletzt angehört“ | Sonnet | jsdom: Beschriftung je Hörstelle; Test mit der Partnerin in der Abnahme (G17) |
-| A14b | Playwright: Suche → Serie → Reinhören → Springen → Neuladen → Weiterhören an der Stelle | Sonnet | das Skript |
+| A14b | Playwright: Suche → Serie → Reinhören → Springen → **Wischen (Mini → Vollansicht → zu)** → Neuladen → Weiterhören an der Stelle | Sonnet | das Skript |
 | **A16-2** | **Abnahme 2 mit Tobias**: Reinhören am Handy und am Mac, **Stelle am Handy merken und am Mac weiterhören**, Springen, Folgenwechsel, Ordner-Folge, **gesperrtes Handy und Trackwechsel als erster Test** (G18), kein „Login attempt failed“ im Log nach einem Tag Benutzung | Projektleitung + Tobias | – |
 
 **A-3 Hörkopien und Kapitel:**
@@ -1211,7 +1287,7 @@ A-2 abgenommen ─► A3b3 ─► A3c ─► A4c3 ─► A8d ─► A3e ─► A
 | B2 | **Box:** Sitzungserkennung, Puffer `gehoert.jsonl` (Schreibbudget), Senden und Quittung | `mqtt-v1` |
 | B3 | **HA:** SQLite-Speicher (Spalten und Indizes 12.3, mit `wiedergabe` und der Tabelle `reinhoer_sitzungen`), Aufnahme mit Doppelerkennung, Quittung, Technik-Ereignisse, Favoriten; **Sitzungsableitung aus `hoerstelle/set` (12.5)**; Test der Zählregel 12.2.1 und der Ableitung | – |
 | B4 | **HA-Befehle** `gehoert/*` (`zusammenfassung` mit **`wer`**, `nach` mit `wer`, `wer_auswahl`), `favorit/*`, `technik/verlauf`, `reinhoer/loeschen`, Sortierungen und Filter; Test: Reinhör-Daten sind für alle lesbar; `wer=benutzer:<id>`, `wer=box:<id>`, `wer=alle` rechnen richtig (Summe = Teile); `reinhoer/loeschen` ohne `alle` löscht nur die eigenen, mit `alle` nur Administratoren; die Hörstelle bleibt nur die eigene | `ha-websocket` |
-| B5 | **Seite:** Reiter „Gehört“ (Auswahl **Wer?**, Rangliste mit Aufteilung nach Folgen, SVG-Diagramme), Stern, Sortierungen, Technik-Karten (Akku-Verlauf, Alle Reinhör-Daten löschen) | – |
+| B5 | **Seite:** „Gehört“ als Unterseite von „Mehr“ (Eintrag nur mit Fähigkeit `gehoert`; Auswahl **Wer?**, Rangliste mit Aufteilung nach Folgen, SVG-Diagramme), Stern, Sortierungen, Technik-Karten (Akku-Verlauf, Alle Reinhör-Daten löschen) | – |
 | B6 | **Abnahme** mit Tobias (Box im Hörbetrieb, offline hören und danach verbinden) | – |
 
 ### 15.3 Stufe C (eigener Block, später)
@@ -1224,7 +1300,7 @@ Fragen 1 bis 13 sind entschieden (`resolve.md`). Fragen 14 bis 22 (Runde 8) und 
 
 | Nr. | Frage | Empfehlung |
 |---|---|---|
-| 1 | „Technik“ statt „Für Tobias“, als Knopf oben statt als Reiter (U22)? | Ja: kein Personenname, ein Reiter weniger (4 statt 5, mit „Gehört“ 5 statt 6). |
+| 1 | „Technik“ statt „Für Tobias“, als Knopf oben statt als Reiter (U22)? | Ja: kein Personenname, ein Reiter weniger (4 statt 5, mit „Gehört“ 5 statt 6). **Runde 12 (X1): jetzt immer vier Reiter, „Abends“ und „Gehört“ liegen in „Mehr“.** |
 | 2 | Soll die Partnerin einen **Papierkorb-Vorgang selbst rückgängig** machen können (Wiederherstellen nur für das, was sie in den letzten 15 Minuten selbst hineinlegte)? | Nein in Stufe A (Wiederherstellen bleibt Admin); nach den ersten Wochen neu abwägen. |
 | 3 | Die letzten **10 Stände der Liste** aufbewahren (U2, Sicherung gegen Fehler mit Folgen für alle)? | Ja, kleines Paket in A1. |
 | 4 | **Regeln für den Art-Vorschlag** (11.2): passt das zu deinen Dateien (Genre-Tags, `.m4b`, Albumlänge)? | Fünf Beispieldateien je Art prüfen, bevor A3 fertig ist; Fehlgriffe kann man mit „Art ändern“ beheben. |
@@ -1259,11 +1335,19 @@ Fragen 1 bis 13 sind entschieden (`resolve.md`). Fragen 14 bis 22 (Runde 8) und 
 | 28 | **Was heißt „Alle“ in „Wer?“?** Boxen (die Kinder) und Reinhören (die Erwachsenen) zusammen addiert, oder nur die Boxen? | **Alles zusammen** (die Auswahl ist eine Summe der Quellen, einfachster Vertrag: `wer=alle`). Hörzeit und Rangliste mischen dann Kinder und Erwachsene; wer nur die Kinder sehen will, wählt eine Box (bei Geschwistern zweimal und im Kopf addieren). Alternative: „Alle Boxen“ als eigener Knopf neben „Alle“. **Beantwortet (Runde 11, Tobias): Ja**, „Alle“ ist die Summe aus Boxen und Reinhören. |
 | 29 | **Grenzen der Hörkopie (11.4.7):** Dauerdeckel 48 Stunden, Zeitgrenze 60 Minuten je Datei, Schlange 20 Dateien und 50 GB, Kontingent 100 GB. Ein einzelnes Hörbuch über etwa 30 Stunden schafft die Zeitgrenze auf einem langsamen HA vielleicht nicht und bekommt dann keine Hörprobe (auf der Box spielt es trotzdem). | Die Zahlen **nach der Messung in A0b** festlegen (Konstanten); Hörbücher dieser Länge ohne Hörprobe in Kauf nehmen (Reinhören ist zum Erkennen gedacht). Alternative: Kopie in Teilen je Stunde (mehr Code, nicht in Stufe A). **Runde 11:** Erklärt; Grenzen werden nach der Messung in A0b festgelegt. |
 
-## 17. Was der Prototyp v5 zeigt und was nicht
+## 17. Was der Prototyp v6 zeigt und was nicht
 
-`prototyp.html` ist eine **Vorschau**, kein Code für den Bau, und schickt nichts an Home Assistant. Er zeigt (alles im Script erzeugt, erfundene Daten): **64 Einträge** (20 Hörspiele, 20 Hörbücher, 12 Musik-Alben, 8 Geschichten und **4 Einzeltitel**; darunter ein Album mit 20 Liedern und das Hörbuch „Mia und das Meer“ mit **12 Kapiteln**), rund **576 Folgen und Lieder**, alle mit einer Dauer. Alles aus v4 (Bibliothek, Suche, Serienseite, Player, Hochladen in Schritten, Kapitel, Einzeltitel, Technik, Abends, Zustände) bleibt.
+`prototyp.html` ist eine **Vorschau**, kein Code für den Bau, und schickt nichts an Home Assistant. Er zeigt (alles im Script erzeugt, erfundene Daten): **64 Einträge** (20 Hörspiele, 20 Hörbücher, 12 Musik-Alben, 8 Geschichten und **4 Einzeltitel**; darunter ein Album mit 20 Liedern und das Hörbuch „Mia und das Meer“ mit **12 Kapiteln**), rund **576 Folgen und Lieder**, alle mit einer Dauer. Alles aus v4 und v5 (Bibliothek, Suche, Serienseite, Player, Hochladen in Schritten, Kapitel, Einzeltitel, Technik, Abends, Zustände, „Gehört“ mit „Wer?“) bleibt; **v6 setzt die Runde 12 (X1 bis X9) um.**
 
 **Namen (Runde 10):** Alle Namen stehen in **einem** Objekt `NAMEN` ganz oben im Script (`const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Person B' };`); sonst kommt kein Name im Text vor (geprüft mit `grep`). Die Rollen heißen „Administrator (Person A)“ und „Benutzer ohne Admin (Person B)“. Die Beispielnamen „Mond“ und „Stern“ sind überall ersetzt; echte Namen kommen in der echten Seite aus HA.
+
+**Neu in v6 (Runde 12, X1 bis X9):**
+* **Vier Reiter** (Start · Bibliothek · Tobies · Mehr, 14 px, 64 px hoch) und die **Mehr-Seite** mit „Abends“, „Gehört“ (Vorschau B) und „Playlists“ (Idee C); „Nur Stufe A“ lässt nur „Abends“ stehen. Abends und Gehört haben oben „‹ Mehr“. Der große Knopf „Abends“ auf dem Start bleibt (1 Tap).
+* **Leere Zustände mit sechs Bildern** (Regal, Lupe, Tobie, Box, Papierkorb, Kopfhörer), je Satz und Knopf; Schalter **„Leer zeigen“** im Menü „i“.
+* **Hochladen mit Kacheln** (zwei Spalten, Symbol, Titel, eine Zeile); **Radien** 16 und 24 px; **Wischen** am Mini-Player (oben auf, unten zu; Knopf bleibt, Griff in der Vollansicht); **Meldungen**: Erfolg 4,5 s, Fehler mit „OK“ und Wegwischen, im offenen Blatt oben; Listenaktionen 48 px; Token **`--line`** und Ränder in `--primary-ink`, im Theme mit hellem Primärton geprüft.
+* Der Prüfstand rechnet jetzt auch **Rand- und Symbolkontrast (3:1)** und läuft mit echter Fensterbreite 390 px (der Test für v5 nutzte `is_mobile` ohne Viewport-Angabe und prüfte dadurch eine Breite von 980 px).
+
+**Prüfung v6** mit Playwright (Chromium) bei **390 × 844 und 1280 × 900 px** (echte Fensterbreite), **Hell, Dunkel und Theme mit hellem Primärton**, Rolle **Administrator und Benutzer ohne Admin**, je Ansicht (Start, Mehr, Abends, Bibliothek, Suche mit und ohne Treffer, drei Serienseiten, Tobies, Gehört, Hinzufügen, Technik; Rolle Benutzer ohne Technik) und mit **„Leer zeigen“** (Start, Bibliothek, Tobies, Suche, Gehört, Technik → Papierkorb), dazu Wahlblatt und Vorschau beim Hochladen, Player und Fehlermeldung: **231 Prüfläufe: kein waagerechtes Scrollen, alle Knöpfe, Links, Auswahlfelder und Regler mindestens 44 px, Text mindestens 4,5:1 (3:1 große Schrift), Ränder und Symbole mindestens 3:1: 0 Treffer; keine Konsolenfehler; keine alert/confirm/prompt; 143 Ablaufprüfungen ohne Fehler.** Die Ablaufprüfungen: vier Reiter mit 14 px Schrift und 64 px Höhe; **Start → Mehr → Abends** (2 Taps, Reiter „Mehr“ bleibt markiert, „‹ Mehr“ führt zurück) und **Start → Knopf „Abends“** (1 Tap); „Gehört“ nur über „Mehr“; „Nur Stufe A“ lässt nur „Abends“ in „Mehr“ und leitet `#gehoert` nach `#mehr`; Person B sieht „Mehr“ mit „Abends“ und keinen „Technik“-Knopf; **Wischen am Player** mit `page.mouse` und per CDP-Touch (nach oben öffnet, nach unten schließt, unter der Schwelle und nach unten in der Leiste passiert nichts, Antippen, Knopf und Tastatur gehen weiter, Regler ziehen schließt nicht); **Fehlermeldung bleibt nach 6 s, „OK“ und Wegwischen entfernen sie, sie ist über einem offenen Blatt sichtbar und kompakt; Erfolgsmeldung ist nach 4 s noch da und nach 5 s weg**; **sechs leere Zustände** mit Bild, Satz und Knopf; fünf Kacheln mit Symbol, Erklärung in **einer** Zeile und 24 px Radius; Radien Karte 16 px, große Kachel 24 px, Blatt 24 px; Listenaktionen mindestens 44 × 44 px. Die Bilder (Mehr, leere Zustände in Hell, Dunkel und Gelb, Wahlblatt, Player, Meldungen) habe ich selbst durchgesehen; **ein Durchgang Korrekturen** behob (1) eine über die ganze Höhe gestreckte Fehlermeldung im Blatt (Vorrang einer Regel für den Mini-Player), (2) den gelben Rand des aktiven „Technik“-Knopfs im Theme mit hellem Primärton (1,2:1, jetzt `--primary-ink`), (3) zu lange Zeilen in zwei Kacheln („Hörspiel, Buch oder Album“, „Kommt später · Stufe C – Idee“) und (4) eine Hinweiskarte „1 neuer Eintrag“ und die Reihe „Am Handy weiterhören“ über dem leeren Start. **Nicht belegt** (wie bisher): echte HA-Farben und -Themes, Wischen auf einem echten Handy mit der Companion-App, Verhalten bei 320 px Breite und 200 % Zoom im Prototyp.
 
 **Neu in v5:**
 * **„Gehört“:** kein Umschalter, kein Hinweistext; **eine Auswahl „Wer?“** (Alle · Box 1 · Box 2 · Person A · Person B). Rangliste, Aufteilung nach Folgen, Hörzeit pro Tag (mit Zahlen als Tabelle, bei „Alle“ aufgeteilt) und „Was wird gezählt?“ gelten für die Auswahl. Unten „Meine Reinhör-Daten löschen …“ (jeder); „Alle Reinhör-Daten löschen …“ und „Alle Hördaten der Boxen löschen …“ in „Technik“.

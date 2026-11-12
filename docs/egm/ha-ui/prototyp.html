@@ -34,6 +34,9 @@
   --chart2: #a14a00;
   --grid: #c9cdd2;
   --pos: #1b5e20;
+  --line: #7c8187;
+  --r-card: 16px;
+  --r-big: 24px;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
@@ -68,6 +71,7 @@
   --chart2: #ffb74d;
   --grid: #4a5057;
   --pos: #81c784;
+    --line: #7d848c;
     color-scheme: dark;
   }
 }
@@ -102,6 +106,7 @@
   --chart2: #ffb74d;
   --grid: #4a5057;
   --pos: #81c784;
+  --line: #7d848c;
   color-scheme: dark;
 }
 
@@ -136,11 +141,11 @@ button { cursor: pointer; }
 #main { flex: 1 0 auto; padding-bottom: 24px; outline: none; }
 
 /* Vorschau-Hinweis */
-.preview { background: var(--primary-soft); border-radius: 12px; padding: 8px 12px; margin-bottom: 12px; font-size: 14px; }
+.preview { background: var(--primary-soft); border-radius: var(--r-card); padding: 8px 12px; margin-bottom: 12px; font-size: 14px; }
 .preview summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; gap: 8px; font-weight: 500; }
 .preview .ctl { display: grid; gap: 8px; padding: 4px 0 8px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
 .preview label { display: grid; gap: 4px; font-size: 13px; color: var(--text2); }
-.preview select { min-height: 44px; border-radius: 8px; border: 1px solid var(--divider); background: var(--card); padding: 0 8px; }
+.preview select { min-height: 44px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); padding: 0 8px; }
 
 /* Kopf und Reiter */
 .top { display: flex; align-items: center; gap: 12px; margin: 4px 0 12px; }
@@ -148,7 +153,7 @@ button { cursor: pointer; }
 .top .logo { width: 40px; height: 40px; border-radius: 12px; background: var(--primary); color: var(--on-primary); display: grid; place-items: center; flex: none; }
 .top .tech { min-height: 44px; padding: 0 14px; border-radius: 22px; font-size: 15px; }
 .top .tech svg { width: 20px; height: 20px; fill: currentColor; }
-.top .tech[aria-current="page"] { background: var(--primary-soft); color: var(--primary-ink); border-color: var(--primary); }
+.top .tech[aria-current="page"] { background: var(--primary-soft); color: var(--primary-ink); border-color: var(--primary-ink); }
 nav.tabs {
   order: 9; position: sticky; bottom: 0; z-index: 20;
   background: var(--card); border-top: 1px solid var(--divider);
@@ -161,13 +166,13 @@ nav.tabs {
 .kbd nav.tabs { display: none; }
 nav.tabs .tr { display: flex; max-width: 1180px; margin: 0 auto; }
 nav.tabs a {
-  flex: 1 1 0; min-width: 0; min-height: 60px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
-  text-decoration: none; color: var(--text2); font-size: 12px; font-weight: 500; position: relative; padding: 4px 2px; border-radius: 8px;
+  flex: 1 1 0; min-width: 0; min-height: 64px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  text-decoration: none; color: var(--text2); font-size: 14px; font-weight: 500; position: relative; padding: 4px 2px; border-radius: 8px;
 }
-nav.tabs a svg { width: 24px; height: 24px; fill: currentColor; }
+nav.tabs a svg { width: 26px; height: 26px; fill: currentColor; }
 nav.tabs a[aria-current="page"] { color: var(--primary-ink); }
-nav.tabs a[aria-current="page"]::before { content: ""; position: absolute; top: 0; left: 20%; right: 20%; height: 3px; background: var(--primary); border-radius: 0 0 3px 3px; }
-nav.tabs .dot { position: absolute; top: 6px; left: calc(50% + 6px); min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--danger); color: var(--card); font-size: 12px; line-height: 18px; text-align: center; font-weight: 700; }
+nav.tabs a[aria-current="page"]::before { content: ""; position: absolute; top: 0; left: 20%; right: 20%; height: 3px; background: var(--primary-ink); border-radius: 0 0 3px 3px; }
+nav.tabs .dot { position: absolute; top: 4px; left: calc(50% + 6px); min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--danger); color: var(--card); font-size: 12px; line-height: 18px; text-align: center; font-weight: 700; }
 nav.tabs .vb { position: absolute; top: 4px; right: 4px; font-size: 12px; line-height: 1; padding: 2px 4px; border-radius: 6px; background: var(--warn-bg); color: var(--warn); font-weight: 700; }
 @media (min-width: 900px) {
   .top { order: 1; }
@@ -183,14 +188,14 @@ nav.tabs .vb { position: absolute; top: 4px; right: 4px; font-size: 12px; line-h
 /* Karten und Knöpfe */
 h2 { font-size: 20px; font-weight: 500; margin: 24px 0 12px; }
 h3 { font-size: 17px; font-weight: 500; margin: 0 0 4px; }
-.card { background: var(--card); border-radius: 12px; box-shadow: 0 1px 3px var(--shadow); padding: 16px; margin-bottom: 16px; min-width: 0; }
+.card { background: var(--card); border-radius: var(--r-card); box-shadow: 0 1px 3px var(--shadow); padding: 16px; margin-bottom: 16px; min-width: 0; }
 .muted { color: var(--text2); font-size: 14px; }
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; padding: 0 20px; border-radius: 24px;
-  border: 1px solid var(--divider); background: var(--card); font-weight: 500; text-align: center; text-decoration: none; color: var(--text);
+  border: 1px solid var(--line); background: var(--card); font-weight: 500; text-align: center; text-decoration: none; color: var(--text);
 }
-.btn.primary { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
-.btn.big { min-height: 64px; font-size: 17px; border-radius: 16px; flex-direction: column; gap: 4px; padding: 8px 12px; }
+.btn.primary { background: var(--primary); color: var(--on-primary); border-color: var(--primary-ink); }
+.btn.big { min-height: 72px; font-size: 17px; border-radius: var(--r-big); flex-direction: column; gap: 4px; padding: 8px 12px; }
 .btn.big svg { width: 26px; height: 26px; fill: currentColor; }
 .btn.danger { color: var(--danger); border-color: var(--danger); }
 .btn.danger.solid { background: var(--danger); color: var(--card); }
@@ -205,10 +210,10 @@ h3 { font-size: 17px; font-weight: 500; margin: 0 0 4px; }
 .badge { display: inline-block; font-size: 13px; font-weight: 500; padding: 2px 10px; border-radius: 12px; background: var(--warn-bg); color: var(--warn); }
 .badge.ok { background: var(--ok-bg); color: var(--ok); }
 .badge.blue { background: var(--primary-soft); color: var(--primary-ink); }
-.note { border-radius: 12px; padding: 12px 16px; margin-bottom: 16px; background: var(--primary-soft); }
-.note.warn { background: var(--warn-bg); color: var(--warn); }
-.note.err { background: var(--danger-bg); color: var(--danger); }
-.note.okk { background: var(--ok-bg); color: var(--ok); }
+.note { border-radius: var(--r-card); padding: 12px 16px; margin-bottom: 16px; background: var(--primary-soft); border: 1px solid var(--line); }
+.note.warn { background: var(--warn-bg); color: var(--warn); border: 2px solid var(--warn); }
+.note.err { background: var(--danger-bg); color: var(--danger); border: 2px solid var(--danger); }
+.note.okk { background: var(--ok-bg); color: var(--ok); border: 2px solid var(--ok); }
 .note .btns { margin-top: 8px; }
 
 /* Cover */
@@ -220,7 +225,7 @@ h3 { font-size: 17px; font-weight: 500; margin: 0 0 4px; }
 .cover.lg { width: 120px; font-size: 52px; flex: none; }
 .tiles { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); }
 @media (min-width: 900px) { .tiles { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 16px; } }
-.tile { content-visibility: auto; contain-intrinsic-size: auto 190px; border: 0; background: none; padding: 4px; text-align: left; display: grid; gap: 6px; align-content: start; border-radius: 14px; min-width: 0; }
+.tile { content-visibility: auto; contain-intrinsic-size: auto 190px; border: 0; background: none; padding: 4px; text-align: left; display: grid; gap: 6px; align-content: start; border-radius: var(--r-card); min-width: 0; }
 .tile:hover { background: var(--primary-soft); }
 .tile .tn { font-weight: 500; font-size: 15px; line-height: 1.25; overflow-wrap: anywhere; }
 .tile .tm { font-size: 13px; color: var(--text2); }
@@ -238,7 +243,7 @@ h3 { font-size: 17px; font-weight: 500; margin: 0 0 4px; }
 .status.off .dotx { background: var(--text2); }
 .status.off .cover { opacity: 0.45; }
 .ph { background: var(--primary-soft); border-radius: 12px; }
-.skel { height: 84px; border-radius: 12px; background: var(--primary-soft); margin-bottom: 16px; animation: pulse 1.4s ease-in-out infinite; }
+.skel { height: 84px; border-radius: var(--r-card); background: var(--primary-soft); margin-bottom: 16px; animation: pulse 1.4s ease-in-out infinite; }
 @keyframes pulse { 50% { opacity: 0.5; } }
 
 /* Listen */
@@ -249,21 +254,21 @@ h3 { font-size: 17px; font-weight: 500; margin: 0 0 4px; }
 .row .num { width: 36px; height: 36px; border-radius: 18px; background: var(--primary-soft); color: var(--primary-ink); display: grid; place-items: center; font-weight: 500; flex: none; }
 .rowbtn { width: 100%; border: 0; background: none; text-align: left; padding: 10px 0; display: flex; align-items: center; gap: 12px; min-height: 56px; border-top: 1px solid var(--divider); border-radius: 0; }
 .rowbtn:first-child { border-top: 0; }
-.iconbtn { min-width: 44px; min-height: 44px; border-radius: 22px; border: 1px solid var(--divider); background: var(--card); display: inline-grid; place-items: center; font-size: 18px; }
+.iconbtn { min-width: 48px; min-height: 48px; border-radius: 24px; border: 1px solid var(--line); background: var(--card); display: inline-grid; place-items: center; font-size: 18px; }
 .back { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; border: 0; background: none; color: var(--primary-ink); font-weight: 500; padding: 0 8px 0 0; }
 .back svg { width: 24px; height: 24px; fill: currentColor; }
-.search { width: 100%; min-height: 48px; border-radius: 24px; border: 1px solid var(--divider); background: var(--card); padding: 0 16px; margin-bottom: 12px; }
+.search { width: 100%; min-height: 48px; border-radius: 24px; border: 1px solid var(--line); background: var(--card); padding: 0 16px; margin-bottom: 12px; }
 
 /* Fortschritt */
 .steps { display: flex; gap: 6px; margin: 8px 0 4px; }
 .steps span { flex: 1; height: 6px; border-radius: 3px; background: var(--divider); }
 .steps span.done { background: var(--ok); }
-.steps span.now { background: var(--primary); }
+.steps span.now { background: var(--primary-ink); }
 .bar { height: 8px; background: var(--divider); border-radius: 4px; overflow: hidden; margin-top: 6px; }
-.bar i { display: block; height: 100%; background: var(--primary); transition: width 0.3s; }
+.bar i { display: block; height: 100%; background: var(--primary-ink); transition: width 0.3s; }
 .up { padding: 12px 0; border-top: 1px solid var(--divider); }
 .up:first-child { border-top: 0; }
-.drop { border: 2px dashed var(--divider); border-radius: 16px; padding: 20px; text-align: center; color: var(--text2); display: none; margin-bottom: 16px; }
+.drop { border: 2px dashed var(--line); border-radius: var(--r-card); padding: 20px; text-align: center; color: var(--text2); display: none; margin-bottom: 16px; }
 @media (min-width: 900px) { .drop { display: block; } }
 
 /* Wochenplan */
@@ -278,39 +283,46 @@ h3 { font-size: 17px; font-weight: 500; margin: 0 0 4px; }
 .legend i { display: inline-block; width: 14px; height: 14px; border-radius: 4px; background: var(--primary); vertical-align: -2px; margin-right: 6px; }
 .legend i.l { background: var(--text2); opacity: 0.75; }
 .chips { display: flex; gap: 6px; flex-wrap: wrap; }
-.chip { min-width: 44px; min-height: 44px; border-radius: 22px; border: 1px solid var(--divider); background: var(--card); font-weight: 500; padding: 0 10px; }
-.chip[aria-pressed="true"] { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
+.chip { min-width: 44px; min-height: 44px; border-radius: 22px; border: 1px solid var(--line); background: var(--card); font-weight: 500; padding: 0 10px; }
+.chip[aria-pressed="true"] { background: var(--primary); color: var(--on-primary); border-color: var(--primary-ink); }
 .stepper { display: flex; align-items: center; gap: 12px; margin: 8px 0 16px; }
 .stepper .val { min-width: 130px; text-align: center; font-size: 20px; font-weight: 500; }
-.seg2 { display: inline-flex; border: 1px solid var(--divider); border-radius: 24px; overflow: hidden; }
+.seg2 { display: inline-flex; border: 1px solid var(--line); border-radius: 24px; overflow: hidden; }
 .seg2 button { min-height: 44px; padding: 0 20px; border: 0; background: var(--card); font-weight: 500; }
 .seg2 button[aria-pressed="true"] { background: var(--primary); color: var(--on-primary); }
 .field { display: grid; gap: 4px; margin: 12px 0; }
 .field label, .field .lbl { font-size: 14px; color: var(--text2); }
-.field select, .field input[type="text"] { min-height: 48px; border-radius: 10px; border: 1px solid var(--divider); background: var(--card); padding: 0 12px; }
+.field select, .field input[type="text"] { min-height: 48px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); padding: 0 12px; }
 .field input[type="range"] { width: 100%; min-height: 44px; accent-color: var(--primary); }
 .timesel { display: flex; align-items: center; gap: 6px; }
 
 /* Dialog und Blatt (natives dialog-Element) */
-dialog.sheet { border: 0; padding: 0; background: var(--card); color: var(--text); width: 100%; max-width: 560px; max-height: 92vh; overflow: auto; border-radius: 20px; box-shadow: 0 8px 32px var(--shadow); }
+dialog.sheet { border: 0; padding: 0; background: var(--card); color: var(--text); width: 100%; max-width: 560px; max-height: 92vh; overflow: auto; border-radius: var(--r-big); box-shadow: 0 8px 32px var(--shadow); }
 dialog.sheet::backdrop { background: var(--scrim); }
 .sheet-in { padding: 20px max(16px, env(safe-area-inset-right, 0px)) max(20px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
 .sheet h2 { margin: 0 0 8px; }
 .sheet .btns { margin-top: 16px; }
 .sheet .apart { margin-top: 32px; padding-top: 16px; border-top: 1px solid var(--divider); }
-@media (max-width: 699px) { dialog.sheet { margin: auto 0 0; max-width: none; border-radius: 20px 20px 0 0; } }
-.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(80px + env(safe-area-inset-bottom, 0px)); z-index: 2000; background: var(--text); color: var(--bg); padding: 12px 20px; border-radius: 12px; max-width: min(92vw, 520px); }
-@media (min-width: 900px) { .toast { bottom: 24px; } }
+@media (max-width: 699px) { dialog.sheet { margin: auto 0 0; max-width: none; border-radius: var(--r-big) var(--r-big) 0 0; } }
+.toastbox { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(80px + env(safe-area-inset-bottom, 0px)); z-index: 2000; display: grid; gap: 8px; width: min(92vw, 520px); pointer-events: none; }
+.toastbox > * { pointer-events: auto; }
+html.hasmini .toastbox { bottom: calc(150px + env(safe-area-inset-bottom, 0px)); }
+html .toastbox.inmodal, html.hasmini .toastbox.inmodal { bottom: auto; top: max(12px, env(safe-area-inset-top, 0px)); }
+.toast { display: flex; align-items: center; gap: 12px; background: var(--text); color: var(--bg); padding: 12px 16px; border-radius: var(--r-card); touch-action: pan-y; }
+.toast .tmsg { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.toast.err { background: var(--danger-bg); color: var(--danger); border: 2px solid var(--danger); cursor: grab; }
+.toast .tok { min-width: 56px; min-height: 44px; border-radius: 22px; border: 1px solid currentColor; background: none; color: inherit; font-weight: 700; padding: 0 16px; flex: none; }
+@media (min-width: 900px) { .toastbox { bottom: 24px; } html.hasmini .toastbox { bottom: 96px; } html .toastbox.inmodal, html.hasmini .toastbox.inmodal { bottom: auto; } }
 
 /* Anlernen */
 .wait { text-align: center; padding: 24px 8px; }
-.ring { width: 120px; height: 120px; margin: 8px auto 16px; border-radius: 60px; border: 4px solid var(--primary); display: grid; place-items: center; animation: ring 1.6s ease-in-out infinite; }
-.ring svg { width: 48px; height: 48px; fill: var(--primary); }
+.ring { width: 120px; height: 120px; margin: 8px auto 16px; border-radius: 60px; border: 4px solid var(--primary-ink); display: grid; place-items: center; animation: ring 1.6s ease-in-out infinite; }
+.ring svg { width: 48px; height: 48px; fill: var(--primary-ink); }
 @keyframes ring { 50% { transform: scale(1.08); box-shadow: 0 0 0 12px var(--primary-soft); } }
 .big-ok { width: 72px; height: 72px; border-radius: 36px; background: var(--ok-bg); color: var(--ok); display: grid; place-items: center; margin: 0 auto 12px; }
 .big-ok svg { width: 40px; height: 40px; fill: currentColor; }
 
-details.sec { background: var(--card); border-radius: 12px; box-shadow: 0 1px 3px var(--shadow); margin-bottom: 12px; padding: 0 16px; }
+details.sec { background: var(--card); border-radius: var(--r-card); box-shadow: 0 1px 3px var(--shadow); margin-bottom: 12px; padding: 0 16px; }
 details.sec summary { min-height: 56px; display: flex; align-items: center; font-weight: 500; cursor: pointer; }
 details.sec .inner { padding: 0 0 16px; }
 table.kv { width: 100%; border-collapse: collapse; font-size: 14px; }
@@ -325,7 +337,7 @@ table.kv td:first-child { color: var(--text2); width: 45%; padding-right: 8px; }
 .chip .n { font-weight: 400; opacity: 0.85; margin-left: 4px; }
 .toolbar { display: grid; gap: 12px; margin-bottom: 12px; }
 .toolbar .line { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
-.toolbar select { min-height: 44px; border-radius: 22px; border: 1px solid var(--divider); background: var(--card); padding: 0 14px; }
+.toolbar select { min-height: 44px; border-radius: 22px; border: 1px solid var(--line); background: var(--card); padding: 0 14px; }
 .count { font-size: 14px; color: var(--text2); margin: 4px 0 12px; }
 .frow { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-top: 1px solid var(--divider); content-visibility: auto; contain-intrinsic-size: auto 64px; }
 .frow:first-child { border-top: 0; }
@@ -339,10 +351,10 @@ table.kv td:first-child { color: var(--text2); width: 45%; padding-right: 8px; }
 mark { background: var(--primary-soft); color: var(--text); border-radius: 3px; padding: 0 1px; }
 .vb2 { display: inline-block; font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 8px; background: var(--warn-bg); color: var(--warn); vertical-align: 2px; }
 .vc2 { display: inline-block; font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 8px; background: var(--primary-soft); color: var(--primary-ink); vertical-align: 2px; }
-.stufe { border: 2px dashed var(--warn); border-radius: 12px; padding: 12px 16px; margin-bottom: 16px; background: var(--warn-bg); color: var(--warn); }
-.stufe.c { border-color: var(--primary); background: var(--primary-soft); color: var(--text); }
+.stufe { border: 2px dashed var(--warn); border-radius: var(--r-card); padding: 12px 16px; margin-bottom: 16px; background: var(--warn-bg); color: var(--warn); }
+.stufe.c { border-color: var(--primary-ink); background: var(--primary-soft); color: var(--text); }
 .namefield { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 8px; }
-.namefield input { flex: 1 1 200px; min-height: 48px; border-radius: 10px; border: 1px solid var(--divider); background: var(--card); padding: 0 12px; min-width: 0; }
+.namefield input { flex: 1 1 200px; min-height: 48px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); padding: 0 12px; min-width: 0; }
 .crop { position: relative; width: 100%; max-width: 280px; aspect-ratio: 1; margin: 8px auto; border-radius: 12px; overflow: hidden; background: var(--primary-soft); touch-action: none; cursor: grab; }
 .crop canvas { width: 100%; height: 100%; display: block; }
 .charts { display: grid; gap: 16px; grid-template-columns: 1fr; }
@@ -360,7 +372,7 @@ details.zahlen summary { min-height: 44px; display: flex; align-items: center; c
 .stack { display: grid; gap: 12px; }
 .pl { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-top: 1px solid var(--divider); }
 .pl:first-child { border-top: 0; }
-.embed { border: 2px solid var(--divider); border-radius: 16px; padding: 12px 12px 0; margin-top: 16px; }
+.embed { border: 2px solid var(--line); border-radius: var(--r-card); padding: 12px 12px 0; margin-top: 16px; }
 .embed > .cap { font-size: 13px; color: var(--text2); margin-bottom: 8px; }
 .stern { color: var(--warn); }
 .hscroll .tile { content-visibility: visible; }
@@ -380,7 +392,7 @@ details.zahlen summary { min-height: 44px; display: flex; align-items: center; c
 .iconbtn.plain svg, .iconbtn svg { fill: currentColor; }
 .iconbtn.add { color: var(--primary-ink); }
 .iconbtn.plain[aria-current="page"], .iconbtn.plain[aria-expanded="true"] { background: var(--primary-soft); color: var(--primary-ink); }
-.iconbtn.fillp { background: var(--primary); color: var(--on-primary); border-color: var(--primary); flex: none; }
+.iconbtn.fillp { background: var(--primary); color: var(--on-primary); border-color: var(--primary-ink); flex: none; }
 .preview { margin: 0 0 8px; padding: 8px 12px; }
 .preview[hidden] { display: none; }
 .preview .pt { font-weight: 500; margin: 4px 0; }
@@ -392,13 +404,13 @@ details.zahlen summary { min-height: 44px; display: flex; align-items: center; c
 .artrow { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; border-bottom: 1px solid var(--divider); margin: 0 0 12px; }
 .artrow::-webkit-scrollbar { display: none; }
 .arttab { flex: none; min-height: 44px; padding: 0 12px; border: 0; background: none; font-weight: 500; color: var(--text2); border-bottom: 3px solid transparent; border-radius: 0; }
-.arttab[aria-pressed="true"] { color: var(--primary-ink); border-bottom-color: var(--primary); }
+.arttab[aria-pressed="true"] { color: var(--primary-ink); border-bottom-color: var(--primary-ink); }
 .rowh { font-size: 17px; font-weight: 500; margin: 16px 0 6px; }
 .libbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 12px 0 4px; }
 .libbar .count { margin: 0; }
 .libbar .btn { min-height: 44px; padding: 0 14px; }
 .libbar .btn svg { width: 20px; height: 20px; fill: currentColor; }
-.nbadge { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; background: var(--primary); color: var(--on-primary); font-size: 12px; line-height: 20px; text-align: center; font-weight: 700; }
+.nbadge { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; background: var(--primary); color: var(--on-primary); border: 1px solid var(--primary-ink); font-size: 12px; line-height: 20px; text-align: center; font-weight: 700; }
 .lrow { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--divider); text-decoration: none; color: inherit; min-height: 84px; content-visibility: auto; contain-intrinsic-size: auto 92px; }
 .lrow:first-child { border-top: 0; }
 .lrow .grow { flex: 1; min-width: 0; display: grid; gap: 1px; }
@@ -407,7 +419,7 @@ details.zahlen summary { min-height: 44px; display: flex; align-items: center; c
 .ls.ok { color: var(--ok); }
 .ls.ok svg { width: 16px; height: 16px; fill: currentColor; vertical-align: -3px; }
 .pbar { display: block; height: 4px; background: var(--divider); border-radius: 2px; overflow: hidden; margin: 5px 0 1px; width: 100%; }
-.pbar i { display: block; height: 100%; background: var(--primary); }
+.pbar i { display: block; height: 100%; background: var(--primary-ink); }
 .tbadge { display: inline-flex; align-items: center; gap: 3px; font-size: 14px; color: var(--text2); flex: none; }
 .tbadge svg { width: 16px; height: 16px; fill: currentColor; }
 .cover.lr { width: 72px; font-size: 32px; flex: none; }
@@ -415,11 +427,11 @@ details.zahlen summary { min-height: 44px; display: flex; align-items: center; c
 .wh { position: relative; flex: 0 0 120px; }
 .wh .tile { width: 100%; content-visibility: visible; }
 .wh .tile .pbar { margin: 0; }
-.playov { position: absolute; right: 10px; top: 66px; width: 44px; height: 44px; border-radius: 22px; border: 0; background: var(--primary); color: var(--on-primary); display: grid; place-items: center; box-shadow: 0 1px 4px var(--shadow); }
+.playov { position: absolute; right: 10px; top: 66px; width: 44px; height: 44px; border-radius: 22px; border: 1px solid var(--primary-ink); background: var(--primary); color: var(--on-primary); display: grid; place-items: center; box-shadow: 0 1px 4px var(--shadow); }
 .playov svg { width: 24px; height: 24px; fill: currentColor; }
 .hscroll { padding-bottom: 4px; }
-.optrow { width: 100%; min-height: 48px; border: 1px solid var(--divider); border-radius: 12px; background: var(--card); display: flex; align-items: center; justify-content: space-between; padding: 0 16px; text-align: left; }
-.optrow[aria-pressed="true"], .optrow[aria-checked="true"] { background: var(--primary-soft); border-color: var(--primary); }
+.optrow { width: 100%; min-height: 48px; border: 1px solid var(--line); border-radius: var(--r-card); background: var(--card); display: flex; align-items: center; justify-content: space-between; padding: 0 16px; text-align: left; }
+.optrow[aria-pressed="true"], .optrow[aria-checked="true"] { background: var(--primary-soft); border-color: var(--primary-ink); }
 .optrow svg { width: 22px; height: 22px; fill: var(--primary-ink); }
 
 .shead { display: flex; align-items: center; gap: 4px; margin: 4px 0 12px; }
@@ -428,7 +440,7 @@ details.zahlen summary { min-height: 44px; display: flex; align-items: center; c
 .shead2 { display: flex; align-items: center; justify-content: space-between; }
 .hero { display: grid; justify-items: center; text-align: center; gap: 8px; margin: 4px 0 16px; }
 .hero h2 { margin: 4px 0 2px; font-size: 24px; overflow-wrap: anywhere; }
-.cover.xl { width: min(46vw, 190px); font-size: 80px; border-radius: 16px; }
+.cover.xl { width: min(46vw, 190px); font-size: 80px; border-radius: var(--r-card); }
 .hbtns { display: grid; gap: 10px; margin-top: 8px; width: 100%; max-width: 360px; }
 .btn.xl { min-height: 56px; font-size: 17px; border-radius: 28px; }
 .btn.xl svg { width: 24px; height: 24px; fill: currentColor; }
@@ -444,27 +456,27 @@ details.zahlen summary { min-height: 44px; display: flex; align-items: center; c
 .fz.cur .nm { color: var(--primary-ink); }
 .fz .grow { display: grid; gap: 1px; }
 
-.mini { order: 8; position: sticky; bottom: calc(61px + env(safe-area-inset-bottom, 0px)); z-index: 19; background: var(--card); border-top: 1px solid var(--divider); box-shadow: 0 -2px 8px var(--shadow); margin-left: calc(-1 * max(16px, env(safe-area-inset-left, 0px))); margin-right: calc(-1 * max(16px, env(safe-area-inset-right, 0px))); }
+.mini { order: 8; position: sticky; bottom: calc(65px + env(safe-area-inset-bottom, 0px)); touch-action: pan-x; user-select: none; z-index: 19; background: var(--card); border-top: 1px solid var(--divider); box-shadow: 0 -2px 8px var(--shadow); margin-left: calc(-1 * max(16px, env(safe-area-inset-left, 0px))); margin-right: calc(-1 * max(16px, env(safe-area-inset-right, 0px))); }
 .mini[hidden] { display: none; }
 .mbar { height: 3px; background: var(--divider); }
-.mbar i { display: block; height: 100%; width: 0; background: var(--primary); }
+.mbar i { display: block; height: 100%; width: 0; background: var(--primary-ink); }
 .mrow { display: flex; align-items: center; gap: 8px; padding: 4px max(16px, env(safe-area-inset-right, 0px)) 4px max(16px, env(safe-area-inset-left, 0px)); max-width: 1180px; margin: 0 auto; }
 .mopen { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; border: 0; background: none; text-align: left; min-height: 56px; padding: 0; }
 .mopen .grow { min-width: 0; display: grid; }
 .mopen .mt { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mopen .ms { font-size: 14px; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mplay { width: 48px; height: 48px; border-radius: 24px; border: 0; background: var(--primary); color: var(--on-primary); display: grid; place-items: center; flex: none; }
+.mplay { width: 48px; height: 48px; border-radius: 24px; border: 1px solid var(--primary-ink); background: var(--primary); color: var(--on-primary); display: grid; place-items: center; flex: none; }
 .mplay svg { width: 28px; height: 28px; fill: currentColor; }
 @media (min-width: 900px) { .mini { bottom: 0; } }
 .kbd .mini { display: none; }
 
-dialog.player { padding: 0; border: 0; width: 100%; max-width: 480px; max-height: 96dvh; background: var(--card); color: var(--text); border-radius: 20px; overflow: auto; box-shadow: 0 8px 32px var(--shadow); }
+dialog.player { padding: 0; border: 0; width: 100%; max-width: 480px; max-height: 96dvh; background: var(--card); color: var(--text); border-radius: var(--r-big); overflow: auto; box-shadow: 0 8px 32px var(--shadow); }
 dialog.player::backdrop { background: var(--scrim); }
 @media (max-width: 699px) { .pin { min-height: 100dvh; align-content: center; } }
 @media (max-width: 699px) { dialog.player { max-width: none; height: 100dvh; max-height: 100dvh; margin: 0; border-radius: 0; } }
 .pin { padding: 8px max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); display: grid; gap: 8px; justify-items: center; }
 .phead { width: 100%; display: flex; align-items: center; justify-content: space-between; }
-.pin .cover { width: min(62vw, 280px, 36dvh); font-size: 96px; border-radius: 16px; }
+.pin .cover { width: min(62vw, 280px, 36dvh); font-size: 96px; border-radius: var(--r-card); }
 .ptitle { text-align: center; width: 100%; }
 .ptitle h2 { margin: 4px 0 2px; font-size: 22px; overflow-wrap: anywhere; }
 .pslider { width: 100%; min-height: 44px; accent-color: var(--primary); margin: 0; }
@@ -472,7 +484,7 @@ dialog.player::backdrop { background: var(--scrim); }
 .pctl { display: flex; align-items: center; justify-content: center; gap: 4px; width: 100%; }
 .pbtn { width: 52px; height: 52px; border-radius: 26px; border: 0; background: none; display: grid; place-items: center; color: var(--text); }
 .pbtn svg { width: 32px; height: 32px; fill: currentColor; }
-.pbtn.main { width: 72px; height: 72px; border-radius: 36px; background: var(--primary); color: var(--on-primary); }
+.pbtn.main { width: 72px; height: 72px; border-radius: 36px; background: var(--primary); color: var(--on-primary); border: 1px solid var(--primary-ink); }
 .pbtn.main svg { width: 40px; height: 40px; }
 .pbtn[disabled] { opacity: 0.35; }
 .speed { display: flex; gap: 8px; justify-content: center; }
@@ -491,7 +503,7 @@ dialog.player::backdrop { background: var(--scrim); }
 a.iconbtn { text-decoration: none; }
 
 /* Rev. 4: Hochladen in Schritten, Kapitel, Einzeltitel */
-.wchoice { width: 100%; min-height: 76px; display: grid; grid-template-columns: 40px 1fr; gap: 10px; align-items: start; text-align: left; padding: 10px 12px; border: 1px solid var(--divider); border-radius: 14px; background: var(--card); }
+.wchoice { font: inherit; cursor: pointer; }
 .sheet .stack { gap: 8px; }
 @media (hover: hover) and (pointer: fine) { .wchoice:hover { background: var(--primary-soft); } }
 .wchoice[aria-disabled="true"] { border-style: dashed; cursor: default; }
@@ -502,7 +514,7 @@ a.iconbtn { text-decoration: none; }
 .wc-t { font-weight: 500; font-size: 16px; line-height: 1.3; overflow-wrap: anywhere; }
 .wc-d { font-size: 15px; line-height: 1.35; }
 .wc-e { font-size: 14px; color: var(--text2); }
-.vsatz { background: var(--primary-soft); border-radius: 12px; padding: 14px 16px; font-size: 18px; font-weight: 500; line-height: 1.4; margin: 4px 0 12px; overflow-wrap: anywhere; }
+.vsatz { background: var(--primary-soft); border-radius: var(--r-card); padding: 14px 16px; font-size: 18px; font-weight: 500; line-height: 1.4; margin: 4px 0 12px; overflow-wrap: anywhere; }
 .btn.wzpick { width: 100%; justify-content: flex-start; gap: 12px; padding: 8px 14px; min-height: 64px; border-radius: 14px; font-weight: 400; }
 .flist { display: grid; gap: 2px; font-size: 15px; margin: 12px 0 4px; padding: 10px 14px; background: var(--bg); border-radius: 10px; }
 .flist > div { overflow-wrap: anywhere; }
@@ -522,11 +534,60 @@ a.iconbtn { text-decoration: none; }
 .kapbtn svg { width: 20px; height: 20px; fill: currentColor; }
 .seg2.ghq { display: flex; width: 100%; max-width: 420px; }
 .seg2.ghq button { flex: 1; padding: 0 12px; }
+
+/* v6 (Runde 12): Mehr-Seite, leere Zustände, Kacheln beim Hochladen, Wischen */
+.mehr { display: grid; gap: 12px; }
+.mitem { display: flex; align-items: center; gap: 16px; min-height: 80px; padding: 12px 16px; background: var(--card); color: var(--text); border: 1px solid var(--line); border-radius: var(--r-card); text-decoration: none; text-align: left; width: 100%; }
+.mitem .mi { width: 52px; height: 52px; border-radius: 26px; background: var(--primary-soft); color: var(--primary-ink); display: grid; place-items: center; flex: none; }
+.mitem .mi svg { width: 28px; height: 28px; fill: currentColor; }
+.mitem .grow { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.mitem .mt { font-size: 18px; font-weight: 500; line-height: 1.3; }
+.mitem .ms { font-size: 14px; color: var(--text2); }
+.mitem .chev svg { width: 28px; height: 28px; fill: var(--text2); display: block; }
+.mitem[aria-disabled="true"] { border-style: dashed; cursor: default; }
+@media (hover: hover) and (pointer: fine) { .mitem:hover { background: var(--primary-soft); } }
+
+.empty { display: grid; justify-items: center; text-align: center; gap: 8px; padding: 24px 16px 16px; background: var(--card); border-radius: var(--r-big); box-shadow: 0 1px 3px var(--shadow); margin-bottom: 16px; }
+.empty .illu { width: min(220px, 64%); height: auto; display: block; }
+.empty .et { font-size: 18px; font-weight: 500; margin: 8px 0 0; max-width: 34ch; line-height: 1.35; overflow-wrap: anywhere; }
+.empty .btns { justify-content: center; margin: 8px 0 8px; }
+.empty.flat { background: none; box-shadow: none; padding-top: 8px; margin-bottom: 0; }
+svg.illu * { fill: none; stroke: none; stroke-linecap: round; stroke-linejoin: round; }
+svg.illu .f1 { fill: var(--primary-soft); }
+svg.illu .f2 { fill: var(--card); }
+svg.illu .f3 { fill: var(--primary-ink); }
+svg.illu .f4 { fill: var(--warn-bg); }
+svg.illu .f5 { fill: var(--ok-bg); }
+svg.illu .s1 { stroke: var(--primary-ink); stroke-width: 3; }
+svg.illu .s2 { stroke: var(--text2); stroke-width: 3; }
+svg.illu .s3 { stroke: var(--warn); stroke-width: 3; }
+svg.illu .f6 { fill: var(--warn); }
+svg.illu .s4 { stroke: var(--ok); stroke-width: 3; }
+svg.illu .th { stroke-width: 7; }
+
+.wgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 8px; }
+.wtile { display: grid; justify-items: center; align-content: center; gap: 6px; min-height: 132px; padding: 14px 10px; text-align: center; border: 1px solid var(--line); border-radius: var(--r-big); background: var(--card); color: var(--text); min-width: 0; }
+.wtile .wi { width: 56px; height: 56px; border-radius: 28px; background: var(--primary-soft); color: var(--primary-ink); display: grid; place-items: center; }
+.wtile .wi svg { width: 32px; height: 32px; fill: currentColor; }
+.wtile .wt { font-weight: 500; font-size: 17px; line-height: 1.25; overflow-wrap: anywhere; }
+.wtile .we { font-size: 14px; color: var(--text2); line-height: 1.3; overflow-wrap: anywhere; }
+.wtile.wide { grid-column: 1 / -1; grid-template-columns: 56px 1fr; justify-items: start; text-align: left; min-height: 88px; gap: 4px 14px; }
+.wtile.wide .wi { grid-row: 1 / span 2; align-self: center; }
+.wtile.wide .wt, .wtile.wide .we { align-self: center; }
+.wtile[aria-disabled="true"] { border-style: dashed; cursor: default; }
+@media (hover: hover) and (pointer: fine) { .wtile:hover { background: var(--primary-soft); } }
+
+.grip { width: 44px; height: 5px; border-radius: 3px; background: var(--line); margin: 0 auto 4px; }
+dialog.player .pin { touch-action: pan-x; }
+@media (max-height: 560px) { dialog.player .pin { touch-action: auto; } }
+.preview .chk { display: flex; align-items: center; gap: 10px; min-height: 44px; font-size: 14px; color: var(--text); }
+.preview .chk input { width: 24px; height: 24px; accent-color: var(--primary-ink); }
+.top .tech { border-color: var(--line); }
 </style>
 
 <div class="page" id="page">
   <div class="preview" id="preview" hidden style="order:0">
-    <div class="pt">Vorschau mit Beispieldaten (Rev. 5)</div>
+    <div class="pt">Vorschau mit Beispieldaten (v6, Runde 12)</div>
     <div class="ctl">
       <label for="sel-rolle">Angemeldet als
         <select id="sel-rolle"><option value="admin" id="opt-admin"></option><option value="user" id="opt-user"></option></select>
@@ -543,6 +604,7 @@ a.iconbtn { text-decoration: none; }
       <label for="sel-dateien">Gewählte Dateien beim Hochladen (Demo)
         <select id="sel-dateien"><option value="kapitel">3 Dateien, Album „Kapitän Knopf“ (Tags da)</option><option value="lieder">4 Dateien, Album „Sommerlieder“ (Genre Kinderlieder)</option><option value="eins">1 Datei: „Der Mond und der Fuchs“</option><option value="ohne">2 Dateien ohne Tags (Aufnahme_001)</option><option value="teilweise">3 Dateien, die dritte kommt nicht an</option><option value="gross">2 Dateien, dazu eine über 2 GB</option><option value="schutz">1 Datei mit Kopierschutz (.m4b)</option></select>
       </label>
+      <label class="chk" for="chk-leer"><input type="checkbox" id="chk-leer" data-fk="chkleer"> Leer zeigen (leere Zustände)</label>
       <div class="rights" id="rights" aria-live="polite"></div>
     </div>
     <div class="btns"><button class="btn" data-act="demoNeu" data-fk="demoNeu" id="btn-demoneu"></button><button class="btn" data-act="demoNas" data-fk="demoNas">Neuer Ordner im NAS-Eingang (Demo)</button><button class="btn" data-act="hReset" data-fk="hreset">Hörstellen zurücksetzen</button></div>
@@ -565,7 +627,7 @@ a.iconbtn { text-decoration: none; }
 <div id="layer"></div>
 <div id="playerlayer"></div>
 <div id="live" class="sr" aria-live="polite" role="status"></div>
-<div id="toastbox"></div>
+<div id="toastbox" class="toastbox"></div>
 
 <script>
 /* Alle Namen stehen NUR hier. Im echten Betrieb kommen sie aus Home Assistant (Einstellungen der Integration, Benutzerkonten) und nie ins Repo. */
@@ -598,6 +660,8 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     queue: 'M4 10h12v2H4zm0-4h12v2H4zm0 8h8v2H4zm10 0v6l5-3z',
     wand: 'M7.5 5.6L10 7 8.6 4.5 10 2 7.5 3.4 5 2l1.4 2.5L5 7zm12 9.8L17 14l1.4 2.5L17 19l2.5-1.4L22 19l-1.4-2.5L22 14zM22 2l-2.5 1.4L17 2l1.4 2.5L17 7l2.5-1.4L22 7l-1.4-2.5zm-7.63 5.29a.996.996 0 0 0-1.41 0L1.29 18.96a.996.996 0 0 0 0 1.41l2.34 2.34c.39.39 1.02.39 1.41 0L16.7 11.05a.996.996 0 0 0 0-1.41l-2.33-2.35zm-1.03 5.49l-2.12-2.12 2.44-2.44 2.12 2.12-2.44 2.44z',
     addlib: 'M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-1 9h-4v4h-2v-4H9V9h4V5h2v4h4v2z',
+    apps: 'M4 8h4V4H4v4zm6 12h4v-4h-4v4zm-6 0h4v-4H4v4zm0-6h4v-4H4v4zm6 0h4v-4h-4v4zm6-10v4h4V4h-4zm-6 4h4V4h-4v4zm6 6h4v-4h-4v4zm0 6h4v-4h-4v4z',
+    chev: 'M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z',
     more: 'M6 10c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm12 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm-6 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z'
   };
   function ic(n, sz) { return '<svg viewBox="0 0 24 24" aria-hidden="true"' + (sz ? ' width="' + sz + '" height="' + sz + '"' : '') + ' fill="currentColor"><path d="' + ICON[n] + '"/></svg>'; }
@@ -675,7 +739,7 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     return out;
   }
   var S = {
-    admin: true, mode: 'normal', stufe: 'abc',
+    admin: true, mode: 'normal', stufe: 'abc', leer: false,
     boxes: [
       { id: 'box1', name: NAMEN.box1, online: true, zustand: 'spielt', serie: 'lange-serie', folge: 'Folge 4: Der Rabe', akku: 80, lader: true, stand: 'aktuell' },
       { id: 'box2', name: NAMEN.box2, online: false, zustand: 'leer', serie: null, folge: null, akku: 35, lader: false, stand: 'veraltet', zuletzt: 'heute um 18:40' }
@@ -763,6 +827,31 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
   function mins(hhmm) { var p = hhmm.split(':'); return +p[0] * 60 + +p[1]; }
   function wirkText(w) { return w.wirkung === 'stumm' ? 'Stumm' : 'Leiser (höchstens ' + w.grenze + ' %)'; }
   function stufeA() { return S.stufe === 'a'; }
+  function isLeer() { return S.leer || S.mode === 'leer'; }
+
+  /* ---------- Leere Zustände: eigene kleine Bilder (Inline-SVG, nur Farben aus Tokens) ---------- */
+  var SV = '<svg class="illu" viewBox="0 0 200 150" aria-hidden="true" focusable="false">';
+  var SPARK = '<path class="f4 s3" d="M176 26l3 7 7 3-7 3-3 7-3-7-7-3 7-3z"/>';
+  var ILLU = {
+    bib: SV + '<ellipse class="f1" cx="100" cy="138" rx="80" ry="9"/><rect class="f2 s1" x="36" y="20" width="128" height="108" rx="14"/><path class="s1" d="M36 76h128"/>' +
+      '<rect class="f1 s1" x="52" y="40" width="16" height="36" rx="4"/><rect class="f4 s3" x="72" y="48" width="16" height="28" rx="4"/><rect class="f1 s1" x="94" y="40" width="16" height="36" rx="4" transform="rotate(10 102 76)"/>' +
+      '<rect class="s2" x="54" y="90" width="24" height="32" rx="4" stroke-dasharray="5 6"/><circle class="f3" cx="112" cy="112" r="7"/><circle class="f3" cx="134" cy="108" r="7"/><path class="s1" d="M119 112V90l22-6v24"/>' + SPARK + '</svg>',
+    tobies: SV + '<ellipse class="f1" cx="100" cy="138" rx="76" ry="9"/><rect class="f2 s1" x="46" y="82" width="108" height="50" rx="16"/><circle class="s2" cx="100" cy="107" r="15"/><circle class="f3" cx="100" cy="107" r="5"/>' +
+      '<circle class="f4 s3" cx="100" cy="42" r="24"/><path class="s3" d="M89 47q11 10 22 0"/><circle class="f6" cx="92" cy="37" r="2.6"/><circle class="f6" cx="108" cy="37" r="2.6"/>' +
+      '<circle class="f1" cx="100" cy="68" r="3"/><circle class="f1" cx="100" cy="76" r="2"/>' + SPARK + '</svg>',
+    box: SV + '<ellipse class="f1" cx="100" cy="138" rx="80" ry="9"/><rect class="f2 s1" x="48" y="46" width="104" height="84" rx="18"/><path class="s2" d="M78 84q6 6 12 0M110 84q6 6 12 0M94 102q6 5 12 0"/>' +
+      '<circle class="f1 s1" cx="76" cy="116" r="4"/><circle class="f1 s1" cx="124" cy="116" r="4"/><path class="s1" d="M158 40h14l-14 16h14M176 16h10l-10 12h10"/>' +
+      '<path class="s2" d="M48 118c-14 0-14 12-26 12"/><rect class="f4 s3" x="12" y="124" width="12" height="12" rx="3"/></svg>',
+    suche: SV + '<ellipse class="f1" cx="100" cy="138" rx="76" ry="9"/><circle class="f2 s1 th" cx="88" cy="66" r="36"/><path class="s1 th" d="M115 93l34 34"/>' +
+      '<path class="s2" d="M78 58q0-12 11-12t11 12q0 8-11 11v5"/><circle class="f3" cx="89" cy="86" r="3"/><circle class="f4" cx="160" cy="40" r="6"/><circle class="f1" cx="34" cy="34" r="7"/></svg>',
+    korb: SV + '<ellipse class="f1" cx="100" cy="138" rx="72" ry="9"/><path class="f2 s1" d="M62 56h76l-6 72H68z"/><path class="s1" d="M54 56h92"/><path class="s1" d="M86 56V46a4 4 0 0 1 4-4h20a4 4 0 0 1 4 4v10"/>' +
+      '<path class="s4 th" d="M84 94l12 12 24-26"/>' + SPARK + '</svg>',
+    gehoert: SV + '<ellipse class="f1" cx="100" cy="138" rx="76" ry="9"/><path class="s1 th" d="M52 98V82a48 48 0 0 1 96 0v16"/><rect class="f4 s3" x="40" y="92" width="24" height="38" rx="10"/><rect class="f4 s3" x="136" y="92" width="24" height="38" rx="10"/>' +
+      '<rect class="f1 s2" x="82" y="106" width="9" height="16" rx="3"/><rect class="f1 s2" x="96" y="96" width="9" height="26" rx="3"/><rect class="f1 s2" x="110" y="110" width="9" height="12" rx="3"/><path class="s2" d="M78 128h44"/>' + SPARK + '</svg>'
+  };
+  function leerKarte(kind, text, knopf, flat) {
+    return '<div class="empty' + (flat ? ' flat' : '') + '" data-leer="' + kind + '">' + ILLU[kind] + '<p class="et">' + esc(text) + '</p><div class="btns">' + knopf + '</div></div>';
+  }
 
   /* ---------- Bausteine ---------- */
   function boxCard(b) {
@@ -792,7 +881,7 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     var neue = S.series.slice().sort(function (a, c) { return a.ago - c.ago; }).slice(0, 5);
     var tiles = neue.map(function (s) { return tileFor(s, 'neuWahl'); }).join('') + actionTile('Gute Nacht', 'neuWahl', 'aktion', 'Timer, dann still');
     var multi = S.neu.filter(function (x) { return !x.done; }).length > 1;
-    return '<div class="card" style="border:2px solid var(--primary)"><h3>Neuer Tobie auf ' + esc(b.name) + '</h3><div class="muted" style="margin-bottom:12px">Gerade aufgelegt, ' + esc(n.ago) + '. Bist du nicht sicher, welcher es ist? Lege den Tobie noch einmal auf. Was soll er spielen?</div>' +
+    return '<div class="card" style="border:2px solid var(--primary-ink)"><h3>Neuer Tobie auf ' + esc(b.name) + '</h3><div class="muted" style="margin-bottom:12px">Gerade aufgelegt, ' + esc(n.ago) + '. Bist du nicht sicher, welcher es ist? Lege den Tobie noch einmal auf. Was soll er spielen?</div>' +
       '<div class="tiles small" data-uid="' + n.uid + '">' + tiles + '</div>' +
       '<div class="btns" style="margin-top:12px"><button class="btn primary" data-act="neuSuche" data-arg="' + n.uid + '" data-fk="nsu">Anderes suchen …</button></div>' +
       '<div style="margin-top:12px"><button class="btn link" data-act="neuWeg" data-arg="' + n.uid + '" data-fk="weg">Das war ein Versehen, nicht merken</button></div>' + (multi ? '<div class="muted">Mehrere neue Tobies: Der zuletzt aufgelegte steht oben.</div>' : '') + '</div>';
@@ -813,16 +902,16 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     if (S.mode === 'laedt') return h + '<div class="skel"></div><div class="skel"></div><div class="skel" style="height:140px"></div>';
     if (S.mode === 'fehler') return '<div class="note err" role="alert"><strong>Die Seite konnte nichts laden.</strong><br>Home Assistant antwortet gerade nicht. Warte kurz und versuche es noch einmal. Wenn es so bleibt, sag dem Administrator Bescheid.<div class="btns"><button class="btn primary" data-act="reload" data-fk="retry">Noch einmal versuchen</button></div></div>';
     var boxes = S.mode === 'offline' ? S.boxes.map(function (b) { var c = JSON.parse(JSON.stringify(b)); c.online = false; c.zuletzt = 'vor 5 Minuten'; return c; }) : S.boxes;
-    if (S.mode === 'leer') boxes = [];
+    if (isLeer()) boxes = [];
     h += '<div class="grid2">' + boxes.map(boxCard).join('') + '</div>';
-    if (S.mode === 'leer') h += '<div class="note">Noch keine Box eingerichtet. Bitte dem Administrator Bescheid sagen.</div>';
-    if (S.mode !== 'leer') h += S.neu.filter(function (x, i, a) { return !x.done || true; }).map(neuCard).join('');
+    if (isLeer()) h += leerKarte('box', 'Noch keine Box eingerichtet. Bitte dem Administrator Bescheid sagen.', '<button class="btn primary" data-act="reload" data-fk="reload2">Jetzt neu laden</button>');
+    if (!isLeer()) h += S.neu.filter(function (x, i, a) { return !x.done || true; }).map(neuCard).join('');
     h += '<div class="bigbtns"><a class="btn big primary" href="#hinzufuegen" data-fk="add">' + ic('plus') + 'Hinzufügen</a><a class="btn big" href="#abends" data-fk="abend">' + ic('moon') + 'Abends</a></div>';
-    h += uploadSummary();
+    if (!isLeer()) h += uploadSummary();
     h += '<form data-act-form="startSuche" role="search"><label class="sr" for="startsuche">In der ganzen Bibliothek suchen</label><input class="search" id="startsuche" type="search" placeholder="Hörspiel, Lied, Folge oder Tobie suchen" data-fk="startsuche" style="margin-bottom:0"></form>';
-    h += whRow();
+    if (!isLeer()) h += whRow();
     h += '<h2>Neu in der Bibliothek</h2>';
-    if (S.mode === 'leer' || !S.series.length) h += '<div class="card">Noch nichts da. Tippe oben auf „Hinzufügen“.</div>';
+    if (isLeer() || !S.series.length) h += '<div class="card">Noch nichts da. Tippe oben auf „Hinzufügen“.</div>';
     else h += '<div class="tiles">' + S.series.slice().sort(function (a, c) { return a.ago - c.ago; }).slice(0, 6).map(function (s) { return tileFor(s, 'oeffne'); }).join('') + '</div><div style="margin-top:12px"><a class="btn" href="#bibliothek" data-fk="alle">Ganze Bibliothek ansehen (' + S.series.length + ')</a></div>';
     return h;
   }
@@ -886,12 +975,12 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     h += '<div class="artrow" role="group" aria-label="Art">' + ['alle'].concat(ARTEN).map(function (a) {
       return '<button class="arttab" data-act="bart" data-arg="' + a + '" aria-pressed="' + (B.art === a) + '" data-fk="at' + a + '">' + (a === 'alle' ? 'Alle' : ART[a].n) + '</button>';
     }).join('') + '</div>';
-    if (S.mode === 'leer' || !S.series.length) return h + '<div class="card">Noch nichts da. Tippe oben auf das Plus, um etwas hinzuzufügen.</div>';
+    if (isLeer() || !S.series.length) return h + leerKarte('bib', 'Noch nichts da. Tippe auf „Hinzufügen“.', '<a class="btn primary" href="#hinzufuegen" data-fk="leeradd">' + ic('plus', 20) + 'Hinzufügen</a>');
     var rows = B.art === 'alle' && !filtCount(B);
     if (rows) h += whRow() + neuRow();
     var l = seriesFiltered(B, true), n = filtCount(B);
     h += '<div class="libbar"><span class="count" aria-live="polite">' + l.length + (l.length === 1 ? ' Eintrag' : ' Einträge') + '</span><button class="btn" data-act="sortSheet" data-fk="sortbtn" aria-haspopup="dialog">' + ic('tune', 20) + 'Sortieren &amp; Filter' + (n ? '<span class="nbadge" aria-label="' + n + ' aktiv">' + n + '</span>' : '') + '</button></div>';
-    if (!l.length) return h + '<div class="card">Nichts gefunden. Nimm einen Filter weg.</div>';
+    if (!l.length) return h + leerKarte('suche', 'Nichts gefunden. Nimm einen Filter weg.', '<button class="btn primary" data-act="bReset" data-fk="breset">Filter zurücksetzen</button>');
     h += '<div id="libbody">' + l.slice(0, B.shown).map(function (s) { return libRow(s); }).join('') + '</div>';
     if (l.length > B.shown) h += '<div class="btns" style="justify-content:center;margin-top:16px"><button class="btn" data-act="bmehr" data-fk="bmehr">Mehr zeigen (60 weitere)</button></div>';
     return h;
@@ -930,8 +1019,9 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     if (term.length < 2) return '<div class="muted" style="padding:8px 4px">Tippe mindestens 2 Buchstaben. Gesucht wird in Hörspielen, Büchern, Alben, Folgen, Liedern und in den Namen der Tobies.</div>';
     var B = { term: term, art: 'alle', ohne: false, neu: false, pruefen: false, sort: 'az', shown: 60 }, tnorm = norm(term);
     var ser = seriesFiltered(B).filter(function (s) { return !s.einzeln; }), fol = folgenFiltered(B), tob = S.tobies.filter(function (t) { return t.name && norm(t.name).indexOf(tnorm) >= 0; });
+    if (isLeer()) { ser = []; fol = []; tob = []; }
     var h = '<div class="count" aria-live="polite">Gefunden: ' + ser.length + ' Sammlungen, ' + fol.length + ' Folgen und Lieder, ' + tob.length + ' Tobies</div>';
-    if (!ser.length && !fol.length && !tob.length) return h + '<div class="card">Nichts gefunden zu „' + esc(term) + '“.</div>';
+    if (!ser.length && !fol.length && !tob.length) return h + leerKarte('suche', 'Nichts gefunden zu „' + term + '“.', '<button class="btn primary" data-act="qClear" data-fk="qclear">Suche löschen</button>');
     if (ser.length) h += '<h3 class="rowh">Hörspiele, Bücher, Alben</h3><div class="card"><div>' + ser.slice(0, 8).map(function (s) { return libRow(s, term); }).join('') + '</div></div>' + (ser.length > 8 ? '<div class="muted">… und ' + (ser.length - 8) + ' weitere. Genauer suchen hilft.</div>' : '');
     if (fol.length) h += '<h3 class="rowh">Folgen und Lieder</h3><div class="card"><div>' + fol.slice(0, 10).map(function (x) { return sfRow(x, term); }).join('') + '</div></div>' + (fol.length > 10 ? '<div class="muted">… und ' + (fol.length - 10) + ' weitere. Genauer suchen hilft.</div>' : '');
     if (tob.length) h += '<h3 class="rowh">Tobies</h3><div class="card"><div class="rows">' + tob.map(function (t) { return tobieRow(t); }).join('') + '</div></div>';
@@ -1078,11 +1168,11 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
   }
   function vTobies() {
     var h = '<h2 style="margin-top:0">Tobies</h2><div class="muted" style="margin-bottom:12px">Alle Tobies, die schon etwas spielen. Der zuletzt angelernte steht oben. Einen neuen legst du einfach auf eine Box. Dann erscheint er auf der Startseite.</div>';
-    if (S.mode === 'leer' || !S.tobies.length) return h + '<div class="card">Noch keine Tobies. Lege einen Tobie auf eine Box, dann erscheint er auf der Startseite.</div>';
+    if (isLeer() || !S.tobies.length) return h + leerKarte('tobies', 'Noch keine Tobies. Lege einen Tobie auf eine Box, dann erscheint er auf der Startseite.', '<a class="btn primary" href="#start" data-fk="leerstart">Zur Startseite</a>');
     var term = norm(S.tobieTerm);
     var l = S.tobies.slice().sort(function (a, c) { return c.n - a.n; }).filter(function (t) { return !term || norm(t.name || 'ohne namen').indexOf(term) >= 0 || norm(zielName(t.z)).indexOf(term) >= 0; });
     h += '<div><label class="sr" for="tsuche">Tobies suchen</label><input class="search" id="tsuche" type="search" placeholder="Tobie suchen (Name oder was er spielt)" value="' + esc(S.tobieTerm) + '" data-fk="tsuche"></div>';
-    h += l.length ? '<div class="card"><div class="rows">' + l.map(tobieRow).join('') + '</div></div>' : '<div class="card">Nichts gefunden zu „' + esc(S.tobieTerm) + '“.</div>';
+    h += l.length ? '<div class="card"><div class="rows">' + l.map(tobieRow).join('') + '</div></div>' : leerKarte('suche', 'Nichts gefunden zu „' + S.tobieTerm + '“.', '<button class="btn primary" data-act="tClear" data-fk="tclear">Suche löschen</button>');
     if (!stufeA()) h += vPlaylistIdee();
     return h;
   }
@@ -1096,9 +1186,9 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
 
   /* ---------- Abends ---------- */
   function vAbends() {
-    var h = '<h2 style="margin-top:0">Abends</h2><div class="card"><h3>Gute Nacht</h3><div class="muted">Lege den Gute-Nacht-Tobie auf. Dann läuft ein Timer. Danach wird es leise und die Box hört auf.</div>';
+    var h = '<button class="back" data-act="go" data-arg="mehr" data-fk="back">' + ic('back') + 'Mehr</button><h2 style="margin-top:8px">Abends</h2><div class="card"><h3>Gute Nacht</h3><div class="muted">Lege den Gute-Nacht-Tobie auf. Dann läuft ein Timer. Danach wird es leise und die Box hört auf.</div>';
     h += '<div class="field"><span class="lbl" id="l-timer">Die Box spielt noch</span><div class="chips wrap" role="group" aria-labelledby="l-timer">' + [15, 30, 45, 60, 90].map(function (m) { return '<button class="chip" data-act="gnWahl" data-arg="' + m + '" aria-pressed="' + (S.gn.timer === m) + '" data-fk="gn' + m + '">' + m + ' Min.</button>'; }).join('') + '</div>' +
-      '<div style="margin-top:8px"><label class="sr" for="gn-andere">Anderer Wert</label><select id="gn-andere" data-fk="gnand" style="min-height:44px;border-radius:10px;border:1px solid var(--divider);background:var(--card);padding:0 12px"><option value="">Anderer Wert …</option>' + [5, 10, 20, 120, 180, 240].map(function (m) { return '<option value="' + m + '"' + (S.gn.timer === m ? ' selected' : '') + '>' + m + ' Minuten</option>'; }).join('') + '</select></div></div>';
+      '<div style="margin-top:8px"><label class="sr" for="gn-andere">Anderer Wert</label><select id="gn-andere" data-fk="gnand" style="min-height:48px;border-radius:10px;border:1px solid var(--line);background:var(--card);padding:0 12px"><option value="">Anderer Wert …</option>' + [5, 10, 20, 120, 180, 240].map(function (m) { return '<option value="' + m + '"' + (S.gn.timer === m ? ' selected' : '') + '>' + m + ' Minuten</option>'; }).join('') + '</select></div></div>';
     var dirty = S.gn.timer !== S.gn.savedTimer;
     h += '<button class="btn primary" id="gn-save" data-act="gnSave" data-fk="gns"' + (dirty ? '' : ' disabled') + '>' + (dirty ? 'Speichern' : 'Gespeichert') + '</button>';
     var hat = S.tobies.some(function (t) { return t.z.t === 'aktion'; });
@@ -1109,6 +1199,20 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     }).join('') : '<div class="muted">Keine Leise-Zeiten. Die Box spielt immer in normaler Lautstärke.</div>') + '</div>';
     h += '<div style="margin-top:12px"><button class="btn primary" data-act="winNeu" data-fk="wnew">' + ic('plus', 20) + 'Zeit hinzufügen</button></div></div>';
     return h;
+  }
+
+  /* ---------- Mehr (Reiter 4): Liste großer Zeilen für alle ---------- */
+  function mItem(href, icon, titel, sub, badge, disabled) {
+    var inner = '<span class="mi" aria-hidden="true">' + ic(icon) + '</span><span class="grow"><span class="mt">' + esc(titel) + (badge || '') + '</span><span class="ms">' + esc(sub) + '</span></span>' + (disabled ? '' : '<span class="chev" aria-hidden="true">' + ic('chev') + '</span>');
+    if (disabled) return '<button class="mitem" type="button" aria-disabled="true" data-act="plIdee" data-fk="m' + href + '">' + inner + '</button>';
+    return '<a class="mitem" href="#' + href + '" data-fk="m' + href + '">' + inner + '</a>';
+  }
+  function vMehr() {
+    var h = '<h2 style="margin-top:0">Mehr</h2><div class="mehr">';
+    h += mItem('abends', 'moon', 'Abends', 'Gute Nacht und Leise-Zeiten');
+    if (!stufeA()) h += mItem('gehoert', 'chart', 'Gehört', 'Wer hat was gehört', badgeB());
+    if (!stufeA()) h += mItem('playlists', 'queue', 'Playlists', 'Eigene Listen aus Liedern und Folgen', badgeC(), true);
+    return h + '</div>';
   }
 
   /* ---------- Stufe B: Gehört (Vorschau mit erfundenen Zahlen) ---------- */
@@ -1213,8 +1317,9 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
   }
   function vGehoert() {
     var g = S.gh, tage = g.zr === 'woche' ? 7 : 14, w = g.wer;
-    var h = '<h2 style="margin-top:0">Gehört</h2>';
+    var h = '<button class="back" data-act="go" data-arg="mehr" data-fk="back">' + ic('back') + 'Mehr</button><h2 style="margin-top:8px">Gehört</h2>';
     h += '<div class="stufe"><strong>Stufe B – Vorschau.</strong> Erfundene Zahlen. Die Box müsste dafür melden, was sie spielt (Entwurf, Abschnitt 12).</div>';
+    if (isLeer()) return h + leerKarte('gehoert', 'Noch nichts gehört. Sobald eine Box spielt oder jemand reinhört, steht es hier.', '<a class="btn primary" href="#bibliothek" data-fk="leergh">Zur Bibliothek</a>');
     h += '<div class="field" style="margin-top:12px"><span class="lbl" id="gh-wer-l">Wer?</span><div class="chips wrap" role="group" aria-labelledby="gh-wer-l" id="gh-wer">' + ['alle'].concat(QUELLEN).map(function (k) { return '<button class="chip" data-act="ghWer" data-arg="' + k + '" aria-pressed="' + (w === k) + '" data-fk="ghw' + k + '">' + esc(werName(k)) + '</button>'; }).join('') + '</div></div>';
     h += '<div class="field"><span class="lbl" id="gh-zr-l">Zeitraum</span><div class="chips wrap" role="group" aria-labelledby="gh-zr-l">' + ['woche', 'monat', 'jahr', 'alles'].map(function (z) { return '<button class="chip" data-act="ghZr" data-arg="' + z + '" aria-pressed="' + (g.zr === z) + '" data-fk="ghz' + z + '">' + ZR[z][0] + '</button>'; }).join('') + '</div></div>';
     h += '<div class="charts">' + rankCard();
@@ -1244,11 +1349,15 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     sv += '<text x="' + (W - R) + '" y="' + (H - 12) + '" text-anchor="end">jetzt</text><line class="axis" x1="' + L + '" x2="' + (W - R) + '" y1="' + (T + ph) + '" y2="' + (T + ph) + '"/></svg>';
     return '<div class="legend" style="margin:8px 0"><span><i class="sw" style="background:var(--chart1)"></i>Akku</span><span><i class="sw" style="background:var(--primary-soft);border:1px solid var(--grid)"></i>am Lader</span></div>' + sv;
   }
+  function korbSec() {
+    if (isLeer()) return '<details class="sec"><summary>Papierkorb (0)</summary><div class="inner">' + leerKarte('korb', 'Der Papierkorb ist leer.', '<a class="btn primary" href="#bibliothek" data-fk="leerkorb">Zur Bibliothek</a>', true) + '</div></details>';
+    return '<details class="sec"><summary>Papierkorb (' + (2 + S.korb.length) + ')</summary><div class="inner"><div class="muted" style="margin-bottom:12px">Wenn jemand ohne Admin-Rechte einen Eintrag mit Tobies oder mehr als 3 Einträge in einer Stunde in den Papierkorb legt, bekommen Administratoren eine Mitteilung in Home Assistant.</div><div class="btns" style="margin-bottom:12px"><button class="btn" data-act="x" data-arg="Alles der letzten Stunde zurückgeholt (Vorschau)" data-fk="pkstd">Letzte Stunde zurückholen</button></div><div class="rows">' + S.korb.map(function (k) { return '<div class="row"><div class="grow">' + esc(k) + '<br><span class="muted">gerade eben in den Papierkorb gelegt von ' + (S.admin ? NAMEN.personA : NAMEN.personB) + '</span></div><button class="btn" data-act="x" data-arg="Wiederhergestellt" data-fk="pk' + esc(k) + '">Wiederherstellen</button></div>'; }).join('') +
+      '<div class="row"><div class="grow">Folge „Probe 3“ aus Test-Serie<br><span class="muted">gelöscht am 08.11., 11:00 von ' + NAMEN.personB + '</span></div><button class="btn" data-act="x" data-arg="Wiederhergestellt" data-fk="p1">Wiederherstellen</button></div><div class="row"><div class="grow">„Alte Serie“<br><span class="muted">gelöscht am 02.11., 09:30 von ' + NAMEN.personA + '</span></div><button class="btn" data-act="x" data-arg="Wiederhergestellt" data-fk="p2">Wiederherstellen</button></div></div><div style="margin-top:24px"><button class="btn danger" data-act="korbLeer" data-fk="p3">Papierkorb leeren …</button></div></div></details>';
+  }
   function altePage() {
     var h = '';
     h += '<details class="sec" open><summary>Eingang im Detail</summary><div class="inner"><table class="kv"><tr><td>Sommer-Abenteuer (4 Dateien)</td><td><span class="badge ok">einsortiert</span> Abenteuer im Wald</td></tr><tr><td>buch.m4b (1 Datei)</td><td><span class="badge">blockiert</span> Kopierschutz</td></tr></table><div class="btns" style="margin-top:12px"><button class="btn" data-act="x" data-arg="Erneut einsortiert" data-fk="x1">Erneut einsortieren</button><button class="btn" data-act="x" data-arg="Sofort einsortiert" data-fk="x2">Sofort, ohne Wartezeit</button><button class="btn danger" data-act="eingangWeg" data-fk="x3">buch.m4b entfernen …</button></div></div></details>';
-    h += '<details class="sec"><summary>Papierkorb (' + (2 + S.korb.length) + ')</summary><div class="inner"><div class="muted" style="margin-bottom:12px">Wenn jemand ohne Admin-Rechte einen Eintrag mit Tobies oder mehr als 3 Einträge in einer Stunde in den Papierkorb legt, bekommen Administratoren eine Mitteilung in Home Assistant.</div><div class="btns" style="margin-bottom:12px"><button class="btn" data-act="x" data-arg="Alles der letzten Stunde zurückgeholt (Vorschau)" data-fk="pkstd">Letzte Stunde zurückholen</button></div><div class="rows">' + S.korb.map(function (k) { return '<div class="row"><div class="grow">' + esc(k) + '<br><span class="muted">gerade eben in den Papierkorb gelegt von ' + (S.admin ? NAMEN.personA : NAMEN.personB) + '</span></div><button class="btn" data-act="x" data-arg="Wiederhergestellt" data-fk="pk' + esc(k) + '">Wiederherstellen</button></div>'; }).join('') +
-      '<div class="row"><div class="grow">Folge „Probe 3“ aus Test-Serie<br><span class="muted">gelöscht am 08.11., 11:00 von ' + NAMEN.personB + '</span></div><button class="btn" data-act="x" data-arg="Wiederhergestellt" data-fk="p1">Wiederherstellen</button></div><div class="row"><div class="grow">„Alte Serie“<br><span class="muted">gelöscht am 02.11., 09:30 von ' + NAMEN.personA + '</span></div><button class="btn" data-act="x" data-arg="Wiederhergestellt" data-fk="p2">Wiederherstellen</button></div></div><div style="margin-top:24px"><button class="btn danger" data-act="korbLeer" data-fk="p3">Papierkorb leeren …</button></div></div></details>';
+    h += korbSec();
     h += '<details class="sec"><summary>Liste, Sicherung, Export</summary><div class="inner"><table class="kv"><tr><td>Stand der Liste</td><td>Revision 7</td></tr><tr><td>Sicherung auf dem NAS</td><td>ok, 09.11., 08:00</td></tr><tr><td>Frühere Stände</td><td>10 gespeichert (zuletzt Revision 6 vom 09.11.)</td></tr></table><div class="btns" style="margin-top:12px"><button class="btn" data-act="x" data-arg="Export wird angezeigt" data-fk="l1">Export ansehen</button><button class="btn" data-act="x" data-arg="Stände werden angezeigt" data-fk="l3">Frühere Stände ansehen</button><button class="btn danger" data-act="ausrollen" data-fk="l2">Liste neu an die Boxen schicken …</button></div></div></details>';
     h += '<details class="sec"><summary>Boxen im Detail</summary><div class="inner"><table class="kv"><tr><td>' + NAMEN.box1 + '</td><td>online · Liste aktuell · Netz: home · Speicher frei: 5 120 MB · Version 0.3.1 · Sync: ok</td></tr><tr><td>' + NAMEN.box2 + '</td><td>offline · Liste veraltet · Netz: offline</td></tr></table><div class="btns" style="margin-top:12px"><button class="btn" data-act="x" data-arg="Abgleich angestoßen" data-fk="b1">' + NAMEN.box1 + ' jetzt abgleichen</button></div></div></details>';
     h += '<details class="sec"><summary>Bibliothek aufräumen</summary><div class="inner"><div class="muted" style="margin-bottom:12px">Medien neu einlesen, Überraschung, Zusammenführen für alle Einträge, Cover neu suchen, Hörkopien.</div><table class="kv" style="margin-bottom:12px"><tr><td>Hörkopien (für Reinhören)</td><td>41 fertig, 3 warten, 0 mit Fehler, 1 zu lang · 2,1 GB auf dem NAS (Ordner neben „medien“). Neu Einsortiertes sofort, Bestand erst beim ersten Reinhören.</td></tr><tr><td>Warteschlange</td><td>3 von höchstens 20 Dateien · 1,4 von höchstens 50 GB</td></tr></table><div class="btns"><button class="btn" data-act="x" data-arg="Hörkopien werden neu erzeugt" data-fk="a4">Hörkopien neu erzeugen</button><button class="btn" data-act="x" data-arg="Medien werden neu eingelesen" data-fk="a1">Medien neu einlesen</button><button class="btn" data-act="x" data-arg="Cover werden neu gesucht (Marke gelöscht)" data-fk="a2">Cover neu suchen</button><button class="btn" data-act="x" data-arg="Neues leeres Hörspiel (Vorschau)" data-fk="a3">Neues leeres Hörspiel</button></div></div></details>';
@@ -1270,7 +1379,7 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
   }
 
   /* ---------- Rahmen: Reiter, Routen ---------- */
-  var TABS = [['start', 'Start', 'home'], ['bibliothek', 'Bibliothek', 'lib'], ['tobies', 'Tobies', 'tag'], ['abends', 'Abends', 'moon'], ['gehoert', 'Gehört', 'chart']];
+  var TABS = [['start', 'Start', 'home'], ['bibliothek', 'Bibliothek', 'lib'], ['tobies', 'Tobies', 'tag'], ['mehr', 'Mehr', 'apps']];
   function route() {
     var h = (location.hash || '#start').slice(1);
     if (h.indexOf('serie-') === 0) return { v: 'serie', id: h.slice(6), tab: 'bibliothek' };
@@ -1278,14 +1387,15 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     if (h === 'anlernen') return { v: 'anlernen', tab: 'bibliothek' };
     if (h === 'suche') return { v: 'suche', tab: 'bibliothek' };
     if (h === 'technik') return { v: 'technik', tab: 'technik' };
-    if (h === 'gehoert' && stufeA()) return { v: 'start', tab: 'start' };
+    if (h === 'abends') return { v: 'abends', tab: 'mehr' };
+    if (h === 'gehoert') return stufeA() ? { v: 'mehr', tab: 'mehr' } : { v: 'gehoert', tab: 'mehr' };
     if (TABS.some(function (t) { return t[0] === h; })) return { v: h, tab: h };
     return { v: 'start', tab: 'start' };
   }
   function renderTabs(r) {
-    var neuN = S.mode === 'leer' ? 0 : S.neu.filter(function (n) { return !n.done; }).length;
-    $('tabrow').innerHTML = TABS.filter(function (t) { return t[0] !== 'gehoert' || !stufeA(); }).map(function (t) {
-      return '<a href="#' + t[0] + '" data-fk="tab' + t[0] + '"' + (r.tab === t[0] ? ' aria-current="page"' : '') + '>' + ic(t[2]) + '<span>' + t[1] + '</span>' + (t[0] === 'start' && neuN ? '<span class="dot" aria-hidden="true">' + neuN + '</span><span class="sr">' + neuN + ' neuer Tobie</span>' : '') + (t[0] === 'gehoert' ? '<span class="vb" aria-hidden="true">B</span><span class="sr">(Vorschau, Stufe B)</span>' : '') + '</a>';
+    var neuN = isLeer() ? 0 : S.neu.filter(function (n) { return !n.done; }).length;
+    $('tabrow').innerHTML = TABS.map(function (t) {
+      return '<a href="#' + t[0] + '" data-fk="tab' + t[0] + '"' + (r.tab === t[0] ? ' aria-current="page"' : '') + '>' + ic(t[2]) + '<span>' + t[1] + '</span>' + (t[0] === 'start' && neuN ? '<span class="dot" aria-hidden="true">' + neuN + '</span><span class="sr">' + neuN + ' neuer Tobie</span>' : '') + '</a>';
     }).join('');
     $('techslot').innerHTML = '<button class="iconbtn plain" data-act="prevToggle" data-fk="prevbtn" aria-label="Vorschau-Einstellungen" aria-expanded="' + (!$('preview').hidden) + '">' + ic('info', 24) + '</button><a class="iconbtn plain add" href="#hinzufuegen" data-fk="addtop" aria-label="Hinzufügen"' + (r.v === 'hinzufuegen' ? ' aria-current="page"' : '') + '>' + ic('plus', 26) + '</a>' +
       (S.admin ? '<a class="btn tech" href="#technik" data-fk="tech" aria-label="Technik"' + (r.tab === 'technik' ? ' aria-current="page"' : '') + '>' + ic('tool') + '<span>Technik</span></a>' : '');
@@ -1295,7 +1405,7 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     if (a && a.closest && a.closest('#layer')) fk = null;
     var r = route(), main = $('main');
     renderTabs(r);
-    var V = { start: vStart, bibliothek: vBibliothek, suche: vSuche, serie: function () { return vSerie(r.id); }, anlernen: vAnlernen, hinzufuegen: vHinzufuegen, abends: vAbends, tobies: vTobies, gehoert: vGehoert, technik: vTechnik };
+    var V = { start: vStart, bibliothek: vBibliothek, suche: vSuche, serie: function () { return vSerie(r.id); }, anlernen: vAnlernen, hinzufuegen: vHinzufuegen, abends: vAbends, tobies: vTobies, mehr: vMehr, gehoert: vGehoert, technik: vTechnik };
     var open = [].map.call(main.querySelectorAll('details.sec'), function (d) { return d.open; });
     var scroll = window.scrollY;
     main.innerHTML = V[r.v]();
@@ -1322,6 +1432,7 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     if (returnFocus && document.contains(returnFocus)) returnFocus.focus();
     else if (returnFk) { var rf = document.querySelector('[data-fk="' + returnFk + '"]'); if (rf) rf.focus(); }
     returnFocus = null; returnFk = null;
+    toastPlace();
   }
   function sheetButtons(buttons) {
     var bb = $('sheet-btns'); bb.innerHTML = '';
@@ -1340,7 +1451,7 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     sheetButtons(buttons);
     d.addEventListener('cancel', function (ev) { ev.preventDefault(); closeLayer(); });
     d.addEventListener('mousedown', function (ev) { if (ev.target === d) closeLayer(); });
-    d.showModal();
+    d.showModal(); toastPlace();
     var first = d.querySelector('[autofocus]') || d.querySelector('button, select, input');
     if (first) first.focus();
   }
@@ -1348,15 +1459,35 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     openSheet(title, '<p>' + esc(text) + '</p>', [{ label: 'Abbrechen' }, { label: label, kind: danger ? 'danger solid' : 'primary', fn: fn }], 'alertdialog');
     $('sb-0').focus();
   }
-  var toastT;
-  function toast(msg) {
-    var b = $('toastbox'); b.innerHTML = '<div class="toast" role="status">' + esc(msg) + '</div>';
-    $('live').textContent = msg;
-    clearTimeout(toastT); toastT = setTimeout(function () { b.innerHTML = ''; }, 4500);
+  /* Meldungen (X7): Erfolg verschwindet nach 4,5 s, Fehler bleiben mit „OK“ oder lassen sich wegwischen.
+     Steht ein Blatt offen (Top-Layer), zieht der Meldungsbereich hinein, sonst wäre er verdeckt. */
+  var TB = $('toastbox');
+  function toastPlace() {
+    var dl = document.querySelectorAll('dialog[open]'), d = dl.length ? dl[dl.length - 1] : null;
+    if (d) { if (TB.parentNode !== d) d.appendChild(TB); TB.classList.add('inmodal'); }
+    else { if (TB.parentNode !== document.body) document.body.appendChild(TB); TB.classList.remove('inmodal'); }
   }
+  function toastDrop(el) { if (el && el.parentNode) el.parentNode.removeChild(el); }
+  function toast(msg, err) {
+    toastPlace();
+    [].slice.call(TB.querySelectorAll('.toast:not(.err)')).forEach(toastDrop);
+    var el = document.createElement('div');
+    el.className = 'toast' + (err ? ' err' : '');
+    el.setAttribute('role', err ? 'alert' : 'status');
+    el.innerHTML = '<span class="tmsg">' + esc(msg) + '</span>' + (err ? '<button type="button" class="tok" data-fk="toastok">OK</button>' : '');
+    TB.appendChild(el);
+    if (!err) { $('live').textContent = msg; setTimeout(function () { toastDrop(el); }, 4500); return; }
+    el.querySelector('.tok').addEventListener('click', function () { toastDrop(el); });
+    var x0 = null, dx = 0;
+    el.addEventListener('pointerdown', function (e) { if (e.target.closest('.tok')) return; x0 = e.clientX; dx = 0; try { el.setPointerCapture(e.pointerId); } catch (er) {} });
+    el.addEventListener('pointermove', function (e) { if (x0 === null) return; dx = e.clientX - x0; el.style.transform = 'translateX(' + dx + 'px)'; el.style.opacity = String(Math.max(0.3, 1 - Math.abs(dx) / 300)); });
+    function end() { if (x0 === null) return; x0 = null; if (Math.abs(dx) > 70) toastDrop(el); else { el.style.transform = ''; el.style.opacity = ''; } }
+    el.addEventListener('pointerup', end); el.addEventListener('pointercancel', end);
+  }
+  function toastErr(msg) { toast(msg, true); }
   function textSheet(title, label, value, ok) {
     openSheet(title, '<div class="field"><label for="txt">' + esc(label) + '</label><input type="text" id="txt" value="' + esc(value) + '" maxlength="100" autofocus></div>',
-      [{ label: 'Abbrechen' }, { label: 'Speichern', kind: 'primary', fn: function () { var v = $('txt').value.trim(); if (!v) { toast('Bitte einen Namen eingeben.'); return false; } ok(v); } }]);
+      [{ label: 'Abbrechen' }, { label: 'Speichern', kind: 'primary', fn: function () { var v = $('txt').value.trim(); if (!v) { toastErr('Bitte einen Namen eingeben.'); return false; } ok(v); } }]);
   }
 
   /* ---------- Ziel wählen (Sammlung oder einzelne Folge/Lied) ---------- */
@@ -1526,7 +1657,7 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     if (f) { H.pos[P.sid + '|' + P.i] = { p: f.d, d: f.d, t: Date.now() }; H.last = { sid: P.sid, i: P.i }; hPersist(); }
     if (s && P.i + 1 < s.folgen.length) pLoad(P.sid, P.i + 1, 0, true); else pChanged();
   });
-  aud.addEventListener('error', function () { if (!aud.getAttribute('src')) return; toast('Das kann dieser Browser nicht abspielen.'); pChanged(); });
+  aud.addEventListener('error', function () { if (!aud.getAttribute('src')) return; toastErr('Das kann dieser Browser nicht abspielen.'); pChanged(); });
   window.addEventListener('pagehide', function () { if (P.sid && P.loaded) pSave(); });
   document.addEventListener('visibilitychange', function () { if (document.hidden && P.sid && P.loaded) pSave(); });
 
@@ -1538,10 +1669,10 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
   }
   function pMini() {
     var m = $('mini'), s = serie(P.sid), f = curF();
-    if (!s || !f) { m.hidden = true; return; }
-    m.hidden = false;
+    if (!s || !f) { m.hidden = true; document.documentElement.classList.remove('hasmini'); return; }
+    m.hidden = false; document.documentElement.classList.add('hasmini');
     var key = s.id + '|' + P.i;
-    if (m.dataset.key !== key) { $('mopen').innerHTML = coverHtml(s, 'sm') + '<span class="grow"><span class="mt">' + esc(f.t) + '</span><span class="ms">' + esc(f.t === s.name ? ART[s.art].e : s.name) + '</span></span>'; $('mopen').setAttribute('aria-label', 'Player öffnen: ' + f.t + ', ' + s.name); m.dataset.key = key; }
+    if (m.dataset.key !== key) { $('mopen').innerHTML = coverHtml(s, 'sm') + '<span class="grow"><span class="mt">' + esc(f.t) + '</span><span class="ms">' + esc(f.t === s.name ? ART[s.art].e : s.name) + '</span></span>'; $('mopen').setAttribute('aria-label', 'Player öffnen: ' + f.t + ', ' + s.name); $('mopen').title = 'Antippen oder nach oben wischen: Player öffnen'; m.dataset.key = key; }
     $('mplay').innerHTML = ic(P.playing ? 'pause' : 'play', 28);
     $('mplay').setAttribute('aria-label', P.playing ? 'Pause' : 'Abspielen');
     pTick();
@@ -1584,7 +1715,7 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
   }
   function pFullHtml() {
     var s = serie(P.sid), f = curF(), n = s.folgen.length;
-    return '<div class="pin"><div class="phead"><button class="iconbtn plain" data-p="close" id="pclose" aria-label="Player schließen">' + ic('down', 28) + '</button><span class="muted">Läuft gerade</span><span style="width:44px" aria-hidden="true"></span></div>' + coverHtml(s) +
+    return '<div class="pin"><div class="grip" aria-hidden="true"></div><div class="phead"><button class="iconbtn plain" data-p="close" id="pclose" aria-label="Player schließen">' + ic('down', 28) + '</button><span class="muted">Läuft gerade</span><span style="width:44px" aria-hidden="true"></span></div>' + coverHtml(s) +
       '<div class="ptitle"><h2 id="pt-t">' + esc(f.t) + '</h2><div class="muted">' + esc(f.t === s.name ? ART[s.art].e : s.name) + (n > 1 ? ' · ' + (P.i + 1) + ' von ' + n : '') + '</div>' + (f.kap ? '<div class="pkap" id="pkap">' + esc(kapText()) + '</div>' : '') + '</div>' +
       '<input class="pslider" type="range" id="pslider" min="0" max="' + Math.round(P.dur) + '" step="1" value="' + Math.round(P.pos) + '" aria-label="Position in der Folge"><div class="ptimes"><span id="ptime">0:00</span><span id="prest">−0:00</span></div>' +
       '<div class="pctl"><button class="pbtn" data-p="prev" aria-label="Vorige Folge"' + (P.i === 0 ? ' disabled' : '') + '>' + ic('prev', 32) + '</button><button class="pbtn" data-p="back" aria-label="30 Sekunden zurück">' + ic30(false) + '</button>' +
@@ -1601,11 +1732,11 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     d.addEventListener('click', pClick);
     d.addEventListener('input', function (e) { if (e.target.id === 'pslider') { dragging = true; pTick(); } });
     d.addEventListener('change', function (e) { if (e.target.id === 'pslider') { dragging = false; pSeek(+e.target.value); } });
-    d.showModal(); $('pplay').focus(); pTick();
+    d.showModal(); toastPlace(); $('pplay').focus(); pTick(); swipeDown(d);
   }
   function pClose() {
     var d = $('pdlg'); if (d && d.open) d.close();
-    $('playerlayer').innerHTML = ''; dragging = false;
+    $('playerlayer').innerHTML = ''; dragging = false; toastPlace();
     var m = $('mopen'); if (m && !$('mini').hidden) m.focus();
   }
   function pFullUpdate() {
@@ -1618,6 +1749,7 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     pTick();
   }
   function pClick(e) {
+    if (Date.now() - swipedAt < 250) return;
     var b = e.target.closest('[data-p]'); if (!b || b.disabled) return;
     var a = b.dataset.p;
     if (a === 'close') pClose();
@@ -1629,7 +1761,27 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     else if (a === 'speed') pSpeed(+b.dataset.v);
     else if (a === 'kap') kapSheet();
   }
+  /* Wischen (X6): im Mini-Player nach oben öffnet, in der Vollansicht nach unten schließt. Mit Schwelle, Knöpfe bleiben. */
+  var SWIPE = 40, swipedAt = 0;
+  function swipeWatch(el, dir, onSwipe, skip) {
+    var y0 = null, x0 = 0, id = null, cap = false;
+    el.addEventListener('pointerdown', function (e) {
+      if (e.button > 0 || (skip && skip(e.target))) return;
+      y0 = e.clientY; x0 = e.clientX; id = e.pointerId; cap = false;
+    });
+    el.addEventListener('pointermove', function (e) {
+      if (y0 === null || e.pointerId !== id) return;
+      var dy = (e.clientY - y0) * dir, dx = e.clientX - x0;
+      if (!cap && dy > 8 && dy > Math.abs(dx)) { try { el.setPointerCapture(id); cap = true; } catch (er) {} }
+      if (dy > (dir > 0 ? SWIPE * 1.75 : SWIPE) && dy > Math.abs(dx) * 1.5) { y0 = null; swipedAt = Date.now(); try { el.releasePointerCapture(id); } catch (er) {} onSwipe(); }
+    });
+    function end() { y0 = null; }
+    el.addEventListener('pointerup', end); el.addEventListener('pointercancel', end);
+  }
+  swipeWatch($('mini'), -1, function () { pOpen(); });
+  function swipeDown(d) { swipeWatch(d, 1, function () { pClose(); }, function (t) { return !!t.closest('input[type="range"]'); }); }
   $('mini').addEventListener('click', function (e) {
+    if (Date.now() - swipedAt < 250) return;
     var b = e.target.closest('[data-p]'); if (!b) return;
     if (b.dataset.p === 'open') pOpen(); else if (b.dataset.p === 'toggle') pToggle();
   });
@@ -1715,8 +1867,8 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
         (w.wirkung === 'leiser' ? '<div class="field"><label for="gr">Höchste Lautstärke: <span id="grv">' + w.grenze + '</span> %</label><input type="range" id="gr" min="0" max="100" step="5" value="' + w.grenze + '"></div>' : '<div class="muted">Die Box spielt nicht. Ein leiser Ton zeigt, dass der Tobie erkannt wurde.</div>');
     }
     var btns = [{ label: 'Abbrechen' }, { label: 'Speichern', kind: 'primary', fn: function () {
-      if (!w.tage.length) { toast('Bitte mindestens einen Tag wählen.'); return false; }
-      if (w.von === w.bis) { toast('„Von“ und „Bis“ dürfen nicht gleich sein.'); return false; }
+      if (!w.tage.length) { toastErr('Bitte mindestens einen Tag wählen.'); return false; }
+      if (w.von === w.bis) { toastErr('„Von“ und „Bis“ dürfen nicht gleich sein.'); return false; }
       if (neu) S.windows.push(w); else S.windows = S.windows.map(function (x) { return x.id === id ? w : x; });
       toast('Gespeichert. Die Boxen bekommen es gleich.'); render(); } }];
     openSheet(neu ? 'Neue Leise-Zeit' : 'Leise-Zeit ändern', body(), btns);
@@ -1782,12 +1934,13 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     gross: { album: 'Der Zauberer vom See', art: 'hoerbuch', geraten: false, gross: '03 Der See komplett.m4b', files: ['01 Das Boot.mp3', '02 Der Nebel.mp3'], titles: ['Das Boot', 'Der Nebel'] },
     nas: { album: 'Sternenmühle', art: 'hoerspiel', geraten: true, kein: true, files: ['01.mp3', '02.mp3', '03.mp3', '04.mp3', '05.mp3', '06.mp3'], titles: ['Der Mühlenstein', 'Das Sternenmehl', 'Die Nachtwache', 'Der Windbote', 'Das Tor im Berg', 'Der letzte Sack'] }
   };
+  /* [Kennung, Symbol, kurzer Titel, höchstens eine Zeile Erklärung, ausführlicher Satz nur für Screenreader] */
   var ZIELE = [
-    ['neu', 'lib', 'Neues Hörspiel, Hörbuch oder Album', 'Alle Dateien gehören zusammen und werden etwas Neues.', 'Zum Beispiel: die Kapitel eines Hörbuchs oder alle Lieder einer CD.'],
-    ['ergaenzen', 'addlib', 'Folgen zu einem vorhandenen hinzufügen', 'Die Dateien kommen zu etwas, das schon da ist.', 'Zum Beispiel: zwei neue Folgen zu „Lange Serie“.'],
-    ['einzeln', 'note', 'Einzelne Folge oder einzelnes Lied', 'Jede Datei steht für sich, ohne Serie.', 'Zum Beispiel: ein Lied, das ein Tobie spielen soll.'],
-    ['playlist', 'queue', 'Neue Playlist', 'Eine eigene Liste aus Liedern und Folgen.', 'Zum Beispiel: „Autofahrt“ mit fünf Lieblingsliedern.'],
-    ['auto', 'wand', 'Weiß nicht – sortier du', 'Ich lese die Angaben in den Dateien und sortiere selbst ein.', 'Wenn ich unsicher bin, steht danach „Bitte ansehen“ da.']
+    ['neu', 'lib', 'Neu anlegen', 'Hörspiel, Buch, Album', 'Alle Dateien gehören zusammen und werden etwas Neues, zum Beispiel die Kapitel eines Hörbuchs oder alle Lieder einer CD.'],
+    ['ergaenzen', 'addlib', 'Zu Vorhandenem', 'Neue Folgen dazu', 'Die Dateien kommen zu etwas, das schon da ist, zum Beispiel zwei neue Folgen zu „Lange Serie“.'],
+    ['einzeln', 'note', 'Einzeln', 'Lied oder Folge für sich', 'Jede Datei steht für sich, ohne Serie, zum Beispiel ein Lied, das ein Tobie spielen soll.'],
+    ['playlist', 'queue', 'Playlist', 'Stufe C – Idee', 'Eine eigene Liste aus Liedern und Folgen, zum Beispiel „Autofahrt“.'],
+    ['auto', 'wand', 'Sortier du', 'Ich lese die Angaben', 'Ich lese die Angaben in den Dateien und sortiere selbst ein. Wenn ich unsicher bin, steht danach „Bitte ansehen“ da.']
   ];
   var EIN = { hoerspiel: ['Folge', 'Folgen', 'einzelne Folge', 'einzelne Folgen'], hoerbuch: ['Teil', 'Teile', 'einzelnes Hörbuch', 'einzelne Hörbücher'], musik: ['Lied', 'Lieder', 'einzelnes Lied', 'einzelne Lieder'], geschichte: ['Geschichte', 'Geschichten', 'einzelne Geschichte', 'einzelne Geschichten'] };
   var ARTWAHL = [['hoerspiel', 'Hörspiel'], ['hoerbuch', 'Hörbuch'], ['musik', 'Album'], ['geschichte', 'Geschichten']];
@@ -1828,11 +1981,11 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     return d + n + ' ' + (n === 1 ? w2[2] : w2[3]) + (n <= 3 ? ': ' + pl.titel.slice(0, n).map(function (x) { return '„' + (x || '…') + '“'; }).join(', ') : '') + '.';
   }
   function wzStep1() {
-    var n = WZ.files.length, h = '<p class="muted" id="wz-files">' + (WZ.nas ? nD(n) + ' im Eingang vom NAS. Was ist das?' : nD(n) + ' gewählt (' + esc(WZ.files[0]) + (n > 1 ? ' …' : '') + '). Was ist das?') + (WZ.set.gross ? ' <strong>Eine weitere Datei („' + esc(WZ.set.gross) + '“) ist zu groß (mehr als 2 GB) und wird nicht hochgeladen.</strong>' : '') + '</p><div class="stack" id="wz-cards">';
-    ZIELE.forEach(function (z) {
-      if (z[0] === 'playlist' && stufeA()) return;
-      var dis = z[0] === 'playlist';
-      h += '<button class="wchoice" data-z="' + z[0] + '" id="wz-' + z[0] + '"' + (dis ? ' aria-disabled="true"' : '') + '><span class="wc-i" aria-hidden="true">' + ic(z[1], 26) + '</span><span class="wc-b"><span class="wc-t">' + esc(z[2]) + (dis ? ' <span class="vc2">Stufe C – Idee</span>' : '') + '</span><span class="wc-d">' + esc(z[3]) + '</span><span class="wc-e">' + esc(z[4]) + '</span></span></button>';
+    var n = WZ.files.length, h = '<p class="muted" id="wz-files">' + (WZ.nas ? nD(n) + ' im Eingang vom NAS. Was ist das?' : nD(n) + ' gewählt (' + esc(WZ.files[0]) + (n > 1 ? ' …' : '') + '). Was ist das?') + (WZ.set.gross ? ' <strong>Eine weitere Datei („' + esc(WZ.set.gross) + '“) ist zu groß (mehr als 2 GB) und wird nicht hochgeladen.</strong>' : '') + '</p><div class="wgrid" id="wz-cards">';
+    var liste = ZIELE.filter(function (z) { return !(z[0] === 'playlist' && stufeA()); });
+    liste.forEach(function (z, k) {
+      var dis = z[0] === 'playlist', wide = k === liste.length - 1 && liste.length % 2 === 1;
+      h += '<button class="wtile wchoice' + (wide ? ' wide' : '') + '" data-z="' + z[0] + '" id="wz-' + z[0] + '"' + (dis ? ' aria-disabled="true"' : '') + '><span class="wi" aria-hidden="true">' + ic(z[1], 32) + '</span><span class="wt">' + esc(z[2]) + '</span><span class="we">' + esc(z[3]) + '</span><span class="sr">. ' + esc(z[4]) + '</span></button>';
     });
     return h + '</div>';
   }
@@ -1939,8 +2092,8 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
   }
   function wzGo() {
     var W = WZ, pl = wzPlan(W), n = W.files.length;
-    if (W.ziel === 'ergaenzen' && !W.serie) { toast('Bitte zuerst wählen, wohin es soll.'); return false; }
-    if (pl.ziel === 'neu' && !String(pl.name).trim()) { toast('Bitte einen Namen eingeben.'); return false; }
+    if (W.ziel === 'ergaenzen' && !W.serie) { toastErr('Bitte zuerst wählen, wohin es soll.'); return false; }
+    if (pl.ziel === 'neu' && !String(pl.name).trim()) { toastErr('Bitte einen Namen eingeben.'); return false; }
     var ids = wzIds(pl, W), res = wzErgebnis(pl, W, ids), set = W.set;
     if (W.nas) {
       var u = W.up, s0 = u ? serie(u.ziel) : serie(W.serieId);
@@ -1969,8 +2122,12 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
   /* ---------- Klicks ---------- */
   var A = {
     go: function (t, arg) { location.hash = '#' + arg; },
+    plIdee: function () { toast('Playlists gibt es noch nicht. Das kommt später (Stufe C).'); },
+    bReset: function () { S.bib.sort = 'az'; S.bib.typ = 'alle'; S.bib.ohne = S.bib.neu = S.bib.pruefen = false; S.bib.shown = 60; render(); },
+    tClear: function () { S.tobieTerm = ''; render(); var e = $('tsuche'); if (e) e.focus(); },
+    qClear: function () { S.q = ''; var e = $('qsuche'); if (e) { e.value = ''; $('qres').innerHTML = suchBody(); e.focus(); } },
     oeffne: function (t, arg) { location.hash = '#serie-' + arg; },
-    reload: function () { S.mode = 'normal'; $('sel-zustand').value = 'normal'; render(); toast('Neu geladen.'); },
+    reload: function () { S.mode = 'normal'; S.leer = false; $('chk-leer').checked = false; $('sel-zustand').value = 'normal'; render(); toast('Neu geladen.'); },
     neuWahl: function (t, arg) {
       var uid = t.closest('[data-uid]').dataset.uid, n = S.neu.filter(function (x) { return x.uid === uid; })[0];
       var z = arg === 'aktion' ? { t: 'aktion' } : { t: 'serie', s: arg };
@@ -1982,7 +2139,7 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     },
     neuUndo: function (t, arg) { var n = S.neu.filter(function (x) { return x.uid === arg; })[0]; n.done = null; delete S.nameDone[arg]; S.tobies = S.tobies.filter(function (x) { return x.uid !== arg; }); render(); },
     neuOk: function (t, arg) { S.neu = S.neu.filter(function (x) { return x.uid !== arg; }); render(); toast('Der Tobie steht jetzt unter „Tobies“.'); $('main').focus(); },
-    nameSave: function (t, arg) { var p = arg.split('|'), v = $(p[1]).value.trim(); if (!v) { toast('Bitte einen Namen eingeben oder „Ohne Namen weiter“ wählen.'); return; } setName(p[0], v); render(); toast('Name gespeichert.'); },
+    nameSave: function (t, arg) { var p = arg.split('|'), v = $(p[1]).value.trim(); if (!v) { toastErr('Bitte einen Namen eingeben oder „Ohne Namen weiter“ wählen.'); return; } setName(p[0], v); render(); toast('Name gespeichert.'); },
     neuWeg: function (t, arg) { confirmDlg('Nicht merken?', 'Dieser Tobie spielt dann weiter die Überraschung. Legst du ihn noch einmal auf, taucht er wieder hier auf.', 'Nicht merken', function () { S.neu = S.neu.filter(function (x) { return x.uid !== arg; }); render(); }, false); },
     demoNeu: function () { if (!S.neu.length) { S.neu.push({ uid: newUid(), box: 'box1', ago: 'gerade eben', done: null }); } render(); toast('Ein neuer Tobie wurde gemeldet.'); },
     serieName: function (t, arg) { var s = serie(arg); textSheet('Umbenennen', 'Name', s.name, function (v) { s.name = v; toast('Gespeichert.'); render(); }); },
@@ -1998,7 +2155,7 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
       var s = serie(arg);
       openSheet('Was soll passieren?', '<p class="muted">Das Einsortieren hat „' + esc(s.name) + '“ nicht richtig erkannt. Du kannst es korrigieren. Nichts geht endgültig verloren.</p><div class="stack"><button class="btn primary" id="sn-anders">Anders einsortieren …</button><button class="btn" id="sn-ver">Anderem zuordnen …</button></div><div class="apart"><button class="btn link danger" id="sn-weg">In den Papierkorb …</button></div>', [{ label: 'Abbrechen' }]);
       $('sn-anders').addEventListener('click', function () { closeLayer(); var set = {}; for (var k in DEMO.nas) set[k] = DEMO.nas[k]; set.album = s.name; wzStart({ nas: true, up: null, serieId: arg, src: 'vom NAS', set: set }); });
-      $('sn-ver').addEventListener('click', function () { closeLayer(); pickZiel('In welches soll es gehören?', function (z) { if (z.s === arg) { toast('Bitte ein anderes wählen.'); return; } s.pruefen = null; toast('Verschoben nach „' + serie(z.s).name + '“ (Vorschau).'); render(); }); });
+      $('sn-ver').addEventListener('click', function () { closeLayer(); pickZiel('In welches soll es gehören?', function (z) { if (z.s === arg) { toastErr('Bitte ein anderes wählen.'); return; } s.pruefen = null; toast('Verschoben nach „' + serie(z.s).name + '“ (Vorschau).'); render(); }); });
       $('sn-weg').addEventListener('click', function () { closeLayer(); A.serieWeg(null, arg); });
     },
     folgeTobie: function (t, arg) { var p = arg.split('|'); folgeSheet(p[0], +p[1]); },
@@ -2018,7 +2175,7 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
       var s = serie(arg), tc = S.tobies.filter(function (x) { return x.z.s === arg; });
       confirmDlg('„' + s.name + '“ in den Papierkorb?', 'Es verschwindet aus der Bibliothek.' + (tc.length ? ' ' + tc.length + (tc.length === 1 ? ' Tobie spielt' : ' Tobies spielen') + ' dann nichts mehr: ' + tc.map(function (x) { return x.name || 'Tobie ohne Namen'; }).join(', ') + '.' : '') + ' Der Administrator bekommt eine Mitteilung und kann es zurückholen.', 'In den Papierkorb', function () { S.series = S.series.filter(function (x) { return x.id !== arg; }); S.tobies = S.tobies.filter(function (x) { return x.z.s !== arg; }); S.korb.push('„' + s.name + '“'); location.hash = '#bibliothek'; toast('„' + s.name + '“ ist im Papierkorb.'); }, true);
     },
-    zusammen: function (t, arg) { pickZiel('Mit welchem zusammenführen?', function (z) { if (z.s === arg) { toast('Bitte ein anderes wählen.'); return; } toast('In der Vorschau nicht ausgeführt.'); }); },
+    zusammen: function (t, arg) { pickZiel('Mit welchem zusammenführen?', function (z) { if (z.s === arg) { toastErr('Bitte ein anderes wählen.'); return; } toast('In der Vorschau nicht ausgeführt.'); }); },
     lern: function (t, arg) { var p = arg.split('|'); startLern({ t: 'serie', s: p[0] }, p[2]); },
     lernAbbruch: function () { var z = S.lern.z; clearInterval(S.lern.timer); S.lern = null; location.hash = z.t === 'aktion' ? '#start' : '#serie-' + z.s; toast('Abgebrochen.'); },
     lernErkannt: function () { clearInterval(S.lern.timer); S.lern.state = 'fertig'; S.lern.uid = newUid(); S.tobies.push({ uid: S.lern.uid, name: '', z: S.lern.z, n: ++tobieN }); $('live').textContent = 'Erkannt. Dieser Tobie spielt jetzt ' + zielName(S.lern.z); render(); },
@@ -2140,8 +2297,9 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
   $('opt-admin').textContent = 'Administrator (' + NAMEN.personA + ')'; $('opt-user').textContent = 'Benutzer ohne Admin (' + NAMEN.personB + ')'; $('btn-demoneu').textContent = 'Tobie auf ' + NAMEN.box1 + ' legen (Demo)';
   $('sel-rolle').addEventListener('change', function (e) { S.admin = e.target.value === 'admin'; if (!S.admin && route().v === 'technik') location.hash = '#start'; render(); });
   $('sel-theme').addEventListener('change', function (e) { applyTheme(e.target.value); });
+  $('chk-leer').addEventListener('change', function (e) { S.leer = e.target.checked; render(); });
   $('sel-zustand').addEventListener('change', function (e) { S.mode = e.target.value; render(); });
-  $('sel-stufe').addEventListener('change', function (e) { S.stufe = e.target.value; if (stufeA() && location.hash === '#gehoert') location.hash = '#start'; render(); });
+  $('sel-stufe').addEventListener('change', function (e) { S.stufe = e.target.value; if (stufeA() && location.hash === '#gehoert') location.hash = '#mehr'; render(); });
   hLoad(); pMini();
   S.boxes[0].folge = serie('lange-serie').folgen[3].t;
   if (!location.hash) { history.replaceState(null, '', '#start'); }
