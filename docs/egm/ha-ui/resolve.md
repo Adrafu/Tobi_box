@@ -57,3 +57,16 @@ Weiterhören je Folge und je HA-Benutzer in HA gespeichert. Wird in Entwurf Rev.
 | 23a | **(Tobias)** „Gehört“ ohne Umschalter Boxen/Reinhören und ohne Hinweistext: eine Auswahl „Wer?“ mit Alle, Box 1, Box 2 (Anzeigenamen aus HA) und den HA-Benutzern, die reingehört haben. |
 | 25 | **(Tobias)** Rückfall wie im Entwurf: passt. |
 | N | **(Tobias)** Echte Namen (Kinder und Eltern) nie im Repo; Prototyp im Repo mit Platzhaltern. |
+
+## Goldfisch-Review Rev. 4a (`review_goldfisch_rev4.md`, G1–G31)
+
+| Frage | Entscheidung |
+|---|---|
+| 1 Stufe A schneiden (G14) | **(Tobias)** Drei Teile mit je eigener Abnahme: **A-1** Alltag (Bibliothek, Tobies, Hochladen, Abends, Rechte), **A-2** Reinhören mit Weiterhören, **A-3** Hörkopien und Kapitel. |
+| 2 Hörkopien wann (G1) | **(Tobias)** Neu Einsortiertes sofort, Bestand erst beim ersten Reinhören („Hörprobe wird vorbereitet“). Ersetzt für die Hörkopien den Hintergrund-Lauf über den Bestand (Nr. 18 gilt weiter für die Dauer). Grenzen aus G1 (Dauerdeckel, feste Zeitgrenze, Schlangenlimit) gelten. |
+| 3 Upload-Grenze (G15) | **(Tobias)** Auf **2 GiB** je Datei anheben. |
+| 4 Papierkorb für alle (G8) | **(Empf.)** Mitteilung an Administratoren plus „Letzte Stunde zurückholen“; kein Tageslimit. |
+| 5 „Anders einsortieren“ (G9) | **(Empf.)** Nur für Einträge „bitte ansehen“ oder jünger als 24 Stunden. |
+| 6 Gesperrtes Handy (G18) | **(Tobias)** Abspiel-Link gilt **24 Stunden** wie bei HA (ersetzt Nr. 14: 1 Stunde). |
+
+Alle übrigen Befunde G1–G31 und die offenen U-Punkte (U2, U6, U8, U10, U15, U18, U22, U25) arbeitet Rev. 5 nach den Vorschlägen des Reviews ein.
