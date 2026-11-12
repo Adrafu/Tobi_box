@@ -138,6 +138,9 @@ dem Design folgt:
 | **Schreiben und Auslösen** (alles andere, auch `medien/pruefen` und `eingang/sortieren`, weil sie `serie.json` anlegen) | **nur Administratoren** | `@websocket_api.require_admin`; Fehler `unauthorized` |
 | **Upload** (HTTP) | nur Administratoren | der fertige Dekorator `homeassistant.components.http.decorators.require_admin` (W-19); HA wandelt `Unauthorized` in **401** um. Die Seite wertet in beiden Fällen (401, 403) den `code` aus. |
 
+**HA-Aktionen** (`services.py`, kein WebSocket-Befehl) sind alle schreibend und deshalb ebenfalls nur für
+Administratoren (`async_register_admin_service`; Sicherheitsbefund U1, 12.11.).
+
 **Die Seite in der Seitenleiste ist nur für Administratoren** (`panel_custom`,
 `require_admin=True`; Vorgabe der Projektleitung 09.11.). Das blendet die Seite für
 andere Nutzer aus, **ersetzt aber keine Prüfung**: Das Backend prüft bei jedem

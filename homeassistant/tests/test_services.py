@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+import voluptuous as vol
 from homeassistant.exceptions import ServiceValidationError
 
 from custom_components.tobibox.const import DOMAIN
@@ -143,3 +144,54 @@ async def test_sync_update_ausrollen_eingang(hass, dienste, integration, box_fab
     assert integration.store.liste_id != alt
     await dienste("eingang_einsortieren", sofort=True)
     await hass.async_block_till_done()
+
+
+# --------------------------------------------------------------------------
+# Sicherheitsbefund U1: alle Aktionen ändern etwas, also nur für Administratoren
+# --------------------------------------------------------------------------
+
+
+async def test_alle_aktionen_sind_admin_aktionen(hass, dienste, hass_read_only_user):
+    """Keine Aktion der Integration ist offen registriert (Prüfung über die Dienste-Registry)."""
+    namen = set(hass.services.async_services_internal()[DOMAIN])
+    assert "papierkorb_leeren" in namen and "serie_loeschen" in namen and "liste_neu_ausrollen" in namen
+    from homeassistant.core import Context
+    from homeassistant.exceptions import Unauthorized
+
+    # Ein Benutzer ohne Adminrechte darf keine einzige Aktion rufen (HA prüft zuerst das Schema, dann das Recht: mit leeren Daten kommt
+    # je nach Aktion ``Invalid`` oder ``Unauthorized``; nie darf ein Aufruf durchgehen. Genau ``Unauthorized`` prüft der nächste Test)
+    nutzer = hass_read_only_user
+    for name in sorted(namen):
+        with pytest.raises((Unauthorized, vol.Invalid)):
+            await hass.services.async_call(DOMAIN, name, {}, blocking=True, context=Context(user_id=nutzer.id))
+
+
+@pytest.mark.parametrize(
+    ("aktion", "daten"),
+    [
+        ("serie_loeschen", {"serie_id": "rabe"}),
+        ("papierkorb_leeren", {"bestaetigt": True}),
+        ("liste_neu_ausrollen", {"bestaetigt": True}),
+        ("sync_anstossen", {"box": "box1"}),
+        ("update_anstossen", {"box": "box1"}),
+        ("serie_anlegen", {"name": "Neu"}),
+        ("loesen", {"uid": UID}),
+    ],
+)
+async def test_nicht_admin_darf_aendernde_aktion_nicht(hass, dienste, integration, hass_read_only_user, aktion, daten):
+    from homeassistant.core import Context
+    from homeassistant.exceptions import Unauthorized
+
+    vorher = dict(integration.store.konfig)
+    with pytest.raises(Unauthorized):
+        await hass.services.async_call(DOMAIN, aktion, daten, blocking=True, context=Context(user_id=hass_read_only_user.id))
+    assert integration.store.konfig == vorher and "rabe" in integration.medien.serien
+
+
+async def test_admin_darf_aendernde_aktion(hass, dienste, integration, box_fabrik, hass_admin_user):
+    from homeassistant.core import Context
+
+    await hass.services.async_call(
+        DOMAIN, "sync_anstossen", {"box": "box1"}, blocking=True, context=Context(user_id=hass_admin_user.id)
+    )
+    assert [c["befehl"] for c in box_fabrik("box1").befehle()] == ["sync"]

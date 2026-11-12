@@ -87,8 +87,17 @@ Schritte:
 | `namen.py` | Namensregeln (SMB), natürliche Sortierung, Tag-Werte, Folgen-Nummer |
 | `mqtt.py`, `lernmodus.py` | MQTT-Schicht, Lernmodus mit Rückfrage und `persistent_notification` |
 | `websocket_api.py`, `http.py` | die 32 Befehle von Vertrag W, Upload im Strom mit `asyncio.shield` |
-| `services.py`, `services.yaml` | HA-Aktionen (rufen dieselben Funktionen) |
+| `services.py`, `services.yaml` | HA-Aktionen (rufen dieselben Funktionen); **alle nur für Administratoren** (Abschnitt „Aktionen und Rechte“) |
 | `strings.json`, `translations/de.json` | alle Texte (gleicher Inhalt) |
+
+## Aktionen und Rechte
+
+Alle HA-Aktionen der Integration (`tobibox.zuordnen`, `serie_loeschen`, `papierkorb_leeren`, `liste_neu_ausrollen`,
+`sync_anstossen` und die übrigen) ändern etwas oder lösen etwas aus. Sie sind mit `async_register_admin_service`
+angemeldet: **nur Administratoren** dürfen sie aufrufen; ein Benutzer ohne Adminrechte (auch ein Wandtablet-Konto)
+bekommt `Unauthorized`. Aufrufe ohne Benutzer (Automationen, Skripte, System) bleiben erlaubt, denn HA prüft die
+Rechte nur, wenn ein Benutzer den Aufruf auslöst. Es gibt keine lesende Aktion; Lesen geht nur über die
+WebSocket-Befehle. Dort tragen alle schreibenden Befehle `require_admin`, der Upload ebenso (Vertrag W, Abschnitt 2.1).
 
 ## Abweichungen und Auslegungen (gemeldet an die Projektleitung)
 

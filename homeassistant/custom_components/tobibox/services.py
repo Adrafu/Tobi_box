@@ -15,6 +15,7 @@ from typing import Any
 from homeassistant.core import HomeAssistant, ServiceCall, callback
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers.service import async_register_admin_service
 
 from .const import DOMAIN
 from .fehler import TobiboxFehler
@@ -264,4 +265,6 @@ def async_setup_services(hass: HomeAssistant) -> None:
         ("lesezeichen_tage_setzen", lesezeichen_tage_setzen, vol.Schema({vol.Required("tage"): _zahl})),
     ]
     for name, func, schema in texte:
-        hass.services.async_register(DOMAIN, name, _wrap(func), schema=schema)
+        # Alle Aktionen ändern etwas oder lösen etwas aus: nur Administratoren (Sicherheitsbefund U1). Ohne Benutzer
+        # im Kontext (Automationen, Skripte, System) bleibt der Aufruf erlaubt, HA prüft nur, wenn ein Benutzer ruft.
+        async_register_admin_service(hass, DOMAIN, name, _wrap(func), schema=schema)
