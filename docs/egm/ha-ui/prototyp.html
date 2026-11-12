@@ -252,8 +252,16 @@ h3 { font-size: 17px; font-weight: 500; margin: 0 0 4px; }
 .row:first-child { border-top: 0; }
 .row .grow { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .row .num { width: 36px; height: 36px; border-radius: 18px; background: var(--primary-soft); color: var(--primary-ink); display: grid; place-items: center; font-weight: 500; flex: none; }
-.rowbtn { width: 100%; border: 0; background: none; text-align: left; padding: 10px 0; display: flex; align-items: center; gap: 12px; min-height: 56px; border-top: 1px solid var(--divider); border-radius: 0; }
+.rowbtn { width: 100%; border: 0; background: none; color: inherit; text-align: left; padding: 10px 4px; margin: 0; display: flex; align-items: center; gap: 12px; min-height: 56px; border-top: 1px solid var(--divider); border-radius: 0; cursor: pointer; }
 .rowbtn:first-child { border-top: 0; }
+/* X10: ganze Zeile ist die Tippfläche, ruhiger Pfeil an fester Stelle am rechten Rand */
+.rowbtn .grow { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.rowbtn .chev { flex: none; width: 24px; height: 24px; display: grid; place-items: center; color: var(--text2); }
+.rowbtn .chev svg { width: 24px; height: 24px; fill: currentColor; display: block; }
+.rowbtn .nm { font-weight: 500; }
+.rowbtn:active { background: var(--primary-soft); }
+@media (hover: hover) { .rowbtn:hover { background: var(--primary-soft); } }
+.rowbtn:focus-visible { outline-offset: -3px; border-radius: 8px; }
 .iconbtn { min-width: 48px; min-height: 48px; border-radius: 24px; border: 1px solid var(--line); background: var(--card); display: inline-grid; place-items: center; font-size: 18px; }
 .back { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; border: 0; background: none; color: var(--primary-ink); font-weight: 500; padding: 0 8px 0 0; }
 .back svg { width: 24px; height: 24px; fill: currentColor; }
@@ -602,7 +610,7 @@ dialog.player .pin { touch-action: pan-x; }
         <select id="sel-stufe"><option value="abc">A, dazu B und C als Vorschau</option><option value="a">Nur Stufe A (wird gebaut)</option></select>
       </label>
       <label for="sel-dateien">Gewählte Dateien beim Hochladen (Demo)
-        <select id="sel-dateien"><option value="kapitel">3 Dateien, Album „Kapitän Knopf“ (Tags da)</option><option value="lieder">4 Dateien, Album „Sommerlieder“ (Genre Kinderlieder)</option><option value="eins">1 Datei: „Der Mond und der Fuchs“</option><option value="ohne">2 Dateien ohne Tags (Aufnahme_001)</option><option value="teilweise">3 Dateien, die dritte kommt nicht an</option><option value="gross">2 Dateien, dazu eine über 2 GB</option><option value="schutz">1 Datei mit Kopierschutz (.m4b)</option></select>
+        <select id="sel-dateien"><option value="kapitel">3 Dateien, Album „Kapitän Knopf“ (Tags da)</option><option value="lieder">4 Dateien, Album „Sommerlieder“ (Genre Kinderlieder)</option><option value="eins">1 Datei: „Der Mond und der Fuchs“</option><option value="ohne">2 Dateien ohne Tags (Aufnahme_001)</option><option value="teilweise">3 Dateien, die dritte kommt nicht an</option><option value="gross">2 Dateien, dazu eine über 2 GB</option><option value="format">1 Datei im falschen Format (.wma)</option><option value="schutz">1 Datei mit Kopierschutz (.m4b)</option></select>
       </label>
       <label class="chk" for="chk-leer"><input type="checkbox" id="chk-leer" data-fk="chkleer"> Leer zeigen (leere Zustände)</label>
       <div class="rights" id="rights" aria-live="polite"></div>
@@ -1012,11 +1020,11 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     var s = x.s, f = x.f;
     return '<div class="frow"><a class="slink" href="#serie-' + s.id + '" data-fk="sl' + s.id + x.i + '">' + coverHtml(s, 'sm') + '<span class="grow"><span class="nm" style="display:block">' + hl(f.t, term) + '</span><span class="muted" style="display:block">' + (s.einzeln ? 'Einzeltitel · ' : esc(s.name) + ' · ') + clock(f.d) + '</span></span></a>' +
       '<button class="iconbtn fillp" data-act="playF" data-arg="' + s.id + '|' + x.i + '" data-fk="sp' + s.id + x.i + '" aria-label="' + esc(f.t) + ' anhören">' + ic(P.sid === s.id && P.i === x.i && P.playing ? 'pause' : 'play', 24) + '</button>' +
-      '<button class="btn" data-act="folgeTobie" data-arg="' + s.id + '|' + x.i + '" data-fk="st' + s.id + x.i + '" aria-label="Tobie für ' + esc(f.t) + ' anlernen">Tobie</button></div>';
+      '<button class="iconbtn plain" data-act="folgeMehr" data-arg="' + s.id + '|' + x.i + '" data-fk="st' + s.id + x.i + '" aria-label="Mehr zu ' + esc(f.t) + '">' + ic('more', 22) + '</button></div>';
   }
   function suchBody() {
     var term = S.q.trim();
-    if (term.length < 2) return '<div class="muted" style="padding:8px 4px">Tippe mindestens 2 Buchstaben. Gesucht wird in Hörspielen, Büchern, Alben, Folgen, Liedern und in den Namen der Tobies.</div>';
+    if (term.length < 2) return '<div class="muted" style="padding:8px 4px">Tippe mindestens 2 Buchstaben.</div>';
     var B = { term: term, art: 'alle', ohne: false, neu: false, pruefen: false, sort: 'az', shown: 60 }, tnorm = norm(term);
     var ser = seriesFiltered(B).filter(function (s) { return !s.einzeln; }), fol = folgenFiltered(B), tob = S.tobies.filter(function (t) { return t.name && norm(t.name).indexOf(tnorm) >= 0; });
     if (isLeer()) { ser = []; fol = []; tob = []; }
@@ -1047,7 +1055,7 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
   function kapSection(s) {
     var f = s.folgen[0], e = hGet(s.id, 0), cur = P.sid === s.id && P.i === 0, fe = fertig(e);
     var pos = cur ? pNow() : (e ? e.p : 0), started = cur || (e && e.p > 1), ci = (fe && !cur) ? f.kap.length : (started ? kapIdx(f.kap, pos) : -1);
-    var h = '<h2 style="margin:8px 0 4px">Kapitel</h2><div class="muted" style="margin-bottom:8px">' + f.kap.length + ' Kapitel. Tippe auf ein Kapitel, dann geht es dort los. Im Player kannst du über das ganze Buch springen.</div><div class="card"><div class="kaps" id="kaps" data-sid="' + s.id + '" data-cur="' + ci + '">';
+    var h = '<h2 style="margin:8px 0 4px">Kapitel</h2><div class="muted" style="margin-bottom:8px">' + f.kap.length + ' Kapitel</div><div class="card"><div class="kaps" id="kaps" data-sid="' + s.id + '" data-cur="' + ci + '">';
     f.kap.forEach(function (k, j) {
       var end = j + 1 < f.kap.length ? f.kap[j + 1].s : f.d, isCur = j === ci, done = j < ci, pl = isCur && cur && P.playing;
       h += '<button class="krow' + (isCur ? ' cur' : '') + '" data-act="playK" data-arg="' + s.id + '|0|' + j + '" data-fk="kr' + j + '"' + (isCur ? ' aria-current="true"' : '') + ' aria-label="' + esc(k.t) + ', ab ' + clock(k.s) + (isCur ? ', aktuelles Kapitel' : done ? ', schon gehört' : '') + (pl ? ', pausieren' : ', abspielen') + '">' +
@@ -1077,7 +1085,7 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
       '<div class="hbtns">' + reinBtn(s) + '<button class="btn" data-act="serieTobie" data-arg="' + id + '" data-fk="stobie">' + ic('tag', 20) + 'Tobie zuordnen</button></div></div></div>';
     if (s.pruefen) h += '<div class="note warn"><strong>Bitte kurz ansehen.</strong><br>' + esc(s.pruefen) + '<div class="btns"><button class="btn" data-act="geprueft" data-arg="' + id + '" data-fk="gep">Das ist richtig</button><button class="btn" data-act="stimmtNicht" data-arg="' + id + '" data-fk="stn">Das stimmt nicht</button></div></div>';
     if (s.folgen.some(function (f) { return f.kopie === 'wartet'; })) h += '<div class="note" role="status"><strong>Die Hörprobe wird vorbereitet.</strong><br>Dieses Format (OGG) spielt nicht jeder Browser. Home Assistant legt dafür einmal eine kleine Kopie an. Bei einem Lied dauert das etwa eine Minute, bei einem langen Hörbuch bis zu einer halben Stunde. Du kannst die Seite offen lassen, sie sagt Bescheid. Auf der Box spielt es schon.<div class="bar" style="margin-top:8px" aria-hidden="true"><i style="width:60%"></i></div></div>';
-    if (s.einzeln) return h + '<div class="note">Das ist ein einzelnes ' + (s.art === 'musik' ? 'Lied' : s.art === 'geschichte' ? 'Stück' : 'Stück') + '. Es steht für sich und gehört zu keinem Album. Du kannst einen Tobie dafür anlernen.</div>';
+    if (s.einzeln) return h;
     if (s.art === 'hoerbuch' && s.folgen.length === 1 && s.folgen[0].kap) return h + kapSection(s);
     var n = s.folgen.length;
     h += '<div class="btns" style="justify-content:space-between;align-items:center"><h2 style="margin:8px 0">' + (s.art === 'musik' ? 'Lieder' : s.art === 'hoerbuch' ? 'Hörbuch' : s.art === 'geschichte' ? 'Geschichten' : 'Folgen') + '</h2>' +
@@ -1137,23 +1145,21 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
       if (u.step === 0) h += '<div class="bar" role="progressbar" aria-label="' + esc(u.name) + ' hochladen" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + gesamt + '"><i style="width:' + gesamt + '%"></i></div>';
       if (u.hinweis) h += '<div class="note warn" style="margin:8px 0 0">' + esc(u.hinweis) + '</div>';
     } else if (u.unterbrochen) {
-      h += '<div class="note warn" style="margin:8px 0 0" role="alert"><strong>Es fehlt noch eine Datei.</strong><br>' + (u.k - 1) + ' von ' + u.n + ' Dateien sind angekommen. Wähle die fehlende Datei noch einmal. Einsortiert wird noch bis zu 30 Minuten nicht. Kommt sie bis dahin nicht, wird mit den vorhandenen Dateien einsortiert und mit „Bitte ansehen“ markiert.</div><div class="btns"><button class="btn" data-act="x" data-arg="Die fehlende Datei wird noch einmal gewählt (Vorschau)" data-fk="fehlt' + u.id + '">Fehlende Datei wählen</button></div>';
+      h += '<div class="note warn" style="margin:8px 0 0" role="alert"><strong>Die Verbindung ist abgebrochen.</strong><br>Die Seite wurde geschlossen oder der Bildschirm gesperrt. ' + (u.k - 1) + ' von ' + u.n + ' Dateien sind angekommen. Wähle die fehlende Datei noch einmal. Einsortiert wird noch bis zu 30 Minuten nicht. Kommt sie bis dahin nicht, wird mit den vorhandenen Dateien einsortiert und mit „Bitte ansehen“ markiert.</div><div class="btns"><button class="btn" data-act="x" data-arg="Die fehlende Datei wird noch einmal gewählt (Vorschau)" data-fk="fehlt' + u.id + '">Fehlende Datei wählen</button></div>';
     } else if (u.block) {
       h += '<div class="note err" style="margin:8px 0 0" role="alert"><strong>Geht leider nicht.</strong><br>' + esc(u.block) + '</div>';
     } else if (u.pruefen && !u.ok) {
       h += '<div class="note warn" style="margin:8px 0 0"><strong>Bitte kurz ansehen.</strong><br>' + esc(u.pruefen) + '<div style="margin-top:6px"><strong>Daraus ist geworden:</strong> ' + esc(u.ergebnis || '') + '</div><div class="btns"><a class="btn" href="#serie-' + u.ziel + '" data-fk="ans' + u.id + '">Ansehen</a><button class="btn" data-act="upOk" data-arg="' + u.id + '" data-fk="ok' + u.id + '">Das ist richtig</button>' + (u.nas ? '<button class="btn" data-act="anders" data-arg="' + u.id + '" data-fk="an' + u.id + '">Anders einsortieren …</button>' : '<button class="btn" data-act="stimmtNicht" data-arg="' + u.ziel + '" data-fk="sn' + u.id + '">Das stimmt nicht</button>') + '</div></div>';
     } else {
-      h += '<div class="steps" aria-hidden="true"><span class="done"></span><span class="done"></span><span class="done"></span></div><div><span class="badge ok">fertig</span> ' + esc(u.ergebnis) + '</div><div class="btns" style="margin-top:8px"><a class="btn" href="#serie-' + u.ziel + '" data-fk="auf' + u.id + '">Öffnen</a></div>' + (u.art ? '<div class="muted">Art: ' + esc(u.art) + ' (aus den Tags vorgeschlagen). Stimmt nicht? Im Eintrag „Art ändern“.</div>' : '');
+      h += '<div class="steps" aria-hidden="true"><span class="done"></span><span class="done"></span><span class="done"></span></div><div><span class="badge ok">fertig</span> ' + esc(u.ergebnis) + '</div><div class="btns" style="margin-top:8px"><a class="btn" href="#serie-' + u.ziel + '" data-fk="auf' + u.id + '">Öffnen</a></div>' + '';
     }
     return h + '</div>';
   }
   function vHinzufuegen() {
     var fine = window.matchMedia && window.matchMedia('(pointer: fine)').matches;
     var h = '<button class="back" data-act="go" data-arg="start" data-fk="back">' + ic('back') + 'Start</button><h2 style="margin-top:8px">Hinzufügen</h2>';
-    h += '<div class="drop" id="dropzone">Auf dem Computer kannst du Dateien oder einen ganzen Ordner auch hierher ziehen.</div>';
+    h += '<div class="drop" id="dropzone">Dateien oder Ordner hierher ziehen</div>';
     h += '<div class="grid2"><button class="btn big primary" data-act="addHandy" data-fk="handy">' + ic('plus') + 'Dateien wählen</button>' + (fine ? '<button class="btn big" data-act="addOrdner" data-fk="ordner">' + ic('lib') + 'Ordner vom Computer wählen</button>' : '') + '</div>';
-    h += '<p class="muted">Hörspiele, Hörbücher, Musik, Geschichten. Erlaubt: MP3, M4A, M4B, AAC, FLAC, OGG, Opus, WAV. Bis 2 GB je Datei. Kopiergeschützte Dateien (zum Beispiel von Audible) gehen nicht. Lass den Bildschirm an, bis alles fertig ist.</p>';
-    h += '<div class="note">Du kannst Dateien auch am Computer in den Eingang-Ordner auf dem NAS kopieren. Sie erscheinen hier von selbst und werden nach den Angaben in den Dateien einsortiert. Stimmt etwas nicht, kannst du es hier anders einsortieren. Frag den Administrator nach dem Ordner.</div>';
     h += '<h2>Zuletzt hinzugefügt</h2>';
     if (!S.uploads.length) h += '<div class="card muted">In den letzten 24 Stunden wurde nichts hinzugefügt.</div>';
     else h += '<div class="card" id="uplist">' + S.uploads.map(uploadItem).join('') + '</div>';
@@ -1163,11 +1169,11 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
   /* ---------- Tobies ---------- */
   function tobieRow(t) {
     var act = t.z.t === 'aktion', s = act ? null : serie(t.z.s);
-    return '<button class="rowbtn" data-act="tobie" data-arg="' + t.uid + '" data-fk="t' + t.uid + '">' + (s ? coverHtml(s, 'sm') : '<div class="cover sm" style="background-color:var(--primary);color:var(--on-primary)" aria-hidden="true">' + ic('moon', 24) + '</div>') +
-      '<span class="grow"><strong>' + esc(t.name || 'Tobie ohne Namen') + '</strong><br><span class="muted">spielt ' + esc(zielText(t.z)) + (t.z.t === 'folge' ? (s.art === 'musik' ? ' (ein Lied)' : ' (eine Folge)') : '') + '</span></span><span class="btn">Ändern</span></button>';
+    return '<button class="rowbtn" data-act="tobie" data-arg="' + t.uid + '" data-fk="t' + t.uid + '" aria-label="' + esc(t.name || 'Tobie ohne Namen') + ' bearbeiten">' + (s ? coverHtml(s, 'sm') : '<div class="cover sm" style="background-color:var(--primary);color:var(--on-primary)" aria-hidden="true">' + ic('moon', 24) + '</div>') +
+      '<span class="grow"><strong>' + esc(t.name || 'Tobie ohne Namen') + '</strong><br><span class="muted">spielt ' + esc(zielText(t.z)) + (t.z.t === 'folge' ? (s.art === 'musik' ? ' (ein Lied)' : ' (eine Folge)') : '') + '</span></span>' + '<span class="chev" aria-hidden="true">' + ic('chev', 24) + '</span>' + '</button>';
   }
   function vTobies() {
-    var h = '<h2 style="margin-top:0">Tobies</h2><div class="muted" style="margin-bottom:12px">Alle Tobies, die schon etwas spielen. Der zuletzt angelernte steht oben. Einen neuen legst du einfach auf eine Box. Dann erscheint er auf der Startseite.</div>';
+    var h = '<h2 style="margin-top:0">Tobies</h2>';
     if (isLeer() || !S.tobies.length) return h + leerKarte('tobies', 'Noch keine Tobies. Lege einen Tobie auf eine Box, dann erscheint er auf der Startseite.', '<a class="btn primary" href="#start" data-fk="leerstart">Zur Startseite</a>');
     var term = norm(S.tobieTerm);
     var l = S.tobies.slice().sort(function (a, c) { return c.n - a.n; }).filter(function (t) { return !term || norm(t.name || 'ohne namen').indexOf(term) >= 0 || norm(zielName(t.z)).indexOf(term) >= 0; });
@@ -1195,7 +1201,7 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     h += '<div class="muted" style="margin-top:12px">' + (hat ? 'Ein Gute-Nacht-Tobie ist angelernt („Nacht-Karte“).' : 'Noch kein Gute-Nacht-Tobie.') + ' <button class="btn link" data-act="gnHilfe" data-fk="gnh">So legst du einen an</button></div></div>';
     h += '<div class="card"><h3>Leise-Zeiten</h3><div class="muted">In diesen Zeiten ist die Box leiser oder still.</div>';
     h += '<div class="rows" style="margin-top:12px">' + (S.windows.length ? S.windows.map(function (w) {
-      return '<button class="rowbtn" data-act="winEdit" data-arg="' + w.id + '" data-fk="w' + w.id + '"><span class="grow"><strong>' + dayLabel(w.tage) + '</strong><br><span class="muted">' + w.von + ' bis ' + w.bis + (mins(w.bis) < mins(w.von) ? ' (bis zum nächsten Morgen)' : '') + ' · ' + wirkText(w) + '</span></span><span class="btn">Ändern</span></button>';
+      return '<button class="rowbtn" data-act="winEdit" data-arg="' + w.id + '" data-fk="w' + w.id + '" aria-label="' + dayLabel(w.tage) + ', ' + w.von + ' bis ' + w.bis + ' bearbeiten"><span class="grow"><strong>' + dayLabel(w.tage) + '</strong><br><span class="muted">' + w.von + ' bis ' + w.bis + (mins(w.bis) < mins(w.von) ? ' (bis zum nächsten Morgen)' : '') + ' · ' + wirkText(w) + '</span></span>' + '<span class="chev" aria-hidden="true">' + ic('chev', 24) + '</span>' + '</button>';
     }).join('') : '<div class="muted">Keine Leise-Zeiten. Die Box spielt immer in normaler Lautstärke.</div>') + '</div>';
     h += '<div style="margin-top:12px"><button class="btn primary" data-act="winNeu" data-fk="wnew">' + ic('plus', 20) + 'Zeit hinzufügen</button></div></div>';
     return h;
@@ -1330,7 +1336,7 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     var ser = S.series;
     function row(nm, sub) { var s = ser.filter(function (x) { return x.name === nm; })[0]; return s ? '<button class="tile" data-act="oeffne" data-arg="' + s.id + '" data-fk="g' + s.id + '"><span class="pos">' + coverHtml(s) + '</span><span class="tn">' + esc(s.name) + '</span><span class="tm">' + esc(sub) + '</span></button>' : ''; }
     h += '<h2>Zuletzt gehört' + badgeB() + '</h2><div class="hscroll">' + [['Lange Serie', 'heute 17:40'], ['Kinderlieder zum Mitsingen', 'heute 16:05'], ['Pirat Pippo', 'gestern'], ['Schlaflieder', 'gestern'], ['Kommissar Kralle', 'Mo']].map(function (e) { return row(e[0], e[1]); }).join('') + '</div>';
-    h += '<h2>Favoriten' + badgeB() + '</h2><div class="muted" style="margin-bottom:8px">Mit dem Stern in jedem Eintrag markiert. Gilt für alle in der Familie.</div><div class="hscroll">' + [['Kinderlieder zum Mitsingen', '★ Favorit'], ['Lange Serie', '★ Favorit'], ['Abenteuer im Wald', '★ Favorit']].map(function (e) { return row(e[0], e[1]); }).join('') + '</div>';
+    h += '<h2>Favoriten' + badgeB() + '</h2><div class="hscroll">' + [['Kinderlieder zum Mitsingen', '★ Favorit'], ['Lange Serie', '★ Favorit'], ['Abenteuer im Wald', '★ Favorit']].map(function (e) { return row(e[0], e[1]); }).join('') + '</div>';
     h += '<div style="margin-top:24px;padding-top:8px;border-top:1px solid var(--divider)"><button class="btn link danger" data-act="reinDel" data-fk="reindel">Meine Reinhör-Daten löschen …</button></div>';
     return h;
   }
@@ -1351,8 +1357,8 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
   }
   function korbSec() {
     if (isLeer()) return '<details class="sec"><summary>Papierkorb (0)</summary><div class="inner">' + leerKarte('korb', 'Der Papierkorb ist leer.', '<a class="btn primary" href="#bibliothek" data-fk="leerkorb">Zur Bibliothek</a>', true) + '</div></details>';
-    return '<details class="sec"><summary>Papierkorb (' + (2 + S.korb.length) + ')</summary><div class="inner"><div class="muted" style="margin-bottom:12px">Wenn jemand ohne Admin-Rechte einen Eintrag mit Tobies oder mehr als 3 Einträge in einer Stunde in den Papierkorb legt, bekommen Administratoren eine Mitteilung in Home Assistant.</div><div class="btns" style="margin-bottom:12px"><button class="btn" data-act="x" data-arg="Alles der letzten Stunde zurückgeholt (Vorschau)" data-fk="pkstd">Letzte Stunde zurückholen</button></div><div class="rows">' + S.korb.map(function (k) { return '<div class="row"><div class="grow">' + esc(k) + '<br><span class="muted">gerade eben in den Papierkorb gelegt von ' + (S.admin ? NAMEN.personA : NAMEN.personB) + '</span></div><button class="btn" data-act="x" data-arg="Wiederhergestellt" data-fk="pk' + esc(k) + '">Wiederherstellen</button></div>'; }).join('') +
-      '<div class="row"><div class="grow">Folge „Probe 3“ aus Test-Serie<br><span class="muted">gelöscht am 08.11., 11:00 von ' + NAMEN.personB + '</span></div><button class="btn" data-act="x" data-arg="Wiederhergestellt" data-fk="p1">Wiederherstellen</button></div><div class="row"><div class="grow">„Alte Serie“<br><span class="muted">gelöscht am 02.11., 09:30 von ' + NAMEN.personA + '</span></div><button class="btn" data-act="x" data-arg="Wiederhergestellt" data-fk="p2">Wiederherstellen</button></div></div><div style="margin-top:24px"><button class="btn danger" data-act="korbLeer" data-fk="p3">Papierkorb leeren …</button></div></div></details>';
+    return '<details class="sec"><summary>Papierkorb (' + (2 + S.korb.length) + ')</summary><div class="inner"><div class="btns" style="margin-bottom:12px"><button class="btn" data-act="x" data-arg="Alles der letzten Stunde zurückgeholt (Vorschau)" data-fk="pkstd">Letzte Stunde zurückholen</button></div><div class="rows">' + S.korb.map(function (k) { return '<button class="rowbtn" data-act="x" data-arg="Wiederhergestellt" data-fk="pk' + esc(k) + '" aria-label="' + esc(k) + ' wiederherstellen"><span class="grow">' + esc(k) + '<br><span class="muted">gerade eben in den Papierkorb gelegt von ' + (S.admin ? NAMEN.personA : NAMEN.personB) + ' · Tippen zum Wiederherstellen</span></span><span class="chev" aria-hidden="true">' + ic('chev', 24) + '</span></button>'; }).join('') +
+      '<button class="rowbtn" data-act="x" data-arg="Wiederhergestellt" data-fk="p1" aria-label="Folge „Probe 3“ aus Test-Serie wiederherstellen"><span class="grow">Folge „Probe 3“ aus Test-Serie<br><span class="muted">gelöscht am 08.11., 11:00 von ' + NAMEN.personB + ' · Tippen zum Wiederherstellen</span></span><span class="chev" aria-hidden="true">' + ic('chev', 24) + '</span></button><button class="rowbtn" data-act="x" data-arg="Wiederhergestellt" data-fk="p2" aria-label="„Alte Serie“ wiederherstellen"><span class="grow">„Alte Serie“<br><span class="muted">gelöscht am 02.11., 09:30 von ' + NAMEN.personA + ' · Tippen zum Wiederherstellen</span></span><span class="chev" aria-hidden="true">' + ic('chev', 24) + '</span></button></div><div style="margin-top:24px"><button class="btn danger" data-act="korbLeer" data-fk="p3">Papierkorb leeren …</button></div></div></details>';
   }
   function altePage() {
     var h = '';
@@ -1503,7 +1509,7 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
       } else {
         var f = folgenFiltered(B);
         h += '<div class="count" aria-live="polite">' + f.length + ' Folgen und Lieder</div><div>' + f.slice(0, P.shown).map(function (x) {
-          return '<div class="frow">' + coverHtml(x.s, 'sm') + '<div class="grow"><div class="nm">' + hl(x.f.t, P.term) + '</div><div class="muted">' + esc(x.s.name) + '</div></div><button class="btn primary" data-act="pzF" data-arg="' + x.s.id + '|' + x.i + '" aria-label="' + esc(x.f.t) + ' wählen">Wählen</button></div>';
+          return '<button class="rowbtn" data-act="pzF" data-arg="' + x.s.id + '|' + x.i + '" aria-label="' + esc(x.f.t) + ' wählen">' + coverHtml(x.s, 'sm') + '<span class="grow"><span class="nm" style="display:block">' + hl(x.f.t, P.term) + '</span><span class="muted" style="display:block">' + esc(x.s.name) + '</span></span><span class="chev" aria-hidden="true">' + ic('chev', 24) + '</span></button>';
         }).join('') + '</div>';
         if (f.length > P.shown) h += '<div class="btns" style="justify-content:center;margin-top:12px"><button class="btn" data-act="pzMehr">Mehr zeigen</button></div>';
       }
@@ -1931,6 +1937,7 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     ohne: { album: 'Aufnahme', art: 'hoerspiel', geraten: true, kein: true, files: ['Aufnahme_001.mp3', 'Aufnahme_002.mp3'], titles: ['Aufnahme 001', 'Aufnahme 002'] },
     schutz: { album: 'Buch mit Schutz', art: 'hoerbuch', geraten: false, block: 'Diese Datei ist kopiergeschützt (zum Beispiel von Audible). Die Box kann sie nicht abspielen. Nimm eine Datei ohne Kopierschutz.', files: ['Hoerbuch_mit_Schutz.m4b'], titles: ['Buch mit Schutz'] },
     teilweise: { album: 'Die Sternenreise', art: 'hoerbuch', geraten: false, abort: 3, files: ['01 Aufbruch.mp3', '02 Die Insel.mp3', '03 Heimkehr.mp3'], titles: ['Aufbruch', 'Die Insel', 'Heimkehr'] },
+    format: { album: 'Lied als WMA', art: 'musik', geraten: false, block: 'Dieses Dateiformat spielt die Box nicht. Erlaubt sind MP3, M4A, M4B, AAC, FLAC, OGG, Opus und WAV.', files: ['Mein Lied.wma'], titles: ['Mein Lied'] },
     gross: { album: 'Der Zauberer vom See', art: 'hoerbuch', geraten: false, gross: '03 Der See komplett.m4b', files: ['01 Das Boot.mp3', '02 Der Nebel.mp3'], titles: ['Das Boot', 'Der Nebel'] },
     nas: { album: 'Sternenmühle', art: 'hoerspiel', geraten: true, kein: true, files: ['01.mp3', '02.mp3', '03.mp3', '04.mp3', '05.mp3', '06.mp3'], titles: ['Der Mühlenstein', 'Das Sternenmehl', 'Die Nachtwache', 'Der Windbote', 'Das Tor im Berg', 'Der letzte Sack'] }
   };
@@ -1998,16 +2005,16 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
       return '<div class="chips wrap" role="group" aria-labelledby="wz-l-art">' + list.map(function (a) { return '<button class="chip" data-wa="' + a[0] + '" aria-pressed="' + (W.art === a[0]) + '">' + a[1] + '</button>'; }).join('') + '</div>';
     }
     if (W.ziel === 'neu') {
-      h += '<div class="field"><label for="wz-name">Name</label><input type="text" id="wz-name" maxlength="100" value="' + esc(W.name) + '"></div><div class="muted">' + (W.set.album ? 'Der Name steht in den Dateien (Angabe „Album“ der ersten Datei).' : 'In den Dateien steht kein Name. Er ist aus dem Dateinamen vorgeschlagen.') + '</div>';
-      h += '<div class="field"><span class="lbl" id="wz-l-art">Welche Art?</span>' + artChips(ARTWAHL) + '<div class="muted">' + ARTHINT[W.art] + ' ' + (W.artQuelle === 'tags' ? 'Vorgeschlagen aus den Angaben in den Dateien.' : W.artQuelle === 'geraten' ? 'Geraten, weil in den Dateien nichts dazu steht.' : '') + '</div></div>';
+      h += '<div class="field"><label for="wz-name">Name</label><input type="text" id="wz-name" maxlength="100" value="' + esc(W.name) + '"></div>';
+      h += '<div class="field"><span class="lbl" id="wz-l-art">Welche Art?</span>' + artChips(ARTWAHL) + '</div>';
       var lw = W.art === 'hoerbuch' ? 'Kapitel' : W.art === 'musik' ? 'Lied' : W.art === 'geschichte' ? 'Geschichte' : 'Folge';
       h += '<div class="flist" aria-label="Was aus den Dateien wird">' + ti.slice(0, 4).map(function (x, i) { return '<div>' + lw + ' ' + (i + 1) + ' · ' + esc(x) + '</div>'; }).join('') + (n > 4 ? '<div class="muted">… und ' + (n - 4) + ' weitere</div>' : '') + '</div>';
     } else if (W.ziel === 'ergaenzen') {
       var s = W.serie ? serie(W.serie) : null;
       h += '<div class="field"><span class="lbl">Wohin soll es?</span><button class="btn wzpick" id="wz-pick">' + (s ? coverHtml(s, 'sm') + '<span class="grow" style="flex:1;text-align:left">' + esc(s.name) + '<br><span class="muted">' + ART[s.art].e + ' · ' + einheit(s) + '</span></span><span class="muted">Ändern</span>' : 'Hörspiel, Buch oder Album wählen …') + '</button></div>';
-      if (s) { var a = s.folgen.length + 1; h += '<div class="flist">' + ti.slice(0, 4).map(function (x, i) { return '<div>' + EIN[s.art][0] + ' ' + (a + i) + ' · ' + esc(x) + '</div>'; }).join('') + (n > 4 ? '<div class="muted">… und ' + (n - 4) + ' weitere</div>' : '') + '</div><div class="muted">Die Nummern sind eine Vorschau. Nummern aus den Angaben in den Dateien haben Vorrang.</div>'; }
+      if (s) { var a = s.folgen.length + 1; h += '<div class="flist">' + ti.slice(0, 4).map(function (x, i) { return '<div>' + EIN[s.art][0] + ' ' + (a + i) + ' · ' + esc(x) + '</div>'; }).join('') + (n > 4 ? '<div class="muted">… und ' + (n - 4) + ' weitere</div>' : '') + '</div>'; }
     } else if (W.ziel === 'einzeln') {
-      h += '<div class="field"><span class="lbl" id="wz-l-art">Welche Art?</span>' + artChips([['musik', 'Lied'], ['geschichte', 'Geschichte'], ['hoerspiel', 'Folge'], ['hoerbuch', 'Hörbuch']]) + '<div class="muted">Jede Datei bekommt ihren eigenen Platz in der Bibliothek, ohne Serie und ohne Album.</div></div>';
+      h += '<div class="field"><span class="lbl" id="wz-l-art">Welche Art?</span>' + artChips([['musik', 'Lied'], ['geschichte', 'Geschichte'], ['hoerspiel', 'Folge'], ['hoerbuch', 'Hörbuch']]) + '</div>';
       for (var i = 0; i < Math.min(n, 3); i++) h += '<div class="field"><label for="wz-t' + i + '">Name' + (n > 1 ? ' von Datei ' + (i + 1) : '') + '</label><input type="text" id="wz-t' + i + '" maxlength="100" value="' + esc(W.titel[i]) + '"></div>';
       if (n > 3) h += '<div class="muted">Die übrigen ' + (n - 3) + ' Dateien heißen wie in ihren Angaben.</div>';
     } else {
@@ -2236,7 +2243,7 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
   A.serieMenu = function (t, arg) {
     var s = serie(arg), h = '<div class="stack"><button class="btn" id="sm-n">Name ändern</button><button class="btn" id="sm-c">' + ic('cam', 20) + 'Cover ändern</button><button class="btn" id="sm-a">Art ändern</button>' +
       (S.admin && s.folgen.length > 1 ? '<button class="btn" id="sm-r">Reihenfolge ändern <span class="vc2">Admin</span></button>' : '') + (S.admin ? '<button class="btn" id="sm-z">Mit anderem zusammenführen … <span class="vc2">Admin</span></button>' : '') + '</div>' +
-      '<div class="apart"><div class="muted" style="margin-bottom:8px">Alles Gelöschte landet erst im Papierkorb. Der Administrator bekommt eine Mitteilung und kann es zurückholen.</div><button class="btn link danger" id="sm-w">In den Papierkorb …</button></div>';
+      '<div class="apart"><button class="btn link danger" id="sm-w">In den Papierkorb …</button></div>';
     openSheet(s.name, h, [{ label: 'Schließen' }]);
     $('sm-n').onclick = function () { closeLayer(); A.serieName(null, arg); };
     $('sm-c').onclick = function () { closeLayer(); A.coverFoto(null, arg); };
