@@ -696,7 +696,7 @@ a.iconbtn { text-decoration: none; }
     reihenfolge: false, nameDone: {},
     bib: { term: '', art: 'alle', typ: 'alle', ansicht: 'kacheln', ohne: false, neu: false, pruefen: false, sort: 'az', shown: 60 },
     serieTerm: '', serieShown: 20,
-    gh: { box: 'beide', zr: 'woche', serie: null, quelle: 'boxen' }, q: '',
+    gh: { box: 'beide', zr: 'woche', serie: null, quelle: 'boxen', ben: 'alle' }, q: '',
     tobieTerm: ''
   };
   var DAYS = { 1: 'Mo', 2: 'Di', 3: 'Mi', 4: 'Do', 5: 'Fr', 6: 'Sa', 7: 'So' };
@@ -1109,7 +1109,7 @@ a.iconbtn { text-decoration: none; }
   function chartTage() {
     var n = S.gh.zr === 'woche' ? 7 : 14, G = curBox(), W = 360, H = 220, L = 38, R = 6, T = 26, Bt = 44, pw = W - L - R, ph = H - T - Bt, max = 90;
     var serien = [];
-    if (G === 'ich') serien.push({ k: 'ich', n: 'Ich', c: 'var(--chart1)' });
+    if (G === 'ich') serien.push({ k: 'ich', n: 'Reinhören', c: 'var(--chart1)' });
     else { if (G !== 'stern') serien.push({ k: 'mond', n: 'Mond', c: 'var(--chart1)' }); if (G !== 'mond') serien.push({ k: 'stern', n: 'Stern', c: 'var(--chart2)' }); }
     var sv = '<svg class="chart" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Säulendiagramm: Hörzeit pro Tag in Minuten, letzte ' + n + ' Tage, ' + serien.map(function (x) { return x.n; }).join(' und ') + '. Die Zahlen stehen darunter in einer Tabelle.">';
     [0, 30, 60, 90].forEach(function (v) { var y = T + ph - v / max * ph; sv += '<line class="grid" x1="' + L + '" x2="' + (W - R) + '" y1="' + y + '" y2="' + y + '"/><text x="' + (L - 6) + '" y="' + (y + 4) + '" text-anchor="end">' + v + '</text>'; });
@@ -1186,7 +1186,7 @@ a.iconbtn { text-decoration: none; }
       .filter(function (o) { return o.n > 0; }).sort(function (a, c) { return c.n - a.n || c.min - a.min; });
   }
   function fmtHm(m) { return m >= 60 ? Math.floor(m / 60) + ':' + pad2(m % 60) + ' Std.' : m + ' Min.'; }
-  function boxWort(b) { return b === 'beide' ? 'beide Boxen zusammen' : (b === 'ich' ? 'Du (Reinhören)' : (b === 'mond' ? 'Mond' : 'Stern')); }
+  function boxWort(b) { return b === 'beide' ? 'beide Boxen zusammen' : (b === 'ich' ? 'Reinhören' : (b === 'mond' ? 'Mond' : 'Stern')); }
   function curBox() { return S.gh.quelle === 'rein' ? 'ich' : S.gh.box; }
   function rankCard() {
     var g = S.gh, cb = curBox(), rein = cb === 'ich', rows = rankRows(cb, g.zr), o = g.serie ? rows.filter(function (x) { return x.s.id === g.serie; })[0] : null;
@@ -1198,7 +1198,7 @@ a.iconbtn { text-decoration: none; }
       h += o.s.folgen.map(function (f, i) { var x = o.folgen[i]; return '<div class="rrow' + (x.n ? '' : ' z') + '" role="group" aria-label="' + esc(f.t) + ': ' + x.n + ' Mal gehört, ' + (x.n ? fmtHm(x.min) : 'keine Hörzeit') + ', ' + x.fert + ' Mal fertig"><span class="rt"><span class="rk">' + (i + 1) + '</span><span>' + esc(f.t) + '</span></span><span class="rn">' + x.n + '</span><span class="rn">' + (x.n ? fmtHm(x.min) : '–') + '</span><span class="rn">' + (x.fert ? x.fert + '×' : '–') + '</span></div>'; }).join('');
       h += '<div class="rtotal muted">Zusammen: ' + o.n + ' Mal gehört, ' + fmtHm(o.min) + ', ' + o.fertig + ' von ' + o.s.folgen.length + ' Folgen fertig gehört.</div>';
     } else {
-      h += '<h3>' + (rein ? 'Was habe ich mir angehört?' : 'Wer hat was gehört?') + '</h3><div class="muted" style="margin-bottom:8px">' + boxWort(cb)[0].toUpperCase() + boxWort(cb).slice(1) + ' · ' + ZRW[g.zr] + '. Tippe auf ein Hörspiel, dann siehst du die Folgen.</div>';
+      h += '<h3>' + (rein ? 'Was wurde am Handy oder Computer gehört?' : 'Wer hat was gehört?') + '</h3><div class="muted" style="margin-bottom:8px">' + boxWort(cb)[0].toUpperCase() + boxWort(cb).slice(1) + ' · ' + ZRW[g.zr] + '. Tippe auf ein Hörspiel, dann siehst du die Folgen.</div>';
       h += '<div class="rhead" aria-hidden="true"><span>Hörspiel</span><span>Mal</span><span>Hörzeit</span><span>Fertig</span></div>';
       h += rows.slice(0, 10).map(function (r, i) { return '<button class="rrow" data-act="ghSerie" data-arg="' + r.s.id + '" data-fk="gr' + r.s.id + '" aria-label="' + esc(r.s.name) + ': ' + r.n + ' Mal gehört, ' + fmtHm(r.min) + ', ' + r.fertig + ' von ' + r.s.folgen.length + ' Folgen fertig. Aufteilung nach Folgen öffnen"><span class="rt"><span class="rk">' + (i + 1) + '</span><span>' + esc(r.s.name) + '</span></span><span class="rn">' + r.n + '</span><span class="rn">' + fmtHm(r.min) + '</span><span class="rn">' + r.fertig + '/' + r.s.folgen.length + '</span></button>'; }).join('');
       if (!rows.length) h += '<div class="muted">In diesem Zeitraum wurde noch nichts gehört.</div>';
@@ -1209,16 +1209,17 @@ a.iconbtn { text-decoration: none; }
     var g = S.gh, tage = g.zr === 'woche' ? 7 : 14, rein = g.quelle === 'rein';
     var h = '<h2 style="margin-top:0">Gehört</h2>';
     h += '<div class="stufe"><strong>Stufe B – Vorschau.</strong> Erfundene Zahlen. Die Box müsste dafür melden, was sie spielt (Entwurf, Abschnitt 12).</div>';
-    h += '<div class="seg2 ghq" role="group" aria-label="Wessen Hören?"><button data-act="ghQ" data-arg="boxen" aria-pressed="' + !rein + '" data-fk="ghq1">Boxen</button><button data-act="ghQ" data-arg="rein" aria-pressed="' + rein + '" data-fk="ghq2">Mein Reinhören</button></div>';
-    if (rein) h += '<div class="note" style="margin-top:12px"><strong>Nur du siehst das.</strong> Hier steht, was du selbst am Handy oder Computer angehört hast, mit deinem Home-Assistant-Konto (' + (S.admin ? 'Tobias' : 'Verena') + '). Andere Benutzer sehen es nicht, auch Administratoren nicht. Was die Boxen gespielt haben, steht unter „Boxen“.</div>';
+    h += '<div class="seg2 ghq" role="group" aria-label="Boxen | Reinhören"><button data-act="ghQ" data-arg="boxen" aria-pressed="' + !rein + '" data-fk="ghq1">Boxen</button><button data-act="ghQ" data-arg="rein" aria-pressed="' + rein + '" data-fk="ghq2">Reinhören</button></div>';
+    if (rein) h += '<div class="chips wrap" role="group" aria-label="Benutzer" style="margin-top:12px">' + [['alle', 'Alle'], ['Tobias', 'Tobias'], ['Verena', 'Verena']].map(function (o) { return '<button class="chip" data-act="ghBen" data-arg="' + o[0] + '" aria-pressed="' + (S.gh.ben === o[0]) + '" data-fk="ghben' + o[0] + '">' + o[1] + '</button>'; }).join('') + '</div>';
+    if (rein) h += '<div class="note" style="margin-top:12px"><strong>Alle in Home Assistant sehen das.</strong> Hier steht, was am Handy oder Computer angehört wurde. Mit „Alle“ siehst du alle Benutzer zusammen, mit einem Namen nur diesen Benutzer. Die Namen kommen aus Home Assistant. Was die Boxen gespielt haben, steht unter „Boxen“.</div>';
     h += '<div class="toolbar" style="margin-top:12px">' + (rein ? '' : '<div class="chips wrap" role="group" aria-label="Box"><button class="chip" data-act="ghBox" data-arg="beide" aria-pressed="' + (g.box === 'beide') + '" data-fk="ghb1">Beide Boxen</button><button class="chip" data-act="ghBox" data-arg="mond" aria-pressed="' + (g.box === 'mond') + '" data-fk="ghb2">Mond</button><button class="chip" data-act="ghBox" data-arg="stern" aria-pressed="' + (g.box === 'stern') + '" data-fk="ghb3">Stern</button></div>') +
       '<div class="chips wrap" role="group" aria-label="Zeitraum">' + ['woche', 'monat', 'jahr', 'alles'].map(function (z) { return '<button class="chip" data-act="ghZr" data-arg="' + z + '" aria-pressed="' + (g.zr === z) + '" data-fk="ghz' + z + '">' + ZR[z][0] + '</button>'; }).join('') + '</div></div>';
     h += '<div class="charts">' + rankCard();
     var sumM = HZ.mond.slice(14 - tage).reduce(function (a, c) { return a + c; }, 0), sumS = HZ.stern.slice(14 - tage).reduce(function (a, c) { return a + c; }, 0), sumI = HZ.ich.slice(14 - tage).reduce(function (a, c) { return a + c; }, 0);
     var sum = rein ? sumI : g.box === 'mond' ? sumM : g.box === 'stern' ? sumS : sumM + sumS;
-    h += '<div class="card wide"><h3>Hörzeit pro Tag</h3><div class="muted">In den letzten ' + tage + ' Tagen: ' + fmtMin(sum) + (!rein && g.box === 'beide' ? ' (Mond ' + fmtMin(sumM) + ', Stern ' + fmtMin(sumS) + ')' : rein ? ' (nur du)' : '') + '.' + (g.zr === 'woche' ? '' : ' Das Beispiel zeigt höchstens 14 Tage.') + '</div>' + chartTage() + '</div>';
+    h += '<div class="card wide"><h3>Hörzeit pro Tag</h3><div class="muted">In den letzten ' + tage + ' Tagen: ' + fmtMin(sum) + (!rein && g.box === 'beide' ? ' (Mond ' + fmtMin(sumM) + ', Stern ' + fmtMin(sumS) + ')' : rein ? (S.gh.ben === 'alle' ? ' (alle Benutzer)' : ' (nur ' + S.gh.ben + ')') : '') + '.' + (g.zr === 'woche' ? '' : ' Das Beispiel zeigt höchstens 14 Tage.') + '</div>' + chartTage() + '</div>';
     if (rein) {
-      h += '<div class="card"><h3>Meine Reinhör-Daten</h3><div class="muted">Sie liegen nur in Home Assistant, bei deinem Konto. Du kannst sie jederzeit löschen. Die Stelle zum Weiterhören bleibt dabei erhalten.</div><div class="btns" style="margin-top:12px"><button class="btn danger" data-act="reinDel" data-fk="reindel">Meine Reinhör-Daten löschen …</button></div></div></div>';
+      h += '<div class="card"><h3>Reinhör-Daten</h3><div class="muted">Sie liegen nur in Home Assistant. Du kannst deine eigenen Reinhör-Daten jederzeit löschen. Administratoren können alle löschen. Die Stelle zum Weiterhören bleibt dabei erhalten.</div><div class="btns" style="margin-top:12px"><button class="btn danger" data-act="reinDel" data-fk="reindel">Meine Reinhör-Daten löschen …</button>' + (S.admin ? '<button class="btn danger" data-act="reinDelAlle" data-fk="reindelalle">Alle Reinhör-Daten löschen …</button>' : '') + '</div></div></div>';
       return h;
     }
     h += '<div class="card"><h3>Tageszeiten</h3><div class="muted">Wann gehört wird: am meisten um 19 Uhr.</div>' + chartZeit() + '</div></div>';
@@ -2016,7 +2017,9 @@ a.iconbtn { text-decoration: none; }
       render(); toast('Ein Ordner ist im NAS-Eingang angekommen.');
     },
     ghQ: function (t, arg) { S.gh.quelle = arg; S.gh.serie = null; render(); },
+    ghBen: function (t, arg) { S.gh.ben = arg; render(); },
     reinDel: function () { confirmDlg('Meine Reinhör-Daten löschen?', 'Gelöscht wird nur, was zu deinem Konto gehört. Die Stelle zum Weiterhören bleibt erhalten.', 'Löschen', function () { toast('In der Vorschau nicht ausgeführt.'); }, true); },
+    reinDelAlle: function () { confirmDlg('Alle Reinhör-Daten löschen?', 'Gelöscht werden die Reinhör-Daten aller HA-Benutzer. Die Stelle zum Weiterhören und die Daten der Boxen bleiben erhalten.', 'Löschen', function () { toast('In der Vorschau nicht ausgeführt.'); }, true); },
     playK: function (t, arg) {
       var p = arg.split('|'), s = serie(p[0]), j = +p[2], st = s.folgen[0].kap[j].s;
       if (P.sid === p[0] && P.i === 0 && P.loaded) { if (kapIdx(s.folgen[0].kap, P.pos) === j && P.playing) { pToggle(); return; } pSeek(st); if (!P.playing) pToggle(); }
