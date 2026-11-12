@@ -70,3 +70,12 @@ Weiterhören je Folge und je HA-Benutzer in HA gespeichert. Wird in Entwurf Rev.
 | 6 Gesperrtes Handy (G18) | **(Tobias)** Abspiel-Link gilt **24 Stunden** wie bei HA (ersetzt Nr. 14: 1 Stunde). |
 
 Alle übrigen Befunde G1–G31 und die offenen U-Punkte (U2, U6, U8, U10, U15, U18, U22, U25) arbeitet Rev. 5 nach den Vorschlägen des Reviews ein.
+
+## Runde 11 (Fragen 27–29 aus Rev. 5)
+
+| Nr. | Entscheidung |
+|---|---|
+| Name | **(Tobias)** Die Karte heißt „Neuer Tobie auf <Name>s Box“: Der Anzeigename einer Box ist der ganze Name („Box 1“ bzw. in HA z. B. „Annas Box“). |
+| 27 | **(Tobias)** Reinhör-Daten löschen nur in „Technik“ (Administrator); kommt praktisch nicht vor. |
+| 28 | **(Tobias)** „Alle“ ist die Summe aus Boxen und Reinhören. |
+| 29 | Erklärt; Grenzen nach Messung in A0b. |
