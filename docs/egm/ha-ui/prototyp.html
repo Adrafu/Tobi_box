@@ -320,10 +320,15 @@ h3 { font-size: 17px; font-weight: 500; margin: 0 0 4px; }
 .timesel { display: flex; align-items: center; gap: 6px; }
 
 /* Dialog und Blatt (natives dialog-Element) */
-dialog.sheet { border: 0; padding: 0; background: var(--card); color: var(--text); width: 100%; max-width: 560px; max-height: 92vh; overflow: auto; border-radius: var(--r-big); box-shadow: 0 8px 32px var(--shadow); }
+dialog.sheet { border: 0; padding: 0; background: var(--card); color: var(--text); width: 100%; max-width: 560px; max-height: 92vh; max-height: 92dvh; overscroll-behavior: contain; overflow: auto; border-radius: var(--r-big); box-shadow: 0 8px 32px var(--shadow); }
 dialog.sheet::backdrop { background: var(--scrim); }
 .sheet-in { padding: 20px max(16px, env(safe-area-inset-right, 0px)) max(20px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
-.sheet h2 { margin: 0 0 8px; }
+.sheet h2 { margin: 0 0 8px; padding-right: 56px; }
+/* Schließen-Weg in jedem Blatt: Knopf oben bleibt beim Scrollen sichtbar, Griff zum Wegwischen, Knopfleiste unten bleibt sichtbar */
+.sheet-grip { height: 20px; margin: -12px 0 0; touch-action: none; display: grid; place-items: center; }
+.sheet-grip::before { content: ""; width: 44px; height: 5px; border-radius: 3px; background: var(--line); }
+.sheet-x { float: right; position: sticky; top: 0; z-index: 3; width: 48px; height: 48px; margin: -8px -8px 0 8px; background: var(--card); }
+.sheet .btns:not(:empty) { position: sticky; bottom: 0; z-index: 2; background: var(--card); padding-top: 8px; margin-bottom: -8px; padding-bottom: 8px; }
 .sheet .btns { margin-top: 16px; }
 .sheet .apart { margin-top: 32px; padding-top: 16px; border-top: 1px solid var(--divider); }
 @media (max-width: 699px) { dialog.sheet { margin: auto 0 0; max-width: none; border-radius: var(--r-big) var(--r-big) 0 0; } }
@@ -369,8 +374,8 @@ table.kv td:first-child { color: var(--text2); width: 45%; padding-right: 8px; }
 .frow .nm { font-weight: 500; }
 .frow .slink { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; min-height: 44px; color: inherit; text-decoration: none; }
 .sheet-in { position: relative; }
-.wz-top { position: absolute; top: 12px; right: max(8px, env(safe-area-inset-right, 0px)); }
-.sheet-in:has(.wz-top) > h2 { padding-right: 112px; }
+.wz-top { position: absolute; top: 14px; right: 60px; }
+.sheet-in:has(.wz-top) > h2 { padding-right: 168px; }
 mark { background: var(--primary-soft); color: var(--text); border-radius: 3px; padding: 0 1px; }
 .vb2 { display: inline-block; font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 8px; background: var(--warn-bg); color: var(--warn); vertical-align: 2px; }
 .vc2 { display: inline-block; font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 8px; background: var(--primary-soft); color: var(--primary-ink); vertical-align: 2px; }
@@ -807,6 +812,7 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     search: 'M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z',
     tune: 'M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z',
     info: 'M11 7h2v2h-2zm0 4h2v6h-2zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z',
+    close: 'M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z',
     down: 'M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z',
     list: 'M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z',
     note: 'M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z',
@@ -2000,13 +2006,15 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
   function openSheet(title, body, buttons, role) {
     if (!returnFocus || !document.contains(returnFocus)) { returnFocus = document.activeElement; returnFk = returnFocus && returnFocus.dataset ? returnFocus.dataset.fk : null; }
     var l = $('layer');
-    l.innerHTML = '<dialog class="sheet" id="dlg" aria-labelledby="sheet-t"' + (role === 'alertdialog' ? ' role="alertdialog"' : '') + '><div class="sheet-in"><h2 id="sheet-t">' + esc(title) + '</h2><div id="sheet-b">' + body + '</div><div class="btns" id="sheet-btns"></div></div></dialog>';
+    l.innerHTML = '<dialog class="sheet" id="dlg" aria-labelledby="sheet-t"' + (role === 'alertdialog' ? ' role="alertdialog"' : '') + '><div class="sheet-in"><div class="sheet-grip" aria-hidden="true"></div><button type="button" class="iconbtn plain sheet-x" id="sheet-x" aria-label="Schließen">' + ic('close', 28) + '</button><h2 id="sheet-t">' + esc(title) + '</h2><div id="sheet-b">' + body + '</div><div class="btns" id="sheet-btns"></div></div></dialog>';
     var d = $('dlg');
     sheetButtons(buttons);
     d.addEventListener('cancel', function (ev) { ev.preventDefault(); closeLayer(); });
-    d.addEventListener('mousedown', function (ev) { if (ev.target === d) closeLayer(); });
+    d.addEventListener('click', function (ev) { if (ev.target === d) closeLayer(); });
+    $('sheet-x').addEventListener('click', closeLayer);
+    swipeWatch(d, 1, closeLayer, function (t) { return !t.closest('.sheet-grip, h2') && (d.scrollTop > 0 || !!t.closest('input, select, textarea, canvas, [data-grip], .crop')); });
     d.showModal(); toastPlace();
-    var first = d.querySelector('[autofocus]') || d.querySelector('button, select, input');
+    var first = d.querySelector('[autofocus]') || d.querySelector('button:not(.sheet-x), select, input');
     if (first) first.focus();
   }
   function confirmDlg(title, text, label, fn, danger) {
@@ -2265,7 +2273,7 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     return f.kap[ci].t + ' (' + (ci + 1) + ' von ' + f.kap.length + ')';
   }
   function kapSheet() {
-    var f = curF(), s = serie(P.sid); if (!f || !f.kap) return;
+    var f = curF(), s = serie(P.sid); if (!f || !f.kap || P.locked) return;
     var ci = kapIdx(f.kap, pNow());
     var body = '<div class="kaps" id="kapsheet">' + f.kap.map(function (k, j) {
       var end = j + 1 < f.kap.length ? f.kap[j + 1].s : f.d;
@@ -2283,13 +2291,13 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
   }
   function pFullHtml() {
     var s = serie(P.sid), f = curF(), n = s.folgen.length, L = P.locked, dis = L ? ' disabled' : '';
-    return '<div class="pin"><div class="grip" aria-hidden="true"></div><div class="phead"><button class="iconbtn plain" data-p="close" id="pclose" aria-label="Player schließen"' + dis + '>' + ic('down', 28) + '</button><span class="muted">' + (L ? 'Gesperrt' : 'Läuft gerade') + '</span><button class="iconbtn plain" data-p="more" aria-label="Mehr zum Player" aria-haspopup="dialog"' + dis + '>' + ic('more', 28) + '</button></div>' + coverHtml(s) +
+    return '<div class="pin"><div class="grip" aria-hidden="true"></div><div class="phead"><button class="iconbtn plain" data-p="close" id="pclose" aria-label="Player schließen"' + dis + '>' + ic('down', 28) + '</button><span class="muted">' + (L ? 'Gesperrt' : 'Läuft gerade') + '</span><button class="iconbtn plain" data-p="more" data-fk="pmore" aria-label="Mehr zum Player" aria-haspopup="dialog"' + dis + '>' + ic('more', 28) + '</button></div>' + coverHtml(s) +
       '<div class="ptitle"><h2 id="pt-t">' + esc(f.t) + '</h2><div class="muted">' + esc(f.t === s.name ? ART[s.art].e : s.name) + (n > 1 ? ' · ' + (P.i + 1) + ' von ' + n : '') + '</div>' + (f.kap ? '<div class="pkap" id="pkap">' + esc(kapText()) + '</div>' : '') + '</div>' +
       '<input class="pslider" type="range" id="pslider" min="0" max="' + Math.round(P.dur) + '" step="1" value="' + Math.round(P.pos) + '" aria-label="Position in der Folge"' + dis + '><div class="ptimes"><span id="ptime">0:00</span><span id="prest">−0:00</span></div>' +
       '<div class="pctl"><button class="pbtn" data-p="prev" aria-label="Vorige Folge"' + (P.i === 0 || L ? ' disabled' : '') + '>' + ic('prev', 32) + '</button><button class="pbtn" data-p="back" aria-label="30 Sekunden zurück"' + dis + '>' + ic30(false) + '</button>' +
       '<button class="pbtn main" data-p="play" id="pplay" aria-label="' + (P.playing ? 'Pause' : 'Abspielen') + '"' + dis + '>' + ic(P.playing ? 'pause' : 'play', 40) + '</button>' +
       '<button class="pbtn" data-p="fwd" aria-label="30 Sekunden vor"' + dis + '>' + ic30(true) + '</button><button class="pbtn" data-p="next" aria-label="Nächste Folge"' + (P.i >= n - 1 || L ? ' disabled' : '') + '>' + ic('next', 32) + '</button></div>' +
-      '<div class="speed">' + (L ? '<button class="btn primary unlock" data-p="unlock" id="punlock" aria-label="Entsperren: 2 Sekunden gedrückt halten"><span class="ring"></span>' + ic('lock', 24) + 'Gedrückt halten' + '</button>' : '<button class="btn" data-p="lock" id="plock">' + ic('lock', 20) + 'Sperren</button>') + (f.kap ? '<button class="btn kapbtn" data-p="kap" aria-haspopup="dialog"' + dis + '>' + ic('list', 20) + 'Kapitel</button>' : '') + '</div>' +
+      '<div class="speed">' + (L ? '<button class="btn primary unlock" data-p="unlock" id="punlock" aria-label="Entsperren: 2 Sekunden gedrückt halten"><span class="ring"></span>' + ic('lock', 24) + 'Gedrückt halten' + '</button>' : '<button class="btn" data-p="lock" id="plock">' + ic('lock', 20) + 'Sperren</button>') + (f.kap ? '<button class="btn kapbtn" data-p="kap" data-fk="pkap" aria-haspopup="dialog"' + dis + '>' + ic('list', 20) + 'Kapitel</button>' : '') + '</div>' +
       (L ? '' : '<p class="muted pnote">Die Stelle wird gemerkt, auch für das andere Gerät. (Vorschau: nur in diesem Browser. Echt: in Home Assistant, für jeden Benutzer einzeln.)</p>') + '</div>';
   }
   function pOpen() {
@@ -2329,6 +2337,7 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     pTick();
   }
   function speedSheet() {
+    if (P.locked) return;
     openSheet('Wiedergabe', '<h3>Geschwindigkeit</h3><div class="stack" role="radiogroup" aria-label="Geschwindigkeit">' + [[1, '1×'], [1.25, '1,25×'], [1.5, '1,5×']].map(function (o) { return '<button class="optrow" role="radio" aria-checked="' + (P.speed === o[0]) + '" data-sp="' + o[0] + '"><span>' + o[1] + '</span>' + (P.speed === o[0] ? ic('check', 22) : '') + '</button>'; }).join('') + '</div>', [{ label: 'Schließen' }]);
     $('sheet-b').addEventListener('click', function (e) { var b = e.target.closest('[data-sp]'); if (!b) return; pSpeed(+b.dataset.sp); closeLayer(); });
   }
