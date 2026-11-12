@@ -1098,6 +1098,11 @@ sich kein Browserfenster. Wie bei `tobibox status` gilt die Konfiguration aus `-
 - **Drehregler:** „− Raste“ und „+ Raste“ (eine Raste sind 2 Prozentpunkte), dazu die Lautstärke und die wirksame Grenze.
 - **Schalter:** Kopfhörer eingesteckt, zwei Strom-Haken (je Quelle einer: „Strom am Eingang (pisugar-server)“ und „Strom am Eingang (Leser …)“), Akku 0 bis 100 %, Netz (Heim, Hotspot, Offline; nie die echten
   Namen deiner WLANs).
+- **Werte bleiben über Neustart erhalten:** Der Dienst merkt sich die zuletzt gesetzten Werte (Strom je Quelle, Akku, Netz) in
+  `box/var/sim_zustand.json` und stellt sie beim nächsten Start vor `Bereit` wieder her. Sie gelten als erste Messung (kein
+  Andock-Ton, kein Ring) und die Seite zeigt sie sofort im Status; ein beim Start liegender Tobie bleibt bei gemerktem Strom
+  still (Start durch Strom). Das gilt nur für simulierte Quellen, nie am Pi. Zurücksetzen: Dienst anhalten und
+  `box/var/sim_zustand.json` löschen. Ist die Datei kaputt, steht eine Warnung im Protokoll und es gilt „unbekannt“ wie ohne Datei.
 - **Tobies:** alle zugeordneten Tobies aus `config.json` mit Name (Feld `name`, sonst die Kennung) und Ziel, je mit
   „auflegen“ und „abheben“. Dazu „Unbekannter Tobie (neue Zufallskennung)“ und „Gesperrter Tonie“. Die Marke „simuliert“
   oder „echt“ sagt, ob der liegende Tobie von der Seite oder vom Leser kommt.

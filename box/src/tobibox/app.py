@@ -56,6 +56,7 @@ from pathlib import Path
 
 from . import __version__, bootid, core, eventlog, fruehton, lauf, library, nachfuehrung, notify, selftest, store, uhrregel
 from . import config as konfig_modul
+from . import simzustand
 from . import sync as sync_modul
 from . import events as ev
 from .clock import SystemUhr, Uhr
@@ -222,6 +223,8 @@ class App:
         self.sync: Sync | None = None
         self._systemuhr_ntp: TimedatectlNtp | None = None
         self._netz_bekannt = asyncio.Event()  # erste ``NetzKlasse`` ist angekommen (B7)
+        self._sim_werte = simzustand.SimWerte()  # zuletzt gesetzte Sim-Werte, über den Neustart gemerkt (``simzustand``)
+        self._leser_strom_wieder: bool | None = None  # wiederhergestellter Strom des simulierten Lesers (kommt gleich nach ``Bereit``)
         if k.netz is None and k.strom is None and self._systemuhr_pruefen_noetig():
             # Pi ohne ``[netz]`` und ``[strom]`` (B15): Die Systemuhr gilt nur mit NTP-Synchronisierung als sicher.
             self.zeitquelle = Zeitquelle(system=False)
@@ -249,6 +252,9 @@ class App:
             self.power = Power.aus_konfig(k.strom, self.zeitquelle, self.ereignisse_ein)
             if isinstance(self.power.treiber, SimStrom):
                 self.sim.strom_haken = self._sim_strom
+        self._sim_werte_wiederherstellen()
+        if k.leser.simulation:
+            self.sim.leser_strom_haken = self._sim_leser_strom
         if k.mqtt is not None:
             self.ha = Ha(
                 k.mqtt, konfig_store=self.konfig_store, outbox=self.outbox, status=self.status, uhr=self.uhr,
@@ -366,6 +372,43 @@ class App:
                 stelle(quelle, vertrauenswuerdig)
                 return
 
+    def _sim_werte_wiederherstellen(self) -> None:
+        """Gemerkte Sim-Werte (``simzustand``) in die Sim-Treiber stellen, **bevor** ``Bereit`` und die erste Messung kommen.
+
+        Nur Sim-Quellen (``SimStrom``, ``SimSsid``, simulierter Leser); echte Treiber nie. Die Messungen (``power.start``, ``net.lauf``)
+        melden die Werte als erste Messung (keine Andock-Rückmeldung). Der Strom des simulierten Lesers kommt als Ereignis gleich nach ``Bereit``."""
+        k = self.konfig
+        sim_strom = self.power is not None and isinstance(self.power.treiber, SimStrom)
+        sim_netz = self.netz is not None and isinstance(self.netz._ssid, SimSsid)
+        if not (sim_strom or sim_netz or k.leser.simulation):
+            return
+        w = simzustand.lade(k.pfade.zustand)
+        if w.leer:
+            return
+        if sim_strom:
+            assert self.power is not None and isinstance(self.power.treiber, SimStrom)
+            self.power.treiber.setze(lader=w.pisugar, akku=w.akku)
+        else:
+            w = w.mit(pisugar=None, akku=None)
+        if sim_netz:
+            assert self.netz is not None and isinstance(self.netz._ssid, SimSsid)
+            self.netz._ssid.setze({"home": self.netz.konfig.heim_ssid, "hotspot": self.netz.konfig.hotspot_ssid}.get(w.netz))
+        else:
+            w = w.mit(netz=None)
+        if k.leser.simulation:
+            self._leser_strom_wieder = w.leser
+        else:
+            w = w.mit(leser=None)
+        self._sim_werte = w
+        eventlog.logge(
+            "app", "INFO", "sim_zustand", "wiederhergestellt",
+            daten={"pisugar": w.pisugar, "leser": w.leser, "akku": w.akku, "netz": w.netz},
+        )
+
+    def _sim_merke(self, **werte) -> None:  # type: ignore[no-untyped-def]
+        self._sim_werte = self._sim_werte.mit(**werte)
+        simzustand.speichere(self.konfig.pfade.zustand, self._sim_werte)
+
     async def _sim_strom(self, lader: bool | None, akku: int | None) -> None:
         """``tobibox sim power``: Treiber einstellen, ``power`` sofort messen lassen."""
         assert self.power is not None and isinstance(self.power.treiber, SimStrom)
@@ -375,13 +418,19 @@ class App:
         if akku is not None:
             werte["akku"] = akku
         self.power.treiber.setze(**werte)
+        self._sim_merke(**({"pisugar": lader} if lader is not None else {}), **({"akku": akku} if akku is not None else {}))
         await self.power.pruefe()
+
+    def _sim_leser_strom(self, lader: bool) -> None:
+        """``tobibox sim power --source reader``: den Wert des simulierten Lesers merken."""
+        self._sim_merke(leser=lader)
 
     async def _sim_netz(self, klasse: str) -> None:
         """``tobibox sim net``: das simulierte WLAN passend setzen, ``net`` sofort messen lassen."""
         assert self.netz is not None and isinstance(self.netz._ssid, SimSsid)
         ssid = {"home": self.netz.konfig.heim_ssid, "hotspot": self.netz.konfig.hotspot_ssid}.get(klasse)
         self.netz._ssid.setze(ssid)
+        self._sim_merke(netz=klasse)
         await self.netz.pruefe()
 
     def _spawn(self, coro, name: str) -> None:
@@ -938,6 +987,9 @@ class App:
         # Kopfhörer: erste Messung nach ``GeraeteEinstellungen`` (sie stehen vorn in der Schlange), vor ``Bereit``
         await self.buchse.start()
         self.ereignisse.put_nowait(ev.Bereit(fruehton=self._fruehton_auswerten(), strom_warten=self._strom_misst_selbst()))
+        if self._leser_strom_wieder is not None:
+            # wiederhergestellter Strom des simulierten Lesers: erste Messung dieser Quelle (``idle``: keine Andock-Rückmeldung)
+            self.ereignisse.put_nowait(ev.LaderGeaendert(self._leser_strom_wieder, "leser"))
         await self._leere_ereignisse()
         if not self.konfig.leser.simulation:
             self.leser.start()
@@ -959,8 +1011,13 @@ class App:
 
     def _strom_misst_selbst(self) -> bool:
         """HW8: Kommt gleich nach ``Bereit`` von selbst eine erste Strom-Messung? Nur mit einem echten Treiber (PiSugar). ``SimStrom`` (Mac, Tests)
-        liefert erst, wenn ``sim`` einen Wert setzt; dort gilt „unbekannt“ sofort als „ohne Strom“ (kein Warten)."""
-        return self.power is not None and not isinstance(self.power.treiber, SimStrom)
+        liefert erst, wenn ``sim`` einen Wert setzt; dort gilt „unbekannt“ sofort als „ohne Strom“ (kein Warten). Mit einem **wiederhergestellten**
+        Strom-Wert (``simzustand``) kommt die erste Messung dagegen gleich (``power.start``, Leser-Ereignis nach ``Bereit``): dann wartet der Kern wie am Pi."""
+        if self.power is not None and not isinstance(self.power.treiber, SimStrom):
+            return True
+        if self._leser_strom_wieder is not None:
+            return True
+        return self.power is not None and self._sim_werte.pisugar is not None
 
     def _fruehton_auswerten(self) -> bool:
         """Die Marke des Frühtons **bei ``Bereit``** lesen (V1, Ein/Aus, 10.11.) und die Gegenmarke setzen.

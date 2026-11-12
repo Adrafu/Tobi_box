@@ -156,6 +156,8 @@ class Sim:
         #: ``power`` bzw. ``net`` sofort messen. ``None``: ``sim`` gibt ``LaderGeaendert``, ``AkkuStand`` und ``NetzKlasse`` selbst aus.
         self.strom_haken: Callable[[bool | None, int | None], Any] | None = None
         self.netz_haken: Callable[[str], Any] | None = None
+        #: Haken des Dienstes (12.11.): ``leser_strom_haken(lader)`` läuft nach einem ``strom`` mit ``quelle=leser`` (der Dienst merkt den Wert).
+        self.leser_strom_haken: Callable[[bool], Any] | None = None
         #: Haken des Dienstes (AP 4.8). ``kopfhoerer_haken(steckt)`` stellt den Treiber der ``Buchse`` ein und lässt sie melden.
         #: ``zeit_haken(wall)`` stellt die Wanduhr (``None``: echte Uhr zurück) und gibt ``False`` zurück, wenn die Uhr das nicht kann.
         #: ``None``: ``sim`` gibt ``Kopfhoerer`` selbst aus; ``zeit`` ist dann nicht verfügbar.
@@ -372,7 +374,8 @@ class Sim:
                 return {"ok": False, "fehler": NOCH_NICHT_VERDRAHTET}, [], None
             if quelle == "leser":
                 # die zweite Strom-Quelle (Zeile ``LADER`` des Lesers, Ein/Aus, 10.11.): der simulierte Leser meldet sie selbst
-                return {"ok": True}, [ev.LaderGeaendert(lader, "leser")], None  # type: ignore[arg-type]
+                haken = self.leser_strom_haken
+                return {"ok": True}, [ev.LaderGeaendert(lader, "leser")], (lambda: haken(lader)) if haken else None  # type: ignore[arg-type,misc]
             if self.strom_haken is not None:
                 return {"ok": True}, [], lambda: self.strom_haken(lader, akku)  # type: ignore[misc]
             aus: list[ev.Ereignis] = []
