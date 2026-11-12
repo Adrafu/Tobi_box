@@ -46,6 +46,11 @@ nur protokolliert; nach ``SIMULATION_RUECKKEHR_S`` kehrt ``idle`` in den normale
 
 **HA-Befehle ``HaSyncAnstossen`` / ``HaUpdateAnstossen``** prüft ``idle`` (Ablaufzeit, Uhr, beim Update die Bedingungen) und reicht sie als
 ``SyncStarten("ha")`` / ``UpdateStarten`` weiter (Punkt 9.9).
+
+**Sync wegen fehlender Medien (12.11.).** ``session`` meldet ``SyncBedarf("konfig_neu" | "ziel_fehlt")``. ``idle`` macht daraus ``SyncStarten`` mit
+demselben Grund, wenn der Sync-Regel (``syncregel.sync_erlaubt``: Netz-Klasse, Strom, Akku) genügt, die Box nicht herunterfährt, kein Update und kein
+Sync läuft oder offen ist; ``ziel_fehlt`` zusätzlich frühestens ``ZIEL_FEHLT_SPERRE_S`` nach dem letzten Versuch. Sonst nur Protokoll ``sync`` /
+``nicht_erlaubt`` (oder ``ignoriert``) mit ``grund``. Ein offener Sync hält die Abschaltung wie jeder andere.
 """
 
 from __future__ import annotations
@@ -55,6 +60,7 @@ from dataclasses import dataclass, replace
 from . import events as ev
 from .events import Jetzt
 from .stromwert import StromQuellen
+from .syncregel import sync_erlaubt
 from .volume import GRENZE_AUSBLENDEN
 
 #: 10 min Leerlauf ohne Strom bis zur Abschaltung (``core-interface.md``, Konstanten; vorher 20 min).
@@ -71,6 +77,8 @@ ANDOCK_RING_SPIELT_S = 3.0
 WARNUNG_RING_S = 5.0  # Entscheidung Z, zweite Stufe (11.11.): so lange zeigt der Ring bei ``AkkuWarnung`` den Ladestand
 #: So lange hält ein ausgegebenes ``SyncStarten`` ohne Antwort die Abschaltung höchstens auf.
 SYNC_ANTWORT_FRIST_S = 60.0
+#: Sync-Bedarf ``ziel_fehlt`` (12.11.): frühestens so lange nach dem letzten Versuch wieder (``konfig_neu`` wartet nicht).
+ZIEL_FEHLT_SPERRE_S = 60.0
 #: Hauptknopf lang bei laufendem Hörspiel: so lange wird ausgeblendet, dann Pause, Zeiger, Herunterfahren (Entscheidung Y, 11.11.).
 AUSSCHALT_AUSBLENDEN_S = 2.0
 #: Akku-Tiefstand bei laufendem Hörspiel: so lange wartet ``idle`` höchstens auf das Ende des Tons ``akku_leer`` (``TonFolgeEnde``),
@@ -96,6 +104,8 @@ class Zustand:
     sync_laeuft: bool = False
     update_laeuft: bool = False
     sync_offen_bis: float | None = None  # mono; ``SyncStarten`` ausgegeben, Antwort fehlt
+    akku: int | None = None  # letzter ``AkkuStand`` (für die Sync-Regel bei ``SyncBedarf``)
+    bedarf_mono: float | None = None  # mono des letzten Versuchs, wegen fehlender Medien zu syncen (12.11.)
     # Umgebung
     quellen: StromQuellen = StromQuellen()  # Strom: letzter Wert je Quelle
     gemessen: bool = False  # irgendeine Quelle hat schon einen Wert geliefert (die erste Messung ist vorbei)
@@ -214,6 +224,29 @@ def _sync_check(z: Zustand, jetzt: Jetzt) -> tuple[Zustand, Ausgabe]:
     return replace(z, start_geprueft=True, sync_offen_bis=jetzt.mono + SYNC_ANTWORT_FRIST_S), (
         ev.SyncStarten("start_lader"),
         _prot("INFO", "start_sync", "angefordert", grund="start_lader"),
+    )
+
+
+def _sync_bedarf(z: Zustand, e: ev.SyncBedarf, jetzt: Jetzt) -> tuple[Zustand, Ausgabe]:
+    """Medien fehlen lokal (12.11.): sofort syncen, unter denselben Regeln wie jeder Sync. Ist keiner erlaubt, nur Protokoll."""
+    def nein(grund: str, ergebnis: str = "nicht_erlaubt") -> tuple[Zustand, Ausgabe]:
+        return z, (_prot("INFO", "sync", ergebnis, sync_grund=e.grund, grund=grund),)
+
+    if z.modus == "herunterfahren":
+        return nein("herunterfahren")
+    if z.update_laeuft:
+        return nein("update")
+    if z.sync_laeuft or sync_offen(z):
+        return nein("laeuft_schon", "ignoriert")
+    if e.grund == "ziel_fehlt" and z.bedarf_mono is not None and jetzt.mono - z.bedarf_mono < ZIEL_FEHLT_SPERRE_S:
+        return nein("zu_frueh", "ignoriert")
+    z = replace(z, bedarf_mono=jetzt.mono)
+    erlaubt, grund = sync_erlaubt(z.klasse, z.am_lader, z.akku)
+    if not erlaubt:
+        return nein(grund)
+    return replace(z, sync_offen_bis=jetzt.mono + SYNC_ANTWORT_FRIST_S), (
+        ev.SyncStarten(e.grund),
+        _prot("INFO", "start_sync", "angefordert", grund=e.grund),
     )
 
 
@@ -413,6 +446,12 @@ def _verarbeite(z: Zustand, e: ev.Ereignis | ev.InternesEreignis, jetzt: Jetzt) 
 
     if isinstance(e, ev.NetzKlasse):
         return replace(z, klasse=e.klasse), ()
+
+    if isinstance(e, ev.AkkuStand):
+        return replace(z, akku=e.prozent), ()
+
+    if isinstance(e, ev.SyncBedarf):
+        return _sync_bedarf(z, e, jetzt)
 
     if isinstance(e, ev.SyncGestartet):
         return replace(z, sync_laeuft=True, sync_offen_bis=None), ()

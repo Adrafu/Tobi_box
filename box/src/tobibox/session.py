@@ -87,6 +87,7 @@ class Zustand:
     ende: tuple[str, str] | None = None
     konfig: ev.Konfig | None = None
     serien: tuple[ev.Serie, ...] = ()
+    bibliothek_da: bool = False  # ``BibliothekGeladen`` war schon da (vorher sähe jedes Ziel „fehlend“ aus), 12.11.
     zeiger: Mapping[pointer.Schluessel, ev.Zeiger] = field(default_factory=dict)
     wirksam: int = 0
     kopfhoerer_grenze: int = 0  # bis zu den Einstellungen: nichts hörbar (Punkt 9.15)
@@ -418,6 +419,8 @@ def _auflegen(
         serie = _serie(z, zuo.serie_id)
         if serie is None:
             out.append(_prot("WARNING", "serie_fehlt", "ueberraschung", vorgang, uid=uid, serie=zuo.serie_id))
+            if z.bibliothek_da:
+                out.append(ev.SyncBedarf("ziel_fehlt"))  # 12.11.: ``idle`` prüft Regel und 60-s-Sperre
             serie = _ueberraschung(z)
         elif zuo.typ == "folge":
             if zuo.folge is not None and zuo.folge in serie.folgen:
@@ -426,6 +429,8 @@ def _auflegen(
                 out.append(
                     _prot("WARNING", "folge_fehlt", "ueberraschung", vorgang, uid=uid, serie=zuo.serie_id, folge=zuo.folge)
                 )
+                if z.bibliothek_da:
+                    out.append(ev.SyncBedarf("ziel_fehlt"))  # 12.11.
                 serie = _ueberraschung(z)
     z = replace(z, figur=Figur(vorgang, uid, art))
     eigenes_ziel = art == "serie" and zuo is not None and serie is not None and serie.id == zuo.serie_id
@@ -927,7 +932,7 @@ def _einstellungen(z: Zustand, e: ev.GeraeteEinstellungen, jetzt: Jetzt) -> tupl
 
 
 def _bibliothek(z: Zustand, e: ev.BibliothekGeladen, jetzt: Jetzt) -> tuple[Zustand, Ausgabe]:
-    return replace(z, serien=e.serien), []
+    return replace(z, serien=e.serien, bibliothek_da=True), []
 
 
 def _resume(z: Zustand, e: ev.ResumeGeladen, jetzt: Jetzt) -> tuple[Zustand, Ausgabe]:
@@ -943,7 +948,25 @@ def _bereit(z: Zustand, e: ev.Bereit, jetzt: Jetzt) -> tuple[Zustand, Ausgabe]:
     return z, [ev.TonSpielen("start")]
 
 
+def _ziel_fehlt(z: Zustand, zuo: ev.Zuordnung) -> bool:
+    """Zeigt die Zuordnung auf eine Serie oder Folge, die in der lokalen Bibliothek fehlt? (Aktionen: nie.)"""
+    if zuo.typ not in ("serie", "folge"):
+        return False
+    serie = _serie(z, zuo.serie_id)
+    if serie is None:
+        return True
+    return zuo.typ == "folge" and (zuo.folge is None or zuo.folge not in serie.folgen)
+
+
 def _konfig(z: Zustand, e: ev.KonfigGeladen, jetzt: Jetzt) -> tuple[Zustand, Ausgabe]:
+    """Neue Konfiguration. Fehlt das Ziel einer Zuordnung lokal, kommt ``SyncBedarf("konfig_neu")`` (12.11.); sonst ``_konfig_figur``."""
+    z, out = _konfig_figur(z, e, jetzt)
+    if z.bibliothek_da and any(_ziel_fehlt(z, zuo) for zuo in e.konfig.zuordnungen.values()):
+        out = [*out, ev.SyncBedarf("konfig_neu"), _prot("INFO", "sync_bedarf", "konfig_neu")]
+    return z, out
+
+
+def _konfig_figur(z: Zustand, e: ev.KonfigGeladen, jetzt: Jetzt) -> tuple[Zustand, Ausgabe]:
     """Neue Konfiguration; bei liegender Figur gilt 9.14 (Ziel ``serie`` oder ``folge``)."""
     z = replace(z, konfig=e.konfig)
     f = z.figur

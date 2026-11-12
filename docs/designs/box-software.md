@@ -1898,6 +1898,19 @@ Skripte, Automationen) liegt als Dateien im Repo unter `homeassistant/`.
   nur wenn die Netz-Regel es erlaubt:
   - `home`: immer erlaubt.
   - `hotspot`: erlaubt, wenn Lader dran (Strom am Eingang, aus jeder Quelle; Ein/Aus, 10.11.) oder Akku > 50 %.
+  - **(12.11.)** Zusätzlicher Anlass: **Medien fehlen lokal.** Nimmt die Box eine
+    Konfiguration an (`KonfigGeladen`) und eine Zuordnung zeigt auf eine Serie oder
+    Folge, die in der lokalen Bibliothek fehlt, startet sie **sofort** einen Sync
+    (Grund `konfig_neu`). Wird ein Tobie aufgelegt, dessen Ziel fehlt, und der
+    letzte Versuch liegt mindestens 60 s zurück, ebenso (Grund `ziel_fehlt`).
+    Es gelten dieselben Regeln wie für jeden Sync: Netz-Klasse, Hotspot nur mit
+    Strom oder Akku > 50 %, nicht beim Herunterfahren oder Update, nicht doppelt
+    (läuft schon oder offen); der offene Sync hält die Abschaltung wie sonst. Ist
+    kein Sync erlaubt, steht nur ein Protokolleintrag (`sync` / `nicht_erlaubt` mit
+    `grund`). Vor der ersten geladenen Bibliothek (Dienststart) prüft die Box
+    nicht. Nach dem Sync lädt `app` die Bibliothek wie bisher neu; ein danach neu
+    aufgelegter Tobie spielt das richtige Ziel. Bis dahin spielt die Box die
+    Überraschung (`serie_fehlt`).
   - Dateien landen erst nach vollständiger Übertragung sichtbar im
     Medienordner: `--partial-dir` mit **absolutem Pfad außerhalb des
     Medienordners, aber auf demselben Dateisystem**

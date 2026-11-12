@@ -2085,3 +2085,55 @@ def test_zugeordnet_art_gesperrt():
     h = SitzungsHarnisch()
     h.sende(ev.Gesperrt(0, "v1"))
     assert _zugeordnet(h).daten["art"] == "gesperrt"
+
+
+# --- Sync-Bedarf bei fehlenden Medien (12.11.) ----------------------------------------------------------
+
+
+def bedarf(h, ab=0):
+    return [x.grund for x in h.alle[ab:] if isinstance(x, ev.SyncBedarf)]
+
+
+def test_konfig_mit_fehlender_serie_meldet_sync_bedarf():
+    h = SitzungsHarnisch(konfig=False)
+    h.sende(ev.KonfigGeladen(mk_konfig({UID_S1: ev.Zuordnung("serie", "s1"), UID_S2: ev.Zuordnung("serie", "neu")})))
+    assert bedarf(h) == ["konfig_neu"]
+
+
+def test_konfig_mit_fehlender_folge_meldet_sync_bedarf():
+    h = SitzungsHarnisch(konfig=False)
+    h.sende(ev.KonfigGeladen(mk_konfig({UID_S1: ev.Zuordnung("folge", "s1", "neu.mp3")})))
+    assert bedarf(h) == ["konfig_neu"]
+
+
+def test_konfig_mit_vorhandenen_zielen_und_aktionen_kein_bedarf():
+    h = SitzungsHarnisch(konfig=False)
+    h.sende(ev.KonfigGeladen(mk_konfig({
+        UID_S1: ev.Zuordnung("serie", "s1"), UID_FOLGE: ev.Zuordnung("folge", "s1", "b.mp3"),
+        UID_NACHT: ev.Zuordnung("aktion", aktion="gute_nacht"),
+    })))
+    assert bedarf(h) == []
+
+
+def test_konfig_vor_der_bibliothek_meldet_keinen_bedarf():
+    h = SitzungsHarnisch(serien=(), konfig=False)
+    h.z = session.neuer_zustand()  # wie beim Start: erst die Konfiguration, die Bibliothek kommt danach
+    h.sende(ev.KonfigGeladen(mk_konfig({UID_S1: ev.Zuordnung("serie", "s1")})))
+    assert bedarf(h) == []
+
+
+def test_auflegen_mit_fehlendem_ziel_meldet_ziel_fehlt():
+    h = SitzungsHarnisch()
+    h.auflegen(UID_FEHLT)
+    assert bedarf(h)[-1:] == ["ziel_fehlt"]
+    n = len(h.alle)
+    h.auflegen(UID_FOLGE_FEHLT, vorgang="v2")
+    assert bedarf(h, n) == ["ziel_fehlt"]
+
+
+def test_auflegen_mit_vorhandenem_ziel_oder_unbekanntem_tobie_kein_ziel_fehlt():
+    h = SitzungsHarnisch()
+    n = len(h.alle)
+    h.auflegen(UID_S1)
+    h.auflegen(UID_UNBEKANNT, vorgang="v2")
+    assert "ziel_fehlt" not in bedarf(h, n)

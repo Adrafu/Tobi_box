@@ -8,7 +8,7 @@ from tobibox import events as ev
 from tobibox import idle
 from tobibox.clock import SimUhr
 from tobibox.idle import (
-    ANDOCK_RING_S, ANDOCK_RING_SPIELT_S, AUSSCHALT_AUSBLENDEN_S, LADER_SPERRE_S, LEERLAUF_S, STROM_UNBEKANNT_S, STROM_WIDERSPRUCH_S, SYNC_ANTWORT_FRIST_S,
+    ANDOCK_RING_S, ANDOCK_RING_SPIELT_S, AUSSCHALT_AUSBLENDEN_S, LADER_SPERRE_S, LEERLAUF_S, STROM_UNBEKANNT_S, STROM_WIDERSPRUCH_S, SYNC_ANTWORT_FRIST_S, ZIEL_FEHLT_SPERRE_S,
 )
 
 
@@ -913,3 +913,78 @@ def test_strom_ist_ein_wert_aus_der_stromquelle_fuer_alle():
     assert q.wert is True and not q.widerspruch
     q = q.mit(ev.LaderGeaendert(False, "leser"))
     assert q.wert is False and q.widerspruch
+
+
+# --- Sync wegen fehlender Medien (12.11.) -------------------------------------------------------------------
+
+
+def bedarf_rahmen(klasse: str = "home", strom: bool = False, akku: int | None = 80) -> Rahmen:
+    r = Rahmen()
+    r.sende(ev.LaderGeaendert(strom), ev.NetzKlasse(klasse), ev.SitzungGeaendert("leer", False, False, None))
+    if akku is not None:
+        r.sende(ev.AkkuStand(akku))
+    return r
+
+
+@pytest.mark.parametrize("grund", ["konfig_neu", "ziel_fehlt"])
+def test_bedarf_im_heimnetz_startet_den_sync(grund):
+    r = bedarf_rahmen("home")
+    assert r.sende(ev.SyncBedarf(grund)) == [ev.SyncStarten(grund)]
+    assert idle.sync_offen(r.z)
+
+
+def test_bedarf_im_hotspot_ohne_strom_bei_30_prozent_kein_sync():
+    r = bedarf_rahmen("hotspot", strom=False, akku=30)
+    assert r.sende(ev.SyncBedarf("konfig_neu")) == []
+    assert not idle.sync_offen(r.z)
+    p = [x for x in r.alles if isinstance(x, ev.Protokoll) and x.ereignis == "sync"]
+    assert [(x.ergebnis, x.daten["grund"], x.daten["sync_grund"]) for x in p] == [("nicht_erlaubt", "regel", "konfig_neu")]
+
+
+def test_bedarf_im_hotspot_mit_strom_oder_viel_akku_startet():
+    assert bedarf_rahmen("hotspot", strom=True, akku=30).sende(ev.SyncBedarf("konfig_neu")) == [ev.SyncStarten("konfig_neu")]
+    assert bedarf_rahmen("hotspot", strom=False, akku=51).sende(ev.SyncBedarf("konfig_neu")) == [ev.SyncStarten("konfig_neu")]
+    assert bedarf_rahmen("hotspot", strom=False, akku=50).sende(ev.SyncBedarf("konfig_neu")) == []  # genau 50 % reicht nicht
+
+
+def test_bedarf_offline_kein_sync():
+    assert bedarf_rahmen("offline").sende(ev.SyncBedarf("konfig_neu")) == []
+
+
+def test_bedarf_sync_laeuft_schon_nicht_doppelt():
+    r = bedarf_rahmen("home")
+    r.sende(ev.SyncGestartet())
+    assert r.sende(ev.SyncBedarf("konfig_neu")) == []
+    r2 = bedarf_rahmen("home")
+    assert r2.sende(ev.SyncBedarf("konfig_neu")) == [ev.SyncStarten("konfig_neu")]  # offen, Antwort fehlt noch
+    assert r2.sende(ev.SyncBedarf("konfig_neu")) == []
+
+
+def test_bedarf_nicht_waehrend_herunterfahren_oder_update():
+    r = bedarf_rahmen("home")
+    r.sende(ev.Hauptknopf("lang"))
+    assert r.modus == "herunterfahren"
+    assert r.sende(ev.SyncBedarf("konfig_neu")) == []
+    r2 = bedarf_rahmen("home")
+    r2.sende(ev.UpdateGestartet("1.2.3"))
+    assert r2.sende(ev.SyncBedarf("konfig_neu")) == []
+
+
+def test_ziel_fehlt_hoechstens_alle_60_s_konfig_neu_sofort():
+    r = bedarf_rahmen("home")
+    assert r.sende(ev.SyncBedarf("ziel_fehlt")) == [ev.SyncStarten("ziel_fehlt")]
+    r.sende(ev.SyncAbgebrochen("rsync_fehler"))
+    r.uhr.vor(ZIEL_FEHLT_SPERRE_S - 1)
+    assert r.sende(ev.SyncBedarf("ziel_fehlt")) == []  # zu früh
+    assert r.sende(ev.SyncBedarf("konfig_neu")) == [ev.SyncStarten("konfig_neu")]  # eine neue Konfiguration wartet nicht
+    r.sende(ev.SyncAbgebrochen("rsync_fehler"))
+    r.uhr.vor(ZIEL_FEHLT_SPERRE_S)
+    assert r.sende(ev.SyncBedarf("ziel_fehlt")) == [ev.SyncStarten("ziel_fehlt")]
+
+
+def test_bedarf_haelt_die_abschaltung_bis_zur_antwort():
+    r = bedarf_rahmen("home")
+    assert r.sende(ev.SyncBedarf("konfig_neu")) == [ev.SyncStarten("konfig_neu")]
+    r.sende(ev.SyncGestartet())
+    assert r.vor(LEERLAUF_S + 5) == []  # ohne Strom abgelaufen, aber der Sync läuft
+    assert r.sende(ev.SyncFertig(1, 0)) == FAHREN

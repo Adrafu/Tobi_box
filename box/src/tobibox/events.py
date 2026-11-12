@@ -492,6 +492,14 @@ class SitzungGeaendert(InternesEreignis):
 
 
 @dataclass(frozen=True, slots=True)
+class SyncBedarf(InternesEreignis):
+    """``session`` -> ``idle`` (12.11.): Eine Zuordnung zeigt auf eine Serie oder Folge, die in der lokalen Bibliothek fehlt.
+    ``idle`` entscheidet nach den Regeln des Syncs, ob daraus ein ``SyncStarten`` wird."""
+
+    grund: Literal["konfig_neu", "ziel_fehlt"]
+
+
+@dataclass(frozen=True, slots=True)
 class AktionAusgeloest(InternesEreignis):
     aktion: Literal["status", "gute_nacht"]
     vorgang: str
@@ -663,7 +671,8 @@ class LeserPing(Befehl):
 
 @dataclass(frozen=True, slots=True)
 class SyncStarten(Befehl):
-    grund: Literal["ha", "start_lader"]
+    #: ``konfig_neu`` und ``ziel_fehlt`` (12.11.): die Konfiguration oder ein aufgelegter Tobie zeigt auf Medien, die lokal fehlen
+    grund: Literal["ha", "start_lader", "konfig_neu", "ziel_fehlt"]
 
 
 @dataclass(frozen=True, slots=True)

@@ -128,7 +128,7 @@ def mk_konfig(zuordnungen=None, revision=1, lesezeichen_tage=14) -> ev.Konfig:
 
 def kern(out) -> list:
     """Nur die Befehle und äußeren Folgen: ohne Protokoll und ``SitzungGeaendert``."""
-    return [o for o in out if not isinstance(o, (ev.Protokoll, ev.SitzungGeaendert))]
+    return [o for o in out if not isinstance(o, (ev.Protokoll, ev.SitzungGeaendert, ev.SyncBedarf))]
 
 
 def typen(out) -> list[type]:
