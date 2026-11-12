@@ -106,3 +106,15 @@ Alle übrigen Befunde G1–G31 und die offenen U-Punkte (U2, U6, U8, U10, U15, U
 | X10 | „Ändern“-Knöpfe in Listen (Tobies-Liste): springen je nach Textlänge hin und her, wiederholen sich, wirken schwer | **(Tobias, „echt ungut“)** PL: Ganze Zeile ist die Tippfläche (öffnet das Bearbeiten-Blatt), rechts ein ruhiger Pfeil „›“ an fester Stelle; keine wiederholten umrandeten Knöpfe in Listen. Gilt für alle Listen mit gleicher Aktion je Zeile. |
 | X11 | Erklärtexte auf „Hinzufügen“ (erlaubte Formate, 2 GB, Kopierschutz, „Bildschirm anlassen“, NAS-Eingang-Hinweis) | **(Tobias)** Alles weg. Der Benutzer soll einfach machen; erst wenn etwas nicht geht, zeigt die Seite **genau diesen Fehler** mit dem, was zu tun ist (z. B. Format, Größe, Kopierschutz, Upload abgebrochen). Gilt sinngemäß für alle Seiten: keine vorsorglichen Erklärkästen. |
 | X12 | Wo leben Playlists (Stufe C)? | **(Tobias)** In der **Bibliothek**, nicht unter „Mehr“, und sie funktionieren **wie bei Spotify**: Playlist anlegen, über „⋯“ bei jeder Folge/jedem Lied „Zur Playlist hinzufügen“, eigene Playlist-Seite mit Cover-Mosaik, Abspielen/Reinhören, Reihenfolge ziehen, Einträge entfernen, umbenennen; als Tobie-Ziel wählbar. Bau weiter erst in Stufe C. |
+
+## Sammlung: Klarstellungen am Vertrag W (zur Freigabe durch Tobias, noch nicht eingetragen)
+
+Beim Bau aufgefallen; der Code folgt jeweils der hier genannten Lösung (PL), der Vertragstext wird nach Freigabe gebündelt angepasst.
+
+| Nr. | Stelle | Klarstellung |
+|---|---|---|
+| K1 | 14.2 `serien/list` ohne `limit` | „bisheriges Verhalten (alle)“, der Zusatz „höchstens 200“ entfällt (alte Seite braucht alle) |
+| K2 | 14.3 Cover, 14.10 | Eine Funktion mit zwei Modi: Foto-Upload streng (JPEG, quadratisch, ≤ 2048 px), Tag-Bilder und mitgelieferte Dateien nachsichtig (verkleinern, mittig quadratisch zuschneiden); neue Konstante `COVER_NACHSICHT_PIXEL_MAX` (16 Mio. Pixel) |
+| K3 | 14.3 Cover | ETag in Anführungszeichen; Antwort von POST/DELETE `{v, serie_id, cover_stand, cover_quelle}`; DELETE ohne eigenes Cover ist kein Fehler; Tag-Suche probiert höchstens `COVER_SUCHE_DATEIEN_MAX` (5) Dateien je Eintrag |
+| K4 | 3 `hello.faehigkeiten` | Reihenfolge ist ohne Bedeutung (Code hängt in Bau-Reihenfolge an) |
+| K5 | 14.10 | Hörkopie-Zeitgrenze 90 min nach Messung (40× Echtzeit auf dem QNAP) |
