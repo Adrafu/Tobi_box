@@ -118,3 +118,15 @@ Beim Bau aufgefallen; der Code folgt jeweils der hier genannten Lösung (PL), de
 | K3 | 14.3 Cover | ETag in Anführungszeichen; Antwort von POST/DELETE `{v, serie_id, cover_stand, cover_quelle}`; DELETE ohne eigenes Cover ist kein Fehler; Tag-Suche probiert höchstens `COVER_SUCHE_DATEIEN_MAX` (5) Dateien je Eintrag |
 | K4 | 3 `hello.faehigkeiten` | Reihenfolge ist ohne Bedeutung (Code hängt in Bau-Reihenfolge an) |
 | K5 | 14.10 | Hörkopie-Zeitgrenze 90 min nach Messung (40× Echtzeit auf dem QNAP) |
+
+## Runde 13 (12.11., weitere Durchsicht, von Tobias eingebracht: „ein paar Änderungen hab ich noch“)
+
+| Nr. | Punkt | Umsetzung (PL) |
+|---|---|---|
+| X13 | Zuordnen ohne Countdown: Ziel vorab am Handy festlegen | Tonies und Karten werden **nicht beschrieben** (die Box liest nur die Kennung). Umsetzung als **Warteschlange in HA**: „Nächster neuer Tobie auf <Box> spielt …“ (oder „auf irgendeiner Box“). Legt jemand dort einen unbekannten Tobie auf, ordnet HA ihn sofort zu (Name gleich mit, überspringbar) und meldet es. Kein Zeitlimit; Eintrag in der Warteschlange lässt sich abbrechen; nur unbekannte Tobies, nie bekannte umhängen. Der bisherige Lernmodus mit Countdown bleibt als Weg für Admins in „Technik“, für den Alltag ersetzt die Warteschlange ihn. Nur HA, keine Box-Änderung. |
+| X14 | Player: Sperre gegen Kinderfinger | Knopf **„Sperren“** in der Player-Vollansicht: sperrt alle Bedienelemente, großes Cover bleibt; Entsperren durch langes Drücken (ca. 2 s) auf ein Schloss-Symbol. Die Geschwindigkeit wandert aus der Hauptzeile ins „⋯“ des Players. |
+| X15 | „Technik“ übersichtlicher | Unterseiten statt aufklappbarer Abschnitte, z. B. **Boxen** (Zustand, Akku, Sync), **Speicher und Netz** (NAS, Eingang, Hörkopien, Papierkorb), **Liste und Sicherung** (Stände, Export), **Meldungen** (Protokoll mit Codes), **Einstellungen**. Listenmuster X10. |
+| X16 | Suche: Vorschläge, Tobies zuerst | Beim Tippen Vorschläge (Autovervollständigen); **Tobies stehen oben**, mit dem, was sie gerade spielen; danach Serien, Folgen und Lieder. |
+| X17 | Tonale Knöpfe | Sekundäre Knöpfe ohne Rahmen, getönter Hintergrund `--primary-soft`, Schrift `--primary-ink` (Kontrast ≥ 4,5:1 in allen Themes prüfen). |
+| X18 | Aktiver Reiter als Pille | Statt Linie: abgerundeter Hintergrund (`--primary-soft`) hinter dem Symbol des aktiven Reiters. |
+| X19 | Reiterleiste schwebend/Glas | Leicht durchscheinender Hintergrund aus Tokens (hell und dunkel) mit `backdrop-filter: blur(12px)`, ohne harte Linie; Rückfall ohne `backdrop-filter` mit deckendem Hintergrund; Kontrast der Beschriftung gegen den ungünstigsten Inhalt dahinter sichern. |
