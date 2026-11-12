@@ -480,16 +480,49 @@ dialog.player::backdrop { background: var(--scrim); }
 .rhead span:nth-child(n+2), .rrow .rn { text-align: right; }
 .rrow { width: 100%; border: 0; border-top: 1px solid var(--divider); background: none; text-align: left; min-height: 56px; padding: 6px 4px; font-size: 14px; border-radius: 0; }
 .rhead + .rrow { border-top: 0; }
-.rrow .rt { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 15px; font-weight: 500; overflow-wrap: anywhere; }
+.rrow .rt { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 15px; font-weight: 500; overflow-wrap: break-word; }
 .rrow .rt .rk { color: var(--text2); width: 18px; flex: none; font-weight: 400; font-size: 14px; }
 .rrow.z { color: var(--text2); }
 .rtotal { font-size: 14px; margin-top: 8px; }
 a.iconbtn { text-decoration: none; }
+
+/* Rev. 4: Hochladen in Schritten, Kapitel, Einzeltitel */
+.wchoice { width: 100%; min-height: 76px; display: grid; grid-template-columns: 40px 1fr; gap: 10px; align-items: start; text-align: left; padding: 10px 12px; border: 1px solid var(--divider); border-radius: 14px; background: var(--card); }
+.sheet .stack { gap: 8px; }
+@media (hover: hover) and (pointer: fine) { .wchoice:hover { background: var(--primary-soft); } }
+.wchoice[aria-disabled="true"] { border-style: dashed; cursor: default; }
+
+.wc-i { width: 40px; height: 40px; border-radius: 20px; background: var(--primary-soft); color: var(--primary-ink); display: grid; place-items: center; }
+.wc-i svg { width: 26px; height: 26px; fill: currentColor; }
+.wc-b { display: grid; gap: 2px; min-width: 0; }
+.wc-t { font-weight: 500; font-size: 16px; line-height: 1.3; overflow-wrap: anywhere; }
+.wc-d { font-size: 15px; line-height: 1.35; }
+.wc-e { font-size: 14px; color: var(--text2); }
+.vsatz { background: var(--primary-soft); border-radius: 12px; padding: 14px 16px; font-size: 18px; font-weight: 500; line-height: 1.4; margin: 4px 0 12px; overflow-wrap: anywhere; }
+.btn.wzpick { width: 100%; justify-content: flex-start; gap: 12px; padding: 8px 14px; min-height: 64px; border-radius: 14px; font-weight: 400; }
+.flist { display: grid; gap: 2px; font-size: 15px; margin: 12px 0 4px; padding: 10px 14px; background: var(--bg); border-radius: 10px; }
+.flist > div { overflow-wrap: anywhere; }
+.sheet .btns .btn.link { margin-right: auto; }
+.krow { width: 100%; min-height: 56px; display: flex; align-items: center; gap: 12px; padding: 8px 8px; border: 0; border-top: 1px solid var(--divider); background: none; text-align: left; border-radius: 0; color: var(--text); }
+.krow:first-child { border-top: 0; }
+.krow.cur { background: var(--primary-soft); border-radius: 10px; }
+.krow.cur .lt { color: var(--primary-ink); }
+.krow .kn { width: 28px; text-align: center; color: var(--text2); font-weight: 500; flex: none; display: grid; place-items: center; }
+.krow .kn svg { width: 18px; height: 18px; fill: var(--ok); }
+.krow .grow { flex: 1; min-width: 0; display: grid; }
+.krow .kp { width: 44px; height: 44px; display: grid; place-items: center; color: var(--primary-ink); flex: none; }
+.krow .kp svg { fill: currentColor; }
+.pkap { font-weight: 500; color: var(--primary-ink); font-size: 16px; text-align: center; overflow-wrap: anywhere; margin-top: 2px; }
+.speed { flex-wrap: wrap; }
+.kapbtn { display: inline-flex; align-items: center; gap: 6px; }
+.kapbtn svg { width: 20px; height: 20px; fill: currentColor; }
+.seg2.ghq { display: flex; width: 100%; max-width: 420px; }
+.seg2.ghq button { flex: 1; padding: 0 12px; }
 </style>
 
 <div class="page" id="page">
   <div class="preview" id="preview" hidden style="order:0">
-    <div class="pt">Vorschau mit Beispieldaten (Rev. 3)</div>
+    <div class="pt">Vorschau mit Beispieldaten (Rev. 4)</div>
     <div class="ctl">
       <label for="sel-rolle">Angemeldet als
         <select id="sel-rolle"><option value="admin">Administrator (Tobias)</option><option value="user">Benutzer ohne Admin (Verena)</option></select>
@@ -503,10 +536,13 @@ a.iconbtn { text-decoration: none; }
       <label for="sel-stufe">Stufen zeigen
         <select id="sel-stufe"><option value="abc">A, dazu B und C als Vorschau</option><option value="a">Nur Stufe A (wird gebaut)</option></select>
       </label>
+      <label for="sel-dateien">Gewählte Dateien beim Hochladen (Demo)
+        <select id="sel-dateien"><option value="kapitel">3 Dateien, Album „Kapitän Knopf“ (Tags da)</option><option value="lieder">4 Dateien, Album „Sommerlieder“ (Genre Kinderlieder)</option><option value="eins">1 Datei: „Der Mond und der Fuchs“</option><option value="ohne">2 Dateien ohne Tags (Aufnahme_001)</option><option value="schutz">1 Datei mit Kopierschutz (.m4b)</option></select>
+      </label>
       <div class="rights" id="rights" aria-live="polite"></div>
     </div>
-    <div class="btns"><button class="btn" data-act="demoNeu" data-fk="demoNeu">Tobie auf Mond legen (Demo)</button><button class="btn" data-act="hReset" data-fk="hreset">Hörstellen zurücksetzen</button></div>
-    <div class="muted" style="margin-top:8px">Reinhören spielt kurze Beispieltöne (1 bis 5 Minuten je Folge), damit man Springen und Weiterhören ausprobieren kann. Die Hörstelle liegt hier im Browser; in der echten Seite liegt sie in Home Assistant, für jeden Benutzer einzeln.</div>
+    <div class="btns"><button class="btn" data-act="demoNeu" data-fk="demoNeu">Tobie auf Mond legen (Demo)</button><button class="btn" data-act="demoNas" data-fk="demoNas">Neuer Ordner im NAS-Eingang (Demo)</button><button class="btn" data-act="hReset" data-fk="hreset">Hörstellen zurücksetzen</button></div>
+    <div class="muted" style="margin-top:8px">Reinhören spielt kurze Beispieltöne (1 bis 5 Minuten je Folge), damit man Springen und Weiterhören ausprobieren kann. Die Hörstelle liegt hier im Browser; in der echten Seite liegt sie in Home Assistant, für jeden Benutzer einzeln. Hochladen ist nur eine Simulation: Es entsteht aber wirklich ein neuer Eintrag in der Bibliothek.</div>
   </div>
 
   <div class="top">
@@ -551,6 +587,11 @@ a.iconbtn { text-decoration: none; }
     tune: 'M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z',
     info: 'M11 7h2v2h-2zm0 4h2v6h-2zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z',
     down: 'M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z',
+    list: 'M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z',
+    note: 'M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z',
+    queue: 'M4 10h12v2H4zm0-4h12v2H4zm0 8h8v2H4zm10 0v6l5-3z',
+    wand: 'M7.5 5.6L10 7 8.6 4.5 10 2 7.5 3.4 5 2l1.4 2.5L5 7zm12 9.8L17 14l1.4 2.5L17 19l2.5-1.4L22 19l-1.4-2.5L22 14zM22 2l-2.5 1.4L17 2l1.4 2.5L17 7l2.5-1.4L22 7l-1.4-2.5zm-7.63 5.29a.996.996 0 0 0-1.41 0L1.29 18.96a.996.996 0 0 0 0 1.41l2.34 2.34c.39.39 1.02.39 1.41 0L16.7 11.05a.996.996 0 0 0 0-1.41l-2.33-2.35zm-1.03 5.49l-2.12-2.12 2.44-2.44 2.12 2.12-2.44 2.44z',
+    addlib: 'M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-1 9h-4v4h-2v-4H9V9h4V5h2v4h4v2z',
     more: 'M6 10c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm12 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm-6 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z'
   };
   function ic(n, sz) { return '<svg viewBox="0 0 24 24" aria-hidden="true"' + (sz ? ' width="' + sz + '" height="' + sz + '"' : '') + ' fill="currentColor"><path d="' + ICON[n] + '"/></svg>'; }
@@ -581,6 +622,12 @@ a.iconbtn { text-decoration: none; }
   var NOUN = ['Der Rabe', 'Die Brücke', 'Nebel am Morgen', 'Das Versteck', 'Der Sturm', 'Der Schlüssel', 'Die alte Mühle', 'Das Geheimnis', 'Der Turm', 'Der Fuchs', 'Der Bach', 'Die Lichtung', 'Die Wolke', 'Die Laterne', 'Die Kutsche', 'Die Höhle', 'Die Glocke', 'Die Spur', 'Der Fund', 'Der Besuch', 'Das Echo', 'Der Schatz', 'Die Fähre', 'Der Brief', 'Das Feuer', 'Die Wette'];
   var SONGS = ['Alle meine Entchen', 'Hänschen klein', 'Backe, backe Kuchen', 'Kuckuck, Kuckuck', 'Der Mond ist aufgegangen', 'Weißt du, wie viel Sternlein stehen', 'Guten Abend, gut Nacht', 'Schlaf, Kindlein, schlaf', 'Ein Männlein steht im Walde', 'Summ, summ, summ', 'Die Vogelhochzeit', 'Fuchs, du hast die Gans gestohlen', 'Häschen in der Grube', 'Auf der Mauer, auf der Lauer', 'Brüderchen, komm tanz mit mir', 'Ringel, Ringel, Reihe', 'Kommt ein Vogel geflogen', 'Mein Hut, der hat drei Ecken', 'Taler, Taler, du musst wandern', 'Hopp, hopp, hopp, Pferdchen lauf Galopp', 'Winter ade', 'Alle Vögel sind schon da', 'Bruder Jakob', 'Dornröschen war ein schönes Kind', 'Schneeflöckchen, Weißröckchen', 'Wir sind die Musikanten', 'Der Frühling kommt', 'Sonne, Mond und Sterne'];
 
+  function makeKap(sid, f) {
+    var R3 = rng(hash(sid)), w = [], tot = 0, i, acc = 0;
+    for (i = 0; i < f.k; i++) { var x = 0.6 + R3(); w.push(x); tot += x; }
+    f.kap = [];
+    for (i = 0; i < f.k; i++) { f.kap.push({ t: 'Kapitel ' + (i + 1) + ': ' + NOUN[(hash(sid) + i * 5) % NOUN.length], s: Math.round(acc) }); acc += w[i] / tot * f.d; }
+  }
   function slug(n) { return norm(n).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''); }
   function makeSeries() {
     var R = rng(11), out = [], k = 0;
@@ -605,8 +652,16 @@ a.iconbtn { text-decoration: none; }
       for (var j = 0; j < cnt; j++) f.push({ t: 'Geschichte ' + (j + 1) + ': ' + NOUN[(i * 5 + j * 2 + 3) % NOUN.length], k: 1, mb: 6 + Math.floor(R() * 8) });
       add(n, 'geschichte', f);
     });
+    // Rev. 4: Einzeltitel (eine Serie mit genau einer Folge, Kennzeichen einzeln)
+    [['Das Lied vom Mond', 'musik', 3, 'ogg'], ['Gute-Nacht-Lied für Mia', 'musik', 9], ['Eulenmärchen', 'geschichte', 12], ['Geburtstagsständchen', 'musik', 40]].forEach(function (e) {
+      add(e[0], e[1], [{ t: e[0], k: 1, mb: 4 }], { einzeln: true, ago: e[2] });
+      if (e[3]) out[out.length - 1].folgen[0].kopie = 'wartet';
+    });
     var R2 = rng(77);
     out.forEach(function (s) { s.folgen.forEach(function (f) { f.d = s.art === 'hoerbuch' ? 240 + Math.floor(R2() * 61) : s.art === 'musik' ? 40 + Math.floor(R2() * 36) : s.art === 'geschichte' ? 60 + Math.floor(R2() * 61) : 90 + Math.floor(R2() * 91); }); });
+    // Rev. 4: das Hörbuch „Mia und das Meer“ hat genau 12 Kapitel; alle Hörbücher bekommen eine Kapitelliste
+    out.filter(function (s) { return s.name === 'Mia und das Meer'; })[0].folgen[0].k = 12;
+    out.forEach(function (s) { s.folgen.forEach(function (f) { if (f.k > 1) makeKap(s.id, f); }); });
     // zuletzt hinzugefügt: einige Neuzugänge
     ['Pirat Pippo', 'Mia und das Meer', 'Frühlingslieder', 'Tiergeschichten', 'Die Sternenmühle', 'Abendlieder', 'Das Schiff im Sand'].forEach(function (n, i) { out.filter(function (s) { return s.name === n; })[0].ago = i * 2 + 1; });
     out.filter(function (s) { return s.name === 'Die Sternenmühle'; })[0].pruefen = 'In den Dateien steht kein Albumname. Der Name ist aus dem Ordnernamen geraten.';
@@ -627,7 +682,8 @@ a.iconbtn { text-decoration: none; }
       { uid: '04BB22CC33DD44', name: '', z: { t: 'serie', s: 'der-zauberlehrling-von-nebel' }, n: 4 },
       { uid: '04EE55FF66AA77', name: 'Mond-Karte', z: { t: 'aktion' }, n: 5 },
       { uid: '04AA11BB22CC33', name: 'Gelber Hase', z: { t: 'folge', s: 'kinderlieder-zum-mitsingen', i: 4 }, n: 6 },
-      { uid: '04DD44EE55FF66', name: 'Sternchen', z: { t: 'folge', s: 'schlaflieder', i: 1 }, n: 7 }
+      { uid: '04DD44EE55FF66', name: 'Sternchen', z: { t: 'folge', s: 'schlaflieder', i: 1 }, n: 7 },
+      { uid: '04F1A2B3C4D5E6', name: 'Mia-Tobie', z: { t: 'folge', s: 'gute-nacht-lied-fur-mia', i: 0 }, n: 8 }
     ],
     neu: [{ uid: '04D1E2F3A4B5C6', box: 'mond', ago: 'vor 2 Minuten', done: null }],
     gn: { timer: 30, savedTimer: 30 },
@@ -636,11 +692,11 @@ a.iconbtn { text-decoration: none; }
       { id: 'w2', tage: [5, 6], von: '20:30', bis: '07:30', wirkung: 'stumm', grenze: 25 },
       { id: 'w3', tage: [1, 2, 3, 4, 5, 6, 7], von: '13:00', bis: '14:00', wirkung: 'leiser', grenze: 25 }
     ],
-    uploads: [], korb: [], sub: {},
+    uploads: [{ id: 1, name: 'Ordner „Sternenmühle“ (6 Dateien)', src: 'vom NAS', nas: true, step: 3, pruefen: 'In den Dateien steht kein Albumname. Name und Hörspiel sind aus dem Ordnernamen geraten.', ziel: 'die-sternenmuhle', ergebnis: 'Hörspiel „Die Sternenmühle“ · 6 Folgen' }], korb: [], sub: {},
     reihenfolge: false, nameDone: {},
-    bib: { term: '', art: 'alle', ansicht: 'kacheln', ohne: false, neu: false, pruefen: false, sort: 'az', shown: 60 },
+    bib: { term: '', art: 'alle', typ: 'alle', ansicht: 'kacheln', ohne: false, neu: false, pruefen: false, sort: 'az', shown: 60 },
     serieTerm: '', serieShown: 20,
-    gh: { box: 'beide', zr: 'woche', serie: null }, q: '',
+    gh: { box: 'beide', zr: 'woche', serie: null, quelle: 'boxen' }, q: '',
     tobieTerm: ''
   };
   var DAYS = { 1: 'Mo', 2: 'Di', 3: 'Mi', 4: 'Do', 5: 'Fr', 6: 'Sa', 7: 'So' };
@@ -667,6 +723,7 @@ a.iconbtn { text-decoration: none; }
   function zielName(z) {
     if (z.t === 'aktion') return 'Gute Nacht';
     var s = serie(z.s); if (!s) return '?';
+    if (z.t === 'folge' && s.einzeln) return s.folgen[0].t;
     return z.t === 'folge' ? s.folgen[z.i].t + '“ aus „' + s.name : s.name;
   }
   function zielText(z) { return '„' + zielName(z) + '“'; }
@@ -710,7 +767,7 @@ a.iconbtn { text-decoration: none; }
     return '<div class="card status' + (b.online ? '' : ' off') + '">' + cover + '<div class="txt"><div class="sent"><span class="dotx" aria-hidden="true"></span>' + esc(statusSatz(b)) + '</div><div class="muted">' + esc(statusZeile2(b)) + '</div>' + extra + '</div></div>';
   }
   function tileFor(s, act, extra) {
-    return '<button class="tile" data-act="' + act + '" data-arg="' + s.id + '" data-fk="' + act + s.id + '"><span class="pos">' + coverHtml(s) + (s.pruefen ? '<span class="badge">bitte ansehen</span>' : '') + '</span><span class="tn">' + esc(s.name) + '</span><span class="tm">' + esc(extra || (s.art === 'geschichte' ? einheit(s) : ART[s.art].e + ' · ' + einheit(s))) + '</span></button>';
+    return '<button class="tile" data-act="' + act + '" data-arg="' + s.id + '" data-fk="' + act + s.id + '"><span class="pos">' + coverHtml(s) + (s.pruefen ? '<span class="badge">bitte ansehen</span>' : '') + '</span><span class="tn">' + esc(s.name) + '</span><span class="tm">' + esc(extra || (s.einzeln ? ART[s.art].one + ' · ' + clock(s.folgen[0].d) : s.art === 'geschichte' ? einheit(s) : ART[s.art].e + ' · ' + einheit(s))) + '</span></button>';
   }
   function actionTile(label, act, arg, sub) {
     return '<button class="tile action" data-act="' + act + '" data-arg="' + arg + '" data-fk="' + act + arg + '"><span class="cover" aria-hidden="true">' + ic('moon', 48) + '</span><span class="tn">' + esc(label) + '</span><span class="tm">' + esc(sub) + '</span></button>';
@@ -772,6 +829,8 @@ a.iconbtn { text-decoration: none; }
       if (B.ohne && serieHatTobie(s)) return false;
       if (B.neu && s.ago > 14) return false;
       if (B.pruefen && !s.pruefen) return false;
+      if (B.typ === 'einzeln' && !s.einzeln) return false;
+      if (B.typ === 'sammlung' && s.einzeln) return false;
       if (term && norm(s.name).indexOf(term) < 0) return false;
       return true;
     });
@@ -798,7 +857,7 @@ a.iconbtn { text-decoration: none; }
   function fmtDur(sec) { return dauerText(sec); }
   function libRow(s, term) {
     var p = serieProg(s), tb = S.tobies.filter(function (t) { return t.z.s === s.id; }).length;
-    var sub = ART[s.art].e + ' · ' + einheit(s) + ' · ' + dauerText(p.tot), prog = '';
+    var sub = s.einzeln ? ART[s.art].one + ' · einzeln · ' + clock(p.tot) : ART[s.art].e + ' · ' + einheit(s) + ' · ' + dauerText(p.tot), prog = '';
     if (p.started) prog = '<span class="pbar" role="progressbar" aria-label="Fortschritt" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + Math.round(p.frac * 100) + '"><i style="width:' + Math.round(p.frac * 100) + '%"></i></span><span class="ls">' + (p.frac >= 0.999 ? 'Fertig gehört' : 'noch ' + dauerText(p.rest)) + '</span>';
     return '<a class="lrow" href="#serie-' + s.id + '" data-fk="lr' + s.id + '">' + coverHtml(s, 'lr') + '<span class="grow"><span class="lt">' + hl(s.name, term || '') + '</span><span class="ls">' + esc(sub) + '</span>' + prog + (s.pruefen ? '<span class="badge">bitte ansehen</span>' : '') + '</span>' +
       (tb ? '<span class="tbadge" role="img" aria-label="' + tb + (tb === 1 ? ' Tobie' : ' Tobies') + '">' + ic('tag', 16) + tb + '</span>' : '') + '</a>';
@@ -815,7 +874,7 @@ a.iconbtn { text-decoration: none; }
   function neuRow() {
     return '<h3 class="rowh">Neu hinzugefügt</h3><div class="hscroll">' + S.series.slice().sort(function (a, c) { return a.ago - c.ago; }).slice(0, 8).map(function (s) { return tileFor(s, 'oeffne'); }).join('') + '</div>';
   }
-  function filtCount(B) { return (B.ohne ? 1 : 0) + (B.neu ? 1 : 0) + (B.pruefen ? 1 : 0) + (B.sort !== 'az' ? 1 : 0); }
+  function filtCount(B) { return (B.ohne ? 1 : 0) + (B.neu ? 1 : 0) + (B.pruefen ? 1 : 0) + (B.sort !== 'az' ? 1 : 0) + (B.typ !== 'alle' ? 1 : 0); }
   function vBibliothek() {
     var B = S.bib, h = '<div class="libhead"><h2>Bibliothek</h2><button class="iconbtn plain" data-act="go" data-arg="suche" data-fk="lupe" aria-label="Suchen">' + ic('search', 26) + '</button></div>';
     h += '<div class="artrow" role="group" aria-label="Art">' + ['alle'].concat(ARTEN).map(function (a) {
@@ -836,14 +895,17 @@ a.iconbtn { text-decoration: none; }
       var B = S.bib;
       return '<h3>Sortieren</h3><div class="stack" role="radiogroup" aria-label="Sortieren">' + [['az', 'A bis Z'], ['neu', 'Zuletzt hinzugefügt'], ['gehoert', 'Zuletzt angehört']].map(function (o) {
         return '<button class="optrow" role="radio" aria-checked="' + (B.sort === o[0]) + '" data-so="' + o[0] + '" id="so-' + o[0] + '"><span>' + o[1] + '</span>' + (B.sort === o[0] ? ic('check', 22) : '') + '</button>';
+      }).join('') + '</div><h3 style="margin-top:20px">Was zeigen</h3><div class="stack" role="radiogroup" aria-label="Was zeigen">' + [['alle', 'Alles'], ['sammlung', 'Nur Hörspiele, Bücher, Alben'], ['einzeln', 'Nur Einzeltitel (einzelne Lieder und Folgen)']].map(function (o) {
+        return '<button class="optrow" role="radio" aria-checked="' + (B.typ === o[0]) + '" data-ty="' + o[0] + '" id="ty-' + o[0] + '"><span>' + o[1] + '</span>' + (B.typ === o[0] ? ic('check', 22) : '') + '</button>';
       }).join('') + '</div><h3 style="margin-top:20px">Nur zeigen</h3><div class="stack">' + [['ohne', 'Ohne Tobie'], ['neu', 'Neu (letzte 14 Tage)'], ['pruefen', 'Bitte ansehen']].map(function (o) {
         return '<button class="optrow" aria-pressed="' + !!B[o[0]] + '" data-fl="' + o[0] + '" id="fl-' + o[0] + '"><span>' + o[1] + '</span>' + (B[o[0]] ? ic('check', 22) : '') + '</button>';
       }).join('') + '</div>';
     }
-    openSheet('Sortieren und Filter', body(), [{ label: 'Zurücksetzen', fn: function () { S.bib.sort = 'az'; S.bib.ohne = S.bib.neu = S.bib.pruefen = false; S.bib.shown = 60; $('sheet-b').innerHTML = body(); render(); return false; } }, { label: 'Fertig', kind: 'primary' }]);
+    openSheet('Sortieren und Filter', body(), [{ label: 'Zurücksetzen', fn: function () { S.bib.sort = 'az'; S.bib.typ = 'alle'; S.bib.ohne = S.bib.neu = S.bib.pruefen = false; S.bib.shown = 60; $('sheet-b').innerHTML = body(); render(); return false; } }, { label: 'Fertig', kind: 'primary' }]);
     $('sheet-b').addEventListener('click', function (e) {
       var b = e.target.closest('button'); if (!b) return;
       if (b.dataset.so) S.bib.sort = b.dataset.so;
+      else if (b.dataset.ty) S.bib.typ = b.dataset.ty;
       else if (b.dataset.fl) S.bib[b.dataset.fl] = !S.bib[b.dataset.fl];
       else return;
       var id = b.id; S.bib.shown = 60; $('sheet-b').innerHTML = body(); $(id).focus(); render();
@@ -853,7 +915,7 @@ a.iconbtn { text-decoration: none; }
   /* ---------- Suche ---------- */
   function sfRow(x, term) {
     var s = x.s, f = x.f;
-    return '<div class="frow">' + coverHtml(s, 'sm') + '<div class="grow"><div class="nm">' + hl(f.t, term) + '</div><div class="muted">' + esc(s.name) + ' · ' + clock(f.d) + '</div></div>' +
+    return '<div class="frow">' + coverHtml(s, 'sm') + '<div class="grow"><div class="nm">' + hl(f.t, term) + '</div><div class="muted">' + (s.einzeln ? 'Einzeltitel · ' : esc(s.name) + ' · ') + clock(f.d) + '</div></div>' +
       '<button class="iconbtn fillp" data-act="playF" data-arg="' + s.id + '|' + x.i + '" data-fk="sp' + s.id + x.i + '" aria-label="' + esc(f.t) + ' anhören">' + ic(P.sid === s.id && P.i === x.i && P.playing ? 'pause' : 'play', 24) + '</button>' +
       '<button class="btn" data-act="folgeTobie" data-arg="' + s.id + '|' + x.i + '" data-fk="st' + s.id + x.i + '" aria-label="Tobie für ' + esc(f.t) + ' anlernen">Tobie</button></div>';
   }
@@ -861,7 +923,7 @@ a.iconbtn { text-decoration: none; }
     var term = S.q.trim();
     if (term.length < 2) return '<div class="muted" style="padding:8px 4px">Tippe mindestens 2 Buchstaben. Gesucht wird in Hörspielen, Büchern, Alben, Folgen, Liedern und in den Namen der Tobies.</div>';
     var B = { term: term, art: 'alle', ohne: false, neu: false, pruefen: false, sort: 'az', shown: 60 }, tnorm = norm(term);
-    var ser = seriesFiltered(B), fol = folgenFiltered(B), tob = S.tobies.filter(function (t) { return t.name && norm(t.name).indexOf(tnorm) >= 0; });
+    var ser = seriesFiltered(B).filter(function (s) { return !s.einzeln; }), fol = folgenFiltered(B), tob = S.tobies.filter(function (t) { return t.name && norm(t.name).indexOf(tnorm) >= 0; });
     var h = '<div class="count" aria-live="polite">Gefunden: ' + ser.length + ' Sammlungen, ' + fol.length + ' Folgen und Lieder, ' + tob.length + ' Tobies</div>';
     if (!ser.length && !fol.length && !tob.length) return h + '<div class="card">Nichts gefunden zu „' + esc(term) + '“.</div>';
     if (ser.length) h += '<h3 class="rowh">Hörspiele, Bücher, Alben</h3><div class="card"><div>' + ser.slice(0, 8).map(function (s) { return libRow(s, term); }).join('') + '</div></div>' + (ser.length > 8 ? '<div class="muted">… und ' + (ser.length - 8) + ' weitere. Genauer suchen hilft.</div>' : '');
@@ -884,6 +946,18 @@ a.iconbtn { text-decoration: none; }
     if (p.mode === 'weiter' && !(cur && P.playing)) { var e = hGet(s.id, p.next), f = s.folgen[p.next]; sub = (s.folgen.length > 1 ? f.t : s.name) + ' · ab ' + clock(e && !fertig(e) ? e.p : 0); }
     return '<button class="btn primary xl" data-act="reinhoeren" data-arg="' + s.id + '" data-fk="rein">' + ic(cur && P.playing ? 'pause' : 'play', 24) + label + '</button>' + (sub ? '<div class="muted">' + esc(sub) + '</div>' : '');
   }
+  function kapIdx(kap, pos) { var k = 0; for (var j = 0; j < kap.length; j++) if (kap[j].s <= pos + 0.5) k = j; return k; }
+  function kapSection(s) {
+    var f = s.folgen[0], e = hGet(s.id, 0), cur = P.sid === s.id && P.i === 0, fe = fertig(e);
+    var pos = cur ? pNow() : (e ? e.p : 0), started = cur || (e && e.p > 1), ci = (fe && !cur) ? f.kap.length : (started ? kapIdx(f.kap, pos) : -1);
+    var h = '<h2 style="margin:8px 0 4px">Kapitel</h2><div class="muted" style="margin-bottom:8px">' + f.kap.length + ' Kapitel. Tippe auf ein Kapitel, dann geht es dort los. Im Player kannst du über das ganze Buch springen.</div><div class="card"><div class="kaps" id="kaps" data-sid="' + s.id + '" data-cur="' + ci + '">';
+    f.kap.forEach(function (k, j) {
+      var end = j + 1 < f.kap.length ? f.kap[j + 1].s : f.d, isCur = j === ci, done = j < ci, pl = isCur && cur && P.playing;
+      h += '<button class="krow' + (isCur ? ' cur' : '') + '" data-act="playK" data-arg="' + s.id + '|0|' + j + '" data-fk="kr' + j + '"' + (isCur ? ' aria-current="true"' : '') + ' aria-label="' + esc(k.t) + ', ab ' + clock(k.s) + (isCur ? ', aktuelles Kapitel' : done ? ', schon gehört' : '') + (pl ? ', pausieren' : ', abspielen') + '">' +
+        '<span class="kn" aria-hidden="true">' + (done ? ic('check', 18) : (j + 1)) + '</span><span class="grow"><span class="lt">' + esc(k.t) + '</span><span class="ls">ab ' + clock(k.s) + ' · ' + clock(end - k.s) + (isCur ? ' · ' + (pl ? 'läuft' : 'hier weiter') : done ? ' · gehört' : '') + '</span></span><span class="kp" aria-hidden="true">' + ic(pl ? 'pause' : 'play', 22) + '</span></button>';
+    });
+    return h + '</div></div>';
+  }
   function folgeZeile(s, f, i) {
     var e = hGet(s.id, i), fe = fertig(e), cur = P.sid === s.id && P.i === i, pl = cur && P.playing;
     var tb = tobiesAuf(s, i).filter(function (t) { return t.z.t === 'folge'; }).length;
@@ -900,11 +974,14 @@ a.iconbtn { text-decoration: none; }
     if (!s) return '<div class="note err">Das gibt es nicht mehr. <a href="#bibliothek">Zurück zur Bibliothek</a></div>';
     var tob = S.tobies.filter(function (t) { return t.z.s === id; }).length, art = ART[s.art], p = serieProg(s);
     var h = '<div class="shead2"><button class="back" data-act="go" data-arg="bibliothek" data-fk="back">' + ic('back') + 'Bibliothek</button><button class="iconbtn plain" data-act="serieMenu" data-arg="' + id + '" data-fk="smenu" aria-label="Mehr zu ' + esc(s.name) + '">' + ic('more', 24) + '</button></div>';
-    h += '<div class="hero">' + coverHtml(s, 'xl') + '<div class="htxt"><h2>' + esc(s.name) + '</h2><div class="muted">' + art.e + ' · ' + einheit(s) + ' · ' + dauerText(p.tot) + '</div>' +
+    h += '<div class="hero">' + coverHtml(s, 'xl') + '<div class="htxt"><h2>' + esc(s.name) + '</h2><div class="muted">' + (s.einzeln ? art.one + ' · einzeln · ' + clock(p.tot) : art.e + ' · ' + einheit(s) + ' · ' + dauerText(p.tot)) + '</div>' +
       (tob ? '<div class="muted tbline">' + ic('tag', 16) + tob + (tob === 1 ? ' Tobie' : ' Tobies') + '</div>' : '') +
       (p.started ? '<div class="muted">' + (p.frac >= 0.999 ? 'Fertig gehört' : 'Schon ' + Math.round(p.frac * 100) + ' % gehört · noch ' + dauerText(p.rest)) + '</div>' : '') +
       '<div class="hbtns">' + reinBtn(s) + '<button class="btn" data-act="serieTobie" data-arg="' + id + '" data-fk="stobie">' + ic('tag', 20) + 'Tobie zuordnen</button></div></div></div>';
     if (s.pruefen) h += '<div class="note warn"><strong>Bitte kurz ansehen.</strong><br>' + esc(s.pruefen) + '<div class="btns"><button class="btn" data-act="geprueft" data-arg="' + id + '" data-fk="gep">Das ist richtig</button><button class="btn" data-act="stimmtNicht" data-arg="' + id + '" data-fk="stn">Das stimmt nicht</button></div></div>';
+    if (s.folgen.some(function (f) { return f.kopie === 'wartet'; })) h += '<div class="note" role="status"><strong>Die Hörprobe wird gerade vorbereitet.</strong><br>Dieses Format (OGG) spielt nicht jeder Browser. Home Assistant legt dafür einmal eine kleine Kopie an. Probiere es in ein paar Minuten noch einmal. Auf der Box spielt es schon.</div>';
+    if (s.einzeln) return h + '<div class="note">Das ist ein einzelnes ' + (s.art === 'musik' ? 'Lied' : s.art === 'geschichte' ? 'Stück' : 'Stück') + '. Es steht für sich und gehört zu keinem Album. Du kannst einen Tobie dafür anlernen.</div>';
+    if (s.art === 'hoerbuch' && s.folgen.length === 1 && s.folgen[0].kap) return h + kapSection(s);
     var n = s.folgen.length;
     h += '<div class="btns" style="justify-content:space-between;align-items:center"><h2 style="margin:8px 0">' + (s.art === 'musik' ? 'Lieder' : s.art === 'hoerbuch' ? 'Hörbuch' : s.art === 'geschichte' ? 'Geschichten' : 'Folgen') + '</h2>' +
       (S.reihenfolge ? '<button class="btn" data-act="reihe" data-fk="reihe">Fertig mit Reihenfolge</button>' : '') + '</div>';
@@ -918,7 +995,7 @@ a.iconbtn { text-decoration: none; }
     var s = serie(sid), ganz = i == null, f = ganz ? null : s.folgen[i], wort = ART[s.art].one;
     var z = ganz ? { t: 'serie', s: sid } : { t: 'folge', s: sid, i: i };
     var vorh = tobiesAuf(s, ganz ? null : i).filter(function (t) { return ganz ? t.z.t === 'serie' : t.z.t === 'folge'; });
-    var b = '<p class="muted">Der Tobie spielt dann ' + (ganz ? '„' + esc(s.name) + '“' : 'nur „' + esc(f.t) + '“ aus „' + esc(s.name) + '“') + '.</p>' +
+    var b = '<p class="muted">Der Tobie spielt dann ' + (ganz ? '„' + esc(s.name) + '“' : s.einzeln ? '„' + esc(f.t) + '“' : 'nur „' + esc(f.t) + '“ aus „' + esc(s.name) + '“') + '.</p>' +
       (vorh.length ? '<div class="note okk">Schon angelernt: ' + vorh.map(function (t) { return esc(t.name || 'Tobie ohne Namen'); }).join(', ') + '.</div>' : '') +
       '<h3 style="margin-top:12px">Neuen Tobie anlernen</h3><div class="btns" style="margin-top:8px">' + S.boxes.map(function (bx) { return '<button class="btn primary" id="fs-' + bx.id + '"' + (bx.online ? '' : ' disabled') + '>Auf ' + esc(bx.name) + '</button>'; }).join('') + '</div>' +
       S.boxes.filter(function (bx) { return !bx.online; }).map(function (bx) { return '<div class="muted" style="margin-top:8px">' + esc(bx.name) + ' ist aus. Schalte sie ein, dann geht es.</div>'; }).join('') +
@@ -962,9 +1039,9 @@ a.iconbtn { text-decoration: none; }
     } else if (u.block) {
       h += '<div class="note err" style="margin:8px 0 0" role="alert"><strong>Geht leider nicht.</strong><br>' + esc(u.block) + '</div>';
     } else if (u.pruefen && !u.ok) {
-      h += '<div class="note warn" style="margin:8px 0 0"><strong>Bitte kurz ansehen.</strong><br>' + esc(u.pruefen) + '<div class="btns"><a class="btn" href="#serie-' + u.ziel + '" data-fk="ans' + u.id + '">Ansehen</a><button class="btn" data-act="upOk" data-arg="' + u.id + '" data-fk="ok' + u.id + '">Das ist richtig</button><button class="btn" data-act="stimmtNicht" data-arg="' + u.ziel + '" data-fk="sn' + u.id + '">Das stimmt nicht</button></div></div>';
+      h += '<div class="note warn" style="margin:8px 0 0"><strong>Bitte kurz ansehen.</strong><br>' + esc(u.pruefen) + '<div style="margin-top:6px"><strong>Daraus ist geworden:</strong> ' + esc(u.ergebnis || '') + '</div><div class="btns"><a class="btn" href="#serie-' + u.ziel + '" data-fk="ans' + u.id + '">Ansehen</a><button class="btn" data-act="upOk" data-arg="' + u.id + '" data-fk="ok' + u.id + '">Das ist richtig</button>' + (u.nas ? '<button class="btn" data-act="anders" data-arg="' + u.id + '" data-fk="an' + u.id + '">Anders einsortieren …</button>' : '<button class="btn" data-act="stimmtNicht" data-arg="' + u.ziel + '" data-fk="sn' + u.id + '">Das stimmt nicht</button>') + '</div></div>';
     } else {
-      h += '<div class="steps" aria-hidden="true"><span class="done"></span><span class="done"></span><span class="done"></span></div><div><span class="badge ok">fertig</span> ' + esc(u.ergebnis) + ' <a href="#serie-' + u.ziel + '" data-fk="auf' + u.id + '">Öffnen</a></div>' + (u.art ? '<div class="muted">Art: ' + esc(u.art) + ' (aus den Tags vorgeschlagen). Stimmt nicht? Im Eintrag „Art ändern“.</div>' : '');
+      h += '<div class="steps" aria-hidden="true"><span class="done"></span><span class="done"></span><span class="done"></span></div><div><span class="badge ok">fertig</span> ' + esc(u.ergebnis) + '</div><div class="btns" style="margin-top:8px"><a class="btn" href="#serie-' + u.ziel + '" data-fk="auf' + u.id + '">Öffnen</a></div>' + (u.art ? '<div class="muted">Art: ' + esc(u.art) + ' (aus den Tags vorgeschlagen). Stimmt nicht? Im Eintrag „Art ändern“.</div>' : '');
     }
     return h + '</div>';
   }
@@ -974,7 +1051,7 @@ a.iconbtn { text-decoration: none; }
     h += '<div class="drop" id="dropzone">Auf dem Computer kannst du Dateien oder einen ganzen Ordner auch hierher ziehen.</div>';
     h += '<div class="grid2"><button class="btn big primary" data-act="addHandy" data-fk="handy">' + ic('plus') + 'Dateien wählen</button>' + (fine ? '<button class="btn big" data-act="addOrdner" data-fk="ordner">' + ic('lib') + 'Ordner vom Computer wählen</button>' : '') + '</div>';
     h += '<p class="muted">Hörspiele, Hörbücher, Musik, Geschichten. Erlaubt: MP3, M4A, M4B, AAC, FLAC, OGG, Opus, WAV. Bis 500 MB je Datei. Kopiergeschützte Dateien (zum Beispiel von Audible) gehen nicht. Lass den Bildschirm an, bis alles fertig ist.</p>';
-    h += '<div class="note">Du kannst Dateien auch am Computer in den Eingang-Ordner auf dem NAS kopieren. Sie erscheinen hier von selbst. Frag Tobias nach dem Ordner.</div>';
+    h += '<div class="note">Du kannst Dateien auch am Computer in den Eingang-Ordner auf dem NAS kopieren. Sie erscheinen hier von selbst und werden nach den Angaben in den Dateien einsortiert. Stimmt etwas nicht, kannst du es hier anders einsortieren. Frag Tobias nach dem Ordner.</div>';
     h += '<h2>Zuletzt hinzugefügt</h2>';
     if (!S.uploads.length) h += '<div class="card muted">In den letzten 24 Stunden wurde nichts hinzugefügt.</div>';
     else h += '<div class="card" id="uplist">' + S.uploads.map(uploadItem).join('') + '</div>';
@@ -1023,17 +1100,17 @@ a.iconbtn { text-decoration: none; }
   }
 
   /* ---------- Stufe B: Gehört (Vorschau mit erfundenen Zahlen) ---------- */
-  var HZ = { mond: [42, 55, 38, 61, 70, 28, 45, 50, 36, 64, 72, 31, 47, 58], stern: [30, 22, 45, 18, 52, 40, 12, 26, 33, 20, 48, 55, 15, 38] };
+  var HZ = { ich: [12, 0, 25, 8, 30, 0, 18, 22, 5, 0, 35, 14, 0, 20], mond: [42, 55, 38, 61, 70, 28, 45, 50, 36, 64, 72, 31, 47, 58], stern: [30, 22, 45, 18, 52, 40, 12, 26, 33, 20, 48, 55, 15, 38] };
   var FAV = { mond: [['Lange Serie', 410], ['Kommissar Kralle', 320], ['Kinderlieder zum Mitsingen', 260], ['Gute-Nacht-Geschichten', 210], ['Pirat Pippo', 150]], stern: [['Kinderlieder zum Mitsingen', 380], ['Schlaflieder', 300], ['Detektiv Dackel', 240], ['Lange Serie', 120], ['Tiergeschichten', 90]] };
   var STD = [0, 0, 0, 0, 0, 0, 10, 60, 40, 5, 0, 5, 20, 30, 15, 60, 110, 130, 150, 210, 120, 30, 5, 0];
   var WT = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
   function dayInfo(back) { var d = new Date(2026, 10, 12 - back); return { wt: WT[d.getDay()], tag: d.getDate() + '.' }; }
   function fmtMin(m) { return m >= 60 ? Math.floor(m / 60) + ' Std. ' + (m % 60 ? (m % 60) + ' Min.' : '') : m + ' Min.'; }
   function chartTage() {
-    var n = S.gh.tage, G = S.gh.box, W = 360, H = 220, L = 38, R = 6, T = 26, Bt = 44, pw = W - L - R, ph = H - T - Bt, max = 90;
+    var n = S.gh.zr === 'woche' ? 7 : 14, G = curBox(), W = 360, H = 220, L = 38, R = 6, T = 26, Bt = 44, pw = W - L - R, ph = H - T - Bt, max = 90;
     var serien = [];
-    if (G !== 'stern') serien.push({ k: 'mond', n: 'Mond', c: 'var(--chart1)' });
-    if (G !== 'mond') serien.push({ k: 'stern', n: 'Stern', c: 'var(--chart2)' });
+    if (G === 'ich') serien.push({ k: 'ich', n: 'Ich', c: 'var(--chart1)' });
+    else { if (G !== 'stern') serien.push({ k: 'mond', n: 'Mond', c: 'var(--chart1)' }); if (G !== 'mond') serien.push({ k: 'stern', n: 'Stern', c: 'var(--chart2)' }); }
     var sv = '<svg class="chart" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Säulendiagramm: Hörzeit pro Tag in Minuten, letzte ' + n + ' Tage, ' + serien.map(function (x) { return x.n; }).join(' und ') + '. Die Zahlen stehen darunter in einer Tabelle.">';
     [0, 30, 60, 90].forEach(function (v) { var y = T + ph - v / max * ph; sv += '<line class="grid" x1="' + L + '" x2="' + (W - R) + '" y1="' + y + '" y2="' + y + '"/><text x="' + (L - 6) + '" y="' + (y + 4) + '" text-anchor="end">' + v + '</text>'; });
     sv += '<text x="2" y="10">Minuten</text>';
@@ -1085,9 +1162,9 @@ a.iconbtn { text-decoration: none; }
   var RK = null;
   function rankBase() {
     if (RK) return RK;
-    var R = rng(21); RK = { mond: {}, stern: {} };
-    var lst = { mond: ['Lange Serie', 'Kommissar Kralle', 'Kinderlieder zum Mitsingen', 'Gute-Nacht-Geschichten', 'Pirat Pippo', 'Die Wolkenreise', 'Schlaflieder', 'Abenteuer im Wald'], stern: ['Kinderlieder zum Mitsingen', 'Schlaflieder', 'Tiergeschichten', 'Pirat Pippo', 'Lange Serie', 'Märchen aus aller Welt', 'Familie Fuchs', 'Die Sternenmühle'] };
-    ['mond', 'stern'].forEach(function (b) {
+    var R = rng(21); RK = { mond: {}, stern: {}, ich: {} };
+    var lst = { mond: ['Lange Serie', 'Kommissar Kralle', 'Kinderlieder zum Mitsingen', 'Gute-Nacht-Geschichten', 'Pirat Pippo', 'Die Wolkenreise', 'Schlaflieder', 'Abenteuer im Wald'], stern: ['Kinderlieder zum Mitsingen', 'Schlaflieder', 'Tiergeschichten', 'Pirat Pippo', 'Lange Serie', 'Märchen aus aller Welt', 'Familie Fuchs', 'Die Sternenmühle'], ich: ['Pirat Pippo', 'Mia und das Meer', 'Kinderlieder zum Mitsingen', 'Die Sternenmühle', 'Frühlingslieder', 'Tiergeschichten'] };
+    ['mond', 'stern', 'ich'].forEach(function (b) {
       lst[b].forEach(function (nm, ri) {
         var s = S.series.filter(function (x) { return x.name === nm; })[0]; if (!s) return;
         RK[b][s.id] = s.folgen.map(function (f, i) { var w = (lst[b].length - ri) * 2.2; return Math.round(R() * w + (i < 3 ? w * 0.5 : 0)); });
@@ -1097,8 +1174,8 @@ a.iconbtn { text-decoration: none; }
   }
   function rankRows(box, zr) {
     var base = rankBase(), f = ZR[zr][1], out = {};
-    ['mond', 'stern'].forEach(function (b) {
-      if (box !== 'beide' && box !== b) return;
+    ['mond', 'stern', 'ich'].forEach(function (b) {
+      if (box === 'ich' ? b !== 'ich' : (b === 'ich' || (box !== 'beide' && box !== b))) return;
       Object.keys(base[b]).forEach(function (sid) {
         var s = serie(sid); if (!s) return;
         var o = out[sid] || (out[sid] = { s: s, folgen: s.folgen.map(function () { return { n: 0, fert: 0, min: 0 }; }) });
@@ -1109,18 +1186,19 @@ a.iconbtn { text-decoration: none; }
       .filter(function (o) { return o.n > 0; }).sort(function (a, c) { return c.n - a.n || c.min - a.min; });
   }
   function fmtHm(m) { return m >= 60 ? Math.floor(m / 60) + ':' + pad2(m % 60) + ' Std.' : m + ' Min.'; }
-  function boxWort(b) { return b === 'beide' ? 'beide Boxen zusammen' : (b === 'mond' ? 'Mond' : 'Stern'); }
+  function boxWort(b) { return b === 'beide' ? 'beide Boxen zusammen' : (b === 'ich' ? 'Du (Reinhören)' : (b === 'mond' ? 'Mond' : 'Stern')); }
+  function curBox() { return S.gh.quelle === 'rein' ? 'ich' : S.gh.box; }
   function rankCard() {
-    var g = S.gh, rows = rankRows(g.box, g.zr), o = g.serie ? rows.filter(function (x) { return x.s.id === g.serie; })[0] : null;
+    var g = S.gh, cb = curBox(), rein = cb === 'ich', rows = rankRows(cb, g.zr), o = g.serie ? rows.filter(function (x) { return x.s.id === g.serie; })[0] : null;
     var h = '<div class="card wide">';
-    var legend = '<details class="zahlen"><summary>Was wird gezählt?</summary><p class="muted" style="margin:0 0 8px">„Mal“ ist jede Wiedergabe ab 10 Sekunden. „Fertig“ heißt: bis zum Ende der Folge gehört. In der Rangliste steht, wie viele Folgen mindestens einmal ganz gehört wurden; in den Folgen, wie oft die Folge ganz gehört wurde. Wer nach einer langen Pause weiterhört, zählt als neue Wiedergabe.</p></details>';
+    var legend = '<details class="zahlen"><summary>Was wird gezählt?</summary><p class="muted" style="margin:0 0 8px">' + (rein ? 'Gezählt wird, was du selbst am Handy oder Computer anhörst. ' : '') + '„Mal“ ist jede Wiedergabe ab 10 Sekunden. „Fertig“ heißt: bis zum Ende der Folge gehört. In der Rangliste steht, wie viele Folgen mindestens einmal ganz gehört wurden; in den Folgen, wie oft die Folge ganz gehört wurde. Pausen bis 5 Minuten zählen noch zur selben Wiedergabe; wer nach einer längeren Pause weiterhört, zählt als neue.</p></details>';
     if (o) {
-      h += '<button class="back" data-act="ghBack" data-fk="ghback">' + ic('back') + 'Rangliste</button><h3>' + esc(o.s.name) + '</h3><div class="muted" style="margin-bottom:8px">Aufteilung nach Folgen · ' + boxWort(g.box) + ' · ' + ZRW[g.zr] + '</div>';
+      h += '<button class="back" data-act="ghBack" data-fk="ghback">' + ic('back') + 'Rangliste</button><h3>' + esc(o.s.name) + '</h3><div class="muted" style="margin-bottom:8px">Aufteilung nach Folgen · ' + boxWort(cb) + ' · ' + ZRW[g.zr] + '</div>';
       h += '<div class="rhead" aria-hidden="true"><span>' + ART[o.s.art].one + '</span><span>Mal</span><span>Hörzeit</span><span>Fertig</span></div>';
       h += o.s.folgen.map(function (f, i) { var x = o.folgen[i]; return '<div class="rrow' + (x.n ? '' : ' z') + '" role="group" aria-label="' + esc(f.t) + ': ' + x.n + ' Mal gehört, ' + (x.n ? fmtHm(x.min) : 'keine Hörzeit') + ', ' + x.fert + ' Mal fertig"><span class="rt"><span class="rk">' + (i + 1) + '</span><span>' + esc(f.t) + '</span></span><span class="rn">' + x.n + '</span><span class="rn">' + (x.n ? fmtHm(x.min) : '–') + '</span><span class="rn">' + (x.fert ? x.fert + '×' : '–') + '</span></div>'; }).join('');
       h += '<div class="rtotal muted">Zusammen: ' + o.n + ' Mal gehört, ' + fmtHm(o.min) + ', ' + o.fertig + ' von ' + o.s.folgen.length + ' Folgen fertig gehört.</div>';
     } else {
-      h += '<h3>Wer hat was gehört?</h3><div class="muted" style="margin-bottom:8px">' + boxWort(g.box)[0].toUpperCase() + boxWort(g.box).slice(1) + ' · ' + ZRW[g.zr] + '. Tippe auf ein Hörspiel, dann siehst du die Folgen.</div>';
+      h += '<h3>' + (rein ? 'Was habe ich mir angehört?' : 'Wer hat was gehört?') + '</h3><div class="muted" style="margin-bottom:8px">' + boxWort(cb)[0].toUpperCase() + boxWort(cb).slice(1) + ' · ' + ZRW[g.zr] + '. Tippe auf ein Hörspiel, dann siehst du die Folgen.</div>';
       h += '<div class="rhead" aria-hidden="true"><span>Hörspiel</span><span>Mal</span><span>Hörzeit</span><span>Fertig</span></div>';
       h += rows.slice(0, 10).map(function (r, i) { return '<button class="rrow" data-act="ghSerie" data-arg="' + r.s.id + '" data-fk="gr' + r.s.id + '" aria-label="' + esc(r.s.name) + ': ' + r.n + ' Mal gehört, ' + fmtHm(r.min) + ', ' + r.fertig + ' von ' + r.s.folgen.length + ' Folgen fertig. Aufteilung nach Folgen öffnen"><span class="rt"><span class="rk">' + (i + 1) + '</span><span>' + esc(r.s.name) + '</span></span><span class="rn">' + r.n + '</span><span class="rn">' + fmtHm(r.min) + '</span><span class="rn">' + r.fertig + '/' + r.s.folgen.length + '</span></button>'; }).join('');
       if (!rows.length) h += '<div class="muted">In diesem Zeitraum wurde noch nichts gehört.</div>';
@@ -1128,15 +1206,21 @@ a.iconbtn { text-decoration: none; }
     return h + legend + '</div>';
   }
   function vGehoert() {
-    var g = S.gh, tage = g.zr === 'woche' ? 7 : 14;
+    var g = S.gh, tage = g.zr === 'woche' ? 7 : 14, rein = g.quelle === 'rein';
     var h = '<h2 style="margin-top:0">Gehört</h2>';
     h += '<div class="stufe"><strong>Stufe B – Vorschau.</strong> Erfundene Zahlen. Die Box müsste dafür melden, was sie spielt (Entwurf, Abschnitt 12).</div>';
-    h += '<div class="toolbar"><div class="chips wrap" role="group" aria-label="Box"><button class="chip" data-act="ghBox" data-arg="beide" aria-pressed="' + (g.box === 'beide') + '" data-fk="ghb1">Beide Boxen</button><button class="chip" data-act="ghBox" data-arg="mond" aria-pressed="' + (g.box === 'mond') + '" data-fk="ghb2">Mond</button><button class="chip" data-act="ghBox" data-arg="stern" aria-pressed="' + (g.box === 'stern') + '" data-fk="ghb3">Stern</button></div>' +
+    h += '<div class="seg2 ghq" role="group" aria-label="Wessen Hören?"><button data-act="ghQ" data-arg="boxen" aria-pressed="' + !rein + '" data-fk="ghq1">Boxen</button><button data-act="ghQ" data-arg="rein" aria-pressed="' + rein + '" data-fk="ghq2">Mein Reinhören</button></div>';
+    if (rein) h += '<div class="note" style="margin-top:12px"><strong>Nur du siehst das.</strong> Hier steht, was du selbst am Handy oder Computer angehört hast, mit deinem Home-Assistant-Konto (' + (S.admin ? 'Tobias' : 'Verena') + '). Andere Benutzer sehen es nicht, auch Administratoren nicht. Was die Boxen gespielt haben, steht unter „Boxen“.</div>';
+    h += '<div class="toolbar" style="margin-top:12px">' + (rein ? '' : '<div class="chips wrap" role="group" aria-label="Box"><button class="chip" data-act="ghBox" data-arg="beide" aria-pressed="' + (g.box === 'beide') + '" data-fk="ghb1">Beide Boxen</button><button class="chip" data-act="ghBox" data-arg="mond" aria-pressed="' + (g.box === 'mond') + '" data-fk="ghb2">Mond</button><button class="chip" data-act="ghBox" data-arg="stern" aria-pressed="' + (g.box === 'stern') + '" data-fk="ghb3">Stern</button></div>') +
       '<div class="chips wrap" role="group" aria-label="Zeitraum">' + ['woche', 'monat', 'jahr', 'alles'].map(function (z) { return '<button class="chip" data-act="ghZr" data-arg="' + z + '" aria-pressed="' + (g.zr === z) + '" data-fk="ghz' + z + '">' + ZR[z][0] + '</button>'; }).join('') + '</div></div>';
     h += '<div class="charts">' + rankCard();
-    var sumM = HZ.mond.slice(14 - tage).reduce(function (a, c) { return a + c; }, 0), sumS = HZ.stern.slice(14 - tage).reduce(function (a, c) { return a + c; }, 0);
-    var sum = g.box === 'mond' ? sumM : g.box === 'stern' ? sumS : sumM + sumS;
-    h += '<div class="card wide"><h3>Hörzeit pro Tag</h3><div class="muted">In den letzten ' + tage + ' Tagen: ' + fmtMin(sum) + (g.box === 'beide' ? ' (Mond ' + fmtMin(sumM) + ', Stern ' + fmtMin(sumS) + ')' : '') + '.' + (g.zr === 'woche' ? '' : ' Das Beispiel zeigt höchstens 14 Tage.') + '</div>' + chartTage() + '</div>';
+    var sumM = HZ.mond.slice(14 - tage).reduce(function (a, c) { return a + c; }, 0), sumS = HZ.stern.slice(14 - tage).reduce(function (a, c) { return a + c; }, 0), sumI = HZ.ich.slice(14 - tage).reduce(function (a, c) { return a + c; }, 0);
+    var sum = rein ? sumI : g.box === 'mond' ? sumM : g.box === 'stern' ? sumS : sumM + sumS;
+    h += '<div class="card wide"><h3>Hörzeit pro Tag</h3><div class="muted">In den letzten ' + tage + ' Tagen: ' + fmtMin(sum) + (!rein && g.box === 'beide' ? ' (Mond ' + fmtMin(sumM) + ', Stern ' + fmtMin(sumS) + ')' : rein ? ' (nur du)' : '') + '.' + (g.zr === 'woche' ? '' : ' Das Beispiel zeigt höchstens 14 Tage.') + '</div>' + chartTage() + '</div>';
+    if (rein) {
+      h += '<div class="card"><h3>Meine Reinhör-Daten</h3><div class="muted">Sie liegen nur in Home Assistant, bei deinem Konto. Du kannst sie jederzeit löschen. Die Stelle zum Weiterhören bleibt dabei erhalten.</div><div class="btns" style="margin-top:12px"><button class="btn danger" data-act="reinDel" data-fk="reindel">Meine Reinhör-Daten löschen …</button></div></div></div>';
+      return h;
+    }
     h += '<div class="card"><h3>Tageszeiten</h3><div class="muted">Wann gehört wird: am meisten um 19 Uhr.</div>' + chartZeit() + '</div></div>';
     var ser = S.series;
     function row(nm, sub) { var s = ser.filter(function (x) { return x.name === nm; })[0]; return s ? '<button class="tile" data-act="oeffne" data-arg="' + s.id + '" data-fk="g' + s.id + '"><span class="pos">' + coverHtml(s) + '</span><span class="tn">' + esc(s.name) + '</span><span class="tm">' + esc(sub) + '</span></button>' : ''; }
@@ -1166,7 +1250,7 @@ a.iconbtn { text-decoration: none; }
       '<div class="row"><div class="grow">Folge „Probe 3“ aus Test-Serie<br><span class="muted">gelöscht am 08.11., 11:00</span></div><button class="btn" data-act="x" data-arg="Wiederhergestellt" data-fk="p1">Wiederherstellen</button></div><div class="row"><div class="grow">„Alte Serie“<br><span class="muted">gelöscht am 02.11., 09:30</span></div><button class="btn" data-act="x" data-arg="Wiederhergestellt" data-fk="p2">Wiederherstellen</button></div></div><div style="margin-top:24px"><button class="btn danger" data-act="korbLeer" data-fk="p3">Papierkorb leeren …</button></div></div></details>';
     h += '<details class="sec"><summary>Liste, Sicherung, Export</summary><div class="inner"><table class="kv"><tr><td>Stand der Liste</td><td>Revision 7</td></tr><tr><td>Sicherung auf dem NAS</td><td>ok, 09.11., 08:00</td></tr><tr><td>Frühere Stände</td><td>10 gespeichert (zuletzt Revision 6 vom 09.11.)</td></tr></table><div class="btns" style="margin-top:12px"><button class="btn" data-act="x" data-arg="Export wird angezeigt" data-fk="l1">Export ansehen</button><button class="btn" data-act="x" data-arg="Stände werden angezeigt" data-fk="l3">Frühere Stände ansehen</button><button class="btn danger" data-act="ausrollen" data-fk="l2">Liste neu an die Boxen schicken …</button></div></div></details>';
     h += '<details class="sec"><summary>Boxen im Detail</summary><div class="inner"><table class="kv"><tr><td>Mond</td><td>online · Liste aktuell · Netz: home · Speicher frei: 5 120 MB · Version 0.3.1 · Sync: ok</td></tr><tr><td>Stern</td><td>offline · Liste veraltet · Netz: offline</td></tr></table><div class="btns" style="margin-top:12px"><button class="btn" data-act="x" data-arg="Abgleich angestoßen" data-fk="b1">Mond jetzt abgleichen</button></div></div></details>';
-    h += '<details class="sec"><summary>Bibliothek aufräumen</summary><div class="inner"><div class="muted" style="margin-bottom:12px">Medien neu einlesen, Überraschung, Zusammenführen für alle Einträge, Cover neu suchen.</div><div class="btns"><button class="btn" data-act="x" data-arg="Medien werden neu eingelesen" data-fk="a1">Medien neu einlesen</button><button class="btn" data-act="x" data-arg="Cover werden neu gesucht (Marke gelöscht)" data-fk="a2">Cover neu suchen</button><button class="btn" data-act="x" data-arg="Neues leeres Hörspiel (Vorschau)" data-fk="a3">Neues leeres Hörspiel</button></div></div></details>';
+    h += '<details class="sec"><summary>Bibliothek aufräumen</summary><div class="inner"><div class="muted" style="margin-bottom:12px">Medien neu einlesen, Überraschung, Zusammenführen für alle Einträge, Cover neu suchen, Hörkopien.</div><table class="kv" style="margin-bottom:12px"><tr><td>Hörkopien (für Reinhören)</td><td>41 fertig, 3 warten, 0 mit Fehler · 2,1 GB auf dem NAS (Ordner neben „medien“)</td></tr></table><div class="btns"><button class="btn" data-act="x" data-arg="Hörkopien werden neu erzeugt" data-fk="a4">Hörkopien neu erzeugen</button><button class="btn" data-act="x" data-arg="Medien werden neu eingelesen" data-fk="a1">Medien neu einlesen</button><button class="btn" data-act="x" data-arg="Cover werden neu gesucht (Marke gelöscht)" data-fk="a2">Cover neu suchen</button><button class="btn" data-act="x" data-arg="Neues leeres Hörspiel (Vorschau)" data-fk="a3">Neues leeres Hörspiel</button></div></div></details>';
     h += '<details class="sec"><summary>Weitere Einstellungen</summary><div class="inner"><div class="field"><label for="zz">Zeitzone</label><input type="text" id="zz" value="Europe/Berlin"></div><div class="field"><label for="lz">Lesezeichen: Tage bis ein Tobie von vorn beginnt (0 = nie)</label><input type="text" id="lz" value="14" inputmode="numeric"></div><div class="field"><label for="ab">Gute Nacht: Wie lange wird es leiser (Sekunden)</label><input type="text" id="ab" value="60" inputmode="numeric"></div><button class="btn primary" data-act="x" data-arg="Gespeichert" data-fk="e1">Speichern</button></div></details>';
     h += '<details class="sec"><summary>Meldungen der Boxen</summary><div class="inner"><table class="kv"><tr><td>heute 18:41</td><td>Stern: Liste abgelehnt (Revision zu niedrig)</td></tr><tr><td>gestern 21:02</td><td>Mond: Sync fertig, 2 neue Dateien</td></tr></table></div></details>';
     return h;
@@ -1238,16 +1322,21 @@ a.iconbtn { text-decoration: none; }
     else if (returnFk) { var rf = document.querySelector('[data-fk="' + returnFk + '"]'); if (rf) rf.focus(); }
     returnFocus = null; returnFk = null;
   }
-  function openSheet(title, body, buttons, role) {
-    if (!returnFocus || !document.contains(returnFocus)) { returnFocus = document.activeElement; returnFk = returnFocus && returnFocus.dataset ? returnFocus.dataset.fk : null; }
-    var l = $('layer');
-    l.innerHTML = '<dialog class="sheet" id="dlg" aria-labelledby="sheet-t"' + (role === 'alertdialog' ? ' role="alertdialog"' : '') + '><div class="sheet-in"><h2 id="sheet-t">' + esc(title) + '</h2><div id="sheet-b">' + body + '</div><div class="btns" id="sheet-btns"></div></div></dialog>';
-    var d = $('dlg'), bb = $('sheet-btns');
+  function sheetButtons(buttons) {
+    var bb = $('sheet-btns'); bb.innerHTML = '';
     (buttons || []).forEach(function (b, i) {
       var e = document.createElement('button'); e.className = 'btn ' + (b.kind || ''); e.textContent = b.label; e.id = 'sb-' + i;
       e.addEventListener('click', function () { var keep = b.fn && b.fn(); if (keep !== false) closeLayer(); });
       bb.appendChild(e);
     });
+  }
+  function setSheet(title, body, buttons) { $('sheet-t').textContent = title; $('sheet-b').innerHTML = body; sheetButtons(buttons); }
+  function openSheet(title, body, buttons, role) {
+    if (!returnFocus || !document.contains(returnFocus)) { returnFocus = document.activeElement; returnFk = returnFocus && returnFocus.dataset ? returnFocus.dataset.fk : null; }
+    var l = $('layer');
+    l.innerHTML = '<dialog class="sheet" id="dlg" aria-labelledby="sheet-t"' + (role === 'alertdialog' ? ' role="alertdialog"' : '') + '><div class="sheet-in"><h2 id="sheet-t">' + esc(title) + '</h2><div id="sheet-b">' + body + '</div><div class="btns" id="sheet-btns"></div></div></dialog>';
+    var d = $('dlg');
+    sheetButtons(buttons);
     d.addEventListener('cancel', function (ev) { ev.preventDefault(); closeLayer(); });
     d.addEventListener('mousedown', function (ev) { if (ev.target === d) closeLayer(); });
     d.showModal();
@@ -1276,7 +1365,7 @@ a.iconbtn { text-decoration: none; }
     function results() {
       var B = { term: P.term, art: P.art, ohne: false, neu: false, pruefen: false, sort: 'az' }, h = '';
       if (P.ansicht === 'sammlung') {
-        var l = seriesFiltered(B);
+        var l = seriesFiltered(B).filter(function (s) { return !s.einzeln; });
         h += '<div class="count" aria-live="polite">' + l.length + ' Einträge</div><div class="tiles small">' + (opts.aktion && !P.term && P.art === 'alle' ? actionTile('Gute Nacht', 'pzA', 'aktion', 'Timer, dann still') : '') + l.slice(0, P.shown).map(function (s) { return tileFor(s, 'pzS'); }).join('') + '</div>';
         if (l.length > P.shown) h += '<div class="btns" style="justify-content:center;margin-top:12px"><button class="btn" data-act="pzMehr">Mehr zeigen</button></div>';
       } else {
@@ -1289,12 +1378,12 @@ a.iconbtn { text-decoration: none; }
       return h;
     }
     var body = '<label class="sr" for="pz-s">Suchen</label><input class="search" id="pz-s" type="search" placeholder="Suchen: Hörspiel, Lied, Folge" autofocus>' +
-      '<div class="chips wrap" role="group" aria-label="Art" id="pz-art"></div><div style="margin:12px 0"><div class="seg2" role="group" aria-label="Was soll er spielen?"><button id="pz-a1" data-pz="sammlung" aria-pressed="true">Ganzes Hörspiel, Buch, Album</button><button id="pz-a2" data-pz="folgen" aria-pressed="false">Einzelne Folge oder Lied</button></div></div><div id="pz-r"></div>';
-    openSheet(title, body, [{ label: 'Abbrechen' }]);
+      '<div class="chips wrap" role="group" aria-label="Art" id="pz-art"></div>' + (opts.nurSammlung ? '<div style="height:12px"></div>' : '<div style="margin:12px 0"><div class="seg2" role="group" aria-label="Was soll er spielen?"><button id="pz-a1" data-pz="sammlung" aria-pressed="true">Ganzes Hörspiel, Buch, Album</button><button id="pz-a2" data-pz="folgen" aria-pressed="false">Einzelne Folge oder Lied</button></div></div>') + '<div id="pz-r"></div>';
+    openSheet(title, body, [{ label: 'Abbrechen', fn: opts.abbruch }]);
     function artChips() {
       $('pz-art').innerHTML = ['alle'].concat(ARTEN).map(function (a) { return '<button class="chip" data-pa="' + a + '" aria-pressed="' + (P.art === a) + '">' + (a === 'alle' ? 'Alles' : ART[a].n) + '</button>'; }).join('');
     }
-    function redraw() { artChips(); $('pz-r').innerHTML = results(); $('pz-a1').setAttribute('aria-pressed', P.ansicht === 'sammlung'); $('pz-a2').setAttribute('aria-pressed', P.ansicht === 'folgen'); }
+    function redraw() { artChips(); $('pz-r').innerHTML = results(); if ($('pz-a1')) { $('pz-a1').setAttribute('aria-pressed', P.ansicht === 'sammlung'); $('pz-a2').setAttribute('aria-pressed', P.ansicht === 'folgen'); } }
     redraw();
     var sb = $('sheet-b');
     sb.addEventListener('input', function (e) { if (e.target.id === 'pz-s') { P.term = e.target.value; P.shown = 30; $('pz-r').innerHTML = results(); } });
@@ -1320,7 +1409,7 @@ a.iconbtn { text-decoration: none; }
     return m + ' Min.';
   }
   function hash(str) { var h = 2166136261; for (var i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
-  var HKEY = 'tobibox-proto-hoerstelle-v3', H = { pos: {}, last: null, speed: 1 };
+  var HKEY = 'tobibox-proto-hoerstelle-v4', H = { pos: {}, last: null, speed: 1 };
   var P = { sid: null, i: 0, pos: 0, dur: 0, speed: 1, playing: false, loaded: false, onMeta: null };
   function hPersist() { try { localStorage.setItem(HKEY, JSON.stringify(H)); } catch (e) {} }
   function hGet(sid, i) { return H.pos[sid + '|' + i] || null; }
@@ -1413,7 +1502,10 @@ a.iconbtn { text-decoration: none; }
     pLoad(P.sid, j, dir < 0 ? 0 : (e && !fertig(e) ? e.p : 0), true);
   }
   function pSpeed(v) { P.speed = v; aud.playbackRate = v; aud.defaultPlaybackRate = v; H.speed = v; hPersist(); pFullUpdate(); }
-  function pStart(sid, i) { var e = hGet(sid, i); pLoad(sid, i, e && !fertig(e) ? e.p : 0, true); }
+  function pStart(sid, i) {
+    var sk = serie(sid);
+    if (sk && sk.folgen[i] && sk.folgen[i].kopie === 'wartet') { toast('Die Hörprobe wird gerade vorbereitet. Versuche es in ein paar Minuten noch einmal. Auf der Box spielt es schon.'); return; }
+    var e = hGet(sid, i); pLoad(sid, i, e && !fertig(e) ? e.p : 0, true); }
   aud.addEventListener('timeupdate', function () {
     if (!P.loaded) return; P.pos = aud.currentTime; pTick();
     var n = Date.now(); if (!aud.paused && n - lastSave >= 10000) { lastSave = n; pSave(); }
@@ -1440,13 +1532,16 @@ a.iconbtn { text-decoration: none; }
     if (!s || !f) { m.hidden = true; return; }
     m.hidden = false;
     var key = s.id + '|' + P.i;
-    if (m.dataset.key !== key) { $('mopen').innerHTML = coverHtml(s, 'sm') + '<span class="grow"><span class="mt">' + esc(f.t) + '</span><span class="ms">' + esc(s.name) + '</span></span>'; $('mopen').setAttribute('aria-label', 'Player öffnen: ' + f.t + ', ' + s.name); m.dataset.key = key; }
+    if (m.dataset.key !== key) { $('mopen').innerHTML = coverHtml(s, 'sm') + '<span class="grow"><span class="mt">' + esc(f.t) + '</span><span class="ms">' + esc(f.t === s.name ? ART[s.art].e : s.name) + '</span></span>'; $('mopen').setAttribute('aria-label', 'Player öffnen: ' + f.t + ', ' + s.name); m.dataset.key = key; }
     $('mplay').innerHTML = ic(P.playing ? 'pause' : 'play', 28);
     $('mplay').setAttribute('aria-label', P.playing ? 'Pause' : 'Abspielen');
     pTick();
   }
   function pTick() {
     var pc = Math.min(100, (P.pos / (P.dur || 1)) * 100), b = $('mbari'); if (b) b.style.width = pc + '%';
+    var kl = $('kaps');
+    if (kl && P.sid === kl.dataset.sid && P.i === 0) { var s0 = serie(P.sid), f0 = s0 && s0.folgen[0]; if (f0 && f0.kap && String(kapIdx(f0.kap, P.pos)) !== kl.dataset.cur) { render(); } }
+    var pk = $('pkap'); if (pk) pk.textContent = kapText();
     var d = $('pdlg');
     if (d && d.open && $('pslider')) {
       var shown = dragging ? +$('pslider').value : P.pos;
@@ -1456,18 +1551,37 @@ a.iconbtn { text-decoration: none; }
     }
     if (navigator.mediaSession && navigator.mediaSession.setPositionState && Date.now() - lastPos > 4000) { lastPos = Date.now(); try { navigator.mediaSession.setPositionState({ duration: P.dur, playbackRate: P.speed, position: Math.min(P.pos, P.dur) }); } catch (e) {} }
   }
+  function kapText() {
+    var f = curF(); if (!f || !f.kap) return '';
+    var ci = kapIdx(f.kap, P.pos);
+    return f.kap[ci].t + ' (' + (ci + 1) + ' von ' + f.kap.length + ')';
+  }
+  function kapSheet() {
+    var f = curF(), s = serie(P.sid); if (!f || !f.kap) return;
+    var ci = kapIdx(f.kap, pNow());
+    var body = '<div class="kaps" id="kapsheet">' + f.kap.map(function (k, j) {
+      var end = j + 1 < f.kap.length ? f.kap[j + 1].s : f.d;
+      return '<button class="krow' + (j === ci ? ' cur' : '') + '" data-kj="' + j + '" id="kj-' + j + '"' + (j === ci ? ' aria-current="true"' : '') + ' aria-label="' + esc(k.t) + ', ab ' + clock(k.s) + (j === ci ? ', aktuelles Kapitel' : '') + '"><span class="kn" aria-hidden="true">' + (j < ci ? ic('check', 18) : (j + 1)) + '</span><span class="grow"><span class="lt">' + esc(k.t) + '</span><span class="ls">ab ' + clock(k.s) + ' · ' + clock(end - k.s) + (j === ci ? ' · hier' : '') + '</span></span></button>';
+    }).join('') + '</div>';
+    openSheet('Kapitel in „' + s.name + '“', body, [{ label: 'Schließen' }]);
+    var cur = $('kj-' + ci); if (cur) { cur.scrollIntoView({ block: 'nearest' }); cur.focus({ preventScroll: true }); }
+    $('sheet-b').addEventListener('click', function (e) {
+      var b = e.target.closest('[data-kj]'); if (!b) return;
+      var st = f.kap[+b.dataset.kj].s; closeLayer(); pSeek(st); if (!P.playing) pToggle();
+    });
+  }
   function ic30(fwd) {
     return '<svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor"><g' + (fwd ? ' transform="translate(24,0) scale(-1,1)"' : '') + '><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/></g><text x="12" y="16.2" font-size="7.5" font-weight="700" text-anchor="middle" font-family="Roboto, system-ui, sans-serif">30</text></svg>';
   }
   function pFullHtml() {
     var s = serie(P.sid), f = curF(), n = s.folgen.length;
     return '<div class="pin"><div class="phead"><button class="iconbtn plain" data-p="close" id="pclose" aria-label="Player schließen">' + ic('down', 28) + '</button><span class="muted">Läuft gerade</span><span style="width:44px" aria-hidden="true"></span></div>' + coverHtml(s) +
-      '<div class="ptitle"><h2 id="pt-t">' + esc(f.t) + '</h2><div class="muted">' + esc(s.name) + (n > 1 ? ' · ' + (P.i + 1) + ' von ' + n : '') + '</div></div>' +
+      '<div class="ptitle"><h2 id="pt-t">' + esc(f.t) + '</h2><div class="muted">' + esc(f.t === s.name ? ART[s.art].e : s.name) + (n > 1 ? ' · ' + (P.i + 1) + ' von ' + n : '') + '</div>' + (f.kap ? '<div class="pkap" id="pkap">' + esc(kapText()) + '</div>' : '') + '</div>' +
       '<input class="pslider" type="range" id="pslider" min="0" max="' + Math.round(P.dur) + '" step="1" value="' + Math.round(P.pos) + '" aria-label="Position in der Folge"><div class="ptimes"><span id="ptime">0:00</span><span id="prest">−0:00</span></div>' +
       '<div class="pctl"><button class="pbtn" data-p="prev" aria-label="Vorige Folge"' + (P.i === 0 ? ' disabled' : '') + '>' + ic('prev', 32) + '</button><button class="pbtn" data-p="back" aria-label="30 Sekunden zurück">' + ic30(false) + '</button>' +
       '<button class="pbtn main" data-p="play" id="pplay" aria-label="' + (P.playing ? 'Pause' : 'Abspielen') + '">' + ic(P.playing ? 'pause' : 'play', 40) + '</button>' +
       '<button class="pbtn" data-p="fwd" aria-label="30 Sekunden vor">' + ic30(true) + '</button><button class="pbtn" data-p="next" aria-label="Nächste Folge"' + (P.i >= n - 1 ? ' disabled' : '') + '>' + ic('next', 32) + '</button></div>' +
-      '<div class="speed" role="group" aria-label="Geschwindigkeit">' + [[1, '1×'], [1.25, '1,25×'], [1.5, '1,5×']].map(function (o) { return '<button class="chip" data-p="speed" data-v="' + o[0] + '" aria-pressed="' + (P.speed === o[0]) + '">' + o[1] + '</button>'; }).join('') + '</div>' +
+      '<div class="speed" role="group" aria-label="Geschwindigkeit">' + [[1, '1×'], [1.25, '1,25×'], [1.5, '1,5×']].map(function (o) { return '<button class="chip" data-p="speed" data-v="' + o[0] + '" aria-pressed="' + (P.speed === o[0]) + '">' + o[1] + '</button>'; }).join('') + (f.kap ? '<button class="chip kapbtn" data-p="kap" aria-haspopup="dialog">' + ic('list', 20) + 'Kapitel</button>' : '') + '</div>' +
       '<p class="muted pnote">Die Stelle wird gemerkt, auch für das andere Gerät. (Vorschau: nur in diesem Browser. Echt: in Home Assistant, für jeden Benutzer einzeln.)</p></div>';
   }
   function pOpen() {
@@ -1504,6 +1618,7 @@ a.iconbtn { text-decoration: none; }
     else if (a === 'prev') pStep(-1);
     else if (a === 'next') pStep(1);
     else if (a === 'speed') pSpeed(+b.dataset.v);
+    else if (a === 'kap') kapSheet();
   }
   $('mini').addEventListener('click', function (e) {
     var b = e.target.closest('[data-p]'); if (!b) return;
@@ -1624,7 +1739,7 @@ a.iconbtn { text-decoration: none; }
   }
 
   /* ---------- Hochladen (Simulation) ---------- */
-  var upId = 0, upTimer = null;
+  var upId = 1, upTimer = null;
   function startUploads(list) {
     list.forEach(function (u) { u.id = ++upId; u.step = 0; u.p = 0; S.uploads.unshift(u); });
     if (!upTimer) upTimer = setInterval(tick, 400);
@@ -1634,27 +1749,195 @@ a.iconbtn { text-decoration: none; }
     var busy = false;
     S.uploads.forEach(function (u) {
       if (u.step === 0) { u.p = Math.min(100, u.p + 9 + Math.random() * 8); if (u.p >= 100) { u.step = 1; u.t = 0; } busy = true; }
-      else if (u.step === 1) { u.t++; if (u.t >= 4) u.step = 3; busy = true; }
+      else if (u.step === 1) { u.t++; if (u.t >= 4) { u.step = 3; if (u.apply && !u.applied && !u.block) { u.applied = true; u.apply(); } } busy = true; }
     });
     if (!busy) { clearInterval(upTimer); upTimer = null; }
     var r = route().v; if (r === 'hinzufuegen' || r === 'start') render();
     var live = $('live');
     S.uploads.forEach(function (u) { if (u.step === 3 && !u.said) { u.said = true; live.textContent = u.name + ': ' + (u.block ? 'geht leider nicht' : u.pruefen ? 'bitte kurz ansehen' : 'fertig'); } });
   }
-  function demoHandy(ziel) {
-    var zs = ziel ? serie(ziel) : null;
-    startUploads([
-      { name: 'Folge 13 - Der Nebel.mp3', src: 'vom Handy', ergebnis: (zs ? zs.name : 'Lange Serie') + ' · Folge 13', ziel: zs ? zs.id : 'lange-serie' },
-      { name: 'Lied_Sonnenschein.mp3', src: 'vom Handy', ergebnis: (zs ? zs.name : 'Frühlingslieder') + ' · Lied 9', ziel: zs ? zs.id : 'fruhlingslieder', art: 'Musik' },
-      { name: 'Geschichte_ohne_Tags.mp3', src: 'vom Handy', pruefen: GRUND.tags_fehlen, ziel: zs ? zs.id : 'gute-nacht-geschichten', ergebnis: 'Gute-Nacht-Geschichten · Geschichte 10' }
-    ]);
+
+  /* ---------- Rev. 4: Hochladen, Schritt für Schritt ---------- */
+  var DEMO = {
+    kapitel: { album: 'Kapitän Knopf', art: 'hoerbuch', geraten: false, files: ['01 Der Hafen.mp3', '02 Die Karte.mp3', '03 Der Sturm.mp3'], titles: ['Der Hafen', 'Die Karte', 'Der Sturm'] },
+    lieder: { album: 'Sommerlieder', art: 'musik', geraten: false, files: ['01 Sonnenschein.mp3', '02 Regenbogen.mp3', '03 Sternenlicht.mp3', '04 Morgenlied.mp3'], titles: ['Sonnenschein', 'Regenbogen', 'Sternenlicht', 'Morgenlied'] },
+    eins: { album: '', art: 'musik', geraten: false, files: ['Der Mond und der Fuchs.mp3'], titles: ['Der Mond und der Fuchs'] },
+    ohne: { album: 'Aufnahme', art: 'hoerspiel', geraten: true, kein: true, files: ['Aufnahme_001.mp3', 'Aufnahme_002.mp3'], titles: ['Aufnahme 001', 'Aufnahme 002'] },
+    schutz: { album: 'Buch mit Schutz', art: 'hoerbuch', geraten: false, block: 'Diese Datei ist kopiergeschützt (zum Beispiel von Audible). Die Box kann sie nicht abspielen. Nimm eine Datei ohne Kopierschutz.', files: ['Hoerbuch_mit_Schutz.m4b'], titles: ['Buch mit Schutz'] },
+    nas: { album: 'Sternenmühle', art: 'hoerspiel', geraten: true, kein: true, files: ['01.mp3', '02.mp3', '03.mp3', '04.mp3', '05.mp3', '06.mp3'], titles: ['Der Mühlenstein', 'Das Sternenmehl', 'Die Nachtwache', 'Der Windbote', 'Das Tor im Berg', 'Der letzte Sack'] }
+  };
+  var ZIELE = [
+    ['neu', 'lib', 'Neues Hörspiel, Hörbuch oder Album', 'Alle Dateien gehören zusammen und werden etwas Neues.', 'Zum Beispiel: die Kapitel eines Hörbuchs oder alle Lieder einer CD.'],
+    ['ergaenzen', 'addlib', 'Folgen zu einem vorhandenen hinzufügen', 'Die Dateien kommen zu etwas, das schon da ist.', 'Zum Beispiel: zwei neue Folgen zu „Lange Serie“.'],
+    ['einzeln', 'note', 'Einzelne Folge oder einzelnes Lied', 'Jede Datei steht für sich, ohne Serie.', 'Zum Beispiel: ein Lied, das ein Tobie spielen soll.'],
+    ['playlist', 'queue', 'Neue Playlist', 'Eine eigene Liste aus Liedern und Folgen.', 'Zum Beispiel: „Autofahrt“ mit fünf Lieblingsliedern.'],
+    ['auto', 'wand', 'Weiß nicht – sortier du', 'Ich lese die Angaben in den Dateien und sortiere selbst ein.', 'Wenn ich unsicher bin, steht danach „Bitte ansehen“ da.']
+  ];
+  var EIN = { hoerspiel: ['Folge', 'Folgen', 'einzelne Folge', 'einzelne Folgen'], hoerbuch: ['Teil', 'Teile', 'einzelnes Hörbuch', 'einzelne Hörbücher'], musik: ['Lied', 'Lieder', 'einzelnes Lied', 'einzelne Lieder'], geschichte: ['Geschichte', 'Geschichten', 'einzelne Geschichte', 'einzelne Geschichten'] };
+  var ARTWAHL = [['hoerspiel', 'Hörspiel'], ['hoerbuch', 'Hörbuch'], ['musik', 'Album'], ['geschichte', 'Geschichten']];
+  var ARTHINT = { hoerspiel: 'Jede Datei wird eine Folge.', hoerbuch: 'Die Dateien werden Kapitel eines Buchs. Das Buch hat eine Zeitleiste und eine Kapitelliste.', musik: 'Jede Datei wird ein Lied.', geschichte: 'Jede Datei wird eine Geschichte.' };
+  var WZ = null;
+  function nD(n) { return n + (n === 1 ? ' Datei' : ' Dateien'); }
+  function rangeTxt(w, a, n) { return n === 1 ? w + ' ' + a : w + ' ' + a + '–' + (a + n - 1); }
+  function wzPlan(W) {
+    var set = W.set, n = W.files.length;
+    if (W.ziel === 'auto') {
+      if (!set.album && n === 1) return { ziel: 'einzeln', art: set.art, titel: set.titles.slice(), name: '' };
+      return { ziel: 'neu', art: set.art, name: set.album, titel: set.titles.slice() };
+    }
+    return { ziel: W.ziel, art: W.art, name: W.name, serie: W.serie, titel: W.titel.slice() };
   }
-  function demoOrdner() {
-    startUploads([
-      { name: 'Ordner „Die Wolkenreise“ (8 Dateien)', src: 'vom Computer', ergebnis: 'Hörspiel „Die Wolkenreise“ · 8 Folgen', ziel: 'die-wolkenreise', art: 'Hörspiel' },
-      { name: 'Hoerbuch_mit_Schutz.m4b', src: 'vom Computer', block: 'Diese Datei ist kopiergeschützt (zum Beispiel von Audible). Die Box kann sie nicht abspielen. Nimm eine Datei ohne Kopierschutz.', ziel: 'mia-und-das-meer' }
-    ]);
+  function wzSatz() {
+    var W = WZ, n = W.files.length, d = nD(n) + ' → ', pl = wzPlan(W), nm = '„' + (pl.name || '…') + '“';
+    if (W.ziel === 'auto') {
+      var g;
+      if (pl.ziel === 'einzeln') g = 'ein einzelnes Lied „' + pl.titel[0] + '“';
+      else if (pl.art === 'hoerbuch') g = 'neues Hörbuch ' + nm + (n === 1 ? ' (ein Kapitel)' : ', Kapitel 1–' + n);
+      else if (pl.art === 'musik') g = 'neues Album ' + nm + ', ' + rangeTxt('Lied', 1, n);
+      else g = 'neues Hörspiel ' + nm + ', ' + rangeTxt('Folge', 1, n) + (W.set.geraten ? ' (die Art ist geraten, danach „Bitte ansehen“)' : '');
+      return d + 'ich sortiere nach den Angaben in den Dateien ein. Meine Vermutung: ' + g + '.';
+    }
+    if (pl.ziel === 'neu') {
+      if (pl.art === 'hoerbuch') return d + 'neues Hörbuch ' + nm + (n === 1 ? ' (ein Kapitel)' : ', Kapitel 1–' + n) + '.';
+      if (pl.art === 'musik') return d + 'neues Album ' + nm + ', ' + rangeTxt('Lied', 1, n) + '.';
+      if (pl.art === 'geschichte') return d + 'neue Geschichten ' + nm + ', ' + rangeTxt('Geschichte', 1, n) + '.';
+      return d + 'neues Hörspiel ' + nm + ', ' + rangeTxt('Folge', 1, n) + '.';
+    }
+    if (pl.ziel === 'ergaenzen') {
+      if (!W.serie) return d + 'noch nichts gewählt. Wähle ein Hörspiel, Buch oder Album.';
+      var s = serie(W.serie), a = s.folgen.length + 1, w = EIN[s.art];
+      return d + n + ' neue ' + (n === 1 ? w[0] : w[1]) + ' in „' + s.name + '“ (' + rangeTxt(w[0], a, n) + ').';
+    }
+    var w2 = EIN[pl.art];
+    return d + n + ' ' + (n === 1 ? w2[2] : w2[3]) + (n <= 3 ? ': ' + pl.titel.slice(0, n).map(function (x) { return '„' + (x || '…') + '“'; }).join(', ') : '') + '.';
   }
+  function wzStep1() {
+    var n = WZ.files.length, h = '<p class="muted" id="wz-files">' + (WZ.nas ? nD(n) + ' im Eingang vom NAS. Was ist das?' : nD(n) + ' gewählt (' + esc(WZ.files[0]) + (n > 1 ? ' …' : '') + '). Was ist das?') + '</p><div class="stack" id="wz-cards">';
+    ZIELE.forEach(function (z) {
+      if (z[0] === 'playlist' && stufeA()) return;
+      var dis = z[0] === 'playlist';
+      h += '<button class="wchoice" data-z="' + z[0] + '" id="wz-' + z[0] + '"' + (dis ? ' aria-disabled="true"' : '') + '><span class="wc-i" aria-hidden="true">' + ic(z[1], 26) + '</span><span class="wc-b"><span class="wc-t">' + esc(z[2]) + (dis ? ' <span class="vc2">Stufe C – Idee</span>' : '') + '</span><span class="wc-d">' + esc(z[3]) + '</span><span class="wc-e">' + esc(z[4]) + '</span></span></button>';
+    });
+    return h + '</div>';
+  }
+  function wzStep2() {
+    var W = WZ, pl = wzPlan(W), h = '<div class="vsatz" id="wz-satz" role="status" aria-live="polite">' + esc(wzSatz()) + '</div>';
+    var n = W.files.length, ti = W.set.titles;
+    function artChips(list) {
+      return '<div class="chips wrap" role="group" aria-labelledby="wz-l-art">' + list.map(function (a) { return '<button class="chip" data-wa="' + a[0] + '" aria-pressed="' + (W.art === a[0]) + '">' + a[1] + '</button>'; }).join('') + '</div>';
+    }
+    if (W.ziel === 'neu') {
+      h += '<div class="field"><label for="wz-name">Name</label><input type="text" id="wz-name" maxlength="100" value="' + esc(W.name) + '"></div><div class="muted">' + (W.set.album ? 'Der Name steht in den Dateien (Angabe „Album“ der ersten Datei).' : 'In den Dateien steht kein Name. Er ist aus dem Dateinamen vorgeschlagen.') + '</div>';
+      h += '<div class="field"><span class="lbl" id="wz-l-art">Was ist es?</span>' + artChips(ARTWAHL) + '<div class="muted">' + ARTHINT[W.art] + ' ' + (W.artQuelle === 'tags' ? 'Vorgeschlagen aus den Angaben in den Dateien.' : W.artQuelle === 'geraten' ? 'Geraten, weil in den Dateien nichts dazu steht.' : '') + '</div></div>';
+      var lw = W.art === 'hoerbuch' ? 'Kapitel' : W.art === 'musik' ? 'Lied' : W.art === 'geschichte' ? 'Geschichte' : 'Folge';
+      h += '<div class="flist" aria-label="Was aus den Dateien wird">' + ti.slice(0, 4).map(function (x, i) { return '<div>' + lw + ' ' + (i + 1) + ' · ' + esc(x) + '</div>'; }).join('') + (n > 4 ? '<div class="muted">… und ' + (n - 4) + ' weitere</div>' : '') + '</div>';
+    } else if (W.ziel === 'ergaenzen') {
+      var s = W.serie ? serie(W.serie) : null;
+      h += '<div class="field"><span class="lbl">Wohin soll es?</span><button class="btn wzpick" id="wz-pick">' + (s ? coverHtml(s, 'sm') + '<span class="grow" style="flex:1;text-align:left">' + esc(s.name) + '<br><span class="muted">' + ART[s.art].e + ' · ' + einheit(s) + '</span></span><span class="muted">Ändern</span>' : 'Hörspiel, Buch oder Album wählen …') + '</button></div>';
+      if (s) { var a = s.folgen.length + 1; h += '<div class="flist">' + ti.slice(0, 4).map(function (x, i) { return '<div>' + EIN[s.art][0] + ' ' + (a + i) + ' · ' + esc(x) + '</div>'; }).join('') + (n > 4 ? '<div class="muted">… und ' + (n - 4) + ' weitere</div>' : '') + '</div><div class="muted">Die Nummern sind eine Vorschau. Nummern aus den Angaben in den Dateien haben Vorrang.</div>'; }
+    } else if (W.ziel === 'einzeln') {
+      h += '<div class="field"><span class="lbl" id="wz-l-art">Was ist es?</span>' + artChips([['musik', 'Lied'], ['geschichte', 'Geschichte'], ['hoerspiel', 'Folge'], ['hoerbuch', 'Hörbuch']]) + '<div class="muted">Jede Datei bekommt ihren eigenen Platz in der Bibliothek, ohne Serie und ohne Album.</div></div>';
+      for (var i = 0; i < Math.min(n, 3); i++) h += '<div class="field"><label for="wz-t' + i + '">Name' + (n > 1 ? ' von Datei ' + (i + 1) : '') + '</label><input type="text" id="wz-t' + i + '" maxlength="100" value="' + esc(W.titel[i]) + '"></div>';
+      if (n > 3) h += '<div class="muted">… und ' + (n - 3) + ' weitere (Name aus den Angaben in den Dateien).</div>';
+    } else {
+      h += '<p>Ich lese die Angaben in den Dateien (Album, Interpret, Titel). Dateien, die zum selben Album gehören, bleiben zusammen. Passt etwas zu einem Hörspiel, das schon da ist, kommt es dort dazu. Wenn ich unsicher bin, steht danach „Bitte ansehen“ da, und du kannst es ändern.</p>';
+    }
+    return h;
+  }
+  function wzShow(step, fresh) {
+    var title, body, btns;
+    if (step === 1) { title = WZ.nas ? 'Was ist das?' : 'Was lädst du hoch?'; body = wzStep1(); btns = [{ label: 'Abbrechen' }]; }
+    else { title = 'Das passiert gleich'; body = wzStep2(); btns = [{ label: 'Abbrechen', kind: 'link' }, { label: 'Ändern', fn: function () { wzShow(1); return false; } }, { label: WZ.nas ? 'Neu einsortieren' : 'Hochladen', kind: 'primary', fn: wzGo }]; }
+    if (fresh) { openSheet(title, body, btns); wzBind(); }
+    else { setSheet(title, body, btns); var tt = $('sheet-t'); tt.tabIndex = -1; tt.focus(); }
+  }
+  function wzBind() {
+    var sb = $('sheet-b');
+    sb.addEventListener('click', function (e) {
+      var c = e.target.closest('.wchoice');
+      if (c) { wzChoose(c.dataset.z); return; }
+      var a = e.target.closest('[data-wa]');
+      if (a) { WZ.art = a.dataset.wa; WZ.artQuelle = 'manuell'; setSheet('Das passiert gleich', wzStep2(), null); wzButtons2(); var again = $('sheet-b').querySelector('[data-wa="' + WZ.art + '"]'); if (again) again.focus(); return; }
+      if (e.target.closest('#wz-pick')) wzPick();
+    });
+    sb.addEventListener('input', function (e) {
+      if (e.target.id === 'wz-name') WZ.name = e.target.value;
+      else if (/^wz-t\d+$/.test(e.target.id)) WZ.titel[+e.target.id.slice(4)] = e.target.value;
+      else return;
+      $('wz-satz').textContent = wzSatz();
+    });
+  }
+  function wzButtons2() {
+    sheetButtons([{ label: 'Abbrechen', kind: 'link' }, { label: 'Ändern', fn: function () { wzShow(1); return false; } }, { label: WZ.nas ? 'Neu einsortieren' : 'Hochladen', kind: 'primary', fn: wzGo }]);
+  }
+  function wzChoose(z) {
+    if (z === 'playlist') { toast('Playlists gibt es noch nicht. Das kommt später (Stufe C).'); return; }
+    WZ.ziel = z;
+    if (WZ.artQuelle !== 'manuell') WZ.art = z === 'einzeln' ? (WZ.set.art === 'musik' || WZ.set.art === 'geschichte' ? WZ.set.art : 'musik') : WZ.set.art;
+    if (z === 'ergaenzen' && !WZ.serie) { wzPick(); return; }
+    wzShow(2);
+  }
+  function wzPick() {
+    var keep = WZ;
+    closeLayer();
+    pickZiel('Zu welchem soll es dazu?', function (z) { WZ = keep; WZ.serie = z.s; wzShow(2, true); }, { nurSammlung: true, abbruch: function () { setTimeout(function () { WZ = keep; wzShow(keep.serie ? 2 : 1, true); }, 0); } });
+  }
+  function uniqueId(base) { var id = base || 'neu', k = 2; while (serie(id)) id = base + '-' + (k++); return id; }
+  function wzIds(pl, W) {
+    if (pl.ziel === 'neu') return [uniqueId(slug(pl.name || 'neu'))];
+    if (pl.ziel === 'einzeln') { var ids = [], used = {}; pl.titel.forEach(function (x) { var b = slug(x || 'titel'), id = b, k = 2; while (serie(id) || used[id]) id = b + '-' + (k++); used[id] = 1; ids.push(id); }); return ids; }
+    return [W.serie];
+  }
+  function wzErgebnis(pl, W, ids) {
+    var n = W.files.length;
+    if (pl.ziel === 'neu') return { text: pl.art === 'hoerbuch' ? 'Hörbuch „' + pl.name + '“ · ' + (n === 1 ? 'ein Kapitel' : n + ' Kapitel') : pl.art === 'musik' ? 'Album „' + pl.name + '“ · ' + n + (n === 1 ? ' Lied' : ' Lieder') : pl.art === 'geschichte' ? 'Geschichten „' + pl.name + '“ · ' + n + (n === 1 ? ' Geschichte' : ' Geschichten') : 'Hörspiel „' + pl.name + '“ · ' + n + (n === 1 ? ' Folge' : ' Folgen'), art: ART[pl.art].e };
+    if (pl.ziel === 'ergaenzen') { var s = serie(W.serie), a = s.folgen.length + 1, w = EIN[s.art]; return { text: '„' + s.name + '“ · ' + rangeTxt(w[0], a, n), art: null }; }
+    var w2 = EIN[pl.art];
+    return { text: n === 1 ? '„' + pl.titel[0] + '“ · ' + w2[2] : n + ' ' + w2[3] + ' (jedes steht für sich)', art: ART[pl.art].e };
+  }
+  function mkSerie(id, name, art, folgen, extra) {
+    var s = { id: id, name: name, art: art, c: 'c' + (1 + hash(name) % 6), ago: 0, pruefen: null, img: null, folgen: folgen };
+    for (var x in extra) s[x] = extra[x];
+    S.series.push(s); return s;
+  }
+  function wzApply(pl, W, ids) {
+    var n = W.files.length, ti = pl.titel, geraten = W.ziel === 'auto' && W.set.kein ? GRUND.tags_fehlen : null;
+    function folge(t, i, art, a0) { return { t: art === 'hoerspiel' ? 'Folge ' + ((a0 || 1) + i) + ': ' + t : t, k: 1, mb: 10, d: 60 + hash(t) % 90 }; }
+    if (pl.ziel === 'neu') {
+      var fl;
+      if (pl.art === 'hoerbuch') {
+        var f = { t: pl.name, k: n, mb: 40 * n, d: 200 + hash(pl.name) % 100 };
+        if (n > 1) { f.kap = ti.map(function (x, i) { return { t: 'Kapitel ' + (i + 1) + ': ' + x, s: Math.round(i * f.d / n) }; }); }
+        fl = [f];
+      } else fl = ti.map(function (x, i) { return folge(x, i, pl.art); });
+      mkSerie(ids[0], pl.name, pl.art, fl, { pruefen: geraten });
+    } else if (pl.ziel === 'ergaenzen') {
+      var s = serie(W.serie), a0 = s.folgen.length + 1;
+      ti.forEach(function (x, i) { s.folgen.push(folge(x, i, s.art, a0)); });
+    } else {
+      ti.forEach(function (x, i) { mkSerie(ids[i], x || 'Ohne Namen', pl.art, [folge(x || 'Ohne Namen', i, 'musik')], { einzeln: true, pruefen: geraten }); });
+    }
+  }
+  function wzGo() {
+    var W = WZ, pl = wzPlan(W), n = W.files.length;
+    if (W.ziel === 'ergaenzen' && !W.serie) { toast('Bitte zuerst wählen, wohin es soll.'); return false; }
+    if (pl.ziel === 'neu' && !String(pl.name).trim()) { toast('Bitte einen Namen eingeben.'); return false; }
+    var ids = wzIds(pl, W), res = wzErgebnis(pl, W, ids), set = W.set;
+    if (W.nas) {
+      var u = W.up, s0 = u ? serie(u.ziel) : serie(W.serieId);
+      var fix = function () { if (s0) { if (pl.ziel === 'neu') { s0.art = pl.art; s0.name = pl.name; } s0.pruefen = null; } };
+      if (u) { u.step = 1; u.t = 0; u.pruefen = null; u.ok = false; u.said = false; u.applied = false; u.ergebnis = res.text; u.apply = fix; if (!upTimer) upTimer = setInterval(tick, 400); render(); }
+      else { fix(); render(); toast('Neu einsortiert (Vorschau): ' + res.text + '.'); }
+      return;
+    }
+    startUploads([{ name: nD(n) + ': ' + W.files.slice(0, 2).join(', ') + (n > 2 ? ' …' : ''), src: W.src, ergebnis: res.text, ziel: ids[0], art: W.ziel === 'auto' ? res.art : null, pruefen: W.ziel === 'auto' && set.kein ? GRUND.tags_fehlen : null, block: set.block || null, apply: function () { wzApply(pl, W, ids); } }]);
+  }
+  function wzStart(o) {
+    var set = o.set;
+    WZ = { nas: !!o.nas, up: o.up || null, serieId: o.serieId || null, src: o.src, set: set, files: set.files, ziel: null, art: set.art, artQuelle: set.geraten ? 'geraten' : 'tags', name: set.album || set.titles[0] || '', serie: null, titel: set.titles.slice() };
+    wzShow(1, true);
+  }
+  function demoSet() { var v = $('sel-dateien') ? $('sel-dateien').value : 'kapitel'; return DEMO[v] || DEMO.kapitel; }
   function startLern(z, boxId) {
     if (S.lern && S.lern.timer) clearInterval(S.lern.timer);
     S.lern = { z: z, box: boxId, state: 'wartet', rest: 120 };
@@ -1694,7 +1977,8 @@ a.iconbtn { text-decoration: none; }
     geprueft: function (t, arg) { serie(arg).pruefen = null; toast('Danke, ist erledigt.'); render(); },
     stimmtNicht: function (t, arg) {
       var s = serie(arg);
-      openSheet('Was soll passieren?', '<p class="muted">Das Einsortieren hat „' + esc(s.name) + '“ nicht richtig erkannt. Du kannst es korrigieren. Nichts geht endgültig verloren.</p><div class="stack"><button class="btn primary" id="sn-ver">Anderem zuordnen …</button></div><div class="apart"><button class="btn link danger" id="sn-weg">In den Papierkorb …</button></div>', [{ label: 'Abbrechen' }]);
+      openSheet('Was soll passieren?', '<p class="muted">Das Einsortieren hat „' + esc(s.name) + '“ nicht richtig erkannt. Du kannst es korrigieren. Nichts geht endgültig verloren.</p><div class="stack"><button class="btn primary" id="sn-anders">Anders einsortieren …</button><button class="btn" id="sn-ver">Anderem zuordnen …</button></div><div class="apart"><button class="btn link danger" id="sn-weg">In den Papierkorb …</button></div>', [{ label: 'Abbrechen' }]);
+      $('sn-anders').addEventListener('click', function () { closeLayer(); var set = {}; for (var k in DEMO.nas) set[k] = DEMO.nas[k]; set.album = s.name; wzStart({ nas: true, up: null, serieId: arg, src: 'vom NAS', set: set }); });
       $('sn-ver').addEventListener('click', function () { closeLayer(); pickZiel('In welches soll es gehören?', function (z) { if (z.s === arg) { toast('Bitte ein anderes wählen.'); return; } s.pruefen = null; toast('Verschoben nach „' + serie(z.s).name + '“ (Vorschau).'); render(); }); });
       $('sn-weg').addEventListener('click', function () { closeLayer(); A.serieWeg(null, arg); });
     },
@@ -1723,10 +2007,21 @@ a.iconbtn { text-decoration: none; }
       openSheet('Dieser Tobie spielt schon etwas', '<p>Er spielt jetzt „Kommissar Kralle“. Soll er stattdessen ' + esc(zielText(S.lern.z)) + ' spielen?</p><p class="muted">Du hast dafür noch 10 Sekunden.</p>', [{ label: 'Nein, so lassen', fn: function () { clearInterval(S.lern.timer); var z = S.lern.z; S.lern = null; location.hash = '#serie-' + (z.s || ''); toast('Nichts geändert.'); } }, { label: 'Ja, ändern', kind: 'primary', fn: function () { A.lernErkannt(); } }], 'alertdialog');
     },
     lernNoch: function () { clearInterval(S.lern.timer); startLern(S.lern.z, S.lern.box); },
-    addHandy: function () {
-      openSheet('In welches soll es?', '<p>Du hast 3 Dateien gewählt (Vorschau). Die Seite sortiert sie nach den Angaben in den Dateien ein. Du kannst auch ein bestimmtes Ziel wählen.</p>', [{ label: 'Abbrechen' }, { label: 'In ein bestehendes wählen …', fn: function () { setTimeout(function () { pickZiel('In welches soll es?', function (z) { demoHandy(z.s); }); }, 0); } }, { label: 'Automatisch (nach den Dateien)', kind: 'primary', fn: function () { demoHandy(null); } }]);
+    addHandy: function () { wzStart({ src: 'vom Handy', set: demoSet() }); },
+    addOrdner: function () { wzStart({ src: 'vom Computer', set: demoSet() }); },
+    anders: function (t, arg) { var u = S.uploads.filter(function (x) { return String(x.id) === arg; })[0]; wzStart({ nas: true, up: u, src: 'vom NAS', set: DEMO.nas }); },
+    demoNas: function () {
+      var id = ++upId;
+      S.uploads.unshift({ id: id, name: 'Ordner „Der Wald (CD 1 bis 3)“ (31 Dateien)', src: 'vom NAS', nas: true, step: 3, pruefen: 'Die Art ist geraten. Stimmt das?', ziel: 'die-sternenmuhle', ergebnis: 'Hörspiel „Der Wald“ · 1 Folge mit 31 Kapiteln' });
+      render(); toast('Ein Ordner ist im NAS-Eingang angekommen.');
     },
-    addOrdner: function () { demoOrdner(); },
+    ghQ: function (t, arg) { S.gh.quelle = arg; S.gh.serie = null; render(); },
+    reinDel: function () { confirmDlg('Meine Reinhör-Daten löschen?', 'Gelöscht wird nur, was zu deinem Konto gehört. Die Stelle zum Weiterhören bleibt erhalten.', 'Löschen', function () { toast('In der Vorschau nicht ausgeführt.'); }, true); },
+    playK: function (t, arg) {
+      var p = arg.split('|'), s = serie(p[0]), j = +p[2], st = s.folgen[0].kap[j].s;
+      if (P.sid === p[0] && P.i === 0 && P.loaded) { if (kapIdx(s.folgen[0].kap, P.pos) === j && P.playing) { pToggle(); return; } pSeek(st); if (!P.playing) pToggle(); }
+      else pLoad(p[0], 0, st, true);
+    },
     upOk: function (t, arg) { S.uploads.forEach(function (u) { if (String(u.id) === arg) u.ok = true; }); render(); toast('Danke, ist erledigt.'); },
     gnHilfe: function () { openSheet('Gute-Nacht-Tobie anlegen', '<ol style="padding-left:20px"><li>Lege einen neuen Tobie auf eine Box. Auf der Startseite erscheint „Neuer Tobie“.</li><li>Wähle dort die Kachel „Gute Nacht“.</li></ol><p>Ein Tobie, der schon etwas spielt, geht auch: Unter „Tobies“ den Tobie antippen, „Etwas anderes spielen“ und die Kachel „Gute Nacht“ wählen.</p>', [{ label: 'Verstanden', kind: 'primary' }]); },
     gnWahl: function (t, arg) { S.gn.timer = +arg; render(); },
@@ -1760,7 +2055,7 @@ a.iconbtn { text-decoration: none; }
     var p = arg.split('|'), i = +p[1];
     if (P.sid === p[0] && P.i === i) pToggle(); else pStart(p[0], i);
   };
-  A.serieTobie = function (t, arg) { zielSheet(arg, null); };
+  A.serieTobie = function (t, arg) { zielSheet(arg, serie(arg).einzeln ? 0 : null); };
   A.serieMenu = function (t, arg) {
     var s = serie(arg), h = '<div class="stack"><button class="btn" id="sm-n">Name ändern</button><button class="btn" id="sm-c">' + ic('cam', 20) + 'Cover ändern</button><button class="btn" id="sm-a">Art ändern</button>' +
       (S.admin && s.folgen.length > 1 ? '<button class="btn" id="sm-r">Reihenfolge ändern <span class="vc2">Admin</span></button>' : '') + (S.admin ? '<button class="btn" id="sm-z">Mit anderem zusammenführen … <span class="vc2">Admin</span></button>' : '') + '</div>' +
