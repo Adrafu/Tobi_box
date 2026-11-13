@@ -222,4 +222,4 @@ HA nicht gefahrlos auslösbar.
 |---|---|---|
 | AB8 | (PL) Zwei unbekannte Tobies sehen in der Karte auf „Geräte“ gleich aus („Gerade aufgelegt, vor weniger als einer Minute.“) | **(Tobias)** Uhrzeit dazu: „Aufgelegt um 21:01, vor 2 Minuten.“ (nur in der Karte mit mehreren Tobies) |
 
-**Abnahme A-1b (13.11.): alle Schritte bestanden**, AB8 eingebaut; die ausdrückliche Annahme durch Tobias steht noch aus. Danach weiter mit A-1c (A8f, A11a, A11b, A14-1c, A15-1c).
+**Abnahme A-1b (Tobias, 13.11.): angenommen** („Ja mach weiter“), AB8 eingebaut. Weiter mit A-1c (A8f, A11a, A11b, A14-1c, A15-1c).
