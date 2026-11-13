@@ -25,3 +25,7 @@ box/medien-sprache/*
 !box/medien-sprache/lange-serie/
 !box/medien-sprache/track-test/
 !box/medien-sprache/ueberraschung/
+
+# Claude Code: lokale Einstellungen und Arbeitskopien (nur auf diesem Mac)
+.claude/settings.local.json
+.claude/worktrees/
