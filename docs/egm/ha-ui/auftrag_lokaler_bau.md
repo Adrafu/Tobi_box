@@ -25,8 +25,11 @@ noch ums Umsetzen, Einspielen und Prüfen im echten HA.
 
 - Fertig und abgenommen: A0 (Verträge), A1–A4, A9c (Backend), **A-1a** (Start, Bibliothek, Suche, Serienseite, Geräte,
   Abends, Technik).
-- Gerade aus der Cloud gekommen: **A9/A10** (Tobies-Regal, Neuer Tobie, Warteschlange, „Gespielt von“). Prüfe nach
-  `git pull`, ob es im Branch ist (Commit-Nachricht mit „A9“/„A10“). Wenn ja: im echten HA prüfen und nachbessern.
+- **A9/A10** (Tobies-Regal, Neuer Tobie, Warteschlange, „Gespielt von“) ist nur als **Zwischenstand** im Branch
+  (Commit „A9/A10: Zwischenstand“): Der Cloud-Agent wurde durch einen Neustart mitten in der Arbeit abgebrochen.
+  Vorhanden: Anfang von `seiten/tobies.js` und Teile in Geräte/Serienseite, noch ohne eigene Tests. **Deine erste
+  Aufgabe:** A9/A10 nach Design (Zeilen A9, A10 in Abschnitt 15; Vorlage `docs/egm/ha-ui/x20_tobie_zuerst.html`)
+  fertigstellen, mit Tests (`tobies.test.mjs`, Browser-Prüfung), dann im echten HA prüfen.
 - Danach in dieser Reihenfolge (Design Abschnitt 15): A14-1b, A15-1b → **Abnahme A-1b mit Tobias** → A8f, A11a, A11b,
   A14-1c, A15-1c → **Abnahme A-1c** → A17 (Seite für alle öffnen, nur nach Tobias’ Ja) → A6m/A8m (Bewegung) →
   A-2 (Reinhören) → A-3.
@@ -72,6 +75,5 @@ noch ums Umsetzen, Einspielen und Prüfen im echten HA.
 
 ## 6. Übergabe
 
-- Die Cloud-Sitzung pusht noch A9/A10 und baut danach an der Seite nichts mehr. Wenn du `git log` siehst, dass A9/A10
-  da ist, gehört die Seite dir.
+- Die Cloud-Sitzung baut an der Seite nichts mehr; die Seite gehört ab jetzt dir.
 - Halte den Stand in `docs/plan/stueckliste-und-psp.md` aktuell, damit jede spätere Sitzung weiß, wo es steht.
