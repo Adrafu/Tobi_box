@@ -510,3 +510,95 @@ export const TECHNIK = {
     mehr: 'Mehr laden',
   },
 };
+
+// Seite „Geräte“ und Box-Detailseite (Design 3.4, 5.1.1, 5.1.2, Paket A7b). Sätze der Status-Karte stehen in STATUS.
+export const GERAETE_SEITE = {
+  boxen_label: 'Boxen', // neu, nicht im Design (aria-label der Liste der Karten)
+  box_nicht_da: 'Diese Box gibt es nicht mehr.', // neu, nicht im Design
+  zu_den_geraeten: 'Zu den Geräten', // neu, nicht im Design
+  box: {
+    verbindung: 'Verbindung', // Design 5.1.2
+    online: 'online',
+    aus: 'aus, zuletzt gesehen {zeit}',
+    aus_ohne_zeit: 'aus oder nicht im WLAN', // neu, nicht im Design
+    nie: 'noch nicht gemeldet', // neu, nicht im Design
+    akku: 'Akku',
+    akku_laedt: '{prozent} %, lädt',
+    akku_ohne_laden: '{prozent} %',
+    akku_unbekannt: '–', // Vertrag 2089: was fehlt, lässt die Seite weg oder zeigt „–“
+    laeuft: 'Läuft gerade',
+    nichts: 'nichts',
+    technik: 'Technik', // Überschrift, Design 5.1.2
+    technik_link: 'Technik zu dieser Box',
+  },
+  zeit: { heute: 'heute um {uhr}', gestern: 'gestern um {uhr}', sonst: 'am {datum} um {uhr}' }, // Design 5.1.1 („heute um 18:40“)
+};
+
+// Abschnitt „Abends“ (Design 5.8): Gute Nacht und Leise-Zeiten als Wochenansicht.
+export const ABENDS = {
+  titel: 'Abends',
+  gute_nacht: {
+    titel: 'Gute Nacht',
+    text: 'Lege den Gute-Nacht-Tobie auf. Dann läuft ein Timer. Danach wird es leise und die Box hört auf.',
+    timer: 'Die Box spielt noch',
+    minuten: '{minuten} Min.',
+    anderer: 'Anderer Wert …',
+    anderer_label: 'Anderer Wert',
+    anderer_minuten: '{minuten} Minuten',
+    speichern: 'Speichern',
+    gespeichert: 'Gespeichert',
+    hat_tobie: 'Ein Tobie spielt die Gute-Nacht-Karte.',
+    kein_tobie: 'Noch kein Gute-Nacht-Tobie.',
+    anlegen: 'So legst du einen an',
+    anlegen_titel: 'So legst du einen Gute-Nacht-Tobie an', // neu, nicht im Design (Titel des Blatts)
+    anlegen_text: 'Wähle unter „Tobies“ „+ Neuer Tobie“ und unten die „Gute-Nacht-Karte“. Oder tippe unter „Tobies“ einen Tobie an, der schon etwas spielt, und wähle unten die „Gute-Nacht-Karte“.',
+  },
+  leise: {
+    titel: 'Leise-Zeiten',
+    jetzt_leiser: 'Jetzt: leiser bis {bis}',
+    jetzt_still: 'Jetzt: still bis {bis}',
+    jetzt_normal: 'Jetzt: normale Lautstärke, die nächste Leise-Zeit beginnt um {von}',
+    jetzt_normal_ohne: 'Jetzt: normale Lautstärke', // Prototyp v9
+    neu: 'Leise-Zeit', // Knopf „+ Leise-Zeit“, das Plus ist ein Symbol
+    still: 'Still',
+    leiser: 'Leiser',
+    marke_jetzt: 'jetzt',
+    heute: ' (heute)', // nur für Screenreader
+    leer: 'Keine Leise-Zeiten. Die Box spielt immer in normaler Lautstärke.',
+    wochenansicht: 'Leise-Zeiten der Woche', // neu, nicht im Design (aria-label)
+    tage: { 1: 'Mo', 2: 'Di', 3: 'Mi', 4: 'Do', 5: 'Fr', 6: 'Sa', 7: 'So' },
+    abschnitt: '{tag}, {von} bis {bis}, {wirkung}, bearbeiten', // Design 5.8
+    fortsetzung: '{tag}, von {vontag} bis {bis}, {wirkung}, bearbeiten', // Design 5.8
+    wirkung_still: 'still',
+    wirkung_leiser: 'leiser, höchstens {grenze} %',
+    jeden_tag: 'Jeden Tag',
+  },
+  blatt: {
+    titel_neu: 'Neue Leise-Zeit',
+    titel_aendern: 'Leise-Zeit ändern',
+    tage: 'An diesen Tagen',
+    schnell_label: 'Schnellwahl', // neu, nicht im Design (aria-label)
+    so_do: 'So–Do',
+    fr_sa: 'Fr, Sa',
+    von: 'Von',
+    bis: 'Bis',
+    ueber_mitternacht: 'Geht bis zum nächsten Morgen.',
+    was: 'Was soll die Box tun?',
+    grenze: 'Höchste Lautstärke: {prozent} %',
+    still_hinweis: 'Die Box spielt nicht. Ein leiser Ton zeigt, dass der Tobie erkannt wurde.',
+    kein_tag_hinweis: 'Wähle mindestens einen Tag.', // neu, nicht im Design
+    speichern: 'Speichern',
+    abbrechen: 'Abbrechen',
+    loeschen: 'Diese Leise-Zeit löschen …',
+    loeschen_titel: 'Leise-Zeit löschen?',
+    loeschen_text: '{tage}, {von} bis {bis} wird gelöscht. Danach spielt die Box in dieser Zeit in normaler Lautstärke.',
+    loeschen_knopf: 'Löschen',
+  },
+  meldung: {
+    gespeichert: 'Gespeichert. Die Boxen bekommen es gleich.', // Design 5.8
+    geloescht: 'Gelöscht.',
+    kein_tag: 'Bitte mindestens einen Tag wählen.',
+    von_gleich: '„Von“ und „Bis“ dürfen nicht gleich sein.',
+    zu_viele: 'Es gibt schon 32 Leise-Zeiten. Lösche zuerst eine.', // neu, nicht im Design (Prüfregel: höchstens 32)
+  },
+};

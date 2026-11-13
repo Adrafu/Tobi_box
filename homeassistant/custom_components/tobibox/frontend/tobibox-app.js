@@ -746,6 +746,8 @@ if (lit) {
         begruessung: () => begruessung(),
         covers: app._covers,
         uploadBand: () => nothing, // A11 ersetzt das durch das Band der laufenden Uploads
+        boxen: () => app.store.s.boxen, // live: Box-Name -> Box-Objekt aus `boxen/list` und den Ereignissen (A7b)
+        gesperrt: () => app.store.s.konfigZustand !== 'ok' || app.store.s.verbindungWeg, // Liste gesperrt oder keine Verbindung: Knöpfe, die ändern, grau (A7b)
         folgenAktionen: null, // A8b/A9 setzen eine Funktion x => Template (Abspielen und „⋯“ in Folgenzeilen der Suche)
       };
     }

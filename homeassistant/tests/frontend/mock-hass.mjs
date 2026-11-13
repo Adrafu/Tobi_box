@@ -49,7 +49,7 @@ export const SCHEMA = {
  * FELDER_V11 sind neue optionale Eingabefelder alter Befehle: ohne die Fähigkeit lehnt das Backend sie ab (invalid_format). */
 export const SCHEMA_V11 = {
   'tobibox/einstellungen/get': { braucht: 'einstellungen' },
-  'tobibox/einstellungen/set': { opt: ['leise_zeiten', 'gute_nacht', 'lesezeichen_tage'], braucht: 'einstellungen' },
+  'tobibox/einstellungen/set': { opt: ['leise_zeiten', 'gute_nacht', 'lesezeichen_tage', 'erwartet_revision'], braucht: 'einstellungen' },
   'tobibox/eingang/entfernen': { req: ['eintrag_id', 'bestaetigt'], braucht: 'eingang_entfernen' },
   'tobibox/konfig/get': { braucht: 'konfig_lesen' },
 };
@@ -73,6 +73,7 @@ export const SCHEMA_TECHNIK = {
 export const FELDER_BIB = {
   'tobibox/serien/list': ['art', 'text', 'auch_folgen', 'filter', 'sortierung', 'limit', 'offset'],
   'tobibox/zuordnung/list': ['text', 'neu'],
+  'tobibox/einstellungen/set': ['erwartet_revision'], // A7b (Vertrag 3.11, 12.11.)
 };
 export const ARTEN = ['hoerspiel', 'hoerbuch', 'musik', 'geschichte'];
 const FILTER_WERTE = ['ohne_tobie', 'neu', 'pruefen', 'sammlung', 'einzeln'];
@@ -190,6 +191,7 @@ export function pruefeEingabe(msg, faehigkeiten = null) {
 
 export function createMockHass(opts = {}) {
   const darf = opts.darf ?? true;
+  const istAdmin = opts.istAdmin ?? darf; // Administrator? (`darf: true, istAdmin: false` = Alltag: schreiben ja, Technik nein)
   const calls = []; // { type, msg } in der Reihenfolge des Eingangs
   const overrides = new Map(); // type -> Funktion (msg, b) => Ergebnis
   const failures = new Map(); // type -> [code…]
@@ -484,7 +486,7 @@ export function createMockHass(opts = {}) {
       if (!b.boxen.some((x) => x.box === m.box)) throw fehler('box_unbekannt');
       const war = !!b.lern; b.lern = null; return { abgebrochen: war };
     },
-    'tobibox/boxen/list': () => ({ boxen: b.boxen }),
+    'tobibox/boxen/list': () => ({ boxen: istAdmin ? b.boxen : b.boxen.map(({ ereignisse, ...rest }) => rest) }), // `ereignisse` nur für Administratoren (Vertrag 2.1)
     'tobibox/box/sync': (m) => {
       const box = b.boxen.find((x) => x.box === m.box); if (!box) throw fehler('box_unbekannt');
       if (!box.online) throw fehler('box_offline');
@@ -502,8 +504,13 @@ export function createMockHass(opts = {}) {
     'tobibox/einstellungen/set': (m) => {
       konfigBereit();
       if (!('leise_zeiten' in m) && !('gute_nacht' in m) && !('lesezeichen_tage' in m)) throw fehler('invalid_format', 'nichts zu ändern');
+      if ('erwartet_revision' in m && m.erwartet_revision !== b.konfig.revision) throw fehler('stand_veraltet'); // 12.11.: nichts wird geändert
       const neu = structuredClone(b.einstellungen);
-      if ('leise_zeiten' in m) neu.leise_zeiten = einstellungPruefen.leise(m.leise_zeiten);
+      if ('leise_zeiten' in m) {
+        // Nicht-Administratoren: `zeitzone` wird ignoriert, der gespeicherte Wert bleibt (Vertrag 2.4)
+        const lz = istAdmin || !m.leise_zeiten || typeof m.leise_zeiten !== 'object' ? m.leise_zeiten : { ...m.leise_zeiten, zeitzone: b.einstellungen.leise_zeiten.zeitzone };
+        neu.leise_zeiten = einstellungPruefen.leise(lz);
+      }
       if ('gute_nacht' in m) neu.gute_nacht = einstellungPruefen.gute(m.gute_nacht);
       if ('lesezeichen_tage' in m) neu.lesezeichen_tage = einstellungPruefen.tage(m.lesezeichen_tage);
       if (gleich(neu, b.einstellungen)) return { geaendert: false, konfig: b.konfig, veroeffentlicht: null, ...b.einstellungen };
@@ -606,7 +613,7 @@ export function createMockHass(opts = {}) {
     connection,
     fetchWithAuth,
     auth: { data: { access_token: 'token-123' }, expired: false, refreshAccessToken: async () => { hass.auth.data.access_token = 'token-neu'; hass.auth.expired = false; } },
-    user: { is_admin: darf },
+    user: { is_admin: istAdmin },
     language: 'de',
   };
 
