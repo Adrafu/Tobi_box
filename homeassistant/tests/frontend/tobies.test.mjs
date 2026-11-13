@@ -847,6 +847,8 @@ test('Geräte: mehrere unbekannte Tobies: die Karte zählt („2 neue Tobies auf
   const karte = s.q('[data-karte="neue-tobies"][data-box="kueche"]');
   assert.equal(text(karte.querySelector('h3')), '2 neue Tobies auf Küche');
   assert.deepEqual([...karte.querySelectorAll('a.tb-zeilenlink')].map((a) => a.getAttribute('href')).sort(), [`#neu-ziel-${NEU}`, `#neu-ziel-${UNBEKANNT}`].sort());
+  // Abnahme A-1b: jede Zeile nennt die Uhrzeit, damit man die Tobies unterscheidet
+  for (const z of karte.querySelectorAll('a.tb-zeilenlink .grow')) assert.match(text(z), /^Aufgelegt um \d\d:\d\d, /);
   assert.equal(s.q('nav.tabs a[href="#geraete"] .dot').textContent, '2');
   assert.equal(text(s.q('nav.tabs a[href="#geraete"] .sr')), '2 neue Tobies');
   weg();

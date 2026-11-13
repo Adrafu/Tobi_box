@@ -1052,11 +1052,19 @@ export function geraeteKarten(ctx) {
     if (!jeBox.has(b)) jeBox.set(b, []);
     jeBox.get(b).push(e);
   }
-  const zeitText = (e) => {
+  // `mitUhr`: in der Karte mit mehreren Tobies steht die Uhrzeit dabei, sonst sähen die Zeilen gleich aus (Abnahme A-1b)
+  const zeitText = (e, mitUhr = false) => {
     const b = meldendeBox(e);
     const mm = b ? e.boxen[b] : null;
-    const z = mm && mm.zeit_ok !== false ? vorZeit(mm.zuletzt || e.zuletzt, jetzt) : '';
-    return z ? fuellen(GERAETE.neuer_tobie.zeile, { zeit: z }) : GERAETE.neuer_tobie.zeile_ohne;
+    const iso = mm ? mm.zuletzt || e.zuletzt : null;
+    const z = mm && mm.zeit_ok !== false ? vorZeit(iso, jetzt) : '';
+    if (!z) return GERAETE.neuer_tobie.zeile_ohne;
+    if (mitUhr) {
+      const d = new Date(iso);
+      const uhr = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+      return fuellen(GERAETE.neuer_tobie.zeile_uhr, { uhr, zeit: z });
+    }
+    return fuellen(GERAETE.neuer_tobie.zeile, { zeit: z });
   };
   for (const [b, liste] of jeBox) {
     const boxName = b ? ctx.boxAnzeige(b) : undefined;
@@ -1067,7 +1075,7 @@ export function geraeteKarten(ctx) {
         <button type="button" class="btn link" data-versehen @click=${(ev) => m.frageVerwerfen(e.uid, ev.currentTarget)}>${GERAETE.versehen}</button></div>`);
     } else {
       karten.push(html`<div class="tb-karte warn" role="group" data-karte="neue-tobies" data-box=${b}><h3>${fuellen(GERAETE.neue_tobies.titel, { anzahl: liste.length, box: boxName })}</h3>
-        ${liste.map((e) => html`<div class="tb-zeile" data-uid=${e.uid}><a class="tb-zeilenlink" href=${`#neu-ziel-${kodiere(e.uid)}`} aria-label=${`${GERAETE.neue_zeile}: ${zeitText(e)}`}><span class="grow">${zeitText(e)}</span><span class="chev" aria-hidden="true">${ic('chev', 24)}</span></a>
+        ${liste.map((e) => html`<div class="tb-zeile" data-uid=${e.uid}><a class="tb-zeilenlink" href=${`#neu-ziel-${kodiere(e.uid)}`} aria-label=${`${GERAETE.neue_zeile}: ${zeitText(e, true)}`}><span class="grow">${zeitText(e, true)}</span><span class="chev" aria-hidden="true">${ic('chev', 24)}</span></a>
           <button type="button" class="btn link" data-versehen @click=${(ev) => m.frageVerwerfen(e.uid, ev.currentTarget)}>${GERAETE.versehen}</button></div>`)}</div>`);
     }
   }

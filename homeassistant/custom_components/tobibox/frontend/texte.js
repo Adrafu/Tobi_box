@@ -22,6 +22,7 @@ const DEFAULT = {
   vorher: 'Kommissar Kralle',
   tage: 'Mo, Di, Mi, Do, So',
   zeit: 'vor 2 Minuten',
+  uhr: '21:01', // Abnahme A-1b: „Aufgelegt um {uhr}, …“
   serie: 'Lange Serie',
   nr: '1',
   gesamt: '2',
@@ -188,7 +189,10 @@ export const GERAETE = {
   titel: 'Geräte',
   abends: { titel: 'Abends', erklaerung: 'Gute Nacht und Leise-Zeiten' },
   gehoert: { titel: 'Wer hat was gehört?', erklaerung: 'Rangliste, Hörzeit pro Tag, Tageszeiten' }, // Titel Design 3.4; Erklärung nur im Prototyp (Stufe B)
-  neuer_tobie: { titel: 'Neuer Tobie auf {box} – was soll er spielen?', zeile: 'Gerade aufgelegt, {zeit}.', zeile_ohne: 'Gerade aufgelegt.' }, // Design 7.1 (ohne Zeit, wenn die Uhr der Box nicht stimmt)
+  neuer_tobie: {
+    titel: 'Neuer Tobie auf {box} – was soll er spielen?', zeile: 'Gerade aufgelegt, {zeit}.', zeile_ohne: 'Gerade aufgelegt.', // Design 7.1 (ohne Zeit, wenn die Uhr der Box nicht stimmt)
+    zeile_uhr: 'Aufgelegt um {uhr}, {zeit}.', // Abnahme A-1b (Tobias, 13.11.): bei mehreren unbekannten Tobies die Uhrzeit, damit man sie unterscheidet
+  },
   neue_tobies: { titel: '{anzahl} neue Tobies auf {box}' }, // Design 5.13 (N12)
   wartet: { titel: 'Wartet auf einen neuen Tobie', zeile1: 'Nächster neuer Tobie auf {box}', zeile2: 'spielt „{serie}“ · Nr. {nr} von {gesamt}', abbrechen: 'Nicht mehr warten' }, // Design 5.13
   platz_bekommen: { titel: 'Ein neuer Tobie hat einen Platz bekommen.', frage: 'Name geben?', name_geben: 'Name geben', spaeter: 'Später' }, // Design 5.13 (N11)

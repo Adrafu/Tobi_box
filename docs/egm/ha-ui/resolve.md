@@ -208,3 +208,18 @@ Alle übrigen Befunde N1–N29 werden nach den Vorschlägen des Reviews eingearb
 | AB7 | **(Tobias)** Gute Nacht: kein Knopf „Speichern“ – ein Tipp auf einen Wert speichert sofort (kurze Meldung „Gespeichert“, bei Fehler Meldung und alter Wert zurück). „Anderer Wert …“ entfällt, die Vorgaben 15/30/45/60/90 Min. reichen. Ist ein anderer Wert gespeichert (z. B. aus Technik), ist kein Segment gewählt und darunter steht „Eingestellt: N Min.“. |
 
 **Abnahme A-1a (Tobias, 14.11.): angenommen** – „ansonsten schaut's gut aus, kannst weiterbauen“ (mit AB7 als letzter Änderung). Weiter mit A-1b (Tobies, A9/A10), danach Bewegung (A6m).
+
+## Abnahme A-1b (13.11.)
+
+Tobias am iPhone (HA-App), Auflegen simuliert (MQTT-Meldung `tobibox/box1/unknown/<kennung>`, Box 1 aus). Alle neun
+Schritte der Tabelle A16-1b wie beschrieben: Weg 1, Weg 2 mit Name und Auflegen, Meldung auf fremder Seite mit zwei
+unbekannten Tobies, Umhängen mit „Rückgängig“ und „Vorher · Zurückstellen“, „Rückgängig“ bei einem neuen Tobie,
+„Einem Tobie geben …“ (Serie und Folge), Gute-Nacht-Karte, Warteschlange abbrechen (Regal und „Geräte“), Lernmodus nur
+unter „Technik“. „Auto-Zuordnung scheitert bei gesperrter Liste“ nur in den Tests (jsdom, Browser-Prüfung): im echten
+HA nicht gefahrlos auslösbar.
+
+| Nr. | Befund | Festlegung |
+|---|---|---|
+| AB8 | (PL) Zwei unbekannte Tobies sehen in der Karte auf „Geräte“ gleich aus („Gerade aufgelegt, vor weniger als einer Minute.“) | **(Tobias)** Uhrzeit dazu: „Aufgelegt um 21:01, vor 2 Minuten.“ (nur in der Karte mit mehreren Tobies) |
+
+**Abnahme A-1b (13.11.): alle Schritte bestanden**, AB8 eingebaut; die ausdrückliche Annahme durch Tobias steht noch aus. Danach weiter mit A-1c (A8f, A11a, A11b, A14-1c, A15-1c).
