@@ -53,9 +53,9 @@ noch ums Umsetzen, Einspielen und Prüfen im echten HA.
 - Einspielen = Ordner `custom_components/tobibox` auf der Freigabe **ersetzen** (vorher den alten als Zip **außerhalb**
   von `custom_components` sichern, z. B. `/Volumes/config/tobibox_sicherung/<datum>.zip`; nie einen zweiten Ordner mit
   `manifest.json` in `custom_components` liegen lassen, sonst lädt HA die falsche Fassung).
-- Nur Dateien der Seite (`frontend/`) geändert: kein Neustart nötig, die Seite im Browser neu laden (die Dateien kommen
+- Nur Dateien der Seite (`frontend/`) geändert: kein Neustart nötig und keine Nachfrage, die Seite im Browser neu laden (die Dateien kommen
   mit `Cache-Control: no-cache`).
-- Python geändert: HA neu starten. Dafür einen **langlebigen Zugriffstoken** von Tobias nutzen (er legt ihn in seinem
+- Python geändert: HA neu starten, **aber nur nach Nachfrage bei Tobias und erst nach seinem Ja** (die Familie nutzt HA; ein Neustart unterbricht Licht, Automationen usw.). Sammle Python-Änderungen, damit möglichst selten neu gestartet werden muss, und sag beim Fragen, was neu ist und wie lange es etwa dauert. Dafür einen **langlebigen Zugriffstoken** von Tobias nutzen (er legt ihn in seinem
   HA-Profil an und speichert ihn selbst lokal, z. B. im macOS-Schlüsselbund oder in `~/.config/tobibox/ha_token`, Rechte
   600). Der Token kommt **nie** ins Repo, in Logs oder in Commits. Neustart per
   `POST /api/services/homeassistant/restart`, danach warten, bis `/api/` wieder antwortet, und im Protokoll
