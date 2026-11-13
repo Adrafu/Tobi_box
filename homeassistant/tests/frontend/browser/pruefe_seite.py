@@ -232,6 +232,222 @@ class Lauf:
             self.ruhe()
 
 
+# ------------------------------------------------------------------ A11a: Hinzufügen
+def hz_dateien(tmp: Path, namen, groesse=2000):
+    """Kleine Testdateien (Audio-ähnlich: der Mock-Server prüft nur Namen und Endung)."""
+    pfade = []
+    for n in namen:
+        p = tmp / n
+        p.write_bytes(b"ID3" + bytes(groesse))
+        pfade.append(str(p))
+    return pfade
+
+
+def hz_modell_waehlen(L: Lauf, namen):
+    """Nur zum Messen: Dateien an das Modell geben, als hätte der Dateiwähler sie geliefert (die echten Klicks macht ablauf_hinzufuegen)."""
+    L.pg.evaluate(
+        """async (namen) => {
+          const H = await import('/f/seiten/hinzufuegen.js');
+          H.modell(window.__el.ctx).auswahl(namen.map((n) => new File([new Uint8Array(1500)], n)));
+        }""", namen)
+    L.pg.wait_for_selector("dialog[open] [data-kacheln]", timeout=5000)
+    L.ruhe()
+
+
+def hinzufuegen_blatt_messen(L: Lauf, leer=False):
+    """Messung von Blatt und Vorschau (Kacheln, a, b, c, e, Wohin) und, mit gemessenem Hochladen, der Karten unter „Zuletzt hinzugefügt“."""
+    namen = ["01 Der Hafen.mp3", "02 Die Karte.mp3", "03 Der Sturm.mp3"]
+    with L.schritt("hinzufuegen-kacheln"):
+        L.gehe("#hinzufuegen")
+        hz_modell_waehlen(L, namen)
+        L.messe("hinzufuegen-kacheln")
+        for ziel in ("neu", "einzeln", "auto"):
+            L.klick(f'dialog[open] [data-ziel="{ziel}"]')
+            L.messe(f"hinzufuegen-vorschau-{ziel}")
+            L.klick('dialog[open] .knoepfe button:has-text("Ändern")')
+        if not leer:
+            L.klick('dialog[open] [data-ziel="ergaenzen"]')
+            L.warte_da("dialog[open] [data-hz-wahl] [data-wahl]")
+            L.messe("hinzufuegen-wohin")
+            L.klick("dialog[open] [data-hz-wahl] [data-wahl]")
+            L.messe("hinzufuegen-vorschau-ergaenzen")
+        L.aufraeumen()
+    with L.schritt("hinzufuegen-viele"):  # acht Dateien: vier Zeilen und „… und 4 weitere“, Name mit Umlauten
+        L.gehe("#hinzufuegen")
+        hz_modell_waehlen(L, [f"{i:02d} Die lange Folge mit einem sehr langen Namen Nummer {i}.mp3" for i in range(1, 9)])
+        L.klick('dialog[open] [data-ziel="neu"]')
+        L.messe("hinzufuegen-vorschau-viele")
+        L.aufraeumen()
+
+
+def hz_zeilen(L: Lauf, sel):
+    """Anzahl der Textzeilen eines Elements (Höhe durch Zeilenhöhe)."""
+    return L.js("const e = sr.querySelector(x); if (!e) return -1; const lh = parseFloat(getComputedStyle(e).lineHeight) || parseFloat(getComputedStyle(e).fontSize) * 1.3; return Math.round(e.getBoundingClientRect().height / lh);", sel)
+
+
+def hz_waehlen(L: Lauf, knopf, pfade):
+    """Dateiwahl mit echtem Klick; der Dateiwähler des Browsers bekommt die Testdateien."""
+    with L.pg.expect_file_chooser(timeout=5000) as fc:
+        L.pg.locator(knopf).first.click(timeout=4000)
+    fc.value.set_files(pfade)
+    L.pg.wait_for_timeout(250)
+    L.ruhe()
+
+
+def ablauf_hinzufuegen(L: Lauf):
+    """A11a (zugleich Teil von A14-1c): Hinzufügen nur über echte Klicks. Seite → „Dateien wählen“ (Dateiwähler, 3 Dateien) → Blatt „Was lädst du hoch?“
+    (vier Kacheln mit höchstens einer Zeile, „Abbrechen“ oben rechts) → „Neu anlegen“ → Name und Art → „Ändern“ und zurück → „Hochladen“ → Fortschritt
+    („Datei 2 von 3“, „Bildschirm anlassen …“) → „Wird einsortiert …“ → fertig mit „Öffnen“. Dazu die Fehler (falsches Format, zu groß vorab, 413, kein
+    Speicher; die Karte bleibt), die Fehlermeldung „Bitte einen Namen eingeben.“ (bleibt, bis „OK“), das „+“ der Bibliothek (am Handy gleich die
+    Dateiauswahl) und „Dateien in diesen Eintrag“. Gemessen werden Seite, Blatt, Vorschau und die Karten (Tippziele, Kontrast, kein seitliches Scrollen)."""
+    import tempfile
+
+    fein = bool(L.js("return matchMedia('(pointer: fine)').matches"))
+    with tempfile.TemporaryDirectory(prefix="tb-hz-") as tmp:
+        tmp = Path(tmp)
+        drei = hz_dateien(tmp, ["01 Der Hafen.mp3", "02 Die Karte.mp3", "03 Der Sturm.mp3"])
+        with L.schritt("hz-seite"):
+            L.gehe("#hinzufuegen")
+            L.pruefe(L.da("[data-dateien-waehlen]"), "hz-seite", "„Dateien wählen“ fehlt")
+            L.pruefe(L.da("[data-ordner-waehlen]") == fein, "hz-seite", f"„Ordner vom Computer wählen“ nur bei pointer: fine (fein={fein})")
+            L.pruefe(L.da("[data-ziehflaeche]") == fein, "hz-seite", f"Ziehfläche nur bei pointer: fine (fein={fein})")
+            L.pruefe(L.js("return sr.querySelector('main .back')?.textContent.trim()") == "‹ Bibliothek", "hz-seite", "„‹ Bibliothek“ fehlt")
+            L.pruefe(not L.da("[data-liste='zuletzt']"), "hz-seite", "Liste „Zuletzt hinzugefügt“ ohne Eintrag")
+            L.messe("hz-seite")
+        with L.schritt("hz-blatt"):
+            hz_waehlen(L, "[data-dateien-waehlen]", drei)
+            L.pruefe(L.da("dialog[open] [data-kacheln]"), "hz-blatt", "Blatt „Was lädst du hoch?“ nicht offen")
+            L.pruefe(L.js("return sr.querySelector('dialog[open] [data-gewaehlt]')?.textContent.trim()") == "3 Dateien gewählt (01 Der Hafen.mp3 …). Was ist das?", "hz-blatt", "Zeile mit den Dateien stimmt nicht")
+            L.pruefe(L.js("return sr.activeElement?.id") == "blatt-t", "hz-blatt", "Fokus nicht auf der Überschrift")
+            kacheln = L.js("""return [...sr.querySelectorAll('dialog[open] .hz-kachel')].map((k) => {
+              const zeilen = (e) => { const cs = getComputedStyle(e); const lh = parseFloat(cs.lineHeight) || parseFloat(cs.fontSize) * 1.3; return Math.round(e.getBoundingClientRect().height / lh); };
+              const r = k.getBoundingClientRect();
+              return { titel: k.querySelector('.hz-t').textContent, titelZeilen: zeilen(k.querySelector('.hz-t')), zeilen: zeilen(k.querySelector('.hz-z')), zeile: k.querySelector('.hz-z').textContent, hoehe: r.height, breite: r.width, links: r.left, oben: r.top };
+            })""")
+            L.pruefe(len(kacheln) == 4, "hz-blatt", f"{len(kacheln)} Kacheln statt 4")
+            for k in kacheln:
+                L.pruefe(k["zeilen"] == 1, "hz-blatt", f"Kachel „{k['titel']}“: Zeile „{k['zeile']}“ braucht {k['zeilen']} Zeilen (Breite {k['breite']:.0f} px)")
+                L.pruefe(k["titelZeilen"] == 1, "hz-blatt", f"Kachel „{k['titel']}“: Titel braucht {k['titelZeilen']} Zeilen")
+                L.pruefe(k["hoehe"] >= 131.5, "hz-blatt", f"Kachel „{k['titel']}“ nur {k['hoehe']:.0f} px hoch")
+            L.pruefe(len({round(k["oben"]) for k in kacheln}) == 2 and len({round(k["links"]) for k in kacheln}) == 2, "hz-blatt", "Kacheln stehen nicht 2 × 2")
+            oben = L.js("""const d = sr.querySelector('dialog[open]').getBoundingClientRect(); const b = sr.querySelector('dialog[open] [data-blatt-oben]'); if (!b) return null;
+              const r = b.getBoundingClientRect(); return { text: b.textContent.trim(), rechts: d.right - r.right, oben: r.top - d.top, hoehe: r.height, breite: r.width, x: !!sr.querySelector('dialog[open] .blatt-x') };""")
+            L.pruefe(oben and oben["text"] == "Abbrechen" and not oben["x"], "hz-blatt", f"„Abbrechen“ fehlt oder „×“ ist da: {oben}")
+            L.pruefe(oben and oben["rechts"] <= 24 and oben["oben"] <= 56 and oben["hoehe"] >= 43.5, "hz-blatt", f"„Abbrechen“ nicht oben rechts im Blatt, 44 px hoch: {oben}")
+            L.messe("hz-blatt")
+        with L.schritt("hz-vorschau"):
+            L.klick('dialog[open] [data-ziel="neu"]')
+            L.pruefe(L.js("return sr.activeElement?.id") == "blatt-t", "hz-vorschau", "Fokus nicht auf der Überschrift (sonst geht am Handy die Tastatur auf)")
+            L.pg.locator("dialog[open] #hz-name").fill("Kapitän Knopf")
+            L.klick('dialog[open] [data-art-wahl="hoerbuch"]')
+            satz = L.js("return sr.querySelector('dialog[open] [data-satz]')?.textContent")
+            L.pruefe(satz == "3 Dateien → neues Hörbuch „Kapitän Knopf“, Kapitel 1–3.", "hz-vorschau", f"Satz stimmt nicht: {satz!r}")
+            L.pruefe(L.js("const s = sr.querySelector('dialog[open] [data-satz]'); return s.getAttribute('role') + '/' + s.getAttribute('aria-live')") == "status/polite", "hz-vorschau", "Satz ohne role=status und aria-live=polite")
+            L.messe("hz-vorschau")
+            L.klick('dialog[open] .knoepfe button:has-text("Ändern")')
+            L.pruefe(L.da("dialog[open] [data-kacheln]"), "hz-aendern", "„Ändern“ führt nicht zu den Kacheln")
+            L.klick('dialog[open] [data-ziel="neu"]')
+            L.pruefe(L.pg.locator("dialog[open] #hz-name").input_value() == "Kapitän Knopf", "hz-aendern", "Name ging beim Ändern verloren")
+        with L.schritt("hz-hochladen"):
+            L.klick("dialog[open] .knoepfe button.primary")
+            L.pruefe(L.hash() == "#hinzufuegen", "hz-hochladen", f"nach „Hochladen“ nicht auf der Seite „Hinzufügen“: {L.hash()}")
+            L.warte_da("[data-liste='zuletzt'] [data-phase='hochladen'] [data-bildschirm]")
+            L.pruefe(L.js("return sr.querySelector('[data-bildschirm]').textContent.trim()") == "Bildschirm anlassen, bis es fertig ist.", "hz-hochladen", "Satz „Bildschirm anlassen …“ fehlt während des Hochladens")
+            status = L.js("return sr.querySelector('[data-liste=\"zuletzt\"] [data-status]')?.textContent.trim()")
+            L.pruefe(bool(re.match(r"^Datei [123] von 3 wird hochgeladen … \d+ %$", status or "")), "hz-hochladen", f"Fortschrittssatz stimmt nicht: {status!r}")
+            L.pruefe(L.da("[data-liste='zuletzt'] [role=progressbar][aria-valuenow]") and L.da("[data-schritte] li"), "hz-hochladen", "Balken oder dreiteilige Leiste fehlt")
+            L.messe("hz-hochladen")
+            L.pg.wait_for_selector("[data-liste='zuletzt'] [data-phase='fertig']", timeout=25000)
+            L.ruhe()
+            karte = L.js("const k = sr.querySelector('[data-liste=\"zuletzt\"] [data-phase=\"fertig\"]'); return { text: k.textContent.replace(/\\s+/g, ' ').trim(), href: k.querySelector('[data-oeffnen]')?.getAttribute('href'), fokus: sr.activeElement === k, bildschirm: !!k.querySelector('[data-bildschirm]') };")
+            L.pruefe("fertig" in karte["text"] and "Hörbuch „Kapitän Knopf“ · 3 Kapitel" in karte["text"], "hz-fertig", f"Fertig-Karte: {karte['text']!r}")
+            L.pruefe(bool(karte["href"] and karte["href"].startswith("#serie-")), "hz-fertig", f"„Öffnen“ ohne Ziel: {karte['href']!r}")
+            L.pruefe(not karte["bildschirm"], "hz-fertig", "„Bildschirm anlassen“ steht nach dem Hochladen noch da")
+            L.messe("hz-fertig")
+            ups = L.mock("/zustand")["uploads"]
+            L.pruefe(len(ups) == 3 and len({u["gruppe"] for u in ups}) == 1 and all(u["gruppe_anzahl"] == 3 and u["ziel"] == "neu" and u["art"] == "hoerbuch" and u["name"] == "Kapitän Knopf" for u in ups),
+                     "hz-hochladen", f"Felder beim Server: {ups}")
+            L.klick("[data-liste='zuletzt'] [data-oeffnen]")
+            L.warte_hash("#serie-")
+            L.pruefe(L.da("main .back"), "hz-fertig", "„Öffnen“ führt nicht zur Serienseite")
+            L.gehe("#hinzufuegen")
+        with L.schritt("hz-einzeln-viele"):  # drei Einzeltitel: ein Upload je Datei, alle fertig
+            L.aufraeumen()
+            hz_waehlen(L, "[data-dateien-waehlen]", hz_dateien(tmp, ["Der Mond.mp3", "Der Fuchs.mp3"]))
+            L.klick('dialog[open] [data-ziel="einzeln"]')
+            L.messe("hz-vorschau-einzeln")
+            L.klick("dialog[open] .knoepfe button.primary")
+            L.pg.wait_for_function("() => window.__el.shadowRoot.querySelectorAll('[data-liste=\"zuletzt\"] [data-phase=\"fertig\"]').length >= 2", timeout=25000)
+            L.ruhe()
+            ups = L.mock("/zustand")["uploads"][3:]
+            L.pruefe(len(ups) == 2 and all(u.get("ziel") == "einzeln" and not u.get("gruppe") and u.get("art") == "musik" for u in ups), "hz-einzeln", f"Einzeln ohne Gruppe: {ups}")
+        with L.schritt("hz-fehler-format"):
+            L.aufraeumen()
+            hz_waehlen(L, "[data-dateien-waehlen]", hz_dateien(tmp, ["Mein Lied.wma"]))
+            L.pruefe(not L.da("dialog[open]"), "hz-fehler", "Blatt trotz Datei, die nicht geht")
+            L.warte_da("[data-liste='zuletzt'] [data-phase='fehler']")
+            L.pruefe("Dieses Dateiformat spielt die Box nicht. Erlaubt sind MP3, M4A, M4B, AAC, FLAC, OGG, Opus und WAV." in L.js("return sr.querySelector('[data-liste=\"zuletzt\"] [data-phase=\"fehler\"]').textContent"), "hz-fehler", "Text zum Format fehlt")
+            L.messe("hz-fehler-format")
+            L.pg.wait_for_timeout(1500)
+            L.pruefe(L.da("[data-liste='zuletzt'] [data-phase='fehler']"), "hz-fehler", "Fehlerkarte verschwindet von selbst")
+        with L.schritt("hz-fehler-gross-vorab"):
+            L.js("el.store.s.grenzen = { ...el.store.s.grenzen, upload_max_bytes: 1048576 };")
+            gross = tmp / "Gross.mp3"
+            gross.write_bytes(bytes(1572864))
+            hz_waehlen(L, "[data-dateien-waehlen]", [str(gross)])
+            L.pruefe(not L.da("dialog[open]"), "hz-fehler", "Blatt trotz zu großer Datei")
+            L.pg.wait_for_function("() => window.__el.shadowRoot.querySelector('[data-liste=\"zuletzt\"]').textContent.includes('mehr als 1 MB')", timeout=5000)
+            L.js("el.store.s.grenzen = { ...el.store.s.grenzen, upload_max_bytes: 524288000 };")
+            L.messe("hz-fehler-gross-vorab")
+        with L.schritt("hz-fehler-server"):  # 413 und 507 kommen vom Server (Marken im Dateinamen)
+            for name, text in (("zu-gross.mp3", "Die Datei ist zu groß (mehr als 500 MB)."), ("kein-platz.mp3", "Auf dem NAS ist kein Platz mehr.")):
+                vorher = L.js("return sr.querySelectorAll('[data-liste=\"zuletzt\"] [data-phase=\"fehler\"]').length")
+                hz_waehlen(L, "[data-dateien-waehlen]", hz_dateien(tmp, [name]))
+                L.klick('dialog[open] [data-ziel="einzeln"]')
+                L.klick("dialog[open] .knoepfe button.primary")
+                L.pg.wait_for_function("n => window.__el.shadowRoot.querySelectorAll('[data-liste=\"zuletzt\"] [data-phase=\"fehler\"]').length > n", arg=vorher, timeout=15000)
+                L.ruhe()
+                L.pruefe(text in L.js("return sr.querySelector('[data-liste=\"zuletzt\"] [data-phase=\"fehler\"]').textContent"), "hz-fehler", f"{name}: Text {text!r} fehlt")
+            L.messe("hz-fehler-server")
+            L.aufraeumen()
+        with L.schritt("hz-meldung-name"):
+            hz_waehlen(L, "[data-dateien-waehlen]", drei)
+            L.klick('dialog[open] [data-ziel="neu"]')
+            L.pg.locator("dialog[open] #hz-name").fill("")
+            L.klick("dialog[open] .knoepfe button.primary")
+            L.pruefe(L.js("return sr.querySelector('dialog[open] .toast.err .tmsg')?.textContent") == "Bitte einen Namen eingeben.", "hz-meldung", "Meldung „Bitte einen Namen eingeben.“ fehlt oder steht nicht im Blatt")
+            L.pruefe(L.da("dialog[open]"), "hz-meldung", "Blatt schließt trotz fehlendem Namen")
+            L.messe("hz-meldung-name")
+            L.pg.wait_for_timeout(5200)
+            L.pruefe(L.da("dialog[open] .toast.err"), "hz-meldung", "Fehlermeldung verschwindet von selbst (soll bis „OK“ bleiben)")
+            L.klick("dialog[open] .toast.err .tok")
+            L.pruefe(not L.da(".toast.err"), "hz-meldung", "„OK“ räumt die Meldung nicht weg")
+            L.klick("dialog[open] [data-blatt-oben]")
+            L.pruefe(not L.da("dialog[open]"), "hz-meldung", "„Abbrechen“ schließt das Blatt nicht")
+            L.pruefe(L.js("return sr.activeElement?.matches('[data-dateien-waehlen]')"), "hz-meldung", "Fokus nach „Abbrechen“ nicht auf „Dateien wählen“")
+        with L.schritt("hz-plus"):
+            L.gehe("#bibliothek")
+            plus = "a.kact.primaer"
+            if fein:
+                L.klick(plus)
+                L.warte_hash("#hinzufuegen")
+            else:  # am Handy öffnet „+“ gleich die Dateiauswahl, die Seite bleibt die Bibliothek
+                hz_waehlen(L, plus, drei)
+                L.pruefe(L.hash() == "#bibliothek", "hz-plus", f"„+“ am Handy wechselt die Seite: {L.hash()}")
+                L.pruefe(L.da("dialog[open] [data-kacheln]"), "hz-plus", "Blatt nach der Dateiwahl am Handy nicht offen")
+                L.klick("dialog[open] [data-blatt-oben]")
+        with L.schritt("hz-aus-eintrag"):
+            L.aufraeumen()
+            L.gehe("#serie-lang")
+            L.klick("[data-menue-serie]")
+            L.pruefe(L.da('dialog [data-menue="dateien"]'), "hz-aus-eintrag", "Menüpunkt „Dateien in diesen Eintrag“ fehlt")
+            hz_waehlen(L, 'dialog [data-menue="dateien"]', drei)
+            satz = L.js("return sr.querySelector('dialog[open] [data-satz]')?.textContent")
+            L.pruefe(bool(satz and "neue Folgen in „Die wilde Reise der kleinen Drachen durch das Wolkenland“ (Folge 46–48)" in satz), "hz-aus-eintrag", f"Vorschau b) nicht gleich offen: {satz!r}")
+            L.messe("hz-aus-eintrag")
+            L.klick("dialog[open] [data-blatt-oben]")
+
+
 # ------------------------------------------------------------------ Messen: alle Seiten und Blätter
 def seiten_messen(L: Lauf):
     admin = L.job["rolle"] == "admin"
@@ -288,6 +504,8 @@ def seiten_messen(L: Lauf):
         seite("geben-folge", "#geben-kurz~k2.mp3")
         seite("geben-lied", "#geben-lied~wiegenlied.mp3")
         seite("geben-weg", "#geben-gibtsnicht")
+    seite("hinzufuegen", "#hinzufuegen")
+    hinzufuegen_blatt_messen(L, leer)
     seite("geraete", "#geraete")
     with L.schritt("geraete-abends"):
         L.gehe("#geraete")
@@ -1258,7 +1476,7 @@ def ablauf_tobies_lernmodus(L: Lauf):
 
 ABLAEUFE = [ablauf_unterkante, ablauf_reiter, ablauf_klicks, ablauf_reihen, ablauf_suche, ablauf_bibliothek, ablauf_serie, ablauf_cover, ablauf_leise, ablauf_box, ablauf_technik, ablauf_blaetter,
             ablauf_tobies_weg1, ablauf_tobies_weg2, ablauf_tobies_meldung, ablauf_tobies_umhaengen, ablauf_tobies_geben, ablauf_tobies_lernmodus,
-            ablauf_tobies_name_geben_weit_unten]
+            ablauf_tobies_name_geben_weit_unten, ablauf_hinzufuegen]
 
 
 # ------------------------------------------------------------------ Browser und Läufe
@@ -1294,9 +1512,11 @@ def lauf_job(job):
                 ctx = b.new_context(viewport={"width": w, "height": 780 if mobil else 800}, has_touch=mobil, is_mobile=mobil, locale="de-DE", timezone_id="Europe/Berlin")
                 pg = ctx.new_page()
                 pg.set_default_timeout(8000)
-                pg.on("console", lambda m: konsole.append(f"{m.type}: {m.text}") if m.type in ("error", "warning") else None)
+                # Gewollte Fehlerantworten des Mock-Servers beim Hochladen (A11a: 413 und 507 gehören zum Ablauf) sind keine Befunde
+                gewollt = re.compile(r"status of (413|507)\b")
+                pg.on("console", lambda m: konsole.append(f"{m.type}: {m.text}") if m.type in ("error", "warning") and not gewollt.search(m.text) else None)
                 pg.on("pageerror", lambda e: konsole.append(f"pageerror: {e}"))
-                pg.on("response", lambda r: konsole.append(f"HTTP {r.status} {r.url}") if r.status >= 400 else None)
+                pg.on("response", lambda r: konsole.append(f"HTTP {r.status} {r.url}") if r.status >= 400 and not (r.status in (413, 507) and r.url.endswith("/api/tobibox/upload")) else None)
                 pg.on("requestfailed", lambda r: konsole.append(f"requestfailed {r.url} {r.failure}"))
                 q = f"theme={job['thema']}&k={job['profil']}~{job['kennung']}" + (f"&pw={job['breite']}" if job["art"] == "panel" else "") + ("&hs=256" if job["art"] == "ha" else "")
                 pg.goto(f"{job['basis']}/seite.html?{q}")

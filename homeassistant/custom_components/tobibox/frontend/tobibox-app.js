@@ -199,7 +199,7 @@ const THEMEN = ['boxen', 'neue_tobies', 'konfig']; // dazu `warteschlange`, wenn
 export class AppStore {
   constructor({ ladeGrenzeMs = GRENZE_LAEDT_MS } = {}) {
     this.ladeGrenzeMs = ladeGrenzeMs;
-    this.s = { phase: 'laedt', fehlerCode: null, faehigkeiten: null, boxen: {}, boxAnzeigen: {}, neue: [], warteschlange: [], platz: [], konfigZustand: 'ok', verbindungWeg: false };
+    this.s = { phase: 'laedt', fehlerCode: null, faehigkeiten: null, grenzen: {}, boxen: {}, boxAnzeigen: {}, neue: [], warteschlange: [], platz: [], konfigZustand: 'ok', verbindungWeg: false };
     this.hass = null;
     this.onNeuerTobie = null; // ({ uid, box, anzeige }) beim ersten Auftauchen einer unbekannten Kennung nach dem Start
     this.onWiederda = null; // () nach dem Wiederverbinden: die aktive Seite lädt neu
@@ -254,6 +254,7 @@ export class AppStore {
       if (hello.v > VERTRAG_V) { clearTimeout(this._timer); this._set({ phase: 'veraltet' }); return; }
       const fae = hello.faehigkeiten || [];
       this.s.faehigkeiten = fae;
+      this.s.grenzen = hello.grenzen || {}; // upload_max_bytes, upload_parallel, endungen … (A11a: Hinzufügen)
       this.s.boxAnzeigen = { ...(hello.grenzen?.box_anzeigen || {}), ...(hello.box_anzeigen || {}) };
       this.s.konfigZustand = hello.konfig?.zustand || 'ok';
       const themen = fae.includes('warteschlange') ? [...THEMEN, 'warteschlange'] : THEMEN;
@@ -564,14 +565,17 @@ if (lit) {
     /* ================================================================== Blätter (<dialog>) */
     /* oeffneBlatt({ titel, inhalt, knoepfe: [{ label, kind, fn }], rolle })
      * Schließen: Knopf ×, Knopf in der Leiste, Esc, Hintergrund, Wischen nach unten. Danach geht der Fokus zurück.
-     * `inhalt` darf eine Funktion sein: sie wird bei jedem Zeichnen neu aufgerufen (das Blatt folgt dem Zustand der Seite).
+     * `inhalt` darf eine Funktion sein: sie wird bei jedem Zeichnen neu aufgerufen (das Blatt folgt dem Zustand der Seite);
+     * `titel` und `knoepfe` dürfen es ebenfalls sein (A11a: das Blatt „Was lädst du hoch?“ wechselt den Inhalt zwischen den Schritten).
+     * `kopfKnopf: { label, fn }` ersetzt das „×“ durch einen Textknopf oben rechts (Hochladen, Design 5.6); `fokus: 'titel'` setzt den
+     * Fokus beim Öffnen auf die Überschrift statt auf den ersten Knopf.
      * Antwort: Promise mit dem Grund ('x', 'knopf', 'esc', 'hintergrund', 'wischen', 'route', 'ersetzt', 'code').
      * A6m ersetzt _blattAn und _blattAus durch Bewegung; _blattAus ruft `fertig` erst nach dem Ende der Bewegung. */
-    oeffneBlatt({ titel, inhalt = nothing, knoepfe = [], rolle = null } = {}) {
+    oeffneBlatt({ titel, inhalt = nothing, knoepfe = [], rolle = null, kopfKnopf = null, fokus = null } = {}) {
       if (this._blatt) this._blattEntfernen(this._blatt, 'ersetzt', false);
       const rueck = this.renderRoot.activeElement || (typeof document !== 'undefined' ? document.activeElement : null);
       return new Promise((aufloesen) => {
-        this._blatt = { titel, inhalt, knoepfe, rolle, offen: false, schliesst: false, aufloesen, rueck: this._blattRueck ?? rueck };
+        this._blatt = { titel, inhalt, knoepfe, rolle, kopfKnopf, fokus, offen: false, schliesst: false, aufloesen, rueck: this._blattRueck ?? rueck };
         this._blattRueck = null;
       });
     }
@@ -594,8 +598,8 @@ if (lit) {
       this._wischen(d);
       this._blattAn(d);
       this._meldungenPlatz();
-      const erst = d.querySelector('[autofocus]') || d.querySelector('.knoepfe button, .blatt-b button, .blatt-b input, .blatt-b select, .blatt-b a') || d.querySelector('h2');
-      erst?.focus?.();
+      const erst = (b.fokus === 'titel' ? d.querySelector('h2') : null) || d.querySelector('[autofocus]') || d.querySelector('.knoepfe button, .blatt-b button, .blatt-b input, .blatt-b select, .blatt-b a') || d.querySelector('h2');
+      erst?.focus?.({ preventScroll: true });
     }
 
     /* Haken für A6m (Bewegung): hier ohne Bewegung. */
@@ -671,10 +675,12 @@ if (lit) {
           @cancel=${(e) => { e.preventDefault(); this.schliesseBlatt('esc'); }} @click=${(e) => this._blattKlick(e)}>
         <div class="blatt-in">
           <div class="griff" aria-hidden="true"></div>
-          <button type="button" class="rund blatt-x" aria-label=${SEITE.schliessen} @click=${() => this.schliesseBlatt('x')}>${ic('close', 28)}</button>
-          <h2 id="blatt-t" tabindex="-1">${b.titel}</h2>
+          ${b.kopfKnopf
+    ? html`<button type="button" class="btn link blatt-oben" data-blatt-oben @click=${() => this._blattKnopf(b.kopfKnopf)}>${b.kopfKnopf.label}</button>`
+    : html`<button type="button" class="rund blatt-x" aria-label=${SEITE.schliessen} @click=${() => this.schliesseBlatt('x')}>${ic('close', 28)}</button>`}
+          <h2 id="blatt-t" tabindex="-1">${typeof b.titel === 'function' ? b.titel() : b.titel}</h2>
           <div class="blatt-b">${typeof b.inhalt === 'function' ? b.inhalt() : b.inhalt}</div>
-          <div class="knoepfe">${b.knoepfe.map((k) => html`<button type="button" class=${`btn ${k.kind || ''}`} @click=${() => this._blattKnopf(k)}>${k.label}</button>`)}</div>
+          <div class="knoepfe">${(typeof b.knoepfe === 'function' ? b.knoepfe() : b.knoepfe).map((k) => html`<button type="button" class=${`btn ${k.kind || ''}`} ?disabled=${k.aus === true} @click=${() => this._blattKnopf(k)}>${k.label}</button>`)}</div>
         </div>
       </dialog>`;
     }
@@ -862,7 +868,10 @@ if (lit) {
         fehlerText: (code) => fehlerText(code, { admin: app._admin }),
         begruessung: () => begruessung(),
         covers: app._covers,
-        uploadBand: () => nothing, // A11 ersetzt das durch das Band der laufenden Uploads
+        uploadBand: () => nothing, // A11b ersetzt das durch das Band der laufenden Uploads
+        grenzen: () => app.store.s.grenzen || {}, // `hello.grenzen` (upload_max_bytes, upload_parallel, endungen …)
+        neuesXhr: () => (app.xhrFactory ? app.xhrFactory() : new XMLHttpRequest()), // Upload mit Fortschritt (A11a); Tests setzen `xhrFactory`
+        blattFokus: () => app.updateComplete.then(() => app.renderRoot.querySelector('dialog.blatt #blatt-t')?.focus?.({ preventScroll: true })), // Fokus auf die Überschrift des offenen Blatts
         boxen: () => app.store.s.boxen, // live: Box-Name -> Box-Objekt aus `boxen/list` und den Ereignissen (A7b)
         boxAnzeige: (box) => app.store.anzeige(box), // Anzeigename der Box (A9)
         neue: () => app.store.s.neue, // unbekannte Tobies (`neue_tobies/list` und Ereignisse)
@@ -1132,6 +1141,7 @@ if (lit) {
       .griff { height: 20px; margin: -12px 0 0; touch-action: none; display: grid; place-items: center; }
       .griff::before { content: ""; width: 44px; height: 5px; border-radius: 3px; background: var(--line); }
       .blatt-x { float: right; position: sticky; top: 0; z-index: 3; margin: -8px -8px 0 8px; background: var(--card); border: 0; }
+      .blatt-oben { float: right; position: sticky; top: 0; z-index: 3; margin: -12px -8px 0 8px; min-width: 64px; background: var(--card); color: var(--primary-ink); font-weight: 500; }
       .knoepfe:not(:empty) { position: sticky; bottom: 0; z-index: 2; background: var(--card); margin-top: 16px; padding: 8px 0; display: flex; flex-wrap: wrap; gap: 12px; justify-content: flex-end; }
       @media (max-width: 699px) { dialog.blatt { margin: auto 0 0; max-width: none; border-radius: var(--r-big) var(--r-big) 0 0; } }
 

@@ -685,6 +685,7 @@ export function createMockHass(opts = {}) {
       this.upload.onload?.(); this.status = status; this.responseText = typeof obj === 'string' ? obj : JSON.stringify(obj); this.onload?.();
     }
     netzfehler() { this.onerror?.(); }
+    abort() { this.abgebrochen = true; this.onabort?.(); } // A11a: „Abbrechen“ beim Hochladen
   }
 
   /* Cover: `hass.fetchWithAuth` wie in HA. `opts.ohneCover` (Menge von IDs) ergibt 404. Aufrufe stehen in `covers`. */

@@ -74,7 +74,9 @@ const abo = async (cb) => {
   })();
   return () => { aktiv = false; };
 };
-el.hass = { user: { is_admin: !k.startsWith('user') }, connection: { sendMessagePromise: ws, subscribeMessage: abo }, fetchWithAuth: (p, o) => fetch(p, { ...(o || {}), headers: { ...((o && o.headers) || {}), 'x-tb-k': k } }) };
+/* A11a: Upload mit Fortschritt braucht ein `XMLHttpRequest`; die Anmeldung des Mocks steht im Kopf `x-tb-k` (wie bei `fetchWithAuth`). */
+el.xhrFactory = () => { const x = new XMLHttpRequest(); const open = x.open.bind(x); x.open = (m, u) => { open(m, u); x.setRequestHeader('x-tb-k', k); }; return x; };
+el.hass = { auth: { data: { access_token: 'token-pruefseite' }, expired: false }, user: { is_admin: !k.startsWith('user') }, connection: { sendMessagePromise: ws, subscribeMessage: abo }, fetchWithAuth: (p, o) => fetch(p, { ...(o || {}), headers: { ...((o && o.headers) || {}), 'x-tb-k': k } }) };
 el.narrow = q.get('narrow') === '1';
 /* Wie ha-panel-custom: Light-DOM-Behälter ohne eigene Höhe (display:block, height:auto), mit Innenabstand für die
  * Safe-Area (sa=<px unten>, sao=<px oben>; HA setzt padding-top/-bottom auf den Behälter). Emulierte Safe-Area der

@@ -369,6 +369,105 @@ export const UPLOAD = {
   bildschirm_anlassen: 'Bildschirm anlassen, bis es fertig ist.',
 };
 
+// Hinzufügen (Design 5.6, 5.6a, 7.3; Paket A11a): Seite, Blatt „Was lädst du hoch?“, Vorschau, Fortschritt und Ergebnis des eigenen Hochladens.
+// Texte ohne Design-Text sind mit „neu, nicht im Design“ markiert, Texte aus dem Prototyp mit „Prototyp“.
+export const HINZU = {
+  dateien_waehlen: 'Dateien wählen', // Design 5.6
+  ordner_waehlen: 'Ordner vom Computer wählen', // Design 5.6
+  ziehen: 'Dateien oder Ordner hierher ziehen', // Design 5.6
+  ziehen_los: 'Loslassen, dann geht es weiter.', // neu, nicht im Design (Fläche, während etwas darüber gezogen wird)
+  zuletzt: 'Zuletzt hinzugefügt', // Design 5.6
+  dateien: { eins: '1 Datei', mehr: '{anzahl} Dateien' }, // Design 7.3 („3 Dateien → …“)
+  blatt: {
+    titel: 'Was lädst du hoch?', // Design 5.6
+    gewaehlt_eins: '1 Datei gewählt ({name}). Was ist das?', // Design 5.6 (bei einer Datei ohne „…“)
+    gewaehlt_mehr: '{anzahl} Dateien gewählt ({name} …). Was ist das?', // Design 5.6
+    vorschau_titel: 'Das passiert gleich', // Prototyp
+    wohin_titel: 'Wohin soll es?', // Design 5.6 (G26c)
+    wohin_suchen: 'Hörspiel, Buch oder Album suchen', // neu, nicht im Design (Beschriftung des Suchfelds)
+    wohin_waehlen: 'Hörspiel, Buch oder Album wählen …', // Prototyp
+    wohin_nichts: 'Noch nichts gewählt. Wähle ein Hörspiel, Buch oder Album.', // neu, nicht im Design (Zielwahl ohne Treffer)
+    abbrechen: 'Abbrechen', // Design 5.6 (oben rechts im Blatt)
+    aendern: 'Ändern', // Design 7.3
+    zurueck: 'Zurück', // neu, nicht im Design (aus der Wahl „Wohin soll es?“ zu den Kacheln)
+    hochladen: 'Hochladen', // Design 7.3
+    welche_art: 'Welche Art?', // Design 5.6 (G26b)
+    name: 'Name', // Prototyp
+    name_von: 'Name von Datei {nr}', // Prototyp
+    uebrige: 'Die übrigen {anzahl} Dateien heißen wie in ihren Angaben.', // Design 5.6 (G26d)
+    zusammen: 'Die Dateien bleiben zusammen. Einsortiert wird, wenn alle {anzahl} da sind.', // Design 5.6
+    was_wird: 'Was aus den Dateien wird', // Prototyp (Name der Liste „Kapitel 1 · Der Hafen“)
+    weitere: '… und {anzahl} weitere', // Design 7.3
+    sortier_du: 'Ich lese die Angaben in den Dateien (Album, Interpret, Titel). Dateien, die zum selben Album gehören, bleiben zusammen. Passt etwas zu einem Hörspiel, das schon da ist, kommt es dort dazu. Wenn ich unsicher bin, steht danach „Bitte ansehen“ da, und du kannst es ändern.', // Design 7.3 Karte e)
+    zu_viele: 'Das sind zu viele Dateien auf einmal. Wähle höchstens {max} Dateien.', // neu, nicht im Design (`gruppe_anzahl` höchstens 200)
+    nicht_hochgeladen: '„{datei}“ wird nicht hochgeladen.', // neu, nicht im Design (Überschrift der Warnung vor dem Hochladen)
+    kein_name: 'Bitte einen Namen eingeben.', // Design 7.3
+    kein_ziel: 'Bitte zuerst wählen, wohin es soll.', // Design 7.3
+  },
+  art_neu: { hoerspiel: 'Hörspiel', hoerbuch: 'Hörbuch', musik: 'Album', geschichte: 'Geschichten' }, // Design 7.3 Karte a)
+  art_einzeln: { musik: 'Lied', geschichte: 'Geschichte', hoerspiel: 'Folge', hoerbuch: 'Hörbuch' }, // Design 7.3 Karte c)
+  // Sätze der Vorschau (Design 7.3): Platzhalter dateien, name, nummern, anzahl, wort
+  satz: {
+    neu: {
+      hoerspiel: 'neues Hörspiel „{name}“, {nummern}', hoerbuch: 'neues Hörbuch „{name}“, {nummern}', musik: 'neues Album „{name}“, {nummern}', geschichte: 'neue Geschichten „{name}“, {nummern}',
+      hoerbuch_eins: 'neues Hörbuch „{name}“ (ein Kapitel)',
+    },
+    nummer: { hoerspiel: 'Folge', hoerbuch: 'Kapitel', musik: 'Lied', geschichte: 'Geschichte' }, // Wort vor der Nummer (Design 7.3)
+    dazu_wort: { // „3 neue Folgen“, bei Hörbuch „neue Teile“, bei Album „neue Lieder“ (Design 7.3 Karte b)
+      hoerspiel: { eins: 'Folge', mehr: 'Folgen' }, hoerbuch: { eins: 'Teil', mehr: 'Teile' }, musik: { eins: 'Lied', mehr: 'Lieder' }, geschichte: { eins: 'Geschichte', mehr: 'Geschichten' },
+    },
+    dazu: '{dateien} → {anzahl} neue {wort} in „{name}“ ({nummern}).',
+    dazu_eins: '{dateien} → 1 neue {wort} in „{name}“ ({nummern}).',
+    dazu_offen: '{dateien} → noch nichts gewählt. Wähle ein Hörspiel, Buch oder Album.', // Prototyp
+    einzeln_wort: { // „1 einzelnes Lied“, „5 einzelne Lieder“ (Design 7.3 Karte c)
+      hoerspiel: { eins: 'einzelne Folge', mehr: 'einzelne Folgen' }, hoerbuch: { eins: 'einzelnes Hörbuch', mehr: 'einzelne Hörbücher' },
+      musik: { eins: 'einzelnes Lied', mehr: 'einzelne Lieder' }, geschichte: { eins: 'einzelne Geschichte', mehr: 'einzelne Geschichten' },
+    },
+    einzeln: '{dateien} → {anzahl} {wort}{namen}.',
+    sortieren: '{dateien} → ich sortiere nach den Angaben in den Dateien ein. Meine Vermutung: {vermutung}.', // Design 7.3 Karte e)
+    vermutung_einzeln: { // „ein einzelnes Lied „…““ (Design 7.3 Karte e)
+      hoerspiel: 'eine einzelne Folge „{name}“', hoerbuch: 'ein einzelnes Hörbuch „{name}“', musik: 'ein einzelnes Lied „{name}“', geschichte: 'eine einzelne Geschichte „{name}“',
+    },
+    neu_satz: '{dateien} → {neu}.',
+  },
+  // Fortschritt und Ergebnis (Design 7.3 Punkt 4)
+  titel_dateien: '{dateien}: {namen}', // „3 Dateien: 01 Der Hafen.mp3, 02 Die Karte.mp3 …“
+  hochladen_eins: 'Wird hochgeladen … {prozent} %', // Design 7.3
+  hochladen_mehr: 'Datei {nr} von {anzahl} wird hochgeladen … {prozent} %', // Design 7.3
+  geprueft: 'Wird geprüft …', // Design 5.6a (Fortschrittsschritt „Wird geprüft …“)
+  warten_auf_alle: 'Einsortiert wird erst, wenn alle {anzahl} Dateien da sind.', // Design 5.6, 7.3
+  wartet: 'wartet', // Design 7.3 Punkt 7
+  fortschritt: 'Fortschritt: {prozent} %', // neu, nicht im Design (Name des Balkens für Screenreader)
+  schritte: { name: 'Schritte', hochladen: 'Hochladen', einsortieren: 'Einsortieren', fertig: 'Fertig' }, // Design 7.3 Punkt 4 (dreiteilige Leiste)
+  einsortiert: 'Wird einsortiert …', // Design 7.3
+  einsortiert_lange: 'Das dauert länger als sonst. Ob es einsortiert wurde, siehst du in der Bibliothek.', // neu, nicht im Design (Eingang meldet sich nach 30 Minuten nicht)
+  marke: { fertig: 'fertig', ansehen: 'bitte ansehen', geht_nicht: 'geht nicht', fehlt: 'fehlt noch etwas', abgebrochen: 'abgebrochen' }, // Design 7.3 (Marken), „fehlt noch etwas“ und „abgebrochen“ neu, nicht im Design
+  ansehen_titel: 'Bitte kurz ansehen.', // Design 5.3 / 7.3 Punkt 4 (3b)
+  daraus: 'Daraus ist geworden: {was}', // Design 7.3 (3b)
+  art_vorgeschlagen: 'Art: {art} (aus den Tags vorgeschlagen). Stimmt nicht? Im Eintrag „Art ändern“.', // Design 7.3 (3a, nur bei „Weiß nicht“)
+  oeffnen: 'Öffnen', // Design 7.3 (3a)
+  ansehen: 'Ansehen', // Design 7.3 (3b)
+  richtig: 'Das ist richtig', // Design 7.3 (3b)
+  geht_nicht: 'Geht leider nicht.', // Design 7.3 (3c)
+  fehlt: {
+    titel: 'Es fehlt noch eine Datei.', // Design 6.1 (gruppe_unvollstaendig), geteilt in Titel und Text
+    text: '{angekommen} von {anzahl} Dateien sind angekommen. Wähle die fehlende Datei noch einmal. Kommt sie nicht, wird mit den vorhandenen einsortiert und mit „Bitte ansehen“ markiert.',
+    knopf: 'Fehlende Datei wählen', // Design 5.6, 6.1
+  },
+  unterbrochen: 'Unterbrochen. Wähle die Datei noch einmal.', // Design 7.3 Punkt 8
+  abgebrochen: 'Abgebrochen. Es wurde nichts einsortiert.', // neu, nicht im Design
+  abgebrochen_teil: 'Abgebrochen. {angekommen} von {anzahl} Dateien waren schon angekommen. Sie werden nach einiger Zeit mit „Bitte ansehen“ einsortiert.', // neu, nicht im Design
+  andere_angekommen: 'Die anderen {angekommen} Dateien sind angekommen und werden nach einiger Zeit mit „Bitte ansehen“ einsortiert.', // neu, nicht im Design (eine Datei geht nicht, die Gruppe bleibt unvollständig)
+  hochgeladen_ohne_eingang: 'Hochgeladen. Es wird gleich einsortiert.', // neu, nicht im Design (Backend ohne Fähigkeit `eingang`)
+  abbrechen: 'Abbrechen', // Design 7.3 Punkt 7
+  ergebnis: { // Design 7.3 (3a): was daraus geworden ist
+    hoerbuch: 'Hörbuch „{name}“ · {anzahl}', musik: 'Album „{name}“ · {anzahl}', hoerspiel: 'Hörspiel „{name}“ · {anzahl}', geschichte: 'Geschichten „{name}“ · {anzahl}',
+    kapitel: { eins: 'ein Kapitel', mehr: '{anzahl} Kapitel' }, lieder: { eins: '1 Lied', mehr: '{anzahl} Lieder' }, folgen: { eins: '1 Folge', mehr: '{anzahl} Folgen' }, geschichten: { eins: '1 Geschichte', mehr: '{anzahl} Geschichten' },
+    dazu: '„{name}“ · {nummern}', einzeln: '„{name}“ · {wort}', einzeln_mehr: '{anzahl} {wort} (jedes steht für sich)', nur_name: '„{name}“', mehrere: '{anzahl} Einträge, zum Beispiel „{name}“', // Teile neu, nicht im Design
+  },
+  bildschirm: UPLOAD.bildschirm_anlassen, // Design 5.6a, R17-4: nur während des Hochladens
+};
+
 // Rahmen der Seite (Design 3.1, 3.2, 6, 6.3): Reiter, Kopf, Zustände, Meldungen. Paket A6.
 export const SEITE = {
   titel: 'Tobi Box',
@@ -797,6 +896,7 @@ export const SERIE = {
     papierkorb: 'In den Papierkorb …',
     verschieben: 'In anderes verschieben …',
     folge_papierkorb: 'Papierkorb …',
+    dateien: 'Dateien in diesen Eintrag', // Design 5.6 / 7.3 (Menü des Eintrags; öffnet gleich die Vorschau „Zu Vorhandenem“)
   },
   reihenfolge: { fertig: 'Fertig mit Reihenfolge', hoch: '{titel} nach oben', runter: '{titel} nach unten' }, // Prototyp
   name: { titel: 'Umbenennen', label: 'Name', leer: 'Bitte einen Namen eingeben.', speichern: 'Speichern', gespeichert: 'Gespeichert.' }, // Prototyp

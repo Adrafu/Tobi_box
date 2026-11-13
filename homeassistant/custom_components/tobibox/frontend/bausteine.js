@@ -299,8 +299,8 @@ export function rasterKachel(s, { term = '' } = {}) {
 
 /* Aktion im Seitenkopf: am Handy und im mittleren Bereich ein runder Symbolknopf (48 px), ab 1100 px eine Pille mit Text
  * (das Gerüst schaltet das über `data-layout`). `primaer`: gefüllt (Hauptaktion), sonst tonal. */
-export function kopfAktion({ href, label, symbol, primaer = false }) {
-  return html`<a class=${`rund kact${primaer ? ' primaer' : ''}`} href=${href} aria-label=${label}>${ic(symbol, 24)}<span class="kt" aria-hidden="true">${label}</span></a>`;
+export function kopfAktion({ href, label, symbol, primaer = false, onKlick = null }) {
+  return html`<a class=${`rund kact${primaer ? ' primaer' : ''}`} href=${href} aria-label=${label} @click=${onKlick || nothing}>${ic(symbol, 24)}<span class="kt" aria-hidden="true">${label}</span></a>`;
 }
 
 /* x = Zeile von `folgen/list`; opts: term, stand (cover_stand der Serie, falls bekannt), aktionen (Template). */

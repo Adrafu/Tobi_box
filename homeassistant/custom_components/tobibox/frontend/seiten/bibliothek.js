@@ -7,6 +7,7 @@
  */
 import { html, nothing, css, ic, listenZeile, rasterKachel, kopfAktion, segment, ladeMitGrenze, zaehle } from '../bausteine.js';
 import { BIB, SEITE, fuellen } from '../texte.js';
+import { plusKlick } from './hinzufuegen.js';
 
 export const SEITE_GROESSE = 60; // Päckchen (Design 5.2 Punkt 5, X23)
 export const ARTEN = ['alle', 'hoerspiel', 'hoerbuch', 'musik', 'geschichte'];
@@ -168,7 +169,7 @@ class BibliothekSeite {
     const A = BIB.ansicht;
     return html`${this.ctx.layout === 'seite' ? html`<span class="ansicht">${segment({ label: A.label, optionen: [
       { label: html`${ic('grid', 18)}${A.raster}`, wert: 'raster' }, { label: html`${ic('list', 18)}${A.liste}`, wert: 'liste' }], wert: this.ansicht, onWahl: (v) => this.setzeAnsicht(v) })}</span>` : nothing}
-      ${kopfAktion({ href: '#suche', label: BIB.lupe, symbol: 'search' })}${kopfAktion({ href: '#hinzufuegen', label: SEITE.hinzufuegen, symbol: 'plus', primaer: true })}`;
+      ${kopfAktion({ href: '#suche', label: BIB.lupe, symbol: 'search' })}${kopfAktion({ href: '#hinzufuegen', label: SEITE.hinzufuegen, symbol: 'plus', primaer: true, onKlick: (e) => plusKlick(this.ctx, e) })}`;
   }
 
   _kopf() {

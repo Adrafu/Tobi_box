@@ -14,6 +14,7 @@ import { html, nothing, css, repeat, ic, cover, coverKlasse, coverGrossUrl, lade
 import { SERIE, ZEILE, GRUENDE, TOBIE, SEITE, fuellen } from '../texte.js';
 import { coverBlatt, coverFehlerText, coverStil } from './cover.js';
 import { gespieltVonKarte, folgenChips, gebenLink } from './tobies.js';
+import { dateienInEintrag } from './hinzufuegen.js';
 
 export const SICHTBAR = 20; // Folgen, die zuerst gezeigt werden; ab mehr als 20 gibt es das Suchfeld (Design 5.3)
 const WAHL_GROESSE = 30; // Päckchen der Zielwahl
@@ -251,6 +252,7 @@ class SerieSeite {
     const punkte = [
       { id: 'name', label: SERIE.menue.name, fn: () => this.serieUmbenennen(ausloeser) },
       ...(this.ctx.faehig('cover') ? [{ id: 'cover', label: SERIE.menue.cover, fn: () => this.coverAendern(ausloeser) }] : []),
+      ...(this.ctx.faehig('einsortier_wunsch') && s.typ === 'normal' && !s.einzeln ? [{ id: 'dateien', label: SERIE.menue.dateien, fn: () => dateienInEintrag(this.ctx, s) }] : []), // A11a: gleich die Vorschau „Zu Vorhandenem“
       ...(art ? [{ id: 'art', label: SERIE.menue.art, fn: () => this.artAendern(ausloeser) }] : []),
       ...(admin && !s.einzeln && s.folgen.length > 1 ? [{ id: 'reihenfolge', label: SERIE.menue.reihenfolge, fn: () => this.reihenfolgeStart(ausloeser) }] : []),
       ...(admin && s.typ === 'normal' && this.ctx.faehig('korrektur') ? [{ id: 'zusammen', label: SERIE.menue.zusammen, fn: () => this.zusammenfuehren(ausloeser) }] : []),
