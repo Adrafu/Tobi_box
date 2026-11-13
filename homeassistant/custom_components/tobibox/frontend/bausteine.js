@@ -379,3 +379,25 @@ export const bausteinStil = () => css`
   .seg2 button[aria-pressed="true"] { background: var(--primary); color: var(--on-primary); font-weight: 700; box-shadow: inset 0 0 0 2px var(--primary-ink), 0 1px 3px var(--shadow); }
   .seg2 button:focus-visible { outline-offset: 0; border-radius: 24px; }
 `;
+
+/* ------------------------------------------------------------------ Großes Cover (A8, Vertrag 14.3: `?groesse=gross`) */
+
+/* Lädt das große Cover der Serienseite (`/api/tobibox/cover/<id>?groesse=gross`) mit `hass.fetchWithAuth` und liefert eine
+ * `blob:`-Adresse oder `null` (kein Bild, 404, Fehler). Nutzt den Speicher des CoverLaders (`covers.bilder`), eigener Schlüssel
+ * je Stand. `stand` = `cover_stand` der Serie; `null` oder '' heißt: kein Cover, es wird nichts angefragt. */
+export function coverGrossUrl(covers, id, stand) {
+  if (!covers || !id || !stand) return Promise.resolve(null);
+  const key = `${id}:${stand}:gross`;
+  if (!covers.bilder.has(key)) {
+    covers.bilder.set(key, (async () => {
+      try {
+        const hass = covers.holeHass();
+        if (!hass || typeof hass.fetchWithAuth !== 'function' || typeof URL.createObjectURL !== 'function') return null;
+        const r = await hass.fetchWithAuth(`/api/tobibox/cover/${encodeURIComponent(id)}?groesse=gross&v=${encodeURIComponent(stand)}`);
+        if (!r || !r.ok) return null;
+        return URL.createObjectURL(await r.blob());
+      } catch { return null; }
+    })());
+  }
+  return covers.bilder.get(key);
+}

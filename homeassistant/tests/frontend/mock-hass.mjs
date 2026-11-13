@@ -56,7 +56,10 @@ export const SCHEMA_V11 = {
 /* Befehle der Bibliothek (A7, Vertrag W Nr. 37), getrennt, damit die Abdeckungsprüfung der alten Seite unverändert bleibt. */
 export const SCHEMA_BIB = {
   'tobibox/folgen/list': { opt: ['art', 'text', 'filter', 'sortierung', 'limit', 'offset'], braucht: 'bibliothek' },
+  'tobibox/serie/art_setzen': { req: ['serie_id', 'art'], braucht: 'bibliothek' }, // A8, Vertrag W Nr. 38
 };
+/* A8: Befehle nur für Administratoren (Vertrag 2.1). Mit der Mock-Option `nichtAdmin` darf der Benutzer alles andere (Alltag). */
+export const ADMIN_BEFEHLE = new Set(['folgen/order', 'serien/zusammenfuehren', 'serie/create', 'papierkorb/restore', 'papierkorb/empty'].map((x) => `tobibox/${x}`));
 export const FELDER_V11 = {
   'tobibox/zuordnung/list': { uid: 'zuordnung_uid' },
   'tobibox/konfig/export_lesen': { stand: 'konfig_staende' }, // A12/A13: frühere Stände (Vertrag 2.4)
@@ -191,7 +194,7 @@ export function pruefeEingabe(msg, faehigkeiten = null) {
 
 export function createMockHass(opts = {}) {
   const darf = opts.darf ?? true;
-  const istAdmin = opts.istAdmin ?? darf; // Administrator? (`darf: true, istAdmin: false` = Alltag: schreiben ja, Technik nein)
+  const istAdmin = opts.istAdmin ?? (opts.nichtAdmin ? false : darf); // Administrator? (`darf: true, istAdmin: false` = Alltag: schreiben ja, Technik nein)
   const calls = []; // { type, msg } in der Reihenfolge des Eingangs
   const overrides = new Map(); // type -> Funktion (msg, b) => Ergebnis
   const failures = new Map(); // type -> [code…]
@@ -361,6 +364,13 @@ export function createMockHass(opts = {}) {
       b.serien[id] = { id, name: m.name, typ: m.typ || 'normal', ordner: m.name, pruefen: false, hinweise: [], folgen: [] };
       if (m.typ === 'ueberraschung') b.ueberraschung = 'leer';
       return { serie: kurzform(b.serien[id]) };
+    },
+    'tobibox/serie/art_setzen': (m) => {
+      const s = holeSerie(m.serie_id);
+      if (!ARTEN.includes(m.art)) throw fehler('invalid_format', 'art');
+      s.art = m.art; s.art_quelle = 'manuell';
+      s.pruefen_gruende = (s.pruefen_gruende || []).filter((c) => c !== 'art_geraten');
+      return { serie: kurzform(s) };
     },
     'tobibox/serie/rename': (m) => { const s = holeSerie(m.serie_id); if (!m.name.trim()) throw fehler('name_ungueltig'); s.name = m.name; s.pruefen = false; return { serie: kurzform(s) }; },
     'tobibox/folgen/order': (m) => {
@@ -542,6 +552,7 @@ export function createMockHass(opts = {}) {
     calls.push({ type: msg.type, msg: structuredClone(msg) });
     const felder = pruefeEingabe(msg, opts.faehigkeiten || FAEHIGKEITEN);
     if (!darf && !LESEN.has(msg.type)) throw fehler('unauthorized', 'Nur für Administratoren');
+    if (opts.nichtAdmin && ADMIN_BEFEHLE.has(msg.type)) throw fehler('unauthorized', 'Nur für Administratoren');
     const f = failures.get(msg.type);
     if (f && f.length) { const c = f.shift(); throw typeof c === 'string' ? fehler(c, `Fehler ${c}`) : c; }
     if (msg.anfrage_id) {

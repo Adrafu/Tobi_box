@@ -13,5 +13,6 @@ import * as suche from './suche.js';
 import * as technik from './technik.js';
 import * as geraete from './geraete.js';
 import * as box from './box.js';
+import * as serie from './serie.js';
 
-export const SEITEN = { start, bibliothek, suche, technik, geraete, box };
+export const SEITEN = { start, bibliothek, suche, technik, geraete, box, serie };

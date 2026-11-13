@@ -419,7 +419,7 @@ test('Rechte: ein Nicht-Administrator sieht dieselbe Bibliothek, dieselben Filte
   weg();
 });
 
-test('Tipp auf eine Zeile führt auf #serie-<id> (Platzhalter bis A8); „‹ Bibliothek“ führt zurück', MIT_DOM, async () => {
+test('Tipp auf eine Zeile führt auf #serie-<id> (Serienseite seit A8); „‹ Bibliothek“ führt zurück', MIT_DOM, async () => {
   const s = await bibliothek();
   const z = zeilen(s)[2];
   const id = z.dataset.serie;
@@ -427,7 +427,7 @@ test('Tipp auf eine Zeile führt auf #serie-<id> (Platzhalter bis A8); „‹ Bi
   await warte(30);
   await s.flush(10);
   assert.equal(window.location.hash, `#serie-${id}`);
-  assert.ok(s.q('[data-platz="serie"]'), 'Platzhalter der Serienseite');
+  assert.ok(s.q('.se-hero'), 'die Serienseite ersetzt den Platzhalter (A8)');
   assert.equal(s.q('main .back').getAttribute('href'), '#bibliothek');
   assert.deepEqual(s.qa('nav a[aria-current="page"]').map((a) => a.querySelector('.tn').textContent), ['Bibliothek']);
   weg();

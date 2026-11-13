@@ -602,3 +602,88 @@ export const ABENDS = {
     zu_viele: 'Es gibt schon 32 Leise-Zeiten. Lösche zuerst eine.', // neu, nicht im Design (Prüfregel: höchstens 32)
   },
 };
+
+// Serienseite (Design 5.3, 5.9, 10; Paket A8): Kopf, Folgenliste, Menüs, Rückfragen. Ohne Player, ohne „Gespielt von“ (A9).
+// Zählwörter stehen als { eins, mehr }. Platzhalter: name, titel, ziel, anzahl, prozent, dauer, namen, art, suchwort.
+export const SERIE = {
+  zurueck: '‹ Bibliothek', // Design 3.2
+  mehr_zu: 'Mehr zu {titel}', // aria-label der Knöpfe „⋯“
+  weg: { satz: 'Das gibt es nicht mehr.', link: 'Zurück zur Bibliothek' }, // Prototyp (serie/get: serie_nicht_gefunden)
+  abschnitt: { hoerspiel: 'Folgen', hoerbuch: 'Hörbuch', musik: 'Lieder', geschichte: 'Geschichten' }, // Design 5.3
+  schon_gehoert: 'Schon {prozent} % gehört · noch {dauer}', // Design 5.3
+  kapitel: '{anzahl} Kapitel', // Ordner-Folgen: „2:19 · 14 Kapitel“
+  suchen: { label: 'In diesem Eintrag suchen', platzhalter: 'Hier suchen' }, // Design 5.3 (ab 20 Folgen)
+  keine_treffer: 'Nichts gefunden zu „{suchwort}“.', // neu, nicht im Design
+  suche_loeschen: 'Suche löschen', // neu, nicht im Design
+  leer: { satz: 'In „{name}“ ist nichts mehr drin.', knopf: 'Hinzufügen' }, // neu, nicht im Design (leere Folgenliste)
+  einzeln: { // Design 5.3 „Einzeltitel“
+    musik: 'Das ist ein einzelnes Lied. Es steht für sich und gehört zu keinem Album.',
+    hoerspiel: 'Das ist eine einzelne Folge. Sie steht für sich und gehört zu keiner Sammlung.',
+    hoerbuch: 'Das ist ein einzelnes Hörbuch. Es steht für sich und gehört zu keiner Sammlung.',
+    geschichte: 'Das ist eine einzelne Geschichte. Sie steht für sich und gehört zu keiner Sammlung.',
+    schluss: 'Du kannst einem Tobie das zu spielen geben.',
+  },
+  ansehen: { // Design 5.3 „Falls zu prüfen“
+    titel: 'Bitte kurz ansehen.',
+    grund_sonst: 'Beim Einsortieren war etwas unsicher. Schau kurz, ob Name und Art stimmen.', // neu, nicht im Design
+    richtig: 'Das ist richtig',
+    stimmt_nicht: 'Das stimmt nicht',
+    danke: 'Danke, ist erledigt.', // Prototyp
+  },
+  stimmt_nicht: { // Prototyp (Blatt „Was soll passieren?“); „Anders einsortieren …“ kommt mit A-3
+    titel: 'Was soll passieren?',
+    satz: 'Das Einsortieren hat „{name}“ nicht richtig erkannt. Du kannst es korrigieren. Nichts geht endgültig verloren.',
+    folge: 'Gehört nur eine einzelne Folge woandershin? Tippe bei der Folge auf „⋯“ und wähle „In anderes verschieben …“.', // neu, nicht im Design
+  },
+  menue: { // Design 5.3 (Menü des Eintrags und der Folge)
+    name: 'Name ändern',
+    art: 'Art ändern',
+    reihenfolge: 'Reihenfolge ändern',
+    zusammen: 'Mit anderem zusammenführen …',
+    papierkorb: 'In den Papierkorb …',
+    verschieben: 'In anderes verschieben …',
+    folge_papierkorb: 'Papierkorb …',
+  },
+  reihenfolge: { fertig: 'Fertig mit Reihenfolge', hoch: '{titel} nach oben', runter: '{titel} nach unten' }, // Prototyp
+  name: { titel: 'Umbenennen', label: 'Name', leer: 'Bitte einen Namen eingeben.', speichern: 'Speichern', gespeichert: 'Gespeichert.' }, // Prototyp
+  art: { // Prototyp (Blatt „Was ist das?“)
+    titel: 'Was ist das?',
+    satz: 'Die Art wurde aus den Tags vorgeschlagen. Hier kannst du sie ändern.',
+    label: 'Art',
+    gespeichert: 'Gespeichert: {art}.',
+  },
+  wahl: { // Ziel wählen (Verschieben, Zusammenführen)
+    verschieben: 'Wohin verschieben?', // Prototyp
+    zusammen: 'Mit welchem zusammenführen?', // Prototyp
+    suchen: 'Suchen', // Beschriftung des Suchfelds (nur für Screenreader)
+    platzhalter: 'Hörspiel, Buch oder Album suchen', // neu, nicht im Design
+    wahlname: '{name} wählen', // aria-label der Zeilen
+    nichts: 'Nichts gefunden.', // neu, nicht im Design
+  },
+  verschieben: { // Design 5.3 und Vertrag 26 („offener Punkt 3“: die Zeiger beginnen von vorn)
+    titel: '„{titel}“ nach „{ziel}“ verschieben?',
+    satz: 'Die Folge steht danach dort und nicht mehr hier.',
+    tobies: { eins: '{anzahl} Tobie spielt genau diese Folge: {namen}. Er spielt sie danach weiter, beginnt aber auf der Box von vorn.', mehr: '{anzahl} Tobies spielen genau diese Folge: {namen}. Sie spielen sie danach weiter, beginnen aber auf der Box von vorn.' },
+    knopf: 'Verschieben',
+    fertig: '„{titel}“ ist jetzt in „{ziel}“.',
+  },
+  zusammen: { // Design 5.3 (Administratoren), Vertrag 27
+    titel: '„{name}“ mit „{ziel}“ zusammenführen?',
+    satz: 'Alle Folgen von „{name}“ kommen nach „{ziel}“. „{name}“ geht danach in den Papierkorb.',
+    tobies: { eins: '{anzahl} Tobie spielt „{name}“: {namen}. Er spielt danach „{ziel}“ und beginnt auf der Box von vorn.', mehr: '{anzahl} Tobies spielen „{name}“: {namen}. Sie spielen danach „{ziel}“ und beginnen auf der Box von vorn.' },
+    knopf: 'Zusammenführen',
+    fertig: '„{name}“ ist jetzt in „{ziel}“ zusammengeführt.',
+  },
+  papierkorb: { // Design 5.3 und 10.3 (die Rückfrage nennt die Tobies mit Namen)
+    titel: '„{titel}“ in den Papierkorb?',
+    serie: 'Es verschwindet aus der Bibliothek.',
+    folge: 'Es verschwindet aus der Liste.',
+    tobies: { eins: '{anzahl} Tobie spielt dann nichts mehr: {namen}.', mehr: '{anzahl} Tobies spielen dann nichts mehr: {namen}.' },
+    admin: 'Der Administrator bekommt eine Mitteilung und kann es zurückholen.',
+    knopf: 'In den Papierkorb',
+    fertig: '„{titel}“ ist im Papierkorb.',
+  },
+  abbrechen: 'Abbrechen',
+  schliessen: 'Schließen',
+  mehr_laden: 'Mehr laden ({anzahl} weitere)', // Prototyp
+};
