@@ -32,6 +32,10 @@
  *   covers                      CoverLader (unten): `merke(serien)` nach jeder Antwort mit Kurzformen.
  *   grenzeMs                    Zeitgrenze fürs Laden (Design 6: 10 s), für `ladeMitGrenze`.
  *   uploadBand()                Platz für das Band der laufenden Uploads (A11 füllt es, bis dahin `nothing`).
+ *   navigiere(hash, { ersetzen })   Seitenwechsel wie in Home Assistant (`history.pushState` und `location-changed`, Befund B1).
+ *   ereignis(fn)                `fn(ev)` für jedes Ereignis des Abos; gibt die Abmeldung zurück (A9/A10: Weg 1, Wartekarte).
+ *   boxAnzeige(box), neue(), warteschlange(), warteschlangeNeuLaden(), platz(), platzEntfernen(uid)   Boxnamen, unbekannte Tobies,
+ *                               Vormerkungen und Tobies, die eine Vormerkung ohne Namen genommen haben (A9/A10, seiten/tobies.js).
  *
  * ---------------------------------------------------------------------------------------- Bausteine
  *   ic(name, größe)             Symbol (SVG). Namen: ICON.

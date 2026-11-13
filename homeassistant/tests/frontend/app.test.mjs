@@ -679,14 +679,14 @@ test('Meldung: Der Bereich zieht in das offene Blatt und danach zurück; der Fok
 
 const neuerEintrag = (uid, box = 'kueche', zuletzt = '2026-11-13T10:00:00Z') => ({ uid, zuerst: zuletzt, zuletzt, anzahl: 1, boxen: { [box]: { zuerst: zuletzt, zuletzt, anzahl: 1, zeit_ok: true } } });
 
-test('Globale Meldung „Neuer Tobie auf <Box> – Zuordnen“ aus einem Abo-Ereignis, auf jeder Seite', MIT_DOM, async () => {
+test('Globale Meldung „Neuer Tobie auf <Box>.“ mit Knopf „Zuordnen“ aus einem Abo-Ereignis, auf jeder Seite', MIT_DOM, async () => {
   const s = await seite({ hash: '#bibliothek' });
   assert.equal(toasts(s).length, 0, 'der Snapshot und die schon wartenden lösen keine Meldung aus');
   s.m.emit('neue_tobies', 'neu', { eintrag: neuerEintrag('04AABBCCDDEEFF', 'kinderzimmer') });
   await s.flush();
   const t = toasts(s);
   assert.equal(t.length, 1);
-  assert.equal(t[0].querySelector('.tmsg').textContent, 'Neuer Tobie auf Kinderzimmer – Zuordnen');
+  assert.equal(t[0].querySelector('.tmsg').textContent, 'Neuer Tobie auf Kinderzimmer.');
   assert.equal(t[0].querySelector('button').textContent, 'Zuordnen');
   assert.equal(t[0].getAttribute('role'), 'status');
   t[0].querySelector('button').click();

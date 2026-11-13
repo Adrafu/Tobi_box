@@ -220,6 +220,8 @@ test('A5b: Meldung beim Zuordnen nennt altes und neues Ziel (R17-3)', () => {
 });
 
 test('A5b: Zeile „Vorher“ auf der Tobie-Seite', () => {
+  assert.equal(fuellen(TOBIE.zurueckgestellt, { tobie: 'Löwe', ziel: 'Kommissar Kralle' }), 'Löwe spielt wieder „Kommissar Kralle“.');
+  assert.doesNotMatch(TOBIE.zurueckgestellt, /Fertig/, '„Fertig:“ gehört zum neuen Tobie');
   assert.equal(fuellen(TOBIE.vorher), 'Vorher: Kommissar Kralle');
   assert.equal(TOBIE.zurueckstellen, 'Zurückstellen');
   imDesign('Vorher: Kommissar Kralle · Zurückstellen');
@@ -233,11 +235,12 @@ test('A5b: Namensfeld, auch bei „Später auflegen“ (R17-5)', () => {
   assert.equal(TOBIE.name_geben, 'Name geben');
 });
 
-test('A5b: Meldung „Neuer Tobie auf Box 1 – Zuordnen“ auf jeder Seite (R17-6)', () => {
-  assert.equal(fuellen(TOBIE.neuer_tobie_meldung), 'Neuer Tobie auf Box 1 – Zuordnen');
-  assert.equal(fuellen(TOBIE.neuer_tobie_meldung, { box: 'Box 2' }), 'Neuer Tobie auf Box 2 – Zuordnen');
+test('A5b: Meldung „Neuer Tobie auf Box 1“ mit dem Knopf „Zuordnen“ auf jeder Seite (R17-6)', () => {
+  assert.equal(fuellen(TOBIE.neuer_tobie_meldung), 'Neuer Tobie auf Box 1.');
+  assert.equal(fuellen(TOBIE.neuer_tobie_meldung, { box: 'Box 2' }), 'Neuer Tobie auf Box 2.');
+  assert.doesNotMatch(TOBIE.neuer_tobie_meldung, /Zuordnen/, 'das Wort steht nur auf dem Knopf');
   assert.equal(TOBIE.zuordnen, 'Zuordnen');
-  imDesign('Neuer Tobie auf Box 1 – Zuordnen');
+  imDesign('Neuer Tobie auf Box 1');
   assert.equal(fuellen(TOBIE.aufgelegt_zugeordnet, { ziel: 'Lange Serie' }), 'Box 1: Der neue Tobie spielt jetzt „Lange Serie“.');
   imDesign('Box 1: Der neue Tobie spielt jetzt „Lange Serie“.');
 });

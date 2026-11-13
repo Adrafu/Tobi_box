@@ -1007,7 +1007,9 @@ if (lit) {
         --minih: 0px;
       }
       * { box-sizing: border-box; }
-      .app { position: relative; height: 100%; overflow: hidden; background: var(--bg); color: var(--text); display: flex; flex-direction: column;
+      /* overflow: clip statt nur hidden: „hidden“ lässt sich per Programm scrollen (scrollIntoView, Fokus); dann rutscht die
+         Reiterleiste nach oben (Befund im echten HA, „Name geben“ am Handy). „hidden“ bleibt als Rückfall für alte Browser. */
+      .app { position: relative; height: 100%; overflow: hidden; overflow: clip; background: var(--bg); color: var(--text); display: flex; flex-direction: column;
         font-family: Roboto, system-ui, sans-serif; font-size: 16px; line-height: 1.45; --navh: calc(64px + var(--sab)); }
       .app:not([data-layout="unten"]) { --navh: 0px; }
       button, select, input { font: inherit; color: inherit; }

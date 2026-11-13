@@ -213,12 +213,13 @@ export const VOR = {
 export const TOBIE = {
   ohne_name: 'Tobie ohne Namen', // Design 5.4, Ergänzung b
   zugeordnet_neu: 'Fertig: {tobie} spielt jetzt „{ziel}“.', // Design 5.4, neuer Tobie
+  zurueckgestellt: '{tobie} spielt wieder „{ziel}“.', // neu, nicht im Design („Zurückstellen“ auf der Seite des Tobies)
   zugeordnet_umgehaengt: '{tobie} spielt jetzt „{ziel}“ (vorher „{vorher}“).', // Design 5.4, R17-3
   rueckgaengig: 'Rückgängig',
   rueckgaengig_gemacht: 'Rückgängig gemacht.', // neu, nicht im Design (Ansage für Screenreader, wie im Prototyp)
   vorher: 'Vorher: {vorher}', // Design 5.4: „Vorher: Kommissar Kralle · Zurückstellen“; der Punkt und „Zurückstellen“ sind ein eigener Knopf
   zurueckstellen: 'Zurückstellen',
-  neuer_tobie_meldung: 'Neuer Tobie auf {box} – Zuordnen', // Design 5.13 (R17-6)
+  neuer_tobie_meldung: 'Neuer Tobie auf {box}.', // Design 5.13 (R17-6): „Neuer Tobie auf Box 1“; „Zuordnen“ ist der Knopf daneben
   zuordnen: 'Zuordnen',
   aufgelegt_zugeordnet: '{box}: Der neue Tobie spielt jetzt „{ziel}“.', // Design 5.13, Auflegen
   name_geben: 'Name geben',

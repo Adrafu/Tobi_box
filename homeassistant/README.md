@@ -37,10 +37,55 @@ Verträge (die Integration ändert sie nicht): `docs/protocol/ha-websocket-v1.md
     Die Seite zum Hochladen (Knopf „+“) kommt mit Teil A-1c; heute zeigt sie noch den leeren Platz.
 *   **Cover:** Das Backend holt und liefert Cover (Befehl `cover/neu_suchen` nur für Administratoren, Bild hochladen
     für alle). Eigene Cover per Foto in der Seite kommen mit Teil A-1c.
-*   **Warteschlange:** Der Server kennt sie (Vertrag W, Abschnitt 3.13, Befehle 47 bis 49, Recht `alltag`). Die Seite
-    dazu kommt mit Teil A-1b; der Reiter „Tobies“ ist bis dahin leer.
+*   **Tobies und Warteschlange:** Der Reiter „Tobies“ zeigt das Regal aller Tobies und die Kachel „+ Neuer Tobie“. Dort
+    lässt sich ein Tobie auch vormerken („Später auflegen“): die Warteschlange ordnet ihn an, sobald er auf einer Box
+    liegt (Vertrag W, Abschnitt 3.13, Befehle 47 bis 49, Recht `alltag`). Die Anleitung dafür steht in
+    `docs/betrieb/ha-seite-alltag.md` (Abschnitt „Tobies“). Der Lernmodus mit Countdown bleibt Administratoren vorbehalten
+    (unter „Technik“).
 
-Stand: Teil A-1a (Lesen und Abends). Was dort fehlt, steht oben beim jeweiligen Punkt.
+Stand: Teile A-1a (Lesen und Abends) und A-1b (Tobies). Was dort fehlt, steht oben beim jeweiligen Punkt.
+
+## Vorlage: Mitteilung aufs Handy bei einem neuen Tobie
+
+Die Integration liefert für einen neuen Tobie **kein** Ereignis auf dem HA-Bus und **keine** Entität. Sie sendet das
+Thema `neue_tobies` nur an offene Seiten der Oberfläche (`hub.py`, `emit`, Vertrag W, Abschnitt 4). Die Vorlage baut
+deshalb auf dem MQTT-Thema auf, das die Box selbst veröffentlicht: `tobibox/<box>/unknown/<uid>` mit `art` = `unbekannt`
+(`docs/protocol/mqtt-v1.md`, Abschnitt 3.5). Die Integration liest dasselbe Thema (`mqtt.py`, `_on_unknown`). Die Vorlage
+ist keine neue Funktion (Design 7.1); du legst sie in HA selbst an, zum Beispiel über „Einstellungen → Automationen &
+Szenen → Automation erstellen → Aus YAML“.
+
+```yaml
+alias: Neuer Tobie → Mitteilung aufs Handy
+description: Schickt eine Mitteilung, wenn eine Box einen unbekannten Tobie meldet.
+mode: queued
+max: 10
+triggers:
+  - trigger: mqtt
+    topic: tobibox/+/unknown/+
+conditions:
+  - condition: template
+    value_template: >-
+      {{ trigger.payload | length > 0
+         and trigger.payload_json.art == 'unbekannt'
+         and trigger.payload_json.anzahl == 1 }}
+actions:
+  - action: notify.mobile_app_<geraet>
+    data:
+      title: Neuer Tobie
+      message: Tippe, um ihn einzuordnen.
+      data:
+        url: /tobibox
+```
+
+*   `notify.mobile_app_<geraet>` ersetzt du durch den Namen deines Handys. Ihn findest du unter „Entwicklerwerkzeuge“,
+    Reiter „Aktionen“, wenn du nach `mobile_app` suchst.
+*   `data: url: /tobibox` soll beim Tippen auf die Mitteilung die Seite öffnen. Ob das auf deinem Handy so klappt, ist
+    noch nicht getestet; bitte beim ersten Mal prüfen.
+*   Das Thema ist **retained**: Eine Kennung, die noch nicht bestätigt ist, kommt nach einem HA-Neustart erneut. Die
+    Bedingung `anzahl == 1` verhindert, dass jede weitere Meldung derselben Kennung eine neue Mitteilung auslöst.
+*   Die Vorlage erkennt jeden unbekannten Tobie, auch den, den die Warteschlange gleich zuordnet. Die Box meldet ihn ja
+    trotzdem.
+*   Die Verbindung zu MQTT ist dieselbe, die die Integration nutzt. Die Rechte dafür richtet `docs/betrieb/mqtt-konten.md` ein.
 
 ## Getestete Versionen
 

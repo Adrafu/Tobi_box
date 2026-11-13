@@ -163,8 +163,8 @@ class TobieModell {
   /* Eine Serie mit ihren Folgen (`serie/get`), einmal je Serie; Name, Art und Cover für Karten und Zeilen. */
   serie(id) { return this.serien.get(id) ?? null; }
 
-  holeSerie(id) {
-    if (!id || this.serien.has(id)) return;
+  holeSerie(id, versuch = 1) {
+    if (!id || (versuch === 1 && this.serien.has(id))) return;
     const { ctx } = this;
     this.serien.set(id, { phase: 'laedt', s: null });
     ctx.api('tobibox/serie/get', { serie_id: id }).then((s) => {
@@ -172,7 +172,10 @@ class TobieModell {
       this.serien.set(id, { phase: 'bereit', s });
       ctx.neuZeichnen();
     }, (err) => {
-      this.serien.set(id, { phase: 'fehler', s: null, fehlerCode: err?.code || 'unknown_error' });
+      const code = err?.code || 'unknown_error';
+      // ein zweiter Versuch bei einem vorübergehenden Fehler (sonst bliebe die Art bis zum nächsten Öffnen falsch)
+      if (versuch < 2 && code !== 'serie_nicht_gefunden') { this.holeSerie(id, versuch + 1); return; }
+      this.serien.set(id, { phase: 'fehler', s: null, fehlerCode: code });
       ctx.neuZeichnen();
     });
   }
@@ -194,6 +197,7 @@ class TobieModell {
     const z = x.ziel || {};
     if (z.typ === 'aktion') return TOBIES.art.aktion;
     const i = this.serie(z.serie);
+    if (z.serie && (!i || i.phase === 'laedt')) return ''; // Art noch unbekannt: keine Vermutung zeigen („Ganze Serie“ wäre oft falsch)
     const s = i?.phase === 'bereit' ? i.s : null;
     if (z.typ === 'folge') {
       if (s?.einzeln) return TOBIES.art.einzeltitel;
@@ -247,7 +251,7 @@ class TobieModell {
     const { ctx } = this;
     try { await ctx.api('tobibox/zuordnung/set', { uid, ziel, erwartet_ziel: erwartet }); } catch (err) { this._fehler(err); return false; }
     await this.laden(true);
-    if (still) ctx.melde(fuellen(TOBIE.zugeordnet_neu, { tobie: tobie ?? TOBIE.ohne_name, ziel: text }));
+    if (still) ctx.melde(fuellen(TOBIE.zurueckgestellt, { tobie: tobie ?? TOBIE.ohne_name, ziel: text }));
     else ctx.melde(TOBIE.rueckgaengig_gemacht);
     return true;
   }
@@ -482,7 +486,7 @@ class Zielwahl {
   render() {
     const T = TOBIES.wahl;
     const neuReihe = this.neuReihe && !this.term && this.l.neu?.phase === 'bereit' && this.l.neu.eintraege.length
-      ? html`<h3 class="tb-h3" data-reihe="neu">${T.neu_reihe}</h3><div class="tb-reihe">${this.l.neu.eintraege.map((s) => html`
+      ? html`<h3 class="tb-h3" data-titel="neu">${T.neu_reihe}</h3><div class="tb-reihe" data-reihe="neu">${this.l.neu.eintraege.map((s) => html`
         <button type="button" class="tile" data-wahl=${`${s.einzeln ? 'einzel' : 'serie'}:${s.id}`} aria-label=${fuellen(T.waehlen, { name: s.name })} @click=${() => this.waehleSerie(s)}>
           <span class="pos">${cover(s)}</span><span class="tn">${s.name}</span><span class="tm">${untertitel(s, { dauer: false })}</span></button>`)}</div>` : nothing;
     return html`<div class="tb-wahl" data-zielwahl>
@@ -659,7 +663,9 @@ class TobieSeite {
   get eintrag() { return this.m.tobie(this.uid); }
 
   nachRender(wurzel) {
-    if (this.fokusName) {
+    // Erst fokussieren, wenn die Liste frisch geladen ist: Der erste Zug nach `betreten` zeigt noch die alte Liste, der nächste ersetzt sie
+    // und nähme dem Feld den Fokus wieder weg.
+    if (this.fokusName && this.m.l.phase === 'bereit') {
       const feld = wurzel.querySelector('#tb-name');
       if (feld) { this.fokusName = false; feld.focus({ preventScroll: true }); feld.scrollIntoView?.({ block: 'center' }); }
     }
@@ -783,6 +789,7 @@ class NeuSeite {
     return html`<a class="back" href=${k.zurueck} data-zurueck>${k.label}</a>
       <h2 class="tb-titel" tabindex="-1">${SEITE.seiten.neu}</h2>
       ${festesZielKarte(m, k.fest, T.er_soll)}
+      ${!Object.keys(ctx.boxen()).length ? html`<div class="note warn" role="status" data-zustand="keine-box">${fuellen(T.ohne_box)}</div>` : nothing}
       ${ctx.faehig('neue_tobies') ? zeile(`#neu-warten${k.abfrage}`, 'tag', T.weg1, 'jetzt') : nothing}
       ${ctx.faehig('warteschlange') ? zeile(`#neu-queue${k.abfrage}`, 'clock', T.weg2, 'spaeter') : nothing}`;
   }
@@ -1166,8 +1173,13 @@ export const tobies = seite(TobiesSeite, () => css`
   .tb-zeilenlink { min-width: 0; display: flex; align-items: center; gap: 8px; min-height: 52px; color: inherit; text-decoration: none; }
   .tb-zeilenlink .chev { color: inherit; }
   .tb-zeilenlink .chev svg, .tb-wzeile .chev svg { width: 24px; height: 24px; fill: currentColor; display: block; }
-  .tb-wzeile { border-top: 1px solid var(--divider); }
+  .tb-wzeile { width: 100%; display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 8px 0; border: 0; border-top: 1px solid var(--divider); background: none; color: inherit; font: inherit; text-align: left; }
   .tb-wzeile:first-of-type { border-top: 0; }
+  .tb-wzeile .grow { flex: 1; min-width: 0; display: grid; gap: 2px; overflow-wrap: anywhere; }
+  .tb-wzeile .nm { font-weight: 500; }
+  .tb-wzeile .chev { flex: none; color: var(--text2); display: grid; place-items: center; }
+  .tb-wzeile:active { background: var(--primary-soft); }
+  .tb-karte .btn.link { padding-left: 0; }
 
   /* Seite „Was soll … spielen?“ und die Seiten von „Neuer Tobie“ */
   .tb-titel { font-size: 24px; font-weight: 500; line-height: 1.25; margin: 4px 0 12px; overflow-wrap: anywhere; outline: none; }
@@ -1238,7 +1250,11 @@ export const tobies = seite(TobiesSeite, () => css`
   .ring { width: 120px; height: 120px; margin: 8px auto 16px; border-radius: 60px; border: 4px solid var(--primary-ink); display: grid; place-items: center; animation: tb-ring 1.6s ease-in-out infinite; }
   .ring svg { fill: var(--primary-ink); }
   @keyframes tb-ring { 50% { transform: scale(1.08); box-shadow: 0 0 0 12px var(--primary-soft); } }
-  @media (prefers-reduced-motion: reduce) { .ring { animation: none; } }
+  @media (prefers-reduced-motion: reduce) {
+    .ring { animation: none; }
+    .ttile, .app[data-layout="seite"] .ttile { transition: none; }
+    .app[data-layout="seite"] a.ttile:hover:not(.neu), .app[data-layout="seite"] button.ttile:hover:not(:disabled) { transform: none; }
+  }
 
   /* „Gespielt von“ und Chips (Serienseite) */
   .tb-gespielt { background: var(--card); border-radius: var(--r-card); box-shadow: 0 1px 3px var(--shadow); padding: 12px 16px 14px; margin: 0 0 16px; min-width: 0; }

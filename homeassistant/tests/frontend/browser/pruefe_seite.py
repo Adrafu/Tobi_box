@@ -37,6 +37,9 @@ try:
     from playwright.sync_api import TimeoutError as PlaywrightTimeout
 except ImportError:  # wird in main() gemeldet
     PlaywrightTimeout = TimeoutError
+UNBEKANNT = "0499887766554433"  # der unbekannte Tobie im Mock (neue_tobies beim Start)
+LOEWE = "04A0000000000001"  # Tobie „Löwe“ auf der langen Serie (server.mjs)
+LOEWE_FOLGE = "04A0000000000002"  # Tobie ohne Namen auf Folge 2 der langen Serie
 THEMEN = ["hell", "dunkel", "gelb"]
 # (Art, Breite): "fenster" = Browserfenster, "panel" = Panelbreite bei 1280 px Fensterbreite
 # "ha": Fenster 1440 px mit der Seitenleiste von Home Assistant (256 px) links daneben, das Panel ist 1184 px breit (B2)
@@ -58,6 +61,7 @@ class Lauf:
         self.hinweise: list[tuple[str, str]] = []  # (Zustand, Text) aus der alten Komponente
         self.zustaende = 0
         self.schritte = 0
+        self._scroll_gesehen: set[str] = set()
 
     def befund(self, kat, zustand, text):
         self.befunde.append((kat, zustand, str(text)[:300]))
@@ -76,6 +80,10 @@ class Lauf:
         except Exception as e:  # noqa: BLE001 - Playwright wirft viele Arten
             zeile = str(e).strip().splitlines()[0] if str(e).strip() else type(e).__name__
             self.befund("ablauf", name, f"{type(e).__name__}: {zeile}")
+            if self.bilder:  # Bildschirmfoto vom Zustand beim Fehler
+                with contextlib.suppress(Exception):
+                    self.bilder.mkdir(parents=True, exist_ok=True)
+                    self.pg.screenshot(path=str(self.bilder / f"{self.job['kennung']}-fehler-{name}.png"))
 
     # --- Zugriff auf die Seite
     def js(self, ausdruck, arg=None):
@@ -83,6 +91,43 @@ class Lauf:
 
     def ruhe(self):
         self.pg.evaluate("() => window.__ruhe()")
+        self.scroll_pruefen()
+
+    def scroll_pruefen(self):
+        """Nach jedem Schritt und in jedem gemessenen Zustand: Hat irgendein Element außer den echten Scroll-Behältern (overflow auto/scroll,
+        also `.rahmen`, die Inhaltsspalte, Blätter) ein `scrollTop` ungleich 0? Ein per Programm gescrollter Behälter mit `overflow: hidden`
+        (Befund im echten HA: scrollIntoView am Namensfeld scrollte `.app`) schiebt die Reiterleiste in die Mitte. Sucht auch im Shadow-DOM,
+        bei `el`, seinen Vorfahren und der Seite selbst. In der unteren Reiter-Anordnung muss die Unterkante der Leiste an der Unterkante des Panels liegen."""
+        try:
+            aus = self.js("""
+              const alle = [];
+              const gehe = (w) => { for (const n of w.querySelectorAll('*')) { alle.push(n); if (n.shadowRoot) gehe(n.shadowRoot); } };
+              gehe(sr);
+              for (let n = el; n; n = n.parentElement) alle.push(n);
+              if (document.scrollingElement) alle.push(document.scrollingElement);
+              const name = (n) => n.tagName.toLowerCase() + (n.id ? '#' + n.id : '') + (typeof n.className === 'string' && n.className ? '.' + n.className.trim().split(/\\s+/).join('.') : '');
+              const aus = [];
+              for (const n of alle) {
+                if (!n.scrollTop) continue;
+                const ov = getComputedStyle(n).overflowY;
+                if (ov === 'auto' || ov === 'scroll') continue;
+                aus.push(`${name(n)} (overflow-y ${ov}) hat scrollTop ${Math.round(n.scrollTop)}, soll 0 sein`);
+              }
+              if (el.getAttribute('data-layout') === 'unten') {
+                const nav = sr.querySelector('nav.tabs.unten');
+                if (nav && getComputedStyle(nav).display !== 'none') {
+                  const P = el.getBoundingClientRect(), b = nav.getBoundingClientRect().bottom;
+                  if (Math.abs(b - P.bottom) > 1) aus.push(`Reiterleiste endet bei ${b.toFixed(1)}, das Panel bei ${P.bottom.toFixed(1)} (verschoben um ${(P.bottom - b).toFixed(1)} px)`);
+                }
+              }
+              return aus;
+            """)
+        except Exception:  # noqa: BLE001 - Seite wechselt gerade
+            return
+        for text in aus:
+            if text not in self._scroll_gesehen:
+                self._scroll_gesehen.add(text)
+                self.befund("extra", f"scroll@{self.hash()}", f"Scroll: {text}")
 
     def gehe(self, hash_):
         self.pg.evaluate("h => { location.hash = h; }", hash_)
@@ -102,6 +147,23 @@ class Lauf:
 
     def hash(self):
         return self.pg.evaluate("() => location.hash")
+
+    def mock(self, pfad, body=None):
+        """Der Mock-Server dieses Laufs: `/legeauf` (Tobie auflegen), `/sperre`, `/zustand` (nur lesen)."""
+        k = f"{self.job['profil']}~{self.job['kennung']}"
+        return self.pg.evaluate("async ([p, k, b]) => (await (await fetch(`${p}?k=${encodeURIComponent(k)}`, { method: b ? 'POST' : 'GET', body: b ? JSON.stringify(b) : undefined })).json())", [pfad, k, body])
+
+    def warte_hash(self, teil, zeit=6000):
+        self.pg.wait_for_function("t => location.hash.includes(t)", arg=teil, timeout=zeit)
+        self.ruhe()
+
+    def warte_da(self, sel, zeit=6000):
+        self.pg.locator(sel).first.wait_for(timeout=zeit)
+        self.ruhe()
+
+    def toast(self):
+        """Text der Erfolgsmeldung (oder '')."""
+        return self.js("return sr.querySelector('.toast:not(.err) .tmsg')?.textContent ?? ''")
 
     def rahmen_geometrie(self):
         """Wie ha-panel-custom: das Element hat keine Höhe vom Behälter; die Leiste muss trotzdem am unteren Rand des Panels sitzen.
@@ -201,6 +263,31 @@ def seiten_messen(L: Lauf):
             L.gehe("#serie-lang")
             L.js("sr.querySelector('.rahmen').scrollTop = 900; sr.querySelector('.spalte').scrollTop = 900;")
             L.messe("serie-lang-unten")
+    # A9/A10: Seiten der Tobies (Regal, Tobie, Neuer Tobie mit beiden Wegen, festes Ziel, „Einem Tobie geben …“)
+    seite("neu", "#neu")
+    seite("neu-warten", "#neu-warten")
+    seite("neu-queue", "#neu-queue")
+    seite("neu-ziel", f"#neu-ziel-{UNBEKANNT}")
+    seite("neu-ziel-weg", "#neu-ziel-GIBTSNICHT")
+    seite("tobie-weg", "#tobie-GIBTSNICHT")
+    if not leer:
+        def tippe_regal(text):
+            def f():
+                L.pg.locator("#tb-suche").fill(text)
+                L.ruhe()
+            return f
+        seite("tobies-suche", "#tobies", tippe_regal("löwe"))
+        seite("tobies-suche-keiner", "#tobies", tippe_regal("xyzq"))
+        seite("tobie", f"#tobie-{LOEWE}")
+        seite("tobie-folge", f"#tobie-{LOEWE_FOLGE}")
+        seite("tobie-folgenwahl", f"#tobie-{LOEWE}", lambda: L.klick('[data-zielwahl] [data-wert="folge"]'))
+        seite("neu-fest", "#neu?s=kurz&f=k2.mp3")
+        seite("neu-queue-fest", "#neu-queue?s=kurz")
+        seite("neu-ziel-fest", f"#neu-ziel-{UNBEKANNT}?s=kurz&von=tobies")
+        seite("geben-serie", "#geben-kurz")
+        seite("geben-folge", "#geben-kurz~k2.mp3")
+        seite("geben-lied", "#geben-lied~wiegenlied.mp3")
+        seite("geben-weg", "#geben-gibtsnicht")
     seite("geraete", "#geraete")
     with L.schritt("geraete-abends"):
         L.gehe("#geraete")
@@ -704,7 +791,325 @@ def ablauf_blaetter(L: Lauf):
         L.blatt_zu()
 
 
-ABLAEUFE = [ablauf_unterkante, ablauf_reiter, ablauf_klicks, ablauf_reihen, ablauf_suche, ablauf_bibliothek, ablauf_serie, ablauf_leise, ablauf_box, ablauf_technik, ablauf_blaetter]
+
+# ------------------------------------------------------------------ A9/A10: Abnahme A16-1b (Tobies)
+def zum_reiter(L: Lauf, rid):
+    L.klick(f'nav.tabs a[href="#{rid}"]')
+
+
+def ziel_waehlen(L: Lauf, wahl):
+    """Ein Ergebnis der Zielwahl antippen (wartet, bis die Liste geladen ist)."""
+    L.warte_da(f'[data-zielwahl] [data-wahl="{wahl}"]')
+    L.klick(f'[data-zielwahl] [data-wahl="{wahl}"]')
+
+
+def erste_serie(L: Lauf):
+    """Kennung einer Serie in der Zielwahl, die nicht der Löwe spielt (die erste Kachel „Ganze Serie“)."""
+    L.warte_da('[data-zielwahl] [data-ergebnis="serie"] [data-wahl]')
+    return L.js("return sr.querySelector('[data-zielwahl] [data-ergebnis=\"serie\"] [data-wahl]').dataset.wahl")
+
+
+def ablauf_tobies_weg1(L: Lauf):
+    """(1) Neuer Tobie Weg 1 mit Namen, danach „Rückgängig“; nur Ereignisse nach dem Start der Warteseite."""
+    neu_uid = "04AABBCCDD0001"
+    with L.schritt("tobies-weg1"):
+        L.gehe("#start")
+        zum_reiter(L, "tobies")
+        L.pruefe(L.hash() == "#tobies" and L.da("[data-regal] a[data-neu]"), "weg1", "Regal mit „+ Neuer Tobie“ fehlt")
+        L.klick("[data-regal] a[data-neu]")
+        L.pruefe(L.hash() == "#neu", "weg1", f"„+ Neuer Tobie“ führt nach {L.hash()}")
+        L.messe("ablauf-neu")
+        L.klick('a[data-weg="jetzt"]')
+        L.pruefe(L.hash() == "#neu-warten" and L.da('[data-zustand="warten"]'), "weg1", "Warteseite fehlt")
+        L.messe("ablauf-neu-warten")
+        L.pg.wait_for_timeout(500)
+        L.pruefe(L.hash() == "#neu-warten", "weg1", "Der schon wartende Tobie hat die Warteseite weitergeschaltet (nur Ereignisse nach dem Start zählen)")
+        L.mock("/legeauf", {"box": "kinderzimmer", "uid": neu_uid})
+        L.warte_hash("#neu-ziel-")
+        L.pruefe(L.hash().startswith(f"#neu-ziel-{neu_uid}"), "weg1", f"Weiter nach {L.hash()}")
+        L.pruefe(L.da('[data-karte="erkannt"]') and "Neuer Tobie erkannt" in L.js("return sr.querySelector('[data-karte=erkannt]').textContent"), "weg1", "„Neuer Tobie erkannt“ fehlt")
+        L.pruefe(L.da(".tb-leiste [data-versehen]"), "weg1", "„Das war ein Versehen“ oben rechts fehlt")
+        L.pruefe(L.js("const v = sr.querySelector('.tb-leiste [data-versehen]').getBoundingClientRect(), b = sr.querySelector('.tb-leiste a.back').getBoundingClientRect(); return v.left > b.right"), "weg1", "„Versehen“ steht nicht rechts neben „‹ Tobies“")
+        L.pruefe(L.js("return sr.activeElement?.id !== 'tb-neuname'"), "weg1", "Autofokus im Namensfeld")
+        L.messe("ablauf-neu-ziel")
+        L.pg.locator("#tb-neuname").fill("Fuchs")
+        L.ruhe()
+        wahl = erste_serie(L)
+        L.klick(f'[data-zielwahl] [data-wahl="{wahl}"]')
+        L.pruefe(L.hash() == "#tobies", "weg1", f"Nach dem Zuordnen {L.hash()} statt #tobies")
+        L.pruefe(L.toast().startswith("Fertig: Fuchs spielt jetzt"), "weg1", f"Meldung: {L.toast()!r}")
+        L.pruefe(L.js("return sr.querySelector('.toast .tok')?.textContent") == "Rückgängig", "weg1", "„Rückgängig“ fehlt an der Meldung")
+        L.pruefe(L.da(f'[data-regal] [data-tobie="{neu_uid}"]'), "weg1", "Der neue Tobie steht nicht im Regal")
+        z = L.mock("/zustand")
+        L.pruefe(z["zuordnungen"][neu_uid]["name"] == "Fuchs", "weg1", "Name nicht gespeichert")
+        # (5) „Rückgängig“ bei einem neuen Tobie: die Karte auf „Geräte“ kommt wieder
+        L.klick(".toast .tok")
+        z = L.mock("/zustand")
+        L.pruefe(neu_uid not in z["zuordnungen"] and any(e["uid"] == neu_uid for e in z["neue"]), "weg1-rueckgaengig", "Der Tobie liegt nach „Rückgängig“ nicht wieder als unbekannt in der Liste")
+        L.pruefe(not L.da(f'[data-regal] [data-tobie="{neu_uid}"]'), "weg1-rueckgaengig", "Der Tobie steht noch im Regal")
+        zum_reiter(L, "geraete")
+        L.pruefe(L.da(f'[data-karte="neuer-tobie"][data-uid="{neu_uid}"], [data-karte="neue-tobies"] [data-uid="{neu_uid}"]'), "weg1-rueckgaengig", "Die Karte „Neuer Tobie“ ist nicht wieder da")
+    with L.schritt("tobies-weg1-versehen"):
+        L.gehe("#start")
+        zum_reiter(L, "geraete")
+        L.klick('[data-karte="neuer-tobie"] a.tb-karte-link, [data-karte="neue-tobies"] a.tb-zeilenlink')
+        L.pruefe(L.hash().startswith("#neu-ziel-"), "versehen", f"Karte führt nach {L.hash()}")
+        L.pruefe(L.js("return sr.querySelector('nav.tabs a[aria-current=\"page\"]')?.getAttribute('href')") == "#geraete", "versehen", "Reiter „Geräte“ ist nicht markiert")
+        L.klick("[data-versehen]")
+        L.pruefe(L.da("dialog[open]"), "versehen", "Keine Rückfrage")
+        L.klick("dialog[open] .knoepfe .btn.primary")
+        L.pg.wait_for_function("() => !window.__el.shadowRoot.querySelector('dialog[open]')", timeout=3000)
+        L.ruhe()
+        L.pruefe(L.hash() == "#geraete", "versehen", f"Nach „Nicht merken“: {L.hash()}")
+
+
+def ablauf_tobies_weg2(L: Lauf):
+    """(2) Weg 2 mit Namensfeld, danach Auflegen; (8) Abbrechen; Auto-Zuordnung scheitert."""
+    with L.schritt("tobies-weg2"):
+        L.gehe("#start")
+        zum_reiter(L, "tobies")
+        L.klick("[data-regal] a[data-neu]")
+        L.klick('a[data-weg="spaeter"]')
+        L.pruefe(L.hash() == "#neu-queue", "weg2", f"Weg 2 führt nach {L.hash()}")
+        L.pruefe(L.js("return [...sr.querySelectorAll('[data-karte=box] .seg2 button')].map((b) => b.textContent.trim()).join('|')") == "Küche|Kinderzimmer|Egal welche", "weg2", "Boxwahl")
+        L.klick('[data-karte="box"] [data-wert="kueche"]')
+        L.pg.locator("#tb-queue-name").fill("Bär")
+        L.ruhe()
+        L.messe("ablauf-neu-queue")
+        wahl = erste_serie(L)
+        L.klick(f'[data-zielwahl] [data-wahl="{wahl}"]')
+        L.pruefe(L.da('[data-zustand="wartet"]'), "weg2", "Wartekarte fehlt")
+        L.pruefe(L.js("return sr.querySelector('[data-zustand=wartet] .tb-titel').textContent").startswith("Nächster neuer Tobie auf Küche spielt"), "weg2", "Titel der Wartekarte")
+        L.messe("ablauf-neu-queue-wartet")
+        z = L.mock("/zustand")
+        L.pruefe(len(z["warteschlange"]) == 1 and z["warteschlange"][0]["name"] == "Bär" and z["warteschlange"][0]["box"] == "kueche", "weg2", f"Vormerkung: {z['warteschlange']}")
+        L.mock("/legeauf", {"box": "kueche", "uid": "04AABBCCDD0002"})
+        L.warte_hash("#tobies")
+        L.pruefe(L.da('[data-regal] [data-tobie="04AABBCCDD0002"]'), "weg2", "Der aufgelegte Tobie steht nicht im Regal")
+        L.pruefe(L.toast().startswith("Küche: Der neue Tobie spielt jetzt"), "weg2", f"Meldung: {L.toast()!r}")
+        L.pruefe(L.js("return !sr.querySelector('.toast .tok')"), "weg2", "„Name geben“ trotz Namen")
+    with L.schritt("tobies-weg2-ohne-namen"):
+        L.gehe("#neu-queue")
+        wahl = erste_serie(L)
+        L.klick(f'[data-zielwahl] [data-wahl="{wahl}"]')
+        L.klick('[data-zustand="wartet"] [data-fertig]')
+        L.pruefe(L.hash() == "#tobies" and L.da("[data-eintrag]"), "weg2", "Nach „Fertig“ fehlt die Karte der Vormerkung im Regal")
+        L.messe("ablauf-regal-wartet")
+        L.mock("/legeauf", {"box": "kinderzimmer", "uid": "04AABBCCDD0003"})
+        L.warte_da(".toast .tok")
+        L.pruefe(L.js("return sr.querySelector('.toast .tok').textContent") == "Name geben", "weg2", "„Name geben“ fehlt")
+        L.klick(".toast .tok")
+        L.pruefe(L.hash() == "#tobie-04AABBCCDD0003?name=1", "weg2", f"„Name geben“ führt nach {L.hash()}")
+        with contextlib.suppress(PlaywrightTimeout):
+            L.pg.wait_for_function("() => window.__el.shadowRoot.activeElement?.id === 'tb-name'", timeout=3000)
+        L.pruefe(L.js("return sr.activeElement?.id === 'tb-name'"), "weg2", f"Fokus nicht im Namensfeld ({L.js('return sr.activeElement?.outerHTML.slice(0, 80)')})")
+        zum_reiter(L, "geraete")
+        L.pruefe(L.da('[data-karte="platz-bekommen"]'), "weg2", "Karte „Ein neuer Tobie hat einen Platz bekommen“ fehlt auf Geräte")
+        L.messe("ablauf-geraete-platz")
+        L.klick('[data-karte="platz-bekommen"] [data-spaeter]')
+        L.pruefe(not L.da('[data-karte="platz-bekommen"]'), "weg2", "„Später“ entfernt die Karte nicht")
+    with L.schritt("tobies-queue-abbrechen"):
+        L.gehe("#neu-queue")
+        wahl = erste_serie(L)
+        L.klick(f'[data-zielwahl] [data-wahl="{wahl}"]')
+        L.klick('[data-zustand="wartet"] [data-fertig]')
+        L.klick("[data-eintrag] [data-abbrechen]")
+        L.pruefe(not L.da("[data-eintrag]") and L.mock("/zustand")["warteschlange"] == [], "queue-abbrechen", "Vormerkung bleibt nach „Abbrechen“")
+    with L.schritt("tobies-auto-scheitert"):
+        L.gehe("#neu-queue")
+        wahl = erste_serie(L)
+        L.klick(f'[data-zielwahl] [data-wahl="{wahl}"]')
+        L.klick('[data-zustand="wartet"] [data-fertig]')
+        L.mock("/sperre", {"zustand": "export_neuer"})
+        L.pg.wait_for_timeout(50)
+        L.mock("/legeauf", {"box": "kueche", "uid": "04AABBCCDD0004"})
+        zum_reiter(L, "geraete")
+        L.warte_da('[data-karte="nicht-zugeordnet"]')
+        L.pruefe(L.js("return sr.querySelector('[data-karte=nicht-zugeordnet] h3').textContent") == "Konnte nicht zugeordnet werden", "auto-scheitert", "Karte „Konnte nicht zugeordnet werden“")
+        L.pruefe(L.da('[data-karte="wartet"]'), "auto-scheitert", "Die Warteschlangen-Karte fehlt")
+        L.messe("ablauf-geraete-nicht-zugeordnet")
+        L.klick('[data-karte="wartet"] .tb-wzeile')
+        L.pruefe(L.da("dialog[open]"), "auto-scheitert", "Blatt „Nicht mehr warten“ fehlt")
+        L.messe("ablauf-geraete-wartet-blatt")
+        L.klick("dialog[open] .knoepfe .btn.danger, dialog[open] .knoepfe .btn:last-child")
+        L.pg.wait_for_function("() => !window.__el.shadowRoot.querySelector('dialog[open]')", timeout=3000)
+        L.mock("/sperre", {"zustand": "ok"})
+        L.ruhe()
+
+
+def ablauf_tobies_name_geben_weit_unten(L: Lauf):
+    """B-1: „Name geben“ (`#tobie-<kennung>?name=1`) bei vielen Serien in der Zielwahl: das Namensfeld liegt weit unten, die Seite
+    scrollt es per Programm in die Sicht. Danach darf nur der Scroll-Behälter gescrollt sein, die Reiterleiste bleibt am Panelrand."""
+    uid = "04AABBCCDD0031"
+    with L.schritt("tobies-name-geben-weit-unten"):
+        L.mock("/serien-viele", {"anzahl": 14})
+        L.gehe("#neu-queue")
+        wahl = erste_serie(L)
+        L.klick(f'[data-zielwahl] [data-wahl="{wahl}"]')
+        L.klick('[data-zustand="wartet"] [data-fertig]')
+        L.mock("/legeauf", {"box": "kinderzimmer", "uid": uid})
+        L.warte_da(".toast .tok")
+        # Die Zuordnungen kommen spät, die Serienliste ist dann schon da: das Namensfeld sitzt ganz unten, der Behälter `.rahmen` kann es
+        # nicht mehr in die Mitte rollen, den Rest müsste der äußere Behälter `.app` übernehmen (so im echten HA: .app scrollTop 178).
+        L.js("const h = el.hass.connection; h.__orig = h.sendMessagePromise; "
+             "h.sendMessagePromise = (m) => m.type === 'tobibox/zuordnung/list' ? new Promise((r) => setTimeout(r, 900)).then(() => h.__orig(m)) : h.__orig(m);")
+        try:
+            L.klick(".toast .tok")
+            L.pruefe(L.hash() == f"#tobie-{uid}?name=1", "name-weit-unten", f"„Name geben“ führt nach {L.hash()}")
+            with contextlib.suppress(PlaywrightTimeout):
+                L.pg.wait_for_function("() => window.__el.shadowRoot.activeElement?.id === 'tb-name'", timeout=4000)
+        finally:
+            L.js("const h = el.hass.connection; if (h.__orig) { h.sendMessagePromise = h.__orig; delete h.__orig; }")
+        L.pruefe(L.js("return sr.activeElement?.id === 'tb-name'"), "name-weit-unten", "Fokus nicht im Namensfeld")
+        L.pg.wait_for_timeout(400)  # sanftes Scrollen ausklingen lassen
+        L.messe("ablauf-name-geben-weit-unten")
+        sicht = L.js("""
+          const f = sr.querySelector('#tb-name'), r = sr.querySelector('.rahmen').getBoundingClientRect(), b = f.getBoundingClientRect();
+          return { oben: b.top >= r.top - 1, unten: b.bottom <= r.bottom + 1, scroll: sr.querySelector('.rahmen').scrollTop, hoch: sr.querySelector('.rahmen').scrollHeight - sr.querySelector('.rahmen').clientHeight };
+        """)
+        if L.job.get("layout") == "unten":
+            L.pruefe(sicht["scroll"] > 0 and sicht["scroll"] >= sicht["hoch"] - 1, "name-weit-unten", f"`.rahmen` ist nicht ganz unten: das Namensfeld lag nicht weit genug unten, der Fall wird nicht geprüft ({sicht})")
+        L.scroll_pruefen()
+
+
+def ablauf_tobies_meldung(L: Lauf):
+    """(3) Meldung „Neuer Tobie auf Box 1.“ mit Knopf „Zuordnen“ auf einer fremden Seite, mehrere unbekannte Tobies."""
+    with L.schritt("tobies-meldung"):
+        L.gehe("#bibliothek")
+        L.mock("/legeauf", {"box": "kueche", "uid": "04AABBCCDD0011"})
+        L.mock("/legeauf", {"box": "kueche", "uid": "04AABBCCDD0012"})
+        L.warte_da(".toast .tok")
+        L.pruefe(L.toast() == "Neuer Tobie auf Küche.", "meldung", f"Meldung: {L.toast()!r}")
+        L.pruefe(L.js("return sr.querySelector('nav.tabs a[href=\"#geraete\"] .dot')?.textContent") is not None, "meldung", "Punkt am Reiter „Geräte“ fehlt")
+        L.messe("ablauf-meldung")
+        L.klick(".toast .tok")
+        L.pruefe(L.hash().startswith("#neu-ziel-04AABBCCDD0012"), "meldung", f"„Zuordnen“ führt nach {L.hash()}")
+        zum_reiter(L, "geraete")
+        zaehler = L.js("return sr.querySelector('[data-karte=\"neue-tobies\"] h3')?.textContent ?? ''")
+        L.pruefe(re.match(r"^[3-9] neue Tobies auf Küche$", zaehler) is not None, "meldung", f"Zähler: {zaehler!r}")
+        L.messe("ablauf-geraete-mehrere")
+
+
+def ablauf_tobies_umhaengen(L: Lauf):
+    """(4) Umhängen mit Meldung (altes und neues Ziel), „Rückgängig“, Zeile „Vorher“; (7) Gute-Nacht-Karte; Namen; Vergessen."""
+    with L.schritt("tobies-umhaengen"):
+        L.gehe("#start")
+        zum_reiter(L, "tobies")
+        L.klick(f'[data-regal] a[data-tobie="{LOEWE}"]')
+        L.pruefe(L.hash() == f"#tobie-{LOEWE}", "umhaengen", f"Kachel führt nach {L.hash()}")
+        L.pruefe(L.js("return sr.querySelector('main h2').textContent") == "Was soll Löwe spielen?", "umhaengen", "Überschrift")
+        L.pruefe(L.da(".tb-cur.jetzt") and L.da('[data-wahl="aktion"]'), "umhaengen", "„Spielt jetzt“ oder Gute-Nacht-Karte fehlt")
+        L.pruefe(not L.da("[data-vorher]"), "umhaengen", "„Vorher“ ohne Umhängen")
+        wahl = erste_serie(L)
+        L.klick(f'[data-zielwahl] [data-wahl="{wahl}"]')
+        L.pruefe(L.hash() == "#tobies", "umhaengen", f"Nach dem Zuordnen {L.hash()}, Fehler: {L.js('return sr.querySelector(\'.toast.err .tmsg\')?.textContent ?? \'\'')!r}")
+        t = L.toast()
+        L.pruefe(t.startswith("Löwe spielt jetzt „") and "(vorher „Die wilde Reise der kleinen Drachen durch das Wolkenland“)." in t, "umhaengen", f"Meldung: {t!r}")
+        L.klick(".toast .tok")
+        z = L.mock("/zustand")
+        L.pruefe(z["zuordnungen"][LOEWE]["ziel"] == {"typ": "serie", "serie": "lang"}, "umhaengen", "„Rückgängig“ stellt das alte Ziel nicht her")
+    with L.schritt("tobies-vorher"):
+        L.gehe(f"#tobie-{LOEWE}")
+        wahl = erste_serie(L)
+        L.klick(f'[data-zielwahl] [data-wahl="{wahl}"]')
+        L.klick(f'[data-regal] a[data-tobie="{LOEWE}"]')
+        L.pruefe(L.da("[data-vorher]"), "vorher", "Zeile „Vorher“ fehlt")
+        L.pruefe(L.js("return sr.querySelector('[data-vorher]').textContent").strip().startswith("Vorher: Die wilde Reise"), "vorher", "Text der Zeile „Vorher“")
+        L.messe("ablauf-tobie-vorher")
+        L.klick("[data-zurueckstellen]")
+        L.pruefe(L.toast().startswith("Löwe spielt wieder „Die wilde Reise"), "vorher", f"Meldung nach „Zurückstellen“: {L.toast()!r}")
+        L.pruefe(not L.da("[data-vorher]"), "vorher", "Nach „Zurückstellen“ steht die Zeile noch da")
+        L.pruefe(L.mock("/zustand")["zuordnungen"][LOEWE]["ziel"] == {"typ": "serie", "serie": "lang"}, "vorher", "„Zurückstellen“ stellt das alte Ziel nicht her")
+    with L.schritt("tobies-gute-nacht"):
+        L.gehe(f"#tobie-{LOEWE_FOLGE}")
+        L.pruefe("Gute-Nacht-Karte" in L.js("return sr.querySelector('[data-wahl=aktion]')?.textContent ?? ''"), "gute-nacht", "Gute-Nacht-Karte fehlt")
+        L.klick('[data-zielwahl] [data-wahl="aktion"]')
+        L.pruefe(L.hash() == "#tobies", "gute-nacht", f"Nach der Gute-Nacht-Karte {L.hash()}")
+        L.pruefe(L.mock("/zustand")["zuordnungen"][LOEWE_FOLGE]["ziel"] == {"typ": "aktion", "aktion": "gute_nacht"}, "gute-nacht", "Ziel nicht gesetzt")
+    with L.schritt("tobies-name-und-vergessen"):
+        L.aufraeumen()  # die Meldung vom Zuordnen liegt sonst über dem Knopf
+        L.gehe(f"#tobie-{LOEWE}")
+        L.pg.locator("#tb-name").fill("Leo")
+        L.klick("[data-name-speichern]")
+        L.pruefe(L.mock("/zustand")["zuordnungen"][LOEWE]["name"] == "Leo", "name", "Name nicht gespeichert")
+        L.pruefe(L.js("return sr.querySelector('main h2').textContent") == "Was soll Leo spielen?", "name", "Überschrift zeigt den neuen Namen nicht")
+        L.aufraeumen()  # „Name gespeichert.“ liegt sonst über dem Knopf
+        L.klick("[data-vergessen]")
+        L.pruefe(L.da("dialog[open]"), "vergessen", "Keine Rückfrage")
+        L.messe("ablauf-tobie-vergessen")
+        L.klick("dialog[open] .knoepfe .btn.danger, dialog[open] .knoepfe .btn.solid")
+        L.pg.wait_for_function("() => !window.__el.shadowRoot.querySelector('dialog[open]')", timeout=3000)
+        L.ruhe()
+        L.pruefe(L.hash() == "#tobies" and LOEWE not in L.mock("/zustand")["zuordnungen"], "vergessen", "Tobie nicht vergessen")
+
+
+def ablauf_tobies_geben(L: Lauf):
+    """(6) „Einem Tobie geben …“ von der Serie, vom Lied und von einer Folge; Karte „Gespielt von“."""
+    with L.schritt("tobies-geben-serie"):
+        L.gehe("#bibliothek")
+        L.gehe("#serie-kurz")
+        L.pruefe(L.da('[data-karte="gespielt-von"] a[data-geben]') and not L.da('[data-karte="gespielt-von"] [data-plus]'), "geben", "Serie ohne Tobie: Textlink fehlt oder „+ Tobie“ da")
+        L.klick('[data-karte="gespielt-von"] a[data-geben]')
+        L.pruefe(L.hash() == "#geben-kurz", "geben", f"Link führt nach {L.hash()}")
+        L.pruefe(L.js("return sr.querySelector('[data-regal] [role=listitem]:first-child a')?.getAttribute('href')") == "#neu?s=kurz", "geben", "„+ Neuer Tobie“ zuerst fehlt")
+        L.messe("ablauf-geben")
+        uid = L.js("return sr.querySelector('[data-regal] button[data-tobie]').dataset.tobie")
+        L.klick(f'[data-regal] button[data-tobie="{uid}"]')
+        L.pruefe(L.hash() == "#serie-kurz", "geben", f"Nach dem Zuordnen {L.hash()}")
+        L.pruefe(L.js("return !!sr.querySelector('.toast .tok')"), "geben", "Meldung mit „Rückgängig“ fehlt")
+        L.pruefe(L.da(f'[data-karte="gespielt-von"] a.tb-chip[data-chip="{uid}"]') and L.da('[data-karte="gespielt-von"] a[data-plus]'), "geben", "Chip und „+ Tobie“ fehlen danach")
+        L.messe("ablauf-serie-chips")
+        L.klick(f'[data-karte="gespielt-von"] a.tb-chip[data-chip="{uid}"]')
+        L.pruefe(L.hash() == f"#tobie-{uid}", "geben", f"Chip führt nach {L.hash()}")
+    with L.schritt("tobies-geben-folge"):
+        L.aufraeumen()  # die Meldung vom Zuordnen liegt am Handy über der Folgenzeile
+        L.gehe("#serie-kurz")
+        L.klick('[data-folge="k3.mp3"] [data-menue-folge]')
+        L.pruefe(L.js("return sr.querySelector('dialog[open] [data-menue]:first-child')?.dataset.menue") == "geben", "geben-folge", "„Einem Tobie geben …“ steht nicht zuerst im Menü")
+        L.klick('dialog[open] [data-menue="geben"]')
+        L.pruefe(L.hash() == "#geben-kurz~k3.mp3", "geben-folge", f"Menü führt nach {L.hash()}")
+        L.klick("[data-regal] a[data-neu]")
+        L.pruefe(L.hash() == "#neu?s=kurz&f=k3.mp3", "geben-folge", f"„+ Neuer Tobie“ führt nach {L.hash()}")
+        L.klick('a[data-weg="jetzt"]')
+        L.mock("/legeauf", {"box": "kinderzimmer", "uid": "04AABBCCDD0021"})
+        L.warte_hash("#neu-ziel-")
+        L.pruefe(L.da(".tb-cur.fest") and not L.da("[data-zielwahl]"), "geben-folge", "Festes Ziel: Karte fehlt oder Zielwahl steht da")
+        L.klick("[data-fertig]")
+        L.pruefe(L.hash() == "#serie-kurz", "geben-folge", f"Nach „Fertig“ {L.hash()}")
+        L.pruefe(L.da('[data-folge="k3.mp3"] a.tb-chip[data-chip="04AABBCCDD0021"]'), "geben-folge", "Chip an der Folge fehlt")
+        L.messe("ablauf-serie-folgenchip")
+    with L.schritt("tobies-geben-lied"):
+        L.gehe("#serie-lied")
+        L.klick('[data-karte="gespielt-von"] a[data-geben]')
+        L.pruefe(L.hash() == "#geben-lied~wiegenlied.mp3", "geben-lied", f"Link führt nach {L.hash()}")
+    with L.schritt("tobies-geben-suche"):
+        L.gehe("#suche")
+        L.pg.locator("input.suchfeld").fill("Folge 4")
+        L.warte_da("[data-menue-folge]")
+        L.klick("[data-menue-folge]")
+        L.pruefe(L.da('dialog[open] [data-menue="geben"]'), "geben-suche", "„Einem Tobie geben …“ im Blatt der Suche fehlt")
+        L.blatt_zu()
+
+
+def ablauf_tobies_lernmodus(L: Lauf):
+    """(9) Der Lernmodus steht nur in „Technik“ und nur für Administratoren; Alltagsseiten bieten ihn nicht an."""
+    admin = L.job["rolle"] == "admin"
+    with L.schritt("tobies-lernmodus"):
+        for h in ("#tobies", f"#tobie-{LOEWE_FOLGE}", "#neu", "#geraete", "#serie-lang"):
+            L.gehe(h)
+            L.pruefe("Lernmodus" not in L.js("return sr.querySelector('main').textContent"), "lernmodus", f"{h}: Lernmodus im Alltag")
+        L.gehe("#technik-tobies")
+        if admin:
+            L.pg.wait_for_timeout(300)
+            da = L.js("const p = sr.querySelector('tobibox-panel'); return !!p && !!p.shadowRoot && p.shadowRoot.textContent.includes('Lernmodus')")
+            L.pruefe(da, "lernmodus", "Technik › Tobies zeigt den Lernmodus für Administratoren nicht")
+        else:
+            L.pruefe(L.da('[data-zustand="nur-admin"]') and "Lernmodus" not in L.js("return sr.querySelector('main').textContent"), "lernmodus", "Benutzer sieht den Lernmodus")
+
+
+ABLAEUFE = [ablauf_unterkante, ablauf_reiter, ablauf_klicks, ablauf_reihen, ablauf_suche, ablauf_bibliothek, ablauf_serie, ablauf_leise, ablauf_box, ablauf_technik, ablauf_blaetter,
+            ablauf_tobies_weg1, ablauf_tobies_weg2, ablauf_tobies_meldung, ablauf_tobies_umhaengen, ablauf_tobies_geben, ablauf_tobies_lernmodus,
+            ablauf_tobies_name_geben_weit_unten]
 
 
 # ------------------------------------------------------------------ Browser und Läufe
@@ -755,6 +1160,8 @@ def lauf_job(job):
                     seiten_messen(L)
                 else:
                     for f in ABLAEUFE:
+                        if job.get("nur") and not any(n in f.__name__ for n in job["nur"]):
+                            continue
                         with L.schritt(f.__name__):
                             L.aufraeumen()
                             f(L)
@@ -782,9 +1189,11 @@ def jobs_bauen(a, basis):
 
     def neu(umfang, thema, rolle, art, w, profil=None):
         nonlocal n
+        if a.nur and umfang == "seiten":
+            return
         n += 1
         profil = profil or ("admin" if rolle == "admin" else "user")
-        jobs.append({"umfang": umfang, "thema": thema, "rolle": rolle, "art": art, "breite": w, "profil": profil, "basis": basis, "bilder": a.bilder,
+        jobs.append({"nur": a.nur, "umfang": umfang, "thema": thema, "rolle": rolle, "art": art, "breite": w, "profil": profil, "basis": basis, "bilder": a.bilder,
                      "kennung": f"{umfang[:3]}{n:02d}-{profil}-{thema}-{art[0]}{w}"})
 
     for thema in themen:
@@ -828,6 +1237,7 @@ def main():
     ap.add_argument("--breite", action="append", type=int, choices=[w for _, w in BREITEN])
     ap.add_argument("--jobs", type=int, default=min(4, os.cpu_count() or 2), help="parallele Läufe")
     ap.add_argument("--bilder", help="Ordner für Bildschirmfotos der gemessenen Zustände")
+    ap.add_argument("--nur", action="append", help="nur Abläufe, deren Name dies enthält (mehrfach möglich, zum Beispiel --nur tobies_weg1); lässt die Seitenmessung aus")
     ap.add_argument("--json", help="Befunde als JSON in diese Datei schreiben")
     ap.add_argument("--zeige", type=int, default=6, help="Beispiele je Gruppe in der Zusammenfassung")
     a = ap.parse_args()

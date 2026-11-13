@@ -36,8 +36,8 @@ function bauen(schluessel) {
       hoerstelle: { anteil: 0.18, rest_s: 1260, zeit: '2026-11-12T18:00:00Z', folge: 'f03.mp3' },
       folgen: Array.from({ length: 45 }, (_, i) => folge(`f${String(i + 1).padStart(2, '0')}.mp3`, i === 2 ? 'Die alte Mühle am Rand des sehr langen und tiefen Waldes' : `Folge ${i + 1}: ${['Der Schatz', 'Das Rätsel', 'Die Höhle'][i % 3]}`,
         { nummer: i + 1, dauer_s: 1400 + i * 7, hoerstelle: i === 0 ? { position_s: 1400, fertig: true } : i === 1 ? { position_s: 600, fertig: false } : undefined })) };
-    b.zuordnungen.LANG0001 = { uid: 'LANG0001', name: 'Löwe', ziel: { typ: 'serie', serie: 'lang' } };
-    b.zuordnungen.LANG0002 = { uid: 'LANG0002', name: null, ziel: { typ: 'folge', serie: 'lang', folge: 'f02.mp3' } };
+    b.zuordnungen['04A0000000000001'] = { uid: '04A0000000000001', angelegt_am: '2026-11-13T10:00:00Z', name: 'Löwe', ziel: { typ: 'serie', serie: 'lang' } };
+    b.zuordnungen['04A0000000000002'] = { uid: '04A0000000000002', angelegt_am: '2026-11-13T10:30:00Z', name: null, ziel: { typ: 'folge', serie: 'lang', folge: 'f02.mp3' } };
     b.serien.pruef = { id: 'pruef', name: 'Bibi Blocksberg', typ: 'normal', ordner: 'Bibi', pruefen: true, hinweise: [], art: 'hoerspiel', cover_stand: 'ccdd3344',
       folgen: [folge('b1.mp3', 'Hexen gibt es doch', { pruefen: true, pruefen_gruende: ['tags_fehlen', 'nummer_doppelt'] }), folge('b2.mp3', 'Der Hexenbesen')] };
     b.serien.lied = { id: 'lied', name: 'Wiegenlied', typ: 'normal', ordner: 'Wiegenlied', pruefen: false, hinweise: [], art: 'musik', einzeln: true, dauer_s: 66, cover_stand: null, folgen: [folge('wiegenlied.mp3', 'Wiegenlied')] };
@@ -107,6 +107,26 @@ const server = http.createServer(async (req, res) => {
     const m = holeMock(u.searchParams.get('k') || 'admin');
     const { box, uid, ...opt } = JSON.parse(await koerper(req));
     res.end(JSON.stringify(m.legeAuf(box, uid, opt)));
+    return;
+  }
+  /* B-1: viele Serien anlegen (Zielwahl wird lang, das Namensfeld auf der Seite des Tobies liegt weit unten): Body { anzahl } */
+  if (p === '/serien-viele' && req.method === 'POST') {
+    const m = holeMock(u.searchParams.get('k') || 'admin');
+    const { anzahl = 12 } = JSON.parse(await koerper(req));
+    for (let i = 1; i <= anzahl; i += 1) {
+      const id = `viel${i}`;
+      m.backend.serien[id] = { id, name: `Hörspiel Nummer ${i}`, typ: 'normal', ordner: `Viel${i}`, pruefen: false, hinweise: [], art: 'hoerspiel', cover_stand: null, angelegt_am: `2026-11-${String(10 + (i % 3)).padStart(2, '0')}T10:00:00Z`, folgen: [folge(`v${i}.mp3`, `Folge ${i}`, { nummer: 1 })] };
+    }
+    res.end(JSON.stringify({ anzahl }));
+    return;
+  }
+  /* A-1b: Liste sperren oder freigeben (Fall „Auto-Zuordnung scheitert“): Body { zustand: 'export_neuer' | 'ok' } */
+  if (p === '/sperre' && req.method === 'POST') {
+    const m = holeMock(u.searchParams.get('k') || 'admin');
+    const { zustand } = JSON.parse(await koerper(req));
+    m.backend.konfig = { ...m.backend.konfig, zustand };
+    m.emit('konfig', 'geaendert', { konfig: m.backend.konfig });
+    res.end(JSON.stringify({ zustand }));
     return;
   }
   /* A-1b: Zustand des Mocks für Ablaufprüfungen (nur lesen): Zuordnungen, Vormerkungen, unbekannte Tobies */

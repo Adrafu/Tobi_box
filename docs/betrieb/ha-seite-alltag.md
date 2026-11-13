@@ -2,7 +2,7 @@
 
 So benutzt du die Seite „Tobi Box“ in Home Assistant. Du brauchst dafür nur das Handy oder den Computer, auf dem du Home Assistant schon öffnest.
 
-Stand: Teil A-1a (Lesen und Abends). Wo etwas noch fehlt, steht „kommt bald“.
+Stand: Teil A-1a (Lesen und Abends) und Teil A-1b (Tobies). Wo etwas noch fehlt, steht „kommt bald“.
 
 ## Die Seite finden
 
@@ -87,7 +87,7 @@ Den Abschnitt „Abends“ findest du unter „Geräte“, ganz unten. Scrolle d
 1.  Tippe auf „Geräte“ und scrolle zu „Abends“.
 2.  Tippe bei „Die Box spielt noch“ auf eine Zeit: 15, 30, 45, 60 oder 90 Minuten. Andere Zeiten wählst du unter „Anderer Wert …“.
 3.  Tippe auf „Speichern“. Danach steht dort „Gespeichert“.
-4.  Lege den Gute-Nacht-Tobie auf die Box. Die Karte sagt, ob schon einer da ist. Einen neuen Gute-Nacht-Tobie anlegen: kommt bald.
+4.  Lege den Gute-Nacht-Tobie auf die Box. Die Karte sagt, ob schon einer da ist. Einen neuen Gute-Nacht-Tobie legst du unter „Tobies“ an, siehe unten.
 
 **Eine Leise-Zeit anlegen:**
 
@@ -106,9 +106,93 @@ Oben bei den Leise-Zeiten steht, was gerade gilt, zum Beispiel: „Jetzt: leiser
 
 ## Tobies
 
-Ein Tobie ist eine Figur oder Karte, die man auf eine Box legt. Tonies und NFC-Karten heißen zusammen Tobies.
+Ein Tobie ist eine Figur oder Karte, die man auf eine Box legt. Tonies und NFC-Karten heißen zusammen Tobie, mehrere sind Tobies.
 
-Im Reiter „Tobies“ steht noch: „Hier stehen bald deine Tobies.“ Das Zuordnen von Tobies kommt bald.
+Im Reiter „Tobies“ siehst du alle Tobies als Kacheln. Auf jeder Kachel stehen der Name und was der Tobie gerade spielt. Ganz vorn steht die gestrichelte Kachel „+ Neuer Tobie“. Ab 9 Tobies steht oben ein Suchfeld: „Tobie suchen (Name oder was er spielt)“.
+
+### Neuen Tobie einrichten
+
+Du hast zwei Wege. Beide beginnen so:
+
+1.  Tippe auf „Tobies“.
+2.  Tippe auf „+ Neuer Tobie“. Dort stehen zwei Zeilen.
+
+**Weg 1: „Leg ihn jetzt auf eine Box“**
+
+Die Seite wartet dann auf den Tobie.
+
+1.  Tippe auf „Leg ihn jetzt auf eine Box“. Die Seite sagt, auf welche Box du ihn legen sollst, und „Ich warte auf einen Tobie, den ich noch nicht kenne.“
+2.  Lege den Tobie auf die Box. Sobald die Box ihn meldet, steht auf der Seite „Neuer Tobie erkannt“.
+3.  Unter „Wie soll er heißen?“ schreibst du einen Namen, zum Beispiel Farbe oder Tier. Du kannst das überspringen.
+4.  Tippe unter „Was soll er spielen?“ auf das Ziel. Ein Tippen ordnet ihn sofort zu. Es gibt keinen Knopf „Fertig“ und keine Rückfrage.
+5.  Die Meldung beginnt mit „Fertig:“ und sagt, was der Tobie jetzt spielt. Der Knopf „Rückgängig“ bleibt etwa 6 Sekunden.
+
+Ist es nur ein Versehen, tippe rechts oben auf „Das war ein Versehen, nicht merken“ und dann auf „Nicht merken“. Die Meldung ist „Nicht gemerkt.“
+
+**Weg 2: „Später auflegen“**
+
+Hier wählst du das Ziel, bevor du den Tobie auflegst.
+
+1.  Tippe auf „Später auflegen“ („Erst wählen, was er spielen soll“).
+2.  Wähle unter „Auf welcher Box?“ die Box: „Box 1“, „Box 2“ oder „Egal welche“. Vorgabe ist „Egal welche“.
+3.  Schreib optional einen Namen, wie bei Weg 1.
+4.  Wähle das Ziel. Danach zeigt die Seite die Wartekarte „Nächster neuer Tobie auf“ mit dem Ziel. Darunter steht „Kein Zeitlimit. Du musst die Seite nicht offen lassen.“ Du kannst die Seite schließen.
+5.  Lege den Tobie später auf eine Box. Home Assistant ordnet ihn sofort zu. Die Seite zeigt „Der neue Tobie spielt jetzt“ mit dem Ziel. Hat er noch keinen Namen, steht dort der Knopf „Name geben“.
+
+Wenn schon 5 Tobies warten, sagt die Seite: „Es warten schon 5 Tobies.“ Warte dann, bis einer aufgelegt ist, oder nimm einen Eintrag aus der Liste (Knopf „Abbrechen“ im Reiter „Tobies“ oder „Nicht mehr warten“ auf „Geräte“). Warten mehrere Vormerkungen, kommen sie der Reihe nach dran, die älteste zuerst. Ein Tobie, der schon etwas spielt, wird dabei nie umgehängt.
+
+**Was ein Tobie spielen soll, ändern**
+
+1.  Tippe im Reiter „Tobies“ auf den Tobie. Die Seite fragt, was er spielen soll.
+2.  Tippe auf das neue Ziel. Es gibt keine Rückfrage.
+3.  Die Meldung nennt das neue Ziel. In Klammern steht „vorher“ und das alte Ziel.
+4.  Solange die Meldung zu sehen ist, kannst du auf „Rückgängig“ tippen. Dann ist wieder das alte Ziel da.
+5.  Danach steht 24 Stunden lang auf der Seite des Tobies die Zeile „Vorher:“ mit dem alten Ziel und dem Knopf „Zurückstellen“. Tippe darauf, damit er wieder das alte Ziel spielt. Die Meldung enthält „spielt wieder“.
+
+**Einem Tobie etwas geben (aus der Bibliothek)**
+
+Für eine ganze Serie:
+
+1.  Tippe auf „Bibliothek“ und öffne die Serie.
+2.  Tippe in der Karte „Gespielt von“ auf „Einem Tobie geben …“. Gibt es noch keinen Tobie, steht dort „Noch kein Tobie“.
+3.  Tippe auf einen Tobie. Oder tippe auf „+ Neuer Tobie“. Dann legst du einen neuen Tobie an, und die Serie ist sein Ziel. Das geht wie oben beschrieben.
+4.  Die Seite kehrt zur Serie zurück. Die Meldung hat den Knopf „Rückgängig“.
+
+Für eine einzelne Folge oder ein Lied tippst du in der Zeile auf „⋯“ und dann auf „Einem Tobie geben …“. Bei einem Suchtreffer ist es genauso.
+
+**Name ändern**
+
+1.  Tippe auf den Tobie.
+2.  Tippe unter „Namen ändern“ in das Feld, schreib den Namen und tippe auf „Name speichern“. Danach steht dort „Name gespeichert.“
+
+Ohne Namen heißt der Tobie „Tobie ohne Namen“.
+
+**Tobie vergessen**
+
+1.  Tippe auf den Tobie. Ganz unten steht „Diesen Tobie vergessen …“.
+2.  Tippe darauf und lies die Frage „Diesen Tobie vergessen?“. Tippe auf „Vergessen“.
+
+Der Tobie spielt dann nichts mehr. Legst du ihn wieder auf eine Box, erscheint er unter „Geräte“ als neuer Tobie.
+
+**Karten auf „Geräte“**
+
+Auf „Geräte“ stehen Karten, wenn ein Tobie etwas von dir will. Tippe auf eine Karte, um sie zu erledigen.
+
+*   **„Neuer Tobie auf“ mit einer Box und „was soll er spielen?“:** Ein Tobie liegt auf der Box, und niemand hat ihm etwas zugewiesen. Die ganze Karte ist antippbar. Die Karte hat den Knopf „Das war ein Versehen“.
+*   **„Ein neuer Tobie hat einen Platz bekommen.“:** Die Warteschlange hat den Tobie zugeordnet, er hat aber noch keinen Namen. Die Karte fragt „Name geben?“ mit den Knöpfen „Name geben“ und „Später“.
+*   **„Konnte nicht zugeordnet werden“:** Die Zuordnung hat nicht geklappt. Der Grund steht darunter. Mit dem Knopf „Jetzt zuordnen“ öffnest du die Seite des Tobies.
+*   **„neue Tobies auf“ mit einer Zahl:** Mehrere Tobies liegen auf einer Box. Tippe auf die Karte, dann siehst du sie einzeln.
+*   **„Wartet auf einen neuen Tobie“:** Eine Vormerkung aus „Später auflegen“. Tippe auf den Eintrag, dann kannst du mit „Nicht mehr warten“ abbrechen. Die Vormerkung bleibt, bis ein Tobie aufgelegt oder sie abgebrochen ist.
+
+Liegt ein Tobie auf einer Box, während du auf einer anderen Seite bist, erscheint kurz oben die Meldung „Neuer Tobie auf Box 1.“ mit dem Knopf „Zuordnen“. Tippe auf „Zuordnen“, dann öffnet sich die Seite für diesen Tobie.
+
+**Lernmodus (nur für Administratoren)**
+
+Der Lernmodus mit Countdown ist nur für Administratoren. Er steht unter „Technik“ bei der Box, „Lernmodus starten …“. Im Alltag brauchst du ihn nicht. Nimm Weg 1 oder Weg 2.
+
+**Gute-Nacht-Karte**
+
+Ganz unten in der Zielwahl steht die „Gute-Nacht-Karte“ („Timer, dann wird es still“). Wähle sie als Ziel, dann spielt der Tobie den Timer und danach ist es still.
 
 ## Wenn etwas nicht klappt
 

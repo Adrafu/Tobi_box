@@ -1,8 +1,7 @@
-/* Verzeichnis der Seiten (Paket A7). tobibox-app.js liest nur diese Datei.
+/* Verzeichnis der Seiten (Paket A7). tobibox-app.js liest nur diese Datei. tobies.js (A9, A10) liefert sieben Routen auf einmal.
  *
  * Eine neue Seite (A7b geraete.js, A8 serie.js, A12/A13 technik.js) trägt sich hier ein:
  *   import * as serie from './serie.js';
-import * as tb from './tobies.js';
  *   … SEITEN.serie = serie;
  * Der Schlüssel ist der Routenname aus `parseRoute(hash).name`. Jedes Modul liefert `erzeuge(ctx)` und `stil`
  * (eine Funktion `() => css`…``, oder `null`; Funktion, weil Lit erst nach dem Laden des Moduls bereitsteht); der Vertrag steht oben in ../bausteine.js. Routen ohne Eintrag zeigen den Platzhalter
