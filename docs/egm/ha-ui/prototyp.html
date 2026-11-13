@@ -205,7 +205,7 @@ nav.tabs a[aria-current="page"] .ti { background: var(--primary-soft); }
 nav.tabs .dot { position: absolute; top: 4px; left: calc(50% + 6px); min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--danger); color: var(--card); font-size: 12px; line-height: 18px; text-align: center; font-weight: 700; }
 nav.tabs .vb { position: absolute; top: 4px; right: 4px; font-size: 12px; line-height: 1; padding: 2px 4px; border-radius: 6px; background: var(--warn-bg); color: var(--warn); font-weight: 700; }
 .side { display: contents; }
-@media (min-width: 900px) {
+@media (min-width: 1100px) {
   .page { max-width: none; padding: 0; display: grid; grid-template-columns: 264px minmax(0, 1fr); grid-template-rows: auto 1fr auto; align-items: start; }
   .preview { grid-column: 1 / -1; grid-row: 1; margin: 12px 16px; }
   .side { display: flex; flex-direction: column; grid-column: 1; grid-row: 2 / span 2; position: sticky; top: 0; height: 100vh; height: 100dvh; align-self: start; background: var(--card); box-shadow: 2px 0 12px var(--shadow); padding: 20px 12px 16px; overflow-y: auto; z-index: 20; }
@@ -261,7 +261,7 @@ h3 { font-size: 17px; font-weight: 500; margin: 0 0 4px; }
 .cover.md { width: 64px; font-size: 28px; flex: none; }
 .cover.lg { width: 120px; font-size: 52px; flex: none; }
 .tiles { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); }
-@media (min-width: 900px) { .tiles { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 16px; } }
+@media (min-width: 1100px) { .tiles { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 16px; } }
 .tile { content-visibility: auto; contain-intrinsic-size: auto 190px; border: 0; background: none; padding: 4px; text-align: left; display: grid; gap: 6px; align-content: start; border-radius: var(--r-card); min-width: 0; }
 .tile:hover { background: var(--primary-soft); }
 .tile .tn { font-weight: 500; font-size: 15px; line-height: 1.25; overflow-wrap: anywhere; }
@@ -314,7 +314,7 @@ h3 { font-size: 17px; font-weight: 500; margin: 0 0 4px; }
 .up { padding: 12px 0; border-top: 1px solid var(--divider); }
 .up:first-child { border-top: 0; }
 .drop { border: 2px dashed var(--line); border-radius: var(--r-card); padding: 20px; text-align: center; color: var(--text2); display: none; margin-bottom: 16px; }
-@media (min-width: 900px) { .drop { display: block; } }
+@media (min-width: 1100px) { .drop { display: block; } }
 
 /* Wochenplan */
 .week { display: grid; gap: 6px; margin: 12px 0; }
@@ -399,7 +399,7 @@ main.seite-ein { animation: seite-ein var(--dauer-kurz) var(--kurve); }
 .toast .tmsg { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .toast.err { background: var(--danger-bg); color: var(--danger); border: 2px solid var(--danger); cursor: grab; }
 .toast .tok { min-width: 56px; min-height: 44px; border-radius: 22px; border: 1px solid currentColor; background: none; color: inherit; font-weight: 700; padding: 0 16px; flex: none; }
-@media (min-width: 900px) { .toastbox { bottom: 24px; } html.hasmini .toastbox { bottom: 96px; } html .toastbox.inmodal, html.hasmini .toastbox.inmodal { bottom: auto; } }
+@media (min-width: 1100px) { .toastbox { bottom: 24px; } html.hasmini .toastbox { bottom: 96px; } html .toastbox.inmodal, html.hasmini .toastbox.inmodal { bottom: auto; } }
 
 /* Anlernen */
 .wait { text-align: center; padding: 24px 8px; }
@@ -523,7 +523,7 @@ mark { background: var(--primary-soft); color: var(--text); border-radius: 3px; 
 .crop { position: relative; width: 100%; max-width: 280px; aspect-ratio: 1; margin: 8px auto; border-radius: 12px; overflow: hidden; background: var(--primary-soft); touch-action: none; cursor: grab; }
 .crop canvas { width: 100%; height: 100%; display: block; }
 .charts { display: grid; gap: 16px; grid-template-columns: 1fr; }
-@media (min-width: 900px) { .charts { grid-template-columns: 1fr 1fr; } .charts .wide { grid-column: 1 / -1; } }
+@media (min-width: 1100px) { .charts { grid-template-columns: 1fr 1fr; } .charts .wide { grid-column: 1 / -1; } }
 svg.chart { width: 100%; height: auto; max-width: 440px; display: block; }
 svg.chart text { fill: var(--text2); font-size: 12px; font-family: Roboto, system-ui, sans-serif; }
 svg.chart text.v { fill: var(--text); }
@@ -611,7 +611,7 @@ details.zahlen summary { min-height: 44px; display: flex; align-items: center; c
 .btn.xl svg { width: 24px; height: 24px; fill: currentColor; }
 .tbline { display: inline-flex; align-items: center; gap: 4px; justify-content: center; }
 .tbline svg { width: 16px; height: 16px; fill: currentColor; }
-@media (min-width: 900px) {
+@media (min-width: 1100px) {
   .hero { grid-template-columns: 220px 1fr; justify-items: start; text-align: left; gap: 8px 28px; align-items: center; }
   .hero .htxt { display: grid; gap: 2px; justify-items: start; }
   .cover.xl { width: 220px; }
@@ -842,7 +842,11 @@ a.back, a.rowbtn { text-decoration: none; }
 .pchips { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .pchips .pchip { margin-top: 4px; }
 .pchip { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 14px 0 10px; border-radius: 22px; background: var(--primary-soft); color: var(--primary-ink); font-weight: 500; text-decoration: none; border: 1px solid var(--line); max-width: 100%; overflow-wrap: anywhere; }
-.pplus { display: inline-grid; place-items: center; width: 44px; height: 44px; margin-top: 4px; border-radius: 22px; background: var(--primary-soft); color: var(--primary-ink); text-decoration: none; }
+.topline { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.topline .back { margin: 0; }
+.vorher { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 4px 0 12px; padding: 4px 12px; border-radius: var(--r-card); background: var(--primary-soft); color: var(--text); }
+.vorher .btn.link { margin-left: auto; }
+.pplus { display: inline-flex; align-items: center; gap: 4px; padding: 0 16px 0 10px; font-weight: 600; min-width: 44px; height: 44px; margin-top: 4px; border-radius: 22px; background: var(--primary-soft); color: var(--primary-ink); text-decoration: none; }
 .pplus svg { fill: currentColor; }
 .pchip svg { width: 20px; height: 20px; fill: currentColor; flex: none; }
 .glabel { font-size: 14px; color: var(--text2); margin: 0 0 4px; }
@@ -879,7 +883,7 @@ button.card .grow { flex: 1; min-width: 0; }
 
 <div class="page" id="page">
   <div class="preview" id="preview" hidden style="order:0">
-    <div class="pt">Vorschau mit Beispieldaten (v8, Runde 16)</div>
+    <div class="pt">Vorschau mit Beispieldaten (v9, Runde 17)</div>
     <div class="ctl">
       <label for="sel-rolle">Angemeldet als
         <select id="sel-rolle"><option value="admin" id="opt-admin"></option><option value="user" id="opt-user"></option></select>
@@ -1225,7 +1229,7 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     if (isLeer()) h += leerKarte('box', 'Noch keine Box eingerichtet. Bitte dem Administrator Bescheid sagen.', '<button class="btn primary" data-act="reload" data-fk="reload2">Jetzt neu laden</button>');
     if (!isLeer()) h += S.neu.map(neuAlert).join('') + wartCard();
     h += '<h2>Abends</h2>' + abendsCards();
-    if (!stufeA()) h += vGehoert();
+    if (!stufeA()) h += '<div class="mehr" style="margin-top:12px">' + mItem('gehoert', 'chart', 'Wer hat was gehört?', 'Rangliste, Hörzeit pro Tag, Tageszeiten', badgeB()) + '</div>';
     return h;
   }
 
@@ -1452,6 +1456,7 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
       var n = u.n || 1, gesamt = Math.round(((u.k - 1) * 100 + u.p) / n);
       h += '<div>' + (u.step === 0 ? (n > 1 ? 'Datei ' + u.k + ' von ' + n + ' wird hochgeladen … ' + Math.round(u.p) + ' %' : 'Wird hochgeladen … ' + Math.round(u.p) + ' %') : 'Wird einsortiert …' + (u.warte ? ' Alle ' + n + ' Dateien sind da.' : '')) + '</div>';
       if (u.step === 0 && u.warte) h += '<div class="muted">Einsortiert wird erst, wenn alle ' + n + ' Dateien da sind.</div>';
+      if (u.step === 0) h += '<div class="muted" data-hint="screen">Bildschirm anlassen, bis es fertig ist.</div>';
       if (u.step === 0) h += '<div class="bar" role="progressbar" aria-label="' + esc(u.name) + ' hochladen" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + gesamt + '"><i style="width:' + gesamt + '%"></i></div>';
       if (u.hinweis) h += '<div class="note warn" style="margin:8px 0 0">' + esc(u.hinweis) + '</div>';
     } else if (u.unterbrochen) {
@@ -1459,7 +1464,7 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     } else if (u.block) {
       h += '<div class="note err" style="margin:8px 0 0" role="alert"><strong>Geht leider nicht.</strong><br>' + esc(u.block) + '</div>';
     } else if (u.pruefen && !u.ok) {
-      h += '<div class="note warn" style="margin:8px 0 0"><strong>Bitte kurz ansehen.</strong><br>' + esc(u.pruefen) + '<div style="margin-top:6px"><strong>Daraus ist geworden:</strong> ' + esc(u.ergebnis || '') + '</div><div class="btns"><a class="btn" href="#serie-' + u.ziel + '" data-fk="ans' + u.id + '">Ansehen</a><button class="btn" data-act="upOk" data-arg="' + u.id + '" data-fk="ok' + u.id + '">Das ist richtig</button>' + (u.nas ? '<button class="btn" data-act="anders" data-arg="' + u.id + '" data-fk="an' + u.id + '">Anders einsortieren …</button>' : '<button class="btn" data-act="stimmtNicht" data-arg="' + u.ziel + '" data-fk="sn' + u.id + '">Das stimmt nicht</button>') + '</div></div>';
+      h += '<div class="note warn" style="margin:8px 0 0"><strong>Bitte kurz ansehen.</strong><br>' + esc(u.pruefen) + '<div style="margin-top:6px"><strong>Daraus ist geworden:</strong> ' + esc(u.ergebnis || '') + '</div><div class="btns"><a class="btn" href="#serie-' + u.ziel + '" data-fk="ans' + u.id + '">Ansehen</a><button class="btn" data-act="upOk" data-arg="' + u.id + '" data-fk="ok' + u.id + '">Das ist richtig</button>' + (u.nas ? (stufeA() ? '' : '<button class="btn" data-act="anders" data-arg="' + u.id + '" data-fk="an' + u.id + '">Anders einsortieren …</button>') : '<button class="btn" data-act="stimmtNicht" data-arg="' + u.ziel + '" data-fk="sn' + u.id + '">Das stimmt nicht</button>') + '</div></div>';
     } else {
       h += '<div class="steps" aria-hidden="true"><span class="done"></span><span class="done"></span><span class="done"></span></div><div><span class="badge ok">fertig</span> ' + esc(u.ergebnis) + '</div><div class="btns" style="margin-top:8px"><a class="btn" href="#serie-' + u.ziel + '" data-fk="auf' + u.id + '">Öffnen</a>' + (stufeC() && u.plAdd ? '<button class="btn" data-act="upPlaylist" data-arg="' + u.id + '" data-fk="upl' + u.id + '">' + ic('queue', 20) + 'Zur Playlist hinzufügen</button><span class="vc2">Stufe C – Vorschau</span>' : '') + '</div>' + '';
     }
@@ -1481,6 +1486,18 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
   var PK = { mode: 'serie', art: 'alle', term: '', open: null, shown: 30 };
   function resetPK() { PK = { mode: 'serie', art: 'alle', term: '', open: null, shown: 30 }; }
   function tName(t) { return t.name || 'Tobie ohne Namen'; }
+  /* R17-3: Umhängen ohne Rückfrage. Die Meldung nennt altes und neues Ziel; auf der Tobie-Seite bleibt 24 Stunden die Zeile „Vorher“. */
+  function umhaengen(t, z) {
+    var alt = t.z, altN = t.n, altV = t.vor;
+    var gleich = JSON.stringify(alt) === JSON.stringify(z);
+    t.z = z; t.n = ++tobieN;
+    if (!gleich) t.vor = { z: alt, n: altN, ts: Date.now() };
+    toast(tName(t) + ' spielt jetzt ' + zielText(z) + (gleich ? '' : ' (vorher ' + zielText(alt) + ')') + '.', false, { text: 'Rückgängig', fn: function () { t.z = alt; t.n = altN; t.vor = altV; render(); } });
+  }
+  function vorherZeile(t) {
+    if (!t.vor || Date.now() - t.vor.ts > 24 * 3600 * 1000) return '';
+    return '<div class="vorher" data-vorher="1"><span class="grow">Vorher: <strong>' + esc(zielName(t.vor.z)) + '</strong></span><button class="btn link" data-act="zurueckstellen" data-arg="' + t.uid + '" data-fk="zurueckstellen">Zurückstellen</button></div>';
+  }
   function tobieBy(uid) { return S.tobies.filter(function (x) { return x.uid === uid; })[0]; }
   /* Ziel als Text in der Adresse: „<serie>“ = ganze Serie (ein Einzeltitel = sein einziger Titel), „<serie>~<n>“ = eine Folge, „@<playlist>“ = Playlist */
   function parseT(s) {
@@ -1512,7 +1529,7 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
   }
   function chipHtml(t) { return '<a class="pchip" href="#tobie-' + t.uid + '" data-fk="chip' + t.uid + '">' + ic('tag', 20) + esc(tName(t)) + '</a>'; }
   /* X20f: kleines „+“ (44 × 44) neben den Chips führt zur selben Tobie-Auswahl wie „Einem Tobie geben …“ */
-  function chipsHtml(l, tstr) { return l.length ? '<div class="pchips">' + l.map(chipHtml).join('') + (tstr ? '<a class="pplus" href="#geben-' + tstr + '" data-fk="plus' + tstr.replace(/[^\w]/g, '') + '" aria-label="Weiteren Tobie geben">' + ic('plus', 22) + '</a>' : '') + '</div>' : ''; }
+  function chipsHtml(l, tstr) { return l.length ? '<div class="pchips">' + l.map(chipHtml).join('') + (tstr ? '<a class="pplus" href="#geben-' + tstr + '" data-fk="plus' + tstr.replace(/[^\w]/g, '') + '" aria-label="Weiteren Tobie geben">' + ic('plus', 22) + 'Tobie</a>' : '') + '</div>' : ''; }
   /* „Gespielt von“ auf Serien- und Playlist-Seiten: Chips oder „Noch kein Tobie · Einem Tobie geben …“ */
   function gespieltVonCard(by, tstr) {
     return '<div class="card"><div class="glabel">Gespielt von' + (by.length ? ':' : '') + '</div>' + (by.length ? chipsHtml(by, tstr) : '<div class="pchips"><span>Noch kein Tobie</span><a class="btn link" href="#geben-' + tstr + '" data-fk="geben">Einem Tobie geben …</a></div>') + '</div>';
@@ -1599,8 +1616,7 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     var r = route();
     if (r.v === 'tobie') {
       var t = tobieBy(r.id); if (!t) return;
-      var alt = t.z, altN = t.n; t.z = z; t.n = ++tobieN;
-      toast('Fertig: ' + tName(t) + ' spielt jetzt ' + zielText(z) + '.', false, { text: 'Rückgängig', fn: function () { t.z = alt; t.n = altN; render(); } });
+      umhaengen(t, z);
       location.hash = '#tobies';
     } else if (r.v === 'neu-ziel') finishNeu(z);
     else if (r.v === 'neu-queue') queueSet(z);
@@ -1612,6 +1628,7 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     if (!t) return '<div class="note err">Das gibt es nicht mehr. <a href="#tobies">Zurück zu den Tobies</a></div>';
     var h = '<a class="back" href="#tobies" data-fk="back">' + ic('back') + 'Tobies</a>';
     h += '<h2 style="margin-top:4px">Was soll <strong>' + esc(t.name || 'dieser Tobie') + '</strong> spielen?</h2>';
+    h += vorherZeile(t);
     h += pickerHtml(t.z);
     h += '<div class="manage"><h3 style="margin:12px 0 0">Namen ändern</h3><div class="namefield"><label class="sr" for="rename">Name</label><input id="rename" type="text" maxlength="60" value="' + esc(t.name) + '" placeholder="Name, zum Beispiel Farbe oder Tier" autocomplete="off" data-fk="rename"><button class="btn" data-act="rename" data-arg="' + t.uid + '" data-fk="renamebtn">Name speichern</button></div>';
     h += '<button class="btn link danger" data-act="forget" data-arg="' + t.uid + '" data-fk="forget">Diesen Tobie vergessen …</button></div>';
@@ -1634,21 +1651,21 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     return '<div class="card"><h3>Wie soll er heißen?</h3><div class="muted">Du kannst das überspringen.</div><div class="namefield" style="margin-bottom:0"><label class="sr" for="neuname">Name</label><input id="neuname" type="text" maxlength="60" value="' + esc(NEU.name) + '" placeholder="Name, zum Beispiel Farbe oder Tier" autocomplete="off" data-fk="neuname"></div></div>';
   }
   function vNeuZiel() {
-    var h = '<div class="note okk" style="margin-top:4px" role="status"><strong>Neuer Tobie erkannt</strong> auf ' + esc(box(NEU.box).name) + '.</div>' + neuNameCard();
+    var h = '<div class="topline"><a class="back" href="' + (NEU.von === 'tobies' ? '#tobies' : '#geraete') + '" data-fk="back">' + ic('back') + (NEU.von === 'tobies' ? 'Tobies' : 'Geräte') + '</a><button class="btn link" data-act="neuWeg" data-fk="weg">Das war ein Versehen, nicht merken</button></div>';
+    h += '<div class="note okk" style="margin-top:4px" role="status"><strong>Neuer Tobie erkannt</strong> auf ' + esc(box(NEU.box).name) + '.</div>' + neuNameCard();
     if (NEU.vorziel) h += '<div class="curz">' + zielCover(NEU.vorziel, 'sm') + '<div class="grow"><span class="lab">Er spielt</span><span class="lt">' + esc(zielTitel(NEU.vorziel)) + '</span></div></div><div class="btns"><button class="btn primary" data-act="neuFertig" data-fk="neufertig">Fertig</button></div>';
     else h += '<h2 style="margin-top:8px">Was soll er spielen?</h2>' + pickerHtml(null);
-    h += '<div style="margin-top:16px"><button class="btn link" data-act="neuWeg" data-fk="weg">Das war ein Versehen, nicht merken</button></div>';
     return h;
   }
   function vNeuQueue() {
     var q = NEU.queued ? S.queue.filter(function (x) { return x.id === NEU.queued; })[0] : null;
     var h = '<a class="back" href="#neu" data-fk="back">' + ic('back') + 'Zurück</a>';
     if (q) {
-      return h + '<div class="wait"><div class="ring" aria-hidden="true">' + ic('clock') + '</div><h2 style="margin:0 0 8px">Nächster neuer Tobie auf ' + esc(qBoxName(q.box)) + ' spielt ' + esc(zielText(q.z)) + '</h2><div class="muted">Kein Zeitlimit. Du musst die Seite nicht offen lassen.</div><div class="btns" style="justify-content:center;margin-top:20px"><button class="btn" data-act="qAbbr" data-arg="' + q.id + '" data-fk="qa">Abbrechen</button><a class="btn primary" href="#tobies" data-fk="qfertig">Fertig</a></div></div>';
+      return h + '<div class="wait"><div class="ring" aria-hidden="true">' + ic('clock') + '</div><h2 style="margin:0 0 8px">Nächster neuer Tobie auf ' + esc(qBoxName(q.box)) + ' spielt ' + esc(zielText(q.z)) + '</h2>' + (q.name ? '<div class="muted">Name: ' + esc(q.name) + '</div>' : '') + '<div class="muted">Kein Zeitlimit. Du musst die Seite nicht offen lassen.</div><div class="btns" style="justify-content:center;margin-top:20px"><button class="btn" data-act="qAbbr" data-arg="' + q.id + '" data-fk="qa">Abbrechen</button><a class="btn primary" href="#tobies" data-fk="qfertig">Fertig</a></div></div>';
     }
     h += '<h2 style="margin-top:4px">Später auflegen</h2><div class="glabel">Auf welcher Box?</div><div class="seg2 ghq" role="group" aria-label="Box">' + S.boxes.map(function (b) { return [b.id, b.name]; }).concat([['any', 'Egal welche']]).map(function (b) { return '<button data-act="qBox" data-arg="' + b[0] + '" data-fk="qb' + b[0] + '" aria-pressed="' + (NEU.qbox === b[0]) + '">' + esc(b[1]) + '</button>'; }).join('') + '</div>';
     if (NEU.vorziel) h += '<div class="curz">' + zielCover(NEU.vorziel, 'sm') + '<div class="grow"><span class="lab">Er soll spielen</span><span class="lt">' + esc(zielTitel(NEU.vorziel)) + '</span></div></div><div class="btns"><button class="btn primary" data-act="qSet" data-fk="qset">Vormerken</button></div>';
-    else h += '<h3 style="margin:16px 0 8px">Was soll er spielen?</h3>' + pickerHtml(null);
+    else h += '<div class="card" style="margin-top:16px"><h3>Wie soll er heißen?</h3><div class="muted">Du kannst das überspringen.</div><div class="namefield" style="margin-bottom:0"><label class="sr" for="qname">Name</label><input id="qname" type="text" maxlength="60" value="' + esc(NEU.qname || '') + '" placeholder="Name, zum Beispiel Farbe oder Tier" autocomplete="off" data-fk="qname"></div></div><h3 style="margin:16px 0 8px">Was soll er spielen?</h3>' + pickerHtml(null);
     return h;
   }
   function neuVon(tstr) { /* „+ Neuer Tobie“ aus „Einem Tobie geben“: das Ziel steht schon fest */
@@ -1669,7 +1686,7 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     var bx = NEU.qbox;
     if (S.queue.some(function (q) { return q.box === bx && JSON.stringify(q.z) === JSON.stringify(z); })) { toast('Das wartet schon.'); return; }
     if (S.queue.length >= 5) { toastErr('Es warten schon 5 Tobies. Warte, bis einer aufgelegt ist, oder nimm einen aus der Liste.'); return; }
-    var q = { id: ++qN, z: z, box: bx }; S.queue.push(q); NEU.queued = q.id; NEU.vorziel = null;
+    var q = { id: ++qN, z: z, box: bx, name: ($('qname') ? $('qname').value : (NEU.qname || '')).trim() }; S.queue.push(q); NEU.queued = q.id; NEU.vorziel = null; NEU.qname = '';
     render();
   }
 
@@ -1974,6 +1991,10 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     }
     return h + legend + '</div>';
   }
+  function vGehoertSeite() {
+    var g = modeGate(); if (g.stop) return g.stop;
+    return '<a class="back" href="#geraete" data-fk="back">' + ic('back') + 'Geräte</a>' + g.top + vGehoert();
+  }
   function vGehoert() {
     var g = S.gh, tage = g.zr === 'woche' ? 7 : 14, w = g.wer;
     var h = '<h2>Gehört' + badgeB() + '</h2>';
@@ -1985,7 +2006,6 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     var teile = w === 'alle' ? ' (' + QUELLEN.map(function (q) { return NAMEN[q] + ' ' + fmtMin(werSumme(q, tage)); }).join(', ') + ')' : '';
     h += '<div class="card wide"><h3>Hörzeit pro Tag</h3><div class="muted">In den letzten ' + tage + ' Tagen: ' + fmtMin(sum) + teile + '.' + (g.zr === 'woche' ? '' : ' Das Beispiel zeigt höchstens 14 Tage.') + '</div>' + chartTage() + '</div>';
     h += '<div class="card"><h3>Tageszeiten</h3><div class="muted">Wann gehört wird: am meisten um 19 Uhr.</div>' + chartZeit() + '</div></div>';
-    h += '<div style="margin-top:24px;padding-top:8px;border-top:1px solid var(--divider)"><button class="btn link danger" data-act="reinDel" data-fk="reindel">Meine Reinhör-Daten löschen …</button></div>';
     return h;
   }
 
@@ -2057,7 +2077,8 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     if (h.indexOf('serie-') === 0) return { v: 'serie', id: h.slice(6), tab: 'bibliothek' };
     if (h.indexOf('tobie-') === 0) return { v: 'tobie', id: h.slice(6), tab: 'tobies' };
     if (h.indexOf('neu-von-') === 0) return { v: 'neuvon', id: h.slice(8), tab: 'tobies' };
-    if (h === 'neu' || h === 'neu-warten' || h === 'neu-ziel' || h === 'neu-queue') return { v: h, tab: 'tobies' };
+    if (h === 'neu-ziel') return { v: h, tab: NEU.von === 'geraete' ? 'geraete' : 'tobies' };
+    if (h === 'neu' || h === 'neu-warten' || h === 'neu-queue') return { v: h, tab: 'tobies' };
     if (h.indexOf('geben-') === 0) return { v: 'geben', id: h.slice(6), tab: 'bibliothek' };
     if (h.indexOf('box-') === 0) return { v: 'box', id: h.slice(4), tab: 'geraete' };
     if (h.indexOf('playlist-') === 0) return stufeC() ? { v: 'playlist', id: h.slice(9), tab: 'bibliothek' } : { v: 'bibliothek', tab: 'bibliothek' };
@@ -2066,7 +2087,8 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     if (h === 'suche') return { v: 'suche', tab: 'bibliothek' };
     if (h === 'technik') return { v: 'technik', tab: 'technik' };
     if (h.indexOf('technik-') === 0) return { v: 'technik', sub: h.slice(8), tab: 'technik' };
-    if (h === 'abends' || h === 'gehoert' || h === 'mehr') return { v: 'geraete', tab: 'geraete' };
+    if (h === 'gehoert') return stufeA() ? { v: 'geraete', tab: 'geraete' } : { v: 'gehoert', tab: 'geraete' };
+    if (h === 'abends' || h === 'mehr') return { v: 'geraete', tab: 'geraete' };
     if (TABS.some(function (t) { return t[0] === h; })) return { v: h, tab: h };
     return { v: 'start', tab: 'start' };
   }
@@ -2086,7 +2108,7 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
   function pillSet(p, g) { p.style.width = g.w + 'px'; p.style.height = g.h + 'px'; p.style.transform = 'translate(' + g.x + 'px,' + g.y + 'px)'; }
   function pillPlace(host, snap) {
     var tabs = host.id === 'tabrow', t;
-    if (tabs) { var a = host.querySelector('a[aria-current="page"]'); t = a && (window.matchMedia('(min-width: 900px)').matches ? a : a.querySelector('.ti')); }
+    if (tabs) { var a = host.querySelector('a[aria-current="page"]'); t = a && (window.matchMedia('(min-width: 1100px)').matches ? a : a.querySelector('.ti')); }
     else t = host.querySelector(':scope > button[aria-pressed="true"]');
     var p = host.querySelector(':scope > .pill');
     if (!t || !t.offsetWidth) { if (p) p.style.display = 'none'; host.classList.remove('hp'); return; }
@@ -2123,7 +2145,7 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     var rk = r.v + '|' + (r.id || ''), seiteNeu = lastRk !== '' && rk !== lastRk;
     if (rk !== lastRk) { if (r.v === 'tobie' || r.v === 'neu-ziel' || r.v === 'neu-queue') resetPK(); lastRk = rk; }
     renderTabs(r);
-    var V = { start: vStart, bibliothek: vBibliothek, suche: vSuche, serie: function () { return vSerie(r.id); }, playlist: function () { return vPlaylist(r.id); }, box: function () { return vBox(r.id); }, anlernen: vAnlernen, hinzufuegen: vHinzufuegen, geraete: vGeraete, tobies: vTobies, tobie: function () { return vTobie(r.id); }, neu: vNeu, 'neu-warten': vNeuWarten, 'neu-ziel': vNeuZiel, 'neu-queue': vNeuQueue, geben: function () { return vGeben(r.id); }, technik: function () { return vTechnik(r.sub); } };
+    var V = { start: vStart, bibliothek: vBibliothek, suche: vSuche, serie: function () { return vSerie(r.id); }, playlist: function () { return vPlaylist(r.id); }, box: function () { return vBox(r.id); }, anlernen: vAnlernen, hinzufuegen: vHinzufuegen, geraete: vGeraete, gehoert: vGehoertSeite, tobies: vTobies, tobie: function () { return vTobie(r.id); }, neu: vNeu, 'neu-warten': vNeuWarten, 'neu-ziel': vNeuZiel, 'neu-queue': vNeuQueue, geben: function () { return vGeben(r.id); }, technik: function () { return vTechnik(r.sub); } };
     var open = [].map.call(main.querySelectorAll('details.sec'), function (d) { return d.open; });
     var scroll = window.scrollY;
     main.innerHTML = V[r.v]();
@@ -2166,17 +2188,24 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
   window.addEventListener('hashchange', function () {
     var nr = route(), pr = prevR; prevR = nr;
     var auf = nr.v === 'serie' && pr.v !== 'serie', zu = pr.v === 'serie' && nr.v !== 'serie';
-    if (!(auf || zu) || !kannVT()) { onRoute(); return; }
+    if (!(auf || zu) || !bewegt()) { onRoute(); return; }
     var sid = auf ? nr.id : pr.id, tap = lastTap && Date.now() - lastTap.t < 1500 && lastTap.sid === sid && document.contains(lastTap.el) ? lastTap : null;
     function heldCover() { return $('main').querySelector('.hero .cover'); }
     function kachelCover() {
       var l = [].slice.call($('main').querySelectorAll('[data-arg="' + sid + '"] .cover, a[href="#serie-' + sid + '"] .cover')), vh = window.innerHeight;
       return l.filter(function (c) { var r = c.getBoundingClientRect(); return r.width > 0 && r.bottom > 0 && r.top < vh; })[0] || null;
     }
-    wechsel({ art: 's',
-      alt: function () { setVTN(auf ? (tap && tap.el) : heldCover(), 'scover'); },
-      update: onRoute,
-      neu: function () { setVTN(auf ? heldCover() : kachelCover(), 'scover'); } });
+    /* FLIP: Fläche des Covers vor dem Wechsel messen, Seite bauen, das neue Cover von der alten Fläche an seinen Platz fliegen lassen */
+    var von = null;
+    try { var ce = auf ? (tap && tap.el) : heldCover(); if (ce) von = ce.getBoundingClientRect(); } catch (e) { von = null; }
+    onRoute();
+    if (!von) return;
+    var ziel = auf ? heldCover() : kachelCover();
+    if (!ziel) return;
+    ziel.style.position = ziel.style.position || 'relative'; ziel.style.zIndex = '5'; ziel.style.pointerEvents = 'none';
+    var an = flip(ziel, von);
+    var ende = function () { ziel.style.zIndex = ''; ziel.style.pointerEvents = ''; if (ziel.style.position === 'relative') ziel.style.position = ''; };
+    if (an) { an.onfinish = function () { ziel.style.transformOrigin = ''; ende(); }; an.oncancel = ende; } else ende();
   });
 
   /* ---------- Blatt, Dialog, Meldung (natives dialog-Element) ---------- */
@@ -2187,7 +2216,9 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
   var reduceMQ = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : { matches: false };
   var narrowMQ = window.matchMedia ? window.matchMedia('(max-width: 699px)') : { matches: false };
   function bewegt() { return !reduceMQ.matches; }
-  function kannVT() { return bewegt() && typeof document.startViewTransition === 'function'; }
+  /* R17-1: FLIP ist der Standardweg. View Transitions erfassen Namen im Shadow-DOM nicht (Review v8, N1); darum aus, solange nicht nachweislich wirksam. */
+  var VT_NUTZEN = false;
+  function kannVT() { return VT_NUTZEN && bewegt() && typeof document.startViewTransition === 'function'; }
   function cssVal(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
   function setVTN(el, n) { if (!el) return; if (n) el.style.setProperty('view-transition-name', n); else el.style.removeProperty('view-transition-name'); }
   /* Eine Änderung der Ansicht mit View Transition. o.alt: Namen im alten Zustand setzen; o.update: Änderung; o.neu: Namen im neuen Zustand. */
@@ -3117,18 +3148,19 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     neuWeg: function () { confirmDlg('Nicht merken?', 'Dieser Tobie spielt dann weiter die Überraschung. Legst du ihn noch einmal auf, taucht er wieder auf.', 'Nicht merken', function () { S.neu = S.neu.filter(function (x) { return x.uid !== NEU.uid; }); NEU.active = false; NEU.uid = null; location.hash = '#geraete'; }, false); },
     demoNeu: function (t, arg) {
       var bx = arg || 'box1';
-      if (route().v === 'neu-warten') { NEU.uid = newUid(); NEU.box = bx; NEU.active = true; NEU.name = ''; resetPK(); location.hash = '#neu-ziel'; return; }
+      if (route().v === 'neu-warten') { NEU.uid = newUid(); NEU.box = bx; NEU.active = true; NEU.name = ''; NEU.von = 'tobies'; resetPK(); location.hash = '#neu-ziel'; return; }
       var qi = S.queue.findIndex(function (q) { return q.box === bx || q.box === 'any'; });
       if (qi >= 0) {
         var q = S.queue.splice(qi, 1)[0], uid = newUid();
-        S.tobies.push({ uid: uid, name: '', z: q.z, n: ++tobieN });
+        S.tobies.push({ uid: uid, name: q.name || '', z: q.z, n: ++tobieN });
         var warQueue = NEU.queued === q.id; if (warQueue) NEU.queued = null;
         if (warQueue && route().v === 'neu-queue') location.hash = '#tobies'; else render();
-        toast(box(bx).name + ': Der neue Tobie spielt jetzt ' + zielText(q.z) + '.' + (S.queue.length ? ' Es warten noch ' + S.queue.length + '.' : ''), false, { text: 'Name geben', fn: function () { location.hash = '#tobie-' + uid; } });
+        toast(box(bx).name + ': Der neue Tobie' + (q.name ? ' „' + q.name + '“' : '') + ' spielt jetzt ' + zielText(q.z) + '.' + (S.queue.length ? ' Es warten noch ' + S.queue.length + '.' : ''), false, q.name ? undefined : { text: 'Name geben', fn: function () { location.hash = '#tobie-' + uid; } });
         return;
       }
-      if (!S.neu.some(function (u) { return u.box === bx; })) S.neu.unshift({ uid: newUid(), box: bx, ago: 'gerade eben' });
-      render(); toast('Ein neuer Tobie wurde gemeldet.', false, { text: 'Zu Geräte', fn: function () { location.hash = '#geraete'; } });
+      var nuid = newUid();
+      if (S.neu.filter(function (u) { return u.box === bx; }).length < 3) S.neu.unshift({ uid: nuid, box: bx, ago: 'gerade eben' });
+      render(); toast('Neuer Tobie auf ' + box(bx).name + ' – Zuordnen', false, { text: 'Zuordnen', fn: function () { A.startNeu(null, nuid); } });
     },
     demoBekannt: function () { toast('Ein bekannter Tobie wurde aufgelegt (Vorschau): Er spielt weiter wie bisher, die Warteschlange bleibt.'); },
     qSheet: function (t, arg) {
@@ -3147,8 +3179,8 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     geprueft: function (t, arg) { serie(arg).pruefen = null; toast('Danke, ist erledigt.'); render(); },
     stimmtNicht: function (t, arg) {
       var s = serie(arg);
-      openSheet('Was soll passieren?', '<p class="muted">Das Einsortieren hat „' + esc(s.name) + '“ nicht richtig erkannt. Du kannst es korrigieren. Nichts geht endgültig verloren.</p><div class="stack"><button class="btn primary" id="sn-anders">Anders einsortieren …</button><button class="btn" id="sn-ver">Anderem zuordnen …</button></div><div class="apart"><button class="btn link danger" id="sn-weg">In den Papierkorb …</button></div>', [{ label: 'Abbrechen' }]);
-      $('sn-anders').addEventListener('click', function () { closeLayer(); var set = {}; for (var k in DEMO.nas) set[k] = DEMO.nas[k]; set.album = s.name; wzStart({ nas: true, up: null, serieId: arg, src: 'vom NAS', set: set }); });
+      openSheet('Was soll passieren?', '<p class="muted">Das Einsortieren hat „' + esc(s.name) + '“ nicht richtig erkannt. Du kannst es korrigieren. Nichts geht endgültig verloren.</p><div class="stack">' + (stufeA() ? '' : '<button class="btn primary" id="sn-anders">Anders einsortieren …</button>') + '<button class="btn' + (stufeA() ? ' primary' : '') + '" id="sn-ver">Anderem zuordnen …</button></div><div class="apart"><button class="btn link danger" id="sn-weg">In den Papierkorb …</button></div>', [{ label: 'Abbrechen' }]);
+      if ($('sn-anders')) $('sn-anders').addEventListener('click', function () { closeLayer(); var set = {}; for (var k in DEMO.nas) set[k] = DEMO.nas[k]; set.album = s.name; wzStart({ nas: true, up: null, serieId: arg, src: 'vom NAS', set: set }); });
       $('sn-ver').addEventListener('click', function () { closeLayer(); pickZiel('In welches soll es gehören?', function (z) { if (z.s === arg) { toastErr('Bitte ein anderes wählen.'); return; } s.pruefen = null; toast('Verschoben nach „' + serie(z.s).name + '“ (Vorschau).'); render(); }); });
       $('sn-weg').addEventListener('click', function () { closeLayer(); A.serieWeg(null, arg); });
     },
@@ -3210,7 +3242,7 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
   /* ---------- Runde 16 (X20): Aktionen „Tobie zuerst“ ---------- */
   A.startNeu = function (t, arg) {
     var n = S.neu.filter(function (x) { return x.uid === arg; })[0]; if (!n) return;
-    NEU.uid = n.uid; NEU.box = n.box; NEU.active = true; NEU.vorziel = null; NEU.zurueck = null; NEU.name = ''; resetPK();
+    NEU.uid = n.uid; NEU.box = n.box; NEU.active = true; NEU.vorziel = null; NEU.zurueck = null; NEU.name = ''; NEU.von = 'geraete'; resetPK();
     location.hash = '#neu-ziel';
   };
   A.neuJetzt = function () { location.hash = '#neu-warten'; };
@@ -3234,10 +3266,10 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
   };
   A.geben = function (t, arg) {
     var i = arg.lastIndexOf('|'), z = parseT(arg.slice(0, i)), tb = tobieBy(arg.slice(i + 1)); if (!tb) return;
-    var alt = tb.z, altN = tb.n; tb.z = z; tb.n = ++tobieN;
-    toast('Fertig: ' + tName(tb) + ' spielt jetzt ' + zielText(z) + '.', false, { text: 'Rückgängig', fn: function () { tb.z = alt; tb.n = altN; render(); } });
+    umhaengen(tb, z);
     location.hash = backOf(z);
   };
+  A.zurueckstellen = function (t, arg) { var tb = tobieBy(arg); if (!tb || !tb.vor) return; var neu = tb.z, v = tb.vor; tb.z = v.z; tb.n = ++tobieN; tb.vor = { z: neu, n: v.n, ts: Date.now() }; render(); toast(tName(tb) + ' spielt wieder ' + zielText(tb.z) + '.'); };
   A.sortSheet = function () { sortSheet(); };
   A.plBack = function () { S.bib.art = 'playlists'; location.hash = '#bibliothek'; };
   A.plNeu = function () { textSheet('Neue Playlist', 'Name', '', function (v) { var pl = { id: 'pl-' + (++plN) + '-' + slug(v), name: v, items: [] }; S.playlists.push(pl); S.bib.art = 'playlists'; location.hash = '#playlist-' + pl.id; toast('Die Playlist „' + v + '“ ist da.'); }); };
@@ -3315,6 +3347,7 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     if (id === 'tsuche') { S.tobieTerm = e.target.value; render(); }
     if (id === 'pksuche') { PK.term = e.target.value; PK.shown = 30; PK.open = null; $('pkres').innerHTML = pickerResults(); }
     if (id === 'neuname') NEU.name = e.target.value;
+    if (id === 'qname') NEU.qname = e.target.value;
   });
   document.addEventListener('change', function (e) {
     if (e.target.id === 'bsort') { S.bib.sort = e.target.value; S.bib.shown = 60; render(); }
@@ -3323,7 +3356,7 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
   document.addEventListener('submit', function (e) {
     if (e.target.dataset.actForm === 'startSuche') { e.preventDefault(); S.q = $('startsuche').value; if (location.hash === '#suche') render(); else location.hash = '#suche'; }
   });
-  document.addEventListener('focusin', function (e) { if (window.innerWidth < 900 && /^(INPUT|TEXTAREA)$/.test(e.target.tagName) && e.target.type !== 'range' && e.target.type !== 'file') document.documentElement.classList.add('kbd'); });
+  document.addEventListener('focusin', function (e) { if (window.innerWidth < 1100 && /^(INPUT|TEXTAREA)$/.test(e.target.tagName) && e.target.type !== 'range' && e.target.type !== 'file') document.documentElement.classList.add('kbd'); });
   document.addEventListener('focusout', function () { document.documentElement.classList.remove('kbd'); });
 
   /* ---------- Vorschau-Schalter ---------- */
@@ -3348,7 +3381,7 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
   $('sel-zustand').addEventListener('change', function (e) { S.mode = e.target.value; render(); });
   $('sel-stufe').addEventListener('change', function (e) { S.stufe = e.target.value; if (!stufeC()) { if (S.bib.art === 'playlists') S.bib.art = 'alle'; if (location.hash.indexOf('#playlist-') === 0) location.hash = '#bibliothek'; } render(); });
   /* X31: Der Mini-Player sitzt bündig auf der Reiterleiste (0 px Abstand, auch mit Safe-Area). Die Höhe der Leiste wird gemessen. */
-  function navH() { var n = $('tabs'), hh = n ? n.getBoundingClientRect().height : 0; if (hh > 0 && window.innerWidth < 900) document.documentElement.style.setProperty('--navh', hh + 'px'); else document.documentElement.style.removeProperty('--navh'); }
+  function navH() { var n = $('tabs'), hh = n ? n.getBoundingClientRect().height : 0; if (hh > 0 && window.innerWidth < 1100) document.documentElement.style.setProperty('--navh', hh + 'px'); else document.documentElement.style.removeProperty('--navh'); }
   window.addEventListener('resize', navH); window.addEventListener('orientationchange', navH);
   if (window.ResizeObserver) new ResizeObserver(navH).observe($('tabs'));
   navH();
