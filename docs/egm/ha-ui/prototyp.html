@@ -38,8 +38,16 @@
   --navh: calc(64px + env(safe-area-inset-bottom, 0px));
   --r-card: 16px;
   --r-big: 24px;
+  /* Bewegung (X33): drei Dauern (alle unter 400 ms), eine Standard-Kurve zum Hereingleiten, eine zum Hinausgleiten */
+  --dauer-kurz: 150ms;
+  --dauer-mittel: 250ms;
+  --dauer-lang: 350ms;
+  --kurve: cubic-bezier(.2, 0, 0, 1);
+  --kurve-aus: cubic-bezier(.4, 0, 1, 1);
+  --aus-y: 100%;
   color-scheme: light;
 }
+@media (min-width: 700px) { :root { --aus-y: 32px; } }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg: #111315;
@@ -285,7 +293,7 @@ h3 { font-size: 17px; font-weight: 500; margin: 0 0 4px; }
 .steps span.done { background: var(--ok); }
 .steps span.now { background: var(--primary-ink); }
 .bar { height: 8px; background: var(--divider); border-radius: 4px; overflow: hidden; margin-top: 6px; }
-.bar i { display: block; height: 100%; background: var(--primary-ink); transition: width 0.3s; }
+.bar i { display: block; height: 100%; background: var(--primary-ink); transition: width var(--dauer-lang) linear; }
 .up { padding: 12px 0; border-top: 1px solid var(--divider); }
 .up:first-child { border-top: 0; }
 .drop { border: 2px dashed var(--line); border-radius: var(--r-card); padding: 20px; text-align: center; color: var(--text2); display: none; margin-bottom: 16px; }
@@ -309,10 +317,17 @@ h3 { font-size: 17px; font-weight: 500; margin: 0 0 4px; }
 .stepper .val { min-width: 130px; text-align: center; font-size: 20px; font-weight: 500; }
 /* Segment-Steuerung (X17): getönte Spur ohne Rahmen, gleich breite Segmente, Auswahl als Pille in der Spur */
 .seg2 { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 0; padding: 4px; border: 0; border-radius: 28px; background: var(--primary-soft); width: 100%; max-width: 420px; }
-.seg2 button { min-height: 44px; padding: 0 12px; border: 0; border-radius: 24px; background: transparent; color: var(--text); font-weight: 500; font-size: 14px; line-height: 1.2; text-align: center; display: flex; align-items: center; justify-content: center; transition: background-color .2s ease, color .2s ease, box-shadow .2s ease; }
+.seg2 button { min-height: 44px; padding: 0 12px; border: 0; border-radius: 24px; background: transparent; color: var(--text); font-weight: 500; font-size: 14px; line-height: 1.2; text-align: center; display: flex; align-items: center; justify-content: center; position: relative; z-index: 1; transition: background-color var(--dauer-kurz) var(--kurve), color var(--dauer-kurz) var(--kurve), box-shadow var(--dauer-kurz) var(--kurve); }
 .seg2 button[aria-pressed="true"] { background: var(--primary); color: var(--on-primary); font-weight: 700; box-shadow: inset 0 0 0 2px var(--primary-ink), 0 1px 3px var(--shadow); }
 .seg2 button:focus-visible { outline-offset: 0; border-radius: 24px; }
-@media (prefers-reduced-motion: reduce) { .seg2 button { transition: none; } }
+.seg2 { position: relative; }
+/* Pille (X33): ein Element, das zur neuen Stelle gleitet (Segment-Umschalter und aktiver Reiter) */
+.pill { position: absolute; left: 0; top: 0; z-index: 0; pointer-events: none; will-change: transform; transition: transform var(--dauer-mittel) var(--kurve), width var(--dauer-mittel) var(--kurve), height var(--dauer-mittel) var(--kurve); }
+.seg2 > .pill { background: var(--primary); border-radius: 24px; box-shadow: inset 0 0 0 2px var(--primary-ink), 0 1px 3px var(--shadow); }
+.seg2.hp > button[aria-pressed="true"] { background: transparent; box-shadow: none; }
+nav.tabs .tr { position: relative; }
+nav.tabs .tr > .pill { background: var(--primary-soft); }
+nav.tabs .tr.hp a[aria-current="page"], nav.tabs .tr.hp a[aria-current="page"] .ti { background: none; }
 .field { display: grid; gap: 4px; margin: 12px 0; }
 .field label, .field .lbl { font-size: 14px; color: var(--text2); }
 .field select, .field input[type="text"] { min-height: 48px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); padding: 0 12px; }
@@ -321,7 +336,15 @@ h3 { font-size: 17px; font-weight: 500; margin: 0 0 4px; }
 
 /* Dialog und Blatt (natives dialog-Element) */
 dialog.sheet { border: 0; padding: 0; background: var(--card); color: var(--text); width: 100%; max-width: 560px; max-height: 92vh; max-height: 92dvh; overscroll-behavior: contain; overflow: auto; border-radius: var(--r-big); box-shadow: 0 8px 32px var(--shadow); }
-dialog.sheet::backdrop { background: var(--scrim); }
+dialog.sheet, dialog.player { transform: translateY(var(--aus-y)); opacity: 0; transition: transform var(--dauer-mittel) var(--kurve), opacity var(--dauer-mittel) var(--kurve); }
+dialog.sheet.on, dialog.player.on { transform: none; opacity: 1; }
+dialog.sheet.closing, dialog.player.closing { transition-timing-function: var(--kurve-aus); }
+dialog.sheet::backdrop, dialog.player::backdrop { background: var(--scrim); opacity: 0; transition: opacity var(--dauer-mittel) var(--kurve); }
+dialog.sheet.on::backdrop, dialog.player.on::backdrop { opacity: var(--bd, 1); }
+dialog.sheet.swap::backdrop { transition: none; opacity: 1; }
+/* Wischen: ohne feste Höhe bleibt senkrechtes Ziehen für das Blatt, sonst bliebe es beim Scrollen hängen */
+dialog.sheet.fix { touch-action: pan-x pinch-zoom; }
+.sheet h2 { touch-action: none; }
 .sheet-in { padding: 20px max(16px, env(safe-area-inset-right, 0px)) max(20px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
 .sheet h2 { margin: 0 0 8px; padding-right: 56px; }
 /* Schließen-Weg in jedem Blatt: Knopf oben bleibt beim Scrollen sichtbar, Griff zum Wegwischen, Knopfleiste unten bleibt sichtbar */
@@ -336,7 +359,14 @@ dialog.sheet::backdrop { background: var(--scrim); }
 .toastbox > * { pointer-events: auto; }
 html.hasmini .toastbox { bottom: calc(150px + env(safe-area-inset-bottom, 0px)); }
 html .toastbox.inmodal, html.hasmini .toastbox.inmodal { bottom: auto; top: max(12px, env(safe-area-inset-top, 0px)); }
-.toast { display: flex; align-items: center; gap: 12px; background: var(--text); color: var(--bg); padding: 12px 16px; border-radius: var(--r-card); touch-action: pan-y; }
+.toastbox { --toast-y: 24px; }
+.toastbox.inmodal { --toast-y: -24px; }
+.toast { display: flex; align-items: center; gap: 12px; background: var(--text); color: var(--bg); padding: 12px 16px; border-radius: var(--r-card); touch-action: pan-y; transition: transform var(--dauer-mittel) var(--kurve-aus), opacity var(--dauer-mittel) var(--kurve-aus); animation: toast-ein var(--dauer-mittel) var(--kurve) backwards; }
+.toast.leaving { transform: translateY(var(--toast-y)); opacity: 0; }
+@keyframes toast-ein { from { transform: translateY(var(--toast-y)); opacity: 0; } }
+/* Seitenwechsel (X33): nur kurzes Überblenden, kein Gleiten */
+@keyframes seite-ein { from { opacity: 0; } }
+main.seite-ein { animation: seite-ein var(--dauer-kurz) var(--kurve); }
 .toast .tmsg { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .toast.err { background: var(--danger-bg); color: var(--danger); border: 2px solid var(--danger); cursor: grab; }
 .toast .tok { min-width: 56px; min-height: 44px; border-radius: 22px; border: 1px solid currentColor; background: none; color: inherit; font-weight: 700; padding: 0 16px; flex: none; }
@@ -357,8 +387,12 @@ table.kv { width: 100%; border-collapse: collapse; font-size: 14px; }
 table.kv td { padding: 6px 0; border-top: 1px solid var(--divider); vertical-align: top; }
 table.kv td:first-child { color: var(--text2); width: 45%; padding-right: 8px; }
 
+/* Reduzierte Bewegung (X33): keine Verschiebungen und kein Dauerpulsieren. Es bleibt ein kurzes Überblenden. */
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation: none !important; transition: none !important; }
+  :root { --aus-y: 0px; --dauer-mittel: var(--dauer-kurz); --dauer-lang: var(--dauer-kurz); }
+  .skel, .ring { animation: none !important; }
+  *, *::before, *::after { transition-property: opacity, background-color, color !important; }
+  .toastbox, .toastbox.inmodal { --toast-y: 0px; }
 }
 /* Rev. 2: Bibliothek, Filter, Listen */
 .chips.wrap { gap: 8px; }
@@ -499,7 +533,6 @@ details.zahlen summary { min-height: 44px; display: flex; align-items: center; c
 .kbd .mini { display: none; }
 
 dialog.player { padding: 0; border: 0; width: 100%; max-width: 480px; max-height: 96dvh; background: var(--card); color: var(--text); border-radius: var(--r-big); overflow: auto; box-shadow: 0 8px 32px var(--shadow); }
-dialog.player::backdrop { background: var(--scrim); }
 @media (max-width: 699px) { .pin { min-height: 100dvh; align-content: center; } }
 @media (max-width: 699px) { dialog.player { max-width: none; height: 100dvh; max-height: 100dvh; margin: 0; border-radius: 0; } }
 .pin { padding: 8px max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); display: grid; gap: 8px; justify-items: center; }
@@ -1941,6 +1974,39 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     $('techslot').innerHTML = (r.v === 'start' ? '<a class="iconbtn plain" href="#suche" data-fk="lupetop" aria-label="Suchen">' + ic('search', 24) + '</a>' : '') + '<button class="iconbtn plain" data-act="prevToggle" data-fk="prevbtn" aria-label="Vorschau-Einstellungen" aria-expanded="' + (!$('preview').hidden) + '">' + ic('info', 24) + '</button>' +
       (S.admin ? '<a class="iconbtn tech" href="#technik" data-fk="tech" aria-label="Technik"' + (r.tab === 'technik' ? ' aria-current="page"' : '') + '>' + ic('tool', 24) + '</a>' : '');
   }
+  /* Pille (X33): ein eigenes Element je Umschalter und für den aktiven Reiter. Es merkt sich die letzte Stelle,
+     auch wenn der Umschalter neu gebaut wird, und gleitet von dort zur neuen. */
+  var PILLS = {};
+  function pillForget(prefix) { Object.keys(PILLS).forEach(function (k) { if (k.indexOf(prefix) === 0) delete PILLS[k]; }); }
+  function pillSet(p, g) { p.style.width = g.w + 'px'; p.style.height = g.h + 'px'; p.style.transform = 'translate(' + g.x + 'px,' + g.y + 'px)'; }
+  function pillPlace(host, snap) {
+    var tabs = host.id === 'tabrow', t;
+    if (tabs) { var a = host.querySelector('a[aria-current="page"]'); t = a && (window.matchMedia('(min-width: 900px)').matches ? a : a.querySelector('.ti')); }
+    else t = host.querySelector(':scope > button[aria-pressed="true"]');
+    var p = host.querySelector(':scope > .pill');
+    if (!t || !t.offsetWidth) { if (p) p.style.display = 'none'; host.classList.remove('hp'); return; }
+    var hr = host.getBoundingClientRect(), tr = t.getBoundingClientRect();
+    var g = { x: Math.round((tr.left - hr.left - host.clientLeft) * 100) / 100, y: Math.round((tr.top - hr.top - host.clientTop) * 100) / 100, w: tr.width, h: tr.height };
+    var key = tabs ? 'tabs' : (host.closest('dialog') ? 'dlg' : 'seite' + lastRk) + '|' + (host.getAttribute('aria-label') || host.getAttribute('aria-labelledby') || host.id || '');
+    var fresh = !p;
+    if (!p) { p = document.createElement('i'); p.className = 'pill'; p.setAttribute('aria-hidden', 'true'); host.insertBefore(p, host.firstChild); }
+    p.style.display = '';
+    if (tabs) p.style.borderRadius = getComputedStyle(t).borderRadius;
+    var rec = PILLS[key];
+    if (snap || (fresh && !rec)) { p.style.transition = 'none'; pillSet(p, g); void p.offsetWidth; p.style.transition = ''; }
+    else if (fresh && rec) { p.style.transition = 'none'; pillSet(p, rec); void p.offsetWidth; p.style.transition = ''; pillSet(p, g); }
+    else pillSet(p, g);
+    host.classList.add('hp');
+    PILLS[key] = g;
+  }
+  function pillSync(snap) {
+    [].forEach.call(document.querySelectorAll('#tabrow, .seg2'), function (h) { pillPlace(h, snap); });
+  }
+  var pillBusy = false;
+  new MutationObserver(function () { if (pillBusy) return; pillBusy = true; try { pillSync(false); } finally { pillBusy = false; } })
+    .observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['aria-pressed', 'aria-current'] });
+  function pillSnap() { PILLS = {}; pillSync(true); }
+  window.addEventListener('resize', pillSnap); window.addEventListener('load', pillSnap);
   var lastRk = '';
   function render() {
     var a = document.activeElement, fk = a && a.dataset ? a.dataset.fk : null, selStart = a && a.selectionStart;
@@ -1949,13 +2015,14 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     if (r.v === 'neuvon') { neuVon(r.id); return; }
     if (r.v === 'neu-ziel' && !NEU.active) { location.replace('#tobies'); return; }
     if (r.v === 'tobies') { NEU.vorziel = null; NEU.zurueck = null; NEU.queued = null; }
-    var rk = r.v + '|' + (r.id || '');
+    var rk = r.v + '|' + (r.id || ''), seiteNeu = lastRk !== '' && rk !== lastRk;
     if (rk !== lastRk) { if (r.v === 'tobie' || r.v === 'neu-ziel' || r.v === 'neu-queue') resetPK(); lastRk = rk; }
     renderTabs(r);
     var V = { start: vStart, bibliothek: vBibliothek, suche: vSuche, serie: function () { return vSerie(r.id); }, playlist: function () { return vPlaylist(r.id); }, box: function () { return vBox(r.id); }, anlernen: vAnlernen, hinzufuegen: vHinzufuegen, geraete: vGeraete, tobies: vTobies, tobie: function () { return vTobie(r.id); }, neu: vNeu, 'neu-warten': vNeuWarten, 'neu-ziel': vNeuZiel, 'neu-queue': vNeuQueue, geben: function () { return vGeben(r.id); }, technik: function () { return vTechnik(r.sub); } };
     var open = [].map.call(main.querySelectorAll('details.sec'), function (d) { return d.open; });
     var scroll = window.scrollY;
     main.innerHTML = V[r.v]();
+    if (seiteNeu) { main.classList.remove('seite-ein'); void main.offsetWidth; main.classList.add('seite-ein'); }
     [].forEach.call(main.querySelectorAll('details.sec'), function (d, i) { if (open.length) d.open = !!open[i]; });
     if (fk) { var el = main.querySelector('[data-fk="' + fk + '"]') || document.querySelector('#tabrow [data-fk="' + fk + '"]') || document.querySelector('#techslot [data-fk="' + fk + '"]'); if (el && el !== a) { el.focus({ preventScroll: true }); if (el.setSelectionRange && selStart != null) { try { el.setSelectionRange(selStart, selStart); } catch (e) {} } } }
     window.scrollTo(0, scroll);
@@ -1985,13 +2052,71 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
 
   /* ---------- Blatt, Dialog, Meldung (natives dialog-Element) ---------- */
   var returnFocus = null, returnFk = null;
-  function closeLayer() {
-    var l = $('layer'), d = l.querySelector('dialog');
-    if (d && d.open) { try { d.close(); } catch (e) {} }
+  /* Bewegung (X33): Blätter und Player gleiten herein (Klasse „on“) und hinaus (Klasse „closing“). Erst danach close(). */
+  function msOf(name, dflt) { var v = parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name)); return isNaN(v) ? dflt : v; }
+  function animIn(d, swap) {
+    if (swap) d.classList.add('swap');
+    void d.offsetWidth;
+    d.classList.add('on');
+  }
+  function animOut(d, done) {
+    if (d.dataset.closing) return;
+    d.dataset.closing = '1';
+    d.style.transition = ''; d.style.transform = ''; d.style.removeProperty('--bd');
+    d.classList.add('closing'); d.classList.remove('on', 'swap');
+    var fin = false, t;
+    function f() { if (fin) return; fin = true; clearTimeout(t); d.removeEventListener('transitionend', te); done(); }
+    function te(e) { if (e.target === d && e.propertyName === 'opacity') f(); }
+    d.addEventListener('transitionend', te);
+    t = setTimeout(f, msOf('--dauer-mittel', 250) + 100);
+  }
+  /* Wischen nach unten: das Blatt folgt dem Finger ohne Übergang. Loslassen über 25 % der Höhe oder schnell: animiert zu. Sonst zurück. */
+  function dragDismiss(d, close, skip) {
+    var y0 = null, x0 = 0, id = null, cap = false, dy = 0, ly = 0, lt = 0, vel = 0;
+    d.addEventListener('pointerdown', function (e) {
+      if (e.button > 0 || d.dataset.closing || (skip && skip(e.target))) return;
+      y0 = e.clientY; x0 = e.clientX; id = e.pointerId; cap = false; dy = 0; ly = y0; lt = e.timeStamp; vel = 0;
+    });
+    d.addEventListener('pointermove', function (e) {
+      if (y0 === null || e.pointerId !== id) return;
+      var ddy = e.clientY - y0, ddx = e.clientX - x0;
+      if (!cap) {
+        if (ddy > 8 && ddy > Math.abs(ddx)) { cap = true; try { d.setPointerCapture(id); } catch (er) {} d.style.transition = 'none'; } else return;
+      }
+      var dt = e.timeStamp - lt; if (dt > 0) vel = (e.clientY - ly) / dt; ly = e.clientY; lt = e.timeStamp;
+      dy = Math.max(0, ddy);
+      d.style.transform = 'translateY(' + dy + 'px)';
+      d.style.setProperty('--bd', String(Math.max(0, 1 - dy / Math.max(1, d.offsetHeight))));
+    });
+    function end() {
+      if (y0 === null) return;
+      var was = cap; y0 = null; cap = false;
+      if (!was) return;
+      try { d.releasePointerCapture(id); } catch (er) {}
+      swipedAt = Date.now();
+      d.style.transition = '';
+      if (dy > d.offsetHeight * 0.25 || (vel > 0.5 && dy > 30)) close();
+      else { d.style.transform = ''; d.style.removeProperty('--bd'); }
+    }
+    d.addEventListener('pointerup', end); d.addEventListener('pointercancel', end);
+  }
+  function finishLayer(d) {
+    var l = $('layer');
+    if (d && !l.contains(d)) return;
+    if (d && d._ro) { d._ro.disconnect(); }
+    if (d) { try { if (d.open) d.close(); } catch (e) {} }
     l.innerHTML = '';
+    pillForget('dlg');
     if (returnFocus && document.contains(returnFocus)) returnFocus.focus();
     else if (returnFk) { var rf = document.querySelector('[data-fk="' + returnFk + '"]'); if (rf) rf.focus(); }
     returnFocus = null; returnFk = null;
+    toastPlace();
+  }
+  function closeLayer() {
+    var d = $('layer').querySelector('dialog');
+    if (!d) { finishLayer(null); return; }
+    if (d.dataset.closing) return;
+    animOut(d, function () { finishLayer(d); });
     toastPlace();
   }
   function sheetButtons(buttons) {
@@ -2005,15 +2130,18 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
   function setSheet(title, body, buttons) { $('sheet-t').textContent = title; $('sheet-b').innerHTML = body; sheetButtons(buttons); }
   function openSheet(title, body, buttons, role) {
     if (!returnFocus || !document.contains(returnFocus)) { returnFocus = document.activeElement; returnFk = returnFocus && returnFocus.dataset ? returnFocus.dataset.fk : null; }
-    var l = $('layer');
+    var l = $('layer'), prev = l.querySelector('dialog'), swap = !!(prev && prev.open);
+    if (swap) pillForget('dlg');
     l.innerHTML = '<dialog class="sheet" id="dlg" aria-labelledby="sheet-t"' + (role === 'alertdialog' ? ' role="alertdialog"' : '') + '><div class="sheet-in"><div class="sheet-grip" aria-hidden="true"></div><button type="button" class="iconbtn plain sheet-x" id="sheet-x" aria-label="Schließen">' + ic('close', 28) + '</button><h2 id="sheet-t">' + esc(title) + '</h2><div id="sheet-b">' + body + '</div><div class="btns" id="sheet-btns"></div></div></dialog>';
     var d = $('dlg');
     sheetButtons(buttons);
     d.addEventListener('cancel', function (ev) { ev.preventDefault(); closeLayer(); });
-    d.addEventListener('click', function (ev) { if (ev.target === d) closeLayer(); });
+    d.addEventListener('close', function () { if (!d.dataset.closing) finishLayer(d); });
+    d.addEventListener('click', function (ev) { if (ev.target === d && Date.now() - swipedAt > 250) closeLayer(); });
     $('sheet-x').addEventListener('click', closeLayer);
-    swipeWatch(d, 1, closeLayer, function (t) { return !t.closest('.sheet-grip, h2') && (d.scrollTop > 0 || !!t.closest('input, select, textarea, canvas, [data-grip], .crop')); });
-    d.showModal(); toastPlace();
+    dragDismiss(d, closeLayer, function (t) { return !t.closest('.sheet-grip, h2') && (d.scrollTop > 0 || !!t.closest('input, select, textarea, canvas, [data-grip], .crop')); });
+    if (window.ResizeObserver) { d._ro = new ResizeObserver(function () { d.classList.toggle('fix', d.scrollHeight <= d.clientHeight + 1); }); d._ro.observe(d.querySelector('.sheet-in')); }
+    d.showModal(); animIn(d, swap); toastPlace();
     var first = d.querySelector('[autofocus]') || d.querySelector('button:not(.sheet-x), select, input');
     if (first) first.focus();
   }
@@ -2025,31 +2153,44 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
      Steht ein Blatt offen (Top-Layer), zieht der Meldungsbereich hinein, sonst wäre er verdeckt. */
   var TB = $('toastbox');
   function toastPlace() {
-    var dl = document.querySelectorAll('dialog[open]'), d = dl.length ? dl[dl.length - 1] : null;
+    var dl = document.querySelectorAll('dialog[open]:not([data-closing])'), d = dl.length ? dl[dl.length - 1] : null;
     if (d) { if (TB.parentNode !== d) d.appendChild(TB); TB.classList.add('inmodal'); }
     else { if (TB.parentNode !== document.body) document.body.appendChild(TB); TB.classList.remove('inmodal'); }
   }
-  function toastDrop(el) { if (el && el.parentNode) el.parentNode.removeChild(el); }
+  function toastDrop(el, now) {
+    if (!el || !el.parentNode) return;
+    if (now) { el.parentNode.removeChild(el); return; }
+    if (el.classList.contains('leaving')) return;
+    el.classList.add('leaving'); el.style.pointerEvents = 'none';
+    function gone() { if (el.parentNode) el.parentNode.removeChild(el); }
+    el.addEventListener('transitionend', function (e) { if (e.target === el && e.propertyName === 'opacity') gone(); });
+    setTimeout(gone, msOf('--dauer-mittel', 250) + 100);
+  }
   /* Mit Aktion (act = { text, fn }), zum Beispiel „Rückgängig“: ausnahmsweise etwa 6 s sichtbar, damit man sie erreicht. */
   function toast(msg, err, act) {
     toastPlace();
-    [].slice.call(TB.querySelectorAll('.toast:not(.err)')).forEach(toastDrop);
+    [].slice.call(TB.querySelectorAll('.toast:not(.err)')).forEach(function (x) { toastDrop(x, true); });
     var el = document.createElement('div');
     el.className = 'toast' + (err ? ' err' : '');
     el.setAttribute('role', err ? 'alert' : 'status');
     el.innerHTML = '<span class="tmsg">' + esc(msg) + '</span>' + (err ? '<button type="button" class="tok" data-fk="toastok">OK</button>' : act ? '<button type="button" class="tok" data-fk="toastact">' + esc(act.text) + '</button>' : '');
     TB.appendChild(el);
+    /* Wegwischen: die Meldung folgt dem Finger (ohne Übergang), dann gleitet sie hinaus oder federt zurück. */
+    var x0 = null, dx = 0;
+    el.addEventListener('pointerdown', function (e) { if (e.target.closest('.tok') || el.classList.contains('leaving')) return; x0 = e.clientX; dx = 0; try { el.setPointerCapture(e.pointerId); } catch (er) {} });
+    el.addEventListener('pointermove', function (e) { if (x0 === null) return; dx = e.clientX - x0; el.style.transition = 'none'; el.style.transform = 'translateX(' + dx + 'px)'; el.style.opacity = String(Math.max(0.3, 1 - Math.abs(dx) / 300)); });
+    function end() {
+      if (x0 === null) return; x0 = null; el.style.transition = '';
+      if (Math.abs(dx) > 70) { el.style.transform = 'translateX(' + (dx > 0 ? '' : '-') + '120%)'; el.style.opacity = '0'; toastDrop(el); }
+      else { el.style.transform = ''; el.style.opacity = ''; }
+    }
+    el.addEventListener('pointerup', end); el.addEventListener('pointercancel', end);
     if (!err) {
       $('live').textContent = msg;
       if (act) el.querySelector('.tok').addEventListener('click', function () { toastDrop(el); act.fn(); if (act.text === 'Rückgängig') $('live').textContent = 'Rückgängig gemacht.'; });
       setTimeout(function () { toastDrop(el); }, act ? 6000 : 4500); return;
     }
     el.querySelector('.tok').addEventListener('click', function () { toastDrop(el); });
-    var x0 = null, dx = 0;
-    el.addEventListener('pointerdown', function (e) { if (e.target.closest('.tok')) return; x0 = e.clientX; dx = 0; try { el.setPointerCapture(e.pointerId); } catch (er) {} });
-    el.addEventListener('pointermove', function (e) { if (x0 === null) return; dx = e.clientX - x0; el.style.transform = 'translateX(' + dx + 'px)'; el.style.opacity = String(Math.max(0.3, 1 - Math.abs(dx) / 300)); });
-    function end() { if (x0 === null) return; x0 = null; if (Math.abs(dx) > 70) toastDrop(el); else { el.style.transform = ''; el.style.opacity = ''; } }
-    el.addEventListener('pointerup', end); el.addEventListener('pointercancel', end);
   }
   function toastErr(msg) { toast(msg, true); }
   function textSheet(title, label, value, ok) {
@@ -2302,9 +2443,11 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
   }
   function pOpen() {
     if (!P.sid) return;
-    var l = $('playerlayer'); l.innerHTML = '<dialog class="player" id="pdlg" aria-labelledby="pt-t">' + pFullHtml() + '</dialog>';
+    var l = $('playerlayer'), prev = l.querySelector('dialog'), swap = !!(prev && prev.open);
+    l.innerHTML = '<dialog class="player" id="pdlg" aria-labelledby="pt-t">' + pFullHtml() + '</dialog>';
     var d = $('pdlg'); d.dataset.key = P.sid + '|' + P.i;
     d.addEventListener('cancel', function (ev) { ev.preventDefault(); pClose(); });
+    d.addEventListener('close', function () { if (!d.dataset.closing) pFinish(d); });
     d.addEventListener('click', pClick);
     var hold = null, holdBtn = null;
     function holdStop() { if (hold) { clearTimeout(hold); hold = null; } if (holdBtn) { holdBtn.classList.remove('holding'); holdBtn = null; } }
@@ -2319,12 +2462,19 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     d.addEventListener('keyup', holdStop);
     d.addEventListener('input', function (e) { if (e.target.id === 'pslider') { dragging = true; pTick(); } });
     d.addEventListener('change', function (e) { if (e.target.id === 'pslider') { dragging = false; pSeek(+e.target.value); } });
-    d.showModal(); toastPlace(); $('pplay').focus(); pTick(); swipeDown(d);
+    d.showModal(); animIn(d, swap); toastPlace(); $('pplay').focus(); pTick(); swipeDown(d);
   }
   function pClose() {
     if (P.locked) return;
-    var d = $('pdlg'); if (d && d.open) d.close();
-    $('playerlayer').innerHTML = ''; dragging = false; toastPlace();
+    var d = $('pdlg');
+    if (d && d.open) { if (!d.dataset.closing) { animOut(d, function () { pFinish(d); }); toastPlace(); } return; }
+    pFinish(null);
+  }
+  function pFinish(d) {
+    var pl = $('playerlayer');
+    if (d && !pl.contains(d)) return;
+    if (d) { try { if (d.open) d.close(); } catch (e) {} }
+    pl.innerHTML = ''; dragging = false; toastPlace();
     var m = $('mopen'); if (m && !$('mini').hidden) m.focus();
   }
   function pFullUpdate() {
@@ -2374,7 +2524,7 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     el.addEventListener('pointerup', end); el.addEventListener('pointercancel', end);
   }
   swipeWatch($('mini'), -1, function () { pOpen(); });
-  function swipeDown(d) { swipeWatch(d, 1, function () { pClose(); }, function (t) { return !!t.closest('input[type="range"], [data-p="unlock"]'); }); }
+  function swipeDown(d) { dragDismiss(d, pClose, function (t) { return P.locked || !!t.closest('input[type="range"], [data-p="unlock"]'); }); }
   $('mini').addEventListener('click', function (e) {
     if (Date.now() - swipedAt < 250) return;
     var b = e.target.closest('[data-p]'); if (!b) return;
