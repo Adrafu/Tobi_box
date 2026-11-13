@@ -61,6 +61,8 @@ const NEU_FUER_NEUE_SEITE = [
   'hoerkopie_warteschlange_voll',
   'zu_viele_streams',
   'hoerkopie_wartet',
+  'warteschlange_voll', // 13.11. (A0-Q): Texte kommen mit der neuen Seite, die alte Seite kennt die Warteschlange nicht
+  'warteschlange_doppelt',
 ];
 
 test('Alle Fehlercodes des Vertrags (Abschnitt 7) haben einen deutschen Text', () => {

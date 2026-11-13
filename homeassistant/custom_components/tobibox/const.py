@@ -94,6 +94,12 @@ PAPIERKORB_MELDUNG_AB: Final = 3
 UPLOAD_BYTES_JE_STUNDE: Final = 16 * 1024**3
 KONFIG_STAENDE_ANZAHL: Final = 10
 
+# --- Warteschlange „nächster neuer Tobie“ (Vertrag W, 3.13 und 14.10; seit 13.11.) -----------------
+#: Vormerkungen zugleich, über alle Boxen (Design 5.13)
+WARTESCHLANGE_MAX: Final = 5
+#: je Benutzer, für ``warteschlange/set`` und ``warteschlange/abbrechen`` zusammen (nicht für Administratoren)
+WARTESCHLANGE_AENDERUNGEN_JE_MINUTE: Final = 30
+
 # --- Bibliothek: Art, Suche, Blättern (Vertrag W, 14.2) -----------------------------
 ARTEN: Final = ("hoerspiel", "hoerbuch", "musik", "geschichte")
 ART_QUELLEN: Final = ("tags", "geraten", "manuell")
@@ -202,6 +208,9 @@ FAEHIGKEITEN: Final = (
     "einsortier_wunsch",
     # A4: Foto-Upload, Cover-Ansicht, Befehl 44; das Lesen aus den Tags nur mit ``ffmpeg`` (Skalieren macht Pillow)
     "cover",
+    # A9c (13.11., A0-Q): Befehle 47 bis 49, Thema ``warteschlange``; ``als_neu`` bei ``zuordnung/remove``
+    "warteschlange",
+    "zuordnung_rueckgaengig",
 )
 
 # --- MQTT-Themen (``mqtt-v1.md`` Abschnitt 2) ----------------------------------
@@ -217,6 +226,7 @@ EREIGNIS_THEMEN: Final = (
     "eingang",
     "konfig",
     "upload",
+    "warteschlange",
 )
 
 # --- Namen reserviert ----------------------------------------------------------

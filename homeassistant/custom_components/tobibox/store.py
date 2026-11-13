@@ -425,6 +425,9 @@ class TobiboxStore:
         self.neue_tobies: dict[str, dict[str, Any]] = {}
         self.box_ereignisse: dict[str, list[dict[str, Any]]] = {}
         self.lern_verlauf: list[dict[str, Any]] = []
+        #: Warteschlange „nächster neuer Tobie“ (Vertrag W, 3.13): Vormerkungen in der Reihenfolge der Anlage, dazu die laufende Nummer
+        self.warteschlange: list[dict[str, Any]] = []
+        self.warteschlange_nr = 0
         #: ``[liste_id, revision]`` der zuletzt mit PUBACK veröffentlichten Konfiguration
         self.veroeffentlicht_stand: list[Any] | None = None
         self.war_konfiguriert = False
@@ -452,8 +455,39 @@ class TobiboxStore:
         self.neue_tobies = daten.get("neue_tobies") or {}
         self.box_ereignisse = daten.get("box_ereignisse") or {}
         self.lern_verlauf = daten.get("lernmodus_verlauf") or []
+        self._lade_warteschlange(daten.get("warteschlange"), daten.get("warteschlange_nr"))
         self.veroeffentlicht_stand = daten.get("veroeffentlicht_stand")
         self.war_konfiguriert = bool(daten.get("war_konfiguriert")) or self.konfig is not None
+
+    def _lade_warteschlange(self, roh: Any, nr: Any) -> None:
+        """Übernimmt nur gültige Vormerkungen (Aufbau wie in Vertrag W, 3.13); Kaputtes wird verworfen."""
+        liste: list[dict[str, Any]] = []
+        for e in roh if isinstance(roh, list) else []:
+            try:
+                if not isinstance(e, dict) or not isinstance(e.get("id"), str) or not _ganz(e.get("nr")):
+                    continue
+                box = e.get("box")
+                if box is not None and not isinstance(box, str):
+                    continue
+                von = e.get("angelegt_von")
+                if von is not None and not (isinstance(von, dict) and isinstance(von.get("id"), str)):
+                    continue
+                liste.append(
+                    {
+                        "id": e["id"],
+                        "nr": e["nr"],
+                        "box": box,
+                        "ziel": pruefe_ziel(e.get("ziel"), "warteschlange.ziel"),
+                        "angelegt_von": {"id": von["id"], "name": str(von.get("name") or "")} if von else None,
+                        "angelegt_am": e["angelegt_am"] if isinstance(e.get("angelegt_am"), str) else jetzt_iso(),
+                    }
+                )
+            except Ungueltig:
+                continue
+        liste.sort(key=lambda e: e["nr"])
+        self.warteschlange = liste
+        hoechste = liste[-1]["nr"] if liste else 0
+        self.warteschlange_nr = max(nr if _ganz(nr) else 0, hoechste)
 
     def _daten(self) -> dict[str, Any]:
         k = None
@@ -465,6 +499,8 @@ class TobiboxStore:
             "neue_tobies": self.neue_tobies,
             "box_ereignisse": self.box_ereignisse,
             "lernmodus_verlauf": self.lern_verlauf,
+            "warteschlange": self.warteschlange,
+            "warteschlange_nr": self.warteschlange_nr,
             "veroeffentlicht_stand": self.veroeffentlicht_stand,
             "war_konfiguriert": self.war_konfiguriert,
         }
@@ -492,11 +528,16 @@ class TobiboxStore:
         self.konfig = konfig
         self.war_konfiguriert = True
 
-    async def async_aendere(self, mutator: Callable[[dict[str, Any]], None]) -> tuple[bool, dict[str, Any]]:
+    async def async_aendere(
+        self, mutator: Callable[[dict[str, Any]], None], mit_warteschlange: Callable[[], None] | None = None
+    ) -> tuple[bool, dict[str, Any]]:
         """Ändert die Konfiguration unter der Sperre; erhöht die Revision nur bei einer echten Änderung.
 
         Der Mutator ändert eine Kopie; er darf ``TobiboxFehler`` werfen. Rückgabe: ``(geaendert, konfig)``.
         Gespeichert wird vor der Rückkehr; scheitert das Speichern, bleibt der alte Stand (Fehler ``speicherfehler``).
+
+        ``mit_warteschlange``: ändert bei einer echten Änderung der Konfiguration die Warteschlange (``self.warteschlange``)
+        im **selben** Schreibvorgang (Vertrag W, 3.13, Regel 7b): Nach einem Absturz oder einem Speicherfehler gilt beides oder nichts.
         """
         async with self.sperre:
             if self.zustand != ZUSTAND_OK or self.konfig is None:
@@ -512,11 +553,16 @@ class TobiboxStore:
             if konfig_groesse(neu) > KONFIG_MAX_BYTES:
                 raise TobiboxFehler("konfig_zu_gross")
             alt = self.konfig
-            self.konfig = neu
+            alt_warteschlange = (self.warteschlange, self.warteschlange_nr)
             try:
+                if mit_warteschlange is not None:
+                    self.warteschlange = copy.deepcopy(self.warteschlange)
+                    mit_warteschlange()
+                self.konfig = neu
                 await self.async_speichern()
             except Exception:
                 self.konfig = alt
+                self.warteschlange, self.warteschlange_nr = alt_warteschlange
                 raise
             return True, self.konfig
 

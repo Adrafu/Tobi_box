@@ -54,6 +54,7 @@ from .const import (
     UPLOAD_MAX_MIB_VORGABE,
     UPLOAD_PARALLEL,
     VERTRAG_V,
+    WARTESCHLANGE_MAX,
     ENDUNGEN,
 )
 from .bibliothek import passt, suchform, suchworte
@@ -65,6 +66,7 @@ from .medieninfo import MedienInfo
 from .media import Medien, name_pruefen
 from .mqtt import MqttSchicht
 from .schutz import Nutzer, Schutz, ist_admin
+from .warteschlange import Warteschlange
 from .store import (
     ZUSTAND_EXPORT_NEUER,
     ZUSTAND_LEER_NEU,
@@ -171,6 +173,7 @@ class Hub:
         self.eingang = Eingang(self)
         self.mqtt = MqttSchicht(self)
         self.lernmodus = Lernmodus(self)
+        self.warteschlange = Warteschlange(self)
         self.export_ok = False
         self._export_task: asyncio.Task | None = None
         self._export_neu = False
@@ -196,6 +199,7 @@ class Hub:
         self.version = version
         self.texte = await self.hass.async_add_executor_job(_lade_texte)
         await self.store.async_laden()
+        await self.warteschlange.beim_start()
         await self.eingang.async_laden()
         await self.medieninfo.async_laden()
         await self.mqtt.async_start()
@@ -326,6 +330,8 @@ class Hub:
             return self.eingang.zaehler_snapshot()
         if thema == "konfig":
             return {"konfig": self.konfig_stand()}
+        if thema == "warteschlange":
+            return {"gesamt": len(self.store.warteschlange)}
         return {}
 
     def box_geaendert(self, box: str) -> None:
@@ -426,9 +432,13 @@ class Hub:
     def konfig_stand(self) -> dict[str, Any]:
         return self.store.stand(self.export_ok)
 
-    async def aendere_konfig(self, mutator: Callable[[dict[str, Any]], None]) -> dict[str, Any]:
-        """Konfiguration ändern: speichern (Revision + 1), **dann veröffentlichen, dann exportieren** (Vertrag W, Abschnitt 1)."""
-        geaendert, _konfig = await self.store.async_aendere(mutator)
+    async def aendere_konfig(
+        self, mutator: Callable[[dict[str, Any]], None], mit_warteschlange: Callable[[], None] | None = None
+    ) -> dict[str, Any]:
+        """Konfiguration ändern: speichern (Revision + 1), **dann veröffentlichen, dann exportieren** (Vertrag W, Abschnitt 1).
+
+        ``mit_warteschlange``: Änderung der Warteschlange im selben Schreibvorgang (Vertrag W, 3.13, Regel 7b)."""
+        geaendert, _konfig = await self.store.async_aendere(mutator, mit_warteschlange)
         if not geaendert:
             return {"geaendert": False, "konfig": self.konfig_stand(), "veroeffentlicht": None}
         veroeffentlicht = await self.mqtt.veroeffentliche_konfig()
@@ -665,6 +675,10 @@ class Hub:
         if bekannt_in_liste:
             await self.mqtt.sende_ack(box, uid, zuletzt, art, "bekannt")
             return
+        # Warteschlange „nächster neuer Tobie“ (Vertrag W, 3.13): nur eine unbekannte Kennung, nie umhängen
+        if await self.warteschlange.abgleich(box, uid):
+            await self.mqtt.sende_ack(box, uid, zuletzt, art, "bekannt")
+            return
         ereignis, eintrag = store.neue_tobies_melden(box, uid, daten)
         self.emit("neue_tobies", ereignis, {"eintrag": eintrag})
         await self.mqtt.sende_ack(box, uid, zuletzt, art, "neu" if ereignis == "neu" else "bekannt")
@@ -774,13 +788,19 @@ class Hub:
         self.kennung_zugeordnet(uid)
         return erg
 
-    async def zuordnung_entfernen(self, uid: str, erwartet_ziel: Any = FEHLT, nutzer: Nutzer | None = None) -> dict[str, Any]:
+    async def zuordnung_entfernen(
+        self, uid: str, erwartet_ziel: Any = FEHLT, nutzer: Nutzer | None = None, als_neu: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
+        """``zuordnung/remove``. ``als_neu`` (``{"box": …}``, Fähigkeit ``zuordnung_rueckgaengig``, Vertrag W, 3.5): wurde etwas
+        entfernt, kommt die Kennung als neuer Tobie wieder in „Neue Tobies“ (Ereignis ``neue_tobies``)."""
         if not ist_admin(nutzer) and erwartet_ziel is FEHLT:  # Schutz, Vertrag W, 2.4
             raise TobiboxFehler("unauthorized")
         if not isinstance(uid, str) or not RE_UID.match(uid):
             raise TobiboxFehler("kennung_ungueltig")
         if self.store.zustand != ZUSTAND_OK:
             raise TobiboxFehler("konfig_nicht_bereit")
+        if als_neu is not None and als_neu.get("box") not in self.boxen:
+            raise TobiboxFehler("box_unbekannt")
         self.schutz.liste_pruefen(nutzer)
         erwartet: Any = FEHLT
         if erwartet_ziel is not FEHLT:
@@ -797,6 +817,12 @@ class Hub:
 
         erg = await self.aendere_konfig(entferne)
         self.schutz.liste_gebucht(nutzer)
+        if als_neu is not None and erg["geaendert"]:
+            jetzt = jetzt_iso()
+            ereignis, eintrag = self.store.neue_tobies_melden(
+                als_neu["box"], uid, {"zuerst": jetzt, "zuletzt": jetzt, "anzahl": 1, "zeit_ok": True}
+            )
+            self.emit("neue_tobies", ereignis, {"eintrag": eintrag})
         return erg
 
     async def zuordnung_liste(
@@ -930,6 +956,7 @@ class Hub:
                 "tobie_name_max": TOBIE_NAME_MAX,
                 "name_max_bytes": 255,
                 "limit_max": LIMIT_MAX,
+                "warteschlange_max": WARTESCHLANGE_MAX,
             },
         }
 

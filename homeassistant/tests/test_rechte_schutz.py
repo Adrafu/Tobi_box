@@ -110,9 +110,9 @@ TABELLE = [
     (15, "zuordnung/list", "lesen", {}, None, True),
     (16, "zuordnung/set", "alltag", {"uid": UID, "ziel": SERIE, "name": "Rabe"}, None, True),
     (17, "zuordnung/remove", "alltag", {"uid": UID2, "erwartet_ziel": None}, None, True),
-    (18, "lernmodus/start", "alltag", {"box": "box1", "ziel": SERIE}, None, True),
-    (19, "lernmodus/antwort", "alltag", {"befehl_id": "x", "ueberschreiben": True}, "kein_lernmodus", True),
-    (20, "lernmodus/abbrechen", "alltag", {"box": "box1"}, None, True),
+    (18, "lernmodus/start", "admin", {"box": "box1", "ziel": SERIE}, None, True),
+    (19, "lernmodus/antwort", "admin", {"befehl_id": "x", "ueberschreiben": True}, "kein_lernmodus", True),
+    (20, "lernmodus/abbrechen", "admin", {"box": "box1"}, None, True),
     (21, "boxen/list", "lesen", {}, None, True),
     (22, "box/sync", "admin", {"box": "box1"}, None, True),
     (23, "liste/neu_ausrollen", "admin", {"bestaetigt": True}, None, True),
@@ -139,6 +139,9 @@ TABELLE = [
     (44, "cover/neu_suchen", "admin", {}, None, True),
     (45, "hoerkopie/neu_erzeugen", "admin", {}, None, False),
     (46, "papierkorb/restore_letzte_stunde", "admin", {"bestaetigt": True}, None, True),
+    (47, "warteschlange/set", "alltag", {"box": "box1", "ziel": SERIE}, None, True),
+    (48, "warteschlange/list", "alltag", {}, None, True),
+    (49, "warteschlange/abbrechen", "alltag", {"eintrag_id": "0123456789ab"}, None, True),
 ]
 IDS = [f"{z[0]:02d}-{z[1]}" for z in TABELLE]
 
@@ -152,7 +155,7 @@ def vertrags_uebersicht() -> dict[str, tuple[int, str]]:
 
 def test_tabelle_enthaelt_jeden_befehl_der_vertragsuebersicht_genau_einmal():
     uebersicht = vertrags_uebersicht()
-    assert len(uebersicht) == 46
+    assert len(uebersicht) == 49  # seit 13.11. (A0-Q) mit den Befehlen 47 bis 49
     assert [z[1] for z in TABELLE] == [b for b, _ in sorted(uebersicht.items(), key=lambda kv: kv[1][0])]
     for nr, befehl, recht, *_ in TABELLE:
         assert uebersicht[befehl] == (nr, recht), befehl
@@ -189,7 +192,7 @@ async def test_tabelle_2_1_normal_benutzer(normal, nr, befehl, recht, felder, ad
 async def test_hello_sagt_nur_zu_was_gebaut_ist(admin, normal):
     for client in (admin, normal):
         f = (await ok(client, "hello", v=1))["faehigkeiten"]
-        assert f[-4:] == ["konfig_staende", "bibliothek", "einsortier_wunsch", "cover"]  # A1, A3, A3d, A4
+        assert f[-6:] == ["konfig_staende", "bibliothek", "einsortier_wunsch", "cover", "warteschlange", "zuordnung_rueckgaengig"]  # A1, A3, A3d, A4, A9c
         for spaeter in ("reinhoeren", "hoerkopie"):
             assert spaeter not in f
     assert (await ok(admin, "hello", v=1))["darf_schreiben"] is True

@@ -48,6 +48,8 @@ HTTP_STATUS: Final = {
     "wunsch_ungueltig": 400,
     "cover_ungueltig": 400,
     "cover_nicht_gefunden": 404,
+    "warteschlange_voll": 409,
+    "warteschlange_doppelt": 409,
 }
 
 

@@ -92,6 +92,8 @@ async def test_hello(api, api_lesend, integration):
         "bibliothek",  # 12.11., Paket A3: Art, Suche, Filter, Blättern
         "einsortier_wunsch",  # 12.11., Paket A3d: Upload mit Wunsch (ohne Befehl 43)
         "cover",  # 12.11., Paket A4: Foto-Upload, Cover-Ansicht, Befehl 44
+        "warteschlange",  # 13.11., Paket A9c: Befehle 47 bis 49, Thema ``warteschlange``
+        "zuordnung_rueckgaengig",  # 13.11., Paket A9c: ``als_neu`` bei ``zuordnung/remove``
     ]
     assert r["konfig"]["zustand"] == "ok" and r["konfig"]["revision"] == 1
     g = r["grenzen"]
@@ -99,6 +101,7 @@ async def test_hello(api, api_lesend, integration):
     assert g["upload_max_bytes"] == 2 * 1024**3 and g["upload_block_bytes"] == 1048576 and g["upload_parallel"] == 2
     assert g["endungen"] == ["mp3", "m4a", "m4b", "aac", "flac", "ogg", "opus", "wav"]
     assert (g["serie_name_max"], g["folge_anzeige_max"], g["tobie_name_max"], g["name_max_bytes"], g["limit_max"]) == (100, 200, 60, 255, 100)
+    assert g["warteschlange_max"] == 5  # 13.11. (A0-Q)
     assert (await ok(api_lesend, "hello", v=1))["darf_schreiben"] is False
 
 
@@ -143,8 +146,8 @@ async def test_subscribe_snapshots_und_ende(hass, api, integration):
 async def test_subscribe_alle_themen_und_ungueltiges_thema(hass, api):
     await api.send_json_auto_id({"type": "tobibox/subscribe"})
     assert (await api.receive_json())["success"] is True
-    themen = [(await api.receive_json())["event"]["thema"] for _ in range(7)]
-    assert themen == ["boxen", "neue_tobies", "lernmodus", "medien", "eingang", "konfig", "upload"]
+    themen = [(await api.receive_json())["event"]["thema"] for _ in range(8)]
+    assert themen == ["boxen", "neue_tobies", "lernmodus", "medien", "eingang", "konfig", "upload", "warteschlange"]  # 13.11. mit ``warteschlange``
     assert await fehler(api, "subscribe", themen=["quatsch"]) == "invalid_format"
 
 
@@ -155,6 +158,9 @@ async def test_subscribe_alle_themen_und_ungueltiges_thema(hass, api):
 ADMIN_BEFEHLE = [
     ("serie/create", {"name": "X"}),
     ("folgen/order", {"serie_id": "rabe", "folgen": ["a.mp3", "b.mp3"]}),
+    ("lernmodus/start", {"box": "box1", "ziel": SERIE}),  # seit 13.11. (A0-Q, X13a) wieder admin
+    ("lernmodus/antwort", {"befehl_id": "x", "ueberschreiben": True}),
+    ("lernmodus/abbrechen", {"box": "box1"}),
     ("papierkorb/restore", {"eintrag_id": "0123456789ab"}),
     ("papierkorb/empty", {"bestaetigt": True}),
     ("box/sync", {"box": "box1"}),
@@ -171,9 +177,6 @@ ALLTAG_BEFEHLE = [
     ("neue_tobies/verwerfen", {"uid": UID}),
     ("zuordnung/set", {"uid": UID, "ziel": SERIE}),
     ("zuordnung/remove", {"uid": UID, "erwartet_ziel": None}),
-    ("lernmodus/start", {"box": "box1", "ziel": SERIE}),
-    ("lernmodus/antwort", {"befehl_id": "x", "ueberschreiben": True}),
-    ("lernmodus/abbrechen", {"box": "box1"}),
     ("serie/delete", {"serie_id": "rabe"}),
     ("folge/rename", {"serie_id": "rabe", "folge": "a.mp3", "name": "X"}),
     ("folge/verschieben", {"serie_id": "rabe", "folge": "a.mp3", "ziel_serie_id": "z"}),

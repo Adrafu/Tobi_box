@@ -251,3 +251,35 @@ async def test_cover_ohne_dateizugriffe_in_der_loop(hass, wache, starte_integrat
     wache.leer()
     assert (nas.medien / "zwei" / "cover.jpg").is_file()
     assert any(p.name == "cover.jpg" for p in nas.medien.glob("*/cover.jpg") if p.parent.name not in ("rabe", "zwei", "drei"))
+
+
+async def test_warteschlange_ohne_dateizugriffe_in_der_loop(hass, wache, starte_integration, box_fabrik, nas, lege_mp3):
+    """Paket A9c: Anlegen (Ziel prüfen), Liste, Treffer beim Auflegen (Zuordnung, Export im Executor), verworfenes Ziel, Abbrechen und Rückgängig mit ``als_neu``."""
+    import shutil
+
+    _bibliothek(nas, lege_mp3)
+    nas.serie("weg", "weg", "Wird gelöscht", ["w.mp3"])
+    lege_mp3(nas.medien / "weg" / "w.mp3")
+    hub = await starte_integration()
+    box = box_fabrik("box1")
+    await box.online()
+    ziel = {"typ": "folge", "serie": "rabe", "folge": "a.mp3"}
+    serie = {"typ": "serie", "serie": "rabe"}
+    with wache.aktiv():
+        await hub.warteschlange.setzen("box1", {"typ": "serie", "serie": "weg"})
+        await hub.warteschlange.setzen("box1", ziel)
+        e = await hub.warteschlange.setzen(None, serie)
+        hub.warteschlange.liste()
+        await hub.warteschlange.abbrechen(e["eintrag"]["id"])
+        await hub.medien.pruefen()
+    shutil.rmtree(nas.medien / "weg")
+    with wache.aktiv():
+        await hub.medien.pruefen()
+        await box.unbekannt("04a1b2c3")  # der erste Eintrag (Serie weg) wird verworfen, der zweite trifft
+        await hub.zuordnung_entfernen("04a1b2c3", ziel, None, {"box": "box1"})
+        await hub.warteschlange.setzen("box1", serie)
+        await box.unbekannt("04a1b2c4")
+        await hass.async_block_till_done()
+    wache.leer()
+    assert hub.store.warteschlange == []
+    assert set(hub.store.konfig["zuordnungen"]) == {"04a1b2c4"} and "04a1b2c3" in hub.store.neue_tobies

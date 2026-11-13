@@ -125,6 +125,13 @@ class Schutz:
         """Nach einer Änderung, die nicht an einer Prüfung scheiterte (Konflikte zählen nicht)."""
         self.mengen.buche_fuer("liste", nutzer)
 
+    def warteschlange_pruefen(self, nutzer: Nutzer | None) -> None:
+        """Vor ``warteschlange/set`` und ``warteschlange/abbrechen`` (zusammen, Vertrag W, 3.13, Regel 14); Administratoren sind ausgenommen."""
+        self.mengen.pruefe("warteschlange", nutzer, const.WARTESCHLANGE_AENDERUNGEN_JE_MINUTE, MINUTE_S)
+
+    def warteschlange_gebucht(self, nutzer: Nutzer | None) -> None:
+        self.mengen.buche_fuer("warteschlange", nutzer)
+
     def papierkorb_pruefen(self, nutzer: Nutzer | None) -> None:
         self.mengen.pruefe("papierkorb", nutzer, const.PAPIERKORB_AKTIONEN_JE_10_MIN, ZEHN_MINUTEN_S)
 

@@ -73,6 +73,8 @@ export const FEHLER = {
   tobies_betroffen: 'Es hängen noch Tobies daran. Willst du trotzdem weitermachen? Dann bestätige das.', // neu, nicht im Design (kein Fehler, die Seite fragt nach)
   hoerkopie_wartet: 'Die Hörprobe wird noch vorbereitet. Versuche es in einer Minute noch einmal. Auf der Box spielt es schon.', // neu, nicht im Design
   cover_nicht_gefunden: 'Dieser Eintrag hat noch kein Bild.', // neu, nicht im Design
+  warteschlange_voll: 'Es warten schon 5 Tobies. Warte, bis einer aufgelegt ist, oder nimm einen aus der Liste.', // Vertrag W, Änderung 13.11. (A0-Q)
+  warteschlange_doppelt: 'Das wartet schon.', // Vertrag W, Änderung 13.11. (A0-Q)
 
   // Standardtext (Design 6.1: nur Administratoren sehen den Code dahinter)
   anfrage_id_konflikt: FALLBACK,

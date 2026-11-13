@@ -166,6 +166,12 @@
     "cover_nicht_gefunden": {
       "message": "Dieser Eintrag hat kein Cover."
     },
+    "warteschlange_voll": {
+      "message": "Es warten schon 5 Tobies. Warte, bis einer aufgelegt ist, oder nimm einen aus der Liste."
+    },
+    "warteschlange_doppelt": {
+      "message": "Das wartet schon."
+    },
     "format_nicht_erlaubt": {
       "message": "Dieses Dateiformat spielt die Box nicht."
     },

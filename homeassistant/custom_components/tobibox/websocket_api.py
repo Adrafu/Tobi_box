@@ -401,20 +401,30 @@ async def ws_zuordnung_set(hub: Hub, connection: Any, msg: dict[str, Any]) -> An
     )
 
 
-@befehl("zuordnung/remove", {vol.Required("uid"): _text, vol.Optional("erwartet_ziel"): vol.Any(None, _objekt)}, recht="alltag")
+@befehl(
+    "zuordnung/remove",
+    {
+        vol.Required("uid"): _text,
+        vol.Optional("erwartet_ziel"): vol.Any(None, _objekt),
+        vol.Optional("als_neu"): vol.Schema({vol.Required("box"): _text}),  # Fähigkeit ``zuordnung_rueckgaengig`` (13.11.)
+    },
+    recht="alltag",
+)
 async def ws_zuordnung_remove(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
-    return await hub.zuordnung_entfernen(msg["uid"], msg["erwartet_ziel"] if "erwartet_ziel" in msg else FEHLT, _nutzer(connection))
+    return await hub.zuordnung_entfernen(
+        msg["uid"], msg["erwartet_ziel"] if "erwartet_ziel" in msg else FEHLT, _nutzer(connection), msg.get("als_neu")
+    )
 
 
 # --------------------------------------------------------------------------
-# 18 bis 20: Lernmodus
+# 18 bis 20: Lernmodus (seit 13.11. wieder nur für Administratoren, X13a)
 # --------------------------------------------------------------------------
 
 
 @befehl(
     "lernmodus/start",
     {vol.Required("box"): _text, vol.Required("ziel"): _objekt, vol.Optional("name"): _text, **ANFRAGE_ID},
-    recht="alltag",
+    recht="admin",
 )
 async def ws_lernmodus_start(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
     async def tu() -> Any:
@@ -423,14 +433,37 @@ async def ws_lernmodus_start(hub: Hub, connection: Any, msg: dict[str, Any]) -> 
     return await hub.mit_anfrage_id(msg.get("anfrage_id"), "lernmodus/start", _felder(msg), tu)
 
 
-@befehl("lernmodus/antwort", {vol.Required("befehl_id"): _text, vol.Required("ueberschreiben"): _wahrheit}, recht="alltag")
+@befehl("lernmodus/antwort", {vol.Required("befehl_id"): _text, vol.Required("ueberschreiben"): _wahrheit}, recht="admin")
 async def ws_lernmodus_antwort(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
     return await hub.lernmodus.antwort(msg["befehl_id"], msg["ueberschreiben"])
 
 
-@befehl("lernmodus/abbrechen", {vol.Required("box"): _text}, recht="alltag")
+@befehl("lernmodus/abbrechen", {vol.Required("box"): _text}, recht="admin")
 async def ws_lernmodus_abbrechen(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
     return {"abgebrochen": await hub.lernmodus.abbrechen(msg["box"])}
+
+
+# --------------------------------------------------------------------------
+# 47 bis 49: Warteschlange „nächster neuer Tobie“ (Fähigkeit ``warteschlange``, Vertrag W, 3.13)
+# --------------------------------------------------------------------------
+
+
+@befehl("warteschlange/set", {vol.Required("box"): vol.Any(None, _text), vol.Required("ziel"): _objekt, **ANFRAGE_ID}, recht="alltag")
+async def ws_warteschlange_set(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
+    async def tu() -> Any:
+        return await hub.warteschlange.setzen(msg["box"], msg["ziel"], _nutzer(connection))
+
+    return await hub.mit_anfrage_id(msg.get("anfrage_id"), "warteschlange/set", _felder(msg), tu)
+
+
+@befehl("warteschlange/list", recht="alltag")
+async def ws_warteschlange_list(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
+    return hub.warteschlange.liste()
+
+
+@befehl("warteschlange/abbrechen", {vol.Required("eintrag_id"): _text}, recht="alltag")  # nicht ``id``: das ist die Nachrichtennummer
+async def ws_warteschlange_abbrechen(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
+    return await hub.warteschlange.abbrechen(msg["eintrag_id"], _nutzer(connection))
 
 
 # --------------------------------------------------------------------------

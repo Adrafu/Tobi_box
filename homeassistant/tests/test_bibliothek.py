@@ -670,10 +670,10 @@ def test_pruefe_konfig_behaelt_angelegt_am_und_verwirft_ungueltiges():
 async def test_hello_sagt_bibliothek_zu(api, normal):
     for client in (api, normal):
         f = (await ok(client, "hello", v=1))["faehigkeiten"]
-        assert f[-4:-2] == ["konfig_staende", "bibliothek"]  # A1, A3; danach A3d (``einsortier_wunsch``) und A4 (``cover``)
+        assert f[-6:-4] == ["konfig_staende", "bibliothek"]  # A1, A3; danach A3d (``einsortier_wunsch``) A4 (``cover``) und A9c (``warteschlange``, ``zuordnung_rueckgaengig``)
         for spaeter in ("reinhoeren", "hoerkopie"):
             assert spaeter not in f
-    assert const.FAEHIGKEITEN[-4:-2] == ("konfig_staende", "bibliothek")
+    assert const.FAEHIGKEITEN[-6:-4] == ("konfig_staende", "bibliothek")
 
 
 # --------------------------------------------------------------------------
