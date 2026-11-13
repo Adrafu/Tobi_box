@@ -1,6 +1,6 @@
 # Messungen mit dem HA-Testpanel (A0b), 12.11.
 
-Testpanel `/tobibox-neu`, Anleitung `docs/betrieb/ha-testpanel-messungen.md`. Home Assistant läuft auf dem QNAP-NAS.
+Testpanel `/tobibox-test`, Anleitung `docs/betrieb/ha-testpanel-messungen.md`. Home Assistant läuft auf dem QNAP-NAS.
 Gemessen von Tobias mit iPhone 16 Pro (iOS 27) in der HA-Companion-App, unterwegs über LTE und Nabu Casa.
 
 | Nr. | Messung | Ergebnis | Folge für den Bau |

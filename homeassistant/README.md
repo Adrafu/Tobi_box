@@ -8,7 +8,7 @@ Die Integration ist der **einzige Schreiber** für Zuordnungen und `serie.json` 
 *   verwaltet die Medien auf der NAS-Freigabe (Serien, Folgen, Papierkorb) und sortiert Neues aus dem
     **Eingang** nach den Tags ein (Entscheidung M),
 *   nimmt Uploads vom Handy in den Eingang an,
-*   bietet die Seite „Tobi Box“ (Ordner `custom_components/tobibox/frontend/`, AP 3.2) und HA-Aktionen.
+*   bietet die Seite „Tobi Box“ unter `/tobibox` (neue Seite `tobibox-app.js`, Ordner `custom_components/tobibox/frontend/`; bis zur Abnahme A17 nur für Administratoren, Entscheidung R17-9), das Testpanel unter `/tobibox-test` und HA-Aktionen. Die alte Komponente `tobibox-panel.js` hat keinen eigenen Seitenleisten-Eintrag und wird später in „Technik“ eingebettet.
 
 Verträge (die Integration ändert sie nicht): `docs/protocol/ha-websocket-v1.md` (Vertrag W, Seite ↔ Backend),
 `docs/protocol/mqtt-v1.md` (Box ↔ HA), `docs/data-model.md`.

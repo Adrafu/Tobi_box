@@ -239,7 +239,7 @@ GERAETENAMEN: Final = frozenset(
 )
 
 # --- Testpanel und Audio-Ansicht (Paket A0b, Vertrag W 14.5 und 14.10) ----------
-#: Schalter f\u00fcr das Testpanel unter ``/tobibox-neu`` (Messungen A0b). Auf ``False`` setzen, um es zu entfernen.
+#: Schalter f\u00fcr das Testpanel unter ``/tobibox-test`` (Messungen A0b). Auf ``False`` setzen, um es zu entfernen.
 TESTPANEL: Final = True
 AUDIO_VERBINDUNGEN_JE_BENUTZER: Final = 6
 AUDIO_LINK_GUELTIG_S: Final = 86400

@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url';
 const HIER = fileURLToPath(new URL('.', import.meta.url));
 const ROOT = join(HIER, '../../..');
 const texte = await import('../../custom_components/tobibox/frontend/texte.js');
-const { FEHLER, GRUENDE, HINWEISE, HOERPROBE, STATUS, LEER, MEHR, KACHELN, fehlerText, fuellen, statusSatz, FALLBACK } = texte;
+const { FEHLER, GRUENDE, HINWEISE, HOERPROBE, STATUS, LEER, GERAETE, TOBIE, LEISE, UPLOAD, SEITE, KACHELN, fehlerText, fuellen, statusSatz, FALLBACK } = texte;
 
 const vertrag = readFileSync(join(ROOT, 'docs/protocol/ha-websocket-v1.md'), 'utf8');
 const design = readFileSync(join(ROOT, 'docs/designs/ha-oberflaeche.md'), 'utf8');
@@ -34,7 +34,7 @@ function alleTexte(obj, pfad = '') {
   return [];
 }
 
-const GRUPPEN = { FEHLER, GRUENDE, HINWEISE, HOERPROBE, LEER, MEHR, KACHELN };
+const GRUPPEN = { FEHLER, GRUENDE, HINWEISE, HOERPROBE, LEER, GERAETE, TOBIE, LEISE, UPLOAD, SEITE, KACHELN };
 
 /* ------------------------------------------------------------------ Vertrag */
 
@@ -178,12 +178,116 @@ test('Status: Hinweis zu neuen Zuordnungen nur bei Offline oder Abweichung über
   assert.doesNotMatch(statusSatz({ anzeige: 'Box 1', online: true, zustand: 'leer', konfig_stand: 'aktuell' }).nebentext, /Neue Zuordnungen/);
 });
 
-/* ------------------------------------------------------------------ Leere Zustände, Mehr, Kacheln */
+/* ------------------------------------------------------------------ Leere Zustände, Geräte, Kacheln */
 
-test('Leere Zustände, „Mehr“ und Kacheln: Design-Texte stehen wörtlich drin', () => {
+test('Leere Zustände, „Geräte“ und Kacheln: Design-Texte stehen wörtlich drin', () => {
   assert.equal(fuellen(LEER.bibliothek.satz), 'Noch nichts da. Tippe auf „Hinzufügen“.');
   assert.equal(fuellen(LEER.keine_box.satz), 'Noch keine Box eingerichtet. Bitte dem Administrator Bescheid sagen.');
-  assert.equal(fuellen(MEHR.abends.erklaerung), 'Gute Nacht und Leise-Zeiten');
+  assert.equal(fuellen(GERAETE.abends.erklaerung), 'Gute Nacht und Leise-Zeiten');
   assert.equal(Object.keys(KACHELN).length, 5);
   assert.equal(KACHELN.sortier_du.zeile, 'Ich lese die Angaben');
+});
+
+/* ------------------------------------------------------------------ A5b: Textnachtrag Runde 17 */
+
+/* Ein Text steht wörtlich im Design (Anführungszeichen und Satzzeichen wie dort). */
+function imDesign(text) {
+  const ohneFett = design.replace(/\*\*/g, '');
+  assert.ok(ohneFett.includes(text.replace(/\*\*/g, '')), `Im Design steht nicht wörtlich: ${text}`);
+}
+
+test('A5b: „Mehr“ gibt es nicht mehr, „Geräte“ trägt die Texte aus Abschnitt 3.4', () => {
+  assert.equal(texte.MEHR, undefined);
+  assert.equal(GERAETE.titel, 'Geräte');
+  assert.equal(GERAETE.abends.titel, 'Abends');
+  imDesign('Zeile **„Wer hat was gehört?“**'.replace(/\*\*/g, ''));
+  assert.equal(GERAETE.gehoert.titel, 'Wer hat was gehört?');
+  for (const [pfad, text] of alleTexte({ GERAETE, LEER })) assert.doesNotMatch(text, /\bMehr\b/, pfad);
+  // 6.2 und 5.7: „Geräte“ statt Startseite
+  assert.equal(fuellen(LEER.tobies.satz), 'Noch keine Tobies. Lege einen Tobie auf eine Box, dann erscheint er unter „Geräte“.');
+  assert.equal(LEER.tobies.knopf, 'Zu den Geräten');
+  assert.equal(fuellen(LEER.start.satz), 'Noch nichts da. Tippe in der Bibliothek auf „+“.');
+  assert.equal(LEER.start.knopf, 'Zur Bibliothek');
+});
+
+test('A5b: Meldung beim Zuordnen nennt altes und neues Ziel (R17-3)', () => {
+  assert.equal(fuellen(TOBIE.zugeordnet_umgehaengt), 'Löwe spielt jetzt „Abenteuer im Wald“ (vorher „Kommissar Kralle“).');
+  assert.equal(fuellen(TOBIE.zugeordnet_neu), 'Fertig: Löwe spielt jetzt „Abenteuer im Wald“.');
+  imDesign('Löwe spielt jetzt „Abenteuer im Wald“ (vorher „Kommissar Kralle“).');
+  imDesign('Fertig: Löwe spielt jetzt „…“.');
+  assert.equal(fuellen(TOBIE.zugeordnet_neu, { tobie: 'Mia', ziel: 'Pirat Pippo' }), 'Fertig: Mia spielt jetzt „Pirat Pippo“.');
+  assert.equal(TOBIE.rueckgaengig, 'Rückgängig');
+});
+
+test('A5b: Zeile „Vorher“ auf der Tobie-Seite', () => {
+  assert.equal(fuellen(TOBIE.vorher), 'Vorher: Kommissar Kralle');
+  assert.equal(TOBIE.zurueckstellen, 'Zurückstellen');
+  imDesign('Vorher: Kommissar Kralle · Zurückstellen');
+});
+
+test('A5b: Namensfeld, auch bei „Später auflegen“ (R17-5)', () => {
+  assert.equal(TOBIE.name_frage, 'Wie soll er heißen?');
+  assert.equal(TOBIE.name_hinweis, 'Du kannst das überspringen.');
+  imDesign('Wie soll er heißen?** Du kannst das überspringen.');
+  imDesign('Name, zum Beispiel Farbe oder Tier');
+  assert.equal(TOBIE.name_geben, 'Name geben');
+});
+
+test('A5b: Meldung „Neuer Tobie auf Box 1 – Zuordnen“ auf jeder Seite (R17-6)', () => {
+  assert.equal(fuellen(TOBIE.neuer_tobie_meldung), 'Neuer Tobie auf Box 1 – Zuordnen');
+  assert.equal(fuellen(TOBIE.neuer_tobie_meldung, { box: 'Box 2' }), 'Neuer Tobie auf Box 2 – Zuordnen');
+  assert.equal(TOBIE.zuordnen, 'Zuordnen');
+  imDesign('Neuer Tobie auf Box 1 – Zuordnen');
+  assert.equal(fuellen(TOBIE.aufgelegt_zugeordnet, { ziel: 'Lange Serie' }), 'Box 1: Der neue Tobie spielt jetzt „Lange Serie“.');
+  imDesign('Box 1: Der neue Tobie spielt jetzt „Lange Serie“.');
+});
+
+test('A5b: Karten auf „Geräte“ (5.13, 7.1)', () => {
+  assert.equal(fuellen(GERAETE.nicht_zugeordnet.titel), 'Konnte nicht zugeordnet werden');
+  assert.equal(GERAETE.nicht_zugeordnet.jetzt_zuordnen, 'Jetzt zuordnen');
+  assert.equal(GERAETE.platz_bekommen.titel, 'Ein neuer Tobie hat einen Platz bekommen.');
+  assert.equal(GERAETE.platz_bekommen.frage, 'Name geben?');
+  assert.equal(GERAETE.platz_bekommen.spaeter, 'Später');
+  imDesign('Ein neuer Tobie hat einen Platz bekommen.** Name geben?');
+  assert.equal(fuellen(GERAETE.neuer_tobie.titel), 'Neuer Tobie auf Box 1 – was soll er spielen?');
+  assert.equal(fuellen(GERAETE.neuer_tobie.zeile), 'Gerade aufgelegt, vor 2 Minuten.');
+  assert.equal(fuellen(GERAETE.neue_tobies.titel), '3 neue Tobies auf Box 1');
+  assert.equal(fuellen(GERAETE.neue_tobies.titel, { anzahl: 2 }), '2 neue Tobies auf Box 1');
+  assert.equal(GERAETE.wartet.titel, 'Wartet auf einen neuen Tobie');
+  assert.equal(fuellen(GERAETE.wartet.zeile2), 'spielt „Lange Serie“ · Nr. 1 von 2');
+  assert.equal(GERAETE.wartet.abbrechen, 'Nicht mehr warten');
+  assert.equal(GERAETE.grund_gesperrt, 'Änderungen sind gerade gesperrt.');
+});
+
+test('A5b: Satz „Bildschirm anlassen“ nur als Upload-Zustand, „+ Tobie“, „Gilt für …“', () => {
+  assert.equal(UPLOAD.bildschirm_anlassen, 'Bildschirm anlassen, bis es fertig ist.');
+  imDesign('„**Bildschirm anlassen, bis es fertig ist.**“');
+  assert.equal(TOBIE.plus_tobie, '+ Tobie');
+  assert.equal(TOBIE.weiteren_tobie, 'Weiteren Tobie geben');
+  assert.equal(fuellen(LEISE.gilt_fuer), 'Gilt für Mo, Di, Mi, Do, So. Tage abwählen, wenn es nur für einzelne gelten soll.');
+  assert.equal(fuellen(LEISE.gilt_fuer, { tage: 'Fr, Sa' }), 'Gilt für Fr, Sa. Tage abwählen, wenn es nur für einzelne gelten soll.');
+  imDesign('Gilt für Mo, Di, Mi, Do, So.** Tage abwählen, wenn es nur für einzelne gelten soll.');
+  assert.equal(TOBIE.neue_tobies_punkt, '1 neuer Tobie');
+});
+
+test('A6: Texte des Rahmens stehen wörtlich im Design (Abschnitte 3.1, 6)', () => {
+  assert.deepEqual(Object.values(SEITE.reiter), ['Start', 'Bibliothek', 'Tobies', 'Geräte']);
+  assert.deepEqual(Object.values(SEITE.begruessung), ['Guten Morgen', 'Guten Tag', 'Guten Abend', 'Gute Nacht']);
+  assert.equal(SEITE.fehler_laden.titel, 'Die Seite konnte nichts laden.');
+  assert.equal(fuellen(SEITE.fehler_laden.text), 'Home Assistant antwortet gerade nicht. Warte kurz und versuche es noch einmal. Wenn es so bleibt, sag dem Administrator Bescheid.');
+  imDesign('Home Assistant antwortet gerade nicht. Warte kurz und versuche es noch einmal. Wenn es so bleibt, sag dem Administrator Bescheid.');
+  assert.equal(SEITE.fehler_laden.knopf, 'Noch einmal versuchen');
+  assert.equal(SEITE.verbindung_weg.titel, 'Keine Verbindung zu Home Assistant.');
+  imDesign('Die Ansicht wird von selbst aktuell, sobald die Verbindung wieder da ist.');
+  assert.equal(fuellen(SEITE.liste_gesperrt), 'Änderungen sind gerade gesperrt. Bitte dem Administrator Bescheid sagen.');
+  assert.equal(fuellen(SEITE.technik_nur_admin), 'Dieser Bereich ist nur für Administratoren. Wenn du etwas Technisches brauchst, frag den Administrator.');
+  imDesign('Dieser Bereich ist nur für Administratoren. Wenn du etwas Technisches brauchst, frag den Administrator.');
+  assert.equal(SEITE.veraltet, FEHLER.unknown_command);
+  assert.equal(SEITE.testtitel, 'Tobi Box (Test)');
+});
+
+test('Texte nennen keine echten Namen und keine Netz-Adressen', () => {
+  for (const [name, gruppe] of Object.entries(GRUPPEN)) {
+    for (const [pfad, text] of alleTexte(gruppe)) assert.doesNotMatch(text, /https?:\/\//, `${name}.${pfad}`);
+  }
 });

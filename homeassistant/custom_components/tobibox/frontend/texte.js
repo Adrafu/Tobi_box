@@ -1,4 +1,4 @@
-// Texte der HA-Oberfläche (Design docs/designs/ha-oberflaeche.md, Paket A5).
+// Texte der HA-Oberfläche (Design docs/designs/ha-oberflaeche.md, Pakete A5, A5b und A6).
 // Ein ES-Modul ohne Abhängigkeiten. Die Texte stehen wörtlich im Design.
 // Stellen ohne Design-Text sind mit „// neu, nicht im Design“ markiert.
 //
@@ -17,6 +17,14 @@ const DEFAULT = {
   suchwort: 'Suchwort',
   angekommen: '2',
   anzahl: '3',
+  tobie: 'Löwe',
+  ziel: 'Abenteuer im Wald',
+  vorher: 'Kommissar Kralle',
+  tage: 'Mo, Di, Mi, Do, So',
+  zeit: 'vor 2 Minuten',
+  serie: 'Lange Serie',
+  nr: '1',
+  gesamt: '2',
 };
 
 // Ersetzt {name} durch werte.name, sonst durch den Vorgabewert. Unbekannte Platzhalter bleiben stehen.
@@ -160,20 +168,95 @@ export const STATUS = {
 export const LEER = {
   bibliothek: { bild: 'leeres Regal mit Lücke und Note', satz: 'Noch nichts da. Tippe auf „Hinzufügen“.', knopf: 'Hinzufügen' },
   filter: { bild: 'Lupe mit Fragezeichen', satz: 'Nichts gefunden. Nimm einen Filter weg.', knopf: 'Filter zurücksetzen' },
-  tobies: { bild: 'lächelnder Tobie über der Box', satz: 'Noch keine Tobies. Lege einen Tobie auf eine Box, dann erscheint er auf der Startseite.', knopf: 'Zur Startseite' },
+  start: { bild: 'leeres Regal mit Lücke und Note', satz: 'Noch nichts da. Tippe in der Bibliothek auf „+“.', knopf: 'Zur Bibliothek' }, // Design 5.1 Punkt 5
+  tobies: { bild: 'lächelnder Tobie über der Box', satz: 'Noch keine Tobies. Lege einen Tobie auf eine Box, dann erscheint er unter „Geräte“.', knopf: 'Zu den Geräten' },
   keine_box: { bild: 'schlafende Box mit Zzz und gezogenem Stecker', satz: 'Noch keine Box eingerichtet. Bitte {verwalter_dat} Bescheid sagen.', knopf: 'Jetzt neu laden' },
   suche: { bild: 'Lupe mit Fragezeichen', satz: 'Nichts gefunden zu „{suchwort}“.', knopf: 'Suche löschen' },
   papierkorb: { bild: 'Papierkorb mit Haken', satz: 'Der Papierkorb ist leer.', knopf: 'Zur Bibliothek' },
   gehoert: { bild: 'Kopfhörer mit leerem Diagramm', satz: 'Noch nichts gehört. Sobald eine Box spielt oder jemand reinhört, steht es hier.', knopf: 'Zur Bibliothek' },
 };
 
-// Zeilen unter „Mehr“ (Design 3.4) und Hinweis für Stufe C (Design 5.6).
-export const MEHR = {
-  titel: 'Mehr',
+// Seite „Geräte“ (Design 3.4, ersetzt „Mehr“, Runde 15). Boxen, Karten für neue Tobies, Abends, Zeile „Gehört“.
+export const GERAETE = {
+  titel: 'Geräte',
   abends: { titel: 'Abends', erklaerung: 'Gute Nacht und Leise-Zeiten' },
-  gehoert: { titel: 'Gehört', erklaerung: 'Wer hat was gehört' },
-  playlists: { titel: 'Playlists', erklaerung: 'Eigene Listen aus Liedern und Folgen' },
-  playlists_meldung: 'Playlists gibt es noch nicht. Das kommt später (Stufe C).',
+  gehoert: { titel: 'Wer hat was gehört?', erklaerung: 'Rangliste, Hörzeit pro Tag, Tageszeiten' }, // Titel Design 3.4; Erklärung nur im Prototyp (Stufe B)
+  neuer_tobie: { titel: 'Neuer Tobie auf {box} – was soll er spielen?', zeile: 'Gerade aufgelegt, {zeit}.' }, // Design 7.1
+  neue_tobies: { titel: '{anzahl} neue Tobies auf {box}' }, // Design 5.13 (N12)
+  wartet: { titel: 'Wartet auf einen neuen Tobie', zeile1: 'Nächster neuer Tobie auf {box}', zeile2: 'spielt „{serie}“ · Nr. {nr} von {gesamt}', abbrechen: 'Nicht mehr warten' }, // Design 5.13
+  platz_bekommen: { titel: 'Ein neuer Tobie hat einen Platz bekommen.', frage: 'Name geben?', name_geben: 'Name geben', spaeter: 'Später' }, // Design 5.13 (N11)
+  nicht_zugeordnet: { titel: 'Konnte nicht zugeordnet werden', jetzt_zuordnen: 'Jetzt zuordnen' }, // Design 5.13 (N20); der Grund kommt vom Backend oder aus FEHLER
+  grund_gesperrt: 'Änderungen sind gerade gesperrt.', // Design 5.13, Tabelle „Liste gesperrt“
+};
+
+// Tobies zuordnen, Meldungen und Namen (Design 5.4, 5.7, 5.13, 6.3, 7.1; Runde 17: R17-3, R17-5, R17-6, N27).
+export const TOBIE = {
+  ohne_name: 'Tobie ohne Namen', // Design 5.4, Ergänzung b
+  zugeordnet_neu: 'Fertig: {tobie} spielt jetzt „{ziel}“.', // Design 5.4, neuer Tobie
+  zugeordnet_umgehaengt: '{tobie} spielt jetzt „{ziel}“ (vorher „{vorher}“).', // Design 5.4, R17-3
+  rueckgaengig: 'Rückgängig',
+  rueckgaengig_gemacht: 'Rückgängig gemacht.', // neu, nicht im Design (Ansage für Screenreader, wie im Prototyp)
+  vorher: 'Vorher: {vorher}', // Design 5.4: „Vorher: Kommissar Kralle · Zurückstellen“; der Punkt und „Zurückstellen“ sind ein eigener Knopf
+  zurueckstellen: 'Zurückstellen',
+  neuer_tobie_meldung: 'Neuer Tobie auf {box} – Zuordnen', // Design 5.13 (R17-6)
+  zuordnen: 'Zuordnen',
+  aufgelegt_zugeordnet: '{box}: Der neue Tobie spielt jetzt „{ziel}“.', // Design 5.13, Auflegen
+  name_geben: 'Name geben',
+  name_frage: 'Wie soll er heißen?', // Design 7.1 (Weg 1) und 5.13 (Weg 2, R17-5)
+  name_hinweis: 'Du kannst das überspringen.',
+  name_platzhalter: 'Name, zum Beispiel Farbe oder Tier', // Design 7.1
+  plus_tobie: '+ Tobie', // Design 5.3 (N27)
+  weiteren_tobie: 'Weiteren Tobie geben', // Design 5.3 (aria-label, X20f)
+  einem_tobie_geben: 'Einem Tobie geben …', // Design 5.3
+  noch_kein_tobie: 'Noch kein Tobie', // Design 5.3
+  neue_tobies_punkt: '1 neuer Tobie', // Design 3.1, für Screenreader am Reiter „Geräte“
+  neue_tobies_punkt_mehr: '{anzahl} neue Tobies', // neu, nicht im Design (Mehrzahl zu 3.1)
+};
+
+// Satz im Blatt „Leise-Zeit ändern“ (Design 5.8, N24).
+export const LEISE = {
+  gilt_fuer: 'Gilt für {tage}. Tage abwählen, wenn es nur für einzelne gelten soll.',
+};
+
+// Hochladen: echte Zustände während des Uploads (Design 5.6a, 7.3; R17-4).
+export const UPLOAD = {
+  bildschirm_anlassen: 'Bildschirm anlassen, bis es fertig ist.',
+};
+
+// Rahmen der Seite (Design 3.1, 3.2, 6, 6.3): Reiter, Kopf, Zustände, Meldungen. Paket A6.
+export const SEITE = {
+  titel: 'Tobi Box',
+  testtitel: 'Tobi Box (Test)',
+  bereiche: 'Bereiche', // aria-label der Reiterleiste (Design 14)
+  reiter: { start: 'Start', bibliothek: 'Bibliothek', tobies: 'Tobies', geraete: 'Geräte' },
+  begruessung: { morgen: 'Guten Morgen', tag: 'Guten Tag', abend: 'Guten Abend', nacht: 'Gute Nacht' }, // Design 3.1
+  suchen: 'Suchen',
+  technik: 'Technik',
+  hinzufuegen: 'Hinzufügen',
+  schliessen: 'Schließen',
+  ok: 'OK',
+  zurueck: { bibliothek: '‹ Bibliothek', geraete: '‹ Geräte', tobies: '‹ Tobies', technik: '‹ Technik' }, // Design 3.2
+  seiten: { // Überschriften der Unterseiten (Design 3.2, 5.4, 5.9, 7.1)
+    suche: 'Suche', serie: 'Serie', hinzufuegen: 'Hinzufügen', anlernen: 'Tobie anlernen', tobie: 'Tobie', neu: 'Neuer Tobie',
+    neu_warten: 'Neuer Tobie', neu_ziel: 'Neuer Tobie erkannt', neu_queue: 'Später auflegen', geben: 'Welcher Tobie soll das spielen?',
+    box: 'Box', gehoert: 'Gehört', playlist: 'Playlist', technik: 'Technik', technik_boxen: 'Boxen',
+    technik_speicher: 'Speicher und Netz', technik_liste: 'Liste und Sicherung', technik_tobies: 'Tobies',
+    technik_meldungen: 'Meldungen', technik_einstellungen: 'Einstellungen', technik_box: 'Box',
+  },
+  laedt: 'Wird geladen …', // neu, nicht im Design (nur für Screenreader neben den Platzhaltern)
+  fehler_laden: {
+    titel: 'Die Seite konnte nichts laden.',
+    text: 'Home Assistant antwortet gerade nicht. Warte kurz und versuche es noch einmal. Wenn es so bleibt, sag {verwalter_dat} Bescheid.',
+    knopf: 'Noch einmal versuchen',
+  }, // Design 6
+  verbindung_weg: {
+    titel: 'Keine Verbindung zu Home Assistant.',
+    text: 'Die Ansicht wird von selbst aktuell, sobald die Verbindung wieder da ist.',
+    knopf: 'Jetzt neu laden',
+  }, // Design 6
+  liste_gesperrt: 'Änderungen sind gerade gesperrt. Bitte {verwalter_dat} Bescheid sagen.', // Design 6, für Nicht-Administratoren
+  technik_nur_admin: 'Dieser Bereich ist nur für Administratoren. Wenn du etwas Technisches brauchst, frag {verwalter_akk}.', // Design 3.1
+  veraltet: 'Die Seite ist veraltet. Bitte lade sie neu (am Handy: Seite nach unten ziehen oder Browser neu öffnen).', // Design 6
 };
 
 // Kacheln im Blatt „Was lädst du hoch?“ (Design 5.6): Titel, Zeile darunter, Satz für Screenreader.

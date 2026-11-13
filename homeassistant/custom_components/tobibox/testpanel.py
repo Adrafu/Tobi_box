@@ -46,7 +46,7 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
-PANEL_URL = "tobibox-neu"
+PANEL_URL = "tobibox-test"
 PANEL_ELEMENT = "tobibox-testpanel"
 PANEL_DATEI = "tobibox-testpanel.js"
 MESS_URL = "/api/tobibox/testpanel/messung"
@@ -227,7 +227,7 @@ def async_register_views(hass: HomeAssistant) -> None:
 
 
 async def async_register_panel(hass: HomeAssistant, frontend_pfad: Path, static_url: str, version: str) -> None:
-    """Die Seite ``/tobibox-neu`` (nur Administratoren). Die alte Seite bleibt unberührt."""
+    """Die Seite ``/tobibox-test`` (nur Administratoren). Die neue Seite liegt unter ``/tobibox``."""
     if not await hass.async_add_executor_job((frontend_pfad / PANEL_DATEI).is_file):
         _LOGGER.warning("Das Testpanel %s fehlt", frontend_pfad / PANEL_DATEI)
         return

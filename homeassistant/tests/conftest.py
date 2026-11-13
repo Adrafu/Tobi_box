@@ -98,7 +98,8 @@ def frontend_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """Eine Attrappe der Seite, damit ``panel_custom`` und die statischen Dateien registriert werden."""
     pfad = tmp_path / "frontend"
     pfad.mkdir()
-    (pfad / "tobibox-panel.js").write_text("// Attrappe der Seite\n", encoding="utf-8")
+    (pfad / "tobibox-app.js").write_text("// Attrappe der Seite\n", encoding="utf-8")
+    (pfad / "tobibox-panel.js").write_text("// Attrappe der alten Komponente\n", encoding="utf-8")
     import custom_components.tobibox as paket
 
     monkeypatch.setattr(paket, "FRONTEND_PFAD", pfad)

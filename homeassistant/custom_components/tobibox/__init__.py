@@ -27,10 +27,13 @@ _LOGGER = logging.getLogger(__name__)
 
 #: Ordner der Seite (``frontend/tobibox-panel.js``); in Tests austauschbar
 FRONTEND_PFAD = Path(__file__).parent / "frontend"
+#: Die neue Seite (R17-9): übernimmt ``/tobibox``, Element ``tobibox-app``. Die alte Komponente ``tobibox-panel``
+#: (Datei bleibt, wird später in „Technik“ eingebettet) hat keinen eigenen Seitenleisten-Eintrag mehr.
 PANEL_URL = "tobibox"
-PANEL_ELEMENT = "tobibox-panel"
+PANEL_ELEMENT = "tobibox-app"
 STATIC_URL = "/tobibox_static"
-PANEL_DATEI = "tobibox-panel.js"
+PANEL_DATEI = "tobibox-app.js"
+ALTE_PANEL_DATEI = "tobibox-panel.js"
 
 _GEMERKT = f"{DOMAIN}_einmalig"
 

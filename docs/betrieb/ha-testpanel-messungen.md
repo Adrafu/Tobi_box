@@ -16,10 +16,10 @@ dem anderen. Diese Anleitung ist die Grundlage dafür.
    Fassung).
 2. Home Assistant **neu starten** (Einstellungen, System, oben rechts
    „Neu starten“). Python-Teile laden erst nach dem Neustart.
-3. Im Browser oder in der Companion-App die Adresse `/tobibox-neu` öffnen
-   (z. B. `http://<dein-HA>:8123/tobibox-neu`), oder in der Seitenleiste auf
-   „Tobi Box (Test)“ tippen. Das Panel sehen nur Administratoren. Die alte Seite
-   „Tobi Box“ bleibt, wie sie ist.
+3. Im Browser oder in der Companion-App die Adresse `/tobibox-test` öffnen
+   (z. B. `http://<dein-HA>:8123/tobibox-test`), oder in der Seitenleiste auf
+   „Tobi Box (Test)“ tippen. Das Panel sehen nur Administratoren. Die neue Seite
+   „Tobi Box“ liegt unter `/tobibox`.
 4. Sieht du das Panel nicht: Browser-Cache leeren oder in der Companion-App
    „Frontend-Cache zurücksetzen“ (Einstellungen, Companion-App, Fehlersuche).
 
@@ -32,7 +32,7 @@ Bibliothek. Zum Abschalten steht in `const.py` `TESTPANEL = False`.
 
 *Abschnitte b, c, d des Panels.*
 
-1. In der Companion-App `/tobibox-neu` öffnen.
+1. In der Companion-App `/tobibox-test` öffnen.
 2. **Safe Area (d):** Lies die vier Werte ab (oben, rechts, unten, links). Dreh
    das Handy einmal quer und lies noch einmal.
 3. **Tastatur (c):** Tipp in das Textfeld. Schau, ob die Tastatur das Feld
@@ -125,7 +125,7 @@ Abbruch: nach wie vielen Sekunden und die Meldung.
 *Abschnitt g.*
 
 1. Auf dem iPhone (Safari, dann Companion-App) und auf dem Mac in Safari
-   `/tobibox-neu` öffnen. Wo es geht, auch in Chrome am Mac und am
+   `/tobibox-test` öffnen. Wo es geht, auch in Chrome am Mac und am
    Android-Handy.
 2. Lies im Abschnitt g die Zeilen ab: mp3, m4a/aac, m4b, flac, ogg/vorbis, opus,
    wav. Mögliche Werte: „probably“ (ja), „maybe“ (vielleicht), „nein“.

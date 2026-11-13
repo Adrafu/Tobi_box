@@ -144,5 +144,8 @@ async def test_seite_wird_registriert_und_ist_abschaltbar(hass, starte_integrati
     (frontend_dir / testpanel.PANEL_DATEI).write_text("// Attrappe\n", encoding="utf-8")
     await starte_integration()
     panels = hass.data["frontend_panels"]
+    assert testpanel.PANEL_URL == "tobibox-test"
     assert panels[testpanel.PANEL_URL].require_admin is True
-    assert "tobibox" in panels  # die alte Seite bleibt
+    assert panels[testpanel.PANEL_URL].sidebar_title == "Tobi Box (Test)"
+    assert "tobibox-neu" not in panels
+    assert panels["tobibox"].require_admin is True  # die neue Seite (App) liegt unter /tobibox

@@ -25,17 +25,32 @@ async def test_panel_nur_fuer_administratoren_mit_version_im_pfad(hass, integrat
     assert p.frontend_url_path == "tobibox"
     assert p.component_name == "custom"
     cfg = p.config["_panel_custom"]
-    assert cfg["name"] == "tobibox-panel"
-    assert cfg["module_url"] == "/tobibox_static/tobibox-panel.js?v=0.1.0"  # die Adresse trägt die Version der Integration
+    assert cfg["name"] == "tobibox-app"  # R17-9: die neue Seite übernimmt /tobibox
+    assert cfg["module_url"] == "/tobibox_static/tobibox-app.js?v=0.1.0"  # die Adresse trägt die Version der Integration
     assert cfg["embed_iframe"] is False and cfg["trust_external"] is False
 
 
 async def test_statische_dateien_sind_oeffentlich_und_ohne_geheimnisse(hass, integration, hass_client_no_auth, frontend_dir):
     client = await hass_client_no_auth()
-    antwort = await client.get("/tobibox_static/tobibox-panel.js")
+    antwort = await client.get("/tobibox_static/tobibox-app.js")
     assert antwort.status == 200
     assert "Attrappe" in await antwort.text()
+    assert (await client.get("/tobibox_static/tobibox-panel.js")).status == 200  # alte Komponente bleibt ausgeliefert (Einbettung später)
     assert (await client.get("/tobibox_static/gibtsnicht.js")).status == 404
+
+
+async def test_alte_komponente_hat_keinen_seitenleisten_eintrag(hass, starte_integration, frontend_dir):
+    """R17-9: nur ``/tobibox`` (neue Seite) und ``/tobibox-test`` (Testpanel); kein ``/tobibox-neu``, kein Eintrag der alten Komponente."""
+    (frontend_dir / "tobibox-testpanel.js").write_text("// Attrappe\n", encoding="utf-8")
+    await starte_integration()
+    panels = hass.data[frontend.DATA_PANELS]
+    tobibox = {k: v for k, v in panels.items() if k.startswith("tobibox")}
+    assert set(tobibox) == {"tobibox", "tobibox-test"}
+    assert all(p.require_admin is True for p in tobibox.values())
+    assert tobibox["tobibox"].config["_panel_custom"]["name"] == "tobibox-app"
+    assert tobibox["tobibox-test"].config["_panel_custom"]["name"] == "tobibox-testpanel"
+    assert tobibox["tobibox-test"].sidebar_title == "Tobi Box (Test)"
+    assert not any((v.config or {}).get("_panel_custom", {}).get("name") == "tobibox-panel" for v in panels.values())
 
 
 async def test_upload_ansicht_ist_registriert(hass, integration, hass_client_no_auth):
@@ -59,7 +74,7 @@ async def test_ohne_seite_wird_nichts_registriert_aber_die_integration_laeuft(ha
 
 
 async def test_der_echte_ordner_der_seite_gehoert_dem_anderen_ap():
-    """Der Ordner ``frontend/`` (AP 3.2) wird nur gelesen; ``__init__.py`` zeigt auf ``frontend/tobibox-panel.js``."""
+    """Der Ordner ``frontend/`` wird nur gelesen; ``__init__.py`` zeigt auf ``frontend/tobibox-app.js``."""
     assert FRONTEND_PFAD.name == "frontend"
     assert FRONTEND_PFAD.parent.name == "tobibox"
 
