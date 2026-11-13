@@ -547,7 +547,7 @@ export const stil = () => css`
   .gstatus .sent { font-weight: 500; font-size: 17px; overflow-wrap: anywhere; }
   .gstatus .dotx { display: inline-block; width: 10px; height: 10px; border-radius: 5px; margin-right: 6px; background: var(--ok); }
   .gstatus.off .dotx { background: var(--text2); }
-  .gstatus.off .cover { opacity: 0.45; }
+  .gstatus.off .cover:not(.ph) { opacity: 0.45; } /* der Platzhalter bleibt unverblasst: sein Symbol braucht 3:1 gegen die Fläche */
   .gstatus .chev { flex: none; color: var(--text2); }
   .gstatus .chev svg { width: 24px; height: 24px; fill: currentColor; display: block; }
   .gstatus .cover.ph { background: var(--primary-soft); color: var(--text2); border-radius: 12px; }

@@ -82,6 +82,9 @@ export function waehleTextfarbe(flaeche, gewuenscht, min = 4.5) {
   return kontrast('#000000', flaeche) >= kontrast('#ffffff', flaeche) ? '#000000' : '#ffffff';
 }
 
+/* Die sechs Platzhalterfarben der Cover (auch als --c1 bis --c6 im Stil der App). */
+const COVER_FARBEN = ['#ad1457', '#00695c', '#5e35b1', '#8d4a00', '#1565c0', '#2e7d32'];
+
 /* Alle Farb-Token aus den HA-Farben. Eingabe: bg, card, text, text2, divider, primary, onPrimary (CSS-Farben, auch
  * leer). Ausgabe: Objekt `{ '--bg': '#…', … }`. Text 4,5:1, Ränder und Warnkarten 3:1 gegen Seite, Karte und Primärton-Hinweis. */
 export function berechneTokens(e = {}) {
@@ -98,11 +101,12 @@ export function berechneTokens(e = {}) {
   const ziel = dunkel ? '#ffffff' : '#000000';
 
   const primarySoft = mischen(card, primary, dunkel ? 0.22 : 0.12);
+  // Die Reiterleiste (unten und oben) ist zu 94 % deckend; die sechs Cover-Farben darunter scheinen mit 6 % durch (A14-1a, N28).
+  const unterCover = COVER_FARBEN.map((c) => mischen(card, c, 0.06));
   const flaechen = [bg, card, primarySoft];
-  const text2 = sichern(nimm('text2', d), flaechen, 4.5, text);
-  const primaryInk = sichern(primary, flaechen, 4.5, ziel);
+  const text2 = sichern(nimm('text2', d), [...flaechen, ...unterCover], 4.5, text);
+  const primaryInk = sichern(primary, [...flaechen, ...unterCover], 4.5, ziel);
   const onPrimary = waehleTextfarbe(primary, parseFarbe(e.onPrimary) ? e.onPrimary : d.onPrimary);
-  const line = sichern(dunkel ? '#7d848c' : '#7c8187', flaechen, 3, ziel);
   const focus = sichern(dunkel ? '#ffb74d' : '#e65100', [bg, card], 3, ziel);
 
   const status = (basis) => {
@@ -112,6 +116,8 @@ export function berechneTokens(e = {}) {
   const [ok, okBg] = status(dunkel ? '#81c784' : '#1b5e20');
   const [warn, warnBg] = status(dunkel ? '#ffcc80' : '#8a4b00');
   const [danger, dangerBg] = status(dunkel ? '#ef9a9a' : '#b71c1c');
+  // Rand: 3:1 auch gegen die Hinweisflächen (Knöpfe mit Rand liegen in Hinweiskarten)
+  const line = sichern(dunkel ? '#7d848c' : '#7c8187', [...flaechen, okBg, warnBg, dangerBg], 3, ziel);
 
   return {
     '--bg': bg, '--card': card, '--text': text, '--text2': text2, '--divider': nimm('divider', d),

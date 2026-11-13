@@ -176,7 +176,7 @@ export const stil = () => css`
   .suchfeld { width: 100%; min-height: 48px; border-radius: 24px; border: 1px solid var(--line); background: var(--card); color: var(--text); padding: 0 16px; }
   .hinweis { padding: 8px 4px; }
   .card { background: var(--card); border-radius: var(--r-card); box-shadow: 0 1px 3px var(--shadow); padding: 4px 16px; margin-bottom: 8px; min-width: 0; }
-  .sug { display: grid; margin: 0 0 12px; border-radius: var(--r-card); background: var(--card); box-shadow: 0 1px 3px var(--shadow); overflow: hidden; }
+  .sug { display: grid; grid-template-columns: minmax(0, 1fr); margin: 0 0 12px; border-radius: var(--r-card); background: var(--card); box-shadow: 0 1px 3px var(--shadow); overflow: hidden; }
   .sugrow { display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 0 16px; border: 0; border-top: 1px solid var(--divider); background: none; color: var(--text); text-align: left; width: 100%; }
   .sugrow:first-child { border-top: 0; }
   .sugrow svg { width: 22px; height: 22px; fill: var(--text2); flex: none; }

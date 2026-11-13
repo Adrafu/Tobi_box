@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prüfseite</title>
+<style>
+  html, body { margin: 0; height: 100%; }
+  #root { height: 100%; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="module">
+/* Prüfseite für pruefe_seite.py: die App in einem Shadow-Root (wie im HA-Panel), Theme-Farben als HA-Variablen.
+ * Parameter: theme=hell|dunkel|gelb, k=<Profil>[~<Lauf>], pw=<Panelbreite in px, leer = volle Breite>, narrow=1. */
+const q = new URLSearchParams(location.search);
+const THEMES = {
+  hell: ['#fafafa', '#ffffff', '#212121', '#727272', '#e0e0e0', '#03a9f4', '#ffffff'],
+  dunkel: ['#111111', '#1c1c1c', '#e1e1e1', '#9b9b9b', '#383838', '#ff9800', '#000000'],
+  gelb: ['#ffffff', '#ffffff', '#212121', '#727272', '#e0e0e0', '#ffeb3b', '#ffffff'],
+};
+const T = THEMES[q.get('theme') || 'hell'];
+['--primary-background-color', '--card-background-color', '--primary-text-color', '--secondary-text-color', '--divider-color', '--primary-color', '--text-primary-color']
+  .forEach((n, i) => document.documentElement.style.setProperty(n, T[i]));
+document.body.style.background = T[0];
+const k = q.get('k') || 'admin';
+const root = document.getElementById('root');
+if (q.get('pw')) root.style.width = `${Number(q.get('pw'))}px`;
+await import('/f/tobibox-app.js');
+const wurzel = root.attachShadow({ mode: 'open' });
+const el = document.createElement('tobibox-app');
+el.style.height = '100%';
+const ws = async (m) => {
+  const r = await (await fetch(`/ws?k=${encodeURIComponent(k)}`, { method: 'POST', body: JSON.stringify(m) })).json();
+  if (r.error) throw r.error;
+  return r.ok;
+};
+el.hass = { user: { is_admin: !k.startsWith('user') }, connection: { sendMessagePromise: ws, subscribeMessage: async () => () => {} }, fetchWithAuth: (p) => fetch(p) };
+el.narrow = q.get('narrow') === '1';
+wurzel.appendChild(el);
+window.__el = el;
+</script>
+<script src="/messen.js"></script>
+</body>
+</html>
