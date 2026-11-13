@@ -553,12 +553,8 @@ export const ABENDS = {
     text: 'Lege den Gute-Nacht-Tobie auf. Dann läuft ein Timer. Danach wird es leise und die Box hört auf.',
     timer: 'Die Box spielt noch',
     minuten: '{minuten} Min.',
-    anderer: 'Anderer Wert …',
-    anderer_label: 'Anderer Wert',
-    anderer_minuten: '{minuten} Minuten',
-    anderer_minute: '{minuten} Minute', // Einzahl (B3)
-    speichern: 'Speichern',
-    gespeichert: 'Gespeichert',
+    eingestellt: 'Eingestellt: {minuten} Min.', // gespeicherter Wert ist keine Schnellwahl (AB7)
+    eingestellt_minute: 'Eingestellt: {minuten} Minute', // Einzahl (B3)
     hat_tobie: 'Ein Tobie spielt die Gute-Nacht-Karte.',
     kein_tobie: 'Noch kein Gute-Nacht-Tobie.',
     anlegen: 'So legst du einen an',

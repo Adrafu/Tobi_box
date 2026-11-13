@@ -1,8 +1,8 @@
 /* Seite „Geräte“ (Design 3.4, 5.1.1, 5.8, Paket A7b): Status-Karten der Boxen und der Abschnitt „Abends“.
  *
  * Von oben nach unten: Karten der Boxen (ein Satz je Box, ganze Karte ist ein Link auf `#box-<id>`), ein Platz für die
- * Karten „Neuer Tobie aufgelegt“ und die Warteschlange (A9/A10), dann „Abends“ mit der Karte „Gute Nacht“ (Schnellwahl,
- * „Anderer Wert“, Speichern) und der Karte „Leise-Zeiten“ (Wochenansicht, Satz „Jetzt: …“, „+ Leise-Zeit“, Blatt zum Anlegen,
+ * Karten „Neuer Tobie aufgelegt“ und die Warteschlange (A9/A10), dann „Abends“ mit der Karte „Gute Nacht“ (Schnellwahl, ein Tipp
+ * speichert sofort) und der Karte „Leise-Zeiten“ (Wochenansicht, Satz „Jetzt: …“, „+ Leise-Zeit“, Blatt zum Anlegen,
  * Ändern und Löschen). Die Zeile „Wer hat was gehört?“ ist Stufe B (Fähigkeit `gehoert`, Paket B5) und fehlt hier.
  *
  * Daten: Boxen kommen live aus dem Speicher der App (`ctx.boxen()`, Vertrag `boxen/list` und Ereignisse), die Namen der
@@ -17,7 +17,6 @@ import { GERAETE, GERAETE_SEITE, ABENDS, LEISE, SEITE, statusSatz, fuellen } fro
 export const TAGE = [1, 2, 3, 4, 5, 6, 7]; // ISO: 1 Montag bis 7 Sonntag
 export const MAX_FENSTER = 32;
 export const SCHNELLWAHL_MIN = [15, 30, 45, 60, 90];
-export const ANDERE_MIN = [5, 10, 20, 120, 180, 240]; // „Anderer Wert …“, Design 5.8: 5 bis 240 Minuten
 export const ABWEICHUNG_MS = 5 * 60 * 1000; // U23d: Satz zu neuen Zuordnungen erst nach 5 Minuten Abweichung
 
 /* ------------------------------------------------------------------ reine Funktionen */
@@ -308,10 +307,9 @@ class GeraeteSeite {
   _uebernehme(r) {
     if (r.leise_zeiten) this.e.leise_zeiten = { zeitzone: r.leise_zeiten.zeitzone || 'Europe/Berlin', fenster: (r.leise_zeiten.fenster || []).map((w) => ({ ...w })) };
     if (r.gute_nacht) {
-      const dirty = this.gn.timer !== this.gn.gespeichert;
       this.gn.gespeichert = r.gute_nacht.timer_min;
       this.gn.ausblenden = r.gute_nacht.ausblenden_s;
-      if (!dirty) this.gn.timer = r.gute_nacht.timer_min;
+      if (!this._speichert) this.gn.timer = r.gute_nacht.timer_min;
     }
     if (r.konfig && typeof r.konfig.revision === 'number') this.e.revision = r.konfig.revision;
   }
@@ -333,18 +331,20 @@ class GeraeteSeite {
   }
 
   /* ---- Gute Nacht */
-  waehleTimer(min) { this.gn.timer = min; this.ctx.neuZeichnen(); }
-
-  async speichereGuteNacht() {
-    if (this._speichert || this.gesperrt || this.gn.timer === this.gn.gespeichert) return;
+  /* Ein Tipp speichert sofort. Während des Speicherns ist das Segment gesperrt (kein zweiter Tipp, keine falsche Reihenfolge).
+   * Bei Fehler wählt die Seite den gespeicherten Wert wieder. */
+  async waehleTimer(min) {
+    if (this._speichert || this.gesperrt || min === this.gn.gespeichert) return;
     this._speichert = true;
+    this.gn.timer = min;
     this.ctx.neuZeichnen();
     try {
-      const r = await this._senden({ gute_nacht: { timer_min: this.gn.timer, ausblenden_s: this.gn.ausblenden } });
+      const r = await this._senden({ gute_nacht: { timer_min: min, ausblenden_s: this.gn.ausblenden } });
+      this._speichert = false;
       this._uebernehme(r);
       this.gn.timer = this.gn.gespeichert;
       this.ctx.melde(ABENDS.meldung.gespeichert);
-    } catch (err) { this._fehler(err); }
+    } catch (err) { this._speichert = false; this.gn.timer = this.gn.gespeichert; this._fehler(err); }
     this._speichert = false;
     this.ctx.neuZeichnen();
   }
@@ -477,21 +477,12 @@ class GeraeteSeite {
   _guteNacht() {
     const T = ABENDS.gute_nacht;
     const { gn } = this;
-    const aus = gn.timer !== gn.gespeichert;
-    const andere = ANDERE_MIN.includes(gn.timer) ? ANDERE_MIN : [...ANDERE_MIN, ...(SCHNELLWAHL_MIN.includes(gn.timer) ? [] : [gn.timer])].sort((x, y) => x - y);
     const optionen = SCHNELLWAHL_MIN.map((m) => ({ label: html`${m}<span class="einheit"> Min.</span>`, aria: fuellen(T.minuten, { minuten: m }), wert: m }));
-    // Segment-Umschalter (X32) für die Schnellwahl, daneben ein ruhiges Auswahlfeld im selben Stil; keine umrandeten Pillen (AB4)
+    const fremd = SCHNELLWAHL_MIN.includes(gn.timer) ? null : gn.timer; // kein Vorgabewert (z. B. aus Technik): kein Segment gewählt
     return html`<div class="gkarte gn" data-karte="gute-nacht"><h3>${T.titel}</h3><div class="muted">${T.text}</div>
       <div class="gfeld"><span class="lbl" id="gn-timer">${T.timer}</span>
-        ${segment({ label: T.timer, optionen, wert: gn.timer, onWahl: (m) => this.waehleTimer(m) })}
-        <div class="selw"><label class="sr" for="gn-andere">${T.anderer_label}</label>
-          <select id="gn-andere" class=${`auswahl${SCHNELLWAHL_MIN.includes(gn.timer) ? '' : ' gesetzt'}`} @change=${(e) => { if (e.target.value) this.waehleTimer(Number(e.target.value)); }}>
-            <option value="" .selected=${SCHNELLWAHL_MIN.includes(gn.timer)}>${T.anderer}</option>
-            ${andere.map((m) => html`<option value=${m} .selected=${gn.timer === m}>${fuellen(m === 1 ? T.anderer_minute : T.anderer_minuten, { minuten: m })}</option>`)}
-          </select><span class="selpfeil" aria-hidden="true">${ic('chev', 20)}</span></div></div>
-      <div class="gnfuss">${aus
-        ? html`<button type="button" class="btn" data-gn-speichern ?disabled=${this.gesperrt || this._speichert} @click=${() => this.speichereGuteNacht()}>${T.speichern}</button>`
-        : html`<span class="gnok" data-gn-gespeichert role="status">${ic('check', 20)}${T.gespeichert}</span>`}</div>
+        ${segment({ label: T.timer, optionen, wert: gn.timer, aus: this.gesperrt || this._speichert, onWahl: (m) => this.waehleTimer(m) })}
+        ${fremd === null ? nothing : html`<div class="muted" data-gn-eingestellt>${fuellen(fremd === 1 ? T.eingestellt_minute : T.eingestellt, { minuten: fremd })}</div>`}</div>
       ${gn.hatTobie === null ? nothing : html`<div class="muted gnhinweis">${gn.hatTobie ? T.hat_tobie : T.kein_tobie} <button type="button" class="btn link" data-gn-anleitung @click=${() => this.oeffneAnleitung()}>${T.anlegen}</button></div>`}</div>`;
   }
 
@@ -584,18 +575,8 @@ export const stil = () => css`
   .gchips.wrap { gap: 8px; }
   .gchip { min-width: 44px; min-height: 44px; border-radius: 22px; border: 1px solid var(--line); background: var(--card); color: var(--text); font-weight: 500; padding: 0 12px; }
   .gchip[aria-pressed="true"] { background: var(--primary); color: var(--on-primary); border-color: var(--primary-ink); }
-  .selw { margin-top: 8px; position: relative; display: inline-block; max-width: 100%; }
-  /* Ruhiges Auswahlfeld im Stil der Segment-Spur (X32): getönt, ohne Rahmen */
-  .selw .auswahl { appearance: none; -webkit-appearance: none; min-height: 48px; border: 0; border-radius: 24px; background: var(--primary-soft); color: var(--primary-ink); font-weight: 500;
-    padding: 0 44px 0 20px; cursor: pointer; }
-  .selw .auswahl.gesetzt { background: var(--primary); color: var(--on-primary); box-shadow: inset 0 0 0 2px var(--primary-ink); font-weight: 700; }
-  .selw .selpfeil { position: absolute; right: 14px; top: 50%; transform: translateY(-50%) rotate(90deg); pointer-events: none; display: grid; color: var(--primary-ink); }
-  .selw .auswahl.gesetzt + .selpfeil { color: var(--on-primary); }
-  .selw .selpfeil svg { fill: currentColor; }
   .gn .seg2 { max-width: 460px; }
-  .gnfuss { min-height: 48px; display: flex; align-items: center; margin-top: 8px; }
-  .gnok { display: inline-flex; align-items: center; gap: 8px; color: var(--ok); font-weight: 500; min-height: 44px; }
-  .gnok svg { fill: currentColor; }
+  .gn [data-gn-eingestellt] { margin-top: 4px; font-size: 14px; }
   .auswahl, .zeitfeld { min-height: 48px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--text); padding: 0 12px; font-size: 16px; max-width: 100%; }
   .zeitfeld { width: 100%; max-width: 220px; }
   .regler { width: 100%; min-height: 44px; accent-color: var(--primary); }

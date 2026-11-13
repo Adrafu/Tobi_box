@@ -305,7 +305,7 @@ export function folgenZeile(x, { term = '', stand, aktionen = nothing } = {}) {
 }
 
 /* Segment-Umschalter: 2 bis 4 gleich breite Wahlmöglichkeiten, `aria-pressed`, Pfeiltasten springen und wählen. */
-export function segment({ label, optionen, wert, onWahl }) {
+export function segment({ label, optionen, wert, onWahl, aus = false }) {
   const taste = (e, i) => {
     const hin = { ArrowLeft: -1, ArrowUp: -1, ArrowRight: 1, ArrowDown: 1 }[e.key];
     if (!hin) return;
@@ -315,7 +315,7 @@ export function segment({ label, optionen, wert, onWahl }) {
     e.currentTarget.parentElement.querySelectorAll('button')[j]?.focus();
     onWahl(optionen[j].wert);
   };
-  return html`<div class=${`seg2${optionen.length > 4 ? ' viele' : ''}`} role="group" aria-label=${label}>${optionen.map((o, i) => html`<button type="button" data-wert=${o.wert} aria-label=${o.aria ?? nothing} aria-pressed=${o.wert === wert ? 'true' : 'false'}
+  return html`<div class=${`seg2${optionen.length > 4 ? ' viele' : ''}`} role="group" aria-label=${label}>${optionen.map((o, i) => html`<button type="button" data-wert=${o.wert} aria-label=${o.aria ?? nothing} aria-pressed=${o.wert === wert ? 'true' : 'false'} ?disabled=${aus}
       @click=${() => onWahl(o.wert)} @keydown=${(e) => taste(e, i)}>${o.label}</button>`)}</div>`;
 }
 
@@ -397,6 +397,7 @@ export const bausteinStil = () => css`
   .seg2 button { min-height: 44px; padding: 0 12px; border: 0; border-radius: 24px; background: transparent; color: var(--text); font-weight: 500; font-size: 14px; line-height: 1.2;
     text-align: center; display: flex; align-items: center; justify-content: center; }
   .seg2 button[aria-pressed="true"] { background: var(--primary); color: var(--on-primary); font-weight: 700; box-shadow: inset 0 0 0 2px var(--primary-ink), 0 1px 3px var(--shadow); }
+  .seg2 button:disabled { opacity: 0.5; cursor: default; }
   .seg2 button:focus-visible { outline-offset: 0; border-radius: 24px; }
   .seg2.viele button { padding: 0 2px; }
   .seg2 .einheit { white-space: pre; }
