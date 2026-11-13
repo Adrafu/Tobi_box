@@ -194,3 +194,12 @@ Alle übrigen Befunde N1–N29 werden nach den Vorschlägen des Reviews eingearb
 | R17-9 | **(Tobias, 13.11.)** Die neue Seite heißt nicht `/tobibox-neu`: Die alte Seite ist noch nicht im Alltagsbetrieb. Die neue Seite übernimmt **`/tobibox`** („Tobi Box“ in der Seitenleiste); die alte Komponente bleibt nur noch eingebettet in „Technik“ (für Funktionen, die die neue Seite noch nicht hat), ohne eigenen Seitenleisten-Eintrag. Testpanel unter `/tobibox-test`. Bis zur Abnahme A17 bleibt die Seite nur für Administratoren. |
 | K6/K7 | **(Tobias, 13.11.) freigegeben:** K6 Feld `vorher` (vorheriges Ziel, mit Zeitpunkt) an `zuordnung/list`, damit „Vorher: …“ auf allen Geräten steht; K7 optionales Feld `name` bei `warteschlange/set`, das beim Zuordnen als Name des Tobies übernommen wird. Beide additiv. |
 | K8 | **(Tobias, 13.11.) freigegeben:** `folgen/list` (Nr. 37) liefert je Eintrag `cover_stand` (des Eintrags) und `dauer_s` (sobald bekannt, sonst `null`); `zuordnung/list` liefert `cover_stand` des Ziels. Additiv; die Suche zeigt damit Cover und Dauer bei Folgen und Tobies. |
+
+## Abnahme A-1a, Runde 1 (14.11.)
+
+| Nr. | Befund (Tobias, echtes HA am iPhone und am Mac) | Festlegung |
+|---|---|---|
+| AB1 | Reiterleiste klebte nicht unten (behoben, Commit 3686734) | – |
+| AB2 | „Ich komm noch nicht auf die Menüpunkte“ | Ursache im echten HA klären (Screenshot nach Einspielen von 3686734); Prüfskript deckt die Unterkante jetzt ab. |
+| AB3 | „Desktop schaut noch nicht geil aus“ | **(PL)** Eigene Desktop-Gestaltung ab 1100 px nach Vorbild Apple Music/Spotify am Mac: Inhalt mit Höchstbreite und Rand, Bibliothek als **Cover-Raster** (Liste als Umschalter), größere Kacheln auf Start, Geräte-Karten nebeneinander, Seitenleiste mit eigenem Kopf und ruhigeren Knöpfen unten. |
+| AB4 | (PL, aus Sichtprüfung) Uneinheitliche Knöpfe in „Abends“ (umrandete Pillen statt tonal/Segment, X17/X32), doppelte „Folge 1: Folge 1:“ im Status-Satz, doppelte Überschrift „Tobi Box“ + Seitentitel am Handy | beheben |
