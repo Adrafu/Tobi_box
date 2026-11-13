@@ -1,0 +1,381 @@
+--- a/docs/protocol/ha-websocket-v1.md
++++ b/docs/egm/ha-ui/a0q_entwurf/ha-websocket-v1.md
+@@ -5,7 +5,20 @@
+     „Auflösung“ am Ende des Reports), mit Entscheidung M (Einsortieren nach Metadaten)
+     und den Vorgaben der Projektleitung vom 09.11. (Abschnitt „Vorgaben der
+     Projektleitung“ am Ende). Wartet auf die Freigabe durch Tobias. **Stand der Rechte, des Uploads und der
+-    neuen Befehle: Änderung 12.11. unten.**
++    neuen Befehle: Änderungen 12.11. und 13.11. unten.**
++*   **Änderung 13.11. (A0-Q: Warteschlange „nächster neuer Tobie“ und Lernmodus nur für Administratoren; Entwurf, wartet auf die Freigabe durch Tobias):**
++    Grundlage `docs/designs/ha-oberflaeche.md` (5.13, 7.1, 10.2, 15) und `docs/egm/ha-ui/resolve.md` (X13, X13a, X20, Runde 16).
++    Die Version bleibt 1 (`v` = 1), kein Versionszähler, kein neuer Wurzelname (Abschnitt 9). `mqtt-v1.md`, `data-model.md` und die Box
++    ändern sich **nicht**: HA nutzt die vorhandene Meldung `…/unknown/<uid>` mit `art="unbekannt"`. **Neu und additiv:**
++    3 Befehle (Nr. 47 bis 49, 3.13), das Ereignisthema `warteschlange` (4.8), die Regeln für den Abgleich beim Auflegen (3.13), die
++    optionale Eingabe `als_neu` bei `zuordnung/remove` (3.5), 2 Fehlercodes `warteschlange_voll` und `warteschlange_doppelt` (Abschnitt 7),
++    2 Fähigkeiten `warteschlange` und `zuordnung_rueckgaengig` (14.1), 2 Konstanten und das Feld `hello.grenzen.warteschlange_max` (14.10).
++    **Ausdrücklich nicht additiv (wie am 12.11. mit Version 1 und ausdrücklicher Ausnahme):** (1) **`lernmodus/start`, `lernmodus/antwort` und
++    `lernmodus/abbrechen` (Nr. 18 bis 20) sind wieder `admin`** (Entscheidung X13a, Runde 16; Design, Frage 31). Seit dem 12.11. waren sie
++    `alltag`; ein Nicht-Administrator bekommt jetzt `unauthorized` (bisher Erfolg). Die Aufzählung „… 16 bis 20 …“ im Eintrag vom 12.11. gilt für
++    18 bis 20 nicht mehr. HA-Aktionen und `ui/*` ändern sich nicht (die Aktionen waren schon admin). (2) **Verhaltensänderung des Backends:**
++    HA ordnet erstmals **von sich aus** zu. Meldet eine Box einen unbekannten Tobie und wartet ein passender Eintrag, schreibt HA die Zuordnung
++    ohne weiteren Befehl der Seite (3.13). Ohne Eintrag in der Warteschlange ändert sich nichts.
+ *   **Änderung 12.11. (HA-Oberfläche, Stufe A; Entwurf aus Paket A0, wartet auf die Freigabe durch Tobias):**
+     Grundlage `docs/designs/ha-oberflaeche.md` (Abschnitte 10, 11, 15, 18) und `docs/egm/ha-ui/resolve.md`
+     (Runden 1 bis 11). Die Version bleibt 1 (`v` = 1), es gibt keinen Versionszähler und keinen neuen Wurzelnamen
+@@ -105,7 +118,7 @@
+     für die Konfiguration, eine Sperre je Serie, eine Sperre für den Eingang** (W-21).
+     Damit Revision und Dateien nie halb geschrieben werden und keine Verklemmung
+     entsteht, gilt eine feste Reihenfolge beim Nehmen mehrerer Sperren: **Eingang,
+-    dann Serien (nach Serien-ID aufsteigend), dann Konfiguration**; nie umgekehrt.
++    dann Serien (nach Serien-ID aufsteigend), dann Warteschlange (seit 13.11., 3.13), dann Konfiguration**; nie umgekehrt.
+     Die Seite braucht dafür keine eigene Revision zu schicken.
+ *   **Aktionen und `ui/*` sind keine eigene Logik** (W-10). Die HA-Aktionen der
+     Integration (`services.yaml`, auch für Automationen) und die Eingaben auf
+@@ -157,13 +170,15 @@
+ | **alltag** | jeder angemeldete HA-Nutzer | kein Dekorator; für Nicht-Administratoren gelten zusätzlich die Schutzregeln in 2.4 (Zusatzprüfungen im Befehl, Fehler `unauthorized` oder der Code der Prüfung) |
+ | **admin** | nur Administratoren | `@websocket_api.require_admin`; Fehler `unauthorized` |
+ 
+-**Befehle nach Stufe** (Nr. wie in der Übersicht in Abschnitt 3; Nr. 37 bis 46 sind seit dem 12.11. neu):
++**Befehle nach Stufe** (Nr. wie in der Übersicht in Abschnitt 3; Nr. 37 bis 46 sind seit dem 12.11., Nr. 47 bis 49 seit dem 13.11. neu; Nr. 18 bis 20 stehen seit dem 13.11. wieder bei `admin`):
+ 
+ | Stufe | Befehle |
+ |---|---|
+ | **lesen** | 1 `hello`, 2 `subscribe`, 3 `serien/list`, 4 `serie/get`, 10 `papierkorb/list`, 13 `neue_tobies/list`, 15 `zuordnung/list`, 21 `boxen/list` (ohne das Feld `ereignisse`), 29 `eingang/list`, 34 `konfig/get`, 35 `einstellungen/get`, 37 `folgen/list`, 40 `hoerstelle/get`, 42 `hoerstelle/liste`; HTTP: Cover (GET), Audio (GET, Anmeldung oder gültige Signatur) |
+-| **alltag** | 6 `serie/rename`, 8 `folge/delete`, 9 `medien/pruefen`, 14 `neue_tobies/verwerfen`, 16 `zuordnung/set` (mit Name), 17 `zuordnung/remove`, 18 `lernmodus/start`, 19 `lernmodus/antwort`, 20 `lernmodus/abbrechen`, 24 `serie/delete`, 25 `folge/rename`, 26 `folge/verschieben` (Ziel „Überraschungs-Serie“ nur Administratoren), 28 `einsortierung/bestaetigen`, 30 `eingang/sortieren` (ohne `sofort`), 36 `einstellungen/set` (ohne `lesezeichen_tage`; `leise_zeiten.zeitzone` wird ignoriert), 38 `serie/art_setzen`, 39 `audio/bereit`, 41 `hoerstelle/set` (nur die eigene Hörstelle), 43 `einsortierung/neu`; HTTP: Upload, Cover (POST, DELETE `quelle=eigen`) |
+-| **admin** | 5 `serie/create`, 7 `folgen/order`, 11 `papierkorb/restore`, 12 `papierkorb/empty`, 22 `box/sync`, 23 `liste/neu_ausrollen`, 27 `serien/zusammenfuehren`, 31 `konfig/export_lesen`, 32 `konfig/aus_export`, 33 `eingang/entfernen`, 44 `cover/neu_suchen`, 45 `hoerkopie/neu_erzeugen`, 46 `papierkorb/restore_letzte_stunde`; das Feld `ereignisse` von `boxen/list`; `eingang/sortieren` mit `sofort`; `einstellungen/set` mit `lesezeichen_tage` |
++| **alltag** | 6 `serie/rename`, 8 `folge/delete`, 9 `medien/pruefen`, 14 `neue_tobies/verwerfen`, 16 `zuordnung/set` (mit Name), 17 `zuordnung/remove`, 24 `serie/delete`, 25 `folge/rename`, 26 `folge/verschieben` (Ziel „Überraschungs-Serie“ nur Administratoren), 28 `einsortierung/bestaetigen`, 30 `eingang/sortieren` (ohne `sofort`), 36 `einstellungen/set` (ohne `lesezeichen_tage`; `leise_zeiten.zeitzone` wird ignoriert), 38 `serie/art_setzen`, 39 `audio/bereit`, 41 `hoerstelle/set` (nur die eigene Hörstelle), 43 `einsortierung/neu`, 47 `warteschlange/set`, 48 `warteschlange/list`, 49 `warteschlange/abbrechen`; HTTP: Upload, Cover (POST, DELETE `quelle=eigen`) |
++| **admin** | 5 `serie/create`, 7 `folgen/order`, 18 `lernmodus/start`, 19 `lernmodus/antwort`, 20 `lernmodus/abbrechen` (seit 13.11. wieder admin, X13a), 11 `papierkorb/restore`, 12 `papierkorb/empty`, 22 `box/sync`, 23 `liste/neu_ausrollen`, 27 `serien/zusammenfuehren`, 31 `konfig/export_lesen`, 32 `konfig/aus_export`, 33 `eingang/entfernen`, 44 `cover/neu_suchen`, 45 `hoerkopie/neu_erzeugen`, 46 `papierkorb/restore_letzte_stunde`; das Feld `ereignisse` von `boxen/list`; `eingang/sortieren` mit `sofort`; `einstellungen/set` mit `lesezeichen_tage` |
++
++**Lernmodus (seit 13.11.):** `lernmodus/start`, `lernmodus/antwort` und `lernmodus/abbrechen` sind ein Vorgang und wieder nur für Administratoren (X13a). Der Alltag legt neue Tobies über die Warteschlange an (3.13, Recht alltag). Das Ereignisthema `lernmodus` und das Feld `lernmodus` von `boxen/list` bleiben für jeden lesbar (nur Anzeige). *(Lücke im Design: Es sagt nichts zum Lesen des Zustands; unverändert gelassen, weil es nichts auslöst.)*
+ 
+ **Upload (HTTP):** Recht alltag. Der Upload benutzt **keinen** Administrator-Dekorator mehr (**W-19 entfällt**); die Anmeldung prüft HA (`requires_auth`), der Nutzer steht in `request["hass_user"]`. Ohne Anmeldung 401.
+ 
+@@ -199,11 +214,11 @@
+ 
+ | Wirkung auf MQTT | Befehle |
+ |---|---|
+-| veröffentlicht `tobibox/config` (retained, Revision + 1) | `zuordnung/set`, `zuordnung/remove`, `lernmodus/antwort`, Lernmodus-Zuordnung (6.2), `folge/verschieben` und `serien/zusammenfuehren` (nur wenn Tobies auf die verschobenen Folgen zeigen), `einstellungen/set` (nur bei einer Änderung) |
++| veröffentlicht `tobibox/config` (retained, Revision + 1) | `zuordnung/set`, `zuordnung/remove`, `lernmodus/antwort`, Lernmodus-Zuordnung (6.2), Zuordnung durch die Warteschlange beim Auflegen (3.13), `folge/verschieben` und `serien/zusammenfuehren` (nur wenn Tobies auf die verschobenen Folgen zeigen), `einstellungen/set` (nur bei einer Änderung) |
+ | veröffentlicht `tobibox/config` mit **neuer Listen-ID** | `liste/neu_ausrollen`, `konfig/aus_export` |
+ | sendet `tobibox/<box>/cmd` (mit `id`, `erzeugt`, `ttl_s`) | `lernmodus/start` (`lernen`, 60 s), `lernmodus/abbrechen` (`lernen_abbrechen`, 30 s), `box/sync` (`sync`, 300 s), später `box/update` (`update`, 300 s) |
+ | sendet `tobibox/<box>/unknown/<uid>/ack` | der Lernmodus (6.2: `zugeordnet`, `abgelehnt`). Die Bestätigung beim ersten Eintreffen einer Kennung (`neu`, `bekannt`) ist **Sache des Backends allein**, kein Befehl der Seite (`mqtt-v1.md`, 3.6). |
+-| nichts | alle übrigen (Medien, Eingang, Papierkorb, Lesen, Verwerfen) |
++| nichts | alle übrigen (Medien, Eingang, Papierkorb, Lesen, Verwerfen, `warteschlange/set`, `warteschlange/list`, `warteschlange/abbrechen`) |
+ 
+ Die **Reihenfolge** „erst Konfiguration, dann `ack`“ (Entscheidung H, 07.11.;
+ `mqtt-v1.md`, 4.2) gilt für jeden Weg, der eine Zuordnung schreibt und danach
+@@ -218,10 +233,11 @@
+ *   **`eingang/sortieren` ohne `sofort`:** `sofort=true` von einem Nicht-Administrator: `unauthorized`. Die Ruhezeit schützt halb kopierte Dateien.
+ *   **`einstellungen/set`:** Das Backend **ignoriert** `leise_zeiten.zeitzone` im Objekt und behält den gespeicherten Wert (kein `unauthorized`); `lesezeichen_tage` von einem Nicht-Administrator: `unauthorized`. Neue optionale Eingabe `erwartet_revision` (3.11): stimmt sie nicht mit `konfig.revision` überein, Fehler `stand_veraltet`.
+ *   **`folge/verschieben` mit der Überraschungs-Serie als Ziel:** Nicht-Administratoren bekommen `ziel_ungueltig` (die Serie bestimmt, was die Box beim unbekannten Tobie spielt).
+-*   **Mengen** (je Benutzer, darüber `zu_viele_aenderungen`, HTTP 429; Zähler getrennt je Art): höchstens `AENDERUNGEN_JE_MINUTE` Änderungen der Liste (`zuordnung/set`, `zuordnung/remove`, `einstellungen/set`), höchstens `PAPIERKORB_AKTIONEN_JE_10_MIN` Papierkorb-Aktionen (`folge/delete`, `serie/delete`, `einsortierung/neu`), höchstens `UPLOAD_BYTES_JE_STUNDE` Upload, höchstens `COVER_JE_STUNDE` Cover-Uploads, höchstens `HOERSTELLE_SCHREIBEN_JE_MINUTE` Aufrufe von `hoerstelle/set`, höchstens `AUDIO_BEREIT_JE_MINUTE` Aufrufe von `audio/bereit`. Die Liste bleibt unter `KONFIG_MAX_BYTES`, weil Kennungen nur bekannt oder gemeldet sein dürfen.
++*   **Mengen** (je Benutzer, darüber `zu_viele_aenderungen`, HTTP 429; Zähler getrennt je Art): höchstens `AENDERUNGEN_JE_MINUTE` Änderungen der Liste (`zuordnung/set`, `zuordnung/remove`, `einstellungen/set`), höchstens `PAPIERKORB_AKTIONEN_JE_10_MIN` Papierkorb-Aktionen (`folge/delete`, `serie/delete`, `einsortierung/neu`), höchstens `UPLOAD_BYTES_JE_STUNDE` Upload, höchstens `COVER_JE_STUNDE` Cover-Uploads, höchstens `HOERSTELLE_SCHREIBEN_JE_MINUTE` Aufrufe von `hoerstelle/set`, höchstens `AUDIO_BEREIT_JE_MINUTE` Aufrufe von `audio/bereit`, höchstens `WARTESCHLANGE_AENDERUNGEN_JE_MINUTE` Aufrufe von `warteschlange/set` und `warteschlange/abbrechen` zusammen (seit 13.11.; ein Treffer beim Auflegen zählt nicht, er ist keine Handlung eines Benutzers). Die Liste bleibt unter `KONFIG_MAX_BYTES`, weil Kennungen nur bekannt oder gemeldet sein dürfen.
+ *   **Frühere Stände der Liste:** Die Integration behält die letzten `KONFIG_STAENDE_ANZAHL` Stände als `export/config.<n>.json` (`<n>` = 1 der jüngste frühere Stand) zusätzlich zu `export/config.json`. Lesen und Zurückspielen (beides admin): `konfig/export_lesen` und `konfig/aus_export` bekommen die optionale Eingabe `stand` (ganze Zahl 1 bis `KONFIG_STAENDE_ANZAHL`; fehlt sie, gilt der aktuelle Export wie bisher); `konfig/export_lesen` gibt zusätzlich `staende` aus (Liste aus `stand`, `exportiert_am`, `anzahl_zuordnungen`). Fähigkeit `konfig_staende`. Fehler wie bisher, dazu `export_nicht_gefunden` für einen Stand, den es nicht gibt. *(Ergänzung zum Design: Das Design nennt „Frühere Stände ansehen“ und „Aus Stand wiederherstellen“, legt die Schnittstelle aber nicht fest.)*
+ *   **Papierkorb für Alltag:** Löschen mit Tobies verlangt wie bisher `tobies_bestaetigt`. (a) Legt ein **Nicht-Administrator** einen Eintrag mit Tobies oder mehr als `PAPIERKORB_MELDUNG_AB` Einträge innerhalb einer Stunde in den Papierkorb, erzeugt die Integration eine **persistente Mitteilung** (`persistent_notification`) für Administratoren. (b) Jede Papierkorb-Aktion schreibt eine Protokollzeile (Benutzer, Zeit, Eintrag) und merkt `geloescht_von` im Papierkorb-Eintrag (3.3). (c) `papierkorb/restore_letzte_stunde` (Nr. 46) holt zurück, was in der letzten Stunde hineinkam. Es gibt **kein Tageslimit**.
+ *   **`einsortierung/neu` (Nr. 43):** nimmt nur Einträge aus `eingang/list`, die `pruefen=true` sind **oder** höchstens `EINSORTIERUNG_NEU_ALTER_MAX_S` alt (seit `fertig_am`); sonst `neu_einsortieren_nicht_moeglich`. Es zählt als Papierkorb-Aktion, die Ruhezeit gilt wie beim Einsortieren. **Liste der „etwas geändert“-Prüfungen** (jede einzelne genügt für `neu_einsortieren_nicht_moeglich`): (1) eine der betroffenen Serien oder Folgen wurde umbenannt; (2) eine Folge wurde in eine andere Serie verschoben oder die Reihenfolge der Folgen wurde geändert (der `stand` der Serie weicht von dem ab, den das Protokoll nach dem Einsortieren gemerkt hat); (3) ein Tobie zeigt auf eine betroffene Serie oder Folge; (4) `art_quelle` einer betroffenen Serie ist `manuell`; (5) eine betroffene Serie hat ein eigenes Cover (`cover-eigen.jpg`); (6) irgendein Benutzer hat eine betroffene Folge angehört (das Backend liest dafür **intern** auch fremde Hörstellen und zeigt sie nirgends); (7) in einer Serie, die der Eintrag neu angelegt hatte, liegen Folgen, die nicht von diesem Eintrag stammen.
++*   **Warteschlange (seit 13.11., 3.13):** Anlegen und Abbrechen für alle Benutzer (Recht alltag) unter der Menge oben und der Höchstzahl `WARTESCHLANGE_MAX`. Die Zuordnung beim Auflegen läuft als System (kein Benutzer, keine Mengen) und **hängt nie einen bekannten Tobie um**; sie nimmt nur Kennungen, die eine Box gerade gemeldet hat und die noch kein Ziel haben. Jede Anlage, jedes Abbrechen und jeder Treffer schreibt eine Protokollzeile; eine Mitteilung an Administratoren gibt es nicht (3.13, Regel 13).
+ *   **Vorziehen von Hörkopien:** je Benutzer höchstens `HOERKOPIE_VORZIEHEN_JE_BENUTZER` Datei zugleich (14.8).
+ *   **Audio:** höchstens `AUDIO_VERBINDUNGEN_JE_BENUTZER` offene Audio-Verbindungen je Benutzer (14.5). Der HA-eigene Befehl `auth/sign_path` darf jeder angemeldete Benutzer aufrufen; die Signatur trägt seine Identität und gibt ihm keine Rechte, die er nicht ohnehin hat.
+ 
+@@ -254,9 +270,9 @@
+ | 15 | `tobibox/zuordnung/list` | lesen | ja | – |
+ | 16 | `tobibox/zuordnung/set` | alltag | ja | `tobibox/config` |
+ | 17 | `tobibox/zuordnung/remove` | alltag | ja | `tobibox/config` |
+-| 18 | `tobibox/lernmodus/start` | alltag | mit `anfrage_id` | `…/cmd` `lernen` |
+-| 19 | `tobibox/lernmodus/antwort` | alltag | ja (Endzustand) | `tobibox/config`, dann `…/ack` |
+-| 20 | `tobibox/lernmodus/abbrechen` | alltag | ja | `…/cmd` `lernen_abbrechen` |
++| 18 | `tobibox/lernmodus/start` | admin | mit `anfrage_id` | `…/cmd` `lernen` |
++| 19 | `tobibox/lernmodus/antwort` | admin | ja (Endzustand) | `tobibox/config`, dann `…/ack` |
++| 20 | `tobibox/lernmodus/abbrechen` | admin | ja | `…/cmd` `lernen_abbrechen` |
+ | 21 | `tobibox/boxen/list` | lesen | ja | – |
+ | 22 | `tobibox/box/sync` | admin | mit `anfrage_id` | `…/cmd` `sync` |
+ | 23 | `tobibox/liste/neu_ausrollen` | admin | mit `anfrage_id` | `tobibox/config` (neue Listen-ID) |
+@@ -283,10 +299,13 @@
+ | 44 | `tobibox/cover/neu_suchen` | admin | ja | – |
+ | 45 | `tobibox/hoerkopie/neu_erzeugen` | admin | ja | – |
+ | 46 | `tobibox/papierkorb/restore_letzte_stunde` | admin | ja (Endzustand) | – |
++| 47 | `tobibox/warteschlange/set` | alltag | mit `anfrage_id` | – |
++| 48 | `tobibox/warteschlange/list` | alltag | ja | – |
++| 49 | `tobibox/warteschlange/abbrechen` | alltag | ja | – |
+ 
+ Dazu der HA-eigene Befehl `unsubscribe_events` zum Beenden eines Abos (Abschnitt 4).
+ Die Befehle 33 bis 36 sind seit dem 09.11. (AP 4.7) gültig; ihre Fähigkeiten stehen in `hello`.
+-Die Befehle 37 bis 46 und die Stufen `lesen`, `alltag`, `admin` sind seit dem 12.11. festgelegt (Abschnitt 2.1, 3.12, 14); an den Befehlen 1 bis 36 steht „Recht“ statt „Rechte“.
++Die Befehle 37 bis 46 und die Stufen `lesen`, `alltag`, `admin` sind seit dem 12.11. festgelegt (Abschnitt 2.1, 3.12, 14); an den Befehlen 1 bis 36 steht „Recht“ statt „Rechte“. Die Befehle 47 bis 49 (Abschnitt 3.13) sind seit dem 13.11. festgelegt (Entwurf); seit dem 13.11. sind 18 bis 20 wieder `admin`.
+ **Reserviert** für später (Namen sind vergeben, der Inhalt kommt in der jeweiligen
+ Stufe): Abschnitt 10.
+ 
+@@ -364,10 +383,10 @@
+ | `v` | int | Vertragsversion des Backends |
+ | `version` | string | Version der Integration (`manifest.json`) |
+ | `darf_schreiben` | bool | der angemeldete Nutzer ist Administrator |
+-| `faehigkeiten` | array von string | was das Backend kann; Version 1 (Stufe 3a): `medien`, `upload`, `zuordnung`, `tobie_namen`, `neue_tobies`, `lernmodus`, `boxen`, `papierkorb`, `liste_ausrollen`, `konfig_export`, `sync`, `eingang`, `korrektur`, `serie_loeschen`. **(09.11., AP 4.7)** Dazu `einstellungen` (Befehle 35 und 36), `eingang_entfernen` (Nr. 33), `zuordnung_uid` (Eingabe `uid` bei Nr. 15), `konfig_lesen` (Nr. 34) und `upload_fertig_details` (`datei` und `pruefung` im Ereignis „Upload fertig“, 4.7). **(12.11., Stufe A der HA-Oberfläche)** Dazu, nach Teil gebaut: `cover`, `bibliothek`, `einsortier_wunsch`, `konfig_staende`, `reinhoeren`, `hoerkopie` (Regel und Bedeutung: 14.1). Spätere Stufen ergänzen `update` (3b). Die Reihenfolge der Liste hat keine Bedeutung (K4, 12.11.). Die Seite zeigt und sendet nur, was hier steht. |
++| `faehigkeiten` | array von string | was das Backend kann; Version 1 (Stufe 3a): `medien`, `upload`, `zuordnung`, `tobie_namen`, `neue_tobies`, `lernmodus`, `boxen`, `papierkorb`, `liste_ausrollen`, `konfig_export`, `sync`, `eingang`, `korrektur`, `serie_loeschen`. **(09.11., AP 4.7)** Dazu `einstellungen` (Befehle 35 und 36), `eingang_entfernen` (Nr. 33), `zuordnung_uid` (Eingabe `uid` bei Nr. 15), `konfig_lesen` (Nr. 34) und `upload_fertig_details` (`datei` und `pruefung` im Ereignis „Upload fertig“, 4.7). **(12.11., Stufe A der HA-Oberfläche)** Dazu, nach Teil gebaut: `cover`, `bibliothek`, `einsortier_wunsch`, `konfig_staende`, `reinhoeren`, `hoerkopie` (Regel und Bedeutung: 14.1). **(13.11., A0-Q)** Dazu `warteschlange` und `zuordnung_rueckgaengig` (14.1). Spätere Stufen ergänzen `update` (3b). Die Reihenfolge der Liste hat keine Bedeutung (K4, 12.11.). Die Seite zeigt und sendet nur, was hier steht. |
+ | `boxen` | array von string | die eingerichteten Box-Namen (aus der Einrichtung der Integration) |
+ | `konfig` | object | Konfig-Stand mit `zustand`. Ist `zustand` nicht `ok`, zeigt die Seite zuerst die Warnung aus Abschnitt 13 und sperrt Änderungen der Konfiguration. |
+-| `grenzen` | object | `upload_max_bytes` (Vorgabe seit 12.11. 2147483648 = 2 GiB, einstellbar; vorher 500 MiB), `upload_block_bytes`, `upload_parallel` (2), `endungen` (array), `serie_name_max` (100), `folge_anzeige_max` (200), `tobie_name_max` (60), `name_max_bytes` (255), `limit_max` (100 bzw. 200, je Befehl); **(12.11.)** bei zugesagter Fähigkeit dazu `audio_verbindungen_je_benutzer` (6), `hoerkopie_kbit` (96), `hoerkopie_dauer_max_s` (14.10). Außerdem `box_anzeigen` (object: Box-Name → Anzeigename, 14.9) im Ergebnis von `hello` |
++| `grenzen` | object | `upload_max_bytes` (Vorgabe seit 12.11. 2147483648 = 2 GiB, einstellbar; vorher 500 MiB), `upload_block_bytes`, `upload_parallel` (2), `endungen` (array), `serie_name_max` (100), `folge_anzeige_max` (200), `tobie_name_max` (60), `name_max_bytes` (255), `limit_max` (100 bzw. 200, je Befehl); **(12.11.)** bei zugesagter Fähigkeit dazu `audio_verbindungen_je_benutzer` (6), `hoerkopie_kbit` (96), `hoerkopie_dauer_max_s` (14.10); **(13.11.)** bei Fähigkeit `warteschlange` dazu `warteschlange_max` (5). Außerdem `box_anzeigen` (object: Box-Name → Anzeigename, 14.9) im Ergebnis von `hello` |
+ 
+ Fehler: keine außer den allgemeinen. Ist `v` der Seite **größer** als das Backend
+ kennt, antwortet das Backend trotzdem mit seinem `v`; die Seite entscheidet
+@@ -379,7 +398,7 @@
+ 
+ | Eingabe | Typ | Pflicht | Bedeutung |
+ |---|---|---|---|
+-| `themen` | array von string | nein | Teilmenge von `boxen`, `neue_tobies`, `lernmodus`, `medien`, `eingang`, `konfig`, `upload`; Vorgabe: alle |
++| `themen` | array von string | nein | Teilmenge von `boxen`, `neue_tobies`, `lernmodus`, `medien`, `eingang`, `konfig`, `upload`; **(13.11.)** dazu `warteschlange` (nur senden, wenn `hello.faehigkeiten` `warteschlange` zusagt); Vorgabe: alle |
+ 
+ Ausgabe: `null` (HA-Muster). Danach kommen die Ereignisse als `{"id": <id des Abos>,
+ "type": "event", "event": {…}}`. Direkt nach der Antwort sendet das Backend je
+@@ -754,6 +773,8 @@
+ 
+ ### 3.4 Neue Tobies (Weg A, CUJ 7a, 12)
+ 
++**Seit 13.11. (3.13):** Wartet für die meldende Box eine passende Vormerkung der Warteschlange, ordnet das Backend den Tobie sofort zu. Die Kennung kommt dann gar nicht erst in diese Liste (kein `neu`, auch kein Feld an `neue_tobies/list`); die Bestätigung an die Box ist `bekannt`. Ohne passende Vormerkung gilt unverändert, was hier steht.
++
+ Das Backend führt die Liste **„Neue Tobies“** aus den Meldungen auf
+ `tobibox/<box>/unknown/<uid>` (`mqtt-v1.md`, 3.5): Eine Kennung, die **beide**
+ Boxen melden, ist **ein** Eintrag. Die Liste liegt im HA-Speicher (Teil der
+@@ -882,17 +903,22 @@
+ |---|---|---|---|
+ | `uid` | string | **ja** | |
+ | `erwartet_ziel` | object | nein | wie bei `zuordnung/set` (W-12); Abweichung: `zuordnung_geaendert`. **Seit 12.11. für Nicht-Administratoren Pflicht** (sonst `unauthorized`, 2.4). **Die Seite sendet es immer.** |
++| `als_neu` | object `{"box": <string>}` | nein | **(13.11., Fähigkeit `zuordnung_rueckgaengig`)** Nur für „Rückgängig“ nach dem Zuordnen eines **neuen** Tobies (X20d). Wurde etwas entfernt (`geaendert=true`), nimmt das Backend die Kennung als neuen Tobie wieder in „Neue Tobies“ auf: Ereignis `neue_tobies` `neu`, `boxen.<box>` mit `zuerst` = `zuletzt` = jetzt (Wanduhr von HA), `anzahl` 1, `zeit_ok` `true`. Die Box bekommt keine Nachricht; meldet sie den Tobie später selbst, gilt die Meldung als `aktualisiert`. Bei `geaendert=false` geschieht nichts. Unbekannte Box: `box_unbekannt`. Ohne das Feld bleibt alles wie bisher: Der Tobie erscheint erst wieder, wenn er erneut aufgelegt wird. |
+ 
+ Ausgabe: wie `zuordnung/set` (`geaendert=false` und `veroeffentlicht=null`, wenn es
+ keine Zuordnung gab). Fehler: `kennung_ungueltig`, `zuordnung_geaendert`,
+-`konfig_nicht_bereit`. Recht: alltag. Idempotent: ja. MQTT: veröffentlicht
++`konfig_nicht_bereit`, `box_unbekannt` (nur mit `als_neu`, 13.11.). Recht: alltag. Idempotent: ja. MQTT: veröffentlicht
+ `tobibox/config` (Revision + 1), wenn etwas entfernt wurde. Danach spielt die Box
+ für den Tobie die Überraschungs-Serie und meldet ihn beim nächsten Auflegen als
+ unbekannt; er erscheint wieder in „Neue Tobies“.
+ 
++**„Rückgängig“ nach dem Zuordnen (X20d, 13.11.).** Die Seite braucht dafür keinen eigenen Befehl, aber für einen Fall ein zusätzliches Feld:
++*   **Der Tobie hatte schon ein Ziel** (Umstellen): `zuordnung/set` mit dem **alten** Ziel (und dem alten `name`, oder `null`, wenn er keinen hatte) und `erwartet_ziel` = dem Ziel, das die Seite gerade gesetzt hat. Das schützt vor dem Überschreiben, wenn inzwischen jemand anderes etwas geändert hat (`zuordnung_geaendert`). Nichts Neues nötig.
++*   **Der Tobie war neu** (Weg 1 oder Warteschlange): `zuordnung/remove` mit `erwartet_ziel` = dem gerade gesetzten Ziel genügt für die Konfiguration. Damit die Karte „Neuer Tobie auf Box 1“ (Design 7.1) **sofort** wiederkommt, sendet die Seite zusätzlich `als_neu` mit der Box, auf der er lag. Das Feld ist die einzige Neuerung. *(Lücke im Design: Es verspricht „der Tobie liegt wieder als unbekannter da“, der Vertrag kannte dafür bisher nichts. Ohne `als_neu` erschiene die Karte erst beim nächsten Auflegen.)* Beide Wege zählen als Änderung der Liste (Menge, 2.4).
++
+ ### 3.6 Lernmodus (Weg B, CUJ 7b)
+ 
+-Ablauf und Reihenfolge: Abschnitt 6.2. Hier die Befehle.
++Ablauf und Reihenfolge: Abschnitt 6.2. Hier die Befehle. **Seit 13.11. (X13a) sind alle drei Befehle nur für Administratoren** (`@websocket_api.require_admin`, Fehler `unauthorized`); im Alltag ersetzt sie die Warteschlange (3.13).
+ 
+ #### 18. `tobibox/lernmodus/start`
+ 
+@@ -924,7 +950,7 @@
+ `serie_nicht_gefunden`, `folge_nicht_gefunden`, `name_ungueltig`, `konfig_nicht_bereit`,
+ `lernmodus_laeuft` (für diese Box läuft schon ein **lebender** Vorgang mit **anderem**
+ Ziel: **erst abbrechen**, Vorgabe der Projektleitung 09.11.; mit gleichem Ziel antwortet
+-das Backend mit dem laufenden Vorgang, siehe unten), `anfrage_id_konflikt`. Recht: alltag. MQTT: `tobibox/<box>/cmd` mit `befehl="lernen"`, `ttl_s` 60, `daten` `{}`. Das
++das Backend mit dem laufenden Vorgang, siehe unten), `anfrage_id_konflikt`. Recht: admin (seit 13.11.; vorher alltag). MQTT: `tobibox/<box>/cmd` mit `befehl="lernen"`, `ttl_s` 60, `daten` `{}`. Das
+ Ziel geht **nicht** an die Box. Lehnt die Box den Befehl ab (`event`
+ `befehl_abgelehnt`, z. B. `zeit_unsicher`), meldet das Backend es als Ereignis
+ `lernmodus` mit `zustand="box_lehnt_ab"` (mit Klartext, `mqtt-v1.md`, 3.4).
+@@ -954,7 +980,7 @@
+ Ausgabe: `{"zustand": "zugeordnet" | "abgelehnt", "konfig": <Konfig-Stand>}`.
+ Fehler: `kein_lernmodus` (kein offener Vorgang mit dieser `befehl_id`),
+ `rueckfrage_abgelaufen` (die Frist `rueckfrage_bis` ist vorbei, das Backend hat schon
+-mit `abgelehnt` bestätigt). Recht: alltag. Idempotent: Endzustand ja; eine zweite
++mit `abgelehnt` bestätigt). Recht: admin (seit 13.11.; vorher alltag). Idempotent: Endzustand ja; eine zweite
+ Antwort liefert `kein_lernmodus`. MQTT: bei `true` zuerst `tobibox/config` (Revision
+ + 1), **danach** `…/ack` mit `grund="zugeordnet"` (erst nach dem PUBACK, 6.2 Schritt 4);
+ bei `false` nur `…/ack` mit `grund="abgelehnt"` (keine neue Konfiguration). Beide `ack`
+@@ -977,7 +1003,7 @@
+ 
+ Fehler: `box_unbekannt`, `mqtt_nicht_verbunden`. Kein `box_offline`: Der Abbruch
+ wird auch an eine Box gesendet, die gerade nicht antwortet (Lebensdauer 30 s).
+-Recht: alltag. Idempotent: ja. MQTT: `tobibox/<box>/cmd` mit
++Recht: admin (seit 13.11.; vorher alltag). Idempotent: ja. MQTT: `tobibox/<box>/cmd` mit
+ `befehl="lernen_abbrechen"`, `ttl_s` 30. Das Ereignis `lernmodus` meldet
+ `zustand="abgebrochen"`.
+ 
+@@ -1366,6 +1392,77 @@
+ 
+ Holt alles zurück, was in der **letzten Stunde** in den Papierkorb kam (Sicherung gegen Fehlbedienung, 2.4). Eingabe: `bestaetigt` (bool, muss `true` sein, sonst `invalid_format`). Ausgabe: `{"wiederhergestellt": <int>, "uebersprungen": [{"eintrag_id", "code"}…]}`; Einträge, die sich nicht zurückholen lassen (zum Beispiel `datei_existiert`, `serie_existiert`), stehen mit ihrem Code in `uebersprungen`, der Rest wird trotzdem zurückgeholt. Fehler: `medien_nicht_erreichbar`, `medien_schreibfehler`. Recht: admin. Idempotent: Endzustand ja. MQTT: –. Ereignisse `medien`/`papierkorb_geaendert` und `serien_geaendert`.
+ 
++### 3.13 Warteschlange „Nächster neuer Tobie“ (ab 13.11., Fähigkeit `warteschlange`)
++
++**Prinzip (X13).** Tobies und Karten werden nicht beschrieben; die Box liest nur die Kennung. Statt eines Countdowns legt man **vorab am Handy** fest, was der **nächste unbekannte Tobie** spielen soll („Vormerkung“). Legt jemand danach einen unbekannten Tobie auf, ordnet **nur Home Assistant** ihn zu. Box und MQTT bleiben unverändert: HA nutzt die vorhandene Meldung `tobibox/<box>/unknown/<uid>` mit `art="unbekannt"` (`mqtt-v1.md`, 3.5) und die vorhandenen `ack`-Gründe (3.6). Die Warteschlange liegt im HA-Speicher (derselbe `Store` wie „Neue Tobies“, eigener Schlüssel `warteschlange`), getrennt von der Konfiguration: keine Revision, nicht auf MQTT, nicht im Export, nicht auf dem NAS, Teil der HA-Sicherung. Im Alltag ersetzt sie den Lernmodus (3.6, nur noch admin). Eine HA-Aktion für Automationen gehört **nicht** zu dieser Änderung.
++
++**Eintrag „Vormerkung“** (Ausgabe von `warteschlange/set` und `warteschlange/list`, Ereignis `angelegt`):
++
++| Feld | Typ | Bedeutung |
++|---|---|---|
++| `id` | string, 12 Zeichen `[0-9a-f]` | vom Backend vergeben, bleibt gleich |
++| `box` | string oder `null` | Box-Name; `null` = **irgendeine Box** *(Lücke: die Skizze im Design nannte `alle`; ein Box-Name `alle` wäre zulässig und würde kollidieren)* |
++| `ziel` | object | Ziel (Gemeinsame Objekte): `serie`, `folge` oder `aktion` (`status`, `gute_nacht`); nie die Überraschungs-Serie. `playlist` kommt additiv mit Stufe C |
++| `serie_name` | string oder `null` | wie bei `zuordnung/list`; `null`, wenn die Serie fehlt |
++| `folge_anzeige` | string oder `null` | nur bei `typ="folge"` |
++| `folge_vorhanden` | bool oder `null` | nur bei `typ="folge"` |
++| `angelegt_von` | object oder `null` | `{"id", "name"}` des HA-Benutzers (wie `geloescht_von`, 3.3); `null` ohne Benutzer |
++| `angelegt_am` | string | Zeitstempel |
++| `position` | int ≥ 1 | Platz in der Reihenfolge der Anlage über alle Boxen („Nr. 1 von 2“); 1 wird als Erster bedient |
++
++Das Backend merkt sich zusätzlich eine laufende Nummer: Die Reihenfolge der Anlage entscheidet, nicht der Zeitstempel (er hat nur Sekunden).
++
++**Regeln.** *(Lücke)* kennzeichnet, was das Design offen ließ und hier festgelegt ist.
++
++1.  **Nur unbekannte Tobies, nie umhängen.** Abgeglichen wird nur eine Meldung mit `art="unbekannt"` (nie `gelernt`) und nur, wenn die Kennung in den Zuordnungen **nicht** steht. Das Backend schreibt die Zuordnung mit der Regel „es gibt noch kein Ziel“ (wie `erwartet_ziel: null` bei `zuordnung/set`) unter der Sperre der Konfiguration. Hat die Kennung inzwischen ein Ziel (zweite Box, anderes Fenster), geschieht nichts: der Eintrag bleibt, die Box bekommt `bekannt`. Ein bekannter Tobie spielt weiter wie bisher und wird nur bewusst über `zuordnung/set` mit `erwartet_ziel` umgestellt.
++2.  **Welcher Eintrag.** Passend sind Einträge mit `box` = der meldenden Box und Einträge mit `box=null`. Die Meldung nimmt den **ältesten** (FIFO). Eine Vormerkung für eine Box und eine für „irgendeine Box“ **konkurrieren nach Anlagezeit**; der Ältere gewinnt, auch wenn der Jüngere genauer passt. Beispiel: A „irgendeine Box“ (10:00), B „Box 1“ (10:05). Der erste Tobie auf Box 1 nimmt A, der nächste auf Box 1 nimmt B. Der erste Tobie auf Box 2 nimmt A; danach wartet für Box 2 nichts mehr (B bleibt für Box 1). Gibt es keinen passenden Eintrag mehr, gilt der normale Weg A (6.1). *(Lücke: das Beispiel und die Folge für Box 2 sind aus Design 5.13, Punkt „Zwei Einträge“, abgeleitet.)*
++3.  **Zwei Einträge für dieselbe Box** sind erlaubt und werden der Reihe nach bedient. Abgelehnt wird nur derselbe Eintrag: gleiche `box` **und** gleiches `ziel` (`warteschlange_doppelt`). „Irgendeine Box“ und „Box 1“ mit gleichem Ziel sind verschieden. *(Lücke: was „derselbe“ heißt.)*
++4.  **Höchstens `WARTESCHLANGE_MAX` (5) Einträge** zugleich, über alle Boxen (`warteschlange_voll`). Prüfreihenfolge in `warteschlange/set`: Eingabe und Ziel, dann `warteschlange_doppelt`, dann `warteschlange_voll`. *(Lücke: ein doppelter Eintrag bei voller Warteschlange meldet „doppelt“.)*
++5.  **Kein Höchstalter** (Design: „Kein Zeitlimit“). Ein Eintrag bleibt, bis ein Tobie ihn nimmt, jemand ihn abbricht oder sein Ziel oder seine Box fehlt (Regel 10). Es gibt dafür bewusst keine Konstante. `angelegt_am` und `angelegt_von` stehen in der Liste, damit man Vergessenes findet.
++6.  **Was als „danach“ zählt.** Jede Meldung `unbekannt`, die HA verarbeitet, solange der Eintrag besteht. Es gibt keinen Vergleich von Zeitstempeln (die Uhr der Box kann abweichen, `zeit_ok`). Auch eine Kennung, die schon in „Neue Tobies“ steht und erneut aufgelegt wird, ist weiter unbekannt und kann einen Eintrag nehmen. *(Lücke. Folge: Ein liegengebliebener, nie zugeordneter Tobie kann einen Eintrag nehmen, wenn er vor dem gewünschten wieder aufgelegt wird. „Rückgängig“, 3.5, und die Seite des Tobies stellen es um.)*
++7.  **Ablauf bei einem Treffer.** Unter einer Sperre für die Warteschlange (Reihenfolge der Sperren: Abschnitt 1), damit zwei gleichzeitige Meldungen nie denselben Eintrag nehmen:
++    *   **a.** Das Ziel wird wie bei `zuordnung/set` geprüft. Fehlt es (Serie im Papierkorb oder gelöscht, Folge weg): Der Eintrag wird verworfen (Ereignis `abgebrochen`, `grund="ziel_fehlt"`) und der **nächste passende** Eintrag geprüft. Gibt es keinen, gilt der normale Weg A mit der Karte „Neuer Tobie“. *(Lücke: Das Design verwirft den Eintrag und zeigt die Karte; mit zwei Einträgen bliebe der zweite sonst ungenutzt.)*
++    *   **b.** Das Backend schreibt die Zuordnung (Revision + 1, `tobibox/config`) wie `zuordnung/set` ohne Namen, ohne `ueberschreiben`, als System (kein Benutzer, keine Mengen, 2.4). **Zuordnung und Austragen des Eintrags gehen in einem Schreibvorgang des Speichers:** Nach einem Absturz gilt beides oder nichts. *(Lücke: sonst könnte ein Eintrag zweimal verbraucht werden.)*
++    *   **c.** Die Kennung wird **nicht** in „Neue Tobies“ aufgenommen (kein `neu`, auch kein Flackern der Karte). Stand sie schon dort, wird sie entfernt (`neue_tobies` `entfernt`, `grund="zugeordnet"`).
++    *   **d.** `ack` an die meldende Box mit `grund="bekannt"` (die Kennung steht jetzt in den Zuordnungen, W-11; `mqtt-v1.md`, 3.6 kennt den Grund), **nachdem** die Konfiguration gespeichert und veröffentlicht ist. Ohne PUBACK (Broker weg) wird trotzdem bestätigt; die Veröffentlichung holt das Backend wie immer nach. Liegt der Tobie noch auf, wechselt die Box mit der neuen Liste auf das Ziel (`mqtt-v1.md`, 4.1, Schritt 6); bis dahin spielt sie kurz die Überraschungs-Serie. *(Lücke: Das Design nennt den `ack` nicht.)*
++    *   **e.** Ereignis `warteschlange` `abgearbeitet` (4.8). Es ist der **einzige** Hinweis für die Meldung „Box 1: Der neue Tobie spielt jetzt …“ mit „Name geben“; ein Feld `automatisch_zugeordnet` braucht es nicht. *(Abweichung von der Skizze im Design, die `automatisch_zugeordnet` und `ziel` an `neue_tobies/list` nennt: Ein zugeordneter Tobie steht nie in dieser Liste, darum sind `uid` und `ziel` im Ereignis.)*
++    *   **f.** Scheitert **b** (`konfig_nicht_bereit`, `konfig_zu_gross`, Speicherfehler): Nichts ist geändert, der Eintrag bleibt, die Meldung läuft den normalen Weg A. Das Backend schreibt eine Protokollzeile (Warnung); ein Ereignis gibt es nicht. *(Lücke.)*
++8.  **Doppelte Meldung** derselben Kennung (Prellen, beide Boxen, erneute Zustellung nach einem Absturz): Die zweite Meldung findet die Kennung in den Zuordnungen (Regel 1) und bekommt `bekannt`. Es entsteht **eine** Zuordnung, **ein** Eintrag wird verbraucht.
++9.  **Zusammenspiel mit dem Lernmodus eines Administrators.** Der Lernmodus hat Vorrang und stört die Warteschlange nicht. Eine Box im Lernmodus meldet aufgelegte Tobies als `gelernt` und spielt nichts (`mqtt-v1.md`, 4.2): Die Warteschlange berührt das nie; die Vormerkungen bleiben stehen. Kommt für eine Box, für die ein **lebender** Lernmodus-Vorgang läuft (3.6), trotzdem eine Meldung `unbekannt` (zum Beispiel eine, die schon vor dem Start unterwegs war), nimmt die Warteschlange sie **nicht**; es gilt der normale Weg A. Endet der Lernmodus ohne Zuordnung (`abgelaufen`, `abgebrochen`, `abgelehnt` mit unbekannter Kennung) und meldet die Box den Tobie danach erneut als `unbekannt`, ist das wieder eine ganz normale Meldung (Regeln 1 und 2). `lernmodus/start` wird durch Vormerkungen nicht verhindert. *(Lücke.)*
++10. **Ziel oder Box ist weg.** Ein Ziel, das inzwischen fehlt, bemerkt das Backend **beim Auflegen** (Regel 7a); in der Liste zeigt `serie_name=null` bzw. `folge_vorhanden=false`, dass es fehlt. Wird die Serie später aus dem Papierkorb zurückgeholt, bevor ein Tobie aufliegt, gilt der Eintrag weiter. Ein Eintrag mit einer Box, die in der Einrichtung der Integration nicht mehr vorkommt, wird beim Start der Integration verworfen (Ereignis `abgebrochen`, `grund="box_unbekannt"`). *(Lücke.)*
++11. **Neustart von HA.** Die Einträge bleiben: Das Backend speichert sofort bei jedem Anlegen, Abbrechen und Abarbeiten (kein verzögertes Speichern, anders als bei „Neue Tobies“). Offene Ereignisse gehen verloren; die Seite holt den Stand mit `warteschlange/list` (Abschnitt 4: Ereignisse sind nur Hinweise). Es läuft kein Zeitgeber.
++12. **Rückgängig (X20d).** Nach einem Treffer kann die Seite mit `zuordnung/remove` und `erwartet_ziel` (und `als_neu`) zurücknehmen (3.5). Die Meldung des Designs zeigt nach einem Treffer „Name geben“, nicht „Rückgängig“; beides geht.
++13. **Protokoll und Mitteilung.** Jede Anlage, jedes Abbrechen und jeder Treffer schreibt eine Protokollzeile (Stufe Information): Benutzer, Zeit, Box, Ziel, beim Treffer die Kennung und die meldende Box. Eine **Mitteilung** (`persistent_notification`) an Administratoren gibt es **nicht**: Ein Treffer fügt etwas hinzu und lässt sich mit „Rückgängig“ zurücknehmen; anders als beim Löschen (2.4) geht nichts verloren. *(Lücke.)*
++14. **Rechte und Mengen.** Alle drei Befehle sind `alltag`. Jeder Benutzer darf auch Einträge anderer abbrechen (ein Haushalt, ein Gerät, das Handy der Partnerin). Für Nicht-Administratoren gilt `WARTESCHLANGE_AENDERUNGEN_JE_MINUTE` für `warteschlange/set` und `warteschlange/abbrechen` zusammen (`zu_viele_aenderungen`); Administratoren sind ausgenommen (2.4).
++
++#### 47. `tobibox/warteschlange/set` (Fähigkeit `warteschlange`)
++
++Legt eine Vormerkung an: „Der nächste neue Tobie auf <Box> oder irgendeiner Box spielt <Ziel>.“
++
++| Eingabe | Typ | Pflicht | Bedeutung |
++|---|---|---|---|
++| `box` | string oder `null` | **ja** | Box-Name oder `null` für „irgendeine Box“. Die Box muss eingerichtet sein, aber **nicht** online: Die Warteschlange liegt in HA, auch eine ausgeschaltete Box geht. |
++| `ziel` | object | **ja** | `typ` `serie`, `folge` oder `aktion` (`status`, `gute_nacht`), geprüft wie bei `zuordnung/set` (3.5); die Überraschungs-Serie ist verboten (`ziel_ungueltig`) |
++| `anfrage_id` | string | nein | siehe 2.2 |
++
++Ist `konfig.zustand` nicht `ok`, lehnt das Backend sofort ab (`konfig_nicht_bereit`): Ein Treffer könnte nichts zuordnen. *(Lücke.)*
++
++Ausgabe: `{"eintrag": <Vormerkung>, "gesamt": <int>}`. Fehler: `box_unbekannt`, `ziel_ungueltig`, `serie_nicht_gefunden`, `folge_nicht_gefunden`, `konfig_nicht_bereit`, `warteschlange_doppelt`, `warteschlange_voll`, `zu_viele_aenderungen`, `anfrage_id_konflikt`. Die vorhandenen Codes reichen für alles außer „doppelt“ und „voll“. Recht: alltag. Idempotent: mit `anfrage_id` (gleiche `anfrage_id` und gleiche Felder liefern dieselbe Antwort, ohne einen zweiten Eintrag); ohne `anfrage_id` antwortet ein zweites Senden mit `warteschlange_doppelt`. MQTT: –. Ereignis `warteschlange` `angelegt`.
++
++#### 48. `tobibox/warteschlange/list` (Fähigkeit `warteschlange`)
++
++Keine Eingabe. Ausgabe: `{"eintraege": [<Vormerkung>…], "gesamt": <int>}`, nach `position` aufsteigend (höchstens `WARTESCHLANGE_MAX` Einträge, kein Blättern nötig). Liest aus dem Speicher und aus dem Zwischenspeicher der Serien, nie frisch von der Freigabe (W-28). Fehler: keine außer den allgemeinen. Recht: alltag. Idempotent: ja. MQTT: –.
++
++#### 49. `tobibox/warteschlange/abbrechen` (Fähigkeit `warteschlange`)
++
++Nimmt eine Vormerkung zurück („Nicht mehr warten“).
++
++| Eingabe | Typ | Pflicht | Bedeutung |
++|---|---|---|---|
++| `id` | string | **ja** | `id` der Vormerkung |
++
++Ausgabe: `{"abgebrochen": <bool>}` (`false`: gab es nicht mehr, weil schon abgearbeitet oder abgebrochen; **kein Fehler**, wie bei `neue_tobies/verwerfen`). Fehler: `zu_viele_aenderungen`. Recht: alltag. Idempotent: ja. MQTT: –. Ereignis `warteschlange` `abgebrochen` (`grund="nutzer"`). Die Positionen der übrigen Einträge rücken nach.
++
+ ## 4. Ereignisse (Abo `tobibox/subscribe`)
+ 
+ Alle Ereignisse haben dieselbe Hülle (Inhalt des Feldes `event` der HA-Nachricht):
+@@ -1410,6 +1507,8 @@
+ | `aktualisiert` | `{"eintrag": <Eintrag>}`, neue Meldung zu einer bekannten Kennung |
+ | `entfernt` | `{"uid": <string>, "grund": "zugeordnet" \| "verworfen"}` |
+ 
++**Seit 13.11.:** Trifft eine Meldung eine Vormerkung (3.13), gibt es **kein** `neu` für diese Kennung. Stand sie schon in der Liste, kommt `entfernt` mit `grund="zugeordnet"`; die Meldung für die Seite steht im Thema `warteschlange` (4.8).
++
+ ### 4.3 Thema `lernmodus`
+ 
+ | `art` | `daten` |
+@@ -1486,6 +1585,17 @@
+ | `snapshot` | `{}` |
+ | `fortschritt` | `{"upload_id", "zustand": "pruefe" \| "fertig" \| "fehler", "bytes": <int>, "code": <string oder null>}` – `pruefe` einmal (Prüfung nach 5.4), `fertig`/`fehler` einmal am Ende (dann liegt die HTTP-Antwort schon vor, oder der Client ist nicht mehr da, 5.2). **(09.11., AP 4.7, Erweiterung v1.1)** Bei `zustand="fertig"` kommen zwei Felder dazu: `datei` (Name der Datei **im Eingang**, nach der Namensregel von Abschnitt 12, also wie `eingang_name` der HTTP-Antwort; mit Suffix ` (2)`, wenn der Name schon vergeben war) und `pruefung` (`ok`, `warnung` oder `nicht_moeglich`, wie in der HTTP-Antwort, 5.5). Bei `pruefe` und `fehler` fehlen sie. So erfährt die Seite das Ergebnis auch dann, wenn ihre Verbindung vor der Antwort abbrach. Nur auswerten, wenn `hello.faehigkeiten` `upload_fertig_details` zusagt. |
+ 
++### 4.8 Thema `warteschlange` (ab 13.11., Fähigkeit `warteschlange`)
++
++Die Ereignisse sind Hinweise (Abschnitt 4); die Quelle der Wahrheit ist `warteschlange/list`. Sie gehen an alle Abos des Themas und werden **nie** gebündelt. Nach jedem Ereignis lädt die Seite die Liste neu, weil sich die `position` der übrigen Einträge ändert.
++
++| `art` | `daten` |
++|---|---|
++| `snapshot` | `{"gesamt": <int>}` |
++| `angelegt` | `{"eintrag": <Vormerkung>}` |
++| `abgebrochen` | `{"id": <string>, "grund": "nutzer" \| "ziel_fehlt" \| "box_unbekannt"}`: `nutzer` = `warteschlange/abbrechen`; `ziel_fehlt` = beim Auflegen fehlte das Ziel (3.13, Regel 7a; danach kommt die Karte „Neuer Tobie“, wenn kein weiterer Eintrag passt); `box_unbekannt` = beim Start verworfen (Regel 10) |
++| `abgearbeitet` | `{"id": <string>, "uid": <string>, "box": <string>, "ziel": <Ziel>, "serie_name": <string oder null>, "folge_anzeige": <string oder null>, "angelegt_von": <object oder null>}`: ein Tobie hat die Vormerkung genommen; `box` ist die **meldende** Box, `uid` die Kennung des neuen Tobies (für „Name geben“). Das Ereignis kommt nach dem Speichern der Zuordnung (3.13, Regel 7). |
++
+ ## 5. Hochladen (HTTP)
+ 
+ Ein Upload legt die Datei in den **Eingang** (Entscheidung M, Abschnitt 11). Er
+@@ -1702,9 +1812,12 @@
+     Eintrag aus der Liste. Die Box übernimmt die Liste und wechselt, wenn der Tobie
+     noch liegt, auf das Ziel.
+ 4.  Tobias kann statt dessen `neue_tobies/verwerfen` aufrufen.
++5.  **Seit 13.11. (Weg 2 „Später auflegen“):** Wartet in Schritt 1 für diese Box eine passende Vormerkung (3.13), nimmt das Backend die Kennung nicht in „Neue Tobies“ auf, ordnet sofort zu (Revision + 1, `tobibox/config`), trägt die Vormerkung aus, bestätigt mit `bekannt` und meldet `warteschlange` `abgearbeitet`. Die Schritte 2 und 3 entfallen; die Seite zeigt „Name geben“.
+ 
+ ### 6.2 Lernmodus, Weg B (CUJ 7b)
+ 
++*Seit 13.11. nur für Administratoren (X13a); der Alltag benutzt die Warteschlange, 3.13 (Zusammenspiel: Regel 9).*
++
+ Reihenfolge wie in `mqtt-v1.md`, 4.2. Fett die Befehle dieser Schnittstelle. Alle
+ Wege, die eine Zuordnung schreiben (Seite, Aktion, `ui/*`), laufen durch dieselbe
+ Funktion (Abschnitt 1).
+@@ -1827,7 +1940,7 @@
+ | Code | HTTP | Bedeutung | Befehle |
+ |---|---|---|---|
+ | `invalid_format` | 400 | Eingabe passt nicht zum Schema (fehlendes Pflichtfeld, falscher Typ, unbekanntes Feld, `bestaetigt` nicht `true`) | alle |
+-| `unauthorized` | 401 oder 403 | Nutzer ist kein Administrator, oder (seit 12.11.) eine Schutzregel für Nicht-Administratoren greift (2.4: fehlendes `erwartet_ziel`, `sofort`, `lesezeichen_tage`). Bei WebSocket gilt der Code; die Seite wertet `code` aus. Der Upload prüft keine Administratorrolle mehr (W-19 entfällt). | alle mit Recht `admin` und die Schutzregeln in 2.4 |
++| `unauthorized` | 401 oder 403 | Nutzer ist kein Administrator (seit 13.11. auch bei `lernmodus/start`, `lernmodus/antwort`, `lernmodus/abbrechen`), oder (seit 12.11.) eine Schutzregel für Nicht-Administratoren greift (2.4: fehlendes `erwartet_ziel`, `sofort`, `lesezeichen_tage`). Bei WebSocket gilt der Code; die Seite wertet `code` aus. Der Upload prüft keine Administratorrolle mehr (W-19 entfällt). | alle mit Recht `admin` und die Schutzregeln in 2.4 |
+ | `unknown_command` | – | Befehl dem Backend unbekannt (Seite neuer als Backend) | alle |
+ | `unknown_error` | 500 | Fehler im Backend (Fehler im Protokoll von HA); die Seite zeigt „Das hat nicht geklappt“ | alle |
+ | `anfrage_id_konflikt` | 409 | gleiche `anfrage_id` mit anderem Befehl oder anderen Feldern | die mit `anfrage_id` |
+@@ -1835,19 +1948,19 @@
+ | `medien_schreibfehler` | 500 | Schreiben auf die Freigabe schlug fehl (Rechte, Platz, Verbindung, Namen, die die Freigabe nicht annimmt) | Medien, Eingang, Papierkorb |
+ | `kein_speicher` | 507 | Auf der Freigabe ist kein Platz mehr (vorab geprüft, 5.1; seit 12.11. auch Kontingent von `hoerkopien/`, 14.8) | Upload, Hörkopie |
+ | `mqtt_nicht_verbunden` | 503 | Der Broker ist nicht erreichbar; der Befehl wurde **nicht** gesendet. (Konfigurationsänderungen scheitern daran nicht: Sie sind gespeichert, `veroeffentlicht=false`.) | Befehle an Boxen |
+-| `serie_nicht_gefunden` | 404 | Serien-ID unbekannt | Serie, Folgen, Upload, Zuordnung, Lernmodus, Papierkorb |
+-| `folge_nicht_gefunden` | 404 | Folge steht nicht in `folgen` der Serie | Folgen, Zuordnung, Lernmodus |
++| `serie_nicht_gefunden` | 404 | Serien-ID unbekannt | Serie, Folgen, Upload, Zuordnung, Lernmodus, Papierkorb, Warteschlange |
++| `folge_nicht_gefunden` | 404 | Folge steht nicht in `folgen` der Serie | Folgen, Zuordnung, Lernmodus, Warteschlange |
+ | `eintrag_nicht_gefunden` | 404 | Papierkorb-Eintrag oder Eingangs-Eintrag unbekannt | Papierkorb, Eingang |
+ | `export_nicht_gefunden` | 404 | Es gibt keine Exportdatei | `konfig/aus_export` |
+ | `export_ungueltig` | 422 | Die Exportdatei ist nicht lesbar oder nach `data-model.md` ungültig; nichts wurde übernommen | `konfig/export_lesen`, `konfig/aus_export` |
+-| `box_unbekannt` | 404 | Box-Name ist nicht eingerichtet | Boxen, Lernmodus |
++| `box_unbekannt` | 404 | Box-Name ist nicht eingerichtet | Boxen, Lernmodus, Warteschlange, `zuordnung/remove` (mit `als_neu`) |
+ | `box_offline` | 409 | Die Box ist nach `…/online` nicht erreichbar oder HA kennt noch keine Nachricht (`online=null`, W-25) | `lernmodus/start`, `box/sync` |
+ | `kennung_ungueltig` | 400 | `uid` ist nicht kanonisch (`reader-v1.md`, Abschnitt 4) | Zuordnung, Neue Tobies |
+-| `ziel_ungueltig` | 400 | `ziel` ist unvollständig oder widersprüchlich (z. B. `folge` ohne `serie`, unbekannte `aktion`, `aktion` im Lernmodus), **zeigt auf die Überraschungs-Serie**, oder Quelle und Ziel sind dieselbe Serie / eine Überraschungs-Serie beim Zusammenführen | Zuordnung, Lernmodus, `folge/verschieben`, `serien/zusammenfuehren` |
++| `ziel_ungueltig` | 400 | `ziel` ist unvollständig oder widersprüchlich (z. B. `folge` ohne `serie`, unbekannte `aktion`, `aktion` im Lernmodus), **zeigt auf die Überraschungs-Serie**, oder Quelle und Ziel sind dieselbe Serie / eine Überraschungs-Serie beim Zusammenführen | Zuordnung, Lernmodus, Warteschlange, `folge/verschieben`, `serien/zusammenfuehren` |
+ | `zuordnung_existiert` | 409 | Die Kennung hat schon ein anderes Ziel, `ueberschreiben` fehlt | `zuordnung/set` |
+ | `zuordnung_geaendert` | 409 | `erwartet_ziel` stimmt nicht mehr (ein anderes Fenster hat die Zuordnung geändert); die Seite lädt neu | `zuordnung/set`, `zuordnung/remove` |
+ | `konfig_zu_gross` | 413 | Die Konfiguration würde 256 KiB überschreiten (`mqtt-v1.md`, Abschnitt 1) | `zuordnung/set`, `lernmodus/antwort` |
+-| `konfig_nicht_bereit` | 409 | `konfig.zustand` ist nicht `ok` (Abschnitt 13); die Seite zeigt die Warnung | alle, die die Konfiguration ändern |
++| `konfig_nicht_bereit` | 409 | `konfig.zustand` ist nicht `ok` (Abschnitt 13); die Seite zeigt die Warnung | alle, die die Konfiguration ändern, und `warteschlange/set` |
+ | `name_ungueltig` | 400 | Name leer, zu lang oder nach der Bereinigung (Abschnitt 12) leer | Serie, Folge, Tobie-Name, Upload |
+ | `reihenfolge_ungueltig` | 400 | Die Liste ist keine Umstellung der vorhandenen Folgen | `folgen/order` |
+ | `stand_veraltet` | 409 | `stand` passt nicht mehr; die Seite lädt neu | alle mit `stand` |
+@@ -1864,13 +1977,15 @@
+ | `format_nicht_erlaubt` | 415 | Endung oder erkanntes Format nicht nach D5 | Upload |
+ | `einstellung_ungueltig` | 400 | Eine Einstellung ist nach `data-model.md`, Abschnitt 2, ungültig (Wertebereich, Typ, doppelte `id` …); nichts wurde geändert. Die Stelle steht in `message` (3.11) | `einstellungen/set` |
+ | `sortierung_laeuft` | 409 | Ein Durchlauf des Einsortierens läuft; der Eintrag lässt sich jetzt nicht entfernen. Später noch einmal versuchen. | `eingang/entfernen` |
+-| `zu_viele_aenderungen` | 429 | **(12.11.)** Eine Menge aus 2.4 ist überschritten (Änderungen der Liste, Papierkorb-Aktionen, Upload-Bytes je Stunde, Cover je Stunde, `hoerstelle/set`, `audio/bereit`). Kurz warten. | Befehle mit Menge, Upload, Cover |
++| `zu_viele_aenderungen` | 429 | **(12.11.)** Eine Menge aus 2.4 ist überschritten (Änderungen der Liste, Papierkorb-Aktionen, Upload-Bytes je Stunde, Cover je Stunde, `hoerstelle/set`, `audio/bereit`, seit 13.11. `warteschlange/set` und `warteschlange/abbrechen`). Kurz warten. | Befehle mit Menge, Upload, Cover |
+ | `cover_ungueltig` | 400 | **(12.11.)** Das Bild ist kein gültiges JPEG, nicht quadratisch genug oder zu groß in Pixeln (14.3) | Cover (POST) |
+ | `cover_nicht_gefunden` | 404 | **(12.11.)** Der Eintrag hat kein Cover | Cover (GET) |
+ | `wunsch_ungueltig` | 400 | **(12.11.)** Pflichtfelder des Upload-Wunsches fehlen oder passen nicht zusammen (14.4), `name` über 400 Bytes | Upload, `einsortierung/neu` |
+ | `neu_einsortieren_nicht_moeglich` | 409 | **(12.11.)** Der Eintrag ist nicht mehr „bitte ansehen“ oder jünger als 24 Stunden, oder an seinen Folgen wurde schon etwas geändert (2.4) | `einsortierung/neu` |
+ | `hoerkopie_warteschlange_voll` | 429 | **(12.11.)** Die Warteschlange der Hörkopien hat ihre Grenze (14.8) | `audio/bereit`, `hoerkopie/neu_erzeugen` |
+ | `zu_viele_streams` | 429 | **(12.11.)** Der Benutzer hat schon `AUDIO_VERBINDUNGEN_JE_BENUTZER` offene Audio-Verbindungen | Audio (HTTP) |
++| `warteschlange_voll` | 409 | **(13.11.)** Es warten schon `WARTESCHLANGE_MAX` (5) Vormerkungen; die Seite sagt: „Es warten schon 5 Tobies. Warte, bis einer aufgelegt ist, oder nimm einen aus der Liste.“ | `warteschlange/set` |
++| `warteschlange_doppelt` | 409 | **(13.11.)** Genau diese Vormerkung (gleiche Box, gleiches Ziel) wartet schon; die Seite sagt: „Das wartet schon.“ | `warteschlange/set` |
+ | `hoerkopie_wartet` | 503 | **(12.11.)** Die Hörkopie wird noch erzeugt (nur HTTP, mit `Retry-After: 60`; Rückfall für Aufrufer ohne `audio/bereit`) | Audio (HTTP) |
+ 
+ Der Körper einer HTTP-Fehlerantwort des Uploads ist in 5.5 beschrieben. Eine
+@@ -2443,6 +2558,8 @@
+ | `reinhoeren` | A-2 | Audio-Ansicht, Befehle 39 bis 42; Sortierung `angehoert`. Ohne sie zeigt die Seite keinen Reinhören-Knopf |
+ | `hoerkopie` | A-3 | hängt von `ffmpeg` ab: Audio-Ansicht liefert Kopien, Zustand in `audio/bereit`, Befehl 45. Ohne sie bleibt es bei der Prüfung mit `canPlayType` |
+ | `konfig_staende` | A-1 | optionale Eingabe `stand` bei `konfig/export_lesen` und `konfig/aus_export` (2.4) |
++| `warteschlange` | A0-Q (13.11.) | Befehle 47 bis 49, Ereignisthema `warteschlange` in `subscribe.themen`, Feld `hello.grenzen.warteschlange_max`, Abgleich beim Auflegen (3.13) |
++| `zuordnung_rueckgaengig` | A0-Q (13.11.) | optionale Eingabe `als_neu` bei `zuordnung/remove` (3.5). Eigene Fähigkeit, weil „Rückgängig“ (X20d) vor der Warteschlange gebaut werden kann |
+ 
+ **Entfallen** (in Rev. 5 des Designs gestrichen): `kapitel` (das Feld `kapitel` ist ein Ausgabefeld; fehlt es, zeigt die Seite keine Liste), `box_anzeigenamen` und `rechte_stufen` (Feld da bzw. Seite und Backend liegen im selben Paket). Fehlt eine Fähigkeit, die die Seite braucht, zeigt sie **eine** Antwort („Die Seite ist veraltet. Bitte lade sie neu.“). Eine **alte Seite** im Zwischenspeicher kennt die neuen Befehle nicht, schickt sie nicht und blendet nach `darf_schreiben` aus: harmlos. Stufe B (`gehoert`, `gehoert_reinhoeren`) und Stufe C (`playlists`): geplant, siehe Design Abschnitt 12 und 13; sie gehören **nicht** zu diesem Vertragsstand.
+ 
+@@ -2590,9 +2707,11 @@
+ | `HOERKOPIE_KONTINGENT_BYTES` | 100 GB | **vorläufig, nach Messung A0b** |
+ | `HOERKOPIE_VORZIEHEN_JE_BENUTZER` | 1 | **vorläufig, nach Messung A0b** |
+ | `HOERKOPIE_PARALLEL` | 1 | **vorläufig, nach Messung A0b** |
++| `WARTESCHLANGE_MAX` | 5 Vormerkungen zugleich, über alle Boxen (3.13) | beschlossen (Design 5.13) |
++| `WARTESCHLANGE_AENDERUNGEN_JE_MINUTE` | 30 je Benutzer, für `warteschlange/set` und `warteschlange/abbrechen` zusammen (2.4) | Vorschlag A0-Q, gleicher Wert wie `AENDERUNGEN_JE_MINUTE`; ein Höchstalter gibt es bewusst nicht (3.13, Regel 5) |
+ | Wartezeit-Schätzung in `audio/bereit.warte_s` | 15 bis 30 mal Echtzeit | **vorläufig, nach Messung A0b** |
+ 
+-`hello.grenzen` bekommt die Felder `audio_verbindungen_je_benutzer`, `hoerkopie_kbit` und `hoerkopie_dauer_max_s` (nur wenn die jeweilige Fähigkeit zugesagt ist) und `upload_max_bytes` mit dem neuen Wert.
++`hello.grenzen` bekommt die Felder `audio_verbindungen_je_benutzer`, `hoerkopie_kbit`, `hoerkopie_dauer_max_s` und (13.11.) `warteschlange_max` (nur wenn die jeweilige Fähigkeit zugesagt ist) und `upload_max_bytes` mit dem neuen Wert.
+ 
+ ### 14.11 Stufe B und C
+ 
