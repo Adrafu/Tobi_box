@@ -132,11 +132,33 @@ const server = http.createServer(async (req, res) => {
   /* A-1b: Zustand des Mocks für Ablaufprüfungen (nur lesen): Zuordnungen, Vormerkungen, unbekannte Tobies */
   if (p === '/zustand') {
     const m = holeMock(u.searchParams.get('k') || 'admin');
-    res.end(JSON.stringify({ zuordnungen: m.backend.zuordnungen, warteschlange: m.backend.warteschlange, neue: m.backend.neueTobies, konfig: m.backend.konfig }));
+    res.end(JSON.stringify({ zuordnungen: m.backend.zuordnungen, warteschlange: m.backend.warteschlange, neue: m.backend.neueTobies, konfig: m.backend.konfig, cover: m.coverInfo ?? [] }));
+    return;
+  }
+  /* A8f: Cover hochladen (POST, JPEG) und zurücksetzen (DELETE ?quelle=eigen). Prüft wie das Backend (Vertrag 14.3) Größe (3 MiB) und die
+   * Kopfbytes eines JPEG, den Stand führt der Mock (`fetchWithAuth` in mock-hass.mjs). Der Lauf kommt im Kopf `x-tb-k`. */
+  if (p.startsWith('/api/tobibox/cover/') && (req.method === 'POST' || req.method === 'DELETE')) {
+    const m = holeMock(req.headers['x-tb-k'] || 'admin');
+    const roh = Buffer.concat(await (async () => { const t = []; for await (const c of req) t.push(c); return t; })());
+    const fehler = (status, code) => { res.statusCode = status; res.setHeader('content-type', 'application/json'); res.end(JSON.stringify({ v: 1, fehler: { code, text: code } })); };
+    if (req.method === 'POST' && roh.length > 3 * 1024 * 1024) { fehler(413, 'datei_zu_gross'); return; }
+    if (req.method === 'POST' && (roh.length < 3 || roh[0] !== 0xff || roh[1] !== 0xd8 || roh[2] !== 0xff)) { fehler(400, 'cover_ungueltig'); return; }
+    if (req.method === 'POST') { // Maße aus dem JPEG-Kopf (SOF), damit die Prüfung sieht, was wirklich ankam
+      let breite = null; let hoehe = null;
+      for (let i = 2; i + 9 < roh.length;) {
+        if (roh[i] !== 0xff) { i += 1; continue; }
+        const mk = roh[i + 1];
+        if (mk >= 0xc0 && mk <= 0xcf && ![0xc4, 0xc8, 0xcc].includes(mk)) { hoehe = roh.readUInt16BE(i + 5); breite = roh.readUInt16BE(i + 7); break; }
+        i += 2 + roh.readUInt16BE(i + 2);
+      }
+      (m.coverInfo ??= []).push({ methode: 'POST', pfad: p, groesse: roh.length, breite, hoehe });
+    } else (m.coverInfo ??= []).push({ methode: 'DELETE', pfad: `${p}${u.search}` });
+    const a = await m.hass.fetchWithAuth(`${p}${u.search}`, { method: req.method, headers: { 'Content-Type': req.headers['content-type'] }, body: req.method === 'POST' ? new Blob([roh]) : undefined });
+    res.statusCode = a.status; res.setHeader('content-type', 'application/json'); res.end(JSON.stringify(await a.json()));
     return;
   }
   if (p.startsWith('/api/tobibox/cover/')) {
-    const h = [...p.split('/').pop()].reduce((a, c) => a + c.charCodeAt(0), 0);
+    const h = [...p.split('/').pop(), ...(u.searchParams.get('v') || '')].reduce((a, c) => a + c.charCodeAt(0), 0);
     res.setHeader('content-type', 'image/svg+xml');
     res.end(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="${FARBEN[h % 4]}"/><circle cx="${30 + h % 40}" cy="55" r="${15 + h % 20}" fill="#ffffffaa"/></svg>`);
     return;

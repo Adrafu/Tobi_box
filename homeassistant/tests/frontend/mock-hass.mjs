@@ -251,7 +251,7 @@ export function createMockHass(opts = {}) {
     anzahl_tobies: tobiesAuf(s.id).length, angelegt_am: s.angelegt_am ?? '2026-10-01T10:00:00Z', stand: stand(s),
     pruefen: s.pruefen, anzahl_pruefen: s.folgen.filter((f) => f.pruefen).length, hinweise: s.hinweise,
     art: s.art ?? 'hoerspiel', art_quelle: s.art ? 'manuell' : 'tags', einzeln: !!s.einzeln, kapitel_anzahl: s.kapitel_anzahl ?? 0,
-    dauer_s: s.dauer_s ?? null, cover_stand: s.cover_stand ?? null, cover_quelle: s.cover_stand ? 'auto' : null,
+    dauer_s: s.dauer_s ?? null, cover_stand: s.cover_stand ?? null, cover_quelle: s.cover_stand ? (s.cover_quelle ?? 'auto') : null,
     ...(s.hoerstelle ? { hoerstelle: s.hoerstelle } : {}),
   });
   function tobiesAuf(id) {
@@ -689,7 +689,33 @@ export function createMockHass(opts = {}) {
 
   /* Cover: `hass.fetchWithAuth` wie in HA. `opts.ohneCover` (Menge von IDs) ergibt 404. Aufrufe stehen in `covers`. */
   const covers = [];
-  const fetchWithAuth = async (pfad) => {
+  /* A8f: POST (Rumpf `image/jpeg`) und DELETE `?quelle=eigen` wie das Backend (Vertrag 14.3): Aufrufe stehen in `coverAufrufe`, der Stand
+   * der Serie ändert sich (`cover_stand`, `cover_quelle`). `opts.coverFehler` = Liste von { code, status } für die nächsten Aufrufe;
+   * `opts.coverNetz` lässt den nächsten Aufruf mit einem Netzfehler scheitern. */
+  const coverAufrufe = [];
+  let coverZaehler = 0;
+  const antwort = (status, obj) => ({ ok: status >= 200 && status < 300, status, json: async () => obj, blob: async () => new Blob([]) });
+  const coverSchreiben = async (pfad, o) => {
+    const id = decodeURIComponent(pfad.split('/cover/')[1]?.split('?')[0] ?? '');
+    coverAufrufe.push({ pfad, id, methode: o.method, typ: o.headers?.['Content-Type'], groesse: o.body?.size ?? null, body: o.body });
+    if (opts.coverNetz) { opts.coverNetz = false; throw new TypeError('Failed to fetch'); }
+    const fehlerNaechster = opts.coverFehler?.shift();
+    if (fehlerNaechster) return antwort(fehlerNaechster.status ?? 400, { v: 1, fehler: { code: fehlerNaechster.code, text: 'x' } });
+    const sr = b.serien[id];
+    if (!sr) return antwort(404, { v: 1, fehler: { code: 'serie_nicht_gefunden', text: 'x' } });
+    if (o.method === 'POST') {
+      if (sr.cover_quelle !== 'eigen') sr.cover_auto = sr.cover_stand ?? null; // das automatische Cover kommt mit DELETE zurück
+      sr.cover_stand = hex(`eigen-${id}-${++coverZaehler}`, 8);
+      sr.cover_quelle = 'eigen';
+    } else if (sr.cover_quelle === 'eigen') {
+      sr.cover_quelle = null;
+      sr.cover_stand = sr.cover_auto ?? null; // ohne automatisches Cover gibt es danach keins
+      if (sr.cover_stand) sr.cover_quelle = 'auto';
+    }
+    return antwort(200, { v: 1, serie_id: id, cover_stand: sr.cover_stand ?? null, cover_quelle: sr.cover_stand ? (sr.cover_quelle ?? 'auto') : null });
+  };
+  const fetchWithAuth = async (pfad, o = {}) => {
+    if (o.method === 'POST' || o.method === 'DELETE') return coverSchreiben(pfad, o);
     covers.push(pfad);
     const id = decodeURIComponent(pfad.split('/cover/')[1]?.split('?')[0] ?? '');
     if (!b.serien[id] || (opts.ohneCover && opts.ohneCover.has(id))) return { ok: false, status: 404, blob: async () => new Blob([]) };
@@ -705,7 +731,7 @@ export function createMockHass(opts = {}) {
   };
 
   return {
-    hass, backend: b, calls, subs, xhrs, emit, MockXHR, covers, legeAuf,
+    hass, backend: b, calls, subs, xhrs, emit, MockXHR, covers, coverAufrufe, legeAuf, opts,
     xhrFactory: () => new MockXHR(),
     /* Aufrufe eines Befehls (ohne Abos) */
     aufrufe: (type) => calls.filter((c) => c.type === type && !c.abo).map((c) => c.msg),

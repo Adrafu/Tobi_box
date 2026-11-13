@@ -316,6 +316,7 @@ def seiten_messen(L: Lauf):
         blatt("blatt-sortieren", "#bibliothek", blatt_sort)
         blatt("blatt-serie-menue", "#serie-lang", ["[data-menue-serie]"])
         blatt("blatt-folgenmenue", "#serie-lang", ['[data-folge="f02.mp3"] [data-menue-folge]'])
+        blatt("blatt-cover", "#serie-lang", ["[data-menue-serie]", '[data-menue="cover"]'])
         if admin:
             blatt("blatt-name", "#serie-lang", ["[data-menue-serie]", '[data-menue="name"]'])
             blatt("blatt-art", "#serie-lang", ["[data-menue-serie]", '[data-menue="art"]'])
@@ -621,6 +622,153 @@ def ablauf_serie(L: Lauf):
             L.pruefe(L.js("return sr.querySelector('[data-folge]').dataset.folge") != erste, "serie-reihenfolge", "Reihenfolge unverändert")
 
 
+# ------------------------------------------------------------------ A8f: Cover ändern (Abnahme A16-1c, Punkte 5 und 6)
+def testbild_png(pfad: Path, breite=600, hoehe=400):
+    """Kleines Testfoto (PNG mit Farbverlauf und einem hellen Block, mit der Standardbibliothek gebaut); Querformat, damit das Zuschneiden etwas zu tun hat."""
+    import struct
+    import zlib
+
+    zeilen = bytearray()
+    for y in range(hoehe):
+        zeilen.append(0)
+        for x in range(breite):
+            hell = 200 if (breite // 3 < x < breite // 2 and hoehe // 4 < y < hoehe // 2) else 0
+            zeilen += bytes((min(255, x * 255 // breite + hell), min(255, y * 255 // hoehe + hell // 2), 140))
+
+    def chunk(art, daten):
+        c = struct.pack(">I", len(daten)) + art + daten
+        return c + struct.pack(">I", zlib.crc32(art + daten) & 0xFFFFFFFF)
+
+    pfad.write_bytes(b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", breite, hoehe, 8, 2, 0, 0, 0)) + chunk(b"IDAT", zlib.compress(bytes(zeilen), 6)) + chunk(b"IEND", b""))
+
+
+def cover_blatt_offnen(L: Lauf, hash_):
+    L.gehe(hash_)
+    L.klick("[data-menue-serie]")
+    L.klick('dialog [data-menue="cover"]')
+    L.pruefe(L.da("dialog[open] [data-cover-waehlen]"), "cover-blatt", "Blatt „Cover ändern“ ohne „Foto wählen“")
+
+
+def cover_foto_waehlen(L: Lauf, pfad, knopf="[data-cover-waehlen]"):
+    """„Foto wählen“ mit echtem Klick; der Dateiwähler des Browsers bekommt das Testfoto."""
+    with L.pg.expect_file_chooser(timeout=5000) as fc:
+        L.pg.locator(f"dialog[open] {knopf}").first.click(timeout=4000)
+    fc.value.set_files(str(pfad))
+    L.pg.wait_for_timeout(250)
+    L.ruhe()
+
+
+def ablauf_cover(L: Lauf):
+    """A8f: Cover ändern nur über echte Klicks: Menü → „Cover ändern“ → „Foto wählen“ (Dateiwähler) → Zuschneiden (Pfeilknöpfe, Ziehen mit der Maus,
+    Regler, Pfeiltasten) → „Speichern“ (JPEG 1024 × 1024 kommt beim Mock an, das Cover erscheint ohne Neuladen) → „Zurück zum automatischen Cover“;
+    dazu die Fehler: kein Bild, Foto über 20 MB. Die Zustände werden gemessen (Tippziele, Kontrast, kein seitliches Scrollen, Scroll-Prüfung)."""
+    import tempfile
+
+    with tempfile.TemporaryDirectory(prefix="tb-cover-") as tmp:
+        tmp = Path(tmp)
+        foto = tmp / "foto.png"
+        testbild_png(foto)
+        with L.schritt("cover-wahl"):
+            cover_blatt_offnen(L, "#serie-kurz")
+            L.pruefe(L.js("return sr.querySelector('dialog[open] #blatt-t')?.textContent.trim()") == "Cover für „Kleine Reise“", "cover-wahl", "Titel des Blatts stimmt nicht")
+            L.pruefe(not L.da("[data-cover-zurueck]"), "cover-wahl", "„Zurück zum automatischen Cover“ ohne eigenes Foto")
+            L.pruefe(L.js("return sr.activeElement?.matches('[data-cover-waehlen]')"), "cover-wahl", "Fokus nicht auf „Foto wählen“")
+            L.messe("cover-wahl")
+        with L.schritt("cover-fehler-kein-bild"):
+            text = tmp / "brief.txt"
+            text.write_text("das ist kein Bild")
+            cover_foto_waehlen(L, text)
+            L.pruefe(L.js("return sr.querySelector('dialog[open] .toast.err .tmsg')?.textContent") == "Das ist kein Bild. Bitte ein Foto wählen.", "cover-fehler", "Meldung „kein Bild“ fehlt oder steht nicht im Blatt")
+            L.pruefe(not L.da("canvas[data-cover-vorschau]"), "cover-fehler", "Vorschau trotz Textdatei")
+            L.messe("cover-fehler-kein-bild")
+            L.klick("dialog[open] .toast.err .tok")
+            L.pruefe(not L.da(".toast.err"), "cover-fehler", "„OK“ räumt die Meldung nicht weg")
+        with L.schritt("cover-fehler-zu-gross"):
+            gross = tmp / "riesig.jpg"
+            with open(gross, "wb") as f:
+                f.truncate(21 * 1024 * 1024)
+            cover_foto_waehlen(L, gross)
+            L.pruefe(L.js("return sr.querySelector('dialog[open] .toast.err .tmsg')?.textContent") == "Das Foto ist zu groß (mehr als 20 MB). Nimm ein kleineres.", "cover-fehler", "Meldung „zu groß“ fehlt")
+            L.klick("dialog[open] .toast.err .tok")
+        with L.schritt("cover-zuschneiden"):
+            cover_foto_waehlen(L, foto)
+            L.warte_da("dialog[open] canvas[data-cover-vorschau]")
+            box = L.pg.locator("dialog[open] canvas[data-cover-vorschau]").bounding_box()
+            L.pruefe(box and 270 <= box["width"] <= 281 and abs(box["width"] - box["height"]) < 1, "cover-zuschneiden", f"Vorschau nicht quadratisch um 280 px: {box}")
+            pixel = L.js("const c = sr.querySelector('canvas[data-cover-vorschau]'); const d = c.getContext('2d').getImageData(c.width / 2, c.height / 2, 1, 1).data; return [...d];")
+            L.pruefe(pixel[3] == 255 and pixel[:3] != [255, 255, 255], "cover-zuschneiden", f"Vorschau ist nicht gezeichnet: {pixel}")
+            L.pruefe(L.js("return sr.activeElement?.matches('canvas[data-cover-vorschau]')"), "cover-zuschneiden", "Fokus nicht auf der Vorschau")
+            mitte0 = L.js("return sr.querySelector('canvas[data-cover-vorschau]').dataset.mitte")
+            L.klick('dialog[open] [data-cover-pfeil="links"]')
+            mitte1 = L.js("return sr.querySelector('canvas[data-cover-vorschau]').dataset.mitte")
+            L.pruefe(mitte0 == "300,200", "cover-zuschneiden", f"Mitte zu Beginn {mitte0}")
+            L.pruefe(mitte1 == "340,200", "cover-zuschneiden", f"„links“ verschiebt das Foto um ein Zehntel des Quadrats (40 von 400): {mitte0} -> {mitte1}")
+            # Regler: Tastatur (Ende = ganz klein)
+            L.pg.locator("dialog[open] [data-cover-regler]").focus()
+            L.pg.keyboard.press("End")
+            L.ruhe()
+            L.pruefe(L.js("return sr.querySelector('canvas[data-cover-vorschau]').dataset.regler") == "100", "cover-zuschneiden", "Regler (Taste Ende) ändert den Ausschnitt nicht")
+            L.klick('dialog[open] [data-cover-pfeil="links"]')
+            mitte2 = L.js("return sr.querySelector('canvas[data-cover-vorschau]').dataset.mitte")
+            L.pruefe(mitte2 != mitte0, "cover-zuschneiden", f"Pfeilknopf „links“ verschiebt nichts: {mitte2}")
+            # Pfeiltasten auf der Vorschau
+            L.pg.locator("dialog[open] canvas[data-cover-vorschau]").focus()
+            L.pg.keyboard.press("ArrowUp")
+            mitte3 = L.js("return sr.querySelector('canvas[data-cover-vorschau]').dataset.mitte")
+            L.pruefe(mitte3 != mitte2, "cover-zuschneiden", "Pfeiltaste „hoch“ verschiebt nichts")
+            # Ziehen mit der Maus
+            b = L.pg.locator("dialog[open] canvas[data-cover-vorschau]").bounding_box()
+            x, y = b["x"] + b["width"] / 2, b["y"] + b["height"] / 2
+            L.pg.mouse.move(x, y)
+            L.pg.mouse.down()
+            for i in range(1, 6):
+                L.pg.mouse.move(x - 12 * i, y + 4 * i)
+            L.pg.mouse.up()
+            L.ruhe()
+            mitte4 = L.js("return sr.querySelector('canvas[data-cover-vorschau]').dataset.mitte")
+            L.pruefe(mitte4 != mitte3, "cover-zuschneiden", "Ziehen mit der Maus verschiebt nichts")
+            L.pruefe(L.da("dialog[open]"), "cover-zuschneiden", "Ziehen auf der Vorschau schließt das Blatt")
+            L.messe("cover-zuschneiden")
+        with L.schritt("cover-speichern"):
+            L.klick("dialog[open] .knoepfe .btn.primary")
+            L.pg.wait_for_function("() => !window.__el.shadowRoot.querySelector('dialog[open]')", timeout=6000)
+            L.ruhe()
+            L.pruefe("gespeichert" in L.toast(), "cover-speichern", f"Meldung nach dem Speichern: {L.toast()!r}")
+            L.pruefe(not L.da(".toast.err"), "cover-speichern", "Fehlermeldung nach dem Speichern")
+            z = L.mock("/zustand").get("cover", [])
+            L.pruefe(len(z) == 1 and z[0]["methode"] == "POST" and z[0]["pfad"].endswith("/cover/kurz"), "cover-speichern", f"Aufrufe am Backend: {z}")
+            if z:
+                L.pruefe((z[0]["breite"], z[0]["hoehe"]) == (1024, 1024), "cover-speichern", f"Das JPEG ist nicht 1024 × 1024: {z[0]}")
+                L.pruefe(0 < z[0]["groesse"] <= 3 * 1024 * 1024, "cover-speichern", f"Größe des JPEG {z[0]['groesse']}")
+            L.pg.wait_for_function("() => { const c = window.__el.shadowRoot.querySelector('.cover.se-xl'); return c && c.dataset.stand && c.dataset.bild === '1'; }", timeout=5000)
+            L.pruefe(True, "cover-speichern", "")
+            L.messe("cover-gespeichert")
+        with L.schritt("cover-zurueck"):
+            L.klick("[data-menue-serie]")
+            L.klick('dialog [data-menue="cover"]')
+            L.pruefe(L.da("dialog[open] [data-cover-zurueck]"), "cover-zurueck", "„Zurück zum automatischen Cover“ fehlt mit eigenem Foto")
+            L.messe("cover-eigen")
+            L.klick("dialog[open] [data-cover-zurueck]")
+            L.pg.wait_for_function("() => !window.__el.shadowRoot.querySelector('dialog[open]')", timeout=6000)
+            L.ruhe()
+            z = L.mock("/zustand").get("cover", [])
+            L.pruefe(len(z) == 2 and z[1]["methode"] == "DELETE" and z[1]["pfad"].endswith("/cover/kurz?quelle=eigen"), "cover-zurueck", f"Aufrufe am Backend: {z}")
+            L.pruefe(L.js("return sr.querySelector('.cover.se-xl').dataset.stand") == "", "cover-zurueck", "Ohne automatisches Cover bleibt der Platzhalter")
+            L.pruefe("automatische" in L.toast(), "cover-zurueck", f"Meldung: {L.toast()!r}")
+    with L.schritt("cover-esc"):  # Esc verwirft ein gewähltes Foto ohne Hochladen
+        with tempfile.TemporaryDirectory(prefix="tb-cover-") as tmp:
+            foto = Path(tmp) / "foto.png"
+            testbild_png(foto)
+            cover_blatt_offnen(L, "#serie-kurz")
+            cover_foto_waehlen(L, foto)
+            L.warte_da("dialog[open] canvas[data-cover-vorschau]")
+            n = len(L.mock("/zustand").get("cover", []))
+            L.klick("dialog[open] .knoepfe .btn:first-child")  # „Abbrechen“
+            L.pg.wait_for_function("() => !window.__el.shadowRoot.querySelector('dialog[open]')", timeout=4000)
+            L.pruefe(len(L.mock("/zustand").get("cover", [])) == n, "cover-abbrechen", "„Abbrechen“ hat trotzdem hochgeladen")
+            L.pruefe(L.js("return sr.activeElement?.matches('[data-menue-serie]')"), "cover-abbrechen", "Fokus nicht zurück am Auslöser")
+
+
 def ablauf_leise(L: Lauf):
     with L.schritt("leise-zeit"):
         L.gehe("#geraete")
@@ -729,6 +877,7 @@ BLAETTER = [
     ("sortieren", "#bibliothek", ["[data-sortieren]"], "[data-sortieren]", ".knoepfe .btn.primary", False),
     ("serie-menue", "#serie-lang", ["[data-menue-serie]"], "[data-menue-serie]", ".knoepfe .btn", False),
     ("serie-name", "#serie-lang", ["[data-menue-serie]", '[data-menue="name"]'], "[data-menue-serie]", ".knoepfe .btn:first-child", False),
+    ("serie-cover", "#serie-lang", ["[data-menue-serie]", '[data-menue="cover"]'], "[data-menue-serie]", ".knoepfe .btn:first-child", False),
     ("leise-neu", "#geraete", ["[data-leise-neu]"], "[data-leise-neu]", ".knoepfe .btn:first-child", False),
     ("leise-aendern", "#geraete", ["button.hit[data-fenster=nacht]"], "button.hit[data-fenster=nacht]", ".knoepfe .btn:first-child", False),
     ("technik-cover", "#technik-speicher", ["[data-aktion=cover]"], "[data-aktion=cover]", ".knoepfe .btn:last-child", True),
@@ -1107,7 +1256,7 @@ def ablauf_tobies_lernmodus(L: Lauf):
             L.pruefe(L.da('[data-zustand="nur-admin"]') and "Lernmodus" not in L.js("return sr.querySelector('main').textContent"), "lernmodus", "Benutzer sieht den Lernmodus")
 
 
-ABLAEUFE = [ablauf_unterkante, ablauf_reiter, ablauf_klicks, ablauf_reihen, ablauf_suche, ablauf_bibliothek, ablauf_serie, ablauf_leise, ablauf_box, ablauf_technik, ablauf_blaetter,
+ABLAEUFE = [ablauf_unterkante, ablauf_reiter, ablauf_klicks, ablauf_reihen, ablauf_suche, ablauf_bibliothek, ablauf_serie, ablauf_cover, ablauf_leise, ablauf_box, ablauf_technik, ablauf_blaetter,
             ablauf_tobies_weg1, ablauf_tobies_weg2, ablauf_tobies_meldung, ablauf_tobies_umhaengen, ablauf_tobies_geben, ablauf_tobies_lernmodus,
             ablauf_tobies_name_geben_weit_unten]
 

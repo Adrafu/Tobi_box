@@ -231,7 +231,7 @@ test('Einzeltitel: Kopf mit „Lied · einzeln“, ein Satz statt der Folgenlist
   assert.equal(s.q('.se-abschnitt'), null);
   assert.equal(s.q('[data-einzeln]').textContent, 'Das ist ein einzelnes Lied. Es steht für sich und gehört zu keinem Album. Du kannst einem Tobie das zu spielen geben.');
   await menue(s);
-  assert.deepEqual(punkte(s), ['name', 'art', 'zusammen', 'papierkorb'], 'Administrator: Name, Art, Zusammenführen (als Quelle erlaubt), Papierkorb');
+  assert.deepEqual(punkte(s), ['name', 'cover', 'art', 'zusammen', 'papierkorb'], 'Administrator: Name, Art, Zusammenführen (als Quelle erlaubt), Papierkorb');
   weg();
 });
 
@@ -241,7 +241,7 @@ test('Einzeltitel: Menü und Papierkorb für Nicht-Administratoren; der Papierko
   await geheZu(s, '#serie-lied');
   await s.flush(8);
   await menue(s);
-  assert.deepEqual(punkte(s), ['name', 'art', 'papierkorb']);
+  assert.deepEqual(punkte(s), ['name', 'cover', 'art', 'papierkorb']);
   await klick(s, punkt(s, 'papierkorb'));
   assert.equal(titelBlatt(s), '„Wiegenlied“ in den Papierkorb?');
   await klick(s, leisteKnopf(s, 'In den Papierkorb'));
@@ -402,7 +402,7 @@ test('Art ändern: dieselbe Art sendet nichts; ohne die Fähigkeit „bibliothek
   await geheZu(alt, '#serie-s1');
   await alt.flush(8);
   await menue(alt);
-  assert.deepEqual(punkte(alt), ['name', 'reihenfolge', 'zusammen', 'papierkorb']);
+  assert.deepEqual(punkte(alt), ['name', 'cover', 'reihenfolge', 'zusammen', 'papierkorb']);
   weg();
 });
 
@@ -627,7 +627,7 @@ test('Papierkorb: die Folge ist schon weg (folge_nicht_gefunden) → Meldung, Bl
 test('Rechte: Administrator sieht „Reihenfolge ändern“ und „Mit anderem zusammenführen …“, Nicht-Administrator nicht (nicht nur gesperrt)', MIT_DOM, async () => {
   const admin = await oeffne('s1');
   await menue(admin);
-  assert.deepEqual(punkte(admin), ['name', 'art', 'reihenfolge', 'zusammen', 'papierkorb']);
+  assert.deepEqual(punkte(admin), ['name', 'cover', 'art', 'reihenfolge', 'zusammen', 'papierkorb']);
   assert.equal(punkt(admin, 'reihenfolge').textContent.trim(), 'Reihenfolge ändern');
   assert.equal(punkt(admin, 'zusammen').textContent.trim(), 'Mit anderem zusammenführen …');
   assert.equal(punkt(admin, 'papierkorb').textContent.trim(), 'In den Papierkorb …');
@@ -637,7 +637,7 @@ test('Rechte: Administrator sieht „Reihenfolge ändern“ und „Mit anderem z
   await geheZu(user, '#serie-s1');
   await user.flush(8);
   await menue(user);
-  assert.deepEqual(punkte(user), ['name', 'art', 'papierkorb']);
+  assert.deepEqual(punkte(user), ['name', 'cover', 'art', 'papierkorb']);
   assert.ok(!blattText(user).includes('Reihenfolge') && !blattText(user).includes('zusammenführen'));
   weg();
 });
@@ -661,7 +661,7 @@ test('Rechte: auch im Menü „Das stimmt nicht“ fehlt das Zusammenführen fü
 test('Rechte: ein Einzeltitel oder die Überraschungs-Serie bietet kein Zusammenführen als Ziel an, die Überraschung auch keine Art', MIT_DOM, async () => {
   const s = await oeffne('s3');
   await menue(s);
-  assert.deepEqual(punkte(s), ['name', 'papierkorb'], 'Überraschung: keine Art, kein Zusammenführen (Vertrag 27: nur normale Serien), eine Folge: keine Reihenfolge');
+  assert.deepEqual(punkte(s), ['name', 'cover', 'papierkorb'], 'Überraschung: keine Art, kein Zusammenführen (Vertrag 27: nur normale Serien), eine Folge: keine Reihenfolge');
   weg();
 });
 

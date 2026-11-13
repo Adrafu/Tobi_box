@@ -7,11 +7,12 @@
  * andere nicht da (nicht nur gesperrt).
  *
  * „Gespielt von“ mit Chips, „+ Tobie“ und „Einem Tobie geben …“ (Karte und „⋯“ der Folge) kommen aus seiten/tobies.js (A9).
- * Noch nicht hier: Player und „Reinhören“ (A8b), „Cover ändern“ (A8f),
+ * „Cover ändern“ (A8f, Design 5.5) steht in seiten/cover.js. Noch nicht hier: Player und „Reinhören“ (A8b),
  * Kapitelzeile (A8d), „Anders einsortieren“ (A-3), Playlists (Stufe C), Cover-Flug (A6m/A8m). Schnittstelle zur App: bausteine.js.
  */
 import { html, nothing, css, repeat, ic, cover, coverKlasse, coverGrossUrl, ladeMitGrenze, untertitel, uhr, dauerText, norm } from '../bausteine.js';
 import { SERIE, ZEILE, GRUENDE, TOBIE, SEITE, fuellen } from '../texte.js';
+import { coverBlatt, coverFehlerText, coverStil } from './cover.js';
 import { gespieltVonKarte, folgenChips, gebenLink } from './tobies.js';
 
 export const SICHTBAR = 20; // Folgen, die zuerst gezeigt werden; ab mehr als 20 gibt es das Suchfeld (Design 5.3)
@@ -249,6 +250,7 @@ class SerieSeite {
     const art = this.ctx.faehig('bibliothek') && s.typ !== 'ueberraschung';
     const punkte = [
       { id: 'name', label: SERIE.menue.name, fn: () => this.serieUmbenennen(ausloeser) },
+      ...(this.ctx.faehig('cover') ? [{ id: 'cover', label: SERIE.menue.cover, fn: () => this.coverAendern(ausloeser) }] : []),
       ...(art ? [{ id: 'art', label: SERIE.menue.art, fn: () => this.artAendern(ausloeser) }] : []),
       ...(admin && !s.einzeln && s.folgen.length > 1 ? [{ id: 'reihenfolge', label: SERIE.menue.reihenfolge, fn: () => this.reihenfolgeStart(ausloeser) }] : []),
       ...(admin && s.typ === 'normal' && this.ctx.faehig('korrektur') ? [{ id: 'zusammen', label: SERIE.menue.zusammen, fn: () => this.zusammenfuehren(ausloeser) }] : []),
@@ -322,6 +324,28 @@ class SerieSeite {
     return this._nameBlatt({
       wert: x.anzeige || x.name, max: 200, ausloeser,
       speichern: async (name) => { await this.ctx.api('tobibox/folge/rename', { serie_id: s.id, folge: x.name, name, stand: s.stand }); await this.laden(true); },
+    });
+  }
+
+  /* ---- Cover ändern (Design 5.5, seiten/cover.js): das Blatt kennt die Seite nur über diese drei Rückrufe */
+  coverAendern(ausloeser) {
+    const id = this.id;
+    return coverBlatt({
+      ctx: this.ctx,
+      serie: () => this.z.serie,
+      oeffne: (opts) => this._blatt(opts, ausloeser),
+      geaendert: (r) => { // das neue Cover erscheint ohne Neuladen: Stand und Quelle in die Seite, `nachRender` holt das Bild
+        const s = this.z.serie;
+        if (!s || s.id !== (r.serie_id ?? id)) return;
+        this.z = { ...this.z, serie: { ...s, cover_stand: r.cover_stand, cover_quelle: r.cover_quelle } };
+        this.ctx.neuZeichnen();
+      },
+      fehler: (err) => {
+        const code = err?.code || 'unknown_error';
+        this.ctx.meldeFehler(coverFehlerText(this.ctx, code));
+        if (ENDE_FEHLER.includes(code)) { this.laden(true); return 'zu'; }
+        return 'offen';
+      },
     });
   }
 
@@ -698,4 +722,5 @@ export const stil = () => css`
   .se-chev { flex: none; width: 24px; height: 24px; display: grid; place-items: center; color: var(--text2); }
   .se-chev svg { width: 24px; height: 24px; fill: currentColor; display: block; }
   .se-wlaedt, .se-wleer { padding: 12px 4px; }
+  ${coverStil()}
 `;

@@ -74,7 +74,7 @@ const abo = async (cb) => {
   })();
   return () => { aktiv = false; };
 };
-el.hass = { user: { is_admin: !k.startsWith('user') }, connection: { sendMessagePromise: ws, subscribeMessage: abo }, fetchWithAuth: (p) => fetch(p) };
+el.hass = { user: { is_admin: !k.startsWith('user') }, connection: { sendMessagePromise: ws, subscribeMessage: abo }, fetchWithAuth: (p, o) => fetch(p, { ...(o || {}), headers: { ...((o && o.headers) || {}), 'x-tb-k': k } }) };
 el.narrow = q.get('narrow') === '1';
 /* Wie ha-panel-custom: Light-DOM-Behälter ohne eigene Höhe (display:block, height:auto), mit Innenabstand für die
  * Safe-Area (sa=<px unten>, sao=<px oben>; HA setzt padding-top/-bottom auf den Behälter). Emulierte Safe-Area der

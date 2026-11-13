@@ -790,6 +790,7 @@ export const SERIE = {
   },
   menue: { // Design 5.3 (Menü des Eintrags und der Folge)
     name: 'Name ändern',
+    cover: 'Cover ändern', // Design 5.3, 5.5
     art: 'Art ändern',
     reihenfolge: 'Reihenfolge ändern',
     zusammen: 'Mit anderem zusammenführen …',
@@ -839,4 +840,31 @@ export const SERIE = {
   abbrechen: 'Abbrechen',
   schliessen: 'Schließen',
   mehr_laden: 'Mehr laden ({anzahl} weitere)', // Prototyp
+};
+
+// Cover ändern (Design 5.5; Paket A8f). Platzhalter: name.
+export const COVER = {
+  titel: 'Cover für „{name}“', // Design 5.5
+  foto_waehlen: 'Foto wählen', // Design 5.5
+  anderes_foto: 'Anderes Foto wählen', // neu, nicht im Design
+  satz: 'Wähle ein Foto. Am Handy kannst du ein neues aufnehmen oder eines aus der Galerie nehmen.', // neu, nicht im Design
+  satz_schneiden: 'Verschiebe das Foto mit dem Finger oder mit den Pfeilen. Mit dem Regler wählst du den Ausschnitt.', // neu, nicht im Design
+  vorschau: 'Vorschau des Covers. Mit den Pfeiltasten verschiebst du das Foto.', // neu, nicht im Design
+  pfeile: 'Foto verschieben', // neu, nicht im Design
+  pfeil: { hoch: 'Foto nach oben', runter: 'Foto nach unten', links: 'Foto nach links', rechts: 'Foto nach rechts' }, // neu, nicht im Design
+  regler: 'Ausschnitt größer oder kleiner', // Design 5.5
+  groesser: 'größer', // neu, nicht im Design
+  kleiner: 'kleiner', // neu, nicht im Design
+  speichern: 'Speichern', // Design 5.5
+  gespeichert: 'Das neue Cover ist gespeichert.', // neu, nicht im Design
+  zurueck: 'Zurück zum automatischen Cover', // Design 5.5
+  zurueck_fertig: 'Es gilt wieder das automatische Cover.', // neu, nicht im Design
+  laedt: 'Das Foto wird geladen …', // neu, nicht im Design
+  speichert: 'Wird gespeichert …', // neu, nicht im Design
+  zurueck_laeuft: 'Einen Moment …', // neu, nicht im Design
+  zu_gross: 'Das Foto ist zu groß (mehr als 20 MB). Nimm ein kleineres.', // Design 5.5
+  kein_bild: 'Das ist kein Bild. Bitte ein Foto wählen.', // Design 5.5
+  bild_zu_gross: 'Das Bild ist zu groß. Nimm ein anderes Foto.', // neu, nicht im Design (Backend `datei_zu_gross` beim Cover: der Text für Dateien mit 2 GB passt hier nicht)
+  nach_verkleinern_zu_gross: 'Das Foto ist auch verkleinert noch zu groß. Nimm ein anderes Foto.', // neu, nicht im Design
+  netz: 'Das Foto ist nicht angekommen. Prüfe die Verbindung und versuche es noch einmal.', // neu, nicht im Design
 };
