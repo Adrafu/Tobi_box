@@ -343,7 +343,7 @@ test('Start: hello mit v=1, Abo der Themen über hass.connection, Listen laden',
   assert.equal(hello[0].v, 1);
   const abo = s.m.calls.find((c) => c.abo);
   assert.equal(abo.type, 'tobibox/subscribe');
-  assert.deepEqual(abo.msg.themen, ['boxen', 'neue_tobies', 'konfig']);
+  assert.deepEqual(abo.msg.themen, ['boxen', 'neue_tobies', 'konfig', 'eingang']); // A11b: `eingang` für Band und Punkt am Reiter „Bibliothek“
   assert.equal(s.m.aufrufe('tobibox/neue_tobies/list').length, 1);
   assert.equal(s.m.aufrufe('tobibox/boxen/list').length, 1);
   assert.equal(s.m.aufrufe('tobibox/medien/pruefen').length, 0, 'das Gerüst stößt nichts an');

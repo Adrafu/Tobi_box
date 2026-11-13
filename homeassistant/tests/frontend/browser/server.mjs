@@ -17,7 +17,7 @@ import { fileURLToPath } from 'node:url';
 
 const HIER = fileURLToPath(new URL('.', import.meta.url));
 const FRONT = resolve(HIER, '../../../custom_components/tobibox/frontend');
-const { createMockHass, FAEHIGKEITEN, FAEHIGKEITEN_V11, FAEHIGKEITEN_A9, mitStaenden } = await import(new URL('../mock-hass.mjs', import.meta.url));
+const { createMockHass, FAEHIGKEITEN, FAEHIGKEITEN_V11, FAEHIGKEITEN_A9, mitStaenden, eingangEintrag } = await import(new URL('../mock-hass.mjs', import.meta.url));
 
 const folge = (name, anzeige, extra = {}) => ({ name, anzeige, nummer: null, datum: null, art: 'datei', tracks: 1, groesse_bytes: 5 * 1048576, pruefung: 'ok', hinweis: null, pruefen: false, pruefen_gruende: [], tobies: [], ...extra });
 
@@ -67,9 +67,26 @@ function bauen(schluessel) {
   if (profil === 'warn') { b.konfig = { ...b.konfig, zustand: 'export_neuer' }; b.boxen[1].konfig_stand = 'voraus'; }
   // A-1b: Ereignisse des Mocks sammeln; die Prüfseite holt sie mit `GET /ev` (Abo `subscribeMessage` der Seite)
   m.ereignisse = [];
-  m.hass.connection.subscribeMessage((ev) => m.ereignisse.push(ev), { type: 'tobibox/subscribe', themen: ['boxen', 'neue_tobies', 'konfig', 'warteschlange'] });
+  m.hass.connection.subscribeMessage((ev) => m.ereignisse.push(ev), { type: 'tobibox/subscribe', themen: ['boxen', 'neue_tobies', 'konfig', 'warteschlange', 'eingang'] });
   return m;
 }
+
+/* A11b: Zustände des Eingangs: jeder liefert [noch im Eingang, einsortiert (Protokoll)]. Zeiten sind relativ zu „jetzt“. */
+const ZUSTAENDE_EINGANG = (() => {
+  const vor = (jetzt, min) => new Date(jetzt - min * 60000).toISOString();
+  const lauf = (jetzt, teil = {}) => eingangEintrag({ status: 'laeuft', fertig_am: null, zuerst_gesehen: vor(jetzt, 1), ...teil });
+  const ansehen = (jetzt, teil = {}) => eingangEintrag({ fertig_am: vor(jetzt, 20), pruefen: true, wunsch: { ziel: 'neu', art: 'hoerspiel' },
+    ergebnis: [{ serie_id: 'pruef', serie_name: 'Bibi Blocksberg', serie_neu: true, folge: 'b1.mp3', anzeige: 'Hexen gibt es doch', tracks: 1, pruefen: true, pruefen_gruende: ['tags_fehlen', 'nummer_doppelt'] }], ...teil });
+  return {
+    leer: () => [[], []],
+    laeuft1: (j) => [[lauf(j)], []],
+    laeuft2: (j) => [[lauf(j), lauf(j, { status: 'wartet' })], []],
+    pruefen1: (j) => [[], [ansehen(j)]],
+    pruefen2: (j) => [[], [ansehen(j), ansehen(j, { fertig_am: vor(j, 40), quelle: 'nas', wunsch: null })]],
+    fehler: (j) => [[eingangEintrag({ status: 'blockiert', fertig_am: null, zuerst_gesehen: vor(j, 30), hinweise: [{ code: 'kopierschutz', datei: 'a.m4b', text: 'x' }] })], []],
+    fertig: (j) => [[], [eingangEintrag({ fertig_am: vor(j, 2) })]],
+  };
+})();
 
 const mocks = new Map();
 const holeMock = (k) => { if (!mocks.has(k)) mocks.set(k, bauen(k)); return mocks.get(k); };
@@ -133,6 +150,22 @@ const server = http.createServer(async (req, res) => {
   if (p === '/zustand') {
     const m = holeMock(u.searchParams.get('k') || 'admin');
     res.end(JSON.stringify({ zuordnungen: m.backend.zuordnungen, warteschlange: m.backend.warteschlange, neue: m.backend.neueTobies, konfig: m.backend.konfig, cover: m.coverInfo ?? [] }));
+    return;
+  }
+  /* A11b: Zustand des Eingangs setzen (Band in der Bibliothek, gelbe Karte auf der Serienseite): Body { zustand }, ein Wert aus ZUSTAENDE_EINGANG.
+   * Das Ereignis `eingang`/`geaendert` bringt die Seite dazu, `eingang/list` neu zu holen. Die Einträge zeigen auf die Serie `pruef` („bitte ansehen“). */
+  if (p === '/eingang' && req.method === 'POST') {
+    const m = holeMock(u.searchParams.get('k') || 'admin');
+    const { zustand } = JSON.parse(await koerper(req));
+    const f = ZUSTAENDE_EINGANG[zustand];
+    if (!f) { res.statusCode = 400; res.end(JSON.stringify({ fehler: 'unbekannter Zustand' })); return; }
+    [m.backend.eingang, m.backend.eingangErledigt] = f(Date.now());
+    if (zustand.startsWith('pruefen') && m.backend.serien.pruef) { // frühere Abläufe haben die Serie vielleicht schon bestätigt: wieder „bitte prüfen“
+      const sr = m.backend.serien.pruef;
+      sr.pruefen = true; sr.folgen[0].pruefen = true; sr.folgen[0].pruefen_gruende = ['tags_fehlen', 'nummer_doppelt'];
+    }
+    m.emit('eingang', 'geaendert', {});
+    res.end(JSON.stringify({ zustand }));
     return;
   }
   /* A8f: Cover hochladen (POST, JPEG) und zurücksetzen (DELETE ?quelle=eigen). Prüft wie das Backend (Vertrag 14.3) Größe (3 MiB) und die
