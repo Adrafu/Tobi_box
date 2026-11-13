@@ -172,3 +172,21 @@ Beim Bau aufgefallen; der Code folgt jeweils der hier genannten Lösung (PL), de
 ## Stand 13.11.: Prototyp v8 abgeschlossen
 
 **(Tobias, 13.11.)** Bewegung X34 „schaut gut aus“. Design `docs/designs/ha-oberflaeche.md` mit Runden 12–16 (X1–X34) und Prototyp v8 gelten als Grundlage für den Bau der Seite. Vor A6: (1) Vertragsänderungen A0-Q (Warteschlange X13, Lernmodus nur Admin X13a) zur Freigabe, (2) Test X34a im echten HA, (3) Goldfisch-Review der seit Rev. 5 stark geänderten Abschnitte.
+
+## Runde 17 (13.11., Goldfisch-Review v8 und Freigabe A0-Q)
+
+**(Tobias: „Alles ok“)** – alle Empfehlungen zu den Fragen aus `review_goldfisch_v8.md` angenommen; A0-Q gilt als freigegeben (Tobias kann widersprechen).
+
+| Nr. | Entscheidung |
+|---|---|
+| R17-1 (N1) | Cover-Flug über **FLIP als Standardweg** (sicher im Shadow-DOM); View Transitions nur, wo nachweislich wirksam. iPhone-Test X34a prüft nur noch das Gefühl. |
+| R17-2 (N5) | Eigene Seitenleiste erst ab ca. **1100 px Panelbreite** (nicht Fensterbreite); darunter Reiter (unten bzw. oben). |
+| R17-3 (N6) | Umhängen ohne Rückfrage; Meldung nennt altes und neues Ziel mit „Rückgängig“; auf der Tobie-Seite bleibt eine Zeile „Vorher: …“. |
+| R17-4 (N15) | Während eines Uploads darf „Bildschirm anlassen, bis es fertig ist“ in der Fortschrittskarte stehen (echter Zustand). |
+| R17-5 (N11) | Optionales Namensfeld schon bei „Später auflegen“. |
+| R17-6 (N21) | Zusätzlich zum Punkt an „Geräte“ kurze Meldung auf jeder Seite „Neuer Tobie auf <Box> – Zuordnen“. |
+| R17-7 (N19) | „Gehört“ als eigene Unterseite hinter einer Zeile in „Geräte“. |
+| R17-8 (N4) | A-1 in drei Abnahmen: **A-1a** Lesen und Abends, **A-1b** Tobies, **A-1c** Hinzufügen und Cover; Bewegung als eigenes Paket nach dem Test im echten HA. |
+| A0-Q | Freigegeben: Warteschlange (Befehle 47–49, Thema `warteschlange`, Fehler `warteschlange_voll`/`_doppelt`, Fähigkeiten `warteschlange`, `zuordnung_rueckgaengig`, `als_neu` bei `zuordnung/remove`), Lernmodus 18–20 nur Admin. |
+
+Alle übrigen Befunde N1–N29 werden nach den Vorschlägen des Reviews eingearbeitet.
