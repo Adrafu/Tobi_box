@@ -8,10 +8,39 @@ Die Integration ist der **einzige Schreiber** für Zuordnungen und `serie.json` 
 *   verwaltet die Medien auf der NAS-Freigabe (Serien, Folgen, Papierkorb) und sortiert Neues aus dem
     **Eingang** nach den Tags ein (Entscheidung M),
 *   nimmt Uploads vom Handy in den Eingang an,
-*   bietet die Seite „Tobi Box“ unter `/tobibox` (neue Seite `tobibox-app.js`, Ordner `custom_components/tobibox/frontend/`; bis zur Abnahme A17 nur für Administratoren, Entscheidung R17-9), das Testpanel unter `/tobibox-test` und HA-Aktionen. Die alte Komponente `tobibox-panel.js` hat keinen eigenen Seitenleisten-Eintrag und wird später in „Technik“ eingebettet.
+*   bietet die Seite „Tobi Box“ unter `/tobibox` (Element `tobibox-app.js`, Ordner `custom_components/tobibox/frontend/`), das Testpanel unter `/tobibox-test` und HA-Aktionen. Die alte Komponente `tobibox-panel.js` hat keinen eigenen Seitenleisten-Eintrag; sie ist in „Technik“ eingebettet.
 
 Verträge (die Integration ändert sie nicht): `docs/protocol/ha-websocket-v1.md` (Vertrag W, Seite ↔ Backend),
 `docs/protocol/mqtt-v1.md` (Box ↔ HA), `docs/data-model.md`.
+
+## Die Seite „Tobi Box“
+
+*   **Adresse:** `/tobibox`. Bis Tobias Teil A-1 abgenommen hat, sieht nur ein Administrator die Seite in der
+    Seitenleiste (`panel_custom` mit `require_admin=True` in `__init__.py`). Das blendet die Seite nur aus; geschützt
+    ist sie durch die Befehle selbst (siehe „Aktionen und Rechte“).
+*   **Reiter:** Start, Bibliothek, Tobies, Geräte (`REITER` in `tobibox-app.js`, Beschriftungen in `texte.js`). Am Handy
+    stehen sie unten (Panel unter 700 px Breite), auf dem Tablet oben (700 bis unter 1100 px), ab 1100 px als Seitenleiste.
+*   **Technik:** Das runde Werkzeug-Symbol im Kopf öffnet „Technik“. Es ist nur für Administratoren da; Nicht-Administratoren
+    sehen dort den Satz „Dieser Bereich ist nur für Administratoren“. Technik hat sechs Unterseiten: Boxen, Speicher und
+    Netz, Liste und Sicherung, Tobies, Meldungen, Einstellungen. Die alte Komponente läuft dort eingebettet.
+*   **Abends:** Gute Nacht und Leise-Zeiten stehen unter „Geräte“, unten im Abschnitt „Abends“ (Routen `#abends` und `#mehr`
+    führen auf `#geraete`).
+*   **Rechte:** Drei Stufen (Vertrag W, Abschnitt 2.1):
+    *   **lesen:** jeder angemeldete HA-Benutzer,
+    *   **alltag:** jeder angemeldete HA-Benutzer, mit den Schutzregeln aus 2.4 (zum Beispiel Papierkorb mit Mitteilung),
+    *   **admin:** nur Administratoren, zum Beispiel Papierkorb leeren, Liste neu ausrollen, Lernmodus, „Cover neu suchen“.
+    Die Stufe steht am Befehl als `recht=` (`websocket_api.py`).
+*   **Boxen mit Namen:** Die Anzeigenamen stellst du in den Optionen der Integration ein, Feld „Namen der Boxen“,
+    Schreibweise `box1=Box 1, box2=Box 2` (Vor dem Gleichheitszeichen steht der Box-Name, danach der Anzeigename, bis
+    40 Zeichen). Ohne Eintrag gilt der Name, den die Box selbst meldet.
+*   **Hochladen:** Das Backend nimmt Dateien bis 2 GiB an (`upload_max_mib`, Vorgabe 2048 MiB, in den Optionen änderbar).
+    Die Seite zum Hochladen (Knopf „+“) kommt mit Teil A-1c; heute zeigt sie noch den leeren Platz.
+*   **Cover:** Das Backend holt und liefert Cover (Befehl `cover/neu_suchen` nur für Administratoren, Bild hochladen
+    für alle). Eigene Cover per Foto in der Seite kommen mit Teil A-1c.
+*   **Warteschlange:** Der Server kennt sie (Vertrag W, Abschnitt 3.13, Befehle 47 bis 49, Recht `alltag`). Die Seite
+    dazu kommt mit Teil A-1b; der Reiter „Tobies“ ist bis dahin leer.
+
+Stand: Teil A-1a (Lesen und Abends). Was dort fehlt, steht oben beim jeweiligen Punkt.
 
 ## Getestete Versionen
 
@@ -43,7 +72,7 @@ venv-ha/bin/pytest -q homeassistant/tests
 
 *   Dauer: etwa 2 Minuten. Alle Tests erzeugen ihre Audiodateien selbst mit `ffmpeg` (Tags über `-metadata`);
     echte Hörspiele kommen nie ins Repo.
-*   `homeassistant/tests/frontend/` gehört AP 3.2 (JavaScript, eigener Aufruf) und wird hier nicht angefasst.
+*   `homeassistant/tests/frontend/` enthält die JavaScript-Tests der Seite (`*.test.mjs`). Sie laufen mit eigenem Aufruf, nicht mit `pytest`.
 *   `pytest.ini` setzt `pythonpath = .` (damit `custom_components/tobibox` gefunden wird) und `asyncio_mode = auto`.
 
 ## Installation in Home Assistant (Tobias)
@@ -66,8 +95,9 @@ Schritte:
     kopieren (samt `frontend/`) und HA neu starten.
 2.  Einstellungen → Geräte & Dienste → Integration hinzufügen → „Tobi Box“. Angaben: Pfad zum Ordner `medien`,
     die Box-Namen (wie `box_id` in `tobibox.toml`, z. B. `box1, box2`), größte Datei beim Upload (Vorgabe
-    2048 MiB = 2 GiB; später in den Optionen änderbar).
-3.  In der Seitenleiste erscheint „Tobi Box“ (nur für Administratoren).
+    2048 MiB = 2 GiB; später in den Optionen änderbar). Die Anzeigenamen der Boxen (`box1=Box 1, box2=Box 2`) trägst
+    du danach in den Optionen der Integration ein.
+3.  In der Seitenleiste erscheint „Tobi Box“ (bis zur Abnahme von Teil A-1 nur für Administratoren).
 4.  Beim ersten Start legt die Integration eine neue Liste an (Revision 1) und veröffentlicht sie. Startet HA
     später mit **leerem Speicher** oder ist der Export auf dem NAS **neuer**, veröffentlicht die Integration
     nichts, bis Tobias auf der Seite entschieden hat („aus dem Export holen“ oder „Liste neu ausrollen“,
@@ -86,9 +116,12 @@ Schritte:
 | `ffprobe.py` | `ffprobe` gehärtet (Liste von Argumenten, `-protocol_whitelist file`, erzwungenes Format, 30 s, 1 GiB) |
 | `namen.py` | Namensregeln (SMB), natürliche Sortierung, Tag-Werte, Folgen-Nummer |
 | `mqtt.py`, `lernmodus.py` | MQTT-Schicht, Lernmodus mit Rückfrage und `persistent_notification` |
-| `websocket_api.py`, `http.py` | die 32 Befehle von Vertrag W, Upload im Strom mit `asyncio.shield` |
+| `websocket_api.py`, `http.py` | die Befehle von Vertrag W (Abschnitt 3), Upload im Strom mit `asyncio.shield` |
 | `services.py`, `services.yaml` | HA-Aktionen (rufen dieselben Funktionen); **alle nur für Administratoren** (Abschnitt „Aktionen und Rechte“) |
 | `strings.json`, `translations/de.json` | alle Texte (gleicher Inhalt) |
+| `testpanel.py`, `tobibox-testpanel.js` | Testpanel `/tobibox-test` (nur Administratoren; Schalter `TESTPANEL` in `const.py`) |
+| `frontend/tobibox-app.js`, `frontend/seiten/`, `frontend/bausteine.js`, `frontend/texte.js` | Seite „Tobi Box“: Gerüst, Reiter und Routen; je Reiter eine Seite (`seiten/index.js`); Bausteine; alle Texte der Oberfläche |
+| `frontend/tobibox-panel.js` | die alte Komponente, eingebettet in „Technik“ |
 
 ## Aktionen und Rechte
 
@@ -97,7 +130,9 @@ Alle HA-Aktionen der Integration (`tobibox.zuordnen`, `serie_loeschen`, `papierk
 angemeldet: **nur Administratoren** dürfen sie aufrufen; ein Benutzer ohne Adminrechte (auch ein Wandtablet-Konto)
 bekommt `Unauthorized`. Aufrufe ohne Benutzer (Automationen, Skripte, System) bleiben erlaubt, denn HA prüft die
 Rechte nur, wenn ein Benutzer den Aufruf auslöst. Es gibt keine lesende Aktion; Lesen geht nur über die
-WebSocket-Befehle. Dort tragen alle schreibenden Befehle `require_admin`, der Upload ebenso (Vertrag W, Abschnitt 2.1).
+WebSocket-Befehle. Dort gilt die dreistufige Regel aus Vertrag W, Abschnitt 2.1 (lesen, alltag, admin): Die Alltagsbefehle
+(zum Beispiel umbenennen, Art ändern, in den Papierkorb legen, Zuordnen, Upload) dürfen alle angemeldeten Benutzer nutzen.
+Der Upload braucht keinen Administrator mehr (W-19 ist entfallen); er prüft nur die Anmeldung.
 
 ## Abweichungen und Auslegungen (gemeldet an die Projektleitung)
 
