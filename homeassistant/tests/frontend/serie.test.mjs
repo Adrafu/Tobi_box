@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import { seite, geheZu, weg, warte, tippe, taste, MIT_DOM } from './dom-helfer.mjs';
 import { FAEHIGKEITEN } from './mock-hass.mjs';
 
-const { tobiesDerSerie, tobiesSatz, gruendeTexte, brauchtPruefung, folgenMeta, serienFortschritt, SICHTBAR } = await import('../../custom_components/tobibox/frontend/seiten/serie.js');
+const { tobiesDerSerie, tobiesSatz, gruendeTexte, brauchtPruefung, folgenMeta, folgenMetaTeile, serienFortschritt, SICHTBAR } = await import('../../custom_components/tobibox/frontend/seiten/serie.js');
 const { SERIE, GRUENDE, FEHLER } = await import('../../custom_components/tobibox/frontend/texte.js');
 
 const folge = (name, anzeige, extra = {}) => ({ name, anzeige, nummer: null, datum: null, art: 'datei', tracks: 1, groesse_bytes: 5 * 1048576, pruefung: 'ok', hinweis: null, pruefen: false, pruefen_gruende: [], tobies: [], ...extra });
@@ -879,4 +879,25 @@ test('Seite beim Verlassen: laufende Antworten werden verworfen (kein Zeichnen a
   assert.equal(s.q('[data-folge]'), null);
   assert.equal(s.q('main h2').textContent, 'Bibliothek');
   weg();
+});
+
+/* ------------------------------------------------------------------ Computer (AB3): großer Kopf, Folgenliste mit Spalten */
+
+test('Serienseite am Computer: großer Kopf mit Cover links, Titel und Menü rechts; Folgenliste mit Spalten Nr., Titel, Dauer', MIT_DOM, async () => {
+  const s = await oeffne('s1', { breite: 1280 });
+  assert.equal(s.el.getAttribute('data-layout'), 'seite');
+  assert.ok(s.q('.se-hero .cover.se-xl'), 'Cover im Kopf');
+  assert.equal(s.qa('[data-menue-serie]').length, 1, 'ein Menüknopf, nicht zwei');
+  assert.ok(s.q('.se-hero [data-menue-serie]'), 'er sitzt im großen Kopf');
+  assert.equal(s.q('.se-leiste [data-menue-serie]'), null);
+  assert.equal(s.q('.se-hero h2').textContent, 'Die drei ???');
+  assert.deepEqual(s.qa('.se-spalten span').map((x) => x.textContent), ['Nr.', 'Titel', 'Dauer', '']);
+  assert.ok(s.q('.se-zeile .se-dauer'), 'die Dauer hat eine eigene Spalte');
+  weg();
+});
+
+test('folgenMetaTeile: Dauer und Kapitel einzeln, folgenMeta setzt sie wie bisher zusammen', () => {
+  assert.deepEqual(folgenMetaTeile({ dauer_s: 139 }), { dauer: '2:19', kapitel: '' });
+  assert.deepEqual(folgenMetaTeile({ dauer_s: 60, kapitel: [{}, {}] }), { dauer: '1:00', kapitel: '2 Kapitel' });
+  assert.deepEqual(folgenMetaTeile({}), { dauer: '', kapitel: '' });
 });

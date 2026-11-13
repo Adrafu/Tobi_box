@@ -291,3 +291,16 @@ test('Texte nennen keine echten Namen und keine Netz-Adressen', () => {
     for (const [pfad, text] of alleTexte(gruppe)) assert.doesNotMatch(text, /https?:\/\//, `${name}.${pfad}`);
   }
 });
+
+/* ------------------------------------------------------------------ AB4: die Nummer steht nur einmal im Status-Satz */
+
+test('Status: heißt die Folge schon „Folge 1: Der Schatz“, steht die Nummer nicht noch einmal davor', () => {
+  const satz = (folge, nummer) => statusSatz({ anzeige: 'Box 1', online: true, zustand: 'spielt', serie: 'Drachen', folge, folge_nummer: nummer }).satz;
+  assert.equal(satz('Folge 1: Der Schatz', 1), 'Box 1 spielt „Drachen“ · Folge 1: Der Schatz.', 'Ursache: die Anzeige trug „Folge 1:“ schon im Namen');
+  assert.equal(satz('Der Schatz', 1), 'Box 1 spielt „Drachen“ · Folge 1: Der Schatz.', 'ohne Nummer im Namen bleibt sie davor');
+  assert.equal(satz('01 - Der Schatz', 1), 'Box 1 spielt „Drachen“ · 01 - Der Schatz.');
+  assert.equal(satz('1. Der Schatz', 1), 'Box 1 spielt „Drachen“ · 1. Der Schatz.');
+  assert.equal(satz('Folge 12: Das Rätsel', 1), 'Box 1 spielt „Drachen“ · Folge 1: Folge 12: Das Rätsel.', 'Folge 12 ist nicht Folge 1');
+  assert.equal(satz('1 Mann im Wald', 1), 'Box 1 spielt „Drachen“ · Folge 1: 1 Mann im Wald.', 'eine Zahl am Titelanfang ohne Trenner ist keine Nummer');
+  assert.equal(satz('Folge 4 Das Rätsel', 4), 'Box 1 spielt „Drachen“ · Folge 4 Das Rätsel.');
+});

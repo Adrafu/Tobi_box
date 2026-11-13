@@ -59,7 +59,9 @@
     if (e.closest('.sr') || e.closest('dialog:not([open])')) return false;
     const r = e.getBoundingClientRect();
     if (!r.width || !r.height) return false;
-    return getComputedStyle(e).visibility !== 'hidden';
+    if (getComputedStyle(e).visibility === 'hidden') return false;
+    for (let n = e; n && n.nodeType === 1; n = n.parentElement) if (getComputedStyle(n).opacity === '0') return false; // unsichtbar (Pfeile der Reihen ohne Hover)
+    return true;
   };
   const deaktiviert = (e) => !!(e.matches(':disabled') || e.closest('[aria-disabled="true"], [disabled], fieldset:disabled'));
 

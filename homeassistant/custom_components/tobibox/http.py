@@ -465,6 +465,41 @@ def _etag_passt(kopf: str | None, stand: str) -> bool:
     return False
 
 
+class TobiboxStaticView(HomeAssistantView):
+    """``/tobibox_static/<Datei>``: die Dateien der Seite, immer mit ``Cache-Control: no-cache`` (B4).
+
+    Die Seite besteht aus vielen ES-Modulen, die einander ohne ``?v=`` laden. Eine Version in jeder Import-Adresse ließe
+    dasselbe Modul unter zwei Adressen doppelt laufen und müsste in jeder Datei stehen. Darum bleiben die Adressen
+    gleich und der Browser fragt bei jedem Laden nach (``ETag`` und ``Last-Modified`` bringt ``FileResponse`` mit:
+    unverändert = ``304``, ohne Inhalt). Ohne Anmeldung, wie bisher die statischen Pfade: die Dateien enthalten keine Geheimnisse."""
+
+    url = "/tobibox_static/{pfad:.+}"
+    name = "tobibox:static"
+    requires_auth = False
+    cors_allowed = False
+
+    def __init__(self, ordner: Path) -> None:
+        self._ordner = ordner
+
+    async def get(self, request: web.Request, pfad: str) -> web.StreamResponse:
+        hass = request.app[KEY_HASS]
+        datei = await hass.async_add_executor_job(self._finde, pfad)
+        if datei is None:
+            return web.Response(status=404)
+        return web.FileResponse(datei, headers={"Cache-Control": "no-cache"})
+
+    def _finde(self, pfad: str) -> Path | None:
+        """Läuft im Executor. Nur Dateien unterhalb des Ordners, keine ``..``."""
+        try:
+            wurzel = self._ordner.resolve()
+            datei = (wurzel / pfad).resolve()
+        except (OSError, ValueError):
+            return None
+        if wurzel not in datei.parents or not datei.is_file():
+            return None
+        return datei
+
+
 class TobiboxCoverView(HomeAssistantView):
     """``/api/tobibox/cover/<serie_id>``: GET (lesen), POST (Foto-Upload) und DELETE ``?quelle=eigen`` (alltag).
 

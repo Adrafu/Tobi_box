@@ -53,13 +53,17 @@ export function gruendeTexte(s) {
 
 export const brauchtPruefung = (s) => !!(s?.pruefen || (s?.folgen || []).some((f) => f.pruefen));
 
+/* Dauer und Kapitelzahl einer Folge getrennt (die Spalten am Computer brauchen beides einzeln). */
+export function folgenMetaTeile(x) {
+  const dauer = typeof x.dauer_s === 'number' && x.dauer_s > 0 ? uhr(x.dauer_s) : '';
+  const kap = Array.isArray(x.kapitel) && x.kapitel.length ? x.kapitel.length : (x.art === 'ordner' && x.tracks > 1 ? x.tracks : 0);
+  return { dauer, kapitel: kap ? fuellen(SERIE.kapitel, { anzahl: kap }) : '' };
+}
+
 /* Zeile unter dem Titel einer Folge: „2:19“ und bei Ordner-Folgen „· 14 Kapitel“; fehlt beides, nichts (Daten kommen erst später). */
 export function folgenMeta(x) {
-  const teile = [];
-  if (typeof x.dauer_s === 'number' && x.dauer_s > 0) teile.push(uhr(x.dauer_s));
-  const kap = Array.isArray(x.kapitel) && x.kapitel.length ? x.kapitel.length : (x.art === 'ordner' && x.tracks > 1 ? x.tracks : 0);
-  if (kap) teile.push(fuellen(SERIE.kapitel, { anzahl: kap }));
-  return teile.join(' · ');
+  const t = folgenMetaTeile(x);
+  return [t.dauer, t.kapitel].filter(Boolean).join(' · ');
 }
 
 /* „Schon 18 % gehört · noch 21 Min.“ aus `hoerstelle` der Serie, sonst null. */
@@ -525,9 +529,11 @@ class SerieSeite {
     }
   }
 
+  /* Am Computer sitzt das Menü des Eintrags im großen Kopf (neben dem Titel), sonst oben rechts neben „‹ Bibliothek“. */
   _leiste(s) {
+    const gross = this.ctx.layout === 'seite';
     return html`<div class="se-leiste"><a class="back" href="#bibliothek" data-zurueck>${SERIE.zurueck}</a>
-      ${s ? html`<button type="button" class="iconbtn se-mehr-knopf" data-menue-serie aria-haspopup="dialog" aria-label=${fuellen(SERIE.mehr_zu, { titel: s.name })}
+      ${s && !gross ? html`<button type="button" class="iconbtn se-mehr-knopf" data-menue-serie aria-haspopup="dialog" aria-label=${fuellen(SERIE.mehr_zu, { titel: s.name })}
         @click=${(e) => this.serieMenue(e.currentTarget)}>${ic('more', 24)}</button>` : nothing}</div>`;
   }
 
@@ -542,10 +548,13 @@ class SerieSeite {
 
   _kopf(s) {
     const fort = serienFortschritt(s);
+    const gross = this.ctx.layout === 'seite';
     return html`<div class="se-hero">
       <div class=${`cover se-xl ${coverKlasse(s.id)}`} data-cover-gross=${s.id} data-stand=${s.cover_stand ?? ''} aria-hidden="true"><span class="bst">${anfang(s.name)}</span></div>
       <div class="se-htxt"><h2 tabindex="-1">${s.name}</h2><div class="muted" data-untertitel>${untertitel(s)}</div>
-        ${fort ? html`<div class="muted" data-fortschritt>${fort}</div>` : nothing}</div></div>`;
+        ${fort ? html`<div class="muted" data-fortschritt>${fort}</div>` : nothing}
+        ${gross ? html`<div class="btns se-aktionen"><button type="button" class="btn se-mehr-knopf" data-menue-serie aria-haspopup="dialog" aria-label=${fuellen(SERIE.mehr_zu, { titel: s.name })}
+          @click=${(e) => this.serieMenue(e.currentTarget)}>${ic('more', 24)}${SERIE.mehr}</button></div>` : nothing}</div></div>`;
   }
 
   _ansehen(s) {
@@ -579,7 +588,7 @@ class SerieSeite {
       ${alle.length > SICHTBAR && !ordnen ? html`<label class="sr" for="se-suche">${SERIE.suchen.label}</label>
         <input id="se-suche" class="se-sfeld" type="search" autocomplete="off" placeholder=${SERIE.suchen.platzhalter} .value=${this.sterm}
           @input=${(e) => { this.sterm = e.target.value; this.gezeigt = SICHTBAR; ctx.neuZeichnen(); }}>` : nothing}
-      ${treffer.length ? html`<div class="se-karte" data-liste="folgen">${repeat(treffer.slice(0, this.gezeigt), ({ x }) => x.name, ({ x, i }) => this._zeile(x, i, alle.length, ordnen))}</div>
+      ${treffer.length ? html`<div class="se-karte" data-liste="folgen">${ctx.layout === 'seite' && !ordnen ? html`<div class="se-spalten" aria-hidden="true"><span class="c-nr">${SERIE.spalten.nr}</span><span>${SERIE.spalten.titel}</span><span class="c-dauer">${SERIE.spalten.dauer}</span><span></span></div>` : nothing}${repeat(treffer.slice(0, this.gezeigt), ({ x }) => x.name, ({ x, i }) => this._zeile(x, i, alle.length, ordnen))}</div>
           ${rest > 0 ? html`<div class="btns se-mehr"><button type="button" class="btn" data-mehr @click=${() => { this.gezeigt += SICHTBAR; ctx.neuZeichnen(); }}>${fuellen(SERIE.mehr_laden, { anzahl: Math.min(rest, SICHTBAR) })}</button></div>` : nothing}`
         : ctx.leer('suche', 'sucheOhneTreffer', { werte: { suchwort: term }, aktion: () => { this.sterm = ''; ctx.neuZeichnen(); } })}`;
   }
@@ -587,6 +596,7 @@ class SerieSeite {
   _zeile(x, i, n, ordnen) {
     const titel = x.anzeige || x.name;
     const meta = folgenMeta(x);
+    const teile = folgenMetaTeile(x);
     const h = x.hoerstelle;
     let fort = nothing;
     if (h?.fertig) fort = html`<span class="ls se-ok">${ic('check', 16)} ${ZEILE.fertig}</span>`;
@@ -597,7 +607,8 @@ class SerieSeite {
     }
     return html`<div class="frow se-zeile" data-folge=${x.name}>
       <span class="se-num" aria-hidden="true">${x.nummer ?? i + 1}</span>
-      <div class="grow"><span class="nm">${titel}</span>${meta ? html`<span class="muted">${meta}</span>` : nothing}${fort}</div>
+      <div class="grow"><span class="nm">${titel}</span>${meta ? html`<span class="muted se-meta-voll">${meta}</span>` : nothing}${teile.kapitel ? html`<span class="muted se-meta-kap">${teile.kapitel}</span>` : nothing}${fort}</div>
+      <span class="se-dauer" aria-hidden="true">${teile.dauer}</span>
       ${ordnen
         ? html`<button type="button" class="iconbtn se-ord" data-auf ?disabled=${i === 0} aria-label=${fuellen(SERIE.reihenfolge.hoch, { titel })} @click=${() => this.bewege(i, -1)}>▲</button>
           <button type="button" class="iconbtn se-ord" data-ab ?disabled=${i === n - 1} aria-label=${fuellen(SERIE.reihenfolge.runter, { titel })} @click=${() => this.bewege(i, 1)}>▼</button>`
@@ -619,6 +630,36 @@ export const stil = () => css`
   .app:not([data-layout="unten"]) .se-hero { grid-template-columns: 220px minmax(0, 1fr); justify-items: start; text-align: left; gap: 8px 28px; align-items: center; }
   .app:not([data-layout="unten"]) .se-htxt { justify-items: start; }
   .app:not([data-layout="unten"]) .cover.se-xl { width: 220px; }
+  .se-meta-kap, .se-dauer, .se-spalten { display: none; }
+
+  /* Computer (ab 1100 px): großer Kopf wie ein Album bei Apple Music, Folgenliste mit Spalten Nr., Titel, Dauer, „⋯“ */
+  .app[data-layout="seite"] .se-leiste { min-height: 44px; margin-top: -4px; }
+  .app[data-layout="seite"] .se-hero { grid-template-columns: 248px minmax(0, 1fr); gap: 8px 40px; align-items: end; margin: 8px 0 28px; padding: 32px; border-radius: 28px; background: var(--card); }
+  @supports (background: color-mix(in srgb, red 10%, blue)) {
+    .app[data-layout="seite"] .se-hero { background: linear-gradient(180deg, color-mix(in srgb, var(--primary) 14%, var(--card)), var(--card) 85%); }
+  }
+  .app[data-layout="seite"] .cover.se-xl { width: 248px; font-size: 96px; border-radius: 18px; box-shadow: 0 8px 28px var(--shadow); }
+  .app[data-layout="seite"] .se-htxt { gap: 6px; align-self: end; }
+  .app[data-layout="seite"] .se-htxt h2 { font-size: 40px; font-weight: 700; letter-spacing: -0.8px; line-height: 1.12; margin: 0 0 4px; }
+  .app[data-layout="seite"] .se-htxt .muted { font-size: 16px; }
+  .se-aktionen { margin-top: 14px; }
+  .se-aktionen .btn svg { fill: currentColor; }
+  .app[data-layout="seite"] .se-kopfzeile { margin-top: 12px; }
+  .app[data-layout="seite"] .se-abschnitt { font-size: 22px; font-weight: 700; letter-spacing: -0.2px; }
+  .app[data-layout="seite"] .se-karte { padding: 0; overflow: hidden; border-radius: 20px; box-shadow: 0 1px 4px var(--shadow); }
+  .app[data-layout="seite"] .se-spalten, .app[data-layout="seite"] .se-zeile { display: grid; grid-template-columns: 56px minmax(0, 1fr) 96px 44px; column-gap: 12px; align-items: center; padding-inline: 20px; }
+  .app[data-layout="seite"] .se-spalten { min-height: 48px; font-size: 13px; font-weight: 500; letter-spacing: 0.4px; text-transform: uppercase; color: var(--text2); border-bottom: 1px solid var(--divider); }
+  .app[data-layout="seite"] .se-spalten .c-nr { text-align: center; }
+  .app[data-layout="seite"] .se-spalten .c-dauer, .app[data-layout="seite"] .se-dauer { text-align: right; }
+  .app[data-layout="seite"] .se-zeile { min-height: 64px; }
+  .app[data-layout="seite"] .se-spalten + .se-zeile { border-top: 0; }
+  .app[data-layout="seite"] .se-zeile:hover { background: var(--primary-soft); }
+  .app[data-layout="seite"] .se-zeile .se-num { width: auto; font-size: 15px; font-variant-numeric: tabular-nums; }
+  .app[data-layout="seite"] .se-dauer { display: block; color: var(--text2); font-size: 15px; font-variant-numeric: tabular-nums; }
+  .app[data-layout="seite"] .se-meta-voll { display: none; }
+  .app[data-layout="seite"] .se-meta-kap { display: block; }
+  .app[data-layout="seite"] .se-zeile .se-more { margin-left: 0; }
+  .app[data-layout="seite"] .se-zeile:hover .se-more { background: var(--card); }
   .se-grund { display: block; margin-top: 2px; }
   .note .se-grund:first-of-type { margin-top: 4px; }
   .se-einzeln { background: var(--card); border-radius: var(--r-card); box-shadow: 0 1px 3px var(--shadow); padding: 16px; margin: 8px 0 16px; }

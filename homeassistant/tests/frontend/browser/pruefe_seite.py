@@ -39,7 +39,8 @@ except ImportError:  # wird in main() gemeldet
     PlaywrightTimeout = TimeoutError
 THEMEN = ["hell", "dunkel", "gelb"]
 # (Art, Breite): "fenster" = Browserfenster, "panel" = Panelbreite bei 1280 px Fensterbreite
-BREITEN = [("fenster", 320), ("fenster", 390), ("fenster", 1280), ("panel", 900), ("panel", 1024), ("panel", 1100)]
+# "ha": Fenster 1440 px mit der Seitenleiste von Home Assistant (256 px) links daneben, das Panel ist 1184 px breit (B2)
+BREITEN = [("fenster", 320), ("fenster", 390), ("fenster", 1280), ("panel", 900), ("panel", 1024), ("panel", 1100), ("ha", 1440)]
 ROLLEN = ["admin", "user"]
 KATEGORIEN = ["konsole", "ablauf", "hscroll", "raus", "klein", "text", "symbole", "rand", "leiste", "extra"]
 TECHNIK_SEITEN = [("technik", "#technik"), ("technik-boxen", "#technik-boxen"), ("technik-box", "#technik-box-kueche"), ("technik-speicher", "#technik-speicher"),
@@ -290,12 +291,12 @@ def ablauf_reiter(L: Lauf):
         L.pruefe(L.hash() == "#suche" and L.da("input.suchfeld"), "kopf-suche", "Suche öffnet nicht")
     with L.schritt("rechte-technik"):
         L.gehe("#start")
-        da = L.da("a.rund.tech")
+        da = L.da("a.tech")
         L.pruefe(da == admin, "rechte-technik", f"Technik-Symbol {'fehlt' if admin else 'sichtbar'} für {L.job['rolle']}")
         if admin:
-            L.klick("a.rund.tech")
+            L.klick("a.tech")
             L.pruefe(L.hash() == "#technik", "rechte-technik", f"Technik-Symbol führt nach {L.hash()}")
-            akt = L.js("return sr.querySelector('a.rund.tech')?.getAttribute('aria-current')")
+            akt = L.js("return sr.querySelector('a.tech')?.getAttribute('aria-current')")
             L.pruefe(akt == "page", "rechte-technik", "Technik-Symbol ohne aria-current")
         else:
             L.gehe("#technik")
@@ -331,6 +332,69 @@ def ablauf_unterkante(L: Lauf):
             L.js("el.setMini(false); el.querySelector('#mini-test')?.remove();")
     L.pg.evaluate("() => { const h = window.__el.parentElement; h.style.paddingBottom = ''; document.documentElement.style.removeProperty('--tb-safe-unten'); window.__el._messeRand(); }")
     L.ruhe()
+
+
+def ablauf_klicks(L: Lauf):
+    """B1: Seiten über echte Klicks wechseln (HA fängt Link-Klicks ab und meldet nur `location-changed`, kein `hashchange`)."""
+    with L.schritt("klick-kachel-und-zurueck"):
+        L.gehe("#start")
+        L.pg.locator("a.tile").first.click(timeout=5000)
+        L.ruhe()
+        L.pruefe(L.hash().startswith("#serie-"), "klick-kachel", f"Kachel führt nach {L.hash()}")
+        L.pruefe(L.da("[data-untertitel]") or L.da(".se-hero") or L.da("[data-zustand]"), "klick-kachel", "Serienseite zeigt sich nach dem Klick nicht")
+        L.pg.locator("a[data-zurueck]").first.click(timeout=5000)
+        L.ruhe()
+        L.pruefe(L.hash() == "#bibliothek" and L.da("[data-liste=bibliothek], [data-leer]"), "klick-zurueck", f"Zurück-Link zeigt die Bibliothek nicht ({L.hash()})")
+        L.pg.go_back()
+        L.ruhe()
+        L.pruefe(L.js("return location.hash").startswith("#serie-") and L.da(".se-hero"), "klick-browser-zurueck", "Zurück-Taste des Browsers wechselt die Seite nicht")
+    with L.schritt("klick-alle-anzeigen"):
+        L.gehe("#start")
+        L.pg.locator("a.alle").first.click(timeout=5000)
+        L.ruhe()
+        L.pruefe(L.hash().startswith("#bibliothek"), "alle-anzeigen", f"„Alle anzeigen“ führt nach {L.hash()}")
+        L.pruefe(L.js("return el._seiteObj.e.sortierung") == "neu", "alle-anzeigen", "Bibliothek nicht nach „Zuletzt hinzugefügt“ sortiert")
+
+
+def ablauf_reihen(L: Lauf):
+    """AB5: Reihen auf dem Start zeigen, dass es weitergeht (angeschnittene Kachel, Verlauf); am Computer Pfeile bei Maus-Hover."""
+    with L.schritt("reihen"):
+        L.gehe("#start")
+        L.pg.mouse.move(1, 1)  # die Maus von früheren Klicks nicht über der Reihe lassen
+        L.pg.wait_for_timeout(450)
+        info = L.js("""const sc = sr.querySelector('.hscroll[data-reihe]'); if (!sc) return null;
+          const k = [...sc.querySelectorAll('.tile')]; const r = sc.getBoundingClientRect();
+          const letzte = k.filter((t) => t.getBoundingClientRect().left < r.right - 1).pop().getBoundingClientRect();
+          return { scrollbar: sc.offsetHeight - sc.clientHeight, angeschnitten: letzte.right > r.right + 4, rand: getComputedStyle(sr.querySelector('.reihenfeld'), '::after').opacity, breite: k[0].getBoundingClientRect().width };""")
+        L.pruefe(info is not None, "reihen", "Reihe fehlt")
+        if not info:
+            return
+        L.pruefe(info["angeschnitten"], "reihen", "Die letzte sichtbare Kachel ist nicht angeschnitten")
+        L.pruefe(float(info["rand"]) > 0.5, "reihen", "Kein Verlauf am rechten Rand")
+        L.pruefe(info["scrollbar"] <= 0, "reihen", f"Scrollleiste der Reihe sichtbar ({info['scrollbar']} px)")
+        desktop = L.job["layout"] == "seite"
+        if desktop:
+            L.pruefe(info["breite"] >= 160, "reihen", f"Kachel nur {info['breite']:.0f} px breit")
+        pfeil = L.pg.locator(".reihe .pfeil.vor").first
+        if not desktop:
+            L.pruefe(not pfeil.is_visible(), "reihen", "Pfeil am Handy sichtbar")
+            return
+        L.pruefe(float(L.js("return getComputedStyle(sr.querySelector('.pfeil.vor')).opacity")) < 0.1, "reihen", "Pfeil ohne Hover schon sichtbar")
+        L.pg.locator(".reihenfeld").first.hover()
+        L.pg.wait_for_timeout(300)
+        L.pruefe(float(L.js("return getComputedStyle(sr.querySelector('.pfeil.vor')).opacity")) > 0.9, "reihen", "Pfeil rechts erscheint bei Hover nicht")
+        L.pruefe(L.js("return getComputedStyle(sr.querySelector('.pfeil.zu')).display") == "none", "reihen", "Pfeil links am Anfang sichtbar")
+        r = L.js("const b = sr.querySelector('.pfeil.vor').getBoundingClientRect(); return [b.width, b.height]")
+        L.pruefe(r[0] >= 44 and r[1] >= 44, "reihen", f"Pfeil nur {r[0]:.0f}x{r[1]:.0f} px")
+        s0 = L.js("return sr.querySelector('.hscroll[data-reihe]').scrollLeft")
+        pfeil.click(timeout=4000)
+        L.pg.wait_for_function("s0 => window.__el.shadowRoot.querySelector('.hscroll[data-reihe]').scrollLeft > s0 + 20", arg=s0, timeout=4000)
+        L.pg.wait_for_timeout(600)
+        L.pruefe(L.js("return getComputedStyle(sr.querySelector('.pfeil.zu')).display") != "none", "reihen", "Pfeil links fehlt nach dem Blättern")
+        L.pruefe(float(L.js("return getComputedStyle(sr.querySelector('.reihenfeld'), '::before').opacity")) > 0.5, "reihen", "Kein Verlauf links nach dem Blättern")
+        L.js("const s = sr.querySelector('.hscroll[data-reihe]'); s.scrollLeft = s.scrollWidth; s.dispatchEvent(new Event('scroll'));")
+        L.pg.wait_for_timeout(200)
+        L.pruefe(L.js("return getComputedStyle(sr.querySelector('.pfeil.vor')).display") == "none", "reihen", "Pfeil rechts am Ende der Reihe noch da")
 
 
 def ablauf_suche(L: Lauf):
@@ -374,7 +438,7 @@ def ablauf_suche(L: Lauf):
 def ablauf_bibliothek(L: Lauf):
     with L.schritt("sortieren-filter"):
         L.gehe("#bibliothek")
-        zahl0 = L.js("return sr.querySelectorAll('a.lrow').length")
+        zahl0 = L.js("return sr.querySelectorAll('a.lrow, a.rcard').length")
         gesamt0 = L.js("return sr.querySelector('.count').textContent.trim()")
         L.pruefe(zahl0 > 0, "bibliothek-liste", "Bibliothek ohne Zeilen")
         L.klick("[data-sortieren]")
@@ -403,20 +467,20 @@ def ablauf_bibliothek(L: Lauf):
         L.pg.locator(".arttab").nth(2).click(timeout=5000)  # Hörbücher
         L.ruhe()
         L.pruefe(L.js("return sr.querySelectorAll('.arttab')[2].getAttribute('aria-pressed')") == "true", "arten", "Art nicht gewählt")
-        L.pruefe(L.js("return sr.querySelectorAll('a.lrow').length") > 0, "arten", "Art ohne Zeilen")
+        L.pruefe(L.js("return sr.querySelectorAll('a.lrow, a.rcard').length") > 0, "arten", "Art ohne Zeilen")
         L.pg.locator(".arttab").nth(0).click(timeout=5000)
         L.ruhe()
     with L.schritt("mehr-laden"):
         L.gehe("#bibliothek")
-        n0 = L.js("return sr.querySelectorAll('a.lrow').length")
+        n0 = L.js("return sr.querySelectorAll('a.lrow, a.rcard').length")
         L.js("sr.querySelector('button[data-mehr]')?.scrollIntoView()")
-        L.pg.wait_for_function("n => window.__el.shadowRoot.querySelectorAll('a.lrow').length > n", arg=n0, timeout=5000)
+        L.pg.wait_for_function("n => window.__el.shadowRoot.querySelectorAll('a.lrow, a.rcard').length > n", arg=n0, timeout=5000)
         L.pruefe(True, "mehr-laden", "")
     with L.schritt("leere-filter"):  # Filter ohne Treffer: der Zustand mit „Zurücksetzen“
         L.gehe("#bibliothek")
         L.js("el._seiteObj.aendere({ filter: { pruefen: true }, typ: 'einzeln' })")
         L.ruhe()
-        L.pruefe(L.da('[data-leer="filter"]') or L.da("a.lrow"), "leere-filter", "Weder Liste noch Leer-Zustand")
+        L.pruefe(L.da('[data-leer="filter"]') or L.da("a.lrow, a.rcard"), "leere-filter", "Weder Liste noch Leer-Zustand")
         L.js("el._seiteObj.zuruecksetzen({ mitArt: true })")
         L.ruhe()
 
@@ -425,7 +489,7 @@ def ablauf_serie(L: Lauf):
     admin = L.job["rolle"] == "admin"
     with L.schritt("serie-umbenennen"):
         L.gehe("#bibliothek")
-        L.pg.locator("a.lrow").first.click(timeout=5000)
+        L.pg.locator("a.lrow, a.rcard").first.click(timeout=5000)
         L.ruhe()
         L.pruefe(L.hash().startswith("#serie-"), "serie-oeffnen", f"Zeile führt nach {L.hash()}")
         alt = L.js("return sr.querySelector('main h2')?.textContent.trim()")
@@ -640,7 +704,7 @@ def ablauf_blaetter(L: Lauf):
         L.blatt_zu()
 
 
-ABLAEUFE = [ablauf_unterkante, ablauf_reiter, ablauf_suche, ablauf_bibliothek, ablauf_serie, ablauf_leise, ablauf_box, ablauf_technik, ablauf_blaetter]
+ABLAEUFE = [ablauf_unterkante, ablauf_reiter, ablauf_klicks, ablauf_reihen, ablauf_suche, ablauf_bibliothek, ablauf_serie, ablauf_leise, ablauf_box, ablauf_technik, ablauf_blaetter]
 
 
 # ------------------------------------------------------------------ Browser und Läufe
@@ -671,7 +735,7 @@ def lauf_job(job):
         with sync_playwright() as p:
             b = p.chromium.launch(args=["--no-sandbox"], **finde_browser(p))
             try:
-                w = job["breite"] if job["art"] == "fenster" else 1280
+                w = job["breite"] if job["art"] in ("fenster", "ha") else 1280
                 mobil = w < 700
                 ctx = b.new_context(viewport={"width": w, "height": 780 if mobil else 800}, has_touch=mobil, is_mobile=mobil, locale="de-DE", timezone_id="Europe/Berlin")
                 pg = ctx.new_page()
@@ -680,7 +744,7 @@ def lauf_job(job):
                 pg.on("pageerror", lambda e: konsole.append(f"pageerror: {e}"))
                 pg.on("response", lambda r: konsole.append(f"HTTP {r.status} {r.url}") if r.status >= 400 else None)
                 pg.on("requestfailed", lambda r: konsole.append(f"requestfailed {r.url} {r.failure}"))
-                q = f"theme={job['thema']}&k={job['profil']}~{job['kennung']}" + (f"&pw={job['breite']}" if job["art"] == "panel" else "")
+                q = f"theme={job['thema']}&k={job['profil']}~{job['kennung']}" + (f"&pw={job['breite']}" if job["art"] == "panel" else "") + ("&hs=256" if job["art"] == "ha" else "")
                 pg.goto(f"{job['basis']}/seite.html?{q}")
                 pg.wait_for_function("() => window.__el && window.__el.shadowRoot && window.__el.shadowRoot.querySelector('main') && window.__mess", timeout=15000)
                 pg.evaluate("() => window.__ruhe()")
@@ -729,7 +793,7 @@ def jobs_bauen(a, basis):
                 neu("seiten", thema, rolle, art, w)
         # Abläufe: Telefon und Schreibtisch (Seitenleiste ab 1100 px), alle Themen, beide Rollen
         for rolle in rollen:
-            for art, w in [x for x in breiten if x[1] in (390, 1280)]:
+            for art, w in [x for x in breiten if x[1] in (390, 1280, 1440)]:
                 neu("ablaeufe", thema, rolle, art, w)
         # leere Bibliothek, schwacher Akku, Warnungen
         for art, w in [x for x in breiten if x[1] in (390, 1280)]:

@@ -7,11 +7,11 @@ Sie ist der einzige Schreiber für Zuordnungen und ``serie.json`` (D1, D2). Vert
 
 from __future__ import annotations
 
+import hashlib
 import logging
 from pathlib import Path
 
 from homeassistant.components import frontend, panel_custom
-from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.typing import ConfigType
@@ -19,7 +19,7 @@ from homeassistant.loader import async_get_integration
 
 from . import testpanel, websocket_api
 from .const import CONF_UPLOAD_MAX_MIB, DOMAIN, TESTPANEL, UPLOAD_MAX_MIB_ALT, UPLOAD_MAX_MIB_VORGABE
-from .http import TobiboxCoverView, TobiboxUploadView
+from .http import TobiboxCoverView, TobiboxStaticView, TobiboxUploadView
 from .hub import Hub
 from .services import async_setup_services
 
@@ -65,14 +65,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data[DOMAIN] = hub
     await hub.async_start(str(integration.version))
     # Dateisystem-Zugriffe gebündelt im Executor (nicht in der Event-Loop)
-    frontend_da, panel_da = await hass.async_add_executor_job(_pruefe_frontend)
+    frontend_da, panel_da, stand = await hass.async_add_executor_job(_pruefe_frontend)
 
     # Upload-Endpunkt und statische Dateien der Seite lassen sich nicht abmelden: einmal je HA-Lauf
     if not hass.data.get(_GEMERKT):
         hass.http.register_view(TobiboxUploadView())
         hass.http.register_view(TobiboxCoverView())
         if frontend_da:
-            await hass.http.async_register_static_paths([StaticPathConfig(STATIC_URL, str(FRONTEND_PFAD), cache_headers=False)])
+            hass.http.register_view(TobiboxStaticView(FRONTEND_PFAD))  # mit Cache-Control: no-cache (B4), siehe http.py
         hass.data[_GEMERKT] = True
     if TESTPANEL:  # Messungen A0b; Schalter in const.py
         testpanel.async_register_views(hass)
@@ -84,7 +84,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             webcomponent_name=PANEL_ELEMENT,
             sidebar_title="Tobi Box",
             sidebar_icon="mdi:speaker-wireless",
-            module_url=f"{STATIC_URL}/{PANEL_DATEI}?v={integration.version}",
+            module_url=f"{STATIC_URL}/{PANEL_DATEI}?v={integration.version}-{stand}",  # Stand der Dateien: neue Adresse bei jeder Änderung
             embed_iframe=False,
             require_admin=True,
         )
@@ -94,9 +94,20 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return True
 
 
-def _pruefe_frontend() -> tuple[bool, bool]:
-    """``(Ordner da, Panel-Datei da)``; läuft im Executor."""
-    return FRONTEND_PFAD.is_dir(), (FRONTEND_PFAD / PANEL_DATEI).is_file()
+def _pruefe_frontend() -> tuple[bool, bool, str]:
+    """``(Ordner da, Panel-Datei da, Stand der Dateien)``; läuft im Executor."""
+    return FRONTEND_PFAD.is_dir(), (FRONTEND_PFAD / PANEL_DATEI).is_file(), frontend_stand(FRONTEND_PFAD)
+
+
+def frontend_stand(ordner: Path) -> str:
+    """Kurze Prüfsumme über Namen und Inhalt aller Dateien der Seite (12 Hexzeichen); leer ohne Ordner. Läuft im Executor."""
+    if not ordner.is_dir():
+        return "0"
+    h = hashlib.sha256()
+    for datei in sorted(p for p in ordner.rglob("*") if p.is_file() and "__pycache__" not in p.parts):
+        h.update(datei.relative_to(ordner).as_posix().encode())
+        h.update(datei.read_bytes())
+    return h.hexdigest()[:12]
 
 
 async def _neu_laden(hass: HomeAssistant, entry: ConfigEntry) -> None:

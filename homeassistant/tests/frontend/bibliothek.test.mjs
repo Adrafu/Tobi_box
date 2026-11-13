@@ -53,14 +53,14 @@ test('vorschlaege(): Wortanfang oder Wortbeginn, Tobies zuerst, ohne den Begriff
 
 /* ------------------------------------------------------------------ Bibliothek: Aufbau */
 
-test('Bibliothek: Zeile „Bibliothek“ mit Lupe und „+“, Arten-Zeile ohne Playlists, keine Reihen, Zählzeile, Platz für das Band', MIT_DOM, async () => {
+test('Bibliothek: Seitenkopf „Bibliothek“ mit Lupe und „+“, Arten-Zeile ohne Playlists, keine Reihen, Zählzeile, Platz für das Band', MIT_DOM, async () => {
   const s = await bibliothek();
   assert.equal(s.q('main h2').textContent, 'Bibliothek');
-  const lupe = s.q('main a[aria-label="Suchen"]');
+  const lupe = s.q('.kopf a[aria-label="Suchen"]');
   assert.equal(lupe.getAttribute('href'), '#suche');
-  const plus = s.q('main a[aria-label="Hinzufügen"]');
+  const plus = s.q('.kopf a[aria-label="Hinzufügen"]');
   assert.equal(plus.getAttribute('href'), '#hinzufuegen');
-  assert.ok(plus.classList.contains('fillp'), 'das „+“ ist gefüllt');
+  assert.ok(plus.classList.contains('primaer'), 'das „+“ ist gefüllt');
   assert.deepEqual(s.qa('.artrow button').map((b) => b.textContent), ['Alle', 'Hörspiele', 'Hörbücher', 'Musik', 'Geschichten']);
   assert.deepEqual(s.qa('.artrow button').map((b) => b.getAttribute('aria-pressed')), ['true', 'false', 'false', 'false', 'false']);
   assert.ok(!s.q('.artrow').textContent.includes('Playlists'), 'Playlists erst in Stufe C');
@@ -75,7 +75,7 @@ test('Bibliothek: Zeile „Bibliothek“ mit Lupe und „+“, Arten-Zeile ohne 
   s.el.ctx.uploadBand = () => { const d = document.createElement('div'); d.className = 'testband'; return d; };
   s.el.requestUpdate(); await s.flush();
   const band = s.q('.testband');
-  assert.ok(band && band.compareDocumentPosition(s.q('.libhead')) & 4, 'das Band steht über der Zeile „Bibliothek“');
+  assert.ok(band && band.compareDocumentPosition(s.q('.artrow')) & 4, 'das Band steht über der Arten-Zeile');
   weg();
 });
 
@@ -344,7 +344,7 @@ test('Bibliothek ganz leer: Bild, ein Satz, Knopf „Hinzufügen“; keine Zähl
   assert.equal(l.querySelector('.btn').textContent, 'Hinzufügen');
   assert.equal(l.querySelector('.btn').getAttribute('href'), '#hinzufuegen');
   assert.equal(s.q('.libbar'), null);
-  assert.ok(s.q('main a[aria-label="Hinzufügen"]'), 'das „+“ gibt es trotzdem');
+  assert.ok(s.q('.kopf a[aria-label="Hinzufügen"]'), 'das „+“ gibt es trotzdem');
   weg();
 });
 
@@ -408,7 +408,7 @@ test('Rechte: ein Nicht-Administrator sieht dieselbe Bibliothek, dieselben Filte
   const u = await bibliothek({ darf: false });
   assert.deepEqual(ids(u), adminIds);
   assert.equal(u.q('main').textContent, adminText);
-  assert.ok(u.q('main a[aria-label="Hinzufügen"]'), 'Hochladen bleibt Alltag für alle');
+  assert.ok(u.q('.kopf a[aria-label="Hinzufügen"]'), 'Hochladen bleibt Alltag für alle');
   assert.equal(u.q('a[aria-label="Technik"]'), null);
   u.q('button[data-sortieren]').click();
   await u.flush();
@@ -647,7 +647,7 @@ test('Suche: Rechte — ein Nicht-Administrator sucht und sieht dasselbe', MIT_D
 test('Suche: der Zurück-Pfeil führt in die Bibliothek, die Lupe der Bibliothek in die Suche', MIT_DOM, async () => {
   const s = await seite({ viele: true, hash: '#bibliothek' });
   await s.flush(10);
-  s.q('main a[aria-label="Suchen"]').click();
+  s.q('.kopf a[aria-label="Suchen"]').click();
   await warte(30); await s.flush(10);
   assert.equal(window.location.hash, '#suche');
   assert.deepEqual(s.qa('nav a[aria-current="page"]').map((a) => a.querySelector('.tn').textContent), ['Bibliothek']);
@@ -669,5 +669,99 @@ test('Nach dem Wiederverbinden lädt die aktive Seite still neu (Liste bleibt st
   assert.equal(aufrufe(s).length, davor + 1);
   assert.equal(zeilen(s).length, 60);
   assert.equal(s.q('.laedt'), null);
+  weg();
+});
+
+/* ------------------------------------------------------------------ Computer (AB3): Cover-Raster und Umschalter */
+
+const raster = (s) => s.qa('.rcard');
+
+test('Bibliothek am Computer: Cover-Raster ist die Vorgabe, mit Umschalter Raster | Liste im Seitenkopf', MIT_DOM, async () => {
+  window.localStorage.removeItem('tobibox.bibliothek.ansicht');
+  const s = await bibliothek({ breite: 1280 });
+  assert.equal(s.el.getAttribute('data-layout'), 'seite');
+  assert.equal(raster(s).length, 60);
+  assert.equal(zeilen(s).length, 0);
+  assert.equal(s.q('[data-liste="bibliothek"]').getAttribute('data-ansicht'), 'raster');
+  const k = raster(s)[0];
+  assert.ok(k.querySelector('.cover') && k.querySelector('.rt').textContent && k.querySelector('.rs').textContent.includes('·'), 'Cover, Titel und Untertitel darunter');
+  assert.equal(k.getAttribute('href'), `#serie-${k.dataset.serie}`);
+  const seg = s.q('.kopf .seg2');
+  assert.ok(seg, 'Segment-Umschalter (X32) im Kopf');
+  assert.deepEqual([...seg.querySelectorAll('button')].map((b) => b.getAttribute('aria-pressed')), ['true', 'false']);
+  assert.ok(s.q('.kopf a[aria-label="Hinzufügen"]').classList.contains('primaer'), '„+“ in der Bibliothek');
+  weg();
+});
+
+test('Bibliothek am Computer: Umschalten merkt sich die Wahl je Gerät (localStorage) und bleibt über Neuladen', MIT_DOM, async () => {
+  window.localStorage.removeItem('tobibox.bibliothek.ansicht');
+  const s = await bibliothek({ breite: 1280 });
+  const liste = s.qa('.kopf .seg2 button')[1];
+  liste.click();
+  await s.flush(10);
+  assert.equal(zeilen(s).length, 60, 'Liste');
+  assert.equal(raster(s).length, 0);
+  assert.equal(window.localStorage.getItem('tobibox.bibliothek.ansicht'), 'liste');
+  weg();
+  const t = await bibliothek({ breite: 1280 });
+  assert.equal(zeilen(t).length, 60, 'die Wahl gilt auch nach dem Neuöffnen');
+  t.qa('.kopf .seg2 button')[0].click();
+  await t.flush(10);
+  assert.equal(raster(t).length, 60);
+  assert.equal(window.localStorage.getItem('tobibox.bibliothek.ansicht'), 'raster');
+  window.localStorage.removeItem('tobibox.bibliothek.ansicht');
+  weg();
+});
+
+test('Bibliothek am Computer: ohne Speicher (localStorage wirft) bleibt es beim Raster, Umschalten geht trotzdem', MIT_DOM, async () => {
+  const echt = window.Storage.prototype;
+  const { getItem, setItem } = echt;
+  echt.getItem = () => { throw new Error('gesperrt'); };
+  echt.setItem = () => { throw new Error('gesperrt'); };
+  try {
+    const s = await bibliothek({ breite: 1280 });
+    assert.equal(raster(s).length, 60);
+    s.qa('.kopf .seg2 button')[1].click();
+    await s.flush(10);
+    assert.equal(zeilen(s).length, 60);
+    weg();
+  } finally { echt.getItem = getItem; echt.setItem = setItem; }
+});
+
+test('Bibliothek: unter 1100 px bleibt es bei der Liste, ohne Umschalter; Handy: „+“ und Lupe im Seitenkopf', MIT_DOM, async () => {
+  window.localStorage.removeItem('tobibox.bibliothek.ansicht');
+  const s = await bibliothek({ breite: 900 });
+  assert.equal(s.el.getAttribute('data-layout'), 'oben');
+  assert.equal(zeilen(s).length, 60);
+  assert.equal(raster(s).length, 0);
+  assert.equal(s.q('.kopf .seg2'), null, 'kein Umschalter unter 1100 px');
+  assert.ok(s.q('.kopf a[aria-label="Suchen"]') && s.q('.kopf a[aria-label="Hinzufügen"]'));
+  weg();
+});
+
+test('Bibliothek im Raster: endloses Nachladen geht weiter (Beobachter am Knopf unter dem Raster)', MIT_DOM, async () => {
+  window.localStorage.removeItem('tobibox.bibliothek.ansicht');
+  mitIO(true);
+  const s = await bibliothek({ breite: 1280 });
+  const knopfEl = s.q('button[data-mehr]');
+  assert.ok(knopfEl && FakeIO.beobachtet.includes(knopfEl));
+  assert.equal(raster(s).length, 60);
+  FakeIO.zeige(knopfEl);
+  await s.flush(20);
+  assert.equal(raster(s).length, 130);
+  assert.equal(new Set(raster(s).map((a) => a.dataset.serie)).size, 130, 'keine Doppelten');
+  assert.deepEqual(aufrufe(s).map((c) => c.offset), [0, 60, 120]);
+  mitIO(false);
+  weg();
+});
+
+test('Bibliothek im Raster: Tobie-Symbol mit Zahl und „bitte ansehen“ auf dem Cover', MIT_DOM, async () => {
+  window.localStorage.removeItem('tobibox.bibliothek.ansicht');
+  const s = await bibliothek({ breite: 1280 });
+  const mitTobie = raster(s).filter((a) => a.querySelector('.tbadge'));
+  const ansehen = raster(s).filter((a) => a.querySelector('.badge'));
+  assert.ok(mitTobie.length > 0 || ansehen.length > 0, 'die Daten haben Einträge mit Tobie oder „bitte ansehen“');
+  for (const a of mitTobie) assert.match(a.querySelector('.tbadge').getAttribute('aria-label'), /Tobie/);
+  for (const a of ansehen) assert.equal(a.querySelector('.badge').textContent, 'bitte ansehen');
   weg();
 });

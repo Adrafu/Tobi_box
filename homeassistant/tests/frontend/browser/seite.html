@@ -7,6 +7,9 @@
 <style>
   html, body { margin: 0; height: 100%; }
   #root { height: 100%; }
+  body.mitha { display: flex; }
+  body.mitha #root { flex: 1 1 0; min-width: 0; }
+  #hasidebar { flex: none; height: 100%; box-sizing: border-box; border-right: 1px solid var(--divider-color); background: var(--card-background-color); }
 </style>
 </head>
 <body>
@@ -26,6 +29,28 @@ const T = THEMES[q.get('theme') || 'hell'];
 document.body.style.background = T[0];
 const k = q.get('k') || 'admin';
 const root = document.getElementById('root');
+/* Parameter hs=<px>: die Seitenleiste von Home Assistant links daneben (echt 256 px); das Panel ist dann Fenster minus hs. */
+if (q.get('hs')) {
+  document.body.classList.add('mitha');
+  const sb = document.createElement('div');
+  sb.id = 'hasidebar';
+  sb.style.width = `${Number(q.get('hs'))}px`;
+  document.body.insertBefore(sb, root);
+}
+/* Wie Home Assistant: Klicks auf Links mit `#…` werden abgefangen (auch aus dem Shadow-DOM, über composedPath), die Adresse
+ * setzt `history.pushState`, danach meldet das Fenster `location-changed`. Ein `hashchange` kommt dabei NICHT (Befund B1).
+ * Mit `ha=0` aus: dann springt der Browser selbst zum Anker. */
+if (q.get('ha') !== '0') {
+  window.addEventListener('click', (e) => {
+    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    const a = e.composedPath().find((n) => n instanceof HTMLAnchorElement);
+    const href = a && a.getAttribute('href');
+    if (!href || !href.startsWith('#')) return;
+    e.preventDefault();
+    history.pushState(null, '', `${location.pathname}${location.search}${href}`);
+    window.dispatchEvent(new CustomEvent('location-changed'));
+  });
+}
 if (q.get('pw')) root.style.width = `${Number(q.get('pw'))}px`;
 await import('/f/tobibox-app.js');
 const wurzel = root.attachShadow({ mode: 'open' });

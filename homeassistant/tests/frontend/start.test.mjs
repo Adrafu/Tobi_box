@@ -195,3 +195,45 @@ test('Start: Pflichtfähigkeit „bibliothek“ — ohne sie sagt das Backend in
   assert.ok(s.q('[data-zustand="fehler"]'));
   weg();
 });
+
+/* ------------------------------------------------------------------ Computer (AB3): Pfeile an den Reihen */
+
+test('Start am Computer: Pfeile zum Blättern an der Reihe (zusätzlich zum Scrollen), links am Anfang grau', MIT_DOM, async () => {
+  const s = await seite({ viele: true, hash: '#start', breite: 1280 });
+  await s.flush(10);
+  assert.equal(s.el.getAttribute('data-layout'), 'seite');
+  const reihe = s.q('.reihe');
+  assert.ok(reihe, 'die Reihe liegt in einem Abschnitt mit Kopf');
+  assert.equal(reihe.querySelector('.rowh').textContent, 'Neu hinzugefügt');
+  const [zu, vor] = reihe.querySelectorAll('.pfeil');
+  assert.equal(zu.getAttribute('aria-label'), START.pfeil.zurueck);
+  assert.equal(vor.getAttribute('aria-label'), START.pfeil.vor);
+  const sc = reihe.querySelector('.hscroll');
+  assert.ok(zu.disabled, 'am Anfang kann man nicht zurück');
+  let gerollt = null;
+  sc.scrollBy = (o) => { gerollt = o; };
+  Object.defineProperty(sc, 'clientWidth', { value: 800, configurable: true });
+  Object.defineProperty(sc, 'scrollWidth', { value: 2000, configurable: true });
+  sc.dispatchEvent(new window.Event('scroll'));
+  assert.ok(!vor.disabled, 'rechts ist noch Platz');
+  vor.click();
+  assert.ok(gerollt && gerollt.left > 0, 'weiterblättern rollt nach rechts');
+  sc.scrollLeft = 400;
+  sc.dispatchEvent(new window.Event('scroll'));
+  assert.ok(!zu.disabled, 'nach dem Rollen geht es auch zurück');
+  zu.click();
+  assert.ok(gerollt.left < 0, 'zurückblättern rollt nach links');
+  sc.scrollLeft = 1200;
+  sc.dispatchEvent(new window.Event('scroll'));
+  assert.ok(vor.disabled, 'am Ende kann man nicht weiter');
+  weg();
+});
+
+test('Start am Computer: Schnellzugriff als drei Spalten, Reihe mit großen Kacheln', MIT_DOM, async () => {
+  const s = await seite({ viele: true, hash: '#start', breite: 1280 });
+  await s.flush(10);
+  assert.equal(s.qa('.qgrid .qt').length, 6);
+  assert.equal(s.q('.kopf h1').textContent.startsWith('Gut'), true, 'große Begrüßung im Seitenkopf');
+  assert.ok(s.q('.kopf a[aria-label="Suchen"] .kt'), 'Suchen als Pille mit Text');
+  weg();
+});

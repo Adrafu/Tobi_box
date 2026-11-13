@@ -233,6 +233,8 @@ export const ICON = {
   check: 'M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z',
   tune: 'M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z',
   more: 'M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z',
+  grid: 'M3 3v8h8V3H3zm6 6H5V5h4v4zm-6 4v8h8v-8H3zm6 6H5v-4h4v4zm4-16v8h8V3h-8zm6 6h-4V5h4v4zm-6 4v8h8v-8h-8zm6 6h-4v-4h4v4z',
+  list: 'M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z',
   moon: 'M9 2c-1.05 0-2.05.16-3 .46 4.06 1.27 7 5.06 7 9.54 0 4.48-2.94 8.27-7 9.54.95.3 1.95.46 3 .46 5.52 0 10-4.48 10-10S14.52 2 9 2z',
 };
 
@@ -278,6 +280,23 @@ export function schnellKachel(s) {
   return html`<a class="qt" href=${`#serie-${s.id}`} data-serie=${s.id}>${cover(s)}<span class="qn">${s.name}</span></a>`;
 }
 
+/* Karte im Cover-Raster der Bibliothek (Computer, AB3): Cover, darunter Titel und Untertitel; auf dem Cover das Tobie-Symbol mit
+ * der Zahl und, wenn nötig, die Marke „bitte ansehen“. Fortschritt als dünner Balken unter dem Cover. */
+export function rasterKachel(s, { term = '' } = {}) {
+  const f = fortschritt(s);
+  const tobies = s.anzahl_tobies ?? 0;
+  return html`<a class="rcard" href=${`#serie-${s.id}`} data-serie=${s.id}><span class="rpos">${cover(s)}${marke(s)}
+      ${tobies ? html`<span class="tbadge on" role="img" aria-label=${zaehle(ZEILE.tobies, tobies)}>${ic('tag', 16)}${tobies}</span>` : nothing}</span>
+    <span class="rt">${markiert(s.name, term)}</span><span class="rs">${untertitel(s, { dauer: false })}</span>
+    ${f ? html`<span class="pbar" role="progressbar" aria-label=${ZEILE.fortschritt} aria-valuemin="0" aria-valuemax="100" aria-valuenow=${Math.round(f.anteil * 100)}><i style=${`width:${Math.round(f.anteil * 100)}%`}></i></span>` : nothing}</a>`;
+}
+
+/* Aktion im Seitenkopf: am Handy und im mittleren Bereich ein runder Symbolknopf (48 px), ab 1100 px eine Pille mit Text
+ * (das Gerüst schaltet das über `data-layout`). `primaer`: gefüllt (Hauptaktion), sonst tonal. */
+export function kopfAktion({ href, label, symbol, primaer = false }) {
+  return html`<a class=${`rund kact${primaer ? ' primaer' : ''}`} href=${href} aria-label=${label}>${ic(symbol, 24)}<span class="kt" aria-hidden="true">${label}</span></a>`;
+}
+
 /* x = Zeile von `folgen/list`; opts: term, stand (cover_stand der Serie, falls bekannt), aktionen (Template). */
 export function folgenZeile(x, { term = '', stand, aktionen = nothing } = {}) {
   const titel = x.anzeige || x.folge;
@@ -296,7 +315,7 @@ export function segment({ label, optionen, wert, onWahl }) {
     e.currentTarget.parentElement.querySelectorAll('button')[j]?.focus();
     onWahl(optionen[j].wert);
   };
-  return html`<div class="seg2" role="group" aria-label=${label}>${optionen.map((o, i) => html`<button type="button" aria-pressed=${o.wert === wert ? 'true' : 'false'}
+  return html`<div class=${`seg2${optionen.length > 4 ? ' viele' : ''}`} role="group" aria-label=${label}>${optionen.map((o, i) => html`<button type="button" data-wert=${o.wert} aria-label=${o.aria ?? nothing} aria-pressed=${o.wert === wert ? 'true' : 'false'}
       @click=${() => onWahl(o.wert)} @keydown=${(e) => taste(e, i)}>${o.label}</button>`)}</div>`;
 }
 
@@ -379,6 +398,78 @@ export const bausteinStil = () => css`
     text-align: center; display: flex; align-items: center; justify-content: center; }
   .seg2 button[aria-pressed="true"] { background: var(--primary); color: var(--on-primary); font-weight: 700; box-shadow: inset 0 0 0 2px var(--primary-ink), 0 1px 3px var(--shadow); }
   .seg2 button:focus-visible { outline-offset: 0; border-radius: 24px; }
+  .seg2.viele button { padding: 0 2px; }
+  .seg2 .einheit { white-space: pre; }
+  @media (max-width: 359px) { .seg2.viele .einheit { display: none; } }
+
+  /* Seitenkopf-Aktionen: rund (Handy), Pille mit Text (ab 1100 px) */
+  .kact .kt { display: none; }
+  .rund.kact.primaer { background: var(--primary); color: var(--on-primary); box-shadow: inset 0 0 0 2px var(--primary-ink); }
+  .app[data-layout="seite"] .rund.kact { width: auto; min-height: 44px; height: 44px; padding: 0 18px 0 14px; border-radius: 22px; display: inline-flex; align-items: center; gap: 8px; font-weight: 500; font-size: 15px; }
+  .app[data-layout="seite"] .kact .kt { display: inline; }
+
+  /* Karte im Cover-Raster (Computer) */
+  .rgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 28px 20px; margin: 12px 0 0; }
+  .rcard { display: grid; gap: 4px; align-content: start; min-width: 0; color: inherit; text-decoration: none; border-radius: 14px; }
+  .rcard .rpos { position: relative; display: block; }
+  .rcard .cover { border-radius: 14px; font-size: 56px; box-shadow: 0 1px 4px var(--shadow); transition: transform var(--dauer-mittel) var(--kurve), box-shadow var(--dauer-mittel) var(--kurve); }
+  .rcard .rt { margin-top: 6px; font-weight: 500; font-size: 15px; line-height: 1.3; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .rcard .rs { font-size: 13px; color: var(--text2); }
+  .rcard .pbar { margin: 4px 0 0; }
+  .rcard .rpos .badge { position: absolute; left: 8px; bottom: 8px; font-size: 12px; padding: 1px 8px; box-shadow: 0 1px 3px var(--shadow); }
+  .tbadge.on { position: absolute; right: 8px; bottom: 8px; padding: 2px 8px 2px 6px; border-radius: 12px; background: var(--card); color: var(--text); font-size: 13px; font-weight: 500; box-shadow: 0 1px 3px var(--shadow); }
+  @media (hover: hover) {
+    .rcard:hover .cover { transform: translateY(-3px); box-shadow: 0 10px 22px var(--shadow); }
+    .tile:hover .cover { transform: translateY(-2px); box-shadow: 0 8px 18px var(--shadow); }
+    .qt:hover { background: var(--primary-soft); }
+    .lrow:hover { background: var(--primary-soft); }
+  }
+  .rcard:active { transform: scale(0.98); }
+
+  /* Reihen (Start, AB5): die letzte Kachel ist angeschnitten, Verlauf an den Rändern, am Computer Pfeile bei Maus-Hover */
+  .reihe { margin: 0 0 8px; container-type: inline-size; }
+  .reihenkopf { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .reihenkopf .rowh { margin: 16px 0 6px; }
+  .alle { display: inline-flex; align-items: center; min-height: 44px; padding: 0 8px; margin: 10px -8px 0 0; font-weight: 500; font-size: 15px; color: var(--primary-ink); text-decoration: none; border-radius: 22px; }
+  .alle:hover { background: var(--primary-soft); }
+  .reihenfeld { position: relative; --g: 12px; --n: 2; --kw: calc((100cqw - var(--n) * var(--g)) / (var(--n) + 0.45)); }
+  @container (min-width: 500px) { .reihenfeld { --n: 3; } }
+  @container (min-width: 720px) { .reihenfeld { --n: 4; --g: 16px; } }
+  @container (min-width: 1000px) { .reihenfeld { --n: 5; --g: 20px; } }
+  @container (min-width: 1240px) { .reihenfeld { --n: 6; } }
+  .reihenfeld .hscroll { gap: var(--g); scroll-snap-type: x proximity; scrollbar-width: none; }
+  .reihenfeld .hscroll::-webkit-scrollbar { display: none; }
+  .reihenfeld .tile { flex: 0 0 var(--kw); scroll-snap-align: start; }
+  .reihenfeld::before, .reihenfeld::after { content: ""; position: absolute; top: 0; bottom: 4px; width: 56px; z-index: 2; pointer-events: none; opacity: 0; transition: opacity var(--dauer-mittel) var(--kurve); }
+  .reihenfeld::before { left: 0; background: linear-gradient(to right, var(--bg), transparent); }
+  .reihenfeld::after { right: 0; background: linear-gradient(to left, var(--bg), transparent); }
+  .reihe[data-links] .reihenfeld::before, .reihe[data-rechts] .reihenfeld::after { opacity: 1; }
+  .pfeil { display: none; }
+  @media (hover: hover) and (pointer: fine) {
+    .pfeil { display: inline-grid; position: absolute; top: calc(var(--kw) / 2); transform: translateY(-50%); z-index: 3; width: 48px; height: 48px; border-radius: 24px; border: 0; padding: 0; place-items: center;
+      background: var(--card); color: var(--text); box-shadow: 0 2px 10px var(--shadow), 0 0 0 1px var(--divider); opacity: 0; pointer-events: none; transition: opacity var(--dauer-kurz) var(--kurve); }
+    .pfeil svg { fill: currentColor; }
+    .pfeil.vor { right: 4px; }
+    .pfeil.zu { left: 4px; }
+    .pfeil.zu svg { transform: scaleX(-1); }
+    .reihe:hover .pfeil:not(:disabled), .pfeil:focus-visible { opacity: 1; pointer-events: auto; }
+    .pfeil:disabled { display: none; }
+    .pfeil:hover { background: var(--primary-soft); color: var(--primary-ink); }
+  }
+
+  /* Computer (ab 1100 px Panelbreite): Cover-Kacheln, Schnellzugriff in drei Spalten */
+  .app[data-layout="seite"] .hscroll { padding: 4px 0 8px; }
+  .app[data-layout="seite"] .tile { gap: 8px; }
+  .app[data-layout="seite"] .tile .cover { border-radius: 14px; font-size: 64px; box-shadow: 0 1px 4px var(--shadow); transition: transform var(--dauer-mittel) var(--kurve), box-shadow var(--dauer-mittel) var(--kurve); }
+  .app[data-layout="seite"] .tile .tn { font-size: 16px; margin-top: 2px; }
+  .app[data-layout="seite"] .tile .tm { font-size: 14px; }
+  .app[data-layout="seite"] .tile .pos .badge { left: 8px; bottom: 8px; box-shadow: 0 1px 3px var(--shadow); }
+  .app[data-layout="seite"] .qgrid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-bottom: 12px; }
+  .app[data-layout="seite"] .qt { min-height: 72px; gap: 16px; border-radius: 14px; box-shadow: 0 1px 4px var(--shadow); padding-right: 12px; }
+  .app[data-layout="seite"] .qt .cover { width: 72px; font-size: 30px; }
+  .app[data-layout="seite"] .qt .qn { font-size: 16px; }
+  .app[data-layout="seite"] .rowh { font-size: 22px; font-weight: 700; letter-spacing: -0.2px; margin-top: 24px; }
+  .app[data-layout="seite"] .lrow { padding: 10px 12px; margin: 0 -12px; }
 `;
 
 /* ------------------------------------------------------------------ Großes Cover (A8, Vertrag 14.3: `?groesse=gross`) */

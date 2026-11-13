@@ -4,7 +4,7 @@
  * hinzugefügten (`serien/list`, Sortierung `neu`). Darunter die Reihen aus REIHEN; eine Reihe ohne Daten fehlt ganz.
  * Boxen, Uploads und Admin-Blöcke gehören nicht auf den Start (Design 5.1). Schnittstelle: siehe bausteine.js.
  */
-import { html, nothing, kachel, schnellKachel, ladeMitGrenze } from '../bausteine.js';
+import { html, nothing, ic, kachel, schnellKachel, kopfAktion, ladeMitGrenze } from '../bausteine.js';
 import { START, SEITE } from '../texte.js';
 
 const SCHNELL_ANZAHL = 6; // Raster 2 × 3
@@ -16,7 +16,7 @@ const NEU_ANZAHL = 8; // „die acht neuesten Einträge“
 export const REIHEN = [
   { id: 'weiterhoeren', stufe: 'A-2', titel: START.reihen.weiterhoeren, eintraege: () => [] },
   { id: 'zuletzt_gehoert', stufe: 'B', titel: START.reihen.zuletzt_gehoert, eintraege: () => [] },
-  { id: 'neu', stufe: 'A-1', titel: START.reihen.neu, eintraege: (z) => z.neu },
+  { id: 'neu', stufe: 'A-1', titel: START.reihen.neu, eintraege: (z) => z.neu, alle: '#bibliothek?sortierung=neu' },
   { id: 'favoriten', stufe: 'B', titel: START.reihen.favoriten, eintraege: () => [] },
 ];
 
@@ -83,9 +83,42 @@ class StartSeite {
     return { neu, schnell: schnellzugriff(zugeordnet, neu) };
   }
 
+  /* Aktionen im Seitenkopf: die Lupe (am Computer als Pille „Suchen“). */
+  kopfAktionen() { return kopfAktion({ href: '#suche', label: SEITE.suchen, symbol: 'search' }); }
+
+  /* Pfeile der Reihen (nur bei Maus-Hover am Computer sichtbar, AB5): blättern um die sichtbare Breite minus eine Kachel. */
+  _blaettern(e, richtung) {
+    const reihe = e.currentTarget.closest('.reihe')?.querySelector('.hscroll');
+    if (!reihe) return;
+    const kachel = (reihe.querySelector('.tile')?.offsetWidth || 0) + 12;
+    const schritt = Math.max(120, reihe.clientWidth - kachel) * richtung;
+    let ruhig = false;
+    try { ruhig = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch { /* ohne matchMedia: mit Bewegung */ }
+    try { reihe.scrollBy({ left: schritt, behavior: ruhig ? 'auto' : 'smooth' }); } catch { reihe.scrollLeft += schritt; }
+  }
+
+  /* Stand der Reihe: Pfeile grau/weg am Anfang und Ende, Verlauf links erst nach dem Scrollen, rechts solange es weitergeht. */
+  nachRender(wurzel) {
+    for (const reihe of wurzel.querySelectorAll('.reihe')) {
+      const sc = reihe.querySelector('.hscroll');
+      if (!sc) continue;
+      const stand = () => {
+        const [zu, vor] = reihe.querySelectorAll('.pfeil');
+        const links = sc.scrollLeft > 1;
+        const rechts = sc.scrollLeft + sc.clientWidth < sc.scrollWidth - 1;
+        if (zu) zu.disabled = !links;
+        if (vor) vor.disabled = !rechts;
+        reihe.toggleAttribute('data-links', links);
+        reihe.toggleAttribute('data-rechts', rechts);
+      };
+      if (!sc._pfeile) { sc._pfeile = true; sc.addEventListener('scroll', stand, { passive: true }); }
+      stand();
+    }
+  }
+
   render() {
     const { ctx, z } = this;
-    const kopf = ctx.layout === 'seite' ? html`<h2>${ctx.begruessung()}</h2>` : html`<h2 class="sr">${SEITE.reiter.start}</h2>`;
+    const kopf = html`<h2 class="sr">${ctx.layout === 'seite' ? ctx.begruessung() : SEITE.reiter.start}</h2>`;
     if (z.phase === 'laedt') return html`${kopf}${ctx.laedt()}`;
     if (z.phase === 'fehler') return html`${kopf}${ctx.fehlerKarte(z.fehlerCode, () => this.laden())}`;
     if (!z.schnell.length && !z.neu.length) return html`${kopf}${ctx.leer('start', 'bibliothekLeer', { href: '#bibliothek' })}`;
@@ -93,7 +126,12 @@ class StartSeite {
       ${z.schnell.length ? html`<h2 class="sr">${START.schnellzugriff}</h2><div class="qgrid" data-start="schnellzugriff">${z.schnell.map((s) => schnellKachel(s))}</div>` : nothing}
       ${REIHEN.map((r) => {
         const e = r.eintraege(z);
-        return e.length ? html`<h3 class="rowh">${r.titel}</h3><div class="hscroll" data-reihe=${r.id}>${e.map((s) => kachel(s))}</div>` : nothing;
+        return e.length ? html`<section class="reihe"><div class="reihenkopf"><h3 class="rowh">${r.titel}</h3>
+          ${r.alle ? html`<a class="alle" href=${r.alle}>${START.alle}</a>` : nothing}</div>
+          <div class="reihenfeld">
+            <button type="button" class="pfeil zu" aria-label=${START.pfeil.zurueck} @click=${(ev) => this._blaettern(ev, -1)}>${ic('chev', 24)}</button>
+            <div class="hscroll" data-reihe=${r.id}>${e.map((s) => kachel(s))}</div>
+            <button type="button" class="pfeil vor" aria-label=${START.pfeil.vor} @click=${(ev) => this._blaettern(ev, 1)}>${ic('chev', 24)}</button></div></section>` : nothing;
       })}`;
   }
 }

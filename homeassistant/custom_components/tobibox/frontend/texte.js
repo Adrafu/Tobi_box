@@ -300,6 +300,8 @@ export const START = {
     zuletzt_gehoert: 'Zuletzt auf den Boxen gehört', // Stufe B
     favoriten: 'Favoriten / Empfehlungen', // Stufe B
   },
+  pfeil: { zurueck: 'Zurück blättern', vor: 'Weiter blättern' }, // Pfeile am Computer bei Maus-Hover (AB5), zusätzlich zum Scrollen
+  alle: 'Alle anzeigen', // ruhiger Link rechts im Reihenkopf (AB5)
 };
 
 // Bibliothek (Design 5.2, Paket A7): Kopf, Arten, Zählzeile, Blatt „Sortieren und Filter“, Nachladen.
@@ -313,6 +315,7 @@ export const BIB = {
   aktiv: '{anzahl} aktiv',
   mehr_laden: 'Mehr laden ({anzahl} weitere)',
   weitere_geladen: 'Weitere Einträge geladen.',
+  ansicht: { label: 'Ansicht', raster: 'Raster', liste: 'Liste' }, // Umschalter am Computer (AB3, X32)
   blatt: {
     titel: 'Sortieren und Filter',
     sortieren: 'Sortieren',
@@ -372,6 +375,14 @@ export function fehlerText(code, werte = {}) {
   return text;
 }
 
+// Steht die Nummer schon im Namen („Folge 1: Der Schatz“, „1. Der Schatz“, „01 - Der Schatz“)? Dann darf der Satz sie nicht noch
+// einmal davorsetzen (AB4: sonst „Folge 1: Folge 1: Der Schatz“). Die Anzeige einer Folge ist der Name aus den Dateien oder dem Ordner.
+export function beginntMitNummer(name, nummer) {
+  const n = Number(nummer);
+  if (!Number.isInteger(n)) return false;
+  return new RegExp(`^\\s*(?:(?:folge|episode|nr\\.?|teil|kapitel|lied|track)\\s*#?0*${n}(?![0-9])|0*${n}(?:\\s*[:.)–—-]|\\s*$))`, 'i').test(String(name ?? ''));
+}
+
 // Satz, Nebentext und Warnung für eine Box-Karte (Design 5.1.1).
 // box: { anzeige, online (true|false|null), zustand, serie, folge, folge_nummer,
 //        akku_prozent, lader, zeit_letzte_meldung, konfig_stand, abweichung_min }
@@ -403,7 +414,7 @@ export function statusSatz(box = {}) {
   } else if (box.zustand === 'spielt') {
     lage = 'spielt';
     if (serie) {
-      const folge = box.folge_nummer !== undefined && box.folge_nummer !== null
+      const folge = box.folge_nummer !== undefined && box.folge_nummer !== null && !beginntMitNummer(box.folge, box.folge_nummer)
         ? fuellen(STATUS.folge_mit_nummer, { nummer: box.folge_nummer, folge: box.folge || '' })
         : fuellen(STATUS.folge_ohne_nummer, { folge: box.folge || '' });
       satz = fuellen(STATUS.spielt, { anzeige, serie, folge });
@@ -545,6 +556,7 @@ export const ABENDS = {
     anderer: 'Anderer Wert …',
     anderer_label: 'Anderer Wert',
     anderer_minuten: '{minuten} Minuten',
+    anderer_minute: '{minuten} Minute', // Einzahl (B3)
     speichern: 'Speichern',
     gespeichert: 'Gespeichert',
     hat_tobie: 'Ein Tobie spielt die Gute-Nacht-Karte.',
@@ -608,6 +620,8 @@ export const ABENDS = {
 export const SERIE = {
   zurueck: '‹ Bibliothek', // Design 3.2
   mehr_zu: 'Mehr zu {titel}', // aria-label der Knöpfe „⋯“
+  mehr: 'Mehr', // sichtbarer Text des Knopfs im großen Kopf am Computer (AB3)
+  spalten: { nr: 'Nr.', titel: 'Titel', dauer: 'Dauer' }, // Kopfzeile der Folgenliste am Computer (AB3)
   weg: { satz: 'Das gibt es nicht mehr.', link: 'Zurück zur Bibliothek' }, // Prototyp (serie/get: serie_nicht_gefunden)
   abschnitt: { hoerspiel: 'Folgen', hoerbuch: 'Hörbuch', musik: 'Lieder', geschichte: 'Geschichten' }, // Design 5.3
   schon_gehoert: 'Schon {prozent} % gehört · noch {dauer}', // Design 5.3

@@ -471,7 +471,7 @@ class GeraeteSeite {
     const kopf = html`<h2 class="abends" data-abschnitt="abends">${ABENDS.titel}</h2>`;
     if (z.phase === 'laedt') return html`${kopf}${ctx.laedt()}`;
     if (z.phase === 'fehler') return html`${kopf}${ctx.fehlerKarte(z.fehlerCode, () => this.laden())}`;
-    return html`${kopf}${this._guteNacht()}${this._leiseZeiten()}`;
+    return html`${kopf}<div class="abends-raster">${this._guteNacht()}${this._leiseZeiten()}</div>`;
   }
 
   _guteNacht() {
@@ -479,15 +479,19 @@ class GeraeteSeite {
     const { gn } = this;
     const aus = gn.timer !== gn.gespeichert;
     const andere = ANDERE_MIN.includes(gn.timer) ? ANDERE_MIN : [...ANDERE_MIN, ...(SCHNELLWAHL_MIN.includes(gn.timer) ? [] : [gn.timer])].sort((x, y) => x - y);
-    return html`<div class="gkarte" data-karte="gute-nacht"><h3>${T.titel}</h3><div class="muted">${T.text}</div>
+    const optionen = SCHNELLWAHL_MIN.map((m) => ({ label: html`${m}<span class="einheit"> Min.</span>`, aria: fuellen(T.minuten, { minuten: m }), wert: m }));
+    // Segment-Umschalter (X32) für die Schnellwahl, daneben ein ruhiges Auswahlfeld im selben Stil; keine umrandeten Pillen (AB4)
+    return html`<div class="gkarte gn" data-karte="gute-nacht"><h3>${T.titel}</h3><div class="muted">${T.text}</div>
       <div class="gfeld"><span class="lbl" id="gn-timer">${T.timer}</span>
-        <div class="gchips wrap" role="group" aria-labelledby="gn-timer">${SCHNELLWAHL_MIN.map((m) => html`<button type="button" class="gchip" data-minuten=${m} aria-pressed=${gn.timer === m ? 'true' : 'false'} @click=${() => this.waehleTimer(m)}>${fuellen(T.minuten, { minuten: m })}</button>`)}</div>
+        ${segment({ label: T.timer, optionen, wert: gn.timer, onWahl: (m) => this.waehleTimer(m) })}
         <div class="selw"><label class="sr" for="gn-andere">${T.anderer_label}</label>
-          <select id="gn-andere" class="auswahl" @change=${(e) => { if (e.target.value) this.waehleTimer(Number(e.target.value)); }}>
+          <select id="gn-andere" class=${`auswahl${SCHNELLWAHL_MIN.includes(gn.timer) ? '' : ' gesetzt'}`} @change=${(e) => { if (e.target.value) this.waehleTimer(Number(e.target.value)); }}>
             <option value="" .selected=${SCHNELLWAHL_MIN.includes(gn.timer)}>${T.anderer}</option>
-            ${andere.map((m) => html`<option value=${m} .selected=${gn.timer === m}>${fuellen(T.anderer_minuten, { minuten: m })}</option>`)}
-          </select></div></div>
-      <button type="button" class="btn primary" data-gn-speichern ?disabled=${!aus || this.gesperrt || this._speichert} @click=${() => this.speichereGuteNacht()}>${aus ? T.speichern : T.gespeichert}</button>
+            ${andere.map((m) => html`<option value=${m} .selected=${gn.timer === m}>${fuellen(m === 1 ? T.anderer_minute : T.anderer_minuten, { minuten: m })}</option>`)}
+          </select><span class="selpfeil" aria-hidden="true">${ic('chev', 20)}</span></div></div>
+      <div class="gnfuss">${aus
+        ? html`<button type="button" class="btn" data-gn-speichern ?disabled=${this.gesperrt || this._speichert} @click=${() => this.speichereGuteNacht()}>${T.speichern}</button>`
+        : html`<span class="gnok" data-gn-gespeichert role="status">${ic('check', 20)}${T.gespeichert}</span>`}</div>
       ${gn.hatTobie === null ? nothing : html`<div class="muted gnhinweis">${gn.hatTobie ? T.hat_tobie : T.kein_tobie} <button type="button" class="btn link" data-gn-anleitung @click=${() => this.oeffneAnleitung()}>${T.anlegen}</button></div>`}</div>`;
   }
 
@@ -539,6 +543,23 @@ export const stil = () => css`
   .gkarte h3 { font-size: 17px; font-weight: 500; margin: 0 0 4px; }
   .gboxen { display: grid; grid-template-columns: 1fr; gap: 0 16px; }
   .app:not([data-layout="unten"]) .gboxen { grid-template-columns: 1fr 1fr; }
+  .abends-raster { display: block; }
+
+  /* Computer (ab 1100 px): große Box-Karten nebeneinander, „Abends“ in zwei Spalten, wenn der Platz reicht */
+  .app[data-layout="seite"] .gboxen { grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 20px; margin-bottom: 8px; }
+  .app[data-layout="seite"] .gboxen .gkarte { margin: 0; height: 100%; }
+  .app[data-layout="seite"] .gstatus { padding: 20px; gap: 20px; border-radius: 20px; box-shadow: 0 1px 4px var(--shadow); }
+  .app[data-layout="seite"] .gstatus .cover.md { width: 112px; border-radius: 16px; font-size: 48px; }
+  .app[data-layout="seite"] .gstatus .cover.ph svg { width: 48px; height: 48px; }
+  .app[data-layout="seite"] .gstatus .sent { font-size: 19px; line-height: 1.35; }
+  .app[data-layout="seite"] .gstatus .muted { margin-top: 4px; }
+  @media (hover: hover) { a.gstatus:hover { background: var(--primary-soft); } }
+  .app[data-layout="seite"] .gkarte { border-radius: 20px; padding: 24px; box-shadow: 0 1px 4px var(--shadow); }
+  .app[data-layout="seite"] .gkarte h3 { font-size: 19px; margin-bottom: 6px; }
+  @container (min-width: 860px) {
+    .abends-raster { display: grid; grid-template-columns: minmax(320px, 5fr) minmax(0, 7fr); gap: 20px; align-items: start; }
+    .abends-raster .gkarte { margin: 0; }
+  }
   .gboxen > div { min-width: 0; }
   main h2.abends { margin-top: 24px; }
   .gstatus { display: flex; gap: 12px; align-items: center; }
@@ -563,7 +584,18 @@ export const stil = () => css`
   .gchips.wrap { gap: 8px; }
   .gchip { min-width: 44px; min-height: 44px; border-radius: 22px; border: 1px solid var(--line); background: var(--card); color: var(--text); font-weight: 500; padding: 0 12px; }
   .gchip[aria-pressed="true"] { background: var(--primary); color: var(--on-primary); border-color: var(--primary-ink); }
-  .selw { margin-top: 8px; }
+  .selw { margin-top: 8px; position: relative; display: inline-block; max-width: 100%; }
+  /* Ruhiges Auswahlfeld im Stil der Segment-Spur (X32): getönt, ohne Rahmen */
+  .selw .auswahl { appearance: none; -webkit-appearance: none; min-height: 48px; border: 0; border-radius: 24px; background: var(--primary-soft); color: var(--primary-ink); font-weight: 500;
+    padding: 0 44px 0 20px; cursor: pointer; }
+  .selw .auswahl.gesetzt { background: var(--primary); color: var(--on-primary); box-shadow: inset 0 0 0 2px var(--primary-ink); font-weight: 700; }
+  .selw .selpfeil { position: absolute; right: 14px; top: 50%; transform: translateY(-50%) rotate(90deg); pointer-events: none; display: grid; color: var(--primary-ink); }
+  .selw .auswahl.gesetzt + .selpfeil { color: var(--on-primary); }
+  .selw .selpfeil svg { fill: currentColor; }
+  .gn .seg2 { max-width: 460px; }
+  .gnfuss { min-height: 48px; display: flex; align-items: center; margin-top: 8px; }
+  .gnok { display: inline-flex; align-items: center; gap: 8px; color: var(--ok); font-weight: 500; min-height: 44px; }
+  .gnok svg { fill: currentColor; }
   .auswahl, .zeitfeld { min-height: 48px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--text); padding: 0 12px; font-size: 16px; max-width: 100%; }
   .zeitfeld { width: 100%; max-width: 220px; }
   .regler { width: 100%; min-height: 44px; accent-color: var(--primary); }

@@ -264,29 +264,32 @@ test('Box-Detail: folgt dem Status (pausiert), unbekannte Box gibt einen Hinweis
 
 /* ------------------------------------------------------------------ Gute Nacht */
 
-test('Gute Nacht: Schnellwahl 15 · 30 · 45 · 60 · 90, „Anderer Wert“ 5 bis 240, Speichern grau mit „Gespeichert“', MIT_DOM, async () => {
+test('Gute Nacht: Schnellwahl 15 · 30 · 45 · 60 · 90 als Segment, „Anderer Wert“ 5 bis 240, „Gespeichert“ als Status, Speichern nur bei Änderung', MIT_DOM, async () => {
   const s = await geraete();
   const k = s.q('[data-karte="gute-nacht"]');
   assert.equal(k.querySelector('h3').textContent, 'Gute Nacht');
   assert.ok(k.textContent.includes(ABENDS.gute_nacht.text));
-  assert.deepEqual([...k.querySelectorAll('[data-minuten]')].map((b) => b.textContent), ['15 Min.', '30 Min.', '45 Min.', '60 Min.', '90 Min.']);
-  assert.deepEqual([...k.querySelectorAll('[data-minuten]')].map((b) => b.getAttribute('aria-pressed')), ['false', 'true', 'false', 'false', 'false']);
+  assert.deepEqual([...k.querySelectorAll('.seg2 [data-wert]')].map((b) => b.textContent), ['15 Min.', '30 Min.', '45 Min.', '60 Min.', '90 Min.']);
+  assert.deepEqual([...k.querySelectorAll('.seg2 [data-wert]')].map((b) => b.getAttribute('aria-pressed')), ['false', 'true', 'false', 'false', 'false']);
   assert.deepEqual([...k.querySelectorAll('#gn-andere option')].map((o) => o.value), ['', '5', '10', '20', '120', '180', '240']);
   assert.equal(k.querySelector('label[for="gn-andere"]').textContent, 'Anderer Wert');
-  const knopf = k.querySelector('[data-gn-speichern]');
-  assert.equal(knopf.textContent.trim(), 'Gespeichert');
-  assert.ok(knopf.disabled);
+  assert.equal(k.querySelectorAll('.gchip').length, 0, 'keine umrandeten Pillen');
+  assert.equal(k.querySelectorAll('.seg2').length, 1, 'ein Segment-Umschalter (X32)');
+  assert.equal(k.querySelector('[data-gn-speichern]'), null, 'ohne Änderung kein Knopf');
+  const status = k.querySelector('[data-gn-gespeichert]');
+  assert.equal(status.textContent.trim(), 'Gespeichert');
+  assert.equal(status.tagName, 'SPAN', 'ein Status, kein Knopf');
   weg();
 });
 
 test('Gute Nacht: Wahl und Speichern sendet gute_nacht mit erwartet_revision, nichts sonst; danach wieder „Gespeichert“', MIT_DOM, async () => {
   const s = await geraete();
-  await klick(s, s.q('[data-minuten="45"]'));
+  await klick(s, s.q('.seg2 [data-wert="45"]'));
   const knopf = s.q('[data-gn-speichern]');
   assert.equal(knopf.textContent.trim(), 'Speichern');
   assert.ok(!knopf.disabled);
-  assert.equal(s.q('[data-minuten="45"]').getAttribute('aria-pressed'), 'true');
-  assert.equal(s.q('[data-minuten="30"]').getAttribute('aria-pressed'), 'false');
+  assert.equal(s.q('.seg2 [data-wert="45"]').getAttribute('aria-pressed'), 'true');
+  assert.equal(s.q('.seg2 [data-wert="30"]').getAttribute('aria-pressed'), 'false');
   s.m.reset();
   await klick(s, knopf);
   const c = s.m.aufrufe('tobibox/einstellungen/set');
@@ -295,14 +298,14 @@ test('Gute Nacht: Wahl und Speichern sendet gute_nacht mit erwartet_revision, ni
   assert.deepEqual(felder, { type: 'tobibox/einstellungen/set', gute_nacht: { timer_min: 45, ausblenden_s: 60 }, erwartet_revision: 7 });
   assert.equal(s.m.backend.einstellungen.gute_nacht.timer_min, 45);
   assert.equal(s.q('.toast[role="status"]').textContent.replace(/OK$/, ''), 'Gespeichert. Die Boxen bekommen es gleich.');
-  assert.equal(s.q('[data-gn-speichern]').textContent.trim(), 'Gespeichert');
-  assert.ok(s.q('[data-gn-speichern]').disabled);
+  assert.equal(s.q('[data-gn-speichern]'), null, 'danach wieder nur der Status');
+  assert.equal(s.q('[data-gn-gespeichert]').textContent.trim(), 'Gespeichert');
   // „Anderer Wert“: 120 Minuten; die Schnellwahl ist dann nicht mehr gewählt
   const sel = s.q('#gn-andere');
   sel.value = '120';
   sel.dispatchEvent(new window.Event('change', { bubbles: true }));
   await s.flush();
-  assert.deepEqual([...s.qa('[data-minuten]')].map((b) => b.getAttribute('aria-pressed')), ['false', 'false', 'false', 'false', 'false']);
+  assert.deepEqual([...s.qa('.seg2 [data-wert]')].map((b) => b.getAttribute('aria-pressed')), ['false', 'false', 'false', 'false', 'false']);
   assert.equal(s.q('#gn-andere').value, '120');
   await klick(s, s.q('[data-gn-speichern]'));
   assert.equal(s.m.letzter('tobibox/einstellungen/set').gute_nacht.timer_min, 120);
@@ -325,7 +328,7 @@ test('Gute Nacht: Hinweis „Noch kein Gute-Nacht-Tobie“ bzw. „Ein Tobie spi
 
 test('Gute Nacht: bei gesperrter Liste ist Speichern grau', MIT_DOM, async () => {
   const s = await geraete();
-  await klick(s, s.q('[data-minuten="60"]'));
+  await klick(s, s.q('.seg2 [data-wert="60"]'));
   assert.ok(!s.q('[data-gn-speichern]').disabled);
   s.m.emit('konfig', 'geaendert', { konfig: { ...s.m.backend.konfig, zustand: 'gesperrt' } });
   await s.flush(10);
@@ -592,14 +595,14 @@ test('erwartet_revision: ein Konflikt ergibt eine Fehlermeldung, das Blatt schli
 
 test('erwartet_revision: Gute Nacht läuft in denselben Konflikt; ohne Fähigkeit „bibliothek“ wird das Feld nicht gesendet', MIT_DOM, async () => {
   const s = await geraete();
-  await klick(s, s.q('[data-minuten="90"]'));
+  await klick(s, s.q('.seg2 [data-wert="90"]'));
   s.m.backend.konfig = { ...s.m.backend.konfig, revision: 20 };
   await klick(s, s.q('[data-gn-speichern]'));
   assert.equal(s.q('.toast.err .tmsg').textContent, fehlerText('stand_veraltet'));
   assert.equal(s.m.backend.einstellungen.gute_nacht.timer_min, 30);
   weg();
   const alt = await geraete({ faehigkeiten: ALLE.filter((f) => f !== 'bibliothek') });
-  await klick(alt, alt.q('[data-minuten="90"]'));
+  await klick(alt, alt.q('.seg2 [data-wert="90"]'));
   await klick(alt, alt.q('[data-gn-speichern]'));
   assert.ok(!('erwartet_revision' in alt.m.letzter('tobibox/einstellungen/set')));
   assert.equal(alt.m.backend.einstellungen.gute_nacht.timer_min, 90);
@@ -660,12 +663,24 @@ test('Fehler beim Laden der Einstellungen: rote Karte nur im Abschnitt, „Noch 
 
 test('Neu laden nach Wiederverbinden: Einstellungen frisch, Eingaben im Gute-Nacht-Feld bleiben', MIT_DOM, async () => {
   const s = await geraete();
-  await klick(s, s.q('[data-minuten="60"]'));
+  await klick(s, s.q('.seg2 [data-wert="60"]'));
   s.m.backend.einstellungen.leise_zeiten.fenster = [W_MITTAG];
   s.seite.neuLaden();
   await s.flush(10);
   assert.equal(s.qa('.hit[data-fenster="mittag"]').length, 5, 'neuer Stand');
-  assert.equal(s.q('[data-minuten="60"]').getAttribute('aria-pressed'), 'true', 'die Wahl ging nicht verloren');
+  assert.equal(s.q('.seg2 [data-wert="60"]').getAttribute('aria-pressed'), 'true', 'die Wahl ging nicht verloren');
   assert.equal(s.q('[data-gn-speichern]').textContent.trim(), 'Speichern');
+  weg();
+});
+
+test('B3: „1 Minute“ in der Einzahl in der Auswahl „Anderer Wert“', MIT_DOM, async () => {
+  const s = await geraete();
+  s.m.backend.einstellungen.gute_nacht.timer_min = 1;
+  await s.el.ctx && s.flush();
+  s.el._seiteObj?.laden?.(true);
+  await s.flush(10);
+  const opt = [...s.qa('#gn-andere option')].map((o) => o.textContent.trim());
+  assert.ok(opt.includes('1 Minute'), `Optionen: ${opt}`);
+  assert.ok(!opt.includes('1 Minuten'));
   weg();
 });

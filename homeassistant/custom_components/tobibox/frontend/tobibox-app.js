@@ -13,7 +13,7 @@
  */
 import { fuellen, fehlerText, SEITE, TOBIE, LEER, TECHNIK } from './texte.js';
 import { SEITEN } from './seiten/index.js';
-import { initLit, bausteinStil, CoverLader, leererZustand } from './bausteine.js';
+import { initLit, bausteinStil, CoverLader, leererZustand, kopfAktion } from './bausteine.js';
 
 export const VERTRAG_V = 1;
 export const REITER_UNTEN_BIS = 700; // Panelbreite unter 700 px: Reiter unten
@@ -155,7 +155,7 @@ const TECHNIK_SUB = { boxen: 'technik_boxen', speicher: 'technik_speicher', list
  * `umleitung` ist die Adresse, auf die die Seite umgeschrieben wird (Design 3.2). `faehigkeiten`: hello.faehigkeiten,
  * oder null, solange hello noch nicht da ist (dann keine Umleitung wegen fehlender Fähigkeit). */
 export function parseRoute(hash, { faehigkeiten = null } = {}) {
-  const h = String(hash || '').replace(/^#/, '');
+  const [h, abfrage = ''] = String(hash || '').replace(/^#/, '').split('?'); // `#bibliothek?sortierung=neu` (Link „Alle anzeigen“ vom Start)
   const r = (o) => o;
   if (h === '' || h === 'start') return r({ name: 'start', tab: 'start' });
   if (h.startsWith('serie-')) return r({ name: 'serie', tab: 'bibliothek', id: h.slice(6), seite: 'serie', zurueck: 'bibliothek' });
@@ -177,6 +177,7 @@ export function parseRoute(hash, { faehigkeiten = null } = {}) {
     return r({ name: 'gehoert', tab: 'geraete', seite: 'gehoert', zurueck: 'geraete' });
   }
   if (h === 'abends' || h === 'mehr') return r({ name: 'geraete', tab: 'geraete', umleitung: 'geraete' });
+  if (h === 'bibliothek') return r({ name: h, tab: h, sortierung: new URLSearchParams(abfrage).get('sortierung') || undefined });
   if (REITER.includes(h)) return r({ name: h, tab: h });
   return r({ name: 'start', tab: 'start' });
 }
@@ -363,7 +364,15 @@ if (lit) {
       this.store.onWiederda = () => this._seiteObj?.neuLaden?.();
       this._off = this.store.onChange(() => { this._tick += 1; if (this.store.s.phase === 'bereit') this._leseHash(); });
       this.store.onNeuerTobie = (n) => this._neuerTobie(n);
-      this._onHash = () => { this._leseHash(); this._schliesseBlattBeiRoute(); this._fokusMain = true; this._scrollOben = true; };
+      /* Home Assistant fängt Klicks auf Links ab, setzt die Adresse mit `history.pushState` und meldet `location-changed`; ein
+       * `hashchange` kommt dann nicht (B1). Darum hören wir auch auf `location-changed` und `popstate`. Fokus und Scrollen nur,
+       * wenn sich die Adresse wirklich geändert hat (Zurück-Taste meldet `popstate` und `hashchange` zugleich). */
+      this._onHash = () => {
+        this._leseHash();
+        if (this._hash === this._behandelt) return;
+        this._behandelt = this._hash;
+        this._schliesseBlattBeiRoute(); this._fokusMain = true; this._scrollOben = true; this.requestUpdate();
+      };
       this._onResize = () => this._messeBreite();
     }
 
@@ -371,7 +380,10 @@ if (lit) {
     connectedCallback() {
       super.connectedCallback();
       this._leseHash();
+      this._behandelt = this._hash;
       window.addEventListener('hashchange', this._onHash);
+      window.addEventListener('popstate', this._onHash);
+      window.addEventListener('location-changed', this._onHash);
       this._messeBreite();
       this._messeRand();
       if (typeof ResizeObserver !== 'undefined') {
@@ -395,6 +407,8 @@ if (lit) {
     disconnectedCallback() {
       super.disconnectedCallback();
       window.removeEventListener('hashchange', this._onHash);
+      window.removeEventListener('popstate', this._onHash);
+      window.removeEventListener('location-changed', this._onHash);
       window.removeEventListener('resize', this._onResize);
       this._ro?.disconnect(); this._ro = null;
       this._seiteObj?.verlassen?.(); this._seiteObj = null; this._seiteKey = null;
@@ -416,12 +430,30 @@ if (lit) {
       this._wendeTokens();
       this._messeRand();
       this._seitenWechsel();
+      this._doppelteUeberschrift();
       if (this._blatt && !this._blatt.offen) this._blattEinrichten();
       if (this._scrollOben) { this._scrollOben = false; const r = this.renderRoot.querySelector('.rahmen'); const sp = this.renderRoot.querySelector('.spalte'); if (r) r.scrollTop = 0; if (sp) sp.scrollTop = 0; }
       if (this._fokusMain) { this._fokusMain = false; this.renderRoot.querySelector('main')?.focus({ preventScroll: true }); }
       if (ch.has('hass')) this._wendeTokens();
       this._covers.beobachte(this.renderRoot);
       this._seiteObj?.nachRender?.(this.renderRoot);
+    }
+
+    /* Der Seitenkopf trägt den Titel der Seite (große Überschrift am Computer, Titel neben dem Menüknopf am Handy). Steht dieselbe
+     * Überschrift noch einmal im Inhalt, bleibt sie für Screenreader und Tests da, wird aber nicht gezeigt (AB4: nie zwei Titel). */
+    _doppelteUeberschrift() {
+      const root = this.renderRoot;
+      const kopf = root.querySelector('.kopf');
+      const h1 = kopf?.querySelector('h1');
+      const text = (h1?.textContent || '').trim();
+      for (const h of root.querySelectorAll('main h2[data-doppelt]')) h.removeAttribute('data-doppelt');
+      kopf?.removeAttribute('data-still');
+      if (!text) return;
+      const h2 = root.querySelector('main h2');
+      if (!h2 || h2.textContent.trim() !== text) return;
+      // Am Computer steht auf Unterseiten „‹ Zurück“ vor dem Titel: dann trägt die Überschrift der Seite den Titel, der Kopf schweigt
+      if (this._layout === 'seite' && h2.previousElementSibling?.classList.contains('back')) kopf.setAttribute('data-still', '');
+      else h2.setAttribute('data-doppelt', '');
     }
 
     /* ---- Tokens aus dem HA-Theme (Design 4) */
@@ -819,15 +851,27 @@ if (lit) {
     }
 
     /* ---- Kopf und Reiter */
+    /* Titel im Seitenkopf (Design 3.1, AB4): auf dem Start die Begrüßung, sonst der Name der Seite; nie zusätzlich „Tobi Box“. */
+    _kopfTitel(r) {
+      if (r.name === 'start') return begruessung();
+      return this._titel(r);
+    }
+
     _kopfSymbole(r) {
-      return html`${r.name === 'start' ? html`<a class="rund" href="#suche" aria-label=${SEITE.suchen}>${ic('search')}</a>` : nothing}
-        ${this._admin ? html`<a class="rund tech" href="#technik" aria-label=${SEITE.technik} aria-current=${r.tab === 'technik' ? 'page' : nothing}>${ic('tool')}</a>` : nothing}`;
+      const seite = this.store.s.phase === 'bereit' ? this._seiteFuer(r.name) : null;
+      const aktion = typeof seite?.kopfAktionen === 'function' ? seite.kopfAktionen(r)
+        : (r.name === 'start' ? kopfAktion({ href: '#suche', label: SEITE.suchen, symbol: 'search' }) : nothing);
+      // Technik: am Computer steht sie in der Seitenleiste, sonst als rundes Symbol im Kopf
+      const technik = this._admin && this._layout !== 'seite'
+        ? html`<a class="rund tech" href="#technik" aria-label=${SEITE.technik} aria-current=${r.tab === 'technik' ? 'page' : nothing}>${ic('tool')}</a>` : nothing;
+      return html`${aktion}${technik}`;
     }
 
     _kopf(r) {
-      return html`<header class="kopf">
+      const still = r.name === 'serie'; // die Serienseite zeigt ihren Titel selbst im großen Kopf
+      return html`<header class=${`kopf${still ? ' still' : ''}`}>
         ${this.narrow ? html`<ha-menu-button .hass=${this.hass} .narrow=${this.narrow}></ha-menu-button>` : nothing}
-        <h1>${r.name === 'start' ? begruessung() : SEITE.titel}</h1>
+        <h1 class=${still ? 'sr' : ''}>${this._kopfTitel(r)}</h1>
         <span class="symbole">${this._kopfSymbole(r)}</span></header>`;
     }
 
@@ -840,12 +884,14 @@ if (lit) {
     }
 
     _seitenleiste(r) {
+      const aktiv = r.tab === 'technik' ? 'page' : nothing;
       return html`<aside class="seite">
         ${this.narrow ? html`<ha-menu-button .hass=${this.hass} .narrow=${this.narrow}></ha-menu-button>` : nothing}
-        <div class="marke">${SEITE.titel}</div>
+        <div class="marke"><span class="logo" aria-hidden="true">${ic('spk', 22)}</span>${SEITE.titel}</div>
         ${this._nav(r)}
-        <div class="werkzeuge"><a class="rund" href="#hinzufuegen" aria-label=${SEITE.hinzufuegen}>${ic('plus')}</a>
-          ${this._admin ? html`<a class="rund tech" href="#technik" aria-label=${SEITE.technik} aria-current=${r.tab === 'technik' ? 'page' : nothing}>${ic('tool')}</a>` : nothing}</div>
+        <div class="werkzeuge">
+          <a class="srow" href="#hinzufuegen">${ic('plus', 24)}<span>${SEITE.hinzufuegen}</span></a>
+          ${this._admin ? html`<a class="srow tech" href="#technik" aria-current=${aktiv}>${ic('tool', 24)}<span>${SEITE.technik}</span></a>` : nothing}</div>
       </aside>`;
     }
 
@@ -860,7 +906,7 @@ if (lit) {
         <div class="rahmen">
           ${l === 'seite' ? this._seitenleiste(r) : nothing}
           <div class="spalte">
-            ${l === 'seite' ? nothing : this._kopf(r)}
+            ${this._kopf(r)}
             ${l === 'oben' ? this._nav(r) : nothing}
             ${this._baender()}
             <main id="main" tabindex="-1" aria-label=${this._titel(r)}>${this._seite(r)}</main>
@@ -910,7 +956,7 @@ if (lit) {
       /* Kopf */
       .kopf { display: flex; align-items: center; gap: 8px; min-height: 56px; padding: 4px max(16px, env(safe-area-inset-right, 0px)) 4px max(16px, env(safe-area-inset-left, 0px)); }
       .kopf h1 { font-size: 24px; margin: 0; font-weight: 500; flex: 1; min-width: 0; overflow-wrap: anywhere; line-height: 1.2; }
-      .symbole { display: flex; gap: 8px; flex: none; }
+      .symbole { display: flex; gap: 8px; flex: none; margin-left: auto; }
       .rund { width: 48px; height: 48px; border-radius: 24px; border: 0; background: var(--primary-soft); color: var(--primary-ink); display: inline-grid; place-items: center; text-decoration: none; flex: none; }
       .rund svg { fill: currentColor; }
       .rund[aria-current="page"] { outline: 2px solid var(--primary-ink); outline-offset: -2px; }
@@ -931,25 +977,48 @@ if (lit) {
         nav.tabs.unten, nav.tabs.oben { background: color-mix(in srgb, var(--card) 94%, transparent); -webkit-backdrop-filter: blur(12px) saturate(1.3); backdrop-filter: blur(12px) saturate(1.3); }
       }
       nav.tabs.oben { position: sticky; top: 0; padding: 0 max(16px, env(safe-area-inset-left, 0px)); box-shadow: 0 2px 8px var(--shadow); }
-      nav.tabs.oben .tr { max-width: 720px; gap: 4px; }
+      nav.tabs.oben .tr { max-width: 720px; gap: 4px; margin: 0 auto; }
+      .app[data-layout="oben"] .kopf, .app[data-layout="oben"] main { width: 100%; max-width: 1000px; margin-inline: auto; }
       nav.tabs.oben a { flex-direction: row; justify-content: center; gap: 8px; min-height: 52px; font-size: 16px; }
       nav.tabs.oben .ti { width: 32px; background: none !important; }
       nav.tabs.oben .dot { position: static; }
       .app[data-kbd] nav.tabs.unten, .app[data-kbd] .mini { display: none; }
 
-      /* Seitenleiste ab 1100 px */
-      .app[data-layout="seite"] .rahmen { display: grid; grid-template-columns: 264px minmax(0, 1fr); overflow: hidden; }
-      aside.seite { height: 100%; overflow-y: auto; display: flex; flex-direction: column; background: var(--card); box-shadow: 2px 0 12px var(--shadow); padding: 20px 12px 16px; z-index: 20; }
-      aside.seite .marke { font-size: 24px; font-weight: 500; padding: 0 12px 16px; }
+      /* Computer (ab 1100 px Panelbreite): Seitenleiste mit eigenem Kopf, Inhalt mit Höchstbreite, großer Seitenkopf (AB3) */
+      .app[data-layout="seite"] { --inhalt-max: 1320px; --rand-x: 40px; }
+      .app[data-layout="seite"] .rahmen { display: grid; grid-template-columns: 216px minmax(0, 1fr); overflow: hidden; }
+      aside.seite { height: 100%; overflow-y: auto; display: flex; flex-direction: column; background: var(--card); border-right: 1px solid var(--divider); padding: 28px 10px 16px; z-index: 20; }
+      aside.seite .marke { display: flex; align-items: center; gap: 10px; font-size: 20px; font-weight: 700; letter-spacing: -0.2px; line-height: 1.2; padding: 0 12px 28px; }
+      aside.seite .logo { width: 36px; height: 36px; border-radius: 10px; background: var(--primary); color: var(--on-primary); display: grid; place-items: center; flex: none; }
+      aside.seite .logo svg { fill: currentColor; }
       aside.seite nav.tabs { background: transparent; }
-      aside.seite nav.tabs .tr { flex-direction: column; gap: 4px; }
-      aside.seite nav.tabs a { flex: none; flex-direction: row; justify-content: flex-start; gap: 12px; font-size: 16px; padding: 0 16px; min-height: 52px; border-radius: 26px; }
+      aside.seite nav.tabs .tr { flex-direction: column; gap: 2px; }
+      aside.seite nav.tabs a { flex: none; flex-direction: row; justify-content: flex-start; gap: 14px; font-size: 16px; padding: 0 12px; min-height: 48px; border-radius: 12px; }
       aside.seite nav.tabs a[aria-current="page"] { background: var(--primary-soft); }
       aside.seite nav.tabs .ti { width: 28px; height: 28px; background: none !important; }
-      aside.seite nav.tabs .dot { position: static; }
-      aside.seite .werkzeuge { margin-top: auto; display: flex; gap: 8px; flex-wrap: wrap; padding-top: 16px; }
+      aside.seite nav.tabs .dot { position: static; margin-left: auto; }
+      aside.seite .werkzeuge { margin-top: auto; padding-top: 12px; border-top: 1px solid var(--divider); display: grid; gap: 2px; }
+      .srow { display: flex; align-items: center; gap: 14px; min-height: 48px; padding: 0 12px; border-radius: 12px; color: var(--text2); text-decoration: none; font-weight: 500; font-size: 16px; }
+      .srow svg { fill: currentColor; flex: none; }
+      .srow[aria-current="page"] { background: var(--primary-soft); color: var(--primary-ink); }
+      @media (hover: hover) {
+        aside.seite nav.tabs a:not([aria-current="page"]):hover, .srow:not([aria-current="page"]):hover { background: var(--primary-soft); color: var(--primary-ink); }
+      }
       .app[data-layout="seite"] .spalte { height: 100%; overflow-y: auto; min-height: 0; }
-      .app[data-layout="seite"] main { max-width: 1100px; width: 100%; padding: 24px 32px; margin: 0 auto; }
+      .app[data-layout="seite"] .kopf, .app[data-layout="seite"] main { width: 100%; max-width: var(--inhalt-max); margin-inline: auto; }
+      .app[data-layout="seite"] .kopf { min-height: 0; padding: 44px var(--rand-x) 20px; gap: 16px; }
+      .app[data-layout="seite"] .kopf h1 { font-size: 36px; font-weight: 700; letter-spacing: -0.6px; line-height: 1.15; }
+      .app[data-layout="seite"] .kopf.still, .app[data-layout="seite"] .kopf[data-still] { padding: 0; }
+      .kopf[data-still] h1 { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+      .app[data-layout="seite"] main > .back:first-child { margin-top: 36px; }
+      .app[data-layout="seite"] main > .back + h2 { font-size: 36px; letter-spacing: -0.6px; margin: 4px 0 20px; }
+      .app[data-layout="seite"] .symbole { gap: 12px; align-items: center; }
+      .app[data-layout="seite"] main { padding: 8px var(--rand-x) 64px; container-type: inline-size; }
+      .app[data-layout="seite"] main h2 { font-size: 22px; font-weight: 700; letter-spacing: -0.2px; margin: 32px 0 14px; }
+      .app[data-layout="seite"] main > h2:first-child, .app[data-layout="seite"] main > .back + h2 { margin-top: 8px; }
+      .app[data-layout="seite"] .note.band { width: calc(100% - 2 * var(--rand-x)); max-width: calc(var(--inhalt-max) - 2 * var(--rand-x)); margin: 12px auto 0; }
+      /* Dieselbe Überschrift steht schon im Seitenkopf: für Screenreader bleiben, nicht doppelt zeigen */
+      main h2[data-doppelt] { position: absolute; width: 1px; height: 1px; margin: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
       /* Platz für den Mini-Player: bündig auf der Leiste */
       .mini { flex: none; position: relative; z-index: 19; background: var(--card); border-top: 1px solid var(--divider); box-shadow: 0 -2px 8px var(--shadow); }

@@ -5,7 +5,7 @@
  * Die Arten-Zeile mit „Playlists“ kommt erst mit Stufe C und fehlt hier. Das Backend sucht, filtert, sortiert und blättert
  * (`serien/list`: art, filter, sortierung, limit, offset). Schnittstelle zur App: siehe bausteine.js.
  */
-import { html, nothing, css, ic, listenZeile, ladeMitGrenze, zaehle } from '../bausteine.js';
+import { html, nothing, css, ic, listenZeile, rasterKachel, kopfAktion, segment, ladeMitGrenze, zaehle } from '../bausteine.js';
 import { BIB, SEITE, fuellen } from '../texte.js';
 
 export const SEITE_GROESSE = 60; // Päckchen (Design 5.2 Punkt 5, X23)
@@ -31,9 +31,19 @@ export function listenAnfrage(e, offset = 0) {
   };
 }
 
+/* Ansicht am Computer (ab 1100 px): Cover-Raster oder Liste; die Wahl gilt je Gerät (`localStorage`, ohne Speicher: Raster). */
+export const ANSICHT_SCHLUESSEL = 'tobibox.bibliothek.ansicht';
+export function leseAnsicht() {
+  try { const v = window.localStorage.getItem(ANSICHT_SCHLUESSEL); return v === 'liste' ? 'liste' : 'raster'; } catch { return 'raster'; }
+}
+export function speichereAnsicht(v) {
+  try { window.localStorage.setItem(ANSICHT_SCHLUESSEL, v); } catch { /* ohne Speicher: gilt nur bis zum Neuladen */ }
+}
+
 class BibliothekSeite {
   constructor(ctx) {
     this.ctx = ctx;
+    this.ansicht = leseAnsicht();
     this.e = STANDARD();
     this.z = { phase: 'laedt', fehlerCode: null, eintraege: [], gesamt: 0, weitere: false, ladeMehr: false };
     this._lauf = 0;
@@ -41,7 +51,11 @@ class BibliothekSeite {
     this._neuBeobachten = false;
   }
 
-  betreten() { this.laden(this.z.phase === 'bereit'); } // schon Daten da: still auffrischen, ohne Platzhalter
+  betreten(route) {
+    const w = route?.sortierung;
+    if (['name', 'neu', 'angehoert'].includes(w) && w !== this.e.sortierung) { this.e = { ...this.e, sortierung: w }; this.laden(false); return; }
+    this.laden(this.z.phase === 'bereit');
+  } // schon Daten da: still auffrischen, ohne Platzhalter
   neuLaden() { this.laden(true); }
   verlassen() { this._lauf += 1; this._io?.disconnect(); this._io = null; }
 
@@ -140,10 +154,25 @@ class BibliothekSeite {
   }
 
   /* ---- Darstellung */
+  get _raster() { return this.ctx.layout === 'seite' && this.ansicht === 'raster'; }
+
+  setzeAnsicht(v) {
+    if (this.ansicht === v) return;
+    this.ansicht = v;
+    speichereAnsicht(v);
+    this.ctx.neuZeichnen();
+  }
+
+  /* Aktionen im Seitenkopf: am Computer der Umschalter Raster | Liste, Lupe und „+“ (X29: Hinzufügen gehört in die Bibliothek). */
+  kopfAktionen() {
+    const A = BIB.ansicht;
+    return html`${this.ctx.layout === 'seite' ? html`<span class="ansicht">${segment({ label: A.label, optionen: [
+      { label: html`${ic('grid', 18)}${A.raster}`, wert: 'raster' }, { label: html`${ic('list', 18)}${A.liste}`, wert: 'liste' }], wert: this.ansicht, onWahl: (v) => this.setzeAnsicht(v) })}</span>` : nothing}
+      ${kopfAktion({ href: '#suche', label: BIB.lupe, symbol: 'search' })}${kopfAktion({ href: '#hinzufuegen', label: SEITE.hinzufuegen, symbol: 'plus', primaer: true })}`;
+  }
+
   _kopf() {
-    return html`${this.ctx.uploadBand()}<div class="libhead"><h2>${SEITE.reiter.bibliothek}</h2>
-      <span class="libicons"><a class="iconbtn lupe" href="#suche" aria-label=${BIB.lupe}>${ic('search', 26)}</a>
-        <a class="iconbtn fillp" href="#hinzufuegen" aria-label=${SEITE.hinzufuegen}>${ic('plus', 26)}</a></span></div>
+    return html`${this.ctx.uploadBand()}<h2 class="sr">${SEITE.reiter.bibliothek}</h2>
       <div class="artrow" role="group" aria-label=${BIB.arten_label}>${ARTEN.map((a) => html`
         <button type="button" class="arttab" aria-pressed=${this.e.art === a ? 'true' : 'false'} @click=${() => this.setzeArt(a)}>${BIB.arten[a]}</button>`)}</div>`;
   }
@@ -160,7 +189,7 @@ class BibliothekSeite {
     }
     const rest = z.gesamt - z.eintraege.length;
     return html`${kopf}${this._leiste(aktiv)}
-      <div class="liste" data-liste="bibliothek" aria-busy=${z.ladeMehr ? 'true' : 'false'}>${z.eintraege.map((s) => listenZeile(s))}</div>
+      <div class=${this._raster ? 'rgrid' : 'liste'} data-liste="bibliothek" data-ansicht=${this._raster ? 'raster' : 'liste'} aria-busy=${z.ladeMehr ? 'true' : 'false'}>${z.eintraege.map((s) => (this._raster ? rasterKachel(s) : listenZeile(s)))}</div>
       ${z.weitere ? html`<div class="btns mehr"><button type="button" class="btn" data-mehr ?disabled=${z.ladeMehr} @click=${() => this.mehrLaden()}>${fuellen(BIB.mehr_laden, { anzahl: Math.max(1, Math.min(SEITE_GROESSE, rest)) })}</button></div>` : nothing}`;
   }
 
@@ -173,11 +202,13 @@ class BibliothekSeite {
 export const erzeuge = (ctx) => new BibliothekSeite(ctx);
 
 export const stil = () => css`
-  .libhead { display: flex; align-items: center; justify-content: space-between; margin: 0; }
-  .libhead h2 { margin: 0; }
-  .libicons { display: flex; gap: 8px; align-items: center; }
+  .ansicht { display: contents; }
+  .ansicht .seg2 { width: 220px; }
+  .ansicht .seg2 button { gap: 6px; font-size: 15px; }
+  .ansicht .seg2 svg { fill: currentColor; flex: none; }
   .artrow { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; border-bottom: 1px solid var(--divider); margin: 0 0 12px; }
   .artrow::-webkit-scrollbar { display: none; }
+  .app[data-layout="seite"] .artrow { margin-top: 4px; }
   .arttab { flex: none; min-height: 44px; padding: 0 12px; border: 0; background: none; font-weight: 500; color: var(--text2); border-bottom: 3px solid transparent; border-radius: 0; }
   .arttab[aria-pressed="true"] { color: var(--primary-ink); border-bottom-color: var(--primary-ink); }
   .libbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 12px 0 4px; }

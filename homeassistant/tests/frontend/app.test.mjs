@@ -244,7 +244,7 @@ test('Technik: Administrator hat das Symbol und die Seite, Nicht-Administrator w
   weg();
 });
 
-test('Kopf: Begrüßung nur auf dem Start, „Tobi Box“ sonst, Suchen nur auf dem Start, Menüknopf bei narrow', MIT_DOM, async () => {
+test('Kopf: Begrüßung auf dem Start, sonst der Seitentitel (nie „Tobi Box“ und Seitentitel zugleich), Suchen nur auf Start und Bibliothek, Menüknopf bei narrow', MIT_DOM, async () => {
   const s = await seite({ narrow: true });
   assert.equal(s.q('.kopf h1').textContent, begruessung());
   assert.ok(s.q('.kopf a[aria-label="Suchen"]'));
@@ -252,8 +252,13 @@ test('Kopf: Begrüßung nur auf dem Start, „Tobi Box“ sonst, Suchen nur auf 
   const rund = s.qa('.kopf .rund');
   assert.ok(rund.length >= 2);
   await geheZu(s, '#tobies');
-  assert.equal(s.q('.kopf h1').textContent, 'Tobi Box');
+  assert.equal(s.q('.kopf h1').textContent, 'Tobies');
   assert.equal(s.q('.kopf a[aria-label="Suchen"]'), null);
+  assert.equal(s.qa('h1, h2').filter((h) => h.textContent.trim() === 'Tobies' && h.closest('main') && !h.hasAttribute('data-doppelt')).length, 0, 'die Überschrift im Inhalt ist nicht noch einmal sichtbar');
+  await geheZu(s, '#geraete');
+  assert.equal(s.q('.kopf h1').textContent, 'Geräte');
+  assert.ok(s.q('main h2[data-doppelt]'), 'Überschrift im Inhalt bleibt für Screenreader, wird aber nicht gezeigt');
+  assert.equal(s.qa('.kopf h1').filter((h) => h.textContent.includes('Tobi Box')).length, 0);
   weg();
   const ohne = await seite({ narrow: false });
   assert.equal(ohne.q('ha-menu-button'), null);
@@ -276,10 +281,12 @@ test('Breite des Panels: 699, 700, 1099 und 1100 px schalten Reiter unten, oben,
   FakeRO.melde(1100); await s.flush();
   assert.equal(s.el.getAttribute('data-layout'), 'seite');
   assert.ok(s.q('aside.seite nav[aria-label="Bereiche"]'), 'Reiter liegen in der Seitenleiste');
-  assert.equal(s.q('.kopf'), null, 'die Seitenleiste ersetzt den Kopf');
+  assert.ok(s.q('.kopf h1'), 'am Computer steht der große Seitentitel im Kopf');
   assert.equal(s.q('aside.seite .marke').textContent, 'Tobi Box');
-  assert.ok(s.q('aside.seite a[aria-label="Hinzufügen"]'));
-  assert.ok(s.q('aside.seite a[aria-label="Technik"]'));
+  assert.equal(s.q('aside.seite a[href="#hinzufuegen"]').textContent.trim(), 'Hinzufügen', 'ruhige Zeile mit Symbol und Text (Design 3.1)');
+  assert.equal(s.q('aside.seite a.tech').textContent.trim(), 'Technik');
+  assert.equal(s.q('.kopf a.tech'), null, 'Technik steht am Computer nur in der Seitenleiste');
+  assert.equal(s.q('aside.seite .rund'), null, 'keine runden Einzelknöpfe in der Seitenleiste');
   assert.equal(s.qa('nav').length, 1);
   assert.deepEqual(tabs(s.qa), ['Start', 'Bibliothek', 'Tobies', 'Geräte']);
   FakeRO.melde(699); await s.flush();
@@ -728,4 +735,40 @@ test('Auch in der Seitenleiste steht der Punkt am Reiter „Geräte“', MIT_DOM
   const s = await seite({ breite: 1280 });
   assert.equal(s.q('aside nav a[href="#geraete"] .dot').textContent, '1');
   weg();
+});
+
+/* ------------------------------------------------------------------ B1: HA setzt die Adresse mit pushState und meldet `location-changed` */
+
+test('B1: Seitenwechsel auch ohne hashchange (HA: pushState und location-changed), popstate; Fokus nur bei neuer Adresse; Abmelden beim Entfernen', MIT_DOM, async () => {
+  const warte = (ms) => new Promise((r) => setTimeout(r, ms));
+  const s = await seite({ hash: '#start' });
+  assert.ok(s.q('nav a[href="#bibliothek"]'));
+  // wie HA: Klick abfangen, pushState, dann location-changed (kein hashchange)
+  window.history.pushState(null, '', '/tobibox#bibliothek');
+  window.dispatchEvent(new window.CustomEvent('location-changed'));
+  await warte(20); await s.flush();
+  assert.equal(s.q('main h2').textContent, 'Bibliothek', 'Seite gewechselt');
+  assert.equal(s.q('nav a[aria-current="page"]').getAttribute('href'), '#bibliothek');
+  window.history.pushState(null, '', '/tobibox#geraete');
+  window.dispatchEvent(new window.CustomEvent('location-changed'));
+  await warte(20); await s.flush();
+  assert.equal(s.q('main h2').textContent, 'Geräte');
+  // popstate (Zurück-Taste von Hand ausgelöst)
+  window.history.replaceState(null, '', '/tobibox#tobies');
+  window.dispatchEvent(new window.Event('popstate'));
+  await warte(20); await s.flush();
+  assert.equal(s.q('nav a[aria-current="page"]').getAttribute('href'), '#tobies');
+  // dieselbe Adresse noch einmal (popstate und hashchange zusammen): Fokus wird nicht erneut gesetzt
+  s.q('main').blur?.();
+  const zaehl = { n: 0 };
+  const alt = s.q('main').focus.bind(s.q('main'));
+  s.q('main').focus = (...a) => { zaehl.n += 1; return alt(...a); };
+  window.dispatchEvent(new window.Event('popstate'));
+  window.dispatchEvent(new window.Event('hashchange'));
+  await warte(20); await s.flush();
+  assert.equal(zaehl.n, 0, 'Fokus nur, wenn sich die Adresse geändert hat');
+  weg();
+  // nach dem Entfernen reagiert die App nicht mehr
+  window.history.pushState(null, '', '/tobibox#start');
+  window.dispatchEvent(new window.CustomEvent('location-changed'));
 });
