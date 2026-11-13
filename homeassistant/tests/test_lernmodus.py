@@ -482,3 +482,26 @@ async def test_verlauf_haelt_die_letzten_20(hass, lern):
         del v
     assert len(hub.store.lern_verlauf) == 20
     assert all(e["ergebnis"] == "abgebrochen" for e in hub.store.lern_verlauf)
+
+
+# --- K6 (13.11.): ``vorher`` beim Umhängen über den Lernmodus ---
+
+
+async def test_k6_lernmodus_neu_ohne_vorher_umhaengen_mit_vorher(hass, lern):
+    hub, box = lern
+    v = await hub.lernmodus.start("box1", FOLGE, "Rabe aus Holz")
+    await melde_gelernt(box, v)
+    assert UID not in hub.store.vorher  # neu angelegt: kein ``vorher``
+    v2 = await hub.lernmodus.start("box1", SERIE)
+    await melde_gelernt(box, v2)
+    await hub.lernmodus.antwort(v2["befehl_id"], True)  # umhängen
+    assert hub.store.konfig["zuordnungen"][UID]["ziel"] == SERIE
+    assert hub.store.vorher[UID]["ziel"] == FOLGE and hub.store.vorher[UID]["am"].endswith("Z")
+    assert "vorher" not in hub.store.konfig["zuordnungen"][UID] and "vorher" not in box.konfigs()[-1]["zuordnungen"][UID]
+    erg = await hub.zuordnung_liste(None, 100, 0, UID)
+    assert erg["zuordnungen"][0]["vorher"]["ziel"] == FOLGE
+    # zurückstellen: der Lernmodus mit dem alten Ziel hebt ``vorher`` wieder auf
+    v3 = await hub.lernmodus.start("box1", FOLGE)
+    await melde_gelernt(box, v3)
+    await hub.lernmodus.antwort(v3["befehl_id"], True)
+    assert UID not in hub.store.vorher

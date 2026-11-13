@@ -429,7 +429,7 @@ async def test_zuordnung_set_list_remove(api, box_fabrik, nas):
     assert [z["uid"] for z in liste["zuordnungen"]] == ["0123456789abcdef", UID2, UID]  # sortiert nach uid (Text)
     z = {x["uid"]: x for x in liste["zuordnungen"]}
     # Vertrag W 12.11., angelegt_am: Anlegen setzt den Zeitstempel
-    assert z[UID] == {"uid": UID, "name": "Rabe aus Holz", "ziel": SERIE, "serie_name": "Der kleine Rabe", "folge_anzeige": None, "folge_vorhanden": None, "angelegt_am": ANY}
+    assert z[UID] == {"uid": UID, "name": "Rabe aus Holz", "ziel": SERIE, "serie_name": "Der kleine Rabe", "folge_anzeige": None, "folge_vorhanden": None, "angelegt_am": ANY, "vorher": None}  # K6 (13.11.): neues Feld ``vorher``
     assert z["0123456789abcdef"]["folge_anzeige"] == "Eins" and z["0123456789abcdef"]["folge_vorhanden"] is True
     assert z[UID2]["serie_name"] is None
     assert (await ok(api, "zuordnung/list", serie_id="rabe"))["gesamt"] == 2

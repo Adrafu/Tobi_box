@@ -6,6 +6,14 @@
     und den Vorgaben der Projektleitung vom 09.11. (Abschnitt „Vorgaben der
     Projektleitung“ am Ende). Wartet auf die Freigabe durch Tobias. **Stand der Rechte, des Uploads und der
     neuen Befehle: Änderungen 12.11. und 13.11. unten.**
+*   **Änderung 13.11. K6/K7 (Freigabe Tobias, 13.11.; `docs/egm/ha-ui/resolve.md`, Zeile „K6/K7“):** Zwei kleine Ergänzungen, **alles additiv**, Version
+    bleibt 1, keine neue Fähigkeit (die Seite erkennt K6 am Feld `vorher`, das jede Zuordnung in `zuordnung/list` trägt). **K6:** `zuordnung/list` liefert je Zuordnung
+    das Feld `vorher` (`{"ziel", "am"}` oder `null`): das Ziel vor der letzten Umstellung und deren Zeitpunkt (3.5, Nr. 15 und 16), damit „Vorher: …
+    · Zurückstellen“ (Design 5.4, R17-3) auf jedem Gerät steht. Es liegt **nur im HA-Speicher** (`vorher`, neben der Warteschlange), nicht in der Konfiguration:
+    nicht auf `tobibox/config`, nicht im Export, nicht in `config.json`; die Box und `mqtt-v1.md`, `data-model.md` ändern sich nicht. **K7:** `warteschlange/set`
+    (Nr. 47) nimmt optional `name`; beim automatischen Zuordnen wird er der Name des Tobies (3.13, Regel 7b); die Vormerkung (3.13), `warteschlange/list` (Nr. 48)
+    und die Ereignisse `angelegt` und `abgearbeitet` (4.8) tragen `name` (`string` oder `null`). Ein älteres Backend lehnt die unbekannte Eingabe `name` ab: die Seite sendet sie nur, wenn sie
+    nicht leer ist.
 *   **Änderung 13.11. (A0-Q: Warteschlange „nächster neuer Tobie“ und Lernmodus nur für Administratoren; Freigabe Tobias 13.11.):**
     Grundlage `docs/designs/ha-oberflaeche.md` (5.13, 7.1, 10.2, 15) und `docs/egm/ha-ui/resolve.md` (X13, X13a, X20, Runde 16).
     Die Version bleibt 1 (`v` = 1), kein Versionszähler, kein neuer Wurzelname (Abschnitt 9). `mqtt-v1.md`, `data-model.md` und die Box
@@ -845,11 +853,18 @@ Ausgabe:
 | Feld | Typ | Bedeutung |
 |---|---|---|
 | `konfig` | object | Konfig-Stand |
-| `zuordnungen` | array | je Eintrag: `{"uid", "name" (oder null), "ziel", "angelegt_am" (12.11.: Zeitstempel oder fehlt), "serie_name" (oder null), "folge_anzeige" (oder null), "folge_vorhanden" (bool oder null)}`; `serie_name` ist `null`, wenn die Serie auf der Freigabe fehlt, `folge_vorhanden` und `folge_anzeige` nur bei `typ="folge"` |
+| `zuordnungen` | array | je Eintrag: `{"uid", "name" (oder null), "ziel", "angelegt_am" (12.11.: Zeitstempel oder fehlt), "serie_name" (oder null), "folge_anzeige" (oder null), "folge_vorhanden" (bool oder null), "vorher" (13.11., K6: object oder null)}`; `serie_name` ist `null`, wenn die Serie auf der Freigabe fehlt, `folge_vorhanden` und `folge_anzeige` nur bei `typ="folge"`. **`vorher` (13.11., K6):** `{"ziel": <Ziel, gleiche Form wie `ziel`>, "am": <Zeitstempel der Umstellung>}` oder `null`, wenn es keins gibt; das Feld steht **immer** da. Regeln siehe „`vorher`“ unten. |
 | `gesamt` | int | Anzahl aller passenden Zuordnungen |
 
 Sortiert nach `uid`. Eine Seite hat höchstens 100 Einträge (≈ 35 KiB, unter der
-Grenze von 64 KiB, Abschnitt 8). Recht: lesen. Idempotent: ja. MQTT: –.
+Grenze von 64 KiB, Abschnitt 8; mit `vorher` bis etwa 45 KiB). Recht: lesen. Idempotent: ja. MQTT: –.
+
+**`vorher` (13.11., K6).** Das Backend merkt sich je Kennung das Ziel vor der letzten Umstellung, damit die Zeile „Vorher: … · Zurückstellen“ (Design 5.4, R17-3) auf jedem Gerät steht. Die Seite blendet sie nach 24 Stunden aus (`am`); das Backend löscht nichts nach Zeit.
+1.  **Gesetzt** wird `vorher`, wenn eine **bestehende** Zuordnung ein **anderes** Ziel bekommt (`zuordnung/set`, ebenso der Lernmodus beim Umhängen, 3.6): `ziel` = das alte Ziel, `am` = jetzt. Wird ein schon umgehängter Tobie noch einmal auf ein drittes Ziel umgestellt, ersetzt das neue `vorher` das alte.
+2.  **Beim Neuanlegen** (die Kennung hatte keine Zuordnung, auch über die Warteschlange, 3.13) ist `vorher` `null`.
+3.  **Zurückstellen / Rückgängig:** Bekommt die Kennung das Ziel zurück, das in `vorher` steht, wird `vorher` wieder `null`. Das ist die Wirkung von „Zurückstellen“ und „Rückgängig“ im Design (5.4, R17-3: dieselben Befehle, `zuordnung/set` mit dem alten Ziel und `erwartet_ziel`); die Seite braucht keinen eigenen Befehl. Ändert sich nur der Name oder bleibt das Ziel gleich (`geaendert=false`), bleibt `vorher` wie es ist.
+4.  **Entfernt** (`zuordnung/remove`) oder ersetzt (Liste neu ausgerollt, aus Export eingespielt, 13): kein `vorher`.
+5.  **Speicher:** nur im HA-Speicher, **nicht** in der Konfiguration. Zuordnung und `vorher` gehen **in einem Schreibvorgang** (nach einem Absturz gilt beides oder nichts). `vorher` ändert die Revision nicht und geht nie auf MQTT, in den Export oder zur Box; die Box bekommt die Zuordnungsliste ohne das Feld (`mqtt-v1.md` und `data-model.md` bleiben unverändert).
 
 #### 16. `tobibox/zuordnung/set`
 
@@ -1408,6 +1423,7 @@ Holt alles zurück, was in der **letzten Stunde** in den Papierkorb kam (Sicheru
 | `folge_vorhanden` | bool oder `null` | nur bei `typ="folge"` |
 | `angelegt_von` | object oder `null` | `{"id", "name"}` des HA-Benutzers (wie `geloescht_von`, 3.3); `null` ohne Benutzer |
 | `angelegt_am` | string | Zeitstempel |
+| `name` | string oder `null` | **(13.11., K7)** Name, den der Tobie bekommt, wenn er die Vormerkung nimmt; `null` ohne Namen (auch bei Einträgen, die vor K7 angelegt wurden) |
 | `position` | int ≥ 1 | Platz in der Reihenfolge der Anlage über alle Boxen („Nr. 1 von 2“); 1 wird als Erster bedient |
 
 Das Backend merkt sich zusätzlich eine laufende Nummer: Die Reihenfolge der Anlage entscheidet, nicht der Zeitstempel (er hat nur Sekunden).
@@ -1417,12 +1433,12 @@ Das Backend merkt sich zusätzlich eine laufende Nummer: Die Reihenfolge der Anl
 1.  **Nur unbekannte Tobies, nie umhängen.** Abgeglichen wird nur eine Meldung mit `art="unbekannt"` (nie `gelernt`) und nur, wenn die Kennung in den Zuordnungen **nicht** steht. Das Backend schreibt die Zuordnung mit der Regel „es gibt noch kein Ziel“ (wie `erwartet_ziel: null` bei `zuordnung/set`) unter der Sperre der Konfiguration. Hat die Kennung inzwischen ein Ziel (zweite Box, anderes Fenster), geschieht nichts: der Eintrag bleibt, die Box bekommt `bekannt`. Ein bekannter Tobie spielt weiter wie bisher und wird nur bewusst über `zuordnung/set` mit `erwartet_ziel` umgestellt.
 2.  **Welcher Eintrag.** Passend sind Einträge mit `box` = der meldenden Box und Einträge mit `box=null`. Die Meldung nimmt den **ältesten** (FIFO). Eine Vormerkung für eine Box und eine für „irgendeine Box“ **konkurrieren nach Anlagezeit**; der Ältere gewinnt, auch wenn der Jüngere genauer passt. Beispiel: A „irgendeine Box“ (10:00), B „Box 1“ (10:05). Der erste Tobie auf Box 1 nimmt A, der nächste auf Box 1 nimmt B. Der erste Tobie auf Box 2 nimmt A; danach wartet für Box 2 nichts mehr (B bleibt für Box 1). Gibt es keinen passenden Eintrag mehr, gilt der normale Weg A (6.1). *(Lücke: das Beispiel und die Folge für Box 2 sind aus Design 5.13, Punkt „Zwei Einträge“, abgeleitet.)*
 3.  **Zwei Einträge für dieselbe Box** sind erlaubt und werden der Reihe nach bedient. Abgelehnt wird nur derselbe Eintrag: gleiche `box` **und** gleiches `ziel` (`warteschlange_doppelt`). „Irgendeine Box“ und „Box 1“ mit gleichem Ziel sind verschieden. *(Lücke: was „derselbe“ heißt.)*
-4.  **Höchstens `WARTESCHLANGE_MAX` (5) Einträge** zugleich, über alle Boxen (`warteschlange_voll`). Prüfreihenfolge in `warteschlange/set`: Eingabe und Ziel, dann `warteschlange_doppelt`, dann `warteschlange_voll`. *(Lücke: ein doppelter Eintrag bei voller Warteschlange meldet „doppelt“.)*
+4.  **Höchstens `WARTESCHLANGE_MAX` (5) Einträge** zugleich, über alle Boxen (`warteschlange_voll`). Prüfreihenfolge in `warteschlange/set`: Eingabe, Ziel und Name (`name_ungueltig`, K7), dann `warteschlange_doppelt`, dann `warteschlange_voll`. *(Lücke: ein doppelter Eintrag bei voller Warteschlange meldet „doppelt“.)*
 5.  **Kein Höchstalter** (Design: „Kein Zeitlimit“). Ein Eintrag bleibt, bis ein Tobie ihn nimmt, jemand ihn abbricht oder sein Ziel oder seine Box fehlt (Regel 10). Es gibt dafür bewusst keine Konstante. `angelegt_am` und `angelegt_von` stehen in der Liste, damit man Vergessenes findet.
 6.  **Was als „danach“ zählt.** Jede Meldung `unbekannt`, die HA verarbeitet, solange der Eintrag besteht. Es gibt keinen Vergleich von Zeitstempeln (die Uhr der Box kann abweichen, `zeit_ok`). Auch eine Kennung, die schon in „Neue Tobies“ steht und erneut aufgelegt wird, ist weiter unbekannt und kann einen Eintrag nehmen. *(Lücke. Folge: Ein liegengebliebener, nie zugeordneter Tobie kann einen Eintrag nehmen, wenn er vor dem gewünschten wieder aufgelegt wird. „Rückgängig“, 3.5, und die Seite des Tobies stellen es um.)*
 7.  **Ablauf bei einem Treffer.** Unter einer Sperre für die Warteschlange (Reihenfolge der Sperren: Abschnitt 1), damit zwei gleichzeitige Meldungen nie denselben Eintrag nehmen:
     *   **a.** Das Ziel wird wie bei `zuordnung/set` geprüft. Fehlt es (Serie im Papierkorb oder gelöscht, Folge weg): Der Eintrag wird verworfen (Ereignis `abgebrochen`, `grund="ziel_fehlt"`) und der **nächste passende** Eintrag geprüft. Gibt es keinen, gilt der normale Weg A mit der Karte „Neuer Tobie“. *(Lücke: Das Design verwirft den Eintrag und zeigt die Karte; mit zwei Einträgen bliebe der zweite sonst ungenutzt.)*
-    *   **b.** Das Backend schreibt die Zuordnung (Revision + 1, `tobibox/config`) wie `zuordnung/set` ohne Namen, ohne `ueberschreiben`, als System (kein Benutzer, keine Mengen, 2.4). **Zuordnung und Austragen des Eintrags gehen in einem Schreibvorgang des Speichers:** Nach einem Absturz gilt beides oder nichts. *(Lücke: sonst könnte ein Eintrag zweimal verbraucht werden.)*
+    *   **b.** Das Backend schreibt die Zuordnung (Revision + 1, `tobibox/config`) wie `zuordnung/set` ohne `ueberschreiben`, als System (kein Benutzer, keine Mengen, 2.4). **K7 (13.11.):** Hat die Vormerkung einen `name`, wird er der Name des Tobies (wie `name` bei `zuordnung/set`); sonst bleibt die Zuordnung ohne Namen. Die Kennung hatte kein Ziel (Regel 1), also ist `vorher` (3.5, K6) `null`. **Zuordnung und Austragen des Eintrags gehen in einem Schreibvorgang des Speichers:** Nach einem Absturz gilt beides oder nichts. *(Lücke: sonst könnte ein Eintrag zweimal verbraucht werden.)*
     *   **c.** Die Kennung wird **nicht** in „Neue Tobies“ aufgenommen (kein `neu`, auch kein Flackern der Karte). Stand sie schon dort, wird sie entfernt (`neue_tobies` `entfernt`, `grund="zugeordnet"`).
     *   **d.** `ack` an die meldende Box mit `grund="bekannt"` (die Kennung steht jetzt in den Zuordnungen, W-11; `mqtt-v1.md`, 3.6 kennt den Grund), **nachdem** die Konfiguration gespeichert und veröffentlicht ist. Ohne PUBACK (Broker weg) wird trotzdem bestätigt; die Veröffentlichung holt das Backend wie immer nach. Liegt der Tobie noch auf, wechselt die Box mit der neuen Liste auf das Ziel (`mqtt-v1.md`, 4.1, Schritt 6); bis dahin spielt sie kurz die Überraschungs-Serie. *(Lücke: Das Design nennt den `ack` nicht.)*
     *   **e.** Ereignis `warteschlange` `abgearbeitet` (4.8). Es ist der **einzige** Hinweis für die Meldung „Box 1: Der neue Tobie spielt jetzt …“ mit „Name geben“; ein Feld `automatisch_zugeordnet` braucht es nicht. *(Abweichung von der Skizze im Design, die `automatisch_zugeordnet` und `ziel` an `neue_tobies/list` nennt: Ein zugeordneter Tobie steht nie in dieser Liste, darum sind `uid` und `ziel` im Ereignis.)*
@@ -1443,11 +1459,12 @@ Legt eine Vormerkung an: „Der nächste neue Tobie auf <Box> oder irgendeiner B
 |---|---|---|---|
 | `box` | string oder `null` | **ja** | Box-Name oder `null` für „irgendeine Box“. Die Box muss eingerichtet sein, aber **nicht** online: Die Warteschlange liegt in HA, auch eine ausgeschaltete Box geht. |
 | `ziel` | object | **ja** | `typ` `serie`, `folge` oder `aktion` (`status`, `gute_nacht`), geprüft wie bei `zuordnung/set` (3.5); die Überraschungs-Serie ist verboten (`ziel_ungueltig`) |
+| `name` | string, 1–60 Zeichen, oder `null` | nein | **(13.11., K7)** Name für den Tobie, der die Vormerkung nimmt; gleiche Regeln wie bei `zuordnung/set` (3.5): Steuerzeichen entfernt, Leerraum gekürzt, danach leer oder zu lang: `name_ungueltig`. Fehlt das Feld oder ist es `null`, bekommt die Vormerkung keinen Namen. Der Name gehört **nicht** zu „derselbe Eintrag“ (Regel 3). |
 | `anfrage_id` | string | nein | siehe 2.2 |
 
 Ist `konfig.zustand` nicht `ok`, lehnt das Backend sofort ab (`konfig_nicht_bereit`): Ein Treffer könnte nichts zuordnen. *(Lücke.)*
 
-Ausgabe: `{"eintrag": <Vormerkung>, "gesamt": <int>}`. Fehler: `box_unbekannt`, `ziel_ungueltig`, `serie_nicht_gefunden`, `folge_nicht_gefunden`, `konfig_nicht_bereit`, `warteschlange_doppelt`, `warteschlange_voll`, `zu_viele_aenderungen`, `anfrage_id_konflikt`. Die vorhandenen Codes reichen für alles außer „doppelt“ und „voll“. Recht: alltag. Idempotent: mit `anfrage_id` (gleiche `anfrage_id` und gleiche Felder liefern dieselbe Antwort, ohne einen zweiten Eintrag); ohne `anfrage_id` antwortet ein zweites Senden mit `warteschlange_doppelt`. MQTT: –. Ereignis `warteschlange` `angelegt`.
+Ausgabe: `{"eintrag": <Vormerkung>, "gesamt": <int>}`. Fehler: `box_unbekannt`, `ziel_ungueltig`, `serie_nicht_gefunden`, `folge_nicht_gefunden`, `name_ungueltig` (13.11., K7), `konfig_nicht_bereit`, `warteschlange_doppelt`, `warteschlange_voll`, `zu_viele_aenderungen`, `anfrage_id_konflikt`. Die vorhandenen Codes reichen für alles außer „doppelt“ und „voll“. Recht: alltag. Idempotent: mit `anfrage_id` (gleiche `anfrage_id` und gleiche Felder liefern dieselbe Antwort, ohne einen zweiten Eintrag); ohne `anfrage_id` antwortet ein zweites Senden mit `warteschlange_doppelt`. MQTT: –. Ereignis `warteschlange` `angelegt`.
 
 #### 48. `tobibox/warteschlange/list` (Fähigkeit `warteschlange`)
 
@@ -1594,7 +1611,7 @@ Die Ereignisse sind Hinweise (Abschnitt 4); die Quelle der Wahrheit ist `wartesc
 | `snapshot` | `{"gesamt": <int>}` |
 | `angelegt` | `{"eintrag": <Vormerkung>}` |
 | `abgebrochen` | `{"id": <string>, "grund": "nutzer" \| "ziel_fehlt" \| "box_unbekannt"}`: `nutzer` = `warteschlange/abbrechen`; `ziel_fehlt` = beim Auflegen fehlte das Ziel (3.13, Regel 7a; danach kommt die Karte „Neuer Tobie“, wenn kein weiterer Eintrag passt); `box_unbekannt` = beim Start verworfen (Regel 10) |
-| `abgearbeitet` | `{"id": <string>, "uid": <string>, "box": <string>, "ziel": <Ziel>, "serie_name": <string oder null>, "folge_anzeige": <string oder null>, "angelegt_von": <object oder null>}`: ein Tobie hat die Vormerkung genommen; `box` ist die **meldende** Box, `uid` die Kennung des neuen Tobies (für „Name geben“). Das Ereignis kommt nach dem Speichern der Zuordnung (3.13, Regel 7). |
+| `abgearbeitet` | `{"id": <string>, "uid": <string>, "box": <string>, "ziel": <Ziel>, "serie_name": <string oder null>, "folge_anzeige": <string oder null>, "angelegt_von": <object oder null>, "name": <string oder null>}`: ein Tobie hat die Vormerkung genommen; `name` (13.11., K7) ist der Name, den der neue Tobie bekommen hat (`null`: keiner, dann zeigt die Seite „Name geben“); `box` ist die **meldende** Box, `uid` die Kennung des neuen Tobies (für „Name geben“). Das Ereignis kommt nach dem Speichern der Zuordnung (3.13, Regel 7). |
 
 ## 5. Hochladen (HTTP)
 
@@ -1961,7 +1978,7 @@ Die Seite liest bei Bedarf den Zustand neu (z. B. `zuordnung/list` nach
 | `zuordnung_geaendert` | 409 | `erwartet_ziel` stimmt nicht mehr (ein anderes Fenster hat die Zuordnung geändert); die Seite lädt neu | `zuordnung/set`, `zuordnung/remove` |
 | `konfig_zu_gross` | 413 | Die Konfiguration würde 256 KiB überschreiten (`mqtt-v1.md`, Abschnitt 1) | `zuordnung/set`, `lernmodus/antwort` |
 | `konfig_nicht_bereit` | 409 | `konfig.zustand` ist nicht `ok` (Abschnitt 13); die Seite zeigt die Warnung | alle, die die Konfiguration ändern, und `warteschlange/set` |
-| `name_ungueltig` | 400 | Name leer, zu lang oder nach der Bereinigung (Abschnitt 12) leer | Serie, Folge, Tobie-Name, Upload |
+| `name_ungueltig` | 400 | Name leer, zu lang oder nach der Bereinigung (Abschnitt 12) leer | Serie, Folge, Tobie-Name, Warteschlange (`name`, K7), Upload |
 | `reihenfolge_ungueltig` | 400 | Die Liste ist keine Umstellung der vorhandenen Folgen | `folgen/order` |
 | `stand_veraltet` | 409 | `stand` passt nicht mehr; die Seite lädt neu | alle mit `stand` |
 | `tobies_betroffen` | 409 | Tobies zeigen auf das, was gelöscht oder verschoben wird, und `tobies_bestaetigt` fehlt; die Seite fragt Tobias und liest `serie/get` | `folge/delete`, `serie/delete`, `folge/verschieben`, `serien/zusammenfuehren` |

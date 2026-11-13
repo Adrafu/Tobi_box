@@ -361,8 +361,12 @@ class Lernmodus:
             self._ende(v, "abgelehnt", "ziel_fehlt", hub.t("lernmodus_ziel_fehlt"))
             return
 
+        alt_ziel: dict[str, Any] | None = None
+
         def setze(k: dict[str, Any]) -> None:
+            nonlocal alt_ziel
             alt = k["zuordnungen"].get(uid) or {}
+            alt_ziel = dict(alt["ziel"]) if alt.get("ziel") else None
             eintrag: dict[str, Any] = {"ziel": dict(v.ziel)}
             name = v.name if v.name is not None else alt.get("name")
             if name:
@@ -375,7 +379,7 @@ class Lernmodus:
             k["zuordnungen"][uid] = eintrag
 
         try:
-            erg = await hub.aendere_konfig(setze)
+            erg = await hub.aendere_konfig(setze, mit_vorher=lambda vo: hub.vorher_aendern(uid, alt_ziel, v.ziel)(vo))
         except TobiboxFehler as err:
             grund = err.code if err.code in ("konfig_zu_gross", "konfig_nicht_bereit") else "speicherfehler"
             await self._ack(v, "abgelehnt")

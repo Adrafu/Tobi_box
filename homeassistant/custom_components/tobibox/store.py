@@ -428,6 +428,9 @@ class TobiboxStore:
         #: Warteschlange „nächster neuer Tobie“ (Vertrag W, 3.13): Vormerkungen in der Reihenfolge der Anlage, dazu die laufende Nummer
         self.warteschlange: list[dict[str, Any]] = []
         self.warteschlange_nr = 0
+        #: K6 (13.11.): vorheriges Ziel je Kennung, ``{uid: {"ziel": …, "am": …}}``. Nur HA-Seite, **nicht** in der Konfiguration:
+        #: nicht auf MQTT, nicht im Export (Vertrag W, 3.5)
+        self.vorher: dict[str, dict[str, Any]] = {}
         #: ``[liste_id, revision]`` der zuletzt mit PUBACK veröffentlichten Konfiguration
         self.veroeffentlicht_stand: list[Any] | None = None
         self.war_konfiguriert = False
@@ -456,6 +459,7 @@ class TobiboxStore:
         self.box_ereignisse = daten.get("box_ereignisse") or {}
         self.lern_verlauf = daten.get("lernmodus_verlauf") or []
         self._lade_warteschlange(daten.get("warteschlange"), daten.get("warteschlange_nr"))
+        self._lade_vorher(daten.get("vorher"))
         self.veroeffentlicht_stand = daten.get("veroeffentlicht_stand")
         self.war_konfiguriert = bool(daten.get("war_konfiguriert")) or self.konfig is not None
 
@@ -480,6 +484,8 @@ class TobiboxStore:
                         "ziel": pruefe_ziel(e.get("ziel"), "warteschlange.ziel"),
                         "angelegt_von": {"id": von["id"], "name": str(von.get("name") or "")} if von else None,
                         "angelegt_am": e["angelegt_am"] if isinstance(e.get("angelegt_am"), str) else jetzt_iso(),
+                        # K7 (13.11.): optionaler Name des Tobies; Alteinträge haben keinen
+                        "name": e["name"] if isinstance(e.get("name"), str) and e["name"] else None,
                     }
                 )
             except Ungueltig:
@@ -488,6 +494,17 @@ class TobiboxStore:
         self.warteschlange = liste
         hoechste = liste[-1]["nr"] if liste else 0
         self.warteschlange_nr = max(nr if _ganz(nr) else 0, hoechste)
+
+    def _lade_vorher(self, roh: Any) -> None:
+        """K6: übernimmt nur gültige Einträge (``ziel`` und ``am``); Kaputtes wird verworfen."""
+        neu: dict[str, dict[str, Any]] = {}
+        for uid, v in roh.items() if isinstance(roh, dict) else []:
+            try:
+                if isinstance(uid, str) and isinstance(v, dict) and isinstance(v.get("am"), str):
+                    neu[uid] = {"ziel": pruefe_ziel(v.get("ziel"), "vorher.ziel"), "am": v["am"]}
+            except Ungueltig:
+                continue
+        self.vorher = neu
 
     def _daten(self) -> dict[str, Any]:
         k = None
@@ -501,6 +518,7 @@ class TobiboxStore:
             "lernmodus_verlauf": self.lern_verlauf,
             "warteschlange": self.warteschlange,
             "warteschlange_nr": self.warteschlange_nr,
+            "vorher": self.vorher,
             "veroeffentlicht_stand": self.veroeffentlicht_stand,
             "war_konfiguriert": self.war_konfiguriert,
         }
@@ -526,10 +544,14 @@ class TobiboxStore:
     def setze_liste(self, konfig: dict[str, Any]) -> None:
         """Ersetzt die ganze Konfiguration (Erststart, neu ausrollen, aus Export). Speichern macht der Aufrufer."""
         self.konfig = konfig
+        self.vorher = {}  # K6: gehört zur alten Liste
         self.war_konfiguriert = True
 
     async def async_aendere(
-        self, mutator: Callable[[dict[str, Any]], None], mit_warteschlange: Callable[[], None] | None = None
+        self,
+        mutator: Callable[[dict[str, Any]], None],
+        mit_warteschlange: Callable[[], None] | None = None,
+        mit_vorher: Callable[[dict[str, dict[str, Any]]], None] | None = None,
     ) -> tuple[bool, dict[str, Any]]:
         """Ändert die Konfiguration unter der Sperre; erhöht die Revision nur bei einer echten Änderung.
 
@@ -538,6 +560,8 @@ class TobiboxStore:
 
         ``mit_warteschlange``: ändert bei einer echten Änderung der Konfiguration die Warteschlange (``self.warteschlange``)
         im **selben** Schreibvorgang (Vertrag W, 3.13, Regel 7b): Nach einem Absturz oder einem Speicherfehler gilt beides oder nichts.
+
+        ``mit_vorher``: ändert bei einer echten Änderung eine Kopie von ``self.vorher`` (K6, Vertrag W, 3.5), ebenfalls im selben Schreibvorgang.
         """
         async with self.sperre:
             if self.zustand != ZUSTAND_OK or self.konfig is None:
@@ -554,7 +578,11 @@ class TobiboxStore:
                 raise TobiboxFehler("konfig_zu_gross")
             alt = self.konfig
             alt_warteschlange = (self.warteschlange, self.warteschlange_nr)
+            alt_vorher = self.vorher
             try:
+                if mit_vorher is not None:
+                    self.vorher = copy.deepcopy(self.vorher)
+                    mit_vorher(self.vorher)
                 if mit_warteschlange is not None:
                     self.warteschlange = copy.deepcopy(self.warteschlange)
                     mit_warteschlange()
@@ -563,6 +591,7 @@ class TobiboxStore:
             except Exception:
                 self.konfig = alt
                 self.warteschlange, self.warteschlange_nr = alt_warteschlange
+                self.vorher = alt_vorher
                 raise
             return True, self.konfig
 

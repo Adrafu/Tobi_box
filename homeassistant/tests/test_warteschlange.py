@@ -9,6 +9,7 @@ import asyncio
 import logging
 import shutil
 from datetime import timedelta
+from unittest.mock import patch
 
 import pytest
 from homeassistant.auth.const import GROUP_ID_USER
@@ -186,7 +187,7 @@ async def test_regel_1_unbekannter_tobie_wird_zugeordnet(ws, admin, box1, ereign
     assert abg == [
         {
             "id": r["eintrag"]["id"], "uid": UID, "box": "box1", "ziel": FOLGE, "serie_name": "Der kleine Rabe",
-            "folge_anzeige": ws.medien.serien["rabe"].serie.anzeige("a.mp3"), "angelegt_von": r["eintrag"]["angelegt_von"],
+            "folge_anzeige": ws.medien.serien["rabe"].serie.anzeige("a.mp3"), "angelegt_von": r["eintrag"]["angelegt_von"], "name": None,  # K7 (13.11.): neues Feld
         }
     ]
     assert ws.store.konfig["zuordnungen"][UID].get("angelegt_am")  # wie ``zuordnung/set`` ohne Namen
@@ -725,3 +726,124 @@ async def test_mengen_fuenf_eintraege_fuenf_tobies_nacheinander(ws, admin, box1,
     assert list(ziele(ws).values()) == ziel_liste
     assert ws.store.warteschlange == [] and ws.store.neue_tobies == {}
     assert ws.store.konfig["revision"] == 1 + 5
+
+
+# --------------------------------------------------------------------------
+# K7 (13.11.): optionaler ``name`` bei ``warteschlange/set``
+# --------------------------------------------------------------------------
+
+
+async def test_k7_name_wird_gespeichert_geliefert_und_am_tobie_gesetzt(ws, admin, box1, ereignisse):
+    r = await ok(admin, "warteschlange/set", box="box1", ziel=FOLGE, name="  Löwe\u0007 ")
+    assert r["eintrag"]["name"] == "Löwe"  # geprüft wie bei ``zuordnung/set``
+    assert (await ok(admin, "warteschlange/list"))["eintraege"][0]["name"] == "Löwe"
+    assert [x["daten"]["eintrag"]["name"] for x in ereignisse if x["thema"] == "warteschlange" and x["art"] == "angelegt"] == ["Löwe"]
+    assert ws.store.warteschlange[0]["name"] == "Löwe"
+    await box1.unbekannt(UID)
+    z = ws.store.konfig["zuordnungen"][UID]
+    assert z["ziel"] == FOLGE and z["name"] == "Löwe" and ws.store.warteschlange == []  # in einem Schreibvorgang
+    abg = [x["daten"] for x in ereignisse if x["thema"] == "warteschlange" and x["art"] == "abgearbeitet"]
+    assert abg[0]["name"] == "Löwe"
+    liste = await ok(admin, "zuordnung/list", uid=UID)
+    assert liste["zuordnungen"][0]["name"] == "Löwe" and liste["zuordnungen"][0]["vorher"] is None  # Neuanlegen: kein ``vorher``
+    assert box1.konfigs()[-1]["zuordnungen"][UID]["name"] == "Löwe"
+
+
+async def test_k7_ohne_name_und_null_bleibt_namenlos(ws, admin, box1):
+    r1 = await ok(admin, "warteschlange/set", box="box1", ziel=SERIE)
+    r2 = await ok(admin, "warteschlange/set", box="box1", ziel=SERIE_ZWEI, name=None)
+    assert r1["eintrag"]["name"] is None and r2["eintrag"]["name"] is None
+    await box1.unbekannt(UID)
+    assert "name" not in ws.store.konfig["zuordnungen"][UID]
+
+
+@pytest.mark.parametrize("name", ["", "   ", "x" * 61, "\u0007"])
+async def test_k7_ungueltiger_name_wie_bei_zuordnung_set(ws, admin, name):
+    erwartet = await fehler(admin, "zuordnung/set", uid=UID, ziel=SERIE, name=name, erwartet_ziel=None)
+    assert erwartet == "name_ungueltig"
+    assert await fehler(admin, "warteschlange/set", box="box1", ziel=SERIE, name=name) == "name_ungueltig"
+    assert ws.store.warteschlange == []
+
+
+async def test_k7_name_zaehlt_nicht_zu_doppelt_und_ueberlebt_neustart_des_speichers(ws, admin):
+    await ok(admin, "warteschlange/set", box="box1", ziel=SERIE, name="Eins")
+    assert await fehler(admin, "warteschlange/set", box="box1", ziel=SERIE, name="Zwei") == "warteschlange_doppelt"
+    geladen = store_modul.TobiboxStore(ws.hass)
+    geladen._lade_warteschlange(ws.store._daten()["warteschlange"], ws.store.warteschlange_nr)
+    assert geladen.warteschlange[0]["name"] == "Eins"
+    geladen._lade_warteschlange([{k: v for k, v in e.items() if k != "name"} for e in ws.store.warteschlange], 1)
+    assert geladen.warteschlange[0]["name"] is None  # Alteinträge ohne Namen bleiben gültig
+
+
+# --------------------------------------------------------------------------
+# K6 (13.11.): ``vorher`` an ``zuordnung/list``
+# --------------------------------------------------------------------------
+
+
+async def _vorher(api, uid=UID):
+    return (await ok(api, "zuordnung/list", uid=uid))["zuordnungen"][0]["vorher"]
+
+
+async def test_k6_neu_aendern_zurueckstellen(ws, admin, box1):
+    await ok(admin, "zuordnung/set", uid=UID, ziel=SERIE, erwartet_ziel=None, name="Löwe")
+    assert await _vorher(admin) is None  # neu angelegt
+    rev = ws.store.konfig["revision"]
+    await ok(admin, "zuordnung/set", uid=UID, ziel=SERIE_ZWEI, erwartet_ziel=SERIE)  # umhängen
+    v = await _vorher(admin)
+    assert v == {"ziel": SERIE, "am": v["am"]} and v["am"].endswith("Z")
+    assert ws.store.konfig["revision"] == rev + 1
+    # nichts davon in der Konfiguration, auf MQTT oder im Export
+    assert "vorher" not in ws.store.konfig["zuordnungen"][UID] and "vorher" not in box1.konfigs()[-1]["zuordnungen"][UID]
+    # gleiches Ziel noch einmal: nichts ändert sich, ``vorher`` bleibt
+    r = await ok(admin, "zuordnung/set", uid=UID, ziel=SERIE_ZWEI, erwartet_ziel=SERIE_ZWEI)
+    assert r["geaendert"] is False and await _vorher(admin) == v
+    # nur der Name ändert sich: ``vorher`` bleibt
+    await ok(admin, "zuordnung/set", uid=UID, ziel=SERIE_ZWEI, erwartet_ziel=SERIE_ZWEI, name="Löwe 2")
+    assert await _vorher(admin) == v
+    # Zurückstellen = ``zuordnung/set`` mit dem alten Ziel: ``vorher`` wieder weg
+    await ok(admin, "zuordnung/set", uid=UID, ziel=SERIE, erwartet_ziel=SERIE_ZWEI)
+    assert await _vorher(admin) is None
+
+
+async def test_k6_drittes_ziel_ersetzt_vorher_und_remove_loescht_es(ws, admin):
+    await ok(admin, "zuordnung/set", uid=UID, ziel=SERIE, erwartet_ziel=None)
+    await ok(admin, "zuordnung/set", uid=UID, ziel=SERIE_ZWEI, erwartet_ziel=SERIE)
+    await ok(admin, "zuordnung/set", uid=UID, ziel=FOLGE, erwartet_ziel=SERIE_ZWEI)
+    assert (await _vorher(admin))["ziel"] == SERIE_ZWEI
+    await ok(admin, "zuordnung/remove", uid=UID, erwartet_ziel=FOLGE)
+    assert UID not in ws.store.vorher
+    await ok(admin, "zuordnung/set", uid=UID, ziel=SERIE, erwartet_ziel=None)  # wieder neu: kein altes ``vorher``
+    assert await _vorher(admin) is None
+
+
+async def test_k6_zuordnung_und_vorher_in_einem_schreibvorgang(ws, admin):
+    await ok(admin, "zuordnung/set", uid=UID, ziel=SERIE, erwartet_ziel=None)
+    with patch.object(ws.store._store, "async_save", side_effect=OSError("voll")):
+        assert await fehler(admin, "zuordnung/set", uid=UID, ziel=SERIE_ZWEI, erwartet_ziel=SERIE)
+    assert ws.store.konfig["zuordnungen"][UID]["ziel"] == SERIE and ws.store.vorher == {}  # beides oder nichts
+    await ok(admin, "zuordnung/set", uid=UID, ziel=SERIE_ZWEI, erwartet_ziel=SERIE)
+    assert ws.store._daten()["vorher"][UID]["ziel"] == SERIE
+
+
+async def test_k6_vorher_ueberlebt_laden_und_kaputtes_wird_verworfen(ws, admin):
+    geladen = store_modul.TobiboxStore(ws.hass)
+    geladen._lade_vorher({UID: {"ziel": SERIE, "am": "2026-11-13T10:00:00Z"}, "x": {"ziel": {"typ": "quatsch"}, "am": "a"}, "y": 5})
+    assert geladen.vorher == {UID: {"ziel": SERIE, "am": "2026-11-13T10:00:00Z"}}
+    geladen._lade_vorher(None)
+    assert geladen.vorher == {}
+
+
+async def test_k6_liste_neu_ausrollen_loescht_vorher(ws, admin):
+    await ok(admin, "zuordnung/set", uid=UID, ziel=SERIE, erwartet_ziel=None)
+    await ok(admin, "zuordnung/set", uid=UID, ziel=SERIE_ZWEI, erwartet_ziel=SERIE)
+    ws.store.setze_liste(neue_konfig())
+    assert ws.store.vorher == {}
+
+
+async def test_k6_warteschlange_ordnet_nur_neue_zu_vorher_bleibt_null(ws, admin, box1):
+    await ok(admin, "warteschlange/set", box="box1", ziel=SERIE_ZWEI)
+    await box1.unbekannt(UID)
+    assert await _vorher(admin) is None
+    # K6 und K7 zusammen: umhängen danach setzt ``vorher`` auf das Warteschlangen-Ziel
+    await ok(admin, "zuordnung/set", uid=UID, ziel=SERIE, erwartet_ziel=SERIE_ZWEI)
+    assert (await _vorher(admin))["ziel"] == SERIE_ZWEI

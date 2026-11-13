@@ -433,12 +433,15 @@ class Hub:
         return self.store.stand(self.export_ok)
 
     async def aendere_konfig(
-        self, mutator: Callable[[dict[str, Any]], None], mit_warteschlange: Callable[[], None] | None = None
+        self,
+        mutator: Callable[[dict[str, Any]], None],
+        mit_warteschlange: Callable[[], None] | None = None,
+        mit_vorher: Callable[[dict[str, dict[str, Any]]], None] | None = None,
     ) -> dict[str, Any]:
         """Konfiguration ändern: speichern (Revision + 1), **dann veröffentlichen, dann exportieren** (Vertrag W, Abschnitt 1).
 
         ``mit_warteschlange``: Änderung der Warteschlange im selben Schreibvorgang (Vertrag W, 3.13, Regel 7b)."""
-        geaendert, _konfig = await self.store.async_aendere(mutator, mit_warteschlange)
+        geaendert, _konfig = await self.store.async_aendere(mutator, mit_warteschlange, mit_vorher)
         if not geaendert:
             return {"geaendert": False, "konfig": self.konfig_stand(), "veroeffentlicht": None}
         veroeffentlicht = await self.mqtt.veroeffentliche_konfig()
@@ -728,6 +731,24 @@ class Hub:
             raise TobiboxFehler("folge_nicht_gefunden")
         return ziel
 
+    @staticmethod
+    def vorher_aendern(uid: str, alt: dict[str, Any] | None, neu: dict[str, Any] | None) -> Callable[[dict[str, dict[str, Any]]], None]:
+        """K6 (Vertrag W, 3.5): Pflege von ``store.vorher`` bei einer Änderung des Ziels von ``uid`` (``alt`` -> ``neu``).
+
+        Neu angelegt (``alt`` ist ``None``) oder entfernt (``neu`` ist ``None``): kein ``vorher``. Anderes Ziel: ``vorher`` = das alte Ziel
+        mit der Zeit. Zurück auf das ``vorher``-Ziel („Zurückstellen“, „Rückgängig“): ``vorher`` wieder weg. Gleiches Ziel: unverändert."""
+
+        def anwenden(v: dict[str, dict[str, Any]]) -> None:
+            if alt is None or neu is None:
+                v.pop(uid, None)
+            elif alt != neu:
+                if (v.get(uid) or {}).get("ziel") == neu:
+                    v.pop(uid, None)
+                else:
+                    v[uid] = {"ziel": dict(alt), "am": jetzt_iso()}
+
+        return anwenden
+
     async def zuordnung_setzen(
         self,
         uid: str,
@@ -762,9 +783,13 @@ class Hub:
                 except Ungueltig as err:
                     raise TobiboxFehler("ziel_ungueltig") from err
 
+        alt_ziel: dict[str, Any] | None = None
+
         def setze(k: dict[str, Any]) -> None:
+            nonlocal alt_ziel
             bestehend = k["zuordnungen"].get(uid)
             aktuell = bestehend["ziel"] if bestehend else None
+            alt_ziel = dict(aktuell) if aktuell else None
             if erwartet is not FEHLT:
                 if erwartet != aktuell:
                     raise TobiboxFehler("zuordnung_geaendert")
@@ -783,7 +808,7 @@ class Hub:
                 eintrag["angelegt_am"] = bestehend["angelegt_am"]
             k["zuordnungen"][uid] = eintrag
 
-        erg = await self.aendere_konfig(setze)
+        erg = await self.aendere_konfig(setze, mit_vorher=lambda v: self.vorher_aendern(uid, alt_ziel, ziel)(v))
         self.schutz.liste_gebucht(nutzer)
         self.kennung_zugeordnet(uid)
         return erg
@@ -815,7 +840,7 @@ class Hub:
                 raise TobiboxFehler("zuordnung_geaendert")
             k["zuordnungen"].pop(uid, None)
 
-        erg = await self.aendere_konfig(entferne)
+        erg = await self.aendere_konfig(entferne, mit_vorher=self.vorher_aendern(uid, {}, None))
         self.schutz.liste_gebucht(nutzer)
         if als_neu is not None and erg["geaendert"]:
             jetzt = jetzt_iso()
@@ -863,6 +888,8 @@ class Hub:
                 eintrag["folge_anzeige"] = info.serie.anzeige(ziel["folge"]) if vorhanden else None
             if z.get("angelegt_am"):
                 eintrag["angelegt_am"] = z["angelegt_am"]
+            v = self.store.vorher.get(z_uid)  # K6: nur aus dem HA-Speicher, nie aus der Konfiguration der Box
+            eintrag["vorher"] = {"ziel": dict(v["ziel"]), "am": v["am"]} if v else None
             if worte:
                 heu = suchform(" ".join(str(x) for x in (z.get("name"), self.ziel_text(ziel), eintrag["serie_name"], eintrag["folge_anzeige"]) if x))
                 if not passt(worte, heu):

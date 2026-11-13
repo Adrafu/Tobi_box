@@ -448,10 +448,10 @@ async def ws_lernmodus_abbrechen(hub: Hub, connection: Any, msg: dict[str, Any])
 # --------------------------------------------------------------------------
 
 
-@befehl("warteschlange/set", {vol.Required("box"): vol.Any(None, _text), vol.Required("ziel"): _objekt, **ANFRAGE_ID}, recht="alltag")
+@befehl("warteschlange/set", {vol.Required("box"): vol.Any(None, _text), vol.Required("ziel"): _objekt, vol.Optional("name"): vol.Any(None, _text), **ANFRAGE_ID}, recht="alltag")
 async def ws_warteschlange_set(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
     async def tu() -> Any:
-        return await hub.warteschlange.setzen(msg["box"], msg["ziel"], _nutzer(connection))
+        return await hub.warteschlange.setzen(msg["box"], msg["ziel"], _nutzer(connection), msg.get("name"))
 
     return await hub.mit_anfrage_id(msg.get("anfrage_id"), "warteschlange/set", _felder(msg), tu)
 

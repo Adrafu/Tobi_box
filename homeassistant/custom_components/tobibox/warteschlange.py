@@ -20,8 +20,9 @@ import logging
 import secrets
 from typing import TYPE_CHECKING, Any
 
-from .const import WARTESCHLANGE_MAX
+from .const import TOBIE_NAME_MAX, WARTESCHLANGE_MAX
 from .fehler import TobiboxFehler
+from .media import name_pruefen
 from .schutz import Nutzer
 from .store import ZUSTAND_OK
 from .util import jetzt_iso
@@ -81,6 +82,7 @@ class Warteschlange:
             "folge_vorhanden": folge_vorhanden,
             "angelegt_von": copy.deepcopy(e["angelegt_von"]),
             "angelegt_am": e["angelegt_am"],
+            "name": e.get("name"),
             "position": position,
         }
 
@@ -129,8 +131,8 @@ class Warteschlange:
         reihe = self._reihenfolge()
         return {"eintraege": [self.eintrag_objekt(e) for e in reihe], "gesamt": len(reihe)}
 
-    async def setzen(self, box: str | None, ziel_roh: Any, nutzer: Nutzer | None = None) -> dict[str, Any]:
-        """``warteschlange/set`` (Nr. 47)."""
+    async def setzen(self, box: str | None, ziel_roh: Any, nutzer: Nutzer | None = None, name: Any = None) -> dict[str, Any]:
+        """``warteschlange/set`` (Nr. 47). ``name`` (K7): optional, geprüft wie bei ``zuordnung/set`` (``name_ungueltig``)."""
         hub = self.hub
         if hub.store.zustand != ZUSTAND_OK:  # ein Treffer könnte nichts zuordnen
             raise TobiboxFehler("konfig_nicht_bereit")
@@ -138,6 +140,7 @@ class Warteschlange:
         if box is not None and box not in hub.boxen:
             raise TobiboxFehler("box_unbekannt")
         ziel = await hub.pruefe_ziel(ziel_roh)  # ``ziel_ungueltig``, ``serie_nicht_gefunden``, ``folge_nicht_gefunden``
+        name_neu = None if name is None else name_pruefen(name, TOBIE_NAME_MAX)
         async with self.sperre:
             if any(e["box"] == box and e["ziel"] == ziel for e in self.eintraege):
                 raise TobiboxFehler("warteschlange_doppelt")
@@ -151,6 +154,7 @@ class Warteschlange:
                 "ziel": ziel,
                 "angelegt_von": nutzer.geloescht_von if nutzer else None,
                 "angelegt_am": jetzt_iso(),
+                "name": name_neu,
             }
 
             def anlegen() -> None:
@@ -245,7 +249,11 @@ class Warteschlange:
         def setze(k: dict[str, Any]) -> None:
             if uid in k["zuordnungen"]:  # Regel 1, unter der Sperre der Konfiguration: „es gibt noch kein Ziel“
                 raise _SchonZugeordnet
-            k["zuordnungen"][uid] = {"ziel": dict(ziel), "angelegt_am": jetzt_iso()}
+            neu: dict[str, Any] = {"ziel": dict(ziel)}
+            if eintrag.get("name"):  # K7: der Name der Vormerkung wird der Name des Tobies
+                neu["name"] = eintrag["name"]
+            neu["angelegt_am"] = jetzt_iso()
+            k["zuordnungen"][uid] = neu
 
         def austragen() -> None:
             hub.store.warteschlange[:] = [e for e in hub.store.warteschlange if e["id"] != eintrag_id]
@@ -281,6 +289,7 @@ class Warteschlange:
                 "serie_name": serie_name,
                 "folge_anzeige": folge_anzeige,
                 "angelegt_von": copy.deepcopy(eintrag["angelegt_von"]),
+                "name": eintrag.get("name"),
             },
         )
         return True
