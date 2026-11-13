@@ -17,7 +17,7 @@ import { fileURLToPath } from 'node:url';
 
 const HIER = fileURLToPath(new URL('.', import.meta.url));
 const FRONT = resolve(HIER, '../../../custom_components/tobibox/frontend');
-const { createMockHass, FAEHIGKEITEN, FAEHIGKEITEN_V11, mitStaenden } = await import(new URL('../mock-hass.mjs', import.meta.url));
+const { createMockHass, FAEHIGKEITEN, FAEHIGKEITEN_V11, FAEHIGKEITEN_A9, mitStaenden } = await import(new URL('../mock-hass.mjs', import.meta.url));
 
 const folge = (name, anzeige, extra = {}) => ({ name, anzeige, nummer: null, datum: null, art: 'datei', tracks: 1, groesse_bytes: 5 * 1048576, pruefung: 'ok', hinweis: null, pruefen: false, pruefen_gruende: [], tobies: [], ...extra });
 
@@ -25,7 +25,7 @@ function bauen(schluessel) {
   const profil = schluessel.split('~')[0];
   const leer = profil === 'leer';
   const m = createMockHass({
-    faehigkeiten: [...new Set([...FAEHIGKEITEN, ...FAEHIGKEITEN_V11, 'konfig_staende', 'hoerkopie'])],
+    faehigkeiten: [...new Set([...FAEHIGKEITEN, ...FAEHIGKEITEN_V11, ...FAEHIGKEITEN_A9, 'konfig_staende', 'hoerkopie'])],
     viele: leer ? false : 130, leer, darf: true, istAdmin: profil !== 'user',
   });
   mitStaenden(m);
@@ -65,6 +65,9 @@ function bauen(schluessel) {
     { id: 'bbbb11112222', typ: 'serie', serie_id: null, serie_name: null, folge: null, anzeige: 'Alte Serie', art: 'ordner', tracks: 12, groesse_bytes: 410000000, grund: 'manuell', geloescht_am: '2026-11-13T11:30:00Z', geloescht_von: null },
   ];
   if (profil === 'warn') { b.konfig = { ...b.konfig, zustand: 'export_neuer' }; b.boxen[1].konfig_stand = 'voraus'; }
+  // A-1b: Ereignisse des Mocks sammeln; die Prüfseite holt sie mit `GET /ev` (Abo `subscribeMessage` der Seite)
+  m.ereignisse = [];
+  m.hass.connection.subscribeMessage((ev) => m.ereignisse.push(ev), { type: 'tobibox/subscribe', themen: ['boxen', 'neue_tobies', 'konfig', 'warteschlange'] });
   return m;
 }
 
@@ -90,6 +93,26 @@ const server = http.createServer(async (req, res) => {
   if (p === '/ws' && req.method === 'POST') {
     const m = holeMock(u.searchParams.get('k') || 'admin');
     try { res.end(JSON.stringify({ ok: await m.hass.connection.sendMessagePromise(JSON.parse(await koerper(req))) })); } catch (e) { res.end(JSON.stringify({ error: e })); }
+    return;
+  }
+  /* A-1b: Ereignisse für das Abo der Seite. `ab=-1` liefert nur den aktuellen Stand der Zählung (ohne die Snapshots vom Start). */
+  if (p === '/ev') {
+    const m = holeMock(u.searchParams.get('k') || 'admin');
+    const ab = Number(u.searchParams.get('ab'));
+    res.end(JSON.stringify(ab < 0 ? { n: m.ereignisse.length, ereignisse: [] } : { n: m.ereignisse.length, ereignisse: m.ereignisse.slice(ab) }));
+    return;
+  }
+  /* A-1b: ein Tobie wird auf eine Box gelegt (Mock-Funktion `legeAuf`): Body { box, uid, zeitOk? } */
+  if (p === '/legeauf' && req.method === 'POST') {
+    const m = holeMock(u.searchParams.get('k') || 'admin');
+    const { box, uid, ...opt } = JSON.parse(await koerper(req));
+    res.end(JSON.stringify(m.legeAuf(box, uid, opt)));
+    return;
+  }
+  /* A-1b: Zustand des Mocks für Ablaufprüfungen (nur lesen): Zuordnungen, Vormerkungen, unbekannte Tobies */
+  if (p === '/zustand') {
+    const m = holeMock(u.searchParams.get('k') || 'admin');
+    res.end(JSON.stringify({ zuordnungen: m.backend.zuordnungen, warteschlange: m.backend.warteschlange, neue: m.backend.neueTobies, konfig: m.backend.konfig }));
     return;
   }
   if (p.startsWith('/api/tobibox/cover/')) {

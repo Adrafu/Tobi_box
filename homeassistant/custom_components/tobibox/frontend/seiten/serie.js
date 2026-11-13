@@ -6,11 +6,13 @@
  * (`folgen/order`) und „Mit anderem zusammenführen …“ (`serien/zusammenfuehren`) gibt es nur für Administratoren und sind für
  * andere nicht da (nicht nur gesperrt).
  *
- * Noch nicht hier: Player und „Reinhören“ (A8b), Karte „Gespielt von“ und „Einem Tobie geben …“ (A9), „Cover ändern“ (A8f),
+ * „Gespielt von“ mit Chips, „+ Tobie“ und „Einem Tobie geben …“ (Karte und „⋯“ der Folge) kommen aus seiten/tobies.js (A9).
+ * Noch nicht hier: Player und „Reinhören“ (A8b), „Cover ändern“ (A8f),
  * Kapitelzeile (A8d), „Anders einsortieren“ (A-3), Playlists (Stufe C), Cover-Flug (A6m/A8m). Schnittstelle zur App: bausteine.js.
  */
 import { html, nothing, css, repeat, ic, cover, coverKlasse, coverGrossUrl, ladeMitGrenze, untertitel, uhr, dauerText, norm } from '../bausteine.js';
 import { SERIE, ZEILE, GRUENDE, TOBIE, SEITE, fuellen } from '../texte.js';
+import { gespieltVonKarte, folgenChips, gebenLink } from './tobies.js';
 
 export const SICHTBAR = 20; // Folgen, die zuerst gezeigt werden; ab mehr als 20 gibt es das Suchfeld (Design 5.3)
 const WAHL_GROESSE = 30; // Päckchen der Zielwahl
@@ -258,6 +260,7 @@ class SerieSeite {
   folgeMenue(x, ausloeser) {
     const titel = x.anzeige || x.name;
     this._menue(titel, [
+      { id: 'geben', label: TOBIE.einem_tobie_geben, fn: () => this.ctx.navigiere(gebenLink(this.z.serie.id, x.name)) },
       { id: 'name', label: SERIE.menue.name, fn: () => this.folgeUmbenennen(x, ausloeser) },
       ...(this.ctx.faehig('korrektur') ? [{ id: 'verschieben', label: SERIE.menue.verschieben, fn: () => this.folgeVerschieben(x, ausloeser) }] : []),
     ], { id: 'papierkorb', label: SERIE.menue.folge_papierkorb, fn: () => this.folgeLoeschen(x, ausloeser) }, ausloeser);
@@ -543,7 +546,7 @@ class SerieSeite {
     if (z.phase === 'fehler') return html`${this._leiste(null)}${ctx.fehlerKarte(z.fehlerCode, () => this.laden())}`;
     if (z.phase === 'weg') return html`${this._leiste(null)}<div class="note err" role="alert" data-zustand="weg">${SERIE.weg.satz} <a href="#bibliothek">${SERIE.weg.link}</a></div>`;
     const s = z.serie;
-    return html`${this._leiste(s)}${this._kopf(s)}${this._ansehen(s)}${s.einzeln ? this._einzeln(s) : this._folgen(s)}`;
+    return html`${this._leiste(s)}${this._kopf(s)}${gespieltVonKarte(s)}${this._ansehen(s)}${s.einzeln ? this._einzeln(s) : this._folgen(s)}`;
   }
 
   _kopf(s) {
@@ -607,7 +610,7 @@ class SerieSeite {
     }
     return html`<div class="frow se-zeile" data-folge=${x.name}>
       <span class="se-num" aria-hidden="true">${x.nummer ?? i + 1}</span>
-      <div class="grow"><span class="nm">${titel}</span>${meta ? html`<span class="muted se-meta-voll">${meta}</span>` : nothing}${teile.kapitel ? html`<span class="muted se-meta-kap">${teile.kapitel}</span>` : nothing}${fort}</div>
+      <div class="grow"><span class="nm">${titel}</span>${meta ? html`<span class="muted se-meta-voll">${meta}</span>` : nothing}${teile.kapitel ? html`<span class="muted se-meta-kap">${teile.kapitel}</span>` : nothing}${fort}${folgenChips(this.id, x)}</div>
       <span class="se-dauer" aria-hidden="true">${teile.dauer}</span>
       ${ordnen
         ? html`<button type="button" class="iconbtn se-ord" data-auf ?disabled=${i === 0} aria-label=${fuellen(SERIE.reihenfolge.hoch, { titel })} @click=${() => this.bewege(i, -1)}>▲</button>

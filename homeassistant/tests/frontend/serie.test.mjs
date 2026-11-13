@@ -150,7 +150,7 @@ test('Folgenliste: Abschnitt „Folgen“, je Zeile Nummer, Titel und ein „⋯
   assert.equal(knoepfe.length, 3);
   assert.equal(knoepfe[0].getAttribute('aria-label'), 'Mehr zu Der Rabe');
   assert.equal(knoepfe[0].getAttribute('aria-haspopup'), 'dialog');
-  assert.equal(s.qa('[data-folge] a').length, 0);
+  assert.equal(s.qa('[data-folge] a:not(.tb-chip)').length, 0, 'ohne die Chips der Tobies (A9) ist die Zeile kein Link');
   assert.equal(s.q('input[type="search"]'), null, 'unter 20 Folgen kein Suchfeld');
   assert.equal(s.q('[data-mehr]'), null);
   weg();
@@ -341,7 +341,7 @@ test('Folge umbenennen: folge/rename mit Schlüssel und stand; die Zeile zeigt d
   const stand0 = await standVon(s, 's1');
   await folgeMenue(s, 'folge-01.mp3');
   assert.equal(titelBlatt(s), 'Der Rabe');
-  assert.deepEqual(punkte(s), ['name', 'verschieben', 'papierkorb']);
+  assert.deepEqual(punkte(s), ['geben', 'name', 'verschieben', 'papierkorb']); // A9: „Einem Tobie geben …“ zuerst
   await klick(s, punkt(s, 'name'));
   const feld = s.q('dialog.blatt[open] input#se-name');
   assert.equal(feld.value, 'Der Rabe');
@@ -654,7 +654,7 @@ test('Rechte: auch im Menü „Das stimmt nicht“ fehlt das Zusammenführen fü
   assert.deepEqual(punkte(admin), ['art', 'name', 'zusammen', 'papierkorb']);
   await klick(admin, leisteKnopf(admin, 'Schließen'));
   await folgeMenue(admin, 'b-01.mp3');
-  assert.deepEqual(punkte(admin), ['name', 'verschieben', 'papierkorb'], 'in der Folge nichts nur für Administratoren');
+  assert.deepEqual(punkte(admin), ['geben', 'name', 'verschieben', 'papierkorb'], 'in der Folge nichts nur für Administratoren');
   weg();
 });
 

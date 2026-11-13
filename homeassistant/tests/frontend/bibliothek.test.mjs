@@ -534,7 +534,7 @@ test('Suche: Treffer sind hervorgehoben, jede Zeile ist ein Link, Einzeltitel st
   assert.equal(g.length, 1);
   assert.equal(g[0].querySelector('.muted').textContent, 'Drachenschule 3', 'Folge: „Serie“ als Untertitel');
   assert.equal(g[0].querySelector('a.slink').getAttribute('href'), '#serie-ds3');
-  assert.equal(s.qa('.qres .frow button').length, 0, 'Abspielen und ⋯ kommen mit A8b und A9');
+  assert.deepEqual(s.qa('.qres .frow button').map((b) => b.hasAttribute('data-menue-folge')), [true], '„⋯“ (Einem Tobie geben …, A9) ist da, das Abspielen kommt mit A8b');
   weg();
 });
 

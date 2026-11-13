@@ -28,6 +28,10 @@ const DEFAULT = {
   tobies: '0 Tobies', // A7: Zählzeile der Suche
   sammlungen: '6 Sammlungen',
   folgen: '102 Folgen und Lieder',
+  name: 'Lange Serie', // A9: „{name} wählen“, „Folgen von {name}“
+  box_zwei: 'Box 2', // A9/A10: zweite Box im Satz „Leg den Tobie auf Box 1 oder Box 2“
+  einheit: 'Folge', // A9: „Lange Serie · Folge“
+  grund: 'Änderungen sind gerade gesperrt.', // A10: Grund auf der Karte „Konnte nicht zugeordnet werden“
 };
 
 // Ersetzt {name} durch werte.name, sonst durch den Vorgabewert. Unbekannte Platzhalter bleiben stehen.
@@ -172,7 +176,7 @@ export const LEER = {
   bibliothek: { bild: 'leeres Regal mit Lücke und Note', satz: 'Noch nichts da. Tippe auf „Hinzufügen“.', knopf: 'Hinzufügen' },
   filter: { bild: 'Lupe mit Fragezeichen', satz: 'Nichts gefunden. Nimm einen Filter weg.', knopf: 'Filter zurücksetzen' },
   start: { bild: 'leeres Regal mit Lücke und Note', satz: 'Noch nichts da. Tippe in der Bibliothek auf „+“.', knopf: 'Zur Bibliothek' }, // Design 5.1 Punkt 5
-  tobies: { bild: 'lächelnder Tobie über der Box', satz: 'Hier stehen bald deine Tobies.' }, // A-1b folgt; bis dahin ohne Knopf (kein Knopf, X20)
+  tobies: { bild: 'lächelnder Tobie über der Box', satz: 'Noch keine Tobies. Lege einen Tobie auf eine Box, dann erscheint er unter „Geräte“.', knopf: 'Zu den Geräten' }, // Design 6.2
   keine_box: { bild: 'schlafende Box mit Zzz und gezogenem Stecker', satz: 'Noch keine Box eingerichtet. Bitte {verwalter_dat} Bescheid sagen.', knopf: 'Jetzt neu laden' },
   suche: { bild: 'Lupe mit Fragezeichen', satz: 'Nichts gefunden zu „{suchwort}“.', knopf: 'Suche löschen' },
   papierkorb: { bild: 'Papierkorb mit Haken', satz: 'Der Papierkorb ist leer.', knopf: 'Zur Bibliothek' },
@@ -184,12 +188,25 @@ export const GERAETE = {
   titel: 'Geräte',
   abends: { titel: 'Abends', erklaerung: 'Gute Nacht und Leise-Zeiten' },
   gehoert: { titel: 'Wer hat was gehört?', erklaerung: 'Rangliste, Hörzeit pro Tag, Tageszeiten' }, // Titel Design 3.4; Erklärung nur im Prototyp (Stufe B)
-  neuer_tobie: { titel: 'Neuer Tobie auf {box} – was soll er spielen?', zeile: 'Gerade aufgelegt, {zeit}.' }, // Design 7.1
+  neuer_tobie: { titel: 'Neuer Tobie auf {box} – was soll er spielen?', zeile: 'Gerade aufgelegt, {zeit}.', zeile_ohne: 'Gerade aufgelegt.' }, // Design 7.1 (ohne Zeit, wenn die Uhr der Box nicht stimmt)
   neue_tobies: { titel: '{anzahl} neue Tobies auf {box}' }, // Design 5.13 (N12)
   wartet: { titel: 'Wartet auf einen neuen Tobie', zeile1: 'Nächster neuer Tobie auf {box}', zeile2: 'spielt „{serie}“ · Nr. {nr} von {gesamt}', abbrechen: 'Nicht mehr warten' }, // Design 5.13
   platz_bekommen: { titel: 'Ein neuer Tobie hat einen Platz bekommen.', frage: 'Name geben?', name_geben: 'Name geben', spaeter: 'Später' }, // Design 5.13 (N11)
   nicht_zugeordnet: { titel: 'Konnte nicht zugeordnet werden', jetzt_zuordnen: 'Jetzt zuordnen' }, // Design 5.13 (N20); der Grund kommt vom Backend oder aus FEHLER
   grund_gesperrt: 'Änderungen sind gerade gesperrt.', // Design 5.13, Tabelle „Liste gesperrt“
+  grund_sonst: 'Es hat gerade nicht geklappt. Tippe auf „Jetzt zuordnen“.', // neu, nicht im Design (Grund, wenn die Liste nicht gesperrt ist)
+  versehen: 'Das war ein Versehen', // Design 7.1 (Kurzform auf der Karte; auf der Seite „Das war ein Versehen, nicht merken“)
+  neue_zeile: 'Tobie zuordnen', // neu, nicht im Design (Name der Zeilen bei mehreren neuen Tobies, für Screenreader)
+  wartet_ziel_weg: 'ein Eintrag, den es nicht mehr gibt', // neu, nicht im Design (Ziel der Vormerkung wurde gelöscht)
+  wartet_blatt: { schliessen: 'Zurück' }, // neu, nicht im Design
+};
+
+// Vergangene Zeit für „Gerade aufgelegt, vor 2 Minuten.“ (Design 7.1)
+export const VOR = {
+  jetzt: 'vor weniger als einer Minute',
+  minuten: { eins: 'vor {anzahl} Minute', mehr: 'vor {anzahl} Minuten' },
+  stunden: { eins: 'vor {anzahl} Stunde', mehr: 'vor {anzahl} Stunden' },
+  tage: { eins: 'vor {anzahl} Tag', mehr: 'vor {anzahl} Tagen' },
 };
 
 // Tobies zuordnen, Meldungen und Namen (Design 5.4, 5.7, 5.13, 6.3, 7.1; Runde 17: R17-3, R17-5, R17-6, N27).
@@ -214,6 +231,127 @@ export const TOBIE = {
   noch_kein_tobie: 'Noch kein Tobie', // Design 5.3
   neue_tobies_punkt: '1 neuer Tobie', // Design 3.1, für Screenreader am Reiter „Geräte“
   neue_tobies_punkt_mehr: '{anzahl} neue Tobies', // neu, nicht im Design (Mehrzahl zu 3.1)
+};
+
+// Reiter „Tobies“, Tobie-Seite, Neuer Tobie, Zielwahl, Warteschlange (Design 5.4, 5.7, 5.13, 7.1, 7.2; Pakete A9 und A10).
+// Stellen ohne Design-Text sind mit „neu, nicht im Design“ markiert.
+export const TOBIES = {
+  regal_label: 'Tobies', // neu, nicht im Design (aria-label des Regals)
+  neuer: '+ Neuer Tobie', // Design 5.7
+  suche: {
+    label: 'Tobie suchen', // neu, nicht im Design (Beschriftung für Screenreader)
+    platzhalter: 'Tobie suchen (Name oder was er spielt)', // Design 5.7
+    keiner: 'Kein Tobie gefunden zu „{suchwort}“.', // Design 5.7
+    loeschen: 'Suche löschen', // Design 5.7
+  },
+  kachel_aria: '{tobie}, spielt {ziel}', // Design 5.7
+  box_egal: 'irgendeiner Box', // Design 5.13 („irgendeine Box“)
+  wartet: {
+    titel: 'Nächster neuer Tobie auf {box} spielt „{ziel}“', // Design 5.7
+    zeile: 'Wartet auf einen unbekannten Tobie', // Design 5.7
+    abbrechen: 'Abbrechen', // Design 5.7
+    abgebrochen: 'Vormerkung abgebrochen.', // Design 5.13
+  },
+  seite: {
+    frage: 'Was soll {tobie} spielen?', // Design 5.7
+    dieser: 'dieser Tobie', // Design 5.7 („Was soll dieser Tobie spielen?“ ohne Namen)
+    spielt_jetzt: 'Spielt jetzt', // Design 5.4
+    weg: { satz: 'Diesen Tobie gibt es nicht mehr.', link: 'Zu den Tobies' }, // neu, nicht im Design
+  },
+  art: { // Design 5.4, Karte „Spielt jetzt“
+    serie: { hoerspiel: 'Ganzes Hörspiel', hoerbuch: 'Ganzes Hörbuch', musik: 'Ganzes Album', geschichte: 'Ganze Geschichten' },
+    serie_ohne: 'Ganze Serie', // neu, nicht im Design (solange die Art nicht bekannt ist)
+    folge: '{serie} · {einheit}', // Design 5.4 („Lange Serie · Folge“)
+    einzeltitel: 'Einzeltitel', // Design 5.4
+    aktion: 'Aktion', // Design 5.4
+    weg: 'gibt es nicht mehr', // neu, nicht im Design (Ziel wurde gelöscht)
+  },
+  name: {
+    titel: 'Namen ändern', // Design 5.7
+    label: 'Name', // neu, nicht im Design
+    speichern: 'Name speichern', // Design 5.7
+    gespeichert: 'Name gespeichert.', // Design 5.7
+    leer: 'Bitte einen Namen eingeben.', // Design 6.3
+  },
+  vergessen: {
+    knopf: 'Diesen Tobie vergessen …', // Design 5.7
+    titel: 'Diesen Tobie vergessen?', // neu, nicht im Design
+    satz: '„{tobie}“ spielt dann nichts mehr. Legst du ihn wieder auf eine Box, erscheint er unter „Geräte“ als neuer Tobie.', // neu, nicht im Design
+    ja: 'Vergessen', // neu, nicht im Design
+    nein: 'Abbrechen', // neu, nicht im Design
+    fertig: 'Tobie vergessen.', // neu, nicht im Design
+  },
+  wahl: { // Zielwahl (Design 5.4)
+    frage: 'Was soll er spielen?', // Design 7.1
+    gruppe: 'Was soll er spielen?', // Design 5.4 (Name der Auswahl)
+    serie: 'Ganze Serie', // Design 5.4
+    folge: 'Folge oder Lied', // Design 5.4
+    suchen_label: 'In der Bibliothek suchen', // Design 5.4
+    arten: { alle: 'Alle', hoerspiel: 'Hörspiele', hoerbuch: 'Hörbücher', musik: 'Musik', geschichte: 'Geschichten' }, // Design 5.4
+    art_label: 'Art', // neu, nicht im Design
+    neu_reihe: 'Neu hinzugefügt', // Design 5.4 (N14)
+    einzeltitel: 'Einzeltitel', // Design 5.4
+    nichts: 'Nichts gefunden zu „{suchwort}“.', // Design 6.2
+    suche_loeschen: 'Suche löschen', // Design 6.2
+    leer: 'In der Bibliothek ist noch nichts da.', // neu, nicht im Design
+    mehr: 'Mehr zeigen', // Design 5.4
+    gute_nacht: 'Gute-Nacht-Karte', // Design 5.4
+    gute_nacht_zeile: 'Timer, dann wird es still', // Design 5.4
+    waehlen: '{name} wählen', // neu, nicht im Design (aria-label)
+    folgen_von: 'Folgen von {name}', // neu, nicht im Design
+    laedt: 'Wird geladen …', // neu, nicht im Design
+  },
+  neu: {
+    weg1: { titel: 'Leg ihn jetzt auf eine Box', zeile: 'Die Seite wartet auf ihn' }, // Design 7.1
+    weg2: { titel: 'Später auflegen', zeile: 'Erst wählen, was er spielen soll' }, // Design 7.1
+    er_soll: 'Er soll spielen', // Design 7.1
+    er_spielt: 'Er spielt', // Design 7.1
+    fertig: 'Fertig', // Design 7.1 (fester Ziel, Weg 1)
+    vormerken: 'Vormerken', // Design 5.13 (fester Ziel, Weg 2)
+    ohne_box: 'Es ist noch keine Box eingerichtet. Bitte {verwalter_dat} Bescheid sagen.', // neu, nicht im Design
+  },
+  warten: {
+    eine: 'Leg den Tobie auf {box}', // Design 7.1 (eine Box)
+    zwei: 'Leg den Tobie auf {box} oder {box_zwei}', // Design 7.1
+    viele: 'Leg den Tobie auf eine der Boxen', // neu, nicht im Design (mehr als zwei Boxen)
+    satz: 'Ich warte auf einen Tobie, den ich noch nicht kenne.', // Design 7.1
+    abbrechen: 'Abbrechen', // Design 7.1
+  },
+  erkannt: {
+    titel: 'Neuer Tobie erkannt', // Design 7.1
+    auf: 'auf {box}.', // Design 7.1
+    versehen: 'Das war ein Versehen, nicht merken', // Design 7.1 (N13)
+    frage_titel: 'Nicht merken?', // Design 7.1
+    frage_satz: 'Der Tobie bleibt unbekannt. Legst du ihn wieder auf eine Box, erscheint er noch einmal.', // neu, nicht im Design
+    frage_ja: 'Nicht merken', // neu, nicht im Design
+    frage_nein: 'Abbrechen', // neu, nicht im Design
+    verworfen: 'Nicht gemerkt.', // neu, nicht im Design
+    woanders: 'Dieser Tobie wurde gerade woanders zugeordnet.', // Design 7.1 („Fehler“)
+    weg: 'Dieser neue Tobie ist nicht mehr in der Liste. Vielleicht hat ihn jemand schon zugeordnet.', // neu, nicht im Design
+    zu_den_tobies: 'Zu den Tobies', // neu, nicht im Design
+  },
+  queue: {
+    box_frage: 'Auf welcher Box?', // Design 5.13
+    box_label: 'Box', // neu, nicht im Design (Name der Auswahl)
+    egal: 'Egal welche', // Design 5.13
+    warte_titel: 'Nächster neuer Tobie auf {box} spielt „{ziel}“', // Design 5.13
+    warte_satz: 'Kein Zeitlimit. Du musst die Seite nicht offen lassen.', // Design 5.13
+    abbrechen: 'Abbrechen', // Design 5.13
+    fertig: 'Fertig', // Design 5.13
+  },
+  geben: {
+    ziel: 'Das soll er spielen', // neu, nicht im Design (Kopfzeile über dem Ziel)
+    ziel_weg: 'Das gibt es nicht mehr.', // neu, nicht im Design
+    spielt: 'spielt {ziel}', // neu, nicht im Design
+    nichts: 'Noch nichts', // neu, nicht im Design
+  },
+  gespielt: {
+    von: 'Gespielt von:', // Design 5.3
+    von_leer: 'Gespielt von', // Design 5.3 (Beschriftung ohne Tobie)
+    tobies: 'Tobies, die das spielen', // neu, nicht im Design (Name der Chips)
+  },
+  menue: { geben: 'Einem Tobie geben …' }, // Design 5.3 („⋯“ der Folge)
+  gute_nacht: { anlegen_zu_tobies: 'Zu den Tobies' }, // neu, nicht im Design (Knopf im Blatt „So legst du einen Gute-Nacht-Tobie an“)
 };
 
 // Satz im Blatt „Leise-Zeit ändern“ (Design 5.8, N24).

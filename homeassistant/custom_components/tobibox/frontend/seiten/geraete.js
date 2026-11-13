@@ -12,7 +12,8 @@
  * sie nicht auf `Europe/Berlin` zurückfällt. Schnittstelle zur App: siehe bausteine.js.
  */
 import { html, nothing, css, ic, cover, segment, ladeMitGrenze } from '../bausteine.js';
-import { GERAETE, GERAETE_SEITE, ABENDS, LEISE, SEITE, statusSatz, fuellen } from '../texte.js';
+import { GERAETE, GERAETE_SEITE, ABENDS, LEISE, SEITE, TOBIES, statusSatz, fuellen } from '../texte.js';
+import { geraeteKarten, pruefePlatz } from './tobies.js';
 
 export const TAGE = [1, 2, 3, 4, 5, 6, 7]; // ISO: 1 Montag bis 7 Sonntag
 export const MAX_FENSTER = 32;
@@ -257,6 +258,7 @@ class GeraeteSeite {
     this.status.zuruecksetzen();
     this._uhr = setInterval(() => this.ctx.neuZeichnen(), 60000); // die Marke „jetzt“ wandert
     this._uhr.unref?.();
+    pruefePlatz(this.ctx); // Karte „Platz bekommen“ weg, wenn der Tobie schon einen Namen hat
     this.laden();
   }
 
@@ -353,7 +355,7 @@ class GeraeteSeite {
     this.ctx.oeffneBlatt({
       titel: ABENDS.gute_nacht.anlegen_titel,
       inhalt: () => html`<p>${ABENDS.gute_nacht.anlegen_text}</p>`,
-      knoepfe: [{ label: SEITE.schliessen, kind: 'primary' }],
+      knoepfe: [{ label: SEITE.schliessen }, { label: TOBIES.gute_nacht.anlegen_zu_tobies, kind: 'primary', fn: () => { this.ctx.navigiere('#tobies'); } }],
     });
   }
 
@@ -461,7 +463,7 @@ class GeraeteSeite {
       ${boxen.length
         ? html`<div class="gboxen" data-geraete="boxen" role="list" aria-label=${GERAETE_SEITE.boxen_label}>${boxen.map((b) => html`<div role="listitem">${boxKarte(this.status.daten(b))}</div>`)}</div>`
         : ctx.leer('keine_box', 'keineBox', { aktion: () => window.location.reload() })}
-      <div class="platz" data-platz="neue-tobies"></div>
+      <div class="platz" data-platz="neue-tobies">${geraeteKarten(ctx)}</div>
       ${this._abends()}`;
   }
 

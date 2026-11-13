@@ -113,7 +113,8 @@ test('Geräte: Überschrift, zwei Karten als Links, Platz für „Neuer Tobie“
   assert.equal(s.qa('a.gstatus').length, 2);
   assert.deepEqual(s.qa('a.gstatus').map((a) => a.getAttribute('href')), ['#box-kueche', '#box-kinderzimmer']);
   assert.ok(s.q('[data-platz="neue-tobies"]'), 'Platz für die Karten „Neuer Tobie“ und die Warteschlange (A9/A10)');
-  assert.equal(s.q('[data-platz="neue-tobies"]').children.length, 0);
+  assert.equal(s.qa('[data-platz="neue-tobies"] > *').length, 1, 'A10: die Karte für den einen unbekannten Tobie der Beispieldaten steht im Platz');
+  assert.ok(s.q('[data-platz="neue-tobies"] [data-karte="neuer-tobie"]'));
   assert.equal(s.q('h2.abends').textContent, ABENDS.titel);
   const text = s.q('main').textContent;
   assert.ok(!text.includes('Wer hat was gehört?'), 'Stufe B ist ausgeblendet');

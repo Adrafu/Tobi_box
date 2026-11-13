@@ -61,7 +61,20 @@ const ws = async (m) => {
   if (r.error) throw r.error;
   return r.ok;
 };
-el.hass = { user: { is_admin: !k.startsWith('user') }, connection: { sendMessagePromise: ws, subscribeMessage: async () => () => {} }, fetchWithAuth: (p) => fetch(p) };
+/* Abo: die Ereignisse des Mocks werden alle 120 ms beim Server abgeholt (`/ev`, ab dem Stand beim Abonnieren), damit Abläufe wie „Tobie
+ * auflegen“ (`/legeauf`) die Seite erreichen. */
+const abo = async (cb) => {
+  let n = (await (await fetch(`/ev?k=${encodeURIComponent(k)}&ab=-1`)).json()).n;
+  let aktiv = true;
+  (async () => {
+    while (aktiv) {
+      try { const r = await (await fetch(`/ev?k=${encodeURIComponent(k)}&ab=${n}`)).json(); n = r.n; r.ereignisse.forEach((e) => aktiv && cb(e)); } catch { /* die Prüfung läuft weiter */ }
+      await new Promise((x) => setTimeout(x, 120));
+    }
+  })();
+  return () => { aktiv = false; };
+};
+el.hass = { user: { is_admin: !k.startsWith('user') }, connection: { sendMessagePromise: ws, subscribeMessage: abo }, fetchWithAuth: (p) => fetch(p) };
 el.narrow = q.get('narrow') === '1';
 /* Wie ha-panel-custom: Light-DOM-Behälter ohne eigene Höhe (display:block, height:auto), mit Innenabstand für die
  * Safe-Area (sa=<px unten>, sao=<px oben>; HA setzt padding-top/-bottom auf den Behälter). Emulierte Safe-Area der

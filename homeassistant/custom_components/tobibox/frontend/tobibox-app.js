@@ -11,8 +11,9 @@
  * Die Illustrationen der leeren Zustände (A6b) kommen aus ./illustrationen.js; fehlt die Datei oder ein Bild,
  * steht ein schlichter Platzhalter da.
  */
-import { fuellen, fehlerText, SEITE, TOBIE, LEER, TECHNIK } from './texte.js';
+import { fuellen, fehlerText, SEITE, TOBIE, LEER, TECHNIK, SUCHE } from './texte.js';
 import { SEITEN } from './seiten/index.js';
+import { folgenAktion } from './seiten/tobies.js';
 import { initLit, bausteinStil, CoverLader, leererZustand, kopfAktion } from './bausteine.js';
 
 export const VERTRAG_V = 1;
@@ -148,6 +149,7 @@ export function begruessung(datum = new Date()) {
 }
 
 export const REITER = ['start', 'bibliothek', 'tobies', 'geraete'];
+const STILLE_KOEPFE = ['serie', 'tobie', 'neu', 'neu-warten', 'neu-ziel', 'neu-queue', 'geben']; // Seiten mit eigener großer Überschrift im Inhalt
 
 const TECHNIK_SUB = { boxen: 'technik_boxen', speicher: 'technik_speicher', liste: 'technik_liste', tobies: 'technik_tobies', meldungen: 'technik_meldungen', einstellungen: 'technik_einstellungen' };
 
@@ -157,12 +159,19 @@ const TECHNIK_SUB = { boxen: 'technik_boxen', speicher: 'technik_speicher', list
 export function parseRoute(hash, { faehigkeiten = null } = {}) {
   const [h, abfrage = ''] = String(hash || '').replace(/^#/, '').split('?'); // `#bibliothek?sortierung=neu` (Link „Alle anzeigen“ vom Start)
   const r = (o) => o;
+  // A9/A10: Seiten der Tobies tragen ihr festes Ziel und den Rückweg in der Adresse (`#neu?s=<serie>&f=<folge>`, `#neu-ziel-<kennung>?von=tobies`)
+  const q = (o) => (abfrage ? { ...o, abfrage: Object.fromEntries(new URLSearchParams(abfrage)) } : o);
   if (h === '' || h === 'start') return r({ name: 'start', tab: 'start' });
   if (h.startsWith('serie-')) return r({ name: 'serie', tab: 'bibliothek', id: h.slice(6), seite: 'serie', zurueck: 'bibliothek' });
-  if (h.startsWith('tobie-')) return r({ name: 'tobie', tab: 'tobies', id: h.slice(6), seite: 'tobie', zurueck: 'tobies' });
-  if (h === 'neu' || h === 'neu-warten' || h === 'neu-queue') return r({ name: h, tab: 'tobies', seite: h.replace('-', '_'), zurueck: 'tobies' });
-  if (h === 'neu-ziel') return r({ name: 'neu-ziel', tab: 'tobies', seite: 'neu_ziel', zurueck: 'tobies' });
-  if (h.startsWith('geben-')) return r({ name: 'geben', tab: 'bibliothek', id: h.slice(6), seite: 'geben', zurueck: 'bibliothek' });
+  if (h.startsWith('tobie-')) return r(q({ name: 'tobie', tab: 'tobies', id: h.slice(6), seite: 'tobie', zurueck: 'tobies' }));
+  if (h === 'neu' || h === 'neu-warten' || h === 'neu-queue') return r(q({ name: h, tab: 'tobies', seite: h.replace('-', '_'), zurueck: 'tobies' }));
+  if (h === 'neu-ziel' || h.startsWith('neu-ziel-')) {
+    // `#neu-ziel-<kennung>`: von der Karte oder Meldung auf „Geräte“ (Reiter „Geräte“ bleibt markiert), nach Weg 1 `?von=tobies`
+    const id = h.slice(9) || undefined;
+    const von = new URLSearchParams(abfrage).get('von');
+    return r(q({ name: 'neu-ziel', tab: !id || von === 'tobies' ? 'tobies' : 'geraete', id, seite: 'neu_ziel', zurueck: von === 'tobies' || !id ? 'tobies' : 'geraete' }));
+  }
+  if (h.startsWith('geben-')) return r(q({ name: 'geben', tab: 'bibliothek', id: h.slice(6), seite: 'geben', zurueck: 'bibliothek' }));
   if (h.startsWith('box-')) return r({ name: 'box', tab: 'geraete', id: h.slice(4), seite: 'box', zurueck: 'geraete' });
   if (h.startsWith('playlist-')) return r({ name: 'start', tab: 'bibliothek', umleitung: 'bibliothek' }); // Stufe C: noch nicht gebaut
   if (h === 'hinzufuegen' || h === 'anlernen' || h === 'suche') return r({ name: h, tab: 'bibliothek', seite: h, zurueck: 'bibliothek' });
@@ -185,21 +194,25 @@ export function parseRoute(hash, { faehigkeiten = null } = {}) {
 /* ------------------------------------------------------------------ Daten: hello, Abo, Listen (ohne DOM) */
 
 const GRENZE_LAEDT_MS = 10000;
-const THEMEN = ['boxen', 'neue_tobies', 'konfig'];
+const THEMEN = ['boxen', 'neue_tobies', 'konfig']; // dazu `warteschlange`, wenn hello die Fähigkeit zusagt (Vertrag 4.8)
 
 export class AppStore {
   constructor({ ladeGrenzeMs = GRENZE_LAEDT_MS } = {}) {
     this.ladeGrenzeMs = ladeGrenzeMs;
-    this.s = { phase: 'laedt', fehlerCode: null, faehigkeiten: null, boxen: {}, boxAnzeigen: {}, neue: [], konfigZustand: 'ok', verbindungWeg: false };
+    this.s = { phase: 'laedt', fehlerCode: null, faehigkeiten: null, boxen: {}, boxAnzeigen: {}, neue: [], warteschlange: [], platz: [], konfigZustand: 'ok', verbindungWeg: false };
     this.hass = null;
     this.onNeuerTobie = null; // ({ uid, box, anzeige }) beim ersten Auftauchen einer unbekannten Kennung nach dem Start
     this.onWiederda = null; // () nach dem Wiederverbinden: die aktive Seite lädt neu
+    this.onAbgearbeitet = null; // (daten) ein Tobie hat eine Vormerkung genommen (Thema `warteschlange`, `abgearbeitet`)
     this._ls = new Set();
+    this._evLs = new Set(); // Seiten, die auf Ereignisse warten (Weg 1, Wartekarte): `ereignis(fn)`
     this._lauf = 0;
     this._bekannt = new Set();
   }
 
   onChange(fn) { this._ls.add(fn); return () => this._ls.delete(fn); }
+  /* Jedes Ereignis des Abos geht danach an `fn(ev)` (nachdem der Speicher es aufgenommen hat). Gibt die Abmeldung zurück. */
+  onEreignis(fn) { this._evLs.add(fn); return () => this._evLs.delete(fn); }
   _set(teil) { Object.assign(this.s, teil); this._ls.forEach((f) => f()); }
   _api(type, felder = {}) { return this.hass.connection.sendMessagePromise({ type, ...felder }); }
 
@@ -243,7 +256,8 @@ export class AppStore {
       this.s.faehigkeiten = fae;
       this.s.boxAnzeigen = { ...(hello.grenzen?.box_anzeigen || {}), ...(hello.box_anzeigen || {}) };
       this.s.konfigZustand = hello.konfig?.zustand || 'ok';
-      this._abo = await this.hass.connection.subscribeMessage((ev) => this._ereignis(ev), { type: 'tobibox/subscribe', themen: THEMEN });
+      const themen = fae.includes('warteschlange') ? [...THEMEN, 'warteschlange'] : THEMEN;
+      this._abo = await this.hass.connection.subscribeMessage((ev) => this._ereignis(ev), { type: 'tobibox/subscribe', themen });
       if (lauf !== this._lauf) return;
       await this._ladeListen();
       if (lauf !== this._lauf) return;
@@ -271,7 +285,26 @@ export class AppStore {
       const r = await this._api('tobibox/neue_tobies/list', { limit: 100 });
       neu.neue = r.eintraege || [];
     }
+    if (fae.includes('warteschlange')) {
+      const r = await this._api('tobibox/warteschlange/list');
+      neu.warteschlange = r.eintraege || [];
+    }
     this._set(neu);
+  }
+
+  /* Die Vormerkungen neu holen (nach jedem Ereignis, die `position` der übrigen ändert sich; Vertrag 4.8). */
+  async ladeWarteschlange() {
+    if (!(this.s.faehigkeiten || []).includes('warteschlange') || !this.hass) return;
+    const lauf = this._lauf;
+    try {
+      const r = await this._api('tobibox/warteschlange/list');
+      if (lauf === this._lauf) this._set({ warteschlange: r.eintraege || [] });
+    } catch { /* die nächste Meldung holt sie noch einmal */ }
+  }
+
+  /* Karte „Ein neuer Tobie hat einen Platz bekommen. Name geben?“ (N11): bleibt, bis er einen Namen hat oder „Später“ gewählt ist. */
+  platzEntfernen(uid) {
+    if (this.s.platz.some((p) => p.uid === uid)) this._set({ platz: this.s.platz.filter((p) => p.uid !== uid) });
   }
 
   anzeige(box) { return this.s.boxAnzeigen[box] || this.s.boxen[box]?.anzeige || this.s.boxen[box]?.anzeigename || box; }
@@ -285,6 +318,11 @@ export class AppStore {
 
   _ereignis(ev) {
     if (!ev || ev.v !== VERTRAG_V) return;
+    this._aufnehmen(ev);
+    for (const f of [...this._evLs]) { try { f(ev); } catch { /* eine Seite darf die anderen nicht stören */ } }
+  }
+
+  _aufnehmen(ev) {
     const d = ev.daten || {};
     if (ev.thema === 'neue_tobies') {
       if (ev.art === 'neu' || ev.art === 'aktualisiert') {
@@ -304,6 +342,12 @@ export class AppStore {
       if (ev.art === 'geaendert' && d.box) this._set({ boxen: { ...this.s.boxen, [d.box]: d } });
     } else if (ev.thema === 'konfig') {
       if ((ev.art === 'snapshot' || ev.art === 'geaendert') && d.konfig) this._set({ konfigZustand: d.konfig.zustand || 'ok' });
+    } else if (ev.thema === 'warteschlange' && ev.art !== 'snapshot') {
+      this.ladeWarteschlange();
+      if (ev.art === 'abgearbeitet' && d.uid) {
+        if (!d.name) this._set({ platz: [{ uid: d.uid, box: d.box ?? null }, ...this.s.platz.filter((p) => p.uid !== d.uid)] });
+        this.onAbgearbeitet?.(d);
+      }
     }
   }
 }
@@ -353,8 +397,6 @@ if (lit) {
       this._blatt = null;
       this._kbd = false;
       this._bilder = {};
-      this._neuUid = null; // Kennung für „Neuer Tobie erkannt“ (#neu-ziel)
-      this._neuVon = 'tobies';
       this._themenStand = '';
       this._seiten = {}; // je Seite ein Objekt aus seiten/<name>.js (erzeuge(ctx)), angelegt beim ersten Besuch
       this._seiteObj = null;
@@ -364,6 +406,7 @@ if (lit) {
       this.store.onWiederda = () => this._seiteObj?.neuLaden?.();
       this._off = this.store.onChange(() => { this._tick += 1; if (this.store.s.phase === 'bereit') this._leseHash(); });
       this.store.onNeuerTobie = (n) => this._neuerTobie(n);
+      this.store.onAbgearbeitet = (d) => this._abgearbeitet(d);
       /* Home Assistant fängt Klicks auf Links ab, setzt die Adresse mit `history.pushState` und meldet `location-changed`; ein
        * `hashchange` kommt dann nicht (B1). Darum hören wir auch auf `location-changed` und `popstate`. Fokus und Scrollen nur,
        * wenn sich die Adresse wirklich geändert hat (Zurück-Taste meldet `popstate` und `hashchange` zugleich). */
@@ -448,7 +491,7 @@ if (lit) {
       const text = (h1?.textContent || '').trim();
       for (const h of root.querySelectorAll('main h2[data-doppelt]')) h.removeAttribute('data-doppelt');
       kopf?.removeAttribute('data-still');
-      if (!text) return;
+      if (!text || kopf.classList.contains('still')) return; // die Seite trägt ihren Titel selbst im Inhalt (Serie, Tobie, Neuer Tobie)
       const h2 = root.querySelector('main h2');
       if (!h2 || h2.textContent.trim() !== text) return;
       // Am Computer steht auf Unterseiten „‹ Zurück“ vor dem Titel: dann trägt die Überschrift der Seite den Titel, der Kopf schweigt
@@ -689,11 +732,30 @@ if (lit) {
 
     /* Globale Meldung „Neuer Tobie auf <Box> – Zuordnen“ (R17-6). Auf den Seiten, die selbst auf den Tobie warten, bleibt sie aus. */
     _neuerTobie({ uid, anzeige }) {
-      const n = this._route.name;
-      if (n === 'neu-warten' || (n === 'neu-ziel' && this._neuUid === uid)) return;
+      const r = this._route;
+      if (r.name === 'neu-warten' || (r.name === 'neu-ziel' && r.id === encodeURIComponent(uid))) return;
       this.melde(fuellen(TOBIE.neuer_tobie_meldung, { box: anzeige || undefined }), {
-        aktion: { text: TOBIE.zuordnen, fn: () => { this._neuUid = uid; this._neuVon = 'geraete'; window.location.hash = '#neu-ziel'; } },
+        aktion: { text: TOBIE.zuordnen, fn: () => this.navigiere(`#neu-ziel-${encodeURIComponent(uid)}`) },
       });
+    }
+
+    /* Ein neuer Tobie hat eine Vormerkung genommen (5.13): „Box 1: Der neue Tobie spielt jetzt „…“.“ mit „Name geben“ (ohne den Knopf,
+     * wenn er schon einen Namen hat). Auf jeder Seite; die Karte „Platz bekommen“ auf „Geräte“ legt der Speicher an. */
+    _abgearbeitet(d) {
+      const z = d.ziel || {};
+      const ziel = z.typ === 'aktion' ? (SUCHE.aktionen[z.aktion] || z.aktion) : z.typ === 'folge' ? (d.folge_anzeige || z.folge) : (d.serie_name || '');
+      this.melde(fuellen(TOBIE.aufgelegt_zugeordnet, { box: d.box ? this.store.anzeige(d.box) : undefined, ziel }), d.name ? {} : {
+        aktion: { text: TOBIE.name_geben, fn: () => this.navigiere(`#tobie-${encodeURIComponent(d.uid)}?name=1`) },
+      });
+    }
+
+    /* Seitenwechsel wie in Home Assistant: `history.pushState` (oder `replaceState`) und `location-changed` (B1). */
+    navigiere(hash, ersetzen = false) {
+      const ziel = String(hash).startsWith('#') ? String(hash) : `#${hash}`;
+      try {
+        window.history[ersetzen ? 'replaceState' : 'pushState'](window.history.state, '', `${window.location.pathname}${window.location.search}${ziel}`);
+      } catch { window.location.hash = ziel; return; }
+      window.dispatchEvent(new CustomEvent('location-changed'));
     }
 
     /* ================================================================== Mini-Player-Platz (X31) */
@@ -767,8 +829,7 @@ if (lit) {
 
     _zurueck(r) {
       if (!r.zurueck) return nothing;
-      let ziel = r.zurueck;
-      if (r.name === 'neu-ziel') ziel = this._neuVon === 'geraete' ? 'geraete' : 'tobies';
+      const ziel = r.zurueck;
       return html`<a class="back" href=${`#${ziel}`}>${SEITE.zurueck[ziel]}</a>`;
     }
 
@@ -803,8 +864,16 @@ if (lit) {
         covers: app._covers,
         uploadBand: () => nothing, // A11 ersetzt das durch das Band der laufenden Uploads
         boxen: () => app.store.s.boxen, // live: Box-Name -> Box-Objekt aus `boxen/list` und den Ereignissen (A7b)
+        boxAnzeige: (box) => app.store.anzeige(box), // Anzeigename der Box (A9)
+        neue: () => app.store.s.neue, // unbekannte Tobies (`neue_tobies/list` und Ereignisse)
+        warteschlange: () => app.store.s.warteschlange, // Vormerkungen (`warteschlange/list` und Ereignisse), leer ohne die Fähigkeit
+        warteschlangeNeuLaden: () => app.store.ladeWarteschlange(),
+        platz: () => app.store.s.platz, // Tobies, die eine Vormerkung ohne Namen genommen haben (Karte auf „Geräte“)
+        platzEntfernen: (uid) => app.store.platzEntfernen(uid),
+        ereignis: (fn) => app.store.onEreignis(fn), // `fn(ev)` für jedes Ereignis des Abos; gibt die Abmeldung zurück
+        navigiere: (hash, o = {}) => app.navigiere(hash, o.ersetzen === true), // Seitenwechsel im Modell von HA (pushState + `location-changed`)
         gesperrt: () => app.store.s.konfigZustand !== 'ok' || app.store.s.verbindungWeg, // Liste gesperrt oder keine Verbindung: Knöpfe, die ändern, grau (A7b)
-        folgenAktionen: null, // A8b/A9 setzen eine Funktion x => Template (Abspielen und „⋯“ in Folgenzeilen der Suche)
+        folgenAktionen: (x) => folgenAktion(app.ctx, x), // „⋯“ in Folgenzeilen der Suche: „Einem Tobie geben …“ (A9); A8b ergänzt das Abspielen
       };
     }
 
@@ -868,7 +937,7 @@ if (lit) {
     }
 
     _kopf(r) {
-      const still = r.name === 'serie'; // die Serienseite zeigt ihren Titel selbst im großen Kopf
+      const still = STILLE_KOEPFE.includes(r.name); // diese Seiten zeigen ihren Titel selbst im Inhalt
       return html`<header class=${`kopf${still ? ' still' : ''}`}>
         ${this.narrow ? html`<ha-menu-button .hass=${this.hass} .narrow=${this.narrow}></ha-menu-button>` : nothing}
         <h1 class=${still ? 'sr' : ''}>${this._kopfTitel(r)}</h1>

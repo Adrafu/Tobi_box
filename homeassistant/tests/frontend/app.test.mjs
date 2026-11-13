@@ -422,8 +422,9 @@ test('Leere Zustände: Bild aria-hidden, ein Satz, ein Knopf; Geräte nur ohne B
   await geheZu(s, '#bibliothek');
   assert.equal(s.q('[data-leer="bibliothek"] .btn').textContent, 'Hinzufügen');
   await geheZu(s, '#tobies');
-  assert.equal(s.q('[data-leer="tobies"] .et').textContent, 'Hier stehen bald deine Tobies.');
-  assert.equal(s.q('[data-leer="tobies"] .btn'), null, 'ohne Knopf bis A-1b');
+  assert.equal(s.q('[data-leer="tobies"] .et').textContent, 'Noch keine Tobies. Lege einen Tobie auf eine Box, dann erscheint er unter „Geräte“.', 'A9: Design 6.2');
+  assert.equal(s.q('[data-leer="tobies"] .btn').getAttribute('href'), '#geraete');
+  assert.ok(s.q('[data-regal] a[data-neu]'), 'das Regal zeigt auch ohne Tobies die Kachel „+ Neuer Tobie“');
   await geheZu(s, '#geraete');
   assert.equal(s.q('[data-leer="keine_box"]'), null, 'es gibt Boxen');
   weg();
@@ -689,11 +690,10 @@ test('Globale Meldung „Neuer Tobie auf <Box> – Zuordnen“ aus einem Abo-Ere
   assert.equal(t[0].querySelector('button').textContent, 'Zuordnen');
   assert.equal(t[0].getAttribute('role'), 'status');
   t[0].querySelector('button').click();
-  assert.equal(window.location.hash, '#neu-ziel');
-  assert.equal(s.el._neuUid, '04AABBCCDDEEFF');
+  assert.equal(window.location.hash, '#neu-ziel-04AABBCCDDEEFF', 'A10: die Kennung steht in der Adresse');
   await new Promise((r) => setTimeout(r, 20)); await s.flush();
   assert.equal(s.q('main h2').textContent, 'Neuer Tobie erkannt');
-  assert.deepEqual(aktiv(s.qa), ['Tobies']);
+  assert.deepEqual(aktiv(s.qa), ['Geräte'], 'A10: der Reiter, von dem man kam (Karte oder Meldung), bleibt markiert');
   weg();
 });
 

@@ -58,9 +58,17 @@ export const SCHEMA_BIB = {
   'tobibox/folgen/list': { opt: ['art', 'text', 'filter', 'sortierung', 'limit', 'offset'], braucht: 'bibliothek' },
   'tobibox/serie/art_setzen': { req: ['serie_id', 'art'], braucht: 'bibliothek' }, // A8, Vertrag W Nr. 38
 };
+/* A9/A10 (Vertrag W 3.13, Nr. 47 bis 49): Warteschlange „Nächster neuer Tobie“. Eigener Satz, damit die Abdeckungsprüfung der alten Seite unverändert bleibt. */
+export const SCHEMA_WS = {
+  'tobibox/warteschlange/set': { req: ['box', 'ziel'], opt: ['name', 'anfrage_id'], braucht: 'warteschlange' },
+  'tobibox/warteschlange/list': { braucht: 'warteschlange' },
+  'tobibox/warteschlange/abbrechen': { req: ['eintrag_id'], braucht: 'warteschlange' },
+};
+export const FAEHIGKEITEN_A9 = ['warteschlange', 'zuordnung_rueckgaengig'];
 /* A8: Befehle nur für Administratoren (Vertrag 2.1). Mit der Mock-Option `nichtAdmin` darf der Benutzer alles andere (Alltag). */
 export const ADMIN_BEFEHLE = new Set(['folgen/order', 'serien/zusammenfuehren', 'serie/create', 'papierkorb/restore', 'papierkorb/empty'].map((x) => `tobibox/${x}`));
 export const FELDER_V11 = {
+  'tobibox/zuordnung/remove': { als_neu: 'zuordnung_rueckgaengig' }, // A9, Vertrag 3.5 (13.11.)
   'tobibox/zuordnung/list': { uid: 'zuordnung_uid' },
   'tobibox/konfig/export_lesen': { stand: 'konfig_staende' }, // A12/A13: frühere Stände (Vertrag 2.4)
   'tobibox/konfig/aus_export': { stand: 'konfig_staende' },
@@ -173,7 +181,7 @@ export function beispielBibliothek(n = 130) {
 
 /* `faehigkeiten`: was das (simulierte) Backend zusagt. Ohne Angabe wird nur die Form geprüft (alles ist erlaubt). */
 export function pruefeEingabe(msg, faehigkeiten = null) {
-  const sch = SCHEMA[msg.type] || SCHEMA_V11[msg.type] || SCHEMA_BIB[msg.type] || SCHEMA_TECHNIK[msg.type];
+  const sch = SCHEMA[msg.type] || SCHEMA_V11[msg.type] || SCHEMA_BIB[msg.type] || SCHEMA_TECHNIK[msg.type] || SCHEMA_WS[msg.type];
   if (!sch) throw fehler('unknown_command', `Unbekannter Befehl ${msg.type}`);
   if (faehigkeiten && sch.braucht && !faehigkeiten.includes(sch.braucht)) throw fehler('unknown_command', `Unbekannter Befehl ${msg.type}`);
   const { type, id, ...felder } = msg; // eslint-disable-line no-unused-vars
@@ -226,6 +234,8 @@ export function createMockHass(opts = {}) {
     ],
     eingang: [{ id: '111111111111', name: 'Hoerbuch Neu', art: 'ordner', dateien: 3, ignoriert: 1, groesse_bytes: 90000000, zuerst_gesehen: '2026-11-09T07:30:00Z', geaendert_am: '2026-11-09T07:29:00Z', status: 'blockiert', hinweise: [{ code: 'kopierschutz', datei: 'a.m4b', text: 'Die Datei ist kopiergeschützt.' }], ergebnis: [], fertig_am: null }],
     eingangErledigt: [],
+    warteschlange: [], // A9: Vormerkungen in der Reihenfolge der Anlage
+    wsNr: 0,
     lern: null,
     exportDatei: { vorhanden: true, liste_id: 'liste-aaaa', revision: 9, exportiert_am: '2026-11-09T09:00:00Z', anzahl_zuordnungen: 4, anzahl_fenster: 0, neuer_als_ha: true },
     gesehenAnfragen: new Map(),
@@ -443,7 +453,36 @@ export function createMockHass(opts = {}) {
       return { geloescht: n - b.papierkorb.length, freigegeben_bytes: 1 };
     },
     'tobibox/neue_tobies/list': (m) => ({ eintraege: b.neueTobies.slice(m.offset || 0, (m.offset || 0) + (m.limit || 100)), gesamt: b.neueTobies.length }),
-    'tobibox/neue_tobies/verwerfen': (m) => { const n = b.neueTobies.length; b.neueTobies = b.neueTobies.filter((x) => x.uid !== m.uid); return { entfernt: n !== b.neueTobies.length }; },
+    'tobibox/neue_tobies/verwerfen': (m) => {
+      const n = b.neueTobies.length; b.neueTobies = b.neueTobies.filter((x) => x.uid !== m.uid);
+      if (n !== b.neueTobies.length) emit('neue_tobies', 'entfernt', { uid: m.uid, grund: 'verworfen' });
+      return { entfernt: n !== b.neueTobies.length };
+    },
+    /* A9/A10: Warteschlange (Vertrag 3.13). Prüfreihenfolge: Eingabe, Ziel und Name, Sperre, doppelt, voll. */
+    'tobibox/warteschlange/set': (m) => {
+      if (m.box !== null && !b.boxen.some((x) => x.box === m.box)) throw fehler('box_unbekannt');
+      zielPruefen(m.ziel);
+      if ('name' in m && m.name !== null && (typeof m.name !== 'string' || !m.name.trim() || m.name.trim().length > 60)) throw fehler('name_ungueltig');
+      konfigBereit();
+      if (b.warteschlange.some((e) => e.box === m.box && gleich(e.ziel, m.ziel))) throw fehler('warteschlange_doppelt');
+      if (b.warteschlange.length >= 5) throw fehler('warteschlange_voll');
+      const sr = m.ziel.typ === 'aktion' ? null : b.serien[m.ziel.serie];
+      const eintrag = { id: hex(`ws${++b.wsNr}${m.box}${JSON.stringify(m.ziel)}`, 12), nr: b.wsNr, box: m.box, ziel: m.ziel, serie_name: sr?.name ?? null,
+        folge_anzeige: m.ziel.typ === 'folge' ? (sr.folgen.find((f) => f.name === m.ziel.folge)?.anzeige ?? null) : null, folge_vorhanden: m.ziel.typ === 'folge' ? true : null,
+        angelegt_von: { id: 'u1', name: 'Person A' }, angelegt_am: new Date().toISOString(), name: typeof m.name === 'string' ? m.name.trim() : null };
+      b.warteschlange.push(eintrag);
+      const mitPos = (e) => { const { nr, ...rest } = e; return { ...rest, position: b.warteschlange.indexOf(e) + 1 }; }; // eslint-disable-line no-unused-vars
+      emit('warteschlange', 'angelegt', { eintrag: mitPos(eintrag) });
+      return { eintrag: mitPos(eintrag), gesamt: b.warteschlange.length };
+    },
+    'tobibox/warteschlange/list': () => ({ eintraege: b.warteschlange.map((e, i) => { const { nr, ...rest } = e; return { ...rest, position: i + 1 }; }), gesamt: b.warteschlange.length }), // eslint-disable-line no-unused-vars
+    'tobibox/warteschlange/abbrechen': (m) => {
+      const e = b.warteschlange.find((x) => x.id === m.eintrag_id);
+      if (!e) return { abgebrochen: false };
+      b.warteschlange = b.warteschlange.filter((x) => x !== e);
+      emit('warteschlange', 'abgebrochen', { id: e.id, grund: 'nutzer' });
+      return { abgebrochen: true };
+    },
     'tobibox/zuordnung/list': (m) => {
       let alle = Object.values(b.zuordnungen).filter((z) => (!m.serie_id || z.ziel.serie === m.serie_id) && (!m.uid || z.uid === m.uid));
       const zielName = (z) => { const sr = b.serien[z.ziel.serie]; return z.ziel.typ === 'aktion' ? z.ziel.aktion : z.ziel.typ === 'folge' ? (sr?.folgen.find((f) => f.name === z.ziel.folge)?.anzeige ?? '') : (sr?.name ?? ''); };
@@ -455,7 +494,8 @@ export function createMockHass(opts = {}) {
         const s = b.serien[z.ziel.serie];
         return { uid: z.uid, name: z.name ?? null, ziel: z.ziel, angelegt_am: z.angelegt_am ?? '2026-10-01T10:00:00Z', serie_name: z.ziel.typ === 'aktion' ? null : (s ? s.name : null),
           folge_anzeige: z.ziel.typ === 'folge' ? (s?.folgen.find((f) => f.name === z.ziel.folge)?.anzeige ?? null) : null,
-          folge_vorhanden: z.ziel.typ === 'folge' ? !!s?.folgen.some((f) => f.name === z.ziel.folge) : null, vorher: z.vorher ?? null };
+          folge_vorhanden: z.ziel.typ === 'folge' ? !!s?.folgen.some((f) => f.name === z.ziel.folge) : null, vorher: z.vorher ?? null,
+          cover_stand: z.ziel.typ === 'aktion' ? null : (s?.cover_stand ?? null) }; // K6 und K8 (13.11.)
       }) };
     },
     'tobibox/zuordnung/set': (m) => {
@@ -467,16 +507,26 @@ export function createMockHass(opts = {}) {
       else if (alt && !gleich(alt.ziel, m.ziel) && !m.ueberschreiben) throw fehler('zuordnung_existiert');
       const name = 'name' in m ? m.name : (alt?.name ?? null);
       if (alt && gleich(alt.ziel, m.ziel) && (alt.name ?? null) === (name ?? null)) return { geaendert: false, konfig: b.konfig, veroeffentlicht: null };
-      b.zuordnungen[m.uid] = { uid: m.uid, name, ziel: m.ziel };
-      b.neueTobies = b.neueTobies.filter((x) => x.uid !== m.uid);
+      /* K6: `vorher` = das Ziel vor der letzten Umstellung; das alte Ziel zurückzusetzen löscht es, ein neuer Tobie hat keins (Vertrag 3.5) */
+      let vorher = alt?.vorher ?? null;
+      if (alt && !gleich(alt.ziel, m.ziel)) vorher = vorher && gleich(vorher.ziel, m.ziel) ? null : { ziel: alt.ziel, am: new Date().toISOString() };
+      b.zuordnungen[m.uid] = { uid: m.uid, name, ziel: m.ziel, angelegt_am: alt?.angelegt_am ?? new Date().toISOString(), ...(vorher ? { vorher } : {}) };
+      if (b.neueTobies.some((x) => x.uid === m.uid)) { b.neueTobies = b.neueTobies.filter((x) => x.uid !== m.uid); emit('neue_tobies', 'entfernt', { uid: m.uid, grund: 'zugeordnet' }); }
       return { geaendert: true, konfig: konfigAendern(), veroeffentlicht: true };
     },
     'tobibox/zuordnung/remove': (m) => {
       konfigBereit();
       const alt = b.zuordnungen[m.uid];
       if (!gleich(m.erwartet_ziel, alt?.ziel)) throw fehler('zuordnung_geaendert');
+      if (m.als_neu && !b.boxen.some((x) => x.box === m.als_neu.box)) throw fehler('box_unbekannt');
       if (!alt) return { geaendert: false, konfig: b.konfig, veroeffentlicht: null };
       delete b.zuordnungen[m.uid];
+      if (m.als_neu) { // „Rückgängig“ bei einem neuen Tobie: wieder „unbekannt, zuletzt gesehen“ (Vertrag 3.5, 13.11.)
+        const jetzt = new Date().toISOString();
+        const eintrag = { uid: m.uid, zuerst: jetzt, zuletzt: jetzt, anzahl: 1, boxen: { [m.als_neu.box]: { zuerst: jetzt, zuletzt: jetzt, anzahl: 1, zeit_ok: true } } };
+        b.neueTobies = [eintrag, ...b.neueTobies.filter((x) => x.uid !== m.uid)];
+        emit('neue_tobies', 'neu', { eintrag });
+      }
       return { geaendert: true, konfig: konfigAendern(), veroeffentlicht: true };
     },
     'tobibox/lernmodus/start': (m) => {
@@ -553,6 +603,7 @@ export function createMockHass(opts = {}) {
     const felder = pruefeEingabe(msg, opts.faehigkeiten || FAEHIGKEITEN);
     if (!darf && !LESEN.has(msg.type)) throw fehler('unauthorized', 'Nur für Administratoren');
     if (opts.nichtAdmin && ADMIN_BEFEHLE.has(msg.type)) throw fehler('unauthorized', 'Nur für Administratoren');
+    if (!istAdmin && msg.type.startsWith('tobibox/lernmodus/')) throw fehler('unauthorized', 'Nur für Administratoren'); // seit 13.11. admin (A0-Q, X13a)
     const f = failures.get(msg.type);
     if (f && f.length) { const c = f.shift(); throw typeof c === 'string' ? fehler(c, `Fehler ${c}`) : c; }
     if (msg.anfrage_id) {
@@ -589,6 +640,31 @@ export function createMockHass(opts = {}) {
 
   function emit(thema, art, daten = {}) {
     subs.filter((s) => s.aktiv && s.themen.includes(thema)).forEach((s) => s.cb({ v: 1, thema, art, daten: structuredClone(daten) }));
+  }
+
+  /* Ein Tobie wird auf eine Box gelegt (Box meldet `unbekannt`, Vertrag 3.13). Bekannt: nichts. Passende Vormerkung (älteste zuerst, `box` oder
+   * `null`): Zuordnung sofort, Ereignis `warteschlange` `abgearbeitet`; ist die Liste gesperrt, bleibt der Eintrag und der Tobie steht in
+   * „Neue Tobies“. Sonst `neue_tobies` `neu` (oder `aktualisiert`). `zeit` und `zeitOk` setzen die Meldezeit. Antwort: { art }. */
+  function legeAuf(box, uid, { zeit = new Date().toISOString(), zeitOk = true } = {}) {
+    if (b.zuordnungen[uid]) return { art: 'bekannt' };
+    for (const e of b.warteschlange.filter((x) => x.box === null || x.box === box)) {
+      const sr = e.ziel.typ === 'aktion' ? null : b.serien[e.ziel.serie];
+      const da = e.ziel.typ === 'aktion' || (sr && (e.ziel.typ !== 'folge' || sr.folgen.some((f) => f.name === e.ziel.folge)));
+      if (!da) { b.warteschlange = b.warteschlange.filter((x) => x !== e); emit('warteschlange', 'abgebrochen', { id: e.id, grund: 'ziel_fehlt' }); continue; }
+      if (b.konfig.zustand !== 'ok') break; // Schritt b scheitert: Eintrag bleibt, die Meldung läuft den normalen Weg
+      b.zuordnungen[uid] = { uid, name: e.name, ziel: e.ziel, angelegt_am: zeit };
+      konfigAendern();
+      b.warteschlange = b.warteschlange.filter((x) => x !== e);
+      if (b.neueTobies.some((x) => x.uid === uid)) { b.neueTobies = b.neueTobies.filter((x) => x.uid !== uid); emit('neue_tobies', 'entfernt', { uid, grund: 'zugeordnet' }); }
+      emit('warteschlange', 'abgearbeitet', { id: e.id, uid, box, ziel: e.ziel, serie_name: e.serie_name, folge_anzeige: e.folge_anzeige, angelegt_von: e.angelegt_von, name: e.name });
+      return { art: 'zugeordnet', eintrag: e.id };
+    }
+    const alt = b.neueTobies.find((x) => x.uid === uid);
+    const meldung = { zuerst: alt?.boxen?.[box]?.zuerst ?? zeit, zuletzt: zeit, anzahl: (alt?.boxen?.[box]?.anzahl ?? 0) + 1, zeit_ok: zeitOk };
+    const eintrag = { uid, zuerst: alt?.zuerst ?? zeit, zuletzt: zeit, anzahl: (alt?.anzahl ?? 0) + 1, boxen: { ...(alt?.boxen || {}), [box]: meldung } };
+    b.neueTobies = [eintrag, ...b.neueTobies.filter((x) => x.uid !== uid)];
+    emit('neue_tobies', alt ? 'aktualisiert' : 'neu', { eintrag });
+    return { art: alt ? 'aktualisiert' : 'neu' };
   }
 
   /* XMLHttpRequest-Ersatz. Modus 'auto': sendet Fortschritt und antwortet mit Erfolg. */
@@ -629,7 +705,7 @@ export function createMockHass(opts = {}) {
   };
 
   return {
-    hass, backend: b, calls, subs, xhrs, emit, MockXHR, covers,
+    hass, backend: b, calls, subs, xhrs, emit, MockXHR, covers, legeAuf,
     xhrFactory: () => new MockXHR(),
     /* Aufrufe eines Befehls (ohne Abos) */
     aufrufe: (type) => calls.filter((c) => c.type === type && !c.abo).map((c) => c.msg),
