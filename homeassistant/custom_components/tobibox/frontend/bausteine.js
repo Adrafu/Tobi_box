@@ -301,11 +301,12 @@ export function segment({ label, optionen, wert, onWahl }) {
 }
 
 /* knopf: { label, href } (Link) oder { label, onKlick } (Knopf). `bild` ist ein Knoten oder Template. */
-export function leererZustand({ art, bild, satz, knopf }) {
-  const k = knopf.href
-    ? html`<a class="btn primary" href=${knopf.href}>${knopf.label}</a>`
-    : html`<button type="button" class="btn primary" @click=${knopf.onKlick}>${knopf.label}</button>`;
-  return html`<div class="leer" data-leer=${art}><span class="bild">${bild}</span><p class="et">${satz}</p><div class="btns">${k}</div></div>`;
+export function leererZustand({ art, bild, satz, knopf = null }) {
+  const k = !knopf ? nothing
+    : knopf.href
+      ? html`<div class="btns"><a class="btn primary" href=${knopf.href}>${knopf.label}</a></div>`
+      : html`<div class="btns"><button type="button" class="btn primary" @click=${knopf.onKlick}>${knopf.label}</button></div>`;
+  return html`<div class="leer" data-leer=${art}><span class="bild">${bild}</span><p class="et">${satz}</p>${k}</div>`;
 }
 
 /* ------------------------------------------------------------------ Stil */

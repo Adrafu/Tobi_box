@@ -409,8 +409,8 @@ test('Leere Zustände: Bild aria-hidden, ein Satz, ein Knopf; Geräte nur ohne B
   await geheZu(s, '#bibliothek');
   assert.equal(s.q('[data-leer="bibliothek"] .btn').textContent, 'Hinzufügen');
   await geheZu(s, '#tobies');
-  assert.equal(s.q('[data-leer="tobies"] .et').textContent, 'Noch keine Tobies. Lege einen Tobie auf eine Box, dann erscheint er unter „Geräte“.');
-  assert.equal(s.q('[data-leer="tobies"] .btn').getAttribute('href'), '#geraete');
+  assert.equal(s.q('[data-leer="tobies"] .et').textContent, 'Hier stehen bald deine Tobies.');
+  assert.equal(s.q('[data-leer="tobies"] .btn'), null, 'ohne Knopf bis A-1b');
   await geheZu(s, '#geraete');
   assert.equal(s.q('[data-leer="keine_box"]'), null, 'es gibt Boxen');
   weg();

@@ -674,7 +674,8 @@ if (lit) {
     /* Leerer Zustand (Design 6.2): Bild, ein Satz, ein Knopf. `werte` setzt Platzhalter im Satz, `knopf` überschreibt den Knopf. */
     _leer(art, bild, { werte = {}, href = null, aktion = null } = {}) {
       const t = LEER[art];
-      return leererZustand({ art, bild: this._bild(bild), satz: fuellen(t.satz, werte), knopf: href ? { label: t.knopf, href } : { label: t.knopf, onKlick: aktion } });
+      const knopf = !t.knopf ? null : href ? { label: t.knopf, href } : { label: t.knopf, onKlick: aktion };
+      return leererZustand({ art, bild: this._bild(bild), satz: fuellen(t.satz, werte), knopf });
     }
 
     _laedt() {
@@ -790,7 +791,7 @@ if (lit) {
       const h2 = (extra = '') => html`<h2 class=${extra}>${this._titel(r)}</h2>`;
       switch (r.name) {
         case 'tobies':
-          return html`${h2()}${this._leer('tobies', 'keineTobies', { href: '#geraete' })}`;
+          return html`${h2()}${this._leer('tobies', 'keineTobies')}`;
         case 'geraete':
           return html`${h2()}<div class="platz" data-platz="boxen"></div>${Object.keys(s.boxen).length ? nothing : this._leer('keine_box', 'keineBox', { aktion: () => this.store.start() })}`;
         case 'gehoert':

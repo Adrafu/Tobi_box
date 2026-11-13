@@ -172,7 +172,7 @@ export const LEER = {
   bibliothek: { bild: 'leeres Regal mit Lücke und Note', satz: 'Noch nichts da. Tippe auf „Hinzufügen“.', knopf: 'Hinzufügen' },
   filter: { bild: 'Lupe mit Fragezeichen', satz: 'Nichts gefunden. Nimm einen Filter weg.', knopf: 'Filter zurücksetzen' },
   start: { bild: 'leeres Regal mit Lücke und Note', satz: 'Noch nichts da. Tippe in der Bibliothek auf „+“.', knopf: 'Zur Bibliothek' }, // Design 5.1 Punkt 5
-  tobies: { bild: 'lächelnder Tobie über der Box', satz: 'Noch keine Tobies. Lege einen Tobie auf eine Box, dann erscheint er unter „Geräte“.', knopf: 'Zu den Geräten' },
+  tobies: { bild: 'lächelnder Tobie über der Box', satz: 'Hier stehen bald deine Tobies.' }, // A-1b folgt; bis dahin ohne Knopf (kein Knopf, X20)
   keine_box: { bild: 'schlafende Box mit Zzz und gezogenem Stecker', satz: 'Noch keine Box eingerichtet. Bitte {verwalter_dat} Bescheid sagen.', knopf: 'Jetzt neu laden' },
   suche: { bild: 'Lupe mit Fragezeichen', satz: 'Nichts gefunden zu „{suchwort}“.', knopf: 'Suche löschen' },
   papierkorb: { bild: 'Papierkorb mit Haken', satz: 'Der Papierkorb ist leer.', knopf: 'Zur Bibliothek' },

@@ -204,8 +204,8 @@ test('A5b: „Mehr“ gibt es nicht mehr, „Geräte“ trägt die Texte aus Abs
   assert.equal(GERAETE.gehoert.titel, 'Wer hat was gehört?');
   for (const [pfad, text] of alleTexte({ GERAETE, LEER })) assert.doesNotMatch(text, /\bMehr\b/, pfad);
   // 6.2 und 5.7: „Geräte“ statt Startseite
-  assert.equal(fuellen(LEER.tobies.satz), 'Noch keine Tobies. Lege einen Tobie auf eine Box, dann erscheint er unter „Geräte“.');
-  assert.equal(LEER.tobies.knopf, 'Zu den Geräten');
+  assert.equal(fuellen(LEER.tobies.satz), 'Hier stehen bald deine Tobies.');
+  assert.equal(LEER.tobies.knopf, undefined);
   assert.equal(fuellen(LEER.start.satz), 'Noch nichts da. Tippe in der Bibliothek auf „+“.');
   assert.equal(LEER.start.knopf, 'Zur Bibliothek');
 });

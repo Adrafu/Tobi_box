@@ -108,7 +108,7 @@ Oben bei den Leise-Zeiten steht, was gerade gilt, zum Beispiel: „Jetzt: leiser
 
 Ein Tobie ist eine Figur oder Karte, die man auf eine Box legt. Tonies und NFC-Karten heißen zusammen Tobies.
 
-Der Reiter „Tobies“ ist noch leer. Das Zuordnen von Tobies kommt bald.
+Im Reiter „Tobies“ steht noch: „Hier stehen bald deine Tobies.“ Das Zuordnen von Tobies kommt bald.
 
 ## Wenn etwas nicht klappt
 
