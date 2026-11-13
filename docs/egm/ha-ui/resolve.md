@@ -191,3 +191,5 @@ Beim Bau aufgefallen; der Code folgt jeweils der hier genannten Lösung (PL), de
 
 Alle übrigen Befunde N1–N29 werden nach den Vorschlägen des Reviews eingearbeitet.
 | X34b | **(Tobias, 13.11.)** Bewegungstest X34a im echten HA entfällt. Gebaut wird gleich mit FLIP als Standardweg (R17-1); funktioniert etwas im echten HA nicht wie gedacht, greift der Rückfall (Überblenden). Abschnitt h) im Testpanel bleibt für später. |
+| R17-9 | **(Tobias, 13.11.)** Die neue Seite heißt nicht `/tobibox-neu`: Die alte Seite ist noch nicht im Alltagsbetrieb. Die neue Seite übernimmt **`/tobibox`** („Tobi Box“ in der Seitenleiste); die alte Komponente bleibt nur noch eingebettet in „Technik“ (für Funktionen, die die neue Seite noch nicht hat), ohne eigenen Seitenleisten-Eintrag. Testpanel unter `/tobibox-test`. Bis zur Abnahme A17 bleibt die Seite nur für Administratoren. |
+| K6/K7 | **(Tobias, 13.11.) freigegeben:** K6 Feld `vorher` (vorheriges Ziel, mit Zeitpunkt) an `zuordnung/list`, damit „Vorher: …“ auf allen Geräten steht; K7 optionales Feld `name` bei `warteschlange/set`, das beim Zuordnen als Name des Tobies übernommen wird. Beide additiv. |
