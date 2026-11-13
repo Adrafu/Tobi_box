@@ -190,3 +190,4 @@ Beim Bau aufgefallen; der Code folgt jeweils der hier genannten Lösung (PL), de
 | A0-Q | Freigegeben: Warteschlange (Befehle 47–49, Thema `warteschlange`, Fehler `warteschlange_voll`/`_doppelt`, Fähigkeiten `warteschlange`, `zuordnung_rueckgaengig`, `als_neu` bei `zuordnung/remove`), Lernmodus 18–20 nur Admin. |
 
 Alle übrigen Befunde N1–N29 werden nach den Vorschlägen des Reviews eingearbeitet.
+| X34b | **(Tobias, 13.11.)** Bewegungstest X34a im echten HA entfällt. Gebaut wird gleich mit FLIP als Standardweg (R17-1); funktioniert etwas im echten HA nicht wie gedacht, greift der Rückfall (Überblenden). Abschnitt h) im Testpanel bleibt für später. |
