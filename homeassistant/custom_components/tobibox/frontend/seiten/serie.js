@@ -15,6 +15,7 @@ import { SERIE, ZEILE, GRUENDE, TOBIE, SEITE, fuellen } from '../texte.js';
 import { coverBlatt, coverFehlerText, coverStil } from './cover.js';
 import { gespieltVonKarte, folgenChips, gebenLink } from './tobies.js';
 import { dateienInEintrag } from './hinzufuegen.js';
+import { gruendeSaetze, eintragFuerSerie, daraus as eingangDaraus } from '../eingang.js';
 
 export const SICHTBAR = 20; // Folgen, die zuerst gezeigt werden; ab mehr als 20 gibt es das Suchfeld (Design 5.3)
 const WAHL_GROESSE = 30; // Päckchen der Zielwahl
@@ -48,11 +49,9 @@ export function tobiesSatz(paar, tobies, werte = {}) {
   return fuellen(tobies.length === 1 ? paar.eins : paar.mehr, { ...werte, anzahl: tobies.length, namen: tobies.map(tName).join(', ') });
 }
 
-/* Gründe für „Bitte kurz ansehen“ (Design 7.3, GRUENDE): ohne Doppelte, unbekannte Codes fallen weg; ohne Text der Rückfall. */
+/* Gründe für „Bitte kurz ansehen“ (Design 7.3, GRUENDE): ohne Doppelte, unbekannte Codes fallen weg; ohne Text der Rückfall (eingang.js). */
 export function gruendeTexte(s) {
-  const codes = [...(s?.pruefen_gruende || []), ...(s?.folgen || []).flatMap((f) => f.pruefen_gruende || [])];
-  const aus = [...new Set(codes)].filter((c) => GRUENDE[c]).map((c) => GRUENDE[c]);
-  return aus.length ? aus : [SERIE.ansehen.grund_sonst];
+  return gruendeSaetze([...(s?.pruefen_gruende || []), ...(s?.folgen || []).flatMap((f) => f.pruefen_gruende || [])]);
 }
 
 export const brauchtPruefung = (s) => !!(s?.pruefen || (s?.folgen || []).some((f) => f.pruefen));
@@ -123,7 +122,9 @@ class SerieSeite {
       const r = await ladeMitGrenze(this.ctx.api('tobibox/serie/get', { serie_id: id }), this.ctx.grenzeMs);
       if (lauf !== this._lauf) return;
       this.ctx.covers.merke([r]);
+      const warPruefen = brauchtPruefung(this.z.serie);
       this.z = { phase: 'bereit', fehlerCode: null, serie: r };
+      if (warPruefen && !brauchtPruefung(r)) this.ctx.eingangNeuLaden?.(); // Band in der Bibliothek: Umbenennen und „Art ändern“ löschen das Kennzeichen auch
     } catch (err) {
       if (lauf !== this._lauf) return;
       const code = err?.code || 'unknown_error';
@@ -589,8 +590,11 @@ class SerieSeite {
   _ansehen(s) {
     if (!brauchtPruefung(s)) return nothing;
     const a = SERIE.ansehen;
+    const e = eintragFuerSerie(this.ctx.eingang?.(), s.id); // „Daraus ist geworden: …“ nur, solange der Eintrag in den letzten 24 Stunden liegt (Design 7.3 Punkt 5)
+    const daraus = e ? eingangDaraus(e, { serieId: s.id, serien: { [s.id]: s } }) : '';
     return html`<div class="note warn" data-karte="ansehen" role="group" aria-label=${a.titel}><strong>${a.titel}</strong>
       ${gruendeTexte(s).map((g) => html`<span class="se-grund">${g}</span>`)}
+      ${daraus ? html`<span class="se-daraus" data-daraus>${daraus}</span>` : nothing}
       <div class="btns"><button type="button" class="btn" data-richtig @click=${() => this.richtig()}>${a.richtig}</button>
         <button type="button" class="btn" data-stimmt-nicht aria-haspopup="dialog" @click=${(e) => this.stimmtNicht(e.currentTarget)}>${a.stimmt_nicht}</button></div></div>`;
   }

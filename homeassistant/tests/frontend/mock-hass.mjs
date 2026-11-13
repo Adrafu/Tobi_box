@@ -98,6 +98,14 @@ const LESEN = new Set(['hello', 'subscribe', 'serien/list', 'folgen/list', 'seri
 export const FAEHIGKEITEN = ['medien', 'upload', 'zuordnung', 'tobie_namen', 'neue_tobies', 'lernmodus', 'boxen', 'papierkorb', 'liste_ausrollen', 'konfig_export', 'sync', 'eingang', 'korrektur', 'serie_loeschen', 'bibliothek', 'cover'];
 
 const fehler = (code, message = code) => ({ code, message });
+
+/* Ein Eintrag für `eingang/list` (Vertrag 3.9) mit sinnvollen Vorgaben; `teil` überschreibt. A11b: Band, Punkt am Reiter, Karte „bitte kurz ansehen“. */
+let eingangZaehler = 0;
+export function eingangEintrag(teil = {}) {
+  const n = ++eingangZaehler;
+  return { id: hex(`eingang-${n}`, 12), name: `Eintrag ${n}`, art: 'datei', dateien: 1, ignoriert: 0, groesse_bytes: 5 * 1048576, zuerst_gesehen: new Date().toISOString(), geaendert_am: new Date().toISOString(),
+    status: 'erledigt', hinweise: [], ergebnis: [], fertig_am: new Date().toISOString(), quelle: 'upload', wunsch: null, pruefen: false, ...teil };
+}
 const gleich = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 const hex = (s, n = 16) => createHash('sha256').update(s).digest('hex').slice(0, n);
 
@@ -243,6 +251,8 @@ export function createMockHass(opts = {}) {
   };
 
   if (opts.leer) { b.serien = {}; b.zuordnungen = {}; }
+  if (opts.eingang) b.eingang = opts.eingang; // A11b: Einträge, die noch im Eingang liegen (`eingangEintrag()`); sonst der Grundbestand
+  if (opts.eingangErledigt) b.eingangErledigt = opts.eingangErledigt; // … und die letzten einsortierten
   if (opts.viele) Object.assign(b, beispielBibliothek(opts.viele === true ? 130 : opts.viele));
 
   const stand = (s) => hex(JSON.stringify([s.name, s.folgen.map((f) => [f.name, f.anzeige])]));
@@ -554,8 +564,10 @@ export function createMockHass(opts = {}) {
     },
     'tobibox/liste/neu_ausrollen': () => { b.konfig = { ...b.konfig, zustand: 'ok', revision: 1, liste_id: `liste-${Math.random().toString(16).slice(2, 8)}` }; return { konfig: b.konfig, veroeffentlicht: true }; },
     'tobibox/eingang/list': (m) => {
-      const l = (m.filter === 'erledigt') ? b.eingangErledigt : b.eingang;
-      return { eintraege: l, gesamt: l.length, sortierung_laeuft: false, geprueft_am: '2026-11-09T08:00:00Z' };
+      // Filter `alle` (Vertrag 29): was noch im Eingang liegt, dazu die letzten einsortierten Einträge aus dem Protokoll
+      const l = (m.filter === 'erledigt') ? b.eingangErledigt : m.filter === 'alle' ? [...b.eingang, ...b.eingangErledigt] : b.eingang;
+      const von = m.offset ?? 0;
+      return { eintraege: l.slice(von, von + (m.limit ?? 50)), gesamt: l.length, sortierung_laeuft: false, geprueft_am: '2026-11-09T08:00:00Z' };
     },
     'tobibox/eingang/sortieren': () => ({ gestartet: true, laeuft_bereits: false, eintraege: b.eingang.length }),
     'tobibox/konfig/export_lesen': () => ({ ...b.exportDatei, konfig: b.konfig }),

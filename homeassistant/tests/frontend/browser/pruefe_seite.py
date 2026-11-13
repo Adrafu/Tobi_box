@@ -153,6 +153,17 @@ class Lauf:
         k = f"{self.job['profil']}~{self.job['kennung']}"
         return self.pg.evaluate("async ([p, k, b]) => (await (await fetch(`${p}?k=${encodeURIComponent(k)}`, { method: b ? 'POST' : 'GET', body: b ? JSON.stringify(b) : undefined })).json())", [pfad, k, body])
 
+    def eingang_setzen(self, zustand):
+        """A11b: Zustand des Eingangs im Mock setzen (`server.mjs`: leer, laeuft1, laeuft2, pruefen1, pruefen2, fehler, fertig) und warten, bis das Band
+        der Seite ihn zeigt (die Seite holt `eingang/list` nach dem Ereignis neu)."""
+        self.mock("/eingang", {"zustand": zustand})
+        art = {"laeuft1": "laeuft", "laeuft2": "laeuft", "pruefen1": "pruefen", "pruefen2": "pruefen", "fehler": "fehler", "fertig": "fertig"}.get(zustand)
+        if art:
+            self.pg.locator(f'[data-eingang-band="{art}"]').first.wait_for(timeout=6000)
+        else:
+            self.pg.wait_for_function("() => !window.__el.shadowRoot.querySelector('[data-eingang-band]')", timeout=6000)
+        self.ruhe()
+
     def warte_hash(self, teil, zeit=6000):
         self.pg.wait_for_function("t => location.hash.includes(t)", arg=teil, timeout=zeit)
         self.ruhe()
@@ -559,6 +570,25 @@ def seiten_messen(L: Lauf):
         blatt("blatt-leise-leiser", "#geraete", ["[data-leise-neu]", "dialog .seg2 button:last-child"])
         blatt("blatt-leise-aendern", "#geraete", ["button.hit[data-fenster=nacht]"])
         blatt("blatt-leise-loeschen", "#geraete", ["button.hit[data-fenster=nacht]", "[data-loeschen]"])
+
+    # --- A11b: Band in der Bibliothek (alle Zustände) und gelbe Karte auf der Serienseite
+    if not leer:
+        for zustand in ("laeuft1", "laeuft2", "pruefen1", "pruefen2", "fehler", "fertig"):
+            with L.schritt(f"band-{zustand}"):
+                L.gehe("#bibliothek")
+                L.eingang_setzen(zustand)
+                L.messe(f"band-{zustand}")
+                if zustand == "laeuft2":  # der ruhige Punkt am Reiter „Bibliothek“ steht auch auf anderen Seiten
+                    L.gehe("#geraete")
+                    L.pruefe(L.da("nav.tabs a[href='#bibliothek'] .dot.ruhig") or L.da("aside nav.tabs a[href='#bibliothek'] .dot.ruhig"), "band-punkt", "Punkt am Reiter „Bibliothek“ fehlt")
+                    L.messe("band-laeuft2-geraete")
+        with L.schritt("serie-karte-daraus"):
+            L.eingang_setzen("pruefen1")
+            L.gehe("#serie-pruef")
+            L.pg.locator("[data-daraus]").first.wait_for(timeout=6000)
+            L.messe("serie-pruef-daraus")
+        with L.schritt("band-weg"):
+            L.eingang_setzen("leer")
 
     # --- Technik
     if admin:
@@ -1474,9 +1504,44 @@ def ablauf_tobies_lernmodus(L: Lauf):
             L.pruefe(L.da('[data-zustand="nur-admin"]') and "Lernmodus" not in L.js("return sr.querySelector('main').textContent"), "lernmodus", "Benutzer sieht den Lernmodus")
 
 
+
+
+def ablauf_eingang(L: Lauf):
+    """A11b: Band, Punkt am Reiter und die Karte „bitte kurz ansehen“ nur über echte Klicks. Läuft als letzter Ablauf: „Das ist richtig“ ändert die Serie `pruef`."""
+    with L.schritt("eingang-band-laeuft"):
+        L.gehe("#bibliothek")
+        L.eingang_setzen("laeuft2")
+        text = L.js("return sr.querySelector('[data-eingang-band]').textContent.replace(/\\s+/g, ' ').trim()")
+        L.pruefe(text == "2 Einträge werden gerade hinzugefügt.", "eingang-band", f"Bandtext {text!r}")
+        L.pruefe(L.js("return sr.querySelector('[data-eingang-band]').getAttribute('role')") == "status", "eingang-band", "Band ohne role=status")
+        hoehe = L.js("return sr.querySelector('[data-eingang-band] a').getBoundingClientRect().height")
+        L.pruefe(hoehe >= 43.5, "eingang-band", f"Band nur {hoehe:.1f} px hoch")
+        zum_reiter(L, "start")
+        L.pruefe(L.da("nav.tabs a[href='#bibliothek'] .dot.ruhig"), "eingang-punkt", "Ruhiger Punkt am Reiter „Bibliothek“ fehlt auf dem Start")
+        L.pruefe(not L.da("[data-eingang-band]"), "eingang-band", "Das Band steht auch auf dem Start")
+        zum_reiter(L, "bibliothek")
+        L.klick("[data-eingang-band] a")
+        L.pruefe(L.hash() == "#hinzufuegen", "eingang-band", f"Tipp auf das Band führt nach {L.hash()}")
+    with L.schritt("eingang-karte"):
+        zum_reiter(L, "bibliothek")  # nach dem Klick auf das Band steht die Seite auf „Hinzufügen“; das Band gibt es nur in der Bibliothek
+        L.eingang_setzen("pruefen1")
+        L.pruefe(L.js("return sr.querySelector('[data-eingang-band]').textContent.includes('1 neuer Eintrag bitte kurz ansehen.')"), "eingang-band", "Band „bitte kurz ansehen“ fehlt")
+        L.pruefe(not L.da("nav.tabs a[href='#bibliothek'] .dot"), "eingang-punkt", "Punkt bei „bitte kurz ansehen“ (nur ein laufender Upload soll ihn zeigen)")
+        L.gehe("#serie-pruef")
+        L.warte_da("[data-karte=ansehen] [data-daraus]")
+        daraus = L.js("return sr.querySelector('[data-daraus]').textContent")
+        L.pruefe(daraus == "Daraus ist geworden: Hörspiel „Bibi Blocksberg“ · 1 Folge", "eingang-karte", f"Daraus: {daraus!r}")
+        L.klick("[data-richtig]")
+        L.pg.wait_for_function("() => !window.__el.shadowRoot.querySelector('[data-karte=ansehen]')", timeout=6000)
+        L.pruefe("Danke" in L.toast(), "eingang-karte", f"Meldung: {L.toast()!r}")
+        zum_reiter(L, "bibliothek")
+        L.pg.wait_for_function("() => !window.__el.shadowRoot.querySelector('[data-eingang-band=pruefen]')", timeout=6000)
+        L.messe("ablauf-eingang-bestaetigt")
+
+
 ABLAEUFE = [ablauf_unterkante, ablauf_reiter, ablauf_klicks, ablauf_reihen, ablauf_suche, ablauf_bibliothek, ablauf_serie, ablauf_cover, ablauf_leise, ablauf_box, ablauf_technik, ablauf_blaetter,
             ablauf_tobies_weg1, ablauf_tobies_weg2, ablauf_tobies_meldung, ablauf_tobies_umhaengen, ablauf_tobies_geben, ablauf_tobies_lernmodus,
-            ablauf_tobies_name_geben_weit_unten, ablauf_hinzufuegen]
+            ablauf_tobies_name_geben_weit_unten, ablauf_hinzufuegen, ablauf_eingang]
 
 
 # ------------------------------------------------------------------ Browser und Läufe

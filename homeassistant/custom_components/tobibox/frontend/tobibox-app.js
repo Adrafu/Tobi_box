@@ -11,7 +11,8 @@
  * Die Illustrationen der leeren Zustände (A6b) kommen aus ./illustrationen.js; fehlt die Datei oder ein Bild,
  * steht ein schlichter Platzhalter da.
  */
-import { fuellen, fehlerText, SEITE, TOBIE, LEER, TECHNIK, SUCHE } from './texte.js';
+import { fuellen, fehlerText, SEITE, TOBIE, LEER, TECHNIK, SUCHE, EINGANG } from './texte.js';
+import { eingangAbleiten, bandZustand, naechsteAenderung } from './eingang.js';
 import { SEITEN } from './seiten/index.js';
 import { folgenAktion } from './seiten/tobies.js';
 import { initLit, bausteinStil, CoverLader, leererZustand, kopfAktion } from './bausteine.js';
@@ -194,12 +195,13 @@ export function parseRoute(hash, { faehigkeiten = null } = {}) {
 /* ------------------------------------------------------------------ Daten: hello, Abo, Listen (ohne DOM) */
 
 const GRENZE_LAEDT_MS = 10000;
-const THEMEN = ['boxen', 'neue_tobies', 'konfig']; // dazu `warteschlange`, wenn hello die Fähigkeit zusagt (Vertrag 4.8)
+const THEMEN = ['boxen', 'neue_tobies', 'konfig']; // dazu `eingang` (Band und Punkt, A11b) und `warteschlange`, wenn hello die Fähigkeit zusagt (Vertrag 4.5, 4.8)
 
 export class AppStore {
   constructor({ ladeGrenzeMs = GRENZE_LAEDT_MS } = {}) {
     this.ladeGrenzeMs = ladeGrenzeMs;
-    this.s = { phase: 'laedt', fehlerCode: null, faehigkeiten: null, grenzen: {}, boxen: {}, boxAnzeigen: {}, neue: [], warteschlange: [], platz: [], konfigZustand: 'ok', verbindungWeg: false };
+    this.s = { phase: 'laedt', fehlerCode: null, faehigkeiten: null, grenzen: {}, boxen: {}, boxAnzeigen: {}, neue: [], warteschlange: [], platz: [], konfigZustand: 'ok', verbindungWeg: false,
+      eingang: [], offeneSerien: null, lokaleUploads: 0 }; // Eingang: Einträge aus `eingang/list`; offeneSerien: Serien, die noch „bitte prüfen“ sind (A11b)
     this.hass = null;
     this.onNeuerTobie = null; // ({ uid, box, anzeige }) beim ersten Auftauchen einer unbekannten Kennung nach dem Start
     this.onWiederda = null; // () nach dem Wiederverbinden: die aktive Seite lädt neu
@@ -208,6 +210,7 @@ export class AppStore {
     this._evLs = new Set(); // Seiten, die auf Ereignisse warten (Weg 1, Wartekarte): `ereignis(fn)`
     this._lauf = 0;
     this._bekannt = new Set();
+    this._eingangTimer = null;
   }
 
   onChange(fn) { this._ls.add(fn); return () => this._ls.delete(fn); }
@@ -231,6 +234,7 @@ export class AppStore {
   detach() {
     this._lauf += 1;
     clearTimeout(this._timer);
+    clearTimeout(this._eingangTimer);
     try { const u = this._abo; this._abo = null; if (typeof u === 'function') u(); } catch { /* egal */ }
     const c = this.hass?.connection;
     if (c && typeof c.removeEventListener === 'function') {
@@ -257,7 +261,7 @@ export class AppStore {
       this.s.grenzen = hello.grenzen || {}; // upload_max_bytes, upload_parallel, endungen … (A11a: Hinzufügen)
       this.s.boxAnzeigen = { ...(hello.grenzen?.box_anzeigen || {}), ...(hello.box_anzeigen || {}) };
       this.s.konfigZustand = hello.konfig?.zustand || 'ok';
-      const themen = fae.includes('warteschlange') ? [...THEMEN, 'warteschlange'] : THEMEN;
+      const themen = [...THEMEN, ...(fae.includes('eingang') ? ['eingang'] : []), ...(fae.includes('warteschlange') ? ['warteschlange'] : [])];
       this._abo = await this.hass.connection.subscribeMessage((ev) => this._ereignis(ev), { type: 'tobibox/subscribe', themen });
       if (lauf !== this._lauf) return;
       await this._ladeListen();
@@ -291,6 +295,51 @@ export class AppStore {
       neu.warteschlange = r.eintraege || [];
     }
     this._set(neu);
+    await this.ladeEingang();
+  }
+
+  /* Eingang (A11b): `eingang/list` (Filter `alle`: was noch im Eingang liegt und die letzten einsortierten) und, wenn ein Eintrag „bitte ansehen“
+   * trägt, welche Serien das wirklich noch sind (`serien/list` mit Filter `pruefen`): „Das ist richtig“ löscht nur das Kennzeichen der Serie, nicht
+   * den Eintrag im Protokoll (Vertrag 3.9, 28). Fehler (zum Beispiel `medien_nicht_erreichbar`, solange nie geprüft wurde) lassen den alten Stand stehen. */
+  async ladeEingang() {
+    const fae = this.s.faehigkeiten || [];
+    if (!this.hass || !fae.includes('eingang')) return;
+    if (this._eingangLaedt) { this._eingangNochmal = true; return; }
+    this._eingangLaedt = true;
+    const lauf = this._lauf;
+    try {
+      do {
+        this._eingangNochmal = false;
+        const r = await this._api('tobibox/eingang/list', { filter: 'alle', limit: 100 });
+        const eintraege = r.eintraege || [];
+        let offen = null;
+        if (fae.includes('bibliothek') && eintraege.some((e) => e.pruefen)) {
+          const sr = await this._api('tobibox/serien/list', { filter: ['pruefen'], limit: 200 });
+          offen = new Set((sr.serien || []).map((x) => x.id));
+        }
+        if (lauf !== this._lauf) return;
+        this._set({ eingang: eintraege, offeneSerien: offen });
+        this._planeEingang();
+      } while (this._eingangNochmal);
+    } catch { /* der nächste Anlass (Ereignis, Neuladen) holt es noch einmal */ } finally { this._eingangLaedt = false; }
+  }
+
+  /* Was die Seiten vom Eingang sehen (Ableitung nach eingang.js). */
+  eingangAbl() { return eingangAbleiten(this.s.eingang, { offeneSerien: this.s.offeneSerien }); }
+
+  /* Uploads, die diese Seite selbst gerade sendet (A11a meldet sie); sie zählen im Band wie laufende Einträge. */
+  setLokaleUploads(n) {
+    const z = Math.max(0, Number(n) || 0);
+    if (z !== this.s.lokaleUploads) this._set({ lokaleUploads: z });
+  }
+
+  /* Ein Zeitgeber, damit „Alles hinzugefügt.“ und Einträge nach 24 Stunden von selbst verschwinden. */
+  _planeEingang() {
+    clearTimeout(this._eingangTimer);
+    const ms = naechsteAenderung(this.s.eingang);
+    if (ms === null) return;
+    this._eingangTimer = setTimeout(() => { this._set({}); this._planeEingang(); }, Math.min(ms, 3600000));
+    this._eingangTimer?.unref?.();
   }
 
   /* Die Vormerkungen neu holen (nach jedem Ereignis, die `position` der übrigen ändert sich; Vertrag 4.8). */
@@ -343,6 +392,8 @@ export class AppStore {
       if (ev.art === 'geaendert' && d.box) this._set({ boxen: { ...this.s.boxen, [d.box]: d } });
     } else if (ev.thema === 'konfig') {
       if ((ev.art === 'snapshot' || ev.art === 'geaendert') && d.konfig) this._set({ konfigZustand: d.konfig.zustand || 'ok' });
+    } else if (ev.thema === 'eingang') {
+      if (ev.art === 'geaendert' || ev.art === 'neu_einsortiert' || ev.art === 'durchlauf_fertig') this.ladeEingang(); // `snapshot` bringt nur Zahlen
     } else if (ev.thema === 'warteschlange' && ev.art !== 'snapshot') {
       this.ladeWarteschlange();
       if (ev.art === 'abgearbeitet' && d.uid) {
@@ -372,6 +423,7 @@ const ICON = {
   search: 'M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z',
   plus: 'M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z',
   close: 'M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z',
+  chev: 'M10 6 8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z',
 };
 
 const lit = typeof HTMLElement !== 'undefined' && typeof customElements !== 'undefined'
@@ -833,6 +885,15 @@ if (lit) {
       return out;
     }
 
+    /* Band über der Zeile „Bibliothek“ (Design 5.2 Punkt 2a): tonal, mindestens 44 px, `role="status"`; Tippen öffnet `#hinzufuegen`.
+     * Der Zustand kommt aus `eingang/list` und den Ereignissen (store.s.eingang), nie aus dem Speicher dieser Seite. */
+    _eingangBand() {
+      if (this.store.s.phase !== 'bereit') return nothing;
+      const z = bandZustand(this.store.eingangAbl(), { lokal: this.store.s.lokaleUploads });
+      if (!z) return nothing;
+      return html`<div class=${`eband ${z.art}`} role="status" data-eingang-band=${z.art}><a href="#hinzufuegen"><span class="et">${z.text}</span>${ic('chev', 22)}</a></div>`;
+    }
+
     _zurueck(r) {
       if (!r.zurueck) return nothing;
       const ziel = r.zurueck;
@@ -868,7 +929,10 @@ if (lit) {
         fehlerText: (code) => fehlerText(code, { admin: app._admin }),
         begruessung: () => begruessung(),
         covers: app._covers,
-        uploadBand: () => nothing, // A11b ersetzt das durch das Band der laufenden Uploads
+        uploadBand: () => app._eingangBand(), // Band über der Zeile „Bibliothek“ (Design 5.2 Punkt 2a, A11b)
+        eingang: () => app.store.eingangAbl(), // Ableitung nach eingang.js: { liste, laeuft, pruefen, fehler, fertig }
+        eingangNeuLaden: () => app.store.ladeEingang(), // nach „Das ist richtig“ und nach jedem Upload
+        lokaleUploads: (n) => app.store.setLokaleUploads(n), // A11a: Zahl der Uploads dieser Seite, damit das Band sie mitzählt
         grenzen: () => app.store.s.grenzen || {}, // `hello.grenzen` (upload_max_bytes, upload_parallel, endungen …)
         neuesXhr: () => (app.xhrFactory ? app.xhrFactory() : new XMLHttpRequest()), // Upload mit Fortschritt (A11a); Tests setzen `xhrFactory`
         blattFokus: () => app.updateComplete.then(() => app.renderRoot.querySelector('dialog.blatt #blatt-t')?.focus?.({ preventScroll: true })), // Fokus auf die Überschrift des offenen Blatts
@@ -956,8 +1020,11 @@ if (lit) {
     _nav(r) {
       const n = this.store.s.neue.length;
       const punkt = n ? html`<span class="dot" aria-hidden="true">${n}</span><span class="sr">${n === 1 ? TOBIE.neue_tobies_punkt : fuellen(TOBIE.neue_tobies_punkt_mehr, { anzahl: n })}</span>` : nothing;
+      // Bibliothek: ruhiger Punkt ohne Zahl, solange etwas hinzugefügt wird (Design 5.2 Punkt 2a, N15)
+      const laeuft = this.store.s.phase === 'bereit' && (this.store.eingangAbl().laeuft.length + this.store.s.lokaleUploads) > 0;
+      const punktLib = laeuft ? html`<span class="dot ruhig" data-punkt="eingang" aria-hidden="true"></span><span class="sr">${EINGANG.punkt}</span>` : nothing;
       return html`<nav class=${`tabs ${this._layout}`} aria-label=${SEITE.bereiche}><div class="tr">
-        ${REITER.map((id) => html`<a href=${`#${id}`} aria-current=${r.tab === id ? 'page' : nothing}><span class="ti">${ic({ start: 'home', bibliothek: 'lib', tobies: 'tag', geraete: 'spk' }[id], 26)}</span><span class="tn">${SEITE.reiter[id]}</span>${id === 'geraete' ? punkt : nothing}</a>`)}
+        ${REITER.map((id) => html`<a href=${`#${id}`} aria-current=${r.tab === id ? 'page' : nothing}><span class="ti">${ic({ start: 'home', bibliothek: 'lib', tobies: 'tag', geraete: 'spk' }[id], 26)}</span><span class="tn">${SEITE.reiter[id]}</span>${id === 'geraete' ? punkt : id === 'bibliothek' ? punktLib : nothing}</a>`)}
       </div></nav>`;
     }
 
@@ -1051,6 +1118,7 @@ if (lit) {
       nav.tabs a[aria-current="page"] { color: var(--primary-ink); }
       nav.tabs .ti { display: grid; place-items: center; width: 56px; height: 32px; border-radius: 16px; }
       nav.tabs a[aria-current="page"] .ti { background: var(--primary-soft); }
+      nav.tabs .dot.ruhig { display: inline-block; min-width: 0; width: 12px; height: 12px; padding: 0; top: 8px; left: calc(50% + 14px); background: var(--primary-ink); border: 2px solid var(--card); box-sizing: content-box; }
       nav.tabs .dot { position: absolute; top: 4px; left: calc(50% + 6px); min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--danger); color: var(--card); font-size: 12px; line-height: 18px; text-align: center; font-weight: 700; }
       nav.tabs.unten { flex: none; box-shadow: 0 -2px 12px var(--shadow); padding: 0 max(8px, env(safe-area-inset-left, 0px)) var(--sab) max(8px, env(safe-area-inset-right, 0px)); }
       @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) and (background: color-mix(in srgb, red 50%, blue)) {
@@ -1062,6 +1130,7 @@ if (lit) {
       nav.tabs.oben a { flex-direction: row; justify-content: center; gap: 8px; min-height: 52px; font-size: 16px; }
       nav.tabs.oben .ti { width: 32px; background: none !important; }
       nav.tabs.oben .dot { position: static; }
+      nav.tabs.oben .dot.ruhig { margin-left: -4px; }
       .app[data-kbd] nav.tabs.unten, .app[data-kbd] .mini { display: none; }
 
       /* Computer (ab 1100 px Panelbreite): Seitenleiste mit eigenem Kopf, Inhalt mit Höchstbreite, großer Seitenkopf (AB3) */
@@ -1077,6 +1146,7 @@ if (lit) {
       aside.seite nav.tabs a[aria-current="page"] { background: var(--primary-soft); }
       aside.seite nav.tabs .ti { width: 28px; height: 28px; background: none !important; }
       aside.seite nav.tabs .dot { position: static; margin-left: auto; }
+      aside.seite nav.tabs .dot.ruhig { margin-right: 6px; }
       aside.seite .werkzeuge { margin-top: auto; padding-top: 12px; border-top: 1px solid var(--divider); display: grid; gap: 2px; }
       .srow { display: flex; align-items: center; gap: 14px; min-height: 48px; padding: 0 12px; border-radius: 12px; color: var(--text2); text-decoration: none; font-weight: 500; font-size: 16px; }
       .srow svg { fill: currentColor; flex: none; }
@@ -1122,6 +1192,14 @@ if (lit) {
       .note a.nl { display: inline-flex; align-items: center; min-height: 44px; margin-left: 8px; color: inherit; font-weight: 500; }
       .note.band { margin: 8px max(16px, env(safe-area-inset-right, 0px)) 0 max(16px, env(safe-area-inset-left, 0px)); }
       .note .btn { background: var(--card); border: 1px solid var(--line); color: var(--text); }
+      /* Band „Hinzufügen läuft“ über der Bibliothek (Design 5.2 Punkt 2a): tonal, mindestens 44 px, orange bei „bitte kurz ansehen“, rot bei „geht nicht“ */
+      .eband { margin: 8px 0 4px; }
+      .eband a { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 6px 8px 6px 16px; border-radius: var(--r-card); background: var(--primary-soft); color: var(--primary-ink);
+        border: 1px solid var(--line); text-decoration: none; font-weight: 500; font-size: 15px; line-height: 1.3; }
+      .eband .et { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+      .eband a svg { fill: currentColor; flex: none; }
+      .eband.pruefen a { background: var(--warn-bg); color: var(--warn); border: 2px solid var(--warn); padding: 5px 7px 5px 15px; }
+      .eband.fehler a { background: var(--danger-bg); color: var(--danger); border: 2px solid var(--danger); padding: 5px 7px 5px 15px; }
 
       /* Zustände */
       .skel { height: 84px; border-radius: var(--r-card); background: var(--primary-soft); margin: 16px 0; animation: puls 1.4s ease-in-out infinite; }

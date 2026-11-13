@@ -153,6 +153,41 @@ export const HINWEISE = {
   reservierter_ordner: 'Ein Ordner mit einem reservierten Namen liegt im Medien-Ordner. Er wird nicht einsortiert.', // neu, nicht im Design
 };
 
+// Eingang: Band in der Bibliothek, Punkt am Reiter, „Daraus ist geworden“ (Design 5.2 Punkt 2a, 6, 7.3 Punkt 3b und 10; Paket A11b).
+// Die Gründe selbst stehen in GRUENDE und HINWEISE; hier nur, was um sie herum steht. Platzhalter: anzahl, name, art, einheit, text.
+export const EINGANG = {
+  band: {
+    laeuft: { eins: '1 Eintrag wird gerade hinzugefügt.', mehr: '{anzahl} Einträge werden gerade hinzugefügt.' }, // Design 5.2
+    pruefen: { eins: '1 neuer Eintrag bitte kurz ansehen.', mehr: '{anzahl} neue Einträge bitte kurz ansehen.' }, // Design 5.2 (orange)
+    fehler: { eins: '1 Eintrag geht nicht.', mehr: '{anzahl} Einträge gehen nicht.' }, // neu, nicht im Design (rote Karte „Geht leider nicht.“, 7.3 3c)
+    fertig: 'Alles hinzugefügt.', // Design 5.2
+  },
+  punkt: 'Es wird gerade etwas hinzugefügt.', // neu, nicht im Design (nur für Screenreader am Punkt des Reiters „Bibliothek“)
+  grund_sonst: 'Beim Einsortieren war etwas unsicher. Schau kurz, ob Name und Art stimmen.', // neu, nicht im Design (Rückfall für unbekannte Codes)
+  gruppe_ohne_zahl: 'Es fehlt noch eine Datei. Wähle die fehlende Datei noch einmal. Kommt sie nicht, wird mit den vorhandenen einsortiert und mit „Bitte ansehen“ markiert.', // neu: Satz aus 6.1 ohne Zahlen (der Eingang nennt sie nicht)
+  daraus: 'Daraus ist geworden: {text}', // Design 7.3 Punkt 3b
+  daraus_neu: '{art} „{name}“ · {einheit}', // Design 7.3 3a: „Hörbuch „Kapitän Knopf“ · 3 Kapitel“
+  daraus_neu_ohne_art: 'Neuer Eintrag „{name}“ · {einheit}', // neu, nicht im Design (Art unbekannt)
+  daraus_dazu: '„{name}“ · {einheit}', // Design 7.3 3a: „„Lange Serie“ · Folge 13–15“ (ohne Nummern: „3 neue Folgen“)
+  daraus_einzeln: '„{name}“ · {einheit}', // Design 7.3 3a: „„Der Mond und der Fuchs“ · einzelnes Lied“
+  daraus_weitere: 'und {anzahl} weitere', // neu, nicht im Design
+  daraus_nichts: 'Nichts davon ist neu einsortiert worden.', // neu, nicht im Design (Eintrag ohne Ergebnis)
+  art: { hoerspiel: 'Hörspiel', hoerbuch: 'Hörbuch', musik: 'Album', geschichte: 'Geschichten' }, // Design 7.3 Tabelle a)
+  einheit: { // Zahl und Wort für die neu angelegten Folgen
+    hoerspiel: { eins: '1 Folge', mehr: '{anzahl} Folgen' },
+    hoerbuch: { eins: '1 Kapitel', mehr: '{anzahl} Kapitel' },
+    musik: { eins: '1 Lied', mehr: '{anzahl} Lieder' },
+    geschichte: { eins: '1 Geschichte', mehr: '{anzahl} Geschichten' },
+  },
+  einheit_dazu: { // Zahl und Wort für Folgen, die zu einem vorhandenen Eintrag kamen
+    hoerspiel: { eins: '1 neue Folge', mehr: '{anzahl} neue Folgen' },
+    hoerbuch: { eins: '1 neuer Teil', mehr: '{anzahl} neue Teile' },
+    musik: { eins: '1 neues Lied', mehr: '{anzahl} neue Lieder' },
+    geschichte: { eins: '1 neue Geschichte', mehr: '{anzahl} neue Geschichten' },
+  },
+  einzeln: { musik: 'einzelnes Lied', hoerspiel: 'einzelne Folge', hoerbuch: 'einzelnes Hörbuch', geschichte: 'einzelne Geschichte' },
+};
+
 // Sätze der Status-Karte einer Box (Design 5.1.1). Platzhalter: anzeige, serie, folge, zeit, prozent.
 export const STATUS = {
   spielt: '{anzeige} spielt „{serie}“ · {folge}.',
