@@ -25,6 +25,9 @@ const DEFAULT = {
   serie: 'Lange Serie',
   nr: '1',
   gesamt: '2',
+  tobies: '0 Tobies', // A7: Zählzeile der Suche
+  sammlungen: '6 Sammlungen',
+  folgen: '102 Folgen und Lieder',
 };
 
 // Ersetzt {name} durch werte.name, sonst durch den Vorgabewert. Unbekannte Platzhalter bleiben stehen.
@@ -286,6 +289,78 @@ export const KACHELN = {
     zeile: 'Ich lese die Angaben',
     satz: 'Ich lese die Angaben in den Dateien (Album, Interpret, Titel). Dateien, die zum selben Album gehören, bleiben zusammen. Passt etwas zu einem Hörspiel, das schon da ist, kommt es dort dazu. Wenn ich unsicher bin, steht danach „Bitte ansehen“ da, und du kannst es ändern.',
   },
+};
+
+// Start (Design 5.1, Paket A7). Reihen ohne Daten fehlen; hier stehen nur die Reihen, die die Daten der Stufe A hergeben.
+export const START = {
+  schnellzugriff: 'Schnellzugriff',
+  reihen: {
+    neu: 'Neu hinzugefügt',
+    weiterhoeren: 'Am Handy weiterhören', // Stufe A-2 (Paket A7c), noch ohne Daten
+    zuletzt_gehoert: 'Zuletzt auf den Boxen gehört', // Stufe B
+    favoriten: 'Favoriten / Empfehlungen', // Stufe B
+  },
+};
+
+// Bibliothek (Design 5.2, Paket A7): Kopf, Arten, Zählzeile, Blatt „Sortieren und Filter“, Nachladen.
+// Zählwörter stehen als { eins, mehr } (Einzahl, Mehrzahl) mit dem Platzhalter {anzahl}.
+export const BIB = {
+  lupe: 'Suchen', // aria-label der Lupe in der Zeile „Bibliothek“
+  arten_label: 'Art', // aria-label der Arten-Zeile
+  arten: { alle: 'Alle', hoerspiel: 'Hörspiele', hoerbuch: 'Hörbücher', musik: 'Musik', geschichte: 'Geschichten' },
+  anzahl: { eins: '{anzahl} Eintrag', mehr: '{anzahl} Einträge' },
+  sortieren_filter: 'Sortieren und Filter',
+  aktiv: '{anzahl} aktiv',
+  mehr_laden: 'Mehr laden ({anzahl} weitere)',
+  weitere_geladen: 'Weitere Einträge geladen.',
+  blatt: {
+    titel: 'Sortieren und Filter',
+    sortieren: 'Sortieren',
+    sortierung: { name: 'A bis Z', neu: 'Zuletzt hinzugefügt', angehoert: 'Zuletzt angehört' },
+    was: 'Was zeigen',
+    was_wahl: { alle: 'Alles', sammlung: 'Nur Hörspiele, Bücher, Alben', einzeln: 'Nur Einzeltitel (einzelne Lieder und Folgen)' },
+    nur: 'Nur zeigen',
+    nur_wahl: { ohne_tobie: 'Ohne Tobie', neu: 'Neu (letzte 14 Tage)', pruefen: 'Bitte ansehen' },
+    zuruecksetzen: 'Zurücksetzen',
+    fertig: 'Fertig',
+  },
+};
+
+// Zeilen, Kacheln und Cover (Design 5.2 Punkt 5, 4): Untertitel, Marke, Fortschritt.
+export const ZEILE = {
+  art: { hoerspiel: 'Hörspiel', hoerbuch: 'Hörbuch', musik: 'Musik', geschichte: 'Geschichten' },
+  einzeln_art: { hoerspiel: 'Folge', hoerbuch: 'Hörbuch', musik: 'Lied', geschichte: 'Geschichte' },
+  einzeln: 'einzeln',
+  folgen: { eins: '{anzahl} Folge', mehr: '{anzahl} Folgen' },
+  kapitel: { eins: '{anzahl} Kapitel', mehr: '{anzahl} Kapitel' },
+  lieder: { eins: '{anzahl} Lied', mehr: '{anzahl} Lieder' },
+  geschichten: { eins: '{anzahl} Geschichte', mehr: '{anzahl} Geschichten' },
+  dauer: { sek: 'Sek.', min: 'Min.', std: 'Std.' },
+  bitte_ansehen: 'bitte ansehen',
+  tobies: { eins: '{anzahl} Tobie', mehr: '{anzahl} Tobies' },
+  fertig: 'Fertig gehört',
+  rest: 'noch {dauer}',
+  fortschritt: 'Fortschritt',
+};
+
+// Suchansicht (Design 5.2, Runde 13 X16: Tobies zuerst).
+export const SUCHE = {
+  feld: 'Hörspiel, Lied, Folge oder Tobie',
+  label: 'Suchen',
+  zurueck: 'Zurück zur Bibliothek',
+  mindestens: 'Tippe mindestens 2 Buchstaben.',
+  vorschlaege: 'Vorschläge',
+  gefunden: 'Gefunden: {tobies}, {sammlungen}, {folgen}',
+  tobies: { eins: '{anzahl} Tobie', mehr: '{anzahl} Tobies' },
+  sammlungen: { eins: '{anzahl} Sammlung', mehr: '{anzahl} Sammlungen' },
+  folgen: { eins: '{anzahl} Folge oder Lied', mehr: '{anzahl} Folgen und Lieder' },
+  gruppen: { tobies: 'Tobies', sammlungen: 'Hörspiele, Bücher, Alben', folgen: 'Folgen und Lieder' },
+  weitere: '… und {anzahl} weitere. Genauer suchen hilft.',
+  spielt: 'spielt „{ziel}“',
+  spielt_aus: 'spielt „{ziel}“ aus „{serie}“',
+  einzeltitel: 'Einzeltitel',
+  tobie_bearbeiten: '{tobie} bearbeiten',
+  aktionen: { gute_nacht: 'Gute Nacht', status: 'Status' }, // neu, nicht im Design (Ziel „Aktion“ eines Tobies)
 };
 
 // Fehlertext zu einem Code. werte: Platzhalterwerte, optional admin: true.

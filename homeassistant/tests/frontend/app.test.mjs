@@ -397,7 +397,7 @@ test('Fehler beim Laden: Fehlerkarte; „unknown_command“ ist „Seite veralte
 });
 
 test('Leere Zustände: Bild aria-hidden, ein Satz, ein Knopf; Geräte nur ohne Boxen', MIT_DOM, async () => {
-  const s = await seite();
+  const s = await seite({ leer: true }); // A7: Start und Bibliothek zeigen Inhalte, den leeren Zustand nur ohne Einträge
   await new Promise((r) => setTimeout(r, 20)); await s.flush();
   const l = s.q('[data-leer="start"]');
   assert.ok(l);

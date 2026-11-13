@@ -3,14 +3,17 @@
  * Panel-Gerüst ohne Bewegung: vier Reiter, Panelbreite per ResizeObserver, Kopf, Hash-Routen, Tokens aus dem
  * HA-Theme mit Kontrastfunktion, Zustände (Lädt, Fehler, Leer), Blätter (<dialog>), Meldungen, Abo der
  * WebSocket-Themen über hass.connection, Platz für den Mini-Player und der Punkt am Reiter „Geräte“.
- * Die Inhalte der Seiten (Start, Bibliothek, Geräte …) folgen in A7, A7b und A8; Bewegung kommt mit A6m.
+ * Die Inhalte der Seiten sind eigene Module unter seiten/ (A7: Start, Bibliothek, Suche; weitere folgen in A7b, A8, A12),
+ * gemeinsame Bausteine stehen in bausteine.js, das Verzeichnis in seiten/index.js. Bewegung kommt mit A6m.
  *
  * Technik: Lit aus ./lit-all.min.js (fest eingecheckt, dasselbe wie die alte Seite, nichts aus dem Netz).
  * Namen und Texte aus Daten werden nur als Text gesetzt (Lit maskiert selbst). Die Texte stehen in texte.js.
  * Die Illustrationen der leeren Zustände (A6b) kommen aus ./illustrationen.js; fehlt die Datei oder ein Bild,
  * steht ein schlichter Platzhalter da.
  */
-import { fuellen, SEITE, TOBIE, LEER } from './texte.js';
+import { fuellen, fehlerText, SEITE, TOBIE, LEER } from './texte.js';
+import { SEITEN } from './seiten/index.js';
+import { initLit, bausteinStil, CoverLader, leererZustand } from './bausteine.js';
 
 export const VERTRAG_V = 1;
 export const REITER_UNTEN_BIS = 700; // Panelbreite unter 700 px: Reiter unten
@@ -115,6 +118,7 @@ export function berechneTokens(e = {}) {
     '--primary': primary, '--on-primary': onPrimary, '--primary-soft': primarySoft, '--primary-ink': primaryInk,
     '--ok': ok, '--ok-bg': okBg, '--warn': warn, '--warn-bg': warnBg, '--danger': danger, '--danger-bg': dangerBg,
     '--focus': focus, '--line': line,
+    '--shine': dunkel ? 'rgba(255, 255, 255, 0.12)' : 'rgba(255, 255, 255, 0.2)',
     '--shadow': dunkel ? 'rgba(0, 0, 0, 0.5)' : 'rgba(0, 0, 0, 0.12)',
     '--scrim': dunkel ? 'rgba(0, 0, 0, 0.65)' : 'rgba(0, 0, 0, 0.5)',
     'color-scheme': dunkel ? 'dark' : 'light',
@@ -182,6 +186,7 @@ export class AppStore {
     this.s = { phase: 'laedt', fehlerCode: null, faehigkeiten: null, boxen: {}, boxAnzeigen: {}, neue: [], konfigZustand: 'ok', verbindungWeg: false };
     this.hass = null;
     this.onNeuerTobie = null; // ({ uid, box, anzeige }) beim ersten Auftauchen einer unbekannten Kennung nach dem Start
+    this.onWiederda = null; // () nach dem Wiederverbinden: die aktive Seite lädt neu
     this._ls = new Set();
     this._lauf = 0;
     this._bekannt = new Set();
@@ -196,7 +201,7 @@ export class AppStore {
     const c = hass.connection;
     if (c && typeof c.addEventListener === 'function') {
       this._weg = () => this._set({ verbindungWeg: true });
-      this._da = () => { this._set({ verbindungWeg: false }); this._ladeListen().catch(() => {}); };
+      this._da = () => { this._set({ verbindungWeg: false }); this._ladeListen().catch(() => {}); this.onWiederda?.(); };
       c.addEventListener('disconnected', this._weg);
       c.addEventListener('ready', this._da);
     }
@@ -321,6 +326,7 @@ const lit = typeof HTMLElement !== 'undefined' && typeof customElements !== 'und
   ? await import('./lit-all.min.js') : null;
 
 if (lit) {
+  initLit(lit);
   const { LitElement, html, css, nothing, svg } = lit;
   const ic = (n, gr = 24) => html`<svg viewBox="0 0 24 24" width=${gr} height=${gr} aria-hidden="true" focusable="false"><path d=${ICON[n]}></path></svg>`;
 
@@ -343,6 +349,12 @@ if (lit) {
       this._neuUid = null; // Kennung für „Neuer Tobie erkannt“ (#neu-ziel)
       this._neuVon = 'tobies';
       this._themenStand = '';
+      this._seiten = {}; // je Seite ein Objekt aus seiten/<name>.js (erzeuge(ctx)), angelegt beim ersten Besuch
+      this._seiteObj = null;
+      this._seiteKey = null;
+      this._covers = new CoverLader(() => this.hass);
+      this.ctx = this._baueCtx();
+      this.store.onWiederda = () => this._seiteObj?.neuLaden?.();
       this._off = this.store.onChange(() => { this._tick += 1; if (this.store.s.phase === 'bereit') this._leseHash(); });
       this.store.onNeuerTobie = (n) => this._neuerTobie(n);
       this._onHash = () => { this._leseHash(); this._schliesseBlattBeiRoute(); this._fokusMain = true; this._scrollOben = true; };
@@ -378,6 +390,8 @@ if (lit) {
       window.removeEventListener('hashchange', this._onHash);
       window.removeEventListener('resize', this._onResize);
       this._ro?.disconnect(); this._ro = null;
+      this._seiteObj?.verlassen?.(); this._seiteObj = null; this._seiteKey = null;
+      this._covers.abmelden();
       this.renderRoot.removeEventListener('focusin', this._fokusEin);
       this.renderRoot.removeEventListener('focusout', this._fokusAus);
       this._vv?.removeEventListener?.('resize', this._vvFn);
@@ -393,10 +407,13 @@ if (lit) {
     updated(ch) {
       this.setAttribute('data-layout', this._layout);
       this._wendeTokens();
+      this._seitenWechsel();
       if (this._blatt && !this._blatt.offen) this._blattEinrichten();
       if (this._scrollOben) { this._scrollOben = false; const r = this.renderRoot.querySelector('.rahmen'); const sp = this.renderRoot.querySelector('.spalte'); if (r) r.scrollTop = 0; if (sp) sp.scrollTop = 0; }
       if (this._fokusMain) { this._fokusMain = false; this.renderRoot.querySelector('main')?.focus({ preventScroll: true }); }
       if (ch.has('hass')) this._wendeTokens();
+      this._covers.beobachte(this.renderRoot);
+      this._seiteObj?.nachRender?.(this.renderRoot);
     }
 
     /* ---- Tokens aus dem HA-Theme (Design 4) */
@@ -450,6 +467,7 @@ if (lit) {
     /* ================================================================== Blätter (<dialog>) */
     /* oeffneBlatt({ titel, inhalt, knoepfe: [{ label, kind, fn }], rolle })
      * Schließen: Knopf ×, Knopf in der Leiste, Esc, Hintergrund, Wischen nach unten. Danach geht der Fokus zurück.
+     * `inhalt` darf eine Funktion sein: sie wird bei jedem Zeichnen neu aufgerufen (das Blatt folgt dem Zustand der Seite).
      * Antwort: Promise mit dem Grund ('x', 'knopf', 'esc', 'hintergrund', 'wischen', 'route', 'ersetzt', 'code').
      * A6m ersetzt _blattAn und _blattAus durch Bewegung; _blattAus ruft `fertig` erst nach dem Ende der Bewegung. */
     oeffneBlatt({ titel, inhalt = nothing, knoepfe = [], rolle = null } = {}) {
@@ -558,7 +576,7 @@ if (lit) {
           <div class="griff" aria-hidden="true"></div>
           <button type="button" class="rund blatt-x" aria-label=${SEITE.schliessen} @click=${() => this.schliesseBlatt('x')}>${ic('close', 28)}</button>
           <h2 id="blatt-t" tabindex="-1">${b.titel}</h2>
-          <div class="blatt-b">${b.inhalt}</div>
+          <div class="blatt-b">${typeof b.inhalt === 'function' ? b.inhalt() : b.inhalt}</div>
           <div class="knoepfe">${b.knoepfe.map((k) => html`<button type="button" class=${`btn ${k.kind || ''}`} @click=${() => this._blattKnopf(k)}>${k.label}</button>`)}</div>
         </div>
       </dialog>`;
@@ -650,11 +668,7 @@ if (lit) {
     /* Leerer Zustand (Design 6.2): Bild, ein Satz, ein Knopf. `werte` setzt Platzhalter im Satz, `knopf` überschreibt den Knopf. */
     _leer(art, bild, { werte = {}, href = null, aktion = null } = {}) {
       const t = LEER[art];
-      const satz = fuellen(t.satz, werte);
-      const knopf = href
-        ? html`<a class="btn primary" href=${href}>${t.knopf}</a>`
-        : html`<button type="button" class="btn primary" @click=${aktion}>${t.knopf}</button>`;
-      return html`<div class="leer" data-leer=${art}><span class="bild">${this._bild(bild)}</span><p class="et">${satz}</p><div class="btns">${knopf}</div></div>`;
+      return leererZustand({ art, bild: this._bild(bild), satz: fuellen(t.satz, werte), knopf: href ? { label: t.knopf, href } : { label: t.knopf, onKlick: aktion } });
     }
 
     _laedt() {
@@ -662,12 +676,11 @@ if (lit) {
         <div class="skel"></div><div class="skel"></div><div class="skel"></div></div>`;
     }
 
-    _fehlerKarte() {
+    _fehlerKarte(code = this.store.s.fehlerCode, neu = () => this.store.start()) {
       const t = SEITE.fehler_laden;
       const admin = this._admin;
-      const code = this.store.s.fehlerCode;
       return html`<div class="note err" role="alert" data-zustand="fehler"><strong>${t.titel}</strong><br>${fuellen(t.text)}${admin && code ? html` <span class="muted">(Code: ${code})</span>` : nothing}
-        <div class="btns"><button type="button" class="btn" @click=${() => this.store.start()}>${t.knopf}</button></div></div>`;
+        <div class="btns"><button type="button" class="btn" @click=${neu}>${t.knopf}</button></div></div>`;
     }
 
     _veraltetKarte() {
@@ -702,7 +715,52 @@ if (lit) {
       return SEITE.seiten[r.seite] || SEITE.titel;
     }
 
-    /* Inhalt der Seite: in A6 nur Gerüste mit Überschrift und leerem Zustand. Inhalte folgen in A7, A7b, A8, A10, A12. */
+    /* ---- Seiten aus seiten/ (Vertrag: bausteine.js) */
+    _baueCtx() {
+      const app = this;
+      return {
+        api: (type, felder) => app.store._api(type, felder),
+        faehig: (name) => (app.store.s.faehigkeiten || []).includes(name),
+        get admin() { return app._admin; },
+        get layout() { return app._layout; },
+        get grenzeMs() { return app.store.ladeGrenzeMs; },
+        get wurzel() { return app.renderRoot; },
+        neuZeichnen: () => app.requestUpdate(),
+        laedt: () => app._laedt(),
+        fehlerKarte: (code, neu) => app._fehlerKarte(code, neu),
+        leer: (art, bild, opts) => app._leer(art, bild, opts),
+        oeffneBlatt: (o) => app.oeffneBlatt(o),
+        schliesseBlatt: (g) => app.schliesseBlatt(g),
+        melde: (text, o) => app.melde(text, o),
+        meldeFehler: (text) => app.meldeFehler(text),
+        ansage: (text) => app._ansage(text),
+        fehlerText: (code) => fehlerText(code, { admin: app._admin }),
+        begruessung: () => begruessung(),
+        covers: app._covers,
+        uploadBand: () => nothing, // A11 ersetzt das durch das Band der laufenden Uploads
+        folgenAktionen: null, // A8b/A9 setzen eine Funktion x => Template (Abspielen und „⋯“ in Folgenzeilen der Suche)
+      };
+    }
+
+    _seiteFuer(name) {
+      if (!SEITEN[name]) return null;
+      return (this._seiten[name] ??= SEITEN[name].erzeuge(this.ctx));
+    }
+
+    /* Ruft `verlassen` und `betreten`, wenn die sichtbare Seite (oder ihre Adresse, zum Beispiel `#serie-<id>`) wechselt.
+     * Solange `hello` nicht da ist, ist keine Seite aktiv. */
+    _seitenWechsel() {
+      const r = this._route;
+      const aktiv = this.store.s.phase === 'bereit' && SEITEN[r.name] && !(r.name === 'technik' && !this._admin);
+      const key = aktiv ? `${r.name}|${r.id ?? ''}` : null;
+      if (key === this._seiteKey) return;
+      const alt = this._seiteObj;
+      this._seiteKey = key;
+      this._seiteObj = key ? this._seiteFuer(r.name) : null;
+      alt?.verlassen?.();
+      this._seiteObj?.betreten?.(r);
+    }
+
     _seite(r) {
       const s = this.store.s;
       if (r.name === 'technik' && !this._admin) {
@@ -711,13 +769,10 @@ if (lit) {
       if (s.phase === 'laedt') return this._laedt();
       if (s.phase === 'fehler') return this._fehlerKarte();
       if (s.phase === 'veraltet') return this._veraltetKarte();
-      const gross = this._layout === 'seite';
+      const seite = this._seiteFuer(r.name);
+      if (seite) return seite.render(r);
       const h2 = (extra = '') => html`<h2 class=${extra}>${this._titel(r)}</h2>`;
       switch (r.name) {
-        case 'start':
-          return html`${gross ? html`<h2>${begruessung()}</h2>` : html`<h2 class="sr">${SEITE.reiter.start}</h2>`}${this._leer('start', 'bibliothekLeer', { href: '#bibliothek' })}`;
-        case 'bibliothek':
-          return html`${h2()}${this._leer('bibliothek', 'bibliothekLeer', { href: '#hinzufuegen' })}`;
         case 'tobies':
           return html`${h2()}${this._leer('tobies', 'keineTobies', { href: '#geraete' })}`;
         case 'geraete':
@@ -781,7 +836,7 @@ if (lit) {
       </div>`;
     }
 
-    static styles = css`
+    static styles = [css`
       :host {
         display: block; height: 100%; overflow: hidden;
         --bg: #fafafa; --card: #ffffff; --text: #212121; --text2: #5f6368; --divider: #dcdfe3;
@@ -789,6 +844,7 @@ if (lit) {
         --ok: #1b5e20; --ok-bg: #e6f4e7; --warn: #8a4b00; --warn-bg: #fff1d6; --danger: #b71c1c; --danger-bg: #fdeaea;
         --focus: #e65100; --line: #7c8187; --shadow: rgba(0, 0, 0, 0.12); --scrim: rgba(0, 0, 0, 0.5);
         --r-card: 16px; --r-big: 24px;
+        --c1: #ad1457; --c2: #00695c; --c3: #5e35b1; --c4: #8d4a00; --c5: #1565c0; --c6: #2e7d32; --on-cover: #ffffff; --shine: rgba(255, 255, 255, 0.2);
         --dauer-kurz: 150ms; --dauer-mittel: 250ms; --dauer-lang: 350ms; --dauer-feder: 500ms;
         --kurve: cubic-bezier(.2, 0, 0, 1); --kurve-aus: cubic-bezier(.4, 0, 1, 1);
         --minih: 0px;
@@ -904,7 +960,7 @@ if (lit) {
       .toast.err { background: var(--danger-bg); color: var(--danger); border: 2px solid var(--danger); }
       .toast .tok { min-width: 56px; min-height: 44px; border-radius: 22px; border: 1px solid currentColor; background: none; color: inherit; font-weight: 700; padding: 0 16px; flex: none; }
       @media (prefers-reduced-motion: reduce) { .skel { animation: none; } }
-    `;
+    `, bausteinStil(), ...Object.values(SEITEN).map((x) => x.stil?.()).filter(Boolean)];
   }
 
   if (!customElements.get('tobibox-app')) customElements.define('tobibox-app', TobiboxApp);
