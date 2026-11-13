@@ -611,7 +611,9 @@ async def test_aus_stand_wiederherstellen(hass, admin, nas, integration, box_fab
     assert integration.store.konfig["zuordnungen"][UID]["name"] == "Rabe aus Holz"
     assert await fehler(admin, "konfig/aus_export", bestaetigt=True, stand=9) == "export_nicht_gefunden"
     assert await fehler(admin, "konfig/export_lesen", stand=9) == "export_nicht_gefunden"
-    # ohne ``stand`` gilt der aktuelle Export wie bisher
+    # ohne ``stand`` gilt der aktuelle Export wie bisher; das Wiederherstellen plant den Export im Hintergrund,
+    # also erst warten, bis ``config.json`` den wiederhergestellten Stand enthält (sonst liest der Test den alten)
+    await warte_auf(hass, lambda: integration.export_ok)
     assert (await ok(admin, "konfig/aus_export", bestaetigt=True))["uebernommen"]["zuordnungen"] == 1
 
 
