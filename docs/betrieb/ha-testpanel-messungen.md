@@ -23,7 +23,7 @@ dem anderen. Diese Anleitung ist die Grundlage dafür.
 4. Sieht du das Panel nicht: Browser-Cache leeren oder in der Companion-App
    „Frontend-Cache zurücksetzen“ (Einstellungen, Companion-App, Fehlersuche).
 
-Das Panel zeigt sieben Abschnitte (a bis g). Es speichert nichts in deiner
+Das Panel zeigt acht Abschnitte (a bis h). Es speichert nichts in deiner
 Bibliothek. Zum Abschalten steht in `const.py` `TESTPANEL = False`.
 
 **Wichtig:** Die Audio-Adresse ist 24 Stunden gültig. Gib sie nicht weiter.
@@ -135,6 +135,58 @@ Abbruch: nach wie vielen Sekunden und die Meldung.
 **Melde:** Gerät und Browser, die sieben Zeilen, und welche Datei wirklich
 gespielt hat.
 
+## Messung 7: Bewegung
+
+*Abschnitt h. Auftrag X34a: Bevor die neue Seite gebaut wird, prüfen wir im
+echten Home Assistant, ob die geplanten Bewegungen (Design, Abschnitt 4
+„Bewegung“) dort gehen. Das Panel liegt in HA im Shadow-DOM, und genau das ist
+die Frage.*
+
+Am besten in der Companion-App am iPhone, danach in Safari am iPhone und am
+Mac. Jeder Unterpunkt zeigt unter dem Knopf einen Text. **Screenshot reicht.**
+Mach die Punkte h1 bis h4 je einmal öffnen und einmal schließen.
+
+1. **h5 zuerst ansehen (Anzeige).** Dort stehen „Reduzierte Bewegung“ und die
+   Browser-Kennung. Ist „Reduzierte Bewegung“ **ja**, schalte sie am iPhone aus
+   (Einstellungen, Bedienungshilfen, Bewegung, „Bewegung reduzieren“), damit man
+   etwas sieht.
+   **Melde:** den Text von h5.
+2. **h1 Cover-Flug mit View Transition.** Tipp auf das kleine bunte Cover.
+   **Du sollst sehen:** das Cover wird groß und fliegt dabei weich an seinen
+   neuen Platz; die „Vollansicht“ blendet ein. Tipp auf „Schließen“: zurück.
+   Der Text darunter zeigt: API vorhanden, Transition gestartet, `ready` und
+   `finished` erfüllt oder abgelehnt, die Zahl der laufenden Animationen und
+   zuletzt „Cover von den Pseudo-Elementen animiert: JA/NEIN“.
+   **Melde:** Screenshot des Textes (öffnen und schließen) und ob das Cover
+   **wirklich flog** oder nur die Vollansicht auftauchte.
+3. **h2 Rückfall FLIP.** Dieselbe Bewegung mit Web Animations, zum Vergleich.
+   **Du sollst sehen:** das Cover fliegt groß und zurück; der Text meldet
+   „FLIP fertig nach … ms (Soll 500)“.
+   **Melde:** Screenshot und ob h2 sauber und flüssig aussieht (besser, gleich
+   oder schlechter als h1).
+4. **h3 Feder-Kurve.** Tipp auf „Karte hereinfahren“. **Du sollst sehen:** die
+   Karte fährt von unten herein und schwingt ganz leicht über das Ziel, dann
+   ist sie ruhig. Der Text meldet, ob `linear()` unterstützt wird, und wenn ja
+   das Überschwingen in Pixeln.
+   **Melde:** Screenshot des Textes und ob ein leichtes Federn zu sehen war.
+5. **h4 iOS-Blatt-Effekt.** Tipp auf „Blatt öffnen“. **Du sollst sehen:** ein
+   Blatt gleitet von unten herein; der Inhalt des Panels dahinter wird etwas
+   kleiner (0,94), bekommt runde Ecken und wird dunkler. **Die Kopfleiste von
+   Home Assistant oben bleibt, wie sie ist** (nicht kleiner, nicht dunkler).
+   Schließe es dreimal: mit „×“, mit Wischen nach unten (das Panel dahinter
+   wächst mit dem Finger zurück; zu kurz gewischt federt das Blatt zurück) und
+   mit einem Tipp neben das Blatt.
+   **Melde:** Screenshot mit offenem Blatt (Kopfleiste sichtbar), ob alle drei
+   Wege schließen und ob der Rand um das verkleinerte Panel schwarz ist oder
+   Reste von HA zeigt.
+
+**Zum Verständnis:** Die Regeln für die Cover-Bewegung (`::view-transition-…`)
+kann ein Panel nur im Dokument ablegen, nicht im Shadow-DOM. Das Testpanel
+legt sie deshalb beim Start kurz in `<head>` und räumt sie beim Verlassen auf.
+In Chromium (Version 153) erfasst eine View Transition Elemente **im
+Shadow-DOM nicht**; ob Safari am iPhone das anders macht, ist die Frage dieser
+Messung. Bleibt h1 dort bei „NEIN“, nimmt die neue Seite den Rückfall FLIP.
+
 ## Tabelle für die Messwerte
 
 Trag die Werte hier (oder im Chat) ein. Die Ergebnisse kommen danach nach
@@ -167,6 +219,12 @@ Trag die Werte hier (oder im Chat) ein. Die Ergebnisse kommen danach nach
 | 5 | Nabu Casa | 2 GiB (s / MB/s) | | |
 | 6 | iPhone Safari | mp3 / m4a / m4b / flac / ogg / opus / wav | | |
 | 6 | Mac Safari | mp3 / m4a / m4b / flac / ogg / opus / wav | | |
+| 7 | iPhone App | h1: Cover von Pseudo-Elementen animiert (JA/NEIN), flog es? | | |
+| 7 | iPhone App | h2: FLIP sauber? | | |
+| 7 | iPhone App | h3: linear() ja/nein, federt es? | | |
+| 7 | iPhone App | h4: Kopfleiste unverändert? Wischen, ×, Hintergrund schließen? | | |
+| 7 | iPhone Safari | h1 / h2 / h3 / h4 wie oben | | |
+| 7 | Mac Safari | h1 / h2 / h3 / h4 wie oben | | |
 
 ## Wenn etwas nicht geht
 
