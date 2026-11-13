@@ -1085,12 +1085,15 @@ if (lit) {
     static properties = {
       hass: { attribute: false }, narrow: { type: Boolean }, route: { attribute: false }, panel: { attribute: false },
       _tick: { state: true }, _dlg: { state: true }, _drag: { state: true },
+      /* A12/A13: Einbettung in „Technik“ der neuen Seite (Design 5.9). Ohne `eingebettet` ändert sich nichts. */
+      eingebettet: { type: Boolean, reflect: true }, bereich: { type: String }, box: { type: String },
     };
 
     constructor() {
       super();
       this.store = new TobiboxStore();
       this._tick = 0; this._dlg = null; this._drag = null;
+      this.eingebettet = false; this.bereich = 'alle'; this.box = '';
       this._off = this.store.onChange(() => { this._tick += 1; });
       this.store.ui = {
         confirm: (o) => this._frage('confirm', o),
@@ -1144,6 +1147,7 @@ if (lit) {
 
     /* -- Darstellung */
     render() {
+      if (this.eingebettet) return this._renderEingebettet();
       const s = this._s;
       return html`
         <div class="app">
@@ -1436,9 +1440,15 @@ if (lit) {
 
     /* -- Boxen */
     _viewBoxen() {
-      const s = this._s; const w = this._kannSchreiben; const k = s.konfig;
+      const s = this._s;
       return html`
-        ${s.boxen.map((b) => html`<div class="karte">
+        ${s.boxen.map((b) => this._boxKarte(b))}
+        ${this._listeKarte()}
+        <p class="klein-text">Integration ${s.version}</p>`;
+    }
+    _boxKarte(b) {
+      const w = this._kannSchreiben;
+      return html`<div class="karte">
           <div class="titel"><span class="punkt ${b.online ? 'on' : (b.online === false ? 'off' : 'unb')}"></span> ${b.anzeigename || b.box}</div>
           <div class="meta">${b.online ? 'online' : (b.online === false ? 'offline' : 'unbekannt')} · <span class="stand ${b.konfig_stand}">${KONFIG_STAND[b.konfig_stand] || b.konfig_stand}</span></div>
           ${b.status ? html`<div class="meta">Freier Speicher: ${b.status.speicher_frei_mb != null ? `${b.status.speicher_frei_mb} MB` : '–'}
@@ -1451,14 +1461,16 @@ if (lit) {
           ${b.ereignisse?.length ? html`<details><summary>Letzte Meldungen (${b.ereignisse.length})</summary>
             ${b.ereignisse.map((e) => html`<div class="meta">${zeitKurz(e.ts)} · ${e.text || e.art}</div>`)}</details>` : nothing}
           ${w ? html`<div class="reihe"><button ?disabled=${b.online !== true} @click=${() => this.store.boxSync(b.box)}>Sync jetzt</button></div>` : nothing}
-        </div>`)}
-        ${k ? html`<div class="karte"><h2>Liste der Tobies</h2>
+        </div>`;
+    }
+    _listeKarte() {
+      const s = this._s; const w = this._kannSchreiben; const k = s.konfig;
+      return k ? html`<div class="karte"><h2>Liste der Tobies</h2>
           <div class="meta">Revision ${k.revision ?? '–'} · Export ${k.export_ok ? `ok (${zeitKurz(k.export_geschrieben_am)})` : 'fehlt'}</div>
           ${w ? html`<div class="reihe"><button class="gefahr" @click=${() => this.store.listeNeuAusrollen()}>Liste neu ausrollen</button>
             <button class="zweit" @click=${() => this.store.exportLesen()}>Export ansehen</button></div>` : nothing}
           ${s.exportInfo ? html`<div class="meta">${s.exportInfo.vorhanden ? `Export: Revision ${s.exportInfo.revision}, ${zeitKurz(s.exportInfo.exportiert_am)}, ${plural(s.exportInfo.anzahl_zuordnungen ?? 0, 'Zuordnung', 'Zuordnungen')}${s.exportInfo.neuer_als_ha ? ' (neuer als HA)' : ''}` : 'Kein Export vorhanden.'}</div>` : nothing}
-        </div>` : nothing}
-        <p class="klein-text">Integration ${s.version}</p>`;
+        </div>` : nothing;
     }
 
     /* -- Papierkorb */
@@ -1478,13 +1490,14 @@ if (lit) {
     /* -- Einstellungen (AP 4.7) */
     _viewEinstellungen() {
       const st = this.store; const s = this._s; const w = this._kannSchreiben; const gesperrt = this._gesperrt || !w;
-      const zurueck = html`<button class="zweit" @click=${() => st.zeige('serien')}>‹ Zurück</button>`;
-      if (!s.einstellungen.geladen) return html`${zurueck}<h2>Einstellungen</h2><p class="leer">Lade …</p>`;
+      const zurueck = this.eingebettet ? nothing : html`<button class="zweit" @click=${() => st.zeige('serien')}>‹ Zurück</button>`;
+      const titel = this.eingebettet ? nothing : html`<h2>Einstellungen</h2>`;
+      if (!s.einstellungen.geladen) return html`${zurueck}${titel}<p class="leer">Lade …</p>`;
       const lz = st.leiseAnzeige; const gn = st.guteAnzeige; const tage = st.lesezeichenAnzeige;
       const gea = st.einstellungenGeaendert;
       return html`
         ${zurueck}
-        <h2>Einstellungen</h2>
+        ${titel}
         ${this._gesperrt ? html`<div class="banner info">Änderungen sind gesperrt, bis die Warnung oben geklärt ist.</div>` : nothing}
 
         <div class="karte" id="leise">
@@ -1557,6 +1570,62 @@ if (lit) {
             @input=${(e) => st.fensterAendern(i, { grenze: Number(e.target.value) })}></label>`
           : html`<p class="meta">Die Box spielt nicht. Ein leiser Ton zeigt, dass der Tobie erkannt wurde.</p>`}
       </div>`;
+    }
+
+    /* -- Eingebettet in „Technik“ (A12/A13, Design 5.9): ohne Kopf und Reiterleiste, nur der Bereich aus `bereich`.
+     * `bereich`: boxen (Karten der Boxen; mit `box` nur diese Box), liste (Stand der Liste, Export), aufraeumen (neue Serie,
+     * Überraschungs-Serie), eingang, papierkorb, tobies (Kennung von Hand, Lernmodus, Zuordnungen), einstellungen, meldungen
+     * (Protokoll der Boxen mit Codes) oder alle (Vorgabe: alle nacheinander mit Überschrift). Die Warnleisten zur Liste zeigt
+     * dann die Technik-Seite selbst. */
+    static BEREICHE = {
+      boxen: 'Boxen', liste: 'Liste der Tobies', aufraeumen: 'Bibliothek aufräumen', eingang: 'Eingang', papierkorb: 'Papierkorb',
+      tobies: 'Tobies', einstellungen: 'Einstellungen', meldungen: 'Meldungen',
+    };
+    _renderEingebettet() {
+      const s = this._s;
+      const namen = TobiboxPanel.BEREICHE;
+      const einzeln = namen[this.bereich] ? this.bereich : null;
+      return html`
+        <div class="app eingebettet" data-bereich=${einzeln || 'alle'}>
+          <main>
+            ${s.reloadNoetig ? html`<div class="banner err" role="alert">Bitte die Seite neu laden (Strg+F5).</div>` : nothing}
+            ${this._bannerFehler()}${this._bannerHinweis()}
+            ${!s.bereit && !s.reloadNoetig ? html`<p class="leer">Lade …</p>`
+              : (einzeln ? this._bereich(einzeln) : Object.keys(namen).map((k) => html`<section data-bereich-teil=${k}><h2>${namen[k]}</h2>${this._bereich(k)}</section>`))}
+          </main>
+          ${this._dialog()}${this._rueckfrageLern()}
+        </div>`;
+    }
+    _bereich(b) {
+      const s = this._s;
+      switch (b) {
+        case 'boxen': return html`${s.boxen.filter((x) => !this.box || x.box === this.box).map((x) => this._boxKarte(x))}
+          ${s.boxen.length ? nothing : html`<p class="leer">Keine Boxen eingerichtet.</p>`}`;
+        case 'liste': return html`${this._listeKarte()}<p class="klein-text">Integration ${s.version}</p>`;
+        case 'aufraeumen': return this._viewAufraeumen();
+        case 'eingang': return this._viewEingang();
+        case 'papierkorb': return this._viewKorb();
+        case 'tobies': return this._viewTobies();
+        case 'einstellungen': return this._viewEinstellungen();
+        default: return this._viewMeldungen();
+      }
+    }
+    _viewAufraeumen() {
+      const s = this._s; const w = this._kannSchreiben;
+      return html`
+        ${w && s.ueberraschung === 'fehlt' ? html`<div class="karte"><p>Es gibt noch keine Überraschungs-Serie. Die Box spielt sonst bei unbekannten Tobies einen Fehlerton.</p>
+          <button @click=${() => this.store.serieAnlegen('ueberraschung')}>Überraschungs-Serie anlegen</button></div>` : nothing}
+        ${s.ueberraschung === 'mehrere' ? html`<div class="banner warn">Es gibt mehr als eine Überraschungs-Serie.</div>` : nothing}
+        ${s.ueberraschung === 'leer' ? html`<div class="banner info">Die Überraschungs-Serie ist noch leer.</div>` : nothing}
+        ${w ? html`<div class="reihe"><button class="zweit" @click=${() => this.store.serieAnlegen()}>Neues leeres Hörspiel</button></div>` : nothing}`;
+    }
+    _viewMeldungen() {
+      const s = this._s;
+      const mit = s.boxen.filter((b) => b.ereignisse?.length);
+      return html`${mit.length ? mit.map((b) => html`<div class="karte" data-meldungen=${b.box}>
+          <div class="titel">${b.anzeigename || b.box}</div>
+          ${b.ereignisse.map((e) => html`<div class="meta">${zeitKurz(e.ts)} · <span class="marke">${e.art}</span> ${e.text || ''}</div>`)}</div>`)
+        : html`<p class="leer">Keine Meldungen von den Boxen.</p>`}`;
     }
 
     /* -- Dialoge */
@@ -1690,6 +1759,11 @@ if (lit) {
       button.klein.aktiv { background: var(--secondary-background-color, #eee); }
       .zeiten { display: flex; gap: 12px; } .zeiten label { flex: 1 1 0; min-width: 0; }
       input[type=range] { width: 100%; min-height: 48px; margin-top: 4px; }
+      :host([eingebettet]) { min-height: 0; background: transparent; }
+      :host([eingebettet]) .app { padding-bottom: 0; max-width: none; }
+      :host([eingebettet]) main { padding: 0; }
+      :host([eingebettet]) .app > .schleier, :host([eingebettet]) .schleier { z-index: 30; }
+      :host([eingebettet]) summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; }
     `;
   }
 

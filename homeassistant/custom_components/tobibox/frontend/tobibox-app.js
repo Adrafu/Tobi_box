@@ -11,7 +11,7 @@
  * Die Illustrationen der leeren Zustände (A6b) kommen aus ./illustrationen.js; fehlt die Datei oder ein Bild,
  * steht ein schlichter Platzhalter da.
  */
-import { fuellen, fehlerText, SEITE, TOBIE, LEER } from './texte.js';
+import { fuellen, fehlerText, SEITE, TOBIE, LEER, TECHNIK } from './texte.js';
 import { SEITEN } from './seiten/index.js';
 import { initLit, bausteinStil, CoverLader, leererZustand } from './bausteine.js';
 
@@ -699,6 +699,13 @@ if (lit) {
       if (s.phase === 'bereit' && s.konfigZustand !== 'ok' && !this._admin) {
         out.push(html`<div class="note warn band" role="status" data-band="gesperrt">${fuellen(SEITE.liste_gesperrt)}</div>`);
       }
+      // Warnleiste zur Liste für Administratoren auf jeder Seite (Design 5.9); die Technik-Seite zeigt sie selbst mit den Knöpfen
+      if (s.phase === 'bereit' && this._admin && this._route.name !== 'technik'
+        && (s.konfigZustand === 'leer_neu' || s.konfigZustand === 'export_neuer' || Object.values(s.boxen).some((b) => b?.konfig_stand === 'voraus'))) {
+        const w = TECHNIK.warnband;
+        out.push(html`<div class="note warn band" role="alert" data-band="liste"><strong>${w.global}</strong>
+          <a class="nl" href="#technik-liste">${w.global_link}</a></div>`);
+      }
       return out;
     }
 
@@ -723,6 +730,7 @@ if (lit) {
         faehig: (name) => (app.store.s.faehigkeiten || []).includes(name),
         get admin() { return app._admin; },
         get layout() { return app._layout; },
+        get hass() { return app.hass; }, // für eingebettete Komponenten (Technik: <tobibox-panel .hass=…>)
         get grenzeMs() { return app.store.ladeGrenzeMs; },
         get wurzel() { return app.renderRoot; },
         neuZeichnen: () => app.requestUpdate(),
@@ -752,7 +760,7 @@ if (lit) {
     _seitenWechsel() {
       const r = this._route;
       const aktiv = this.store.s.phase === 'bereit' && SEITEN[r.name] && !(r.name === 'technik' && !this._admin);
-      const key = aktiv ? `${r.name}|${r.id ?? ''}` : null;
+      const key = aktiv ? `${r.name}|${r.id ?? ''}|${r.sub ?? ''}` : null; // Technik: jede Unterseite betritt neu
       if (key === this._seiteKey) return;
       const alt = this._seiteObj;
       this._seiteKey = key;
@@ -927,6 +935,7 @@ if (lit) {
       .note.warn { background: var(--warn-bg); color: var(--warn); border: 2px solid var(--warn); }
       .note.err { background: var(--danger-bg); color: var(--danger); border: 2px solid var(--danger); }
       .note .btns { margin-top: 8px; }
+      .note a.nl { display: inline-flex; align-items: center; min-height: 44px; margin-left: 8px; color: inherit; font-weight: 500; }
       .note.band { margin: 8px max(16px, env(safe-area-inset-right, 0px)) 0 max(16px, env(safe-area-inset-left, 0px)); }
       .note .btn { background: var(--card); border: 1px solid var(--line); color: var(--text); }
 

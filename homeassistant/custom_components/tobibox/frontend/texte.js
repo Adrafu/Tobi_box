@@ -434,3 +434,79 @@ export function statusSatz(box = {}) {
 
   return { lage, satz, nebentext: nebe.filter(Boolean).join(' '), warnung };
 }
+
+// Technik (nur Administratoren; Design 5.9 und 9, Pakete A12/A13). Die alte Komponente `tobibox-panel` bringt ihre eigenen
+// Texte mit (eingebettet, `bereich`); hier stehen die Texte der neuen Seiten und Karten.
+export const TECHNIK = {
+  titel: 'Technik',
+  eingang: 'Eingang im Detail',
+  abbrechen: 'Abbrechen',
+  schliessen: 'Schließen',
+  zeilen: { // Muster X10: große Zeile mit Pfeil; Reihenfolge wie im Design 5.9
+    boxen: { titel: 'Boxen', zeile: 'Zustand, Sync und Meldungen je Box' },
+    speicher: { titel: 'Speicher und Netz', zeile: 'Eingang, Papierkorb, Bibliothek aufräumen' },
+    liste: { titel: 'Liste und Sicherung', zeile: 'Stand der Liste, Export, frühere Stände' },
+    tobies: { titel: 'Tobies', zeile: 'Kennung von Hand, Lernmodus, Zuordnungen' },
+    meldungen: { titel: 'Meldungen', zeile: 'Protokoll der Boxen mit Codes' },
+    einstellungen: { titel: 'Einstellungen', zeile: 'Zeitzone, Lesezeichen-Tage, Gute Nacht' },
+  },
+  box: { // Zeilen der Boxen und Box-Seite
+    online: 'online', offline: 'offline', unbekannt: 'noch nie gemeldet',
+    stand: { aktuell: 'Liste aktuell', veraltet: 'Liste veraltet', voraus: 'Box hat neueren Stand', unbekannt: 'Stand unbekannt' },
+    unbekannte_box: 'Diese Box gibt es nicht (mehr).',
+    alle: 'Alle Boxen im Detail',
+    lernmodus: { titel: 'Lernmodus starten …', zeile: 'Steht unter „Tobies“.' },
+  },
+  warnband: { // Admin-Warnleisten, Design 5.9 letzter Punkt (Texte wie in der alten Seite)
+    leer_neu: { titel: 'Die Liste der Tobies ist leer.', text: 'Der Speicher in HA ist leer, obwohl es schon einmal eine Liste gab. Bis du entscheidest, ändert sich nichts an den Boxen.', aus_export: 'Aus dem Export holen', neu: 'Mit leerer Liste neu beginnen' },
+    export_neuer: { titel: 'Der Export auf dem NAS ist neuer als der Stand in HA.', text: 'HA wurde wohl aus einer Sicherung zurückgespielt. Bis du entscheidest, ändert sich nichts an den Boxen.', aus_export: 'Aus dem Export holen', neu: 'Stand von HA behalten' },
+    export_fehlt: { titel: 'Die Sicherung auf dem NAS fehlt.', text: 'Der Export konnte nicht geschrieben werden.' },
+    box_voraus: { titel: 'Die Box {box} hat einen neueren Stand als HA.', text: 'Bitte „Liste neu ausrollen“ oder den Export holen.', neu: 'Liste neu ausrollen', aus_export: 'Aus dem Export holen' },
+    global: 'Die Liste der Tobies braucht eine Entscheidung.', global_link: 'Zu „Liste und Sicherung“', // oben auf allen Seiten, nur Administratoren
+  },
+  liste: { // Blätter zu den Warnleisten und zu den früheren Ständen
+    export_titel: 'Aus dem Export holen?',
+    export_zeile: 'Stand {revision}, gesichert am {zeit}, {zuordnungen}.',
+    export_ja: 'Aus dem Export holen',
+    export_keiner: 'Es gibt keinen Export auf dem NAS.',
+    neu_titel: 'Liste neu beginnen?',
+    neu_leer: 'Alle Tobies verlieren ihre Zuordnung.',
+    neu_behalten: 'Der Stand von HA wird an alle Boxen verteilt. Der Export auf dem NAS wird dabei neu geschrieben.',
+    neu_ausrollen: 'Die Liste wird mit neuem Stand an alle Boxen verteilt.',
+    neu_ja: 'Ja, neu ausrollen',
+    erledigt: 'Die Liste ist neu verteilt.',
+    staende: {
+      titel: 'Frühere Stände ansehen', text: 'Die letzten Stände der Liste. Einen Stand kannst du ansehen und zurückspielen.',
+      leer: 'Es gibt noch keine früheren Stände.', zeile: 'Stand {nr} · {zeit} · {zuordnungen}', zeile_ohne_zeit: 'Stand {nr} · {zuordnungen}',
+      blatt: 'Stand {nr} ansehen', fenster: { eins: '1 Leise-Zeit', mehr: '{anzahl} Leise-Zeiten' }, zurueck: 'Diesen Stand zurückspielen', zurueck_titel: 'Stand {nr} zurückspielen?',
+      zurueck_text: 'Die Liste wird durch diesen Stand ersetzt und an alle Boxen verteilt. Der jetzige Stand bleibt als früherer Stand erhalten.',
+      zurueck_ja: 'Ja, zurückspielen', gemacht: 'Stand {nr} ist zurückgespielt.',
+    },
+  },
+  zuordnungen: { eins: '1 Zuordnung', mehr: '{anzahl} Zuordnungen' },
+  aufraeumen: { // Karte „Bibliothek aufräumen“ (Design 5.9)
+    titel: 'Bibliothek aufräumen',
+    einlesen: 'Medien neu einlesen', einlesen_text: 'Schaut nach, ob auf dem NAS neue Ordner oder Dateien liegen.', einlesen_gemacht: 'Das NAS wird gerade eingelesen.', einlesen_laeuft: 'Das Einlesen läuft schon.',
+    cover: 'Cover neu suchen', cover_text: 'Sucht die Bilder aller Einträge noch einmal. Eigene Cover bleiben, wie sie sind.',
+    cover_titel: 'Cover neu suchen?', cover_ja: 'Ja, neu suchen', cover_gemacht: 'Die Cover-Suche läuft. Das dauert ein paar Minuten.',
+    hoerkopien: 'Hörkopien neu erzeugen', hoerkopien_text: 'Versucht es noch einmal bei allen Folgen, deren Hörkopie nicht geklappt hat.', hoerkopien_gemacht: { eins: '1 Folge wartet auf eine neue Hörkopie.', mehr: '{anzahl} Folgen warten auf eine neue Hörkopie.' },
+  },
+  korb: {
+    titel: 'Papierkorb', anzahl: { eins: '1 Eintrag', mehr: '{anzahl} Einträge' }, summe: '{anzahl} · {groesse}',
+    satz: 'Legt jemand ohne Admin-Rechte einen Eintrag mit Tobies oder mehr als 3 Einträge in einer Stunde in den Papierkorb, bekommen Administratoren eine Mitteilung in Home Assistant.',
+    typ: { folge: 'Folge', serie: 'Eintrag', eingang: 'Eingang' },
+    aus: 'aus „{serie}“', dateien: { eins: '1 Datei', mehr: '{anzahl} Dateien' },
+    geloescht: 'gelöscht am {zeit}', geloescht_von: 'gelöscht am {zeit} von {name}', tippen: 'Tippen zum Wiederherstellen',
+    wiederherstellen: '{name} wiederherstellen', wieder_da: '„{name}“ ist wieder da.',
+    letzte_stunde: 'Letzte Stunde zurückholen', letzte_stunde_titel: 'Die letzte Stunde zurückholen?',
+    letzte_stunde_text: 'Alles, was in der letzten Stunde in den Papierkorb kam, wird wiederhergestellt.',
+    letzte_stunde_ja: 'Ja, zurückholen',
+    letzte_stunde_gemacht: { eins: '1 Eintrag zurückgeholt.', mehr: '{anzahl} Einträge zurückgeholt.' },
+    letzte_stunde_nichts: 'In der letzten Stunde kam nichts in den Papierkorb.',
+    uebersprungen: { eins: '1 Eintrag ging nicht und liegt noch im Papierkorb.', mehr: '{anzahl} Einträge gingen nicht und liegen noch im Papierkorb.' },
+    leeren: 'Papierkorb leeren …', leeren_titel: 'Papierkorb leeren?', leeren_text: 'Das löscht {anzahl} ({groesse}) für immer. Danach kann niemand sie zurückholen.',
+    leeren_ja: 'Ja, für immer löschen', geleert: 'Der Papierkorb ist leer.',
+    serie_waehlen: 'In welches Hörspiel soll die Folge?', serie_text: 'Das ursprüngliche gibt es nicht mehr.',
+    mehr: 'Mehr laden',
+  },
+};

@@ -57,7 +57,18 @@ export const SCHEMA_V11 = {
 export const SCHEMA_BIB = {
   'tobibox/folgen/list': { opt: ['art', 'text', 'filter', 'sortierung', 'limit', 'offset'], braucht: 'bibliothek' },
 };
-export const FELDER_V11 = { 'tobibox/zuordnung/list': { uid: 'zuordnung_uid' } };
+export const FELDER_V11 = {
+  'tobibox/zuordnung/list': { uid: 'zuordnung_uid' },
+  'tobibox/konfig/export_lesen': { stand: 'konfig_staende' }, // A12/A13: frühere Stände (Vertrag 2.4)
+  'tobibox/konfig/aus_export': { stand: 'konfig_staende' },
+};
+
+/* A12/A13 (Technik): Befehle der Stufe A, die nur Administratoren brauchen (Vertrag 3.12). */
+export const SCHEMA_TECHNIK = {
+  'tobibox/cover/neu_suchen': { opt: ['serie_id'], braucht: 'cover' },
+  'tobibox/hoerkopie/neu_erzeugen': { opt: ['serie_id'], braucht: 'hoerkopie' },
+  'tobibox/papierkorb/restore_letzte_stunde': { req: ['bestaetigt'] },
+};
 /* A7 (Vertrag W, 14.2): neue optionale Eingaben der Bibliothek. Ohne die Fähigkeit `bibliothek` lehnt das Backend sie ab (invalid_format). */
 export const FELDER_BIB = {
   'tobibox/serien/list': ['art', 'text', 'auch_folgen', 'filter', 'sortierung', 'limit', 'offset'],
@@ -158,7 +169,7 @@ export function beispielBibliothek(n = 130) {
 
 /* `faehigkeiten`: was das (simulierte) Backend zusagt. Ohne Angabe wird nur die Form geprüft (alles ist erlaubt). */
 export function pruefeEingabe(msg, faehigkeiten = null) {
-  const sch = SCHEMA[msg.type] || SCHEMA_V11[msg.type] || SCHEMA_BIB[msg.type];
+  const sch = SCHEMA[msg.type] || SCHEMA_V11[msg.type] || SCHEMA_BIB[msg.type] || SCHEMA_TECHNIK[msg.type];
   if (!sch) throw fehler('unknown_command', `Unbekannter Befehl ${msg.type}`);
   if (faehigkeiten && sch.braucht && !faehigkeiten.includes(sch.braucht)) throw fehler('unknown_command', `Unbekannter Befehl ${msg.type}`);
   const { type, id, ...felder } = msg; // eslint-disable-line no-unused-vars
@@ -504,6 +515,15 @@ export function createMockHass(opts = {}) {
       b.eingang = b.eingang.filter((x) => x !== e);
       return { eintrag: { id: hex(e.id, 12), typ: 'eingang', serie_id: null, serie_name: null, folge: null, anzeige: e.name, art: e.art, tracks: e.dateien, groesse_bytes: e.groesse_bytes, grund: 'manuell', geloescht_am: '2026-11-09T10:00:00Z' } };
     },
+    'tobibox/cover/neu_suchen': (m) => { if (m.serie_id) holeSerie(m.serie_id); return { gestartet: true, eintraege: m.serie_id ? 1 : Object.keys(b.serien).length }; },
+    'tobibox/hoerkopie/neu_erzeugen': (m) => { if (m.serie_id) holeSerie(m.serie_id); return { eingereiht: m.serie_id ? 1 : 2 }; },
+    /* alles, was in der letzten Stunde (vor MOCK_JETZT) in den Papierkorb kam */
+    'tobibox/papierkorb/restore_letzte_stunde': () => {
+      const ab = MOCK_JETZT - 3600000;
+      const da = b.papierkorb.filter((e) => Date.parse(e.geloescht_am) >= ab);
+      b.papierkorb = b.papierkorb.filter((e) => !da.includes(e));
+      return { wiederhergestellt: da.length, uebersprungen: [] };
+    },
     'tobibox/konfig/aus_export': () => {
       if (!b.exportDatei.vorhanden) throw fehler('export_nicht_gefunden');
       b.konfig = { ...b.konfig, zustand: 'ok', revision: 1, liste_id: `liste-${Math.random().toString(16).slice(2, 8)}` };
@@ -601,4 +621,21 @@ export function createMockHass(opts = {}) {
     reset: () => { calls.length = 0; },
     tick: () => new Promise((r) => setTimeout(r, 0)),
   };
+}
+
+/* A12/A13: `konfig/export_lesen` mit früheren Ständen (Fähigkeit `konfig_staende`, Vertrag 2.4). Ohne `stand`: der neueste Export
+ * plus `staende`; mit `stand` n: die Angaben dieses Standes, sonst `export_nicht_gefunden`. Gibt die Liste der Stände zurück. */
+export const BEISPIEL_STAENDE = [
+  { stand: 1, revision: 8, exportiert_am: '2026-11-09T08:30:00Z', anzahl_zuordnungen: 4, anzahl_fenster: 1 },
+  { stand: 2, revision: 7, exportiert_am: '2026-11-08T19:00:00Z', anzahl_zuordnungen: 3, anzahl_fenster: 0 },
+];
+export function mitStaenden(m, staende = BEISPIEL_STAENDE) {
+  m.on('tobibox/konfig/export_lesen', (f, b) => {
+    const basis = { ...b.exportDatei, konfig: b.konfig };
+    if (f.stand === undefined) return { ...basis, staende: staende.map(({ stand, exportiert_am, anzahl_zuordnungen }) => ({ stand, exportiert_am, anzahl_zuordnungen })) };
+    const x = staende.find((y) => y.stand === f.stand);
+    if (!x) throw fehler('export_nicht_gefunden');
+    return { ...basis, revision: x.revision, exportiert_am: x.exportiert_am, anzahl_zuordnungen: x.anzahl_zuordnungen, anzahl_fenster: x.anzahl_fenster, neuer_als_ha: false };
+  });
+  return staende;
 }

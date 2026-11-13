@@ -10,5 +10,6 @@
 import * as start from './start.js';
 import * as bibliothek from './bibliothek.js';
 import * as suche from './suche.js';
+import * as technik from './technik.js';
 
-export const SEITEN = { start, bibliothek, suche };
+export const SEITEN = { start, bibliothek, suche, technik };
