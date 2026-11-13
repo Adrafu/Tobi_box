@@ -6,6 +6,12 @@
     und den Vorgaben der Projektleitung vom 09.11. (Abschnitt „Vorgaben der
     Projektleitung“ am Ende). Wartet auf die Freigabe durch Tobias. **Stand der Rechte, des Uploads und der
     neuen Befehle: Änderungen 12.11. und 13.11. unten.**
+*   **Änderung 13.11. K8 (Freigabe Tobias, 13.11.; `docs/egm/ha-ui/resolve.md`, Zeile „K8“):** Zwei additive Felder, Version bleibt 1, keine neue Fähigkeit.
+    **`folgen/list`** (Nr. 37) liefert je Zeile `cover_stand` (Cover-Stand des Eintrags, **dieselbe Quelle und Form wie `cover_stand` der Serie-Kurzform**, 14.2; `null` ohne Cover)
+    und `dauer_s` (Dauer der Folge in Sekunden, `number` oder `null`). **`zuordnung/list`** (Nr. 15) liefert je Zuordnung `cover_stand` des Ziels (Serie bzw. Serie der Folge;
+    `null` bei Gute Nacht, Aktion, fehlender Serie oder ohne Cover). **Stand des Backends:** `dauer_s` ist vorerst immer `null`, weil HA keine Dauern speichert
+    (Dauern kennt nur der Einsortier-Lauf, kurz, für die Art; sie kommen mit Stufe A-2). Die Seite behandelt `null` als „unbekannt“. Die Felder stehen **immer** da; ein älteres Backend
+    lässt sie weg. Das Cover selbst holt die Seite wie bisher über die HTTP-Adresse (14.6) mit `cover_stand` als Versionsmarke. `mqtt-v1.md`, `data-model.md` und die Box ändern sich nicht.
 *   **Änderung 13.11. K6/K7 (Freigabe Tobias, 13.11.; `docs/egm/ha-ui/resolve.md`, Zeile „K6/K7“):** Zwei kleine Ergänzungen, **alles additiv**, Version
     bleibt 1, keine neue Fähigkeit (die Seite erkennt K6 am Feld `vorher`, das jede Zuordnung in `zuordnung/list` trägt). **K6:** `zuordnung/list` liefert je Zuordnung
     das Feld `vorher` (`{"ziel", "am"}` oder `null`): das Ziel vor der letzten Umstellung und deren Zeitpunkt (3.5, Nr. 15 und 16), damit „Vorher: …
@@ -853,8 +859,10 @@ Ausgabe:
 | Feld | Typ | Bedeutung |
 |---|---|---|
 | `konfig` | object | Konfig-Stand |
-| `zuordnungen` | array | je Eintrag: `{"uid", "name" (oder null), "ziel", "angelegt_am" (12.11.: Zeitstempel oder fehlt), "serie_name" (oder null), "folge_anzeige" (oder null), "folge_vorhanden" (bool oder null), "vorher" (13.11., K6: object oder null)}`; `serie_name` ist `null`, wenn die Serie auf der Freigabe fehlt, `folge_vorhanden` und `folge_anzeige` nur bei `typ="folge"`. **`vorher` (13.11., K6):** `{"ziel": <Ziel, gleiche Form wie `ziel`>, "am": <Zeitstempel der Umstellung>}` oder `null`, wenn es keins gibt; das Feld steht **immer** da. Regeln siehe „`vorher`“ unten. |
+| `zuordnungen` | array | je Eintrag: `{"uid", "name" (oder null), "ziel", "angelegt_am" (12.11.: Zeitstempel oder fehlt), "serie_name" (oder null), "folge_anzeige" (oder null), "folge_vorhanden" (bool oder null), "vorher" (13.11., K6: object oder null), "cover_stand" (13.11., K8: string oder null)}`; `serie_name` ist `null`, wenn die Serie auf der Freigabe fehlt, `folge_vorhanden` und `folge_anzeige` nur bei `typ="folge"`. **`vorher` (13.11., K6):** `{"ziel": <Ziel, gleiche Form wie `ziel`>, "am": <Zeitstempel der Umstellung>}` oder `null`, wenn es keins gibt; das Feld steht **immer** da. Regeln siehe „`vorher`“ unten. |
 | `gesamt` | int | Anzahl aller passenden Zuordnungen |
+
+**`cover_stand` (13.11., K8):** der Cover-Stand der Serie, auf die das Ziel zeigt (`serie` und `folge`); `null` bei `gute_nacht`, `aktion`, fehlender Serie und Serien ohne Cover. Das Feld steht immer da.
 
 Sortiert nach `uid`. Eine Seite hat höchstens 100 Einträge (≈ 35 KiB, unter der
 Grenze von 64 KiB, Abschnitt 8; mit `vorher` bis etwa 45 KiB). Recht: lesen. Idempotent: ja. MQTT: –.
@@ -1318,7 +1326,7 @@ Sucht und blättert über **Folgen und Einzeltitel** aller Einträge (Suchansich
 | `limit` | int 1–100 | nein | Vorgabe 60 |
 | `offset` | int ≥ 0 | nein | Vorgabe 0 |
 
-Ausgabe: `folgen` (array) und `gesamt`, `weitere`. Je Zeile: `serie_id`, `serie_name`, `serie_einzeln` (bool), `art`, `folge` (Name), `anzeige`, `nummer`, `kapitel` (int, Anzahl, 0 wenn keine Liste), `groesse_mb`, `tobies` (array von Tobie-Kurzform, direkt auf die Folge), `serie_hat_tobie` (bool). Fehler: `medien_nicht_erreichbar` (nur wenn noch nie geprüft). Recht: lesen. Idempotent: ja. MQTT: –.
+Ausgabe: `folgen` (array) und `gesamt`, `weitere`. Je Zeile: `serie_id`, `serie_name`, `serie_einzeln` (bool), `art`, `folge` (Name), `anzeige`, `nummer`, `kapitel` (int, Anzahl, 0 wenn keine Liste), `groesse_mb`, `tobies` (array von Tobie-Kurzform, direkt auf die Folge), `serie_hat_tobie` (bool), **(13.11., K8)** `cover_stand` (string oder `null`, wie in der Serie-Kurzform) und `dauer_s` (number oder `null`; bis Stufe A-2 immer `null`). Fehler: `medien_nicht_erreichbar` (nur wenn noch nie geprüft). Recht: lesen. Idempotent: ja. MQTT: –.
 
 #### 38. `tobibox/serie/art_setzen` (Fähigkeit `bibliothek`)
 

@@ -881,6 +881,7 @@ class Hub:
                 "serie_name": info.serie.name if info else None,
                 "folge_anzeige": None,
                 "folge_vorhanden": None,
+                "cover_stand": info.cover_stand if info else None,  # K8: Cover der Serie; Gute Nacht/Aktion: null
             }
             if ziel["typ"] == "folge":
                 vorhanden = bool(info) and ziel["folge"] in info.serie.folgen

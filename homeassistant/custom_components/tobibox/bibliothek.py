@@ -346,6 +346,8 @@ class Bibliothek:
                     "groesse_mb": round(f.objekt.get("groesse_bytes", 0) / (1024 * 1024), 1),
                     "tobies": list(je_folge.get((s.id, f.name), [])),
                     "serie_hat_tobie": ganze.get(s.id, False),
+                    "cover_stand": z.info.cover_stand,  # K8: wie in der Serie-Kurzform (A4)
+                    "dauer_s": None,  # K8: Dauern werden nirgends gespeichert; sie kommen mit Stufe A-2
                 }
             )
         return zeilen, gesamt, offset + len(seite) < gesamt

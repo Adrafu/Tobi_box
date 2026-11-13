@@ -542,6 +542,7 @@ async def test_folgen_list_form_und_einzeltitel_als_folge(api, bibliothek, nas):
     assert z == {
         "serie_id": "mond", "serie_name": "Der Mond und der Fuchs", "serie_einzeln": True, "art": "musik", "folge": "mond.mp3",
         "anzeige": "mond", "nummer": None, "kapitel": 0, "groesse_mb": 3.0, "tobies": [{"uid": UID, "name": "Fuchs"}], "serie_hat_tobie": False,
+        "cover_stand": None, "dauer_s": None,  # K8 (13.11.): neue Felder, Schlüsselmenge bewusst erweitert
     }
     # derselbe Einzeltitel steht auch als Eintrag in serien/list (Serie und Folge)
     assert namen(await ok(api, "serien/list", text="mond")) == ["Der Mond und der Fuchs"]

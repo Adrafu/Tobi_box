@@ -83,7 +83,7 @@ async def test_zuordnung_list_filter_uid(api):
     r = await ok(api, "zuordnung/list", uid=UID)
     assert r["gesamt"] == 1
     # Vertrag W 12.11., angelegt_am: Anlegen setzt den Zeitstempel
-    assert r["zuordnungen"] == [{"uid": UID, "name": "Rabe aus Holz", "ziel": SERIE, "serie_name": "Der kleine Rabe", "folge_anzeige": None, "folge_vorhanden": None, "angelegt_am": ANY, "vorher": None}]  # K6 (13.11.)
+    assert r["zuordnungen"] == [{"uid": UID, "name": "Rabe aus Holz", "ziel": SERIE, "serie_name": "Der kleine Rabe", "folge_anzeige": None, "folge_vorhanden": None, "angelegt_am": ANY, "vorher": None, "cover_stand": None}]  # K6 (13.11.); K8 (13.11.): cover_stand (ohne Cover null)
     assert r["konfig"]["revision"] == 4
     z = (await ok(api, "zuordnung/list", uid=UID2))["zuordnungen"][0]
     assert z["folge_vorhanden"] is True and z["ziel"] == FOLGE

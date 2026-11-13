@@ -429,9 +429,10 @@ async def test_zuordnung_set_list_remove(api, box_fabrik, nas):
     assert [z["uid"] for z in liste["zuordnungen"]] == ["0123456789abcdef", UID2, UID]  # sortiert nach uid (Text)
     z = {x["uid"]: x for x in liste["zuordnungen"]}
     # Vertrag W 12.11., angelegt_am: Anlegen setzt den Zeitstempel
-    assert z[UID] == {"uid": UID, "name": "Rabe aus Holz", "ziel": SERIE, "serie_name": "Der kleine Rabe", "folge_anzeige": None, "folge_vorhanden": None, "angelegt_am": ANY, "vorher": None}  # K6 (13.11.): neues Feld ``vorher``
+    assert z[UID] == {"uid": UID, "name": "Rabe aus Holz", "ziel": SERIE, "serie_name": "Der kleine Rabe", "folge_anzeige": None, "folge_vorhanden": None, "angelegt_am": ANY, "vorher": None, "cover_stand": None}  # K6 (13.11.): ``vorher``; K8 (13.11.): ``cover_stand``
     assert z["0123456789abcdef"]["folge_anzeige"] == "Eins" and z["0123456789abcdef"]["folge_vorhanden"] is True
     assert z[UID2]["serie_name"] is None
+    assert z[UID2]["cover_stand"] is None and z["0123456789abcdef"]["cover_stand"] is None  # K8: Aktion bzw. Serie ohne Cover
     assert (await ok(api, "zuordnung/list", serie_id="rabe"))["gesamt"] == 2
     assert len((await ok(api, "zuordnung/list", limit=1, offset=2))["zuordnungen"]) == 1
     assert await fehler(api, "zuordnung/list", limit=101) == "invalid_format"

@@ -388,6 +388,29 @@ async def test_get_ohne_cover_und_unbekannte_serie(client, bestand):
     assert (kurz["cover_stand"], kurz["cover_quelle"]) == (None, None)
 
 
+async def test_k8_cover_stand_in_folgen_list_und_zuordnung_list(client, api, bestand):
+    """K8 (13.11.): ``cover_stand`` je Folge und je Zuordnung (Ziel Serie/Folge), ``dauer_s`` ``null``; Aktion: ``null``."""
+    for uid, ziel in (
+        ("04aa0001", {"typ": "serie", "serie": "rabe"}),
+        ("04aa0002", {"typ": "folge", "serie": "rabe", "folge": "a.mp3"}),
+        ("04aa0003", {"typ": "serie", "serie": "zwei"}),
+        ("04aa0004", {"typ": "aktion", "aktion": "status"}),
+    ):
+        await ok(api, "zuordnung/set", uid=uid, ziel=ziel, erwartet_ziel=None)
+    # ohne Cover: null
+    assert {f["serie_id"]: f["cover_stand"] for f in (await ok(api, "folgen/list"))["folgen"]} == {"rabe": None, "zwei": None}
+    r = await client.post(url(), data=bild((600, 600)), headers={"Content-Type": "image/jpeg"})
+    assert r.status == 200, await r.text()
+    stand = (await r.json())["cover_stand"]
+    folgen = (await ok(api, "folgen/list"))["folgen"]
+    assert {f["serie_id"]: f["cover_stand"] for f in folgen} == {"rabe": stand, "zwei": None}
+    assert all(f["dauer_s"] is None for f in folgen)  # Dauern kommen mit Stufe A-2
+    assert stand == (await serie_kurz(bestand, "rabe"))["cover_stand"]  # dieselbe Quelle wie die Serie-Kurzform
+    z = {x["uid"]: x for x in (await ok(api, "zuordnung/list"))["zuordnungen"]}
+    assert (z["04aa0001"]["cover_stand"], z["04aa0002"]["cover_stand"]) == (stand, stand)
+    assert (z["04aa0003"]["cover_stand"], z["04aa0004"]["cover_stand"]) == (None, None)
+
+
 async def test_foto_upload_speichert_nur_das_skalierte_und_nie_das_original(client, bestand, nas):
     original = bild((1500, 1500), progressive=True)
     stand_vorher = (await serie_kurz(bestand, "rabe"))["stand"]
