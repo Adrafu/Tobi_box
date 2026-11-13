@@ -102,10 +102,50 @@ class Lauf:
     def hash(self):
         return self.pg.evaluate("() => location.hash")
 
+    def rahmen_geometrie(self):
+        """Wie ha-panel-custom: das Element hat keine Höhe vom Behälter; die Leiste muss trotzdem am unteren Rand des Panels sitzen.
+        Liefert Texte der Abweichungen (leer = in Ordnung). Panel = Rechteck des Elements (Fensterhöhe minus Rand des Behälters)."""
+        return self.js("""
+          const e = (s) => sr.querySelector(s);
+          const P = el.getBoundingClientRect();
+          const ha = el.parentElement;
+          const randU = ha ? parseFloat(getComputedStyle(ha).paddingBottom) || 0 : 0;
+          const randO = ha ? parseFloat(getComputedStyle(ha).paddingTop) || 0 : 0;
+          const aus = [];
+          const nah = (a, b) => Math.abs(a - b) <= 1;
+          const soll = innerHeight - randU;
+          if (!nah(P.bottom, soll)) aus.push(`Panel endet bei ${P.bottom.toFixed(1)}, soll ${soll} (Fenster ${innerHeight}, Rand unten ${randU})`);
+          if (!nah(P.height, innerHeight - randU - randO)) aus.push(`Panelhöhe ${P.height.toFixed(1)} statt ${innerHeight - randU - randO}`);
+          const app = e('.app').getBoundingClientRect();
+          if (!nah(app.bottom, P.bottom) || !nah(app.top, P.top)) aus.push(`.app ${app.top.toFixed(1)}..${app.bottom.toFixed(1)} füllt das Panel ${P.top.toFixed(1)}..${P.bottom.toFixed(1)} nicht`);
+          const lay = el.getAttribute('data-layout');
+          const nav = e('nav.tabs.unten');
+          const mini = e('.mini');
+          const miniDa = mini && !mini.hidden && getComputedStyle(mini).display !== 'none';
+          if (lay === 'unten') {
+            if (!nav) aus.push('keine untere Leiste');
+            else if (getComputedStyle(nav).display !== 'none') {
+              const n = nav.getBoundingClientRect();
+              if (!nah(n.bottom, P.bottom)) aus.push(`Leiste endet bei ${n.bottom.toFixed(1)}, Panel bei ${P.bottom.toFixed(1)} (leere Fläche ${(P.bottom - n.bottom).toFixed(1)} px)`);
+              if (miniDa) { const m = mini.getBoundingClientRect(); if (!nah(m.bottom, n.top)) aus.push(`Mini-Player endet bei ${m.bottom.toFixed(1)}, Leiste beginnt bei ${n.top.toFixed(1)}`); }
+              const r = e('.rahmen').getBoundingClientRect();
+              const darueber = miniDa ? mini.getBoundingClientRect().top : n.top;
+              if (!nah(r.bottom, darueber)) aus.push(`Scrollbereich endet bei ${r.bottom.toFixed(1)}, darunter beginnt ${darueber.toFixed(1)}`);
+            }
+          } else {
+            const r = e('.rahmen').getBoundingClientRect();
+            const unter = miniDa && lay !== 'seite' ? mini.getBoundingClientRect() : null;
+            if (!nah(unter ? unter.bottom : r.bottom, P.bottom)) aus.push(`Layout ${lay}: Inhalt endet bei ${(unter ? unter.bottom : r.bottom).toFixed(1)}, Panel bei ${P.bottom.toFixed(1)}`);
+          }
+          return aus;
+        """)
+
     def messe(self, name, bild=True):
         self.ruhe()
         r = self.pg.evaluate("() => window.__mess()")
         self.zustaende += 1
+        for t in self.rahmen_geometrie():
+            self.befund("extra", name, f"Geometrie: {t}")
         for kat in ("hscroll", "raus", "klein", "text", "symbole", "rand", "leiste", "extra"):
             for t in r[kat]:
                 self.befund(kat, name, t)
@@ -260,6 +300,37 @@ def ablauf_reiter(L: Lauf):
         else:
             L.gehe("#technik")
             L.pruefe(L.da('[data-zustand="nur-admin"]'), "rechte-technik", "Benutzer sieht Technik ohne Sperre")
+
+
+def ablauf_unterkante(L: Lauf):
+    """Reiterleiste am unteren Rand des Panels, auch bei kurzem Inhalt; Mini-Player bündig; Safe-Area nur einmal."""
+    # Safe-Area-Fälle: (Name, Rand des HA-Behälters unten, emulierter Inset der Seite selbst)
+    faelle = [("ohne", 0, 0), ("ha-rand", 34, 0), ("inset", 0, 34)]
+    seiten = [("start", "#start"), ("bibliothek", "#bibliothek"), ("tobies", "#tobies"), ("geraete", "#geraete")]
+    for fname, ha_u, inset in faelle:
+        with L.schritt(f"unterkante-{fname}"):
+            L.pg.evaluate("([u, i]) => { const h = window.__el.parentElement; h.style.paddingBottom = u ? `${u}px` : ''; "
+                          "if (i) document.documentElement.style.setProperty('--tb-safe-unten', `${i}px`); else document.documentElement.style.removeProperty('--tb-safe-unten'); "
+                          "window.__el._messeRand(); window.__el.requestUpdate(); }", [ha_u, inset])
+            L.ruhe()
+            for sname, h in seiten:
+                L.gehe(h)
+                L.messe(f"unterkante-{fname}-{sname}", bild=False)
+            # Mini-Player an: bündig auf der Leiste
+            L.js("const m = document.createElement('div'); m.slot = 'mini'; m.id = 'mini-test'; m.style.height = '64px'; el.appendChild(m); el.setMini(true);")
+            L.ruhe()
+            L.gehe("#start")
+            L.messe(f"unterkante-{fname}-mini", bild=False)
+            # langer Inhalt, nach unten gescrollt (Rahmen bzw. Inhaltsspalte)
+            L.gehe("#bibliothek")
+            L.js("sr.querySelector('.rahmen').scrollTop = 99999; sr.querySelector('.spalte').scrollTop = 99999;")
+            L.ruhe()
+            L.messe(f"unterkante-{fname}-gescrollt", bild=False)
+            unten = L.js("const r = sr.querySelector('.rahmen'), s = sr.querySelector('.spalte'); return [r.scrollHeight - r.clientHeight, r.scrollTop, s.scrollHeight - s.clientHeight, s.scrollTop]")
+            L.pruefe(max(unten[0], unten[2]) <= 0 or unten[1] > 0 or unten[3] > 0, f"unterkante-{fname}", f"Bibliothek lässt sich nicht scrollen {unten}")
+            L.js("el.setMini(false); el.querySelector('#mini-test')?.remove();")
+    L.pg.evaluate("() => { const h = window.__el.parentElement; h.style.paddingBottom = ''; document.documentElement.style.removeProperty('--tb-safe-unten'); window.__el._messeRand(); }")
+    L.ruhe()
 
 
 def ablauf_suche(L: Lauf):
@@ -569,7 +640,7 @@ def ablauf_blaetter(L: Lauf):
         L.blatt_zu()
 
 
-ABLAEUFE = [ablauf_reiter, ablauf_suche, ablauf_bibliothek, ablauf_serie, ablauf_leise, ablauf_box, ablauf_technik, ablauf_blaetter]
+ABLAEUFE = [ablauf_unterkante, ablauf_reiter, ablauf_suche, ablauf_bibliothek, ablauf_serie, ablauf_leise, ablauf_box, ablauf_technik, ablauf_blaetter]
 
 
 # ------------------------------------------------------------------ Browser und Läufe

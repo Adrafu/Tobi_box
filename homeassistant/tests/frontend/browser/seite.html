@@ -30,7 +30,7 @@ if (q.get('pw')) root.style.width = `${Number(q.get('pw'))}px`;
 await import('/f/tobibox-app.js');
 const wurzel = root.attachShadow({ mode: 'open' });
 const el = document.createElement('tobibox-app');
-el.style.height = '100%';
+// Höhe: wie in HA allein aus dem Element (100dvh minus Rand des Panel-Behälters)
 const ws = async (m) => {
   const r = await (await fetch(`/ws?k=${encodeURIComponent(k)}`, { method: 'POST', body: JSON.stringify(m) })).json();
   if (r.error) throw r.error;
@@ -38,7 +38,17 @@ const ws = async (m) => {
 };
 el.hass = { user: { is_admin: !k.startsWith('user') }, connection: { sendMessagePromise: ws, subscribeMessage: async () => () => {} }, fetchWithAuth: (p) => fetch(p) };
 el.narrow = q.get('narrow') === '1';
-wurzel.appendChild(el);
+/* Wie ha-panel-custom: Light-DOM-Behälter ohne eigene Höhe (display:block, height:auto), mit Innenabstand für die
+ * Safe-Area (sa=<px unten>, sao=<px oben>; HA setzt padding-top/-bottom auf den Behälter). Emulierte Safe-Area der
+ * Seite selbst (ohne HA-Abstand): si=<px> als --tb-safe-unten. */
+const ha = document.createElement('div');
+ha.id = 'hapanel';
+ha.style.cssText = 'display:block;box-sizing:border-box;background:var(--primary-background-color)';
+if (q.get('sa')) ha.style.paddingBottom = `${Number(q.get('sa'))}px`;
+if (q.get('sao')) ha.style.paddingTop = `${Number(q.get('sao'))}px`;
+if (q.get('si')) document.documentElement.style.setProperty('--tb-safe-unten', `${Number(q.get('si'))}px`);
+wurzel.appendChild(ha);
+ha.appendChild(el);
 window.__el = el;
 </script>
 <script src="/messen.js"></script>

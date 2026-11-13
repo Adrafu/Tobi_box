@@ -373,6 +373,7 @@ if (lit) {
       this._leseHash();
       window.addEventListener('hashchange', this._onHash);
       this._messeBreite();
+      this._messeRand();
       if (typeof ResizeObserver !== 'undefined') {
         this._ro = new ResizeObserver((eintraege) => {
           const e = eintraege[eintraege.length - 1];
@@ -413,6 +414,7 @@ if (lit) {
     updated(ch) {
       this.setAttribute('data-layout', this._layout);
       this._wendeTokens();
+      this._messeRand();
       this._seitenWechsel();
       if (this._blatt && !this._blatt.offen) this._blattEinrichten();
       if (this._scrollOben) { this._scrollOben = false; const r = this.renderRoot.querySelector('.rahmen'); const sp = this.renderRoot.querySelector('.spalte'); if (r) r.scrollTop = 0; if (sp) sp.scrollTop = 0; }
@@ -442,6 +444,20 @@ if (lit) {
       if (!breite) breite = this.getBoundingClientRect?.().width || window.innerWidth || 0;
       const l = layoutFuerBreite(breite);
       if (l !== this._layout) this._layout = l;
+    }
+
+    /* HA (ha-panel-custom, Light-DOM, ohne eigene Höhe) setzt um unser Element Innenabstand für die Safe-Area. Wir
+     * ziehen ihn von der Höhe ab (--rand-v) und lassen unsere Leiste dann keinen zweiten Abstand unten bauen (--sab). */
+    _messeRand() {
+      let v = 0; let unten = 0;
+      try {
+        const p = this.parentElement;
+        if (p) { const cs = getComputedStyle(p); unten = parseFloat(cs.paddingBottom) || 0; v = (parseFloat(cs.paddingTop) || 0) + unten; }
+      } catch { /* ohne Stil */ }
+      const rv = `${v}px`;
+      const sab = unten > 0 ? '0px' : 'var(--tb-safe-unten, env(safe-area-inset-bottom, 0px))';
+      if (this.style.getPropertyValue('--rand-v') !== rv) this.style.setProperty('--rand-v', rv);
+      if (this.style.getPropertyValue('--sab') !== sab) this.style.setProperty('--sab', sab);
     }
 
     _tastatur(ziel) {
@@ -655,6 +671,7 @@ if (lit) {
     setMini(an, hoehe = 64) {
       const m = this.miniPlatz;
       if (!m) return;
+      this._miniAn = !!an;
       m.hidden = !an;
       this.style.setProperty('--minih', an ? `${hoehe}px` : '0px');
     }
@@ -832,6 +849,10 @@ if (lit) {
       </aside>`;
     }
 
+    /* Der Platz liegt außerhalb des Scrollbereichs (unten, oben) bündig auf der Leiste; in der Seitenleisten-Ansicht
+     * unten in der Inhaltsspalte. Der Zustand (hidden) überlebt einen Wechsel des Ortes (siehe updated). */
+    _miniHtml() { return html`<div class="mini" ?hidden=${!this._miniAn} part="mini"><slot name="mini"></slot></div>`; }
+
     render() {
       const r = this._route;
       const l = this._layout;
@@ -843,10 +864,11 @@ if (lit) {
             ${l === 'oben' ? this._nav(r) : nothing}
             ${this._baender()}
             <main id="main" tabindex="-1" aria-label=${this._titel(r)}>${this._seite(r)}</main>
-            <div class="mini" hidden part="mini"><slot name="mini"></slot></div>
-            ${l === 'unten' ? this._nav(r) : nothing}
+            ${l === 'seite' ? this._miniHtml() : nothing}
           </div>
         </div>
+        ${l === 'seite' ? nothing : this._miniHtml()}
+        ${l === 'unten' ? this._nav(r) : nothing}
         ${this._blattHtml()}
         <div class="toastbox"></div>
         <div id="live" class="sr" role="status" aria-live="polite"></div>
@@ -856,6 +878,9 @@ if (lit) {
     static styles = [css`
       :host {
         display: block; height: 100%; overflow: hidden;
+        /* HA gibt dem Panel keine Höhe weiter (ha-panel-custom: Light-DOM, height auto), "100%" greift dann nicht: Fenstergröße minus HA-Rand. */
+        height: calc(100vh - var(--rand-v, 0px)); height: calc(100dvh - var(--rand-v, 0px));
+        --rand-v: 0px; --sab: var(--tb-safe-unten, env(safe-area-inset-bottom, 0px));
         --bg: #fafafa; --card: #ffffff; --text: #212121; --text2: #5f6368; --divider: #dcdfe3;
         --primary: #01689f; --on-primary: #ffffff; --primary-soft: #e1f2fb; --primary-ink: #01689f;
         --ok: #1b5e20; --ok-bg: #e6f4e7; --warn: #8a4b00; --warn-bg: #fff1d6; --danger: #b71c1c; --danger-bg: #fdeaea;
@@ -867,15 +892,15 @@ if (lit) {
         --minih: 0px;
       }
       * { box-sizing: border-box; }
-      .app { position: relative; height: 100%; overflow: hidden; background: var(--bg); color: var(--text);
-        font-family: Roboto, system-ui, sans-serif; font-size: 16px; line-height: 1.45; --navh: calc(64px + env(safe-area-inset-bottom, 0px)); }
+      .app { position: relative; height: 100%; overflow: hidden; background: var(--bg); color: var(--text); display: flex; flex-direction: column;
+        font-family: Roboto, system-ui, sans-serif; font-size: 16px; line-height: 1.45; --navh: calc(64px + var(--sab)); }
       .app:not([data-layout="unten"]) { --navh: 0px; }
       button, select, input { font: inherit; color: inherit; }
       button { cursor: pointer; }
       a { color: var(--primary-ink); }
       :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; border-radius: 6px; }
       .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-      .rahmen { height: 100%; overflow-y: auto; overscroll-behavior: contain; }
+      .rahmen { flex: 1 1 0; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
       .spalte { min-height: 100%; display: flex; flex-direction: column; min-width: 0; }
       main { flex: 1 0 auto; min-width: 0; padding: 4px max(16px, env(safe-area-inset-right, 0px)) 24px max(16px, env(safe-area-inset-left, 0px)); outline: none; }
       main:focus, main:focus-visible { outline: none; }
@@ -901,7 +926,7 @@ if (lit) {
       nav.tabs .ti { display: grid; place-items: center; width: 56px; height: 32px; border-radius: 16px; }
       nav.tabs a[aria-current="page"] .ti { background: var(--primary-soft); }
       nav.tabs .dot { position: absolute; top: 4px; left: calc(50% + 6px); min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--danger); color: var(--card); font-size: 12px; line-height: 18px; text-align: center; font-weight: 700; }
-      nav.tabs.unten { position: sticky; bottom: 0; box-shadow: 0 -2px 12px var(--shadow); padding: 0 max(8px, env(safe-area-inset-left, 0px)) env(safe-area-inset-bottom, 0px) max(8px, env(safe-area-inset-right, 0px)); }
+      nav.tabs.unten { flex: none; box-shadow: 0 -2px 12px var(--shadow); padding: 0 max(8px, env(safe-area-inset-left, 0px)) var(--sab) max(8px, env(safe-area-inset-right, 0px)); }
       @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) and (background: color-mix(in srgb, red 50%, blue)) {
         nav.tabs.unten, nav.tabs.oben { background: color-mix(in srgb, var(--card) 94%, transparent); -webkit-backdrop-filter: blur(12px) saturate(1.3); backdrop-filter: blur(12px) saturate(1.3); }
       }
@@ -927,7 +952,8 @@ if (lit) {
       .app[data-layout="seite"] main { max-width: 1100px; width: 100%; padding: 24px 32px; margin: 0 auto; }
 
       /* Platz für den Mini-Player: bündig auf der Leiste */
-      .mini { position: sticky; bottom: var(--navh); z-index: 19; background: var(--card); border-top: 1px solid var(--divider); box-shadow: 0 -2px 8px var(--shadow); }
+      .mini { flex: none; position: relative; z-index: 19; background: var(--card); border-top: 1px solid var(--divider); box-shadow: 0 -2px 8px var(--shadow); }
+      .app[data-layout="seite"] .spalte .mini { position: sticky; bottom: 0; }
       .mini[hidden] { display: none; }
 
       /* Karten, Knöpfe, Hinweise */
