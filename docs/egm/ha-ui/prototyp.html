@@ -38,14 +38,31 @@
   --navh: calc(64px + env(safe-area-inset-bottom, 0px));
   --r-card: 16px;
   --r-big: 24px;
-  /* Bewegung (X33): drei Dauern (alle unter 400 ms), eine Standard-Kurve zum Hereingleiten, eine zum Hinausgleiten */
+  /* Bewegung (X34, nach Apples Human Interface Guidelines „Motion“): Dauern, Kurven, Feder-Kurven.
+     Feder = CSS linear(), nachgebildet aus Response ca. 0,45 s und Dämpfung ca. 0,8 (leichtes Überschwingen, ca. 1,5 %),
+     Feder-weich = Response 0,5 s, Dämpfung 0,9 (kaum Überschwingen). Ohne linear() gilt der Rückfall --kurve. */
   --dauer-kurz: 150ms;
   --dauer-mittel: 250ms;
   --dauer-lang: 350ms;
+  --dauer-feder: 500ms;
   --kurve: cubic-bezier(.2, 0, 0, 1);
   --kurve-aus: cubic-bezier(.4, 0, 1, 1);
+  --feder: var(--kurve);
+  --feder-weich: var(--kurve);
+  --druck: 0.97;
+  --druck-zeile: 0.98;
+  --hinten-skala: 0.94;
+  --hinten-radius: 14px;
+  --hinten-dunkel: 0.8;
+  --hinten-grund: #000000;
   --aus-y: 100%;
   color-scheme: light;
+}
+@supports (transition-timing-function: linear(0, 1)) {
+  :root {
+    --feder: linear(0, 0.031, 0.108, 0.21, 0.322, 0.435, 0.541, 0.637, 0.72, 0.791, 0.849, 0.896, 0.932, 0.96, 0.98, 0.995, 1.004, 1.01, 1.014, 1.015, 1.015, 1.014, 1.013, 1.011, 1.009, 1.008, 1);
+    --feder-weich: linear(0, 0.025, 0.088, 0.171, 0.264, 0.359, 0.45, 0.536, 0.613, 0.681, 0.74, 0.79, 0.833, 0.868, 0.898, 0.921, 0.94, 0.955, 0.967, 0.977, 0.984, 0.989, 0.993, 0.996, 0.998, 0.999, 1);
+  }
 }
 @media (min-width: 700px) { :root { --aus-y: 32px; } }
 @media (prefers-color-scheme: dark) {
@@ -322,7 +339,7 @@ h3 { font-size: 17px; font-weight: 500; margin: 0 0 4px; }
 .seg2 button:focus-visible { outline-offset: 0; border-radius: 24px; }
 .seg2 { position: relative; }
 /* Pille (X33): ein Element, das zur neuen Stelle gleitet (Segment-Umschalter und aktiver Reiter) */
-.pill { position: absolute; left: 0; top: 0; z-index: 0; pointer-events: none; will-change: transform; transition: transform var(--dauer-mittel) var(--kurve), width var(--dauer-mittel) var(--kurve), height var(--dauer-mittel) var(--kurve); }
+.pill { position: absolute; left: 0; top: 0; z-index: 0; pointer-events: none; will-change: transform; transition: transform var(--dauer-feder) var(--feder), width var(--dauer-mittel) var(--kurve), height var(--dauer-mittel) var(--kurve); }
 .seg2 > .pill { background: var(--primary); border-radius: 24px; box-shadow: inset 0 0 0 2px var(--primary-ink), 0 1px 3px var(--shadow); }
 .seg2.hp > button[aria-pressed="true"] { background: transparent; box-shadow: none; }
 nav.tabs .tr { position: relative; }
@@ -336,9 +353,21 @@ nav.tabs .tr.hp a[aria-current="page"], nav.tabs .tr.hp a[aria-current="page"] .
 
 /* Dialog und Blatt (natives dialog-Element) */
 dialog.sheet { border: 0; padding: 0; background: var(--card); color: var(--text); width: 100%; max-width: 560px; max-height: 92vh; max-height: 92dvh; overscroll-behavior: contain; overflow: auto; border-radius: var(--r-big); box-shadow: 0 8px 32px var(--shadow); }
-dialog.sheet, dialog.player { transform: translateY(var(--aus-y)); opacity: 0; transition: transform var(--dauer-mittel) var(--kurve), opacity var(--dauer-mittel) var(--kurve); }
+dialog.sheet, dialog.player { transform: translateY(var(--aus-y)); opacity: 0; transition: transform var(--dauer-feder) var(--feder), opacity var(--dauer-mittel) var(--kurve); }
 dialog.sheet.on, dialog.player.on { transform: none; opacity: 1; }
-dialog.sheet.closing, dialog.player.closing { transition-timing-function: var(--kurve-aus); }
+/* Schließen per Tippen: kurz und ohne Feder. Nach dem Wegwischen (Klasse „wisch“): Feder. */
+dialog.sheet.closing, dialog.player.closing { transition: transform var(--dauer-mittel) var(--kurve-aus), opacity var(--dauer-mittel) var(--kurve-aus); }
+dialog.sheet.closing.wisch, dialog.player.closing.wisch { transition: transform var(--dauer-feder) var(--feder), opacity var(--dauer-mittel) var(--kurve-aus); }
+/* Die Feder schwingt leicht über das Ziel: unten füllt eine Fläche in Kartenfarbe den Spalt */
+@media (max-width: 699px) { dialog.sheet, dialog.player { box-shadow: 0 8px 32px var(--shadow), 0 96px 0 0 var(--card); } }
+/* Player mit View Transition (vt) oder FLIP-Rückfall (flip): das Cover bewegt sich selbst, der Dialog gleitet nicht über CSS */
+dialog.player.vt, dialog.player.vt::backdrop { transition: none; }
+dialog.player.flip, dialog.player.flip.closing { transform: none; }
+/* Titel und Steuerung blenden mit kleiner Verzögerung nach dem Cover ein */
+@keyframes p-ein { from { opacity: 0; transform: translateY(14px); } }
+@keyframes ein-nur { from { opacity: 0; } }
+dialog.player.ein .pin > :not(.cover):not(.grip) { animation: p-ein var(--dauer-lang) var(--kurve) 140ms backwards; }
+.mini.hebt .cover { visibility: hidden; }
 dialog.sheet::backdrop, dialog.player::backdrop { background: var(--scrim); opacity: 0; transition: opacity var(--dauer-mittel) var(--kurve); }
 dialog.sheet.on::backdrop, dialog.player.on::backdrop { opacity: var(--bd, 1); }
 dialog.sheet.swap::backdrop { transition: none; opacity: 1; }
@@ -361,7 +390,7 @@ html.hasmini .toastbox { bottom: calc(150px + env(safe-area-inset-bottom, 0px));
 html .toastbox.inmodal, html.hasmini .toastbox.inmodal { bottom: auto; top: max(12px, env(safe-area-inset-top, 0px)); }
 .toastbox { --toast-y: 24px; }
 .toastbox.inmodal { --toast-y: -24px; }
-.toast { display: flex; align-items: center; gap: 12px; background: var(--text); color: var(--bg); padding: 12px 16px; border-radius: var(--r-card); touch-action: pan-y; transition: transform var(--dauer-mittel) var(--kurve-aus), opacity var(--dauer-mittel) var(--kurve-aus); animation: toast-ein var(--dauer-mittel) var(--kurve) backwards; }
+.toast { display: flex; align-items: center; gap: 12px; background: var(--text); color: var(--bg); padding: 12px 16px; border-radius: var(--r-card); touch-action: pan-y; transition: transform var(--dauer-mittel) var(--kurve-aus), opacity var(--dauer-mittel) var(--kurve-aus); animation: toast-ein var(--dauer-feder) var(--feder) backwards; }
 .toast.leaving { transform: translateY(var(--toast-y)); opacity: 0; }
 @keyframes toast-ein { from { transform: translateY(var(--toast-y)); opacity: 0; } }
 /* Seitenwechsel (X33): nur kurzes Überblenden, kein Gleiten */
@@ -387,12 +416,86 @@ table.kv { width: 100%; border-collapse: collapse; font-size: 14px; }
 table.kv td { padding: 6px 0; border-top: 1px solid var(--divider); vertical-align: top; }
 table.kv td:first-child { color: var(--text2); width: 45%; padding-right: 8px; }
 
-/* Reduzierte Bewegung (X33): keine Verschiebungen und kein Dauerpulsieren. Es bleibt ein kurzes Überblenden. */
+/* Druck-Rückmeldung (X34): beim Drücken leicht kleiner, beim Loslassen federt es zurück */
+:is(.btn, .iconbtn, .pbtn, .mplay, .tile, .rowbtn, .lrow, .slink, .chip, .back, .optrow, .krow, .playov, button.card, a.card) { transition: transform var(--dauer-feder) var(--feder); }
+:is(.btn, .iconbtn, .pbtn, .mplay, .tile, .chip, .back, .optrow, .krow, .playov, button.card, a.card):active:not(:disabled) { transform: scale(var(--druck)); transition-duration: var(--dauer-kurz); transition-timing-function: var(--kurve); }
+:is(.rowbtn, .lrow, .slink):active { transform: scale(var(--druck-zeile)); transition-duration: var(--dauer-kurz); transition-timing-function: var(--kurve); }
+.frow { transition: transform var(--dauer-feder) var(--feder); }
+.frow:has(> .slink:active) { transform: scale(var(--druck-zeile)); transition-duration: var(--dauer-kurz); transition-timing-function: var(--kurve); }
+/* Antippen eines Liedes oder einer Folge: der Eintrag „springt“ kurz heraus */
+@keyframes pop { from { transform: scale(var(--pop, 0.93)); } }
+.pop { animation: pop var(--dauer-feder) var(--feder) backwards; }
+.frow.pop, .lrow.pop { --pop: 0.975; }
+
+/* Abspiel-Anzeige (X34): drei Balken an dem, was gerade läuft; bei Pause stehen sie still */
+.eq { display: inline-flex; align-items: flex-end; gap: 2px; width: 16px; height: 16px; flex: none; }
+.eq i { display: block; flex: 1; height: 100%; border-radius: 1px; background: var(--primary-ink); transform-origin: 50% 100%; animation: eq 0.9s ease-in-out infinite alternate; }
+.eq i:nth-child(2) { animation-duration: 0.7s; animation-delay: -0.3s; }
+.eq i:nth-child(3) { animation-duration: 1.1s; animation-delay: -0.6s; }
+@keyframes eq { from { transform: scaleY(0.25); } to { transform: scaleY(1); } }
+.eq.still i { animation: none; }
+.eq.still i:nth-child(1) { transform: scaleY(0.45); } .eq.still i:nth-child(2) { transform: scaleY(0.9); } .eq.still i:nth-child(3) { transform: scaleY(0.65); }
+.pos > .eq { position: absolute; right: 6px; bottom: 6px; box-sizing: content-box; padding: 6px; border-radius: 8px; background: var(--scrim); }
+.pos > .eq i { background: var(--on-cover); }
+.fz .num .eq { margin: 0 auto; }
+.hero h2 .eq { vertical-align: middle; margin-left: 10px; }
+.fz .num { display: grid; place-items: center; }
+.lrow > .eq, .slink > .eq { align-self: center; }
+
+/* Mini-Player federt von unten herein, wenn zum ersten Mal etwas spielt */
+@keyframes mini-ein { from { transform: translateY(100%); opacity: 0; } }
+.mini.ein { animation: mini-ein var(--dauer-feder) var(--feder) backwards; }
+
+/* Blätter wie bei iOS (X34, nur am Handy): die Seite dahinter wird kleiner, bekommt runde Ecken und wird dunkler.
+   --t läuft von 0 bis 1; beim Ziehen am Blatt setzt das Skript --t anteilig (Klasse „zieht“: ohne Übergang). */
+@media (max-width: 699px) {
+  html.hinten-an { background: var(--hinten-grund); }
+  html.hinten-an body { background: transparent; }
+  html.hinten { --t: 1; }
+  html.hinten-an .page {
+    background: var(--bg);
+    transform-origin: 50% var(--oy, 50vh);
+    clip-path: inset(var(--cy, 0px) 0 var(--cb, 0px) 0 round calc(var(--hinten-radius) * var(--t, 0)));
+    transform: scale(calc(1 - (1 - var(--hinten-skala)) * var(--t, 0)));
+    filter: brightness(calc(1 - (1 - var(--hinten-dunkel)) * var(--t, 0)));
+    transition: transform var(--dauer-feder) var(--feder), clip-path var(--dauer-feder) var(--feder), filter var(--dauer-feder) var(--kurve);
+  }
+  html.zieht .page { transition: none; }
+}
+
+/* View Transitions (X34): Cover wandert (Player, Serienseite), Rest blendet über */
+::view-transition-group(root) { animation-duration: var(--dauer-mittel); }
+::view-transition-group(pcover), ::view-transition-group(scover) { animation-duration: var(--dauer-feder); animation-timing-function: var(--feder); z-index: 2; }
+::view-transition-group(pdlg) { z-index: 1; }
+::view-transition-old(pcover), ::view-transition-new(pcover), ::view-transition-old(scover), ::view-transition-new(scover) { height: 100%; width: 100%; object-fit: cover; mix-blend-mode: normal; }
+/* Das Cover ist beidseitig dasselbe Bild: das neue liegt von Anfang an voll sichtbar unten, das alte blendet oben aus
+   (beim Öffnen am Anfang, beim Schließen am Ende), so gibt es kein Aufhellen und keine Lücke mitten in der Bewegung. */
+::view-transition-new(pcover), ::view-transition-new(scover) { animation: none; opacity: 1; }
+@keyframes vt-raus { to { opacity: 0; } }
+html.vt-p-auf::view-transition-old(pcover), html.vt-s::view-transition-old(scover) { animation: vt-raus var(--dauer-mittel) var(--kurve) both; }
+html.vt-p-zu::view-transition-old(pcover) { animation: vt-raus var(--dauer-mittel) var(--kurve) var(--dauer-mittel) both; }
+/* Player: deckend hoch- und hinuntergleiten (am Handy), am großen Bildschirm zusätzlich überblenden */
+@keyframes vt-hoch { from { transform: translateY(var(--aus-y)); } }
+@keyframes vt-runter { to { transform: translateY(var(--aus-y)); } }
+@keyframes vt-hoch-d { from { transform: translateY(var(--aus-y)); opacity: 0; } }
+@keyframes vt-runter-d { to { transform: translateY(var(--aus-y)); opacity: 0; } }
+html.vt-p-auf::view-transition-new(pdlg) { animation: vt-hoch var(--dauer-feder) var(--feder) both; mix-blend-mode: normal; }
+html.vt-p-zu::view-transition-old(pdlg) { animation: vt-runter var(--dauer-feder) var(--feder) both; mix-blend-mode: normal; }
+@media (min-width: 700px) {
+  html.vt-p-auf::view-transition-new(pdlg) { animation-name: vt-hoch-d; }
+  html.vt-p-zu::view-transition-old(pdlg) { animation-name: vt-runter-d; }
+}
+
+/* Reduzierte Bewegung (X33, X34): nur Überblenden. Keine Feder, kein Skalieren, keine Verschiebung, keine View-Transition-Bewegung. */
 @media (prefers-reduced-motion: reduce) {
-  :root { --aus-y: 0px; --dauer-mittel: var(--dauer-kurz); --dauer-lang: var(--dauer-kurz); }
+  :root { --aus-y: 0px; --dauer-mittel: var(--dauer-kurz); --dauer-lang: var(--dauer-kurz); --dauer-feder: var(--dauer-kurz); --feder: var(--kurve); --feder-weich: var(--kurve); --druck: 1; --druck-zeile: 1; --hinten-skala: 1; --hinten-radius: 0px; --hinten-dunkel: 1; }
   .skel, .ring { animation: none !important; }
+  .eq i { animation: none !important; }
+  .pop { animation: none !important; }
+  .mini.ein, dialog.player.ein .pin > :not(.cover):not(.grip) { animation: ein-nur var(--dauer-kurz) var(--kurve) backwards; }
   *, *::before, *::after { transition-property: opacity, background-color, color !important; }
   .toastbox, .toastbox.inmodal { --toast-y: 0px; }
+  ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation-name: none !important; }
 }
 /* Rev. 2: Bibliothek, Filter, Listen */
 .chips.wrap { gap: 8px; }
@@ -975,6 +1078,7 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
   function serie(id) { return S.series.filter(function (x) { return x.id === id; })[0]; }
   function box(id) { return S.boxes.filter(function (x) { return x.id === id; })[0]; }
   function initial(n) { return n.charAt(0).toUpperCase(); }
+  function eq(spielt) { return '<span class="eq' + (spielt ? '' : ' still') + '" role="img" aria-label="' + (spielt ? 'läuft gerade' : 'pausiert') + '"><i></i><i></i><i></i></span>'; }
   function coverHtml(s, size) {
     return '<div class="cover ' + s.c + (size ? ' ' + size : '') + '"' + (s.img ? ' style="background-image:url(' + s.img + ')"' : '') + ' aria-hidden="true">' + (s.img ? '' : esc(initial(s.name))) + '</div>';
   }
@@ -1059,7 +1163,7 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     return '<a class="card status' + (b.online ? '' : ' off') + '" href="#box-' + b.id + '" data-fk="bx' + b.id + '">' + cover + '<div class="txt"><div class="sent"><span class="dotx" aria-hidden="true"></span>' + esc(statusSatz(b)) + '</div><div class="muted">' + esc(statusZeile2(b)) + '</div>' + extra + '</div><span class="chev" aria-hidden="true">' + ic('chev') + '</span></a>';
   }
   function tileFor(s, act, extra) {
-    return '<button class="tile" data-act="' + act + '" data-arg="' + s.id + '" data-fk="' + act + s.id + '"><span class="pos">' + coverHtml(s) + (s.pruefen ? '<span class="badge">bitte ansehen</span>' : '') + '</span><span class="tn">' + esc(s.name) + '</span><span class="tm">' + esc(extra || (s.einzeln ? ART[s.art].one + ' · ' + clock(s.folgen[0].d) : s.art === 'geschichte' ? einheit(s) : ART[s.art].e + ' · ' + einheit(s))) + '</span></button>';
+    return '<button class="tile' + (P.sid === s.id ? ' cur' : '') + '"' + (P.sid === s.id ? ' data-cur="1"' : '') + ' data-act="' + act + '" data-arg="' + s.id + '" data-fk="' + act + s.id + '"><span class="pos">' + coverHtml(s) + (P.sid === s.id ? eq(P.playing) : '') + (s.pruefen ? '<span class="badge">bitte ansehen</span>' : '') + '</span><span class="tn">' + esc(s.name) + '</span><span class="tm">' + esc(extra || (s.einzeln ? ART[s.art].one + ' · ' + clock(s.folgen[0].d) : s.art === 'geschichte' ? einheit(s) : ART[s.art].e + ' · ' + einheit(s))) + '</span></button>';
   }
   function actionTile(label, act, arg, sub) {
     return '<button class="tile action" data-act="' + act + '" data-arg="' + arg + '" data-fk="' + act + arg + '"><span class="cover" aria-hidden="true">' + ic('moon', 48) + '</span><span class="tn">' + esc(label) + '</span><span class="tm">' + esc(sub) + '</span></button>';
@@ -1163,7 +1267,8 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     var p = serieProg(s), tb = S.tobies.filter(function (t) { return t.z.s === s.id; }).length;
     var sub = s.einzeln ? ART[s.art].one + ' · einzeln · ' + clock(p.tot) : ART[s.art].e + ' · ' + einheit(s) + ' · ' + dauerText(p.tot), prog = '';
     if (p.started) prog = '<span class="pbar" role="progressbar" aria-label="Fortschritt" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + Math.round(p.frac * 100) + '"><i style="width:' + Math.round(p.frac * 100) + '%"></i></span><span class="ls">' + (p.frac >= 0.999 ? 'Fertig gehört' : 'noch ' + dauerText(p.rest)) + '</span>';
-    return '<a class="lrow" href="#serie-' + s.id + '" data-fk="lr' + s.id + '">' + coverHtml(s, 'lr') + '<span class="grow"><span class="lt">' + hl(s.name, term || '') + '</span><span class="ls">' + esc(sub) + '</span>' + prog + (s.pruefen ? '<span class="badge">bitte ansehen</span>' : '') + '</span>' +
+    var cu = P.sid === s.id;
+    return '<a class="lrow' + (cu ? ' cur' : '') + '"' + (cu ? ' data-cur="1"' : '') + ' href="#serie-' + s.id + '" data-fk="lr' + s.id + '">' + coverHtml(s, 'lr') + '<span class="grow"><span class="lt">' + hl(s.name, term || '') + '</span><span class="ls">' + esc(sub) + '</span>' + prog + (s.pruefen ? '<span class="badge">bitte ansehen</span>' : '') + '</span>' + (cu ? eq(P.playing) : '') +
       (tb ? '<span class="tbadge" role="img" aria-label="' + tb + (tb === 1 ? ' Tobie' : ' Tobies') + '">' + ic('tag', 16) + tb + '</span>' : '') + '</a>';
   }
   function whRow() {
@@ -1171,7 +1276,7 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     if (!l.length) return '';
     return '<h3 class="rowh">Am Handy weiterhören</h3><div class="hscroll">' + l.map(function (x) {
       var s = x.s, p = x.p;
-      return '<div class="wh"><button class="tile" data-act="oeffne" data-arg="' + s.id + '" data-fk="wh' + s.id + '"><span class="pos">' + coverHtml(s) + '</span><span class="pbar" aria-hidden="true"><i style="width:' + Math.round(p.frac * 100) + '%"></i></span><span class="tn">' + esc(s.name) + '</span><span class="tm">noch ' + dauerText(p.rest) + '</span></button>' +
+      return '<div class="wh"><button class="tile' + (P.sid === s.id ? ' cur' : '') + '"' + (P.sid === s.id ? ' data-cur="1"' : '') + ' data-act="oeffne" data-arg="' + s.id + '" data-fk="wh' + s.id + '"><span class="pos">' + coverHtml(s) + (P.sid === s.id ? eq(P.playing) : '') + '</span><span class="pbar" aria-hidden="true"><i style="width:' + Math.round(p.frac * 100) + '%"></i></span><span class="tn">' + esc(s.name) + '</span><span class="tm">noch ' + dauerText(p.rest) + '</span></button>' +
         '<button class="playov" data-act="reinhoeren" data-arg="' + s.id + '" data-fk="whp' + s.id + '" aria-label="' + esc(s.name) + ' weiterhören">' + ic('play', 24) + '</button></div>';
     }).join('') + '</div>';
   }
@@ -1218,8 +1323,8 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
 
   /* ---------- Suche ---------- */
   function sfRow(x, term) {
-    var s = x.s, f = x.f;
-    return '<div class="frow"><a class="slink" href="#serie-' + s.id + '" data-fk="sl' + s.id + x.i + '">' + coverHtml(s, 'sm') + '<span class="grow"><span class="nm" style="display:block">' + hl(f.t, term) + '</span><span class="muted" style="display:block">' + (s.einzeln ? 'Einzeltitel · ' : esc(s.name) + ' · ') + clock(f.d) + '</span></span></a>' +
+    var s = x.s, f = x.f, cu = P.sid === s.id && P.i === x.i;
+    return '<div class="frow' + (cu ? ' cur' : '') + '"' + (cu ? ' data-cur="1"' : '') + '><a class="slink" href="#serie-' + s.id + '" data-fk="sl' + s.id + x.i + '">' + coverHtml(s, 'sm') + '<span class="grow"><span class="nm" style="display:block">' + hl(f.t, term) + '</span><span class="muted" style="display:block">' + (s.einzeln ? 'Einzeltitel · ' : esc(s.name) + ' · ') + clock(f.d) + '</span></span>' + (cu ? eq(P.playing) : '') + '</a>' +
       '<button class="iconbtn fillp" data-act="playF" data-arg="' + s.id + '|' + x.i + '" data-fk="sp' + s.id + x.i + '" aria-label="' + esc(f.t) + ' anhören">' + ic(P.sid === s.id && P.i === x.i && P.playing ? 'pause' : 'play', 24) + '</button>' +
       '<button class="iconbtn more" data-act="folgeMehr" data-arg="' + s.id + '|' + x.i + '" data-fk="st' + s.id + x.i + '" aria-label="Mehr zu ' + esc(f.t) + '">' + ic('more', 22) + '</button></div>';
   }
@@ -1274,7 +1379,7 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     f.kap.forEach(function (k, j) {
       var end = j + 1 < f.kap.length ? f.kap[j + 1].s : f.d, isCur = j === ci, done = j < ci, pl = isCur && cur && P.playing;
       h += '<button class="krow' + (isCur ? ' cur' : '') + '" data-act="playK" data-arg="' + s.id + '|0|' + j + '" data-fk="kr' + j + '"' + (isCur ? ' aria-current="true"' : '') + ' aria-label="' + esc(k.t) + ', ab ' + clock(k.s) + (isCur ? ', aktuelles Kapitel' : done ? ', schon gehört' : '') + (pl ? ', pausieren' : ', abspielen') + '">' +
-        '<span class="kn" aria-hidden="true">' + (done ? ic('check', 18) : (j + 1)) + '</span><span class="grow"><span class="lt">' + esc(k.t) + '</span><span class="ls">ab ' + clock(k.s) + ' · ' + clock(end - k.s) + (isCur ? ' · ' + (pl ? 'läuft' : 'hier weiter') : done ? ' · gehört' : '') + '</span></span><span class="kp" aria-hidden="true">' + ic(pl ? 'pause' : 'play', 22) + '</span></button>';
+        '<span class="kn" aria-hidden="true">' + (isCur && cur ? eq(pl) : done ? ic('check', 18) : (j + 1)) + '</span><span class="grow"><span class="lt">' + esc(k.t) + '</span><span class="ls">ab ' + clock(k.s) + ' · ' + clock(end - k.s) + (isCur ? ' · ' + (pl ? 'läuft' : 'hier weiter') : done ? ' · gehört' : '') + '</span></span><span class="kp" aria-hidden="true">' + ic(pl ? 'pause' : 'play', 22) + '</span></button>';
     });
     return h + '</div></div>';
   }
@@ -1285,7 +1390,7 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     var prog = '';
     if (e && !fe && e.p > 1) prog = '<span class="pbar" role="progressbar" aria-label="Fortschritt" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + Math.round(e.p / f.d * 100) + '"><i style="width:' + Math.round(e.p / f.d * 100) + '%"></i></span><span class="ls">noch ' + clock(f.d - e.p) + '</span>';
     else if (fe) prog = '<span class="ls ok">' + ic('check', 16) + ' Fertig gehört</span>';
-    return '<div class="frow fz' + (cur ? ' cur' : '') + '"><span class="num" aria-hidden="true">' + (i + 1) + '</span><div class="grow"><div class="nm">' + esc(f.t) + '</div><div class="muted">' + meta + '</div>' + prog + chipsHtml(tbl, s.id + '~' + (s.einzeln ? 0 : i)) + '</div>' +
+    return '<div class="frow fz' + (cur ? ' cur' : '') + '"' + (cur ? ' data-cur="1"' : '') + '><span class="num" aria-hidden="true">' + (cur ? eq(pl) : (i + 1)) + '</span><div class="grow"><div class="nm">' + esc(f.t) + '</div><div class="muted">' + meta + '</div>' + prog + chipsHtml(tbl, s.id + '~' + (s.einzeln ? 0 : i)) + '</div>' +
       (S.reihenfolge ? '<button class="iconbtn" data-act="hoch" data-arg="' + s.id + '|' + i + '" aria-label="' + esc(f.t) + ' nach oben" data-fk="up' + i + '"' + (i === 0 ? ' disabled' : '') + '>▲</button><button class="iconbtn" data-act="runter" data-arg="' + s.id + '|' + i + '" aria-label="' + esc(f.t) + ' nach unten" data-fk="dn' + i + '"' + (i === s.folgen.length - 1 ? ' disabled' : '') + '>▼</button>'
         : '<button class="iconbtn fillp" data-act="playF" data-arg="' + s.id + '|' + i + '" data-fk="pf' + i + '" aria-label="' + esc(f.t) + (pl ? ' pausieren' : ' abspielen') + '">' + ic(pl ? 'pause' : 'play', 24) + '</button><button class="iconbtn more" data-act="folgeMehr" data-arg="' + s.id + '|' + i + '" data-fk="fm' + i + '" aria-label="Mehr zu ' + esc(f.t) + '">' + ic('more', 22) + '</button>') + '</div>';
   }
@@ -1294,7 +1399,7 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     if (!s) return '<div class="note err">Das gibt es nicht mehr. <a href="#bibliothek">Zurück zur Bibliothek</a></div>';
     var tob = S.tobies.filter(function (t) { return t.z.s === id; }).length, art = ART[s.art], p = serieProg(s);
     var h = '<div class="shead2"><button class="back" data-act="go" data-arg="bibliothek" data-fk="back">' + ic('back') + 'Bibliothek</button><button class="iconbtn plain" data-act="serieMenu" data-arg="' + id + '" data-fk="smenu" aria-label="Mehr zu ' + esc(s.name) + '">' + ic('more', 24) + '</button></div>';
-    h += '<div class="hero">' + coverHtml(s, 'xl') + '<div class="htxt"><h2>' + esc(s.name) + '</h2><div class="muted">' + (s.einzeln ? art.one + ' · einzeln · ' + clock(p.tot) : art.e + ' · ' + einheit(s) + ' · ' + dauerText(p.tot)) + '</div>' +
+    h += '<div class="hero">' + coverHtml(s, 'xl') + '<div class="htxt"><h2>' + esc(s.name) + (P.sid === id ? eq(P.playing) : '') + '</h2><div class="muted">' + (s.einzeln ? art.one + ' · einzeln · ' + clock(p.tot) : art.e + ' · ' + einheit(s) + ' · ' + dauerText(p.tot)) + '</div>' +
       (p.started ? '<div class="muted">' + (p.frac >= 0.999 ? 'Fertig gehört' : 'Schon ' + Math.round(p.frac * 100) + ' % gehört · noch ' + dauerText(p.rest)) + '</div>' : '') +
       '<div class="hbtns">' + reinBtn(s) + '</div></div></div>';
     if (s.pruefen) h += '<div class="note warn"><strong>Bitte kurz ansehen.</strong><br>' + esc(s.pruefen) + '<div class="btns"><button class="btn" data-act="geprueft" data-arg="' + id + '" data-fk="gep">Das ist richtig</button><button class="btn" data-act="stimmtNicht" data-arg="' + id + '" data-fk="stn">Das stimmt nicht</button></div></div>';
@@ -2022,7 +2127,8 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     var open = [].map.call(main.querySelectorAll('details.sec'), function (d) { return d.open; });
     var scroll = window.scrollY;
     main.innerHTML = V[r.v]();
-    if (seiteNeu) { main.classList.remove('seite-ein'); void main.offsetWidth; main.classList.add('seite-ein'); }
+    if (P.pop) { [].forEach.call(main.querySelectorAll('[data-cur]'), function (e) { e.classList.add('pop'); setTimeout(function () { e.classList.remove('pop'); }, msOf('--dauer-feder', 500) + 100); }); }
+    if (seiteNeu && !document.documentElement.classList.contains('vt-lauf')) { main.classList.remove('seite-ein'); void main.offsetWidth; main.classList.add('seite-ein'); }
     [].forEach.call(main.querySelectorAll('details.sec'), function (d, i) { if (open.length) d.open = !!open[i]; });
     if (fk) { var el = main.querySelector('[data-fk="' + fk + '"]') || document.querySelector('#tabrow [data-fk="' + fk + '"]') || document.querySelector('#techslot [data-fk="' + fk + '"]'); if (el && el !== a) { el.focus({ preventScroll: true }); if (el.setSelectionRange && selStart != null) { try { el.setSelectionRange(selStart, selStart); } catch (e) {} } } }
     window.scrollTo(0, scroll);
@@ -2042,18 +2148,103 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     var rt = $('rights');
     rt.textContent = S.admin ? 'Als Administrator darf diese Rolle alles, auch Papierkorb leeren, Eingang entfernen, Zusammenführen, Reihenfolge ändern und den Bereich „Technik“ sehen.' : 'Als normaler Benutzer darf diese Rolle zuordnen, hinzufügen, Namen und Cover ändern, Gute Nacht und Leise-Zeiten einstellen und etwas in den Papierkorb legen. Nicht erlaubt: Papierkorb leeren, Eingang entfernen, Zusammenführen, Reihenfolge ändern, „Technik“.';
   }
-  var lastRoute = '';
-  window.addEventListener('hashchange', function () {
+  var lastRoute = '', prevR = route(), lastTap = null;
+  /* Merkt, auf welches Cover einer Serie zuletzt getippt wurde (für die View Transition in die Serienseite) */
+  document.addEventListener('click', function (e) {
+    lastTap = null;
+    var c = e.target.closest ? e.target.closest('.tile, .lrow, .slink, .status') : null; if (!c) return;
+    var cv = c.querySelector('.cover'), hr = c.getAttribute('href') || '', sid = hr.indexOf('#serie-') === 0 ? hr.slice(7) : c.dataset.arg;
+    if (cv && sid) lastTap = { el: cv, sid: sid, t: Date.now() };
+  }, true);
+  function onRoute() {
     if (S.lern && S.lern.timer && route().v !== 'anlernen') { clearInterval(S.lern.timer); }
     S.serieTerm = ''; S.serieShown = 20; S.reihenfolge = false;
     render(); if (lastRoute !== location.hash) { window.scrollTo(0, 0); } lastRoute = location.hash;
     if (route().v === 'suche') { var qs = $('qsuche'); if (qs) qs.focus(); }
+  }
+  /* Serienseite öffnen und schließen (X34): das Cover der Kachel wächst in den Kopf der Seite und zurück, der Rest blendet über */
+  window.addEventListener('hashchange', function () {
+    var nr = route(), pr = prevR; prevR = nr;
+    var auf = nr.v === 'serie' && pr.v !== 'serie', zu = pr.v === 'serie' && nr.v !== 'serie';
+    if (!(auf || zu) || !kannVT()) { onRoute(); return; }
+    var sid = auf ? nr.id : pr.id, tap = lastTap && Date.now() - lastTap.t < 1500 && lastTap.sid === sid && document.contains(lastTap.el) ? lastTap : null;
+    function heldCover() { return $('main').querySelector('.hero .cover'); }
+    function kachelCover() {
+      var l = [].slice.call($('main').querySelectorAll('[data-arg="' + sid + '"] .cover, a[href="#serie-' + sid + '"] .cover')), vh = window.innerHeight;
+      return l.filter(function (c) { var r = c.getBoundingClientRect(); return r.width > 0 && r.bottom > 0 && r.top < vh; })[0] || null;
+    }
+    wechsel({ art: 's',
+      alt: function () { setVTN(auf ? (tap && tap.el) : heldCover(), 'scover'); },
+      update: onRoute,
+      neu: function () { setVTN(auf ? heldCover() : kachelCover(), 'scover'); } });
   });
 
   /* ---------- Blatt, Dialog, Meldung (natives dialog-Element) ---------- */
   var returnFocus = null, returnFk = null;
   /* Bewegung (X33): Blätter und Player gleiten herein (Klasse „on“) und hinaus (Klasse „closing“). Erst danach close(). */
   function msOf(name, dflt) { var v = parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name)); return isNaN(v) ? dflt : v; }
+  /* Bewegung (X34): Feder-Kurven, View Transitions mit FLIP-Rückfall, Blatt-Darstellung wie iOS */
+  var reduceMQ = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : { matches: false };
+  var narrowMQ = window.matchMedia ? window.matchMedia('(max-width: 699px)') : { matches: false };
+  function bewegt() { return !reduceMQ.matches; }
+  function kannVT() { return bewegt() && typeof document.startViewTransition === 'function'; }
+  function cssVal(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+  function setVTN(el, n) { if (!el) return; if (n) el.style.setProperty('view-transition-name', n); else el.style.removeProperty('view-transition-name'); }
+  /* Eine Änderung der Ansicht mit View Transition. o.alt: Namen im alten Zustand setzen; o.update: Änderung; o.neu: Namen im neuen Zustand. */
+  function wechsel(o) {
+    var de = document.documentElement, fertig = false;
+    function tu() { o.update(); if (o.neu) o.neu(); }
+    if (!kannVT()) { tu(); return null; }
+    function ende() {
+      if (fertig) return; fertig = true;
+      de.classList.remove('vt-lauf', 'vt-' + o.art);
+      [].forEach.call(document.querySelectorAll('[style*="view-transition-name"]'), function (e) { e.style.removeProperty('view-transition-name'); });
+    }
+    try {
+      if (o.alt) o.alt();
+      de.classList.add('vt-lauf', 'vt-' + o.art);
+      var t = document.startViewTransition(tu);
+      t.finished.then(ende, ende);
+      t.ready.catch(function () {}); t.updateCallbackDone.catch(function () {});
+      return t;
+    } catch (e) { ende(); tu(); return null; }
+  }
+  /* FLIP-Rückfall: Element von der Fläche „von“ an seinen Platz animieren (rueck: umgekehrt, bleibt am Ende dort) */
+  function flip(el, von, rueck) {
+    try {
+      var nach = el.getBoundingClientRect();
+      if (!von || !von.width || !nach.width) return null;
+      var a = 'translate(' + (von.left - nach.left) + 'px,' + (von.top - nach.top) + 'px) scale(' + (von.width / nach.width) + ',' + (von.height / nach.height) + ')';
+      var kf = rueck ? [{ transform: 'none' }, { transform: a }] : [{ transform: a }, { transform: 'none' }];
+      el.style.transformOrigin = '0 0';
+      var an;
+      try { an = el.animate(kf, { duration: msOf('--dauer-feder', 500), easing: cssVal('--feder') || 'ease-out', fill: rueck ? 'forwards' : 'none' }); }
+      catch (e) { an = el.animate(kf, { duration: msOf('--dauer-feder', 500), easing: 'cubic-bezier(.2,0,0,1)', fill: rueck ? 'forwards' : 'none' }); }
+      if (!rueck) an.onfinish = function () { el.style.transformOrigin = ''; };
+      return an;
+    } catch (e) { return null; }
+  }
+  var HT = { an: false, t: null };
+  function hintenAn() {
+    if (HT.an || !narrowMQ.matches || !bewegt() || $('pdlg')) return;
+    var pg = $('page'), de = document.documentElement, r = pg.getBoundingClientRect(), cy = Math.max(0, -r.top), vh = window.innerHeight;
+    de.style.setProperty('--cy', cy + 'px'); de.style.setProperty('--cb', Math.max(0, pg.offsetHeight - cy - vh) + 'px'); de.style.setProperty('--oy', (cy + vh / 2) + 'px');
+    clearTimeout(HT.t); de.classList.add('hinten-an'); void pg.offsetWidth; de.classList.add('hinten'); HT.an = true;
+  }
+  function hintenAus() {
+    if (!HT.an) return;
+    HT.an = false;
+    var de = document.documentElement;
+    de.classList.remove('hinten', 'zieht'); de.style.removeProperty('--t');
+    HT.t = setTimeout(function () { de.classList.remove('hinten-an'); ['--cy', '--cb', '--oy'].forEach(function (n) { de.style.removeProperty(n); }); }, msOf('--dauer-feder', 500) + 100);
+  }
+  /* Beim Ziehen am Blatt geht die Seite dahinter anteilig zurück (t von 1 bis 0), null = losgelassen ohne Schließen */
+  function hintenProg(t) {
+    if (!HT.an) return;
+    var de = document.documentElement;
+    if (t === null) { de.classList.remove('zieht'); de.style.removeProperty('--t'); }
+    else { de.classList.add('zieht'); de.style.setProperty('--t', Math.max(0, Math.min(1, t)).toFixed(3)); }
+  }
   function animIn(d, swap) {
     if (swap) d.classList.add('swap');
     void d.offsetWidth;
@@ -2063,7 +2254,7 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     if (d.dataset.closing) return;
     d.dataset.closing = '1';
     d.style.transition = ''; d.style.transform = ''; d.style.removeProperty('--bd');
-    d.classList.add('closing'); d.classList.remove('on', 'swap');
+    d.classList.add('closing'); if (d.dataset.wisch) d.classList.add('wisch'); d.classList.remove('on', 'swap');
     var fin = false, t;
     function f() { if (fin) return; fin = true; clearTimeout(t); d.removeEventListener('transitionend', te); done(); }
     function te(e) { if (e.target === d && e.propertyName === 'opacity') f(); }
@@ -2071,7 +2262,7 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     t = setTimeout(f, msOf('--dauer-mittel', 250) + 100);
   }
   /* Wischen nach unten: das Blatt folgt dem Finger ohne Übergang. Loslassen über 25 % der Höhe oder schnell: animiert zu. Sonst zurück. */
-  function dragDismiss(d, close, skip) {
+  function dragDismiss(d, close, skip, prog) {
     var y0 = null, x0 = 0, id = null, cap = false, dy = 0, ly = 0, lt = 0, vel = 0;
     d.addEventListener('pointerdown', function (e) {
       if (e.button > 0 || d.dataset.closing || (skip && skip(e.target))) return;
@@ -2081,12 +2272,13 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
       if (y0 === null || e.pointerId !== id) return;
       var ddy = e.clientY - y0, ddx = e.clientX - x0;
       if (!cap) {
-        if (ddy > 8 && ddy > Math.abs(ddx)) { cap = true; try { d.setPointerCapture(id); } catch (er) {} d.style.transition = 'none'; } else return;
+        if (ddy > 8 && ddy > Math.abs(ddx)) { cap = true; try { d.setPointerCapture(id); } catch (er) {} d.style.transition = 'none'; if (prog) prog(1); } else return;
       }
       var dt = e.timeStamp - lt; if (dt > 0) vel = (e.clientY - ly) / dt; ly = e.clientY; lt = e.timeStamp;
       dy = Math.max(0, ddy);
       d.style.transform = 'translateY(' + dy + 'px)';
       d.style.setProperty('--bd', String(Math.max(0, 1 - dy / Math.max(1, d.offsetHeight))));
+      if (prog) prog(1 - dy / Math.max(1, d.offsetHeight));
     });
     function end() {
       if (y0 === null) return;
@@ -2095,8 +2287,8 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
       try { d.releasePointerCapture(id); } catch (er) {}
       swipedAt = Date.now();
       d.style.transition = '';
-      if (dy > d.offsetHeight * 0.25 || (vel > 0.5 && dy > 30)) close();
-      else { d.style.transform = ''; d.style.removeProperty('--bd'); }
+      if (dy > d.offsetHeight * 0.25 || (vel > 0.5 && dy > 30)) { d.dataset.wisch = '1'; close(); }
+      else { d.style.transform = ''; d.style.removeProperty('--bd'); if (prog) prog(null); }
     }
     d.addEventListener('pointerup', end); d.addEventListener('pointercancel', end);
   }
@@ -2106,6 +2298,7 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     if (d && d._ro) { d._ro.disconnect(); }
     if (d) { try { if (d.open) d.close(); } catch (e) {} }
     l.innerHTML = '';
+    hintenAus();
     pillForget('dlg');
     if (returnFocus && document.contains(returnFocus)) returnFocus.focus();
     else if (returnFk) { var rf = document.querySelector('[data-fk="' + returnFk + '"]'); if (rf) rf.focus(); }
@@ -2116,6 +2309,7 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     var d = $('layer').querySelector('dialog');
     if (!d) { finishLayer(null); return; }
     if (d.dataset.closing) return;
+    hintenAus();
     animOut(d, function () { finishLayer(d); });
     toastPlace();
   }
@@ -2139,9 +2333,9 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     d.addEventListener('close', function () { if (!d.dataset.closing) finishLayer(d); });
     d.addEventListener('click', function (ev) { if (ev.target === d && Date.now() - swipedAt > 250) closeLayer(); });
     $('sheet-x').addEventListener('click', closeLayer);
-    dragDismiss(d, closeLayer, function (t) { return !t.closest('.sheet-grip, h2') && (d.scrollTop > 0 || !!t.closest('input, select, textarea, canvas, [data-grip], .crop')); });
+    dragDismiss(d, closeLayer, function (t) { return !t.closest('.sheet-grip, h2') && (d.scrollTop > 0 || !!t.closest('input, select, textarea, canvas, [data-grip], .crop')); }, hintenProg);
     if (window.ResizeObserver) { d._ro = new ResizeObserver(function () { d.classList.toggle('fix', d.scrollHeight <= d.clientHeight + 1); }); d._ro.observe(d.querySelector('.sheet-in')); }
-    d.showModal(); animIn(d, swap); toastPlace();
+    d.showModal(); animIn(d, swap); hintenAn(); toastPlace();
     var first = d.querySelector('[autofocus]') || d.querySelector('button:not(.sheet-x), select, input');
     if (first) first.focus();
   }
@@ -2360,7 +2554,7 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
       return;
     }
     if (kf && kf.kopie === 'wartet') { toast('Die Hörprobe wird noch vorbereitet. Die Seite sagt Bescheid, sobald sie fertig ist.'); return; }
-    var e = hGet(sid, i); pLoad(sid, i, e && !fertig(e) ? e.p : 0, true); }
+    var e = hGet(sid, i); P.pop = true; try { pLoad(sid, i, e && !fertig(e) ? e.p : 0, true); } finally { P.pop = false; } }
   aud.addEventListener('timeupdate', function () {
     if (!P.loaded) return; P.pos = aud.currentTime; pTick();
     var n = Date.now(); if (!aud.paused && n - lastSave >= 10000) { lastSave = n; pSave(); }
@@ -2387,12 +2581,30 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
   function pMini() {
     var m = $('mini'), s = serie(P.sid), f = curF();
     if (!s || !f) { m.hidden = true; document.documentElement.classList.remove('hasmini'); return; }
+    var warWeg = m.hidden;
     m.hidden = false; document.documentElement.classList.add('hasmini');
+    if (warWeg) { m.classList.remove('ein'); void m.offsetWidth; m.classList.add('ein'); setTimeout(function () { m.classList.remove('ein'); }, msOf('--dauer-feder', 500) + 100); }
     var key = s.id + '|' + P.i;
-    if (m.dataset.key !== key) { $('mopen').innerHTML = coverHtml(s, 'sm') + '<span class="grow"><span class="mt">' + esc(f.t) + '</span><span class="ms">' + esc(f.t === s.name ? ART[s.art].e : s.name) + '</span></span>'; $('mopen').setAttribute('aria-label', 'Player öffnen: ' + f.t + ', ' + s.name); $('mopen').title = 'Antippen oder nach oben wischen: Player öffnen'; m.dataset.key = key; }
+    var altC = m.dataset.key && !warWeg ? $('mopen').querySelector('.cover') : null, altR = altC && altC.offsetWidth ? altC.getBoundingClientRect() : null;
+    if (m.dataset.key !== key) { $('mopen').innerHTML = coverHtml(s, 'sm') + '<span class="grow"><span class="mt">' + esc(f.t) + '</span><span class="ms">' + esc(f.t === s.name ? ART[s.art].e : s.name) + '</span></span>'; $('mopen').setAttribute('aria-label', 'Player öffnen: ' + f.t + ', ' + s.name); $('mopen').title = 'Antippen oder nach oben wischen: Player öffnen'; m.dataset.key = key; if (altC && altR) miniWechsel(altC, altR); }
     $('mplay').innerHTML = ic(P.playing ? 'pause' : 'play', 28);
     $('mplay').setAttribute('aria-label', P.playing ? 'Pause' : 'Abspielen');
     pTick();
+  }
+  /* Anderes Cover im Mini-Player: das alte blendet über dem neuen aus, das neue federt leicht heran. Nichts blinkt, nichts springt. */
+  function miniWechsel(altC, r) {
+    try {
+      var k = altC.cloneNode(true);
+      k.style.cssText = 'position:fixed;margin:0;z-index:30;pointer-events:none;left:' + r.left + 'px;top:' + r.top + 'px;width:' + r.width + 'px;height:' + r.height + 'px';
+      document.body.appendChild(k);
+      var an = k.animate([{ opacity: 1 }, { opacity: 0 }], { duration: msOf('--dauer-mittel', 250), easing: 'ease-out' });
+      an.onfinish = function () { if (k.parentNode) k.parentNode.removeChild(k); };
+      var nc = $('mopen').querySelector('.cover'), tx = $('mopen').querySelector('.grow');
+      if (bewegt()) {
+        if (nc) nc.animate([{ transform: 'scale(0.9)' }, { transform: 'none' }], { duration: msOf('--dauer-feder', 500), easing: cssVal('--feder') || 'ease-out' });
+        if (tx) tx.animate([{ opacity: 0, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }], { duration: msOf('--dauer-lang', 350), easing: 'cubic-bezier(.2,0,0,1)' });
+      } else if (tx) tx.animate([{ opacity: 0 }, { opacity: 1 }], { duration: msOf('--dauer-kurz', 150) });
+    } catch (e) {}
   }
   function pTick() {
     var pc = Math.min(100, (P.pos / (P.dur || 1)) * 100), b = $('mbari'); if (b) b.style.width = pc + '%';
@@ -2443,9 +2655,11 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
   }
   function pOpen() {
     if (!P.sid) return;
-    var l = $('playerlayer'), prev = l.querySelector('dialog'), swap = !!(prev && prev.open);
-    l.innerHTML = '<dialog class="player" id="pdlg" aria-labelledby="pt-t">' + pFullHtml() + '</dialog>';
+    var l = $('playerlayer'), prev = l.querySelector('dialog'), swap = !!(prev && prev.open), mini = $('mini'), mc = $('mopen').querySelector('.cover');
+    function bau(modus) {
+    l.innerHTML = '<dialog class="player' + (modus ? ' ' + modus : '') + ' ein" id="pdlg" aria-labelledby="pt-t">' + pFullHtml() + '</dialog>';
     var d = $('pdlg'); d.dataset.key = P.sid + '|' + P.i;
+    setTimeout(function () { d.classList.remove('ein'); }, 900);
     d.addEventListener('cancel', function (ev) { ev.preventDefault(); pClose(); });
     d.addEventListener('close', function () { if (!d.dataset.closing) pFinish(d); });
     d.addEventListener('click', pClick);
@@ -2462,12 +2676,39 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     d.addEventListener('keyup', holdStop);
     d.addEventListener('input', function (e) { if (e.target.id === 'pslider') { dragging = true; pTick(); } });
     d.addEventListener('change', function (e) { if (e.target.id === 'pslider') { dragging = false; pSeek(+e.target.value); } });
-    d.showModal(); animIn(d, swap); toastPlace(); $('pplay').focus(); pTick(); swipeDown(d);
+    d.showModal();
+    if (modus === 'vt') d.classList.add('on'); else animIn(d, swap);
+    toastPlace(); $('pplay').focus(); pTick(); swipeDown(d);
+    return d;
+    }
+    /* Bewegung (X34): Cover wandert vom Mini-Player in die Vollansicht (View Transition, sonst FLIP), Titel und Steuerung blenden verzögert ein */
+    if (swap || !bewegt()) { bau(''); mini.classList.add('hebt'); return; }
+    if (kannVT()) {
+      wechsel({ art: 'p-auf',
+        alt: function () { setVTN(mc, 'pcover'); },
+        update: function () { setVTN(mc, ''); mini.classList.add('hebt'); var d = bau('vt'); setVTN(d, 'pdlg'); setVTN(d.querySelector('.pin .cover'), 'pcover'); } });
+      return;
+    }
+    var von = mc ? mc.getBoundingClientRect() : null, dl = bau('flip');
+    mini.classList.add('hebt');
+    flip(dl.querySelector('.pin .cover'), von);
   }
   function pClose() {
     if (P.locked) return;
     var d = $('pdlg');
-    if (d && d.open) { if (!d.dataset.closing) { animOut(d, function () { pFinish(d); }); toastPlace(); } return; }
+    if (d && d.open) {
+      if (d.dataset.closing) return;
+      var pc = d.querySelector('.pin .cover'), mc = $('mopen').querySelector('.cover');
+      if (kannVT()) {
+        d.dataset.closing = '1';
+        wechsel({ art: 'p-zu',
+          alt: function () { setVTN(d, 'pdlg'); setVTN(pc, 'pcover'); },
+          update: function () { pFinish(d); var m2 = $('mopen').querySelector('.cover'); setVTN(m2, 'pcover'); } });
+        toastPlace(); return;
+      }
+      if (bewegt() && d.classList.contains('flip') && pc && mc) flip(pc, mc.getBoundingClientRect(), true);
+      animOut(d, function () { pFinish(d); }); toastPlace(); return;
+    }
     pFinish(null);
   }
   function pFinish(d) {
@@ -2475,6 +2716,7 @@ const NAMEN = { box1: 'Box 1', box2: 'Box 2', personA: 'Person A', personB: 'Per
     if (d && !pl.contains(d)) return;
     if (d) { try { if (d.open) d.close(); } catch (e) {} }
     pl.innerHTML = ''; dragging = false; toastPlace();
+    $('mini').classList.remove('hebt');
     var m = $('mopen'); if (m && !$('mini').hidden) m.focus();
   }
   function pFullUpdate() {
