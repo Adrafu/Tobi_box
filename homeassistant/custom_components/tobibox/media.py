@@ -699,7 +699,8 @@ class Medien:
             await self._medien_erreichbar()
             ordner, reserviert = await self._executor(self._liste_ordner)
             await self._executor(self._raeume_part_dateien)
-            alt = {sid: i.serie.stand for sid, i in self.serien.items()}
+            stand_beginn = dict(self.serien)
+            alt = {sid: i.serie.stand for sid, i in stand_beginn.items()}
             gesehen: dict[str, tuple[Serie, list[dict[str, Any]]]] = {}
             ids_gesehen: dict[str, list[tuple[str, Serie]]] = {}
             for name in ordner:
@@ -734,7 +735,13 @@ class Medien:
             # Ein Executor-Aufruf für die Plattenzugriffe aller Serien (nach Ordnername, vorläufig)
             infos = await self._baue_infos([(s, name, hinweise) for name, (s, hinweise) in gesehen.items()])
             neu: dict[str, SerieInfo] = dict(zip(gesehen, infos, strict=True))
-            self.serien = {i.serie.id: i for i in neu.values()}
+            ersatz = {i.serie.id: i for i in neu.values()}
+            # Serien, die während der Prüfung angelegt wurden (Ordnerliste war schon gelesen), nicht verlieren;
+            # eine währenddessen gelöschte Serie (Ordner weg) kommt nicht zurück
+            for sid, info in self.serien.items():
+                if sid not in stand_beginn and sid not in ersatz and self.pfad_serie(info.ordner).is_dir():
+                    ersatz[sid] = info
+            self.serien = ersatz
             self.reservierte_hinweise = [
                 self._hinweis("reservierter_ordner", folge=r) for r in reserviert if not ist_systemordner(r)
             ]

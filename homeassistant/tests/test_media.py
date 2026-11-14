@@ -632,3 +632,54 @@ async def test_bestaetigen_nimmt_bitte_pruefen_weg(hass, integration, nas, lege_
     daten = nas.serie_json("o")
     assert "pruefen" not in daten
     assert "folgen_info" not in daten
+
+
+# --- Serie, die während einer laufenden Prüfung angelegt oder gelöscht wird ---
+
+
+async def _pruefung_mit_eingriff(hub, eingriff):
+    """Startet eine Prüfung, hält sie vor dem Ersetzen von ``serien`` an und führt ``eingriff`` aus."""
+    import asyncio
+
+    orig = hub.medien._baue_infos
+    gate = asyncio.Event()
+
+    async def langsam(*a, **k):
+        gate.set()
+        await asyncio.sleep(0.2)
+        return await orig(*a, **k)
+
+    hub.medien._baue_infos = langsam
+    task = asyncio.create_task(hub.medien.pruefen())
+    await gate.wait()
+    hub.medien._baue_infos = orig
+    ergebnis = await eingriff()
+    await task
+    return ergebnis
+
+
+async def test_serie_waehrend_pruefung_angelegt_bleibt_im_zwischenspeicher(hass, integration, nas, lege_mp3):
+    hub = integration
+    lege_mp3(nas.medien / "Alt" / "a.mp3")
+    await hub.medien.pruefen()
+    neu = await _pruefung_mit_eingriff(hub, lambda: hub.medien.serie_anlegen("Leer"))
+    assert (nas.medien / neu["ordner"] / "serie.json").exists()
+    assert neu["id"] in hub.medien.serien
+    eintraege = hub.medien.bibliothek.serien()[0]
+    assert neu["id"] in {i.serie.id for i in eintraege}
+    assert (await hub.medien.serie_holen(neu["id"]))["id"] == neu["id"]
+
+
+async def test_serie_waehrend_pruefung_angelegt_und_geloescht_kommt_nicht_zurueck(hass, integration, nas, lege_mp3):
+    hub = integration
+    lege_mp3(nas.medien / "Alt" / "a.mp3")
+    await hub.medien.pruefen()
+
+    async def eingriff():
+        neu = await hub.medien.serie_anlegen("Leer2")
+        await hub.medien.serie_loeschen(neu["id"], True, None)
+        return neu
+
+    neu = await _pruefung_mit_eingriff(hub, eingriff)
+    assert neu["id"] not in hub.medien.serien
+    assert not (nas.medien / neu["ordner"]).exists()
