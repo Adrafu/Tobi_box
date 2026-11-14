@@ -241,3 +241,13 @@ HA nicht gefahrlos auslösbar.
 | AC11 | (PL) Eingangs-Karte eines Ordners ohne Audiodatei zeigt „1 Datei: …“ (`hinzufuegen.js`, `_eingangKarte`: `Math.max(1, dateien)`) | (PL) ohne Audiodatei nur der Name, ohne Zahl; mit der nächsten Seitenrunde |
 
 **Abnahme A-1c (Tobias, 14.11.): angenommen** („Ja“). Bestanden: Hochladen vom Handy (Hörbuch aus 3 Dateien), Satz zum Bildschirm, Einzeltitel, Cover per Foto, falsches Format, „Bitte kurz ansehen“, NAS-Eingang, A17 (Seite für alle, Commit `4f27760`), Papierkorb mit einem Konto ohne Administratorrechte (kein Technik-Symbol; Folge gelöscht; Administrator sieht Punkt und Hinweis „Neu im Papierkorb“; zurückgeholt, Punkt weg). Übersprungen auf Wunsch von Tobias: Upload über 500 MiB, „zu große Datei“. Offen für die nächste Runde: AC6, AC8, AC10, AC11. Weiter mit A6m/A8m.
+
+## Befunde zu A6m im echten HA (14.11., Tobias am iPhone)
+
+| Nr. | Befund | Festlegung |
+|---|---|---|
+| AM1 | Cover-Flug zurück zur Bibliothek läuft größtenteils **hinter** den anderen Einträgen (die Zeilen werden darüber gezeichnet) | (PL) Flug mit einer Kopie in einer obersten Ebene, Ziel-Cover bis zur Landung verborgen; gilt auch für den Flug hin und den Player (A8m). Prüfskript: Kopie liegt während des Flugs oben |
+| AM2 | Tippen auf einen Eintrag der Bibliothek flackert (Zeile wechselt kurz die Farbe, dann der Seitenwechsel) | (PL) Zeilen und Kacheln, die zu einer anderen Seite führen, wechseln beim Drücken nicht die Farbe |
+| AM3 | Seitenwechsel flackern oft | (PL) Erst den neuen Inhalt zeichnen, dann kurz überblenden, nie ganz durchsichtig; Prüfskript misst die Deckkraft je Bild |
+
+Behebung zusammen mit dem Player (A8b, A8e, A7c, A8m).
