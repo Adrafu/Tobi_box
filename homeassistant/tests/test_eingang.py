@@ -1015,6 +1015,71 @@ async def test_sammelordner_je_buch_ein_album_nur_die_defekten_buecher_bleiben(h
     assert not (wurzel / "Buch A").exists() or not list((wurzel / "Buch A").glob("*.mp3"))
 
 
+async def test_T21_sammelordner_teil_ist_unterordner_cd_ordner_gehoeren_zum_teil(hass, integration, nas):
+    wurzel = nas.eingang / "Sammlung"
+    for i in (1, 2, 3):
+        erzeuge_audio(wurzel / "Buch A" / f"{i}.mp3", frequenz=300 + i)  # ohne Tags
+    erzeuge_audio(wurzel / "Buch B" / "kaputt.mp3", frequenz=400, album="Gemeinsam", album_artist="Autor B")
+    erzeuge_audio(wurzel / "Buch B" / "heil.mp3", frequenz=401, album="Gemeinsam", album_artist="Autor B")
+    erzeuge_audio(wurzel / "Buch C" / "CD1" / "1.mp3", frequenz=501, album="Gemeinsam", album_artist="Autor C", track="1")
+    erzeuge_audio(wurzel / "Buch C" / "CD2" / "1.mp3", frequenz=502, album="Gemeinsam", album_artist="Autor C", track="1", disc="2")
+    with patch("custom_components.tobibox.eingang.ffprobe.pruefe_datei", side_effect=_pruefung_mit_defekten("kaputt.mp3")):
+        await sortiere(integration)
+    serien = alle_serien(nas)
+    a = serien["Buch A"]
+    assert a["folgen"] == ["Buch A"]
+    assert inhalt(nas.medien / a["_ordner"] / "Buch A") == ["1.mp3", "2.mp3", "3.mp3"]
+    assert set(folge_info(a, "Buch A")["pruefen_gruende"]) == {"tags_fehlen", "serie_aus_ordner"}
+    c = serien["Autor C"]
+    assert c["folgen"] == ["Gemeinsam"]  # CD1 und CD2 sind eine Folge
+    assert len(list((nas.medien / c["_ordner"] / "Gemeinsam").glob("*.mp3"))) == 2
+    # Buch B bleibt ganz im Eingang, der Rest ist einsortiert
+    assert "Autor B" not in serien
+    assert (wurzel / "Buch B" / "kaputt.mp3").exists() and (wurzel / "Buch B" / "heil.mp3").exists()
+    eintrag = (await integration.eingang.liste("offen", 50, 0))["eintraege"][0]
+    assert eintrag["status"] == "teilweise"
+    assert {(h["code"], h["datei"]) for h in eintrag["hinweise"]} == {("probedekodierung_fehlgeschlagen", "Buch B/kaputt.mp3")}
+
+
+async def test_hoerspiel_mit_unterordner_je_folge_gleiches_album_sind_mehrere_folgen(hass, integration, nas):
+    for n in (1, 2, 3):
+        for i in (1, 2):
+            erzeuge_audio(nas.eingang / "Serie" / f"Folge {n}" / f"{i}.mp3", frequenz=300 + 10 * n + i, album="Serie", album_artist="Sprecher")
+    await sortiere(integration)
+    serie = alle_serien(nas)["Sprecher"]
+    assert len(serie["folgen"]) == 3
+    for name in serie["folgen"]:
+        assert len(list((nas.medien / serie["_ordner"] / name).glob("*.mp3"))) == 2
+
+
+async def test_dateien_direkt_im_eintrag_und_unterordner_sind_verschiedene_teile(hass, integration, nas):
+    erzeuge_audio(nas.eingang / "Box" / "lose1.mp3", frequenz=301)
+    erzeuge_audio(nas.eingang / "Box" / "lose2.mp3", frequenz=302)
+    erzeuge_audio(nas.eingang / "Box" / "Teil Eins" / "a.mp3", frequenz=303)
+    erzeuge_audio(nas.eingang / "Box" / "Teil Eins" / "b.mp3", frequenz=304)
+    erzeuge_audio(nas.eingang / "Box" / "cd 1" / "c.mp3", frequenz=305)  # CD-Ordner: gehört zum Eintrag selbst
+    await sortiere(integration)
+    serien = alle_serien(nas)
+    assert set(serien) == {"Box", "Teil Eins"}
+    assert serien["Box"]["folgen"] == ["Box"]
+    assert len(list((nas.medien / serien["Box"]["_ordner"] / "Box").glob("*.mp3"))) == 3
+    assert serien["Teil Eins"]["folgen"] == ["Teil Eins"]
+
+
+def test_cd_ordner_erkennung_und_teil():
+    from custom_components.tobibox.eingang import ist_cd_ordner, teil_von
+
+    for ja in ("CD1", "cd 2", "Disc 1", "DISK 02", "CD 10"):
+        assert ist_cd_ordner(ja), ja
+    for nein in ("CD", "Disc Jockey", "Buch 1", "CDs 1", "Hörbuch CD1"):
+        assert not ist_cd_ordner(nein), nein
+    assert teil_von("a.mp3") is None
+    assert teil_von("CD1/a.mp3") is None
+    assert teil_von("Buch/a.mp3") == "Buch"
+    assert teil_von("Buch/CD2/a.mp3") == "Buch"
+    assert teil_von("Buch/Kapitel/a.mp3") == "Buch"
+
+
 async def test_wunsch_ergaenzen_ohne_tags_macht_keinen_fehlalarm_serie_geraten(hass, integration, nas):
     """Die Serie ist ausdrücklich gewählt (V-7): ``serie_aus_ordner`` und Verwandte sind dann falsch."""
     nas.serie("ziel", "ziel", "Test-Serie", [])

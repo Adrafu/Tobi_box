@@ -16,6 +16,7 @@ import contextlib
 import hashlib
 import logging
 import os
+import re
 import shutil
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -182,6 +183,8 @@ class Gruppe:
     eintrag_art: str
     dateien: list[Datei]
     eingangsindex: int = 0
+    #: Name des Teils (Unterordner der ersten Ebene im Ordner-Eintrag, 11.3); ``None``: der Eintrag selbst
+    teil: str | None = None
     kennz: list[str] = field(default_factory=list)
     # berechnet
     anzeige: str = ""
@@ -339,6 +342,23 @@ def mehrheit(werte: list[Any], schluessel=norm) -> tuple[Any | None, int]:
     return erster[beste], len(zaehler)
 
 
+_CD_ORDNER = re.compile(r"^(cd|disc|disk)[\s._-]*\d+$", re.IGNORECASE)
+
+
+def ist_cd_ordner(name: str) -> bool:
+    """Ein Ordnername, der nur eine CD- oder Disc-Angabe ist (``CD1``, ``CD 2``, ``Disc 1``, ``Disk 2``), 11.3."""
+    return bool(_CD_ORDNER.match(name.strip()))
+
+
+def teil_von(rel: str) -> str | None:
+    """Teil einer Datei im Ordner-Eintrag (11.3): ihr Unterordner der ersten Ebene, außer ein CD-/Disc-Ordner;
+    ``None`` für Dateien direkt im Eintrag (auch in ``CD1/`` direkt im Eintrag)."""
+    teile = rel.split("/")
+    if len(teile) < 2 or ist_cd_ordner(teile[0]):
+        return None
+    return teile[0]
+
+
 def bilde_gruppen(
     eintraege: list[ScanEintrag], indizes: dict[str, int], wuensche: dict[str, tuple[dict[str, Any], str]] | None = None
 ) -> list[Gruppe]:
@@ -349,9 +369,9 @@ def bilde_gruppen(
     gruppen: dict[tuple, Gruppe] = {}
     reihenfolge: list[tuple] = []
 
-    def dazu(schluessel: tuple, e: ScanEintrag, d: Datei) -> None:
+    def dazu(schluessel: tuple, e: ScanEintrag, d: Datei, teil: str | None = None) -> None:
         if schluessel not in gruppen:
-            gruppen[schluessel] = Gruppe(schluessel, e.name, e.art, [], eingangsindex=indizes.get(e.name, 0))
+            gruppen[schluessel] = Gruppe(schluessel, e.name, e.art, [], eingangsindex=indizes.get(e.name, 0), teil=teil)
             reihenfolge.append(schluessel)
         gruppen[schluessel].dateien.append(d)
 
@@ -368,7 +388,8 @@ def bilde_gruppen(
                 continue
             album = d.felder.get("album", "")
             if e.art == "ordner":
-                dazu(("ordner", e.name, norm(album) if album else None), e, d)
+                teil = teil_von(d.rel)
+                dazu(("ordner", e.name, teil, norm(album) if album else None), e, d, teil)
             elif album:
                 dazu(("lose", norm(album)), e, d)
             else:
@@ -426,9 +447,9 @@ def berechne_gruppe(g: Gruppe, vorgaben: dict[str, str | None]) -> None:
         if titel:
             g.anzeige = titel
         elif g.ist_ordner and g.eintrag_art == "ordner":
-            g.anzeige = g.eintrag
+            g.anzeige = g.teil or g.eintrag
         else:
-            g.anzeige = trenne_endung(einzel.name)[0] if not g.ist_ordner else g.eintrag
+            g.anzeige = trenne_endung(einzel.name)[0] if not g.ist_ordner else (g.teil or g.eintrag)
     # --- Nummer (11.4, 11.8) ---
     nummer, vielfalt = mehrheit([f.get("nummer_tag") for f in felder], schluessel=lambda x: x)
     if vielfalt > 1:
@@ -471,7 +492,7 @@ def berechne_gruppe(g: Gruppe, vorgaben: dict[str, str | None]) -> None:
             g.merke("serie_aus_interpret")
             g.serie_schwach = True
         elif g.eintrag_art == "ordner":
-            g.serie_name = g.eintrag[:100]
+            g.serie_name = (g.teil or g.eintrag)[:100]
             g.merke("serie_aus_ordner")
             g.serie_schwach = True
         else:

@@ -6,6 +6,13 @@
     und den Vorgaben der Projektleitung vom 09.11. (Abschnitt „Vorgaben der
     Projektleitung“ am Ende). Wartet auf die Freigabe durch Tobias. **Stand der Rechte, des Uploads und der
     neuen Befehle: Änderungen 12.11. und 13.11. unten.**
+*   **Änderung 14.11. (AC1, Tobias freigegeben; `docs/egm/ha-ui/vorschlag_sammelordner.md`): Sammelordner – Teil = Unterordner der ersten Ebene, CD/Disc-Ausnahme.**
+    Neuer Begriff **Teil** (11.3): In einem Ordner-Eintrag ist jeder Unterordner der ersten Ebene ein Teil; Dateien direkt im Eintrag gehören zum Teil „Eintrag selbst“.
+    Ein Unterordner, dessen Name nur eine CD- oder Disc-Angabe ist (`CD1`, `CD 2`, `Disc 1`, `Disk 2`, Groß/klein egal), ist kein eigener Teil, sondern gehört zum übergeordneten
+    Teil. Gruppen werden je (Eintrag, Teil, `norm(album)`) gebildet; Dateien ohne `album` bilden **je Teil** eine Gruppe, Anzeigename und Serie aus dem Ordner sind der Name des Teils
+    (11.3, 11.4, 11.5 Nr. 5). Dadurch hält eine kaputte Datei (11.10, unverändert) nur noch **ihr Buch** zurück; der Rest eines Sammelordners wird einsortiert (Status `teilweise`).
+    Neuer Testfall T21 (11.12). Verhaltensänderung des Backends, kein neues Feld, keine neue Fähigkeit, Version bleibt 1: Ein Hörspiel mit Unterordnern je Folge und gleichem Album-Tag
+    wird künftig zu **mehreren** Folgen. Upload (Gruppen aus `gruppe`), lose Dateien, Box, `mqtt-v1.md` und `data-model.md` ändern sich nicht.
 *   **Änderung 13.11. K8 (Freigabe Tobias, 13.11.; `docs/egm/ha-ui/resolve.md`, Zeile „K8“):** Zwei additive Felder, Version bleibt 1, keine neue Fähigkeit.
     **`folgen/list`** (Nr. 37) liefert je Zeile `cover_stand` (Cover-Stand des Eintrags, **dieselbe Quelle und Form wie `cover_stand` der Serie-Kurzform**, 14.2; `null` ohne Cover)
     und `dauer_s` (Dauer der Folge in Sekunden, `number` oder `null`). **`zuordnung/list`** (Nr. 15) liefert je Zuordnung `cover_stand` des Ziels (Serie bzw. Serie der Folge;
@@ -2203,19 +2210,27 @@ Die Einheit des Einlesens ist die **Datei**; die Einheit des Ergebnisses die **G
 Eine Gruppe wird **eine Folge**. Besteht sie aus einer Datei, ist die Folge diese Datei;
 besteht sie aus mehreren, ist die Folge ein **Folgen-Ordner mit Tracks** (Entscheidung F).
 
-*   **Datei mit `album`, im Ordner-Eintrag:** Gruppe = (Eintrag, `norm(album)`). Dateien
-    desselben Albums in verschiedenen Unterordnern des Eintrags (`CD1/`, `CD2/`) sind eine
-    Gruppe.
+*   **Teil (14.11.):** In einem Ordner-Eintrag ist jeder **Unterordner der ersten Ebene** ein
+    **Teil**; Dateien direkt im Eintrag gehören zum Teil „Eintrag selbst“. **Ausnahme:** Ein
+    Unterordner, dessen Name nur eine CD- oder Disc-Angabe ist (Muster `cd`, `disc` oder `disk`,
+    dann Zahl, Groß/klein egal: `CD1`, `CD 2`, `Disc 1`, `Disk 2`), ist kein eigener Teil, sondern
+    gehört zum übergeordneten Teil (`Buch/CD1/` und `Buch/CD2/` sind der Teil `Buch`;
+    `Eintrag/CD1/` gehört zum Eintrag selbst). Tiefere Unterordner gehören zum Teil ihrer ersten Ebene.
+*   **Datei mit `album`, im Ordner-Eintrag:** Gruppe = (Eintrag, **Teil**, `norm(album)`). Dateien
+    desselben Albums in `CD1/` und `CD2/` desselben Teils sind eine Gruppe; dasselbe Album in
+    verschiedenen Teilen sind **verschiedene** Gruppen (Folgen).
 *   **Datei mit `album`, lose in `eingang/`:** Gruppe = `norm(album)` über alle losen
     Dateien des Durchlaufs.
-*   **Datei ohne `album`, im Ordner-Eintrag:** Alle solchen Dateien des Eintrags bilden
+*   **Datei ohne `album`, im Ordner-Eintrag:** Alle solchen Dateien **eines Teils** bilden
     **eine** Gruppe (Kennzeichen `tags_fehlen`). Bei mehreren Dateien ist der Anzeigename der Name des
-    Eintrags (Folgen-Ordner). Ist es nur **eine** Datei, ist ihr Anzeigename der `titel`, sonst der
+    **Teils** (Unterordner), bei Dateien des Teils „Eintrag selbst“ der Name des Eintrags (Folgen-Ordner). Ist es nur **eine** Datei, ist ihr Anzeigename der `titel`, sonst der
     Dateiname ohne Endung, nicht der Ordnername (09.11., Befund AP 3.1; Testfall T4).
 *   **Datei ohne `album`, lose:** eine Gruppe je Datei (Kennzeichen `tags_fehlen`).
 *   **Ein Ordner mit vielen Dateien ohne Tags** wird also eine Folge mit vielen Tracks
-    (`bitte prüfen`). Aufteilen in einzelne Folgen geht in Version 1 nur durch Tags
-    ergänzen und die Dateien erneut in den Eingang legen.
+    (`bitte prüfen`). Aufteilen in einzelne Folgen geht in Version 1 durch **Unterordner** (je
+    Unterordner eine Folge, 14.11.) oder durch Tags ergänzen und die Dateien erneut in den Eingang legen.
+*   **Sammelordner (14.11.):** Ein Ordner mit einem Buch je Unterordner wird je Teil gruppiert; eine
+    nicht abspielbare Datei hält nur das Buch zurück, in dem sie liegt (11.10).
 *   **Nachlieferung:** Kommt später eine Datei zu einem Album, das schon einsortiert ist,
     wird sie eine **neue Folge** (Kennzeichen `folge_gleicher_name`); die vorhandene Folge
     wird nicht ergänzt (Version 1).
@@ -2224,7 +2239,7 @@ besteht sie aus mehreren, ist die Folge ein **Folgen-Ordner mit Tracks** (Entsch
 
 | Ergebnis | Quelle, in Vorrangfolge | Kennzeichen, wenn die schwächere Quelle gilt |
 |---|---|---|
-| **Folge: Anzeigename** | 1. `album` (ohne CD-Zusatz); 2. bei einer einzelnen Datei der `titel`; 3. bei einer einzelnen Datei **der Dateiname ohne Endung** (nicht der Ordnername, auch wenn die Datei in einem Ordner-Eintrag liegt); bei einem Folgen-Ordner (mehrere Dateien) der **Name des Eintrags** (Ordner) (09.11., Befund AP 3.1) | `tags_fehlen` ab 2 |
+| **Folge: Anzeigename** | 1. `album` (ohne CD-Zusatz); 2. bei einer einzelnen Datei der `titel`; 3. bei einer einzelnen Datei **der Dateiname ohne Endung** (nicht der Ordnername, auch wenn die Datei in einem Ordner-Eintrag liegt); bei einem Folgen-Ordner (mehrere Dateien ohne `album`) der **Name des Teils** (Unterordner der ersten Ebene, 11.3), bei Dateien direkt im Eintrag der **Name des Eintrags** (Ordner) (09.11., Befund AP 3.1; 14.11.) | `tags_fehlen` ab 2 |
 | **Folge: Name auf der Platte** | Datei: Dateiname nach Abschnitt 12; Folgen-Ordner: Anzeigename nach Abschnitt 12 | `name_geaendert` bei Ersatzname |
 | **Serie: Name** | 11.5 | `serie_aus_interpret`, `serie_aus_ordner` |
 | **Folgen-Nummer** | 1. `nummer_tag`; 2. Regeln R1–R4 auf den Albumnamen; 3. bei einer Datei R1–R4 auf den Titel; 4. keine | – |
@@ -2243,7 +2258,8 @@ Je Gruppe, in dieser Vorrangfolge (der erste Treffer gilt):
 3.  **`album_interpret`** (Mehrheit; Platzhalter zählen als leer).
 4.  **`interpret`**, wenn alle Dateien der Gruppe denselben haben → Kennzeichen
     `serie_aus_interpret`.
-5.  **Name des Eintrags** (Ordner) → Kennzeichen `serie_aus_ordner`.
+5.  **Name des Ordners** → Kennzeichen `serie_aus_ordner`: liegt die Gruppe in einem Teil-Unterordner
+    (11.3), der Name des **Teils**, sonst der Name des Eintrags (14.11.).
 6.  Sonst (lose Datei ohne Tags) die Serie **`Einzelfolgen`** → Kennzeichen
     `serie_aus_ordner`.
 
@@ -2321,7 +2337,7 @@ Wert, kommt ein Kennzeichen.
 | Gleiches `album`, verschiedene `serien_tag` (oder, ohne diese, verschiedene `album_interpret`) | **eine** Gruppe, die Mehrheit bestimmt die Serie | `serie_widerspruch` |
 | Gleiches `album`, verschiedene `nummer_tag` | Mehrheit | `nummer_widerspruch` |
 | Gleiches `album`, verschiedene `datum` | das früheste | – |
-| Einige Dateien eines Ordners ohne `album`, andere mit | die ohne bilden eine eigene Gruppe (11.3) | `tags_fehlen` |
+| Einige Dateien eines Ordners ohne `album`, andere mit | die ohne bilden je Teil eine eigene Gruppe (11.3) | `tags_fehlen` |
 | Gleiches (`disc`, `track`) zweimal | beide bleiben (11.7) | `track_doppelt` |
 | `track` nur bei einem Teil der Dateien | die mit `track` zuerst (11.7) | `track_teils_leer` |
 | Zwei Gruppen im Durchlauf mit gleicher Serie und gleicher `nummer` | beide bleiben (11.6) | `nummer_doppelt` |
@@ -2438,6 +2454,7 @@ geschrieben; „→“ ist das Ergebnis).
 | T18 | Upload mit `serie_id` einer vorhandenen Serie | Serie = Vorgabe, auch gegen die Tags |
 | T19 | Eintrag, dessen neueste Datei 30 s alt ist | Status `wartet`, nichts verschoben (mit `sofort=true`: einsortiert) |
 | T20 | Dateiname `Folge 1: Der Rabe.mp3` | Zielname `Folge 1 - Der Rabe.mp3` (Abschnitt 12) |
+| T21 | Ordner `Sammlung/` mit `Buch A/` (3 Dateien ohne Tags), `Buch B/` (2 Dateien, eine nicht abspielbar), `Buch C/CD1/` und `Buch C/CD2/` (gleiches `album`) | Serie `Buch A` (Ordner, 14.11.) mit **einer** Folge (3 Tracks); für Buch C eine Serie aus den Tags mit **einer** Folge aus CD1 und CD2; `Buch B` bleibt ganz im Eingang (Hinweis nennt die Datei); Eintrag `teilweise` |
 
 ## 12. Namen und reservierte Ordner
 
@@ -2792,7 +2809,8 @@ widerspricht.
     Projektleitung: Hochladen „in eine Serie“ bleibt möglich, durchläuft aber dieselbe
     Einsortierung).
 18. **Eine Gruppe wird nur vollständig einsortiert** (11.10): Eine blockierte Datei hält die
-    ganze Folge zurück.
+    ganze Folge zurück. Seit 14.11. ist die Gruppe in einem Sammelordner ein **Teil** (Unterordner,
+    11.3): Es bleibt nur das Buch mit der kaputten Datei liegen.
 19. **Zeiger bei Verschieben und Zusammenführen:** Die Zuordnungen der Folgen-Tobies werden
     umgeschrieben, ihre Zeiger auf den Boxen beginnen von vorn (offener Punkt 3).
 20. **Lernmodus, Ziel schon vorhanden:** `ack abgelehnt` statt `zugeordnet`, damit die Box
