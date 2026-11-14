@@ -444,7 +444,6 @@ export const bausteinStil = () => css`
     .qt:hover { background: var(--primary-soft); }
     .lrow:hover { background: var(--primary-soft); }
   }
-  .rcard:active { transform: scale(0.98); }
 
   /* Reihen (Start, AB5): die letzte Kachel ist angeschnitten, Verlauf an den Rändern, am Computer Pfeile bei Maus-Hover */
   .reihe { margin: 0 0 8px; container-type: inline-size; }

@@ -44,6 +44,11 @@
       const cs = getComputedStyle(n);
       const bg = farbe(cs.backgroundColor);
       if (bg && bg.a > 0) cur = rgbaUeber(cur, bg);
+      // A6m: die gewählte Pille eines Umschalters ist ein eigenes Element hinter dem Knopf, der Knopf selbst hat dann keine Fläche
+      if (n.matches && n.matches('.seg2.hp > button[aria-pressed="true"]')) {
+        const pf = farbe(getComputedStyle(n.parentElement.querySelector(':scope > .pille')).backgroundColor);
+        if (pf && pf.a > 0) cur = rgbaUeber(cur, pf);
+      }
       const o = Number(cs.opacity);
       if (o < 1) cur = { c: cur.c, a: cur.a * o };
     }
@@ -57,6 +62,7 @@
   };
   const sichtbar = (e) => {
     if (e.closest('.sr') || e.closest('dialog:not([open])')) return false;
+    if (e.closest('.hinten.effekt-an') && e.getRootNode().querySelector('dialog[open]')) return false; // A6m: hinter einem offenen Blatt ist die Seite gewollt kleiner, dunkler und gesperrt
     const r = e.getBoundingClientRect();
     if (!r.width || !r.height) return false;
     if (getComputedStyle(e).visibility === 'hidden') return false;
@@ -179,7 +185,8 @@
         const aktiv = a.getAttribute('aria-current') === 'page';
         const tn = a.querySelector('.tn');
         const ti = a.querySelector('.ti');
-        const chipF = ti ? farbe(getComputedStyle(ti).backgroundColor) : null;
+        const pille = aktiv ? nav.querySelector('.tr.hp > .pille') : null; // A6m: die Pille hinter dem aktiven Reiter ist die Fläche des Symbols
+        const chipF = pille ? farbe(getComputedStyle(pille).backgroundColor) : (ti ? farbe(getComputedStyle(ti).backgroundColor) : null);
         const chip = chipF && chipF.a > 0 ? ueber(chipF, leisteGrund) : leisteGrund;
         if (tn) {
           const tf = farbe(getComputedStyle(tn).color);
@@ -231,15 +238,20 @@
     return aus;
   };
   /* Wartet, bis die App fertig gezeichnet hat: keine Platzhalter, Dialog nicht in Bewegung, zwei Bilder lang ruhig. */
-  window.__ruhe = async (maxMs = 4000) => {
+  window.__ruhe = async (maxMs = 4000, mitBewegung = false) => {
     const el = window.__el;
     const ende = Date.now() + maxMs;
+    const anfang = Date.now();
     const bild = () => new Promise((r) => requestAnimationFrame(() => r()));
     do {
       await el.updateComplete;
       await bild(); await bild();
       const sr = el.shadowRoot;
-      if (!sr.querySelector('.skel') && !sr.querySelector('dialog[data-closing]') && !sr.querySelector('[aria-busy="true"]')) break;
+      // A6m: laufende Bewegung (Übergänge, Federn, Meldungen) abwarten; endlose Animationen (Platzhalter) zählen nicht
+      // (nur vor dem Messen, höchstens 1,2 s lang; Fortschrittsbalken laufen mit dem Hochladen und zählen nicht)
+      const bewegt = mitBewegung && Date.now() - anfang < 1200 && (sr.getAnimations ? sr.getAnimations() : []).some((a) => a.playState === 'running' && a.effect && a.effect.getComputedTiming().iterations !== Infinity
+        && !(a.effect.target && a.effect.target.closest && a.effect.target.closest('[role=progressbar], .pbar')));
+      if (!bewegt && !sr.querySelector('.skel') && !sr.querySelector('dialog[data-closing]') && !sr.querySelector('[aria-busy="true"]')) break;
       await new Promise((r) => setTimeout(r, 40));
     } while (Date.now() < ende);
     await new Promise((r) => setTimeout(r, 60));

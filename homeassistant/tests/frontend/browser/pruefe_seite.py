@@ -113,7 +113,7 @@ class Lauf:
                 if (ov === 'auto' || ov === 'scroll') continue;
                 aus.push(`${name(n)} (overflow-y ${ov}) hat scrollTop ${Math.round(n.scrollTop)}, soll 0 sein`);
               }
-              if (el.getAttribute('data-layout') === 'unten') {
+              if (el.getAttribute('data-layout') === 'unten' && !sr.querySelector('.hinten.effekt-an')) { // hinter einem Blatt ist die Seite gewollt verkleinert (A6m)
                 const nav = sr.querySelector('nav.tabs.unten');
                 if (nav && getComputedStyle(nav).display !== 'none') {
                   const P = el.getBoundingClientRect(), b = nav.getBoundingClientRect().bottom;
@@ -180,6 +180,7 @@ class Lauf:
         """Wie ha-panel-custom: das Element hat keine Höhe vom Behälter; die Leiste muss trotzdem am unteren Rand des Panels sitzen.
         Liefert Texte der Abweichungen (leer = in Ordnung). Panel = Rechteck des Elements (Fensterhöhe minus Rand des Behälters)."""
         return self.js("""
+          if (sr.querySelector('.hinten.effekt-an')) return []; // hinter einem Blatt ist die Seite gewollt verkleinert (A6m)
           const e = (s) => sr.querySelector(s);
           const P = el.getBoundingClientRect();
           const ha = el.parentElement;
@@ -216,6 +217,7 @@ class Lauf:
 
     def messe(self, name, bild=True):
         self.ruhe()
+        self.pg.evaluate("() => window.__ruhe(4000, true)")  # A6m: laufende Bewegung abwarten, bevor gemessen wird (halb verkleinerte Knöpfe, einblendende Meldungen)
         r = self.pg.evaluate("() => window.__mess()")
         self.zustaende += 1
         for t in self.rahmen_geometrie():
@@ -432,6 +434,7 @@ def ablauf_hinzufuegen(L: Lauf):
             L.pg.wait_for_timeout(5200)
             L.pruefe(L.da("dialog[open] .toast.err"), "hz-meldung", "Fehlermeldung verschwindet von selbst (soll bis „OK“ bleiben)")
             L.klick("dialog[open] .toast.err .tok")
+            L.pg.wait_for_timeout(450)  # A6m: die Meldung gleitet erst hinaus (--dauer-mittel), dann wird sie entfernt
             L.pruefe(not L.da(".toast.err"), "hz-meldung", "„OK“ räumt die Meldung nicht weg")
             L.klick("dialog[open] [data-blatt-oben]")
             L.pruefe(not L.da("dialog[open]"), "hz-meldung", "„Abbrechen“ schließt das Blatt nicht")
@@ -930,6 +933,7 @@ def ablauf_cover(L: Lauf):
             L.pruefe(not L.da("canvas[data-cover-vorschau]"), "cover-fehler", "Vorschau trotz Textdatei")
             L.messe("cover-fehler-kein-bild")
             L.klick("dialog[open] .toast.err .tok")
+            L.pg.wait_for_timeout(450)  # A6m: die Meldung gleitet erst hinaus (--dauer-mittel), dann wird sie entfernt
             L.pruefe(not L.da(".toast.err"), "cover-fehler", "„OK“ räumt die Meldung nicht weg")
         with L.schritt("cover-fehler-zu-gross"):
             gross = tmp / "riesig.jpg"
@@ -1700,9 +1704,167 @@ def ablauf_papierkorb_punkt(L: Lauf):
         L.pruefe(not L.da(punkt), "korb-hinweis", "Der Punkt kommt nach dem Besuch zurück")
 
 
+# ------------------------------------------------------------------ A6m: Bewegung der Seiten (Messung 7 vom 14.11.)
+BEW_AUFZEICHNEN = """
+if (!window.__bew) {
+  const B = window.__bew = { calls: [], vt: 0 };
+  const alt = Element.prototype.animate;
+  if (alt) Element.prototype.animate = function (kf, opts) {
+    const an = alt.call(this, kf, opts);
+    B.calls.push({ el: this, kf: JSON.parse(JSON.stringify(kf)), an });
+    return an;
+  };
+  const vt = document.startViewTransition;
+  document.startViewTransition = function (...a) { B.vt += 1; return vt ? vt.apply(document, a) : { ready: Promise.resolve(), finished: Promise.resolve() }; };
+}
+window.__bew.calls.length = 0;
+return true;
+"""
+
+# Misst einen Cover-Flug Bild für Bild. x = { klick: Selektor des Links, start: Selektor des Covers vorher (sonst das Cover im Link), istZiel: JS-Ausdruck über e und x: ist e das fliegende Cover? }
+BEW_FLUG = """
+const B = window.__bew;
+B.calls.length = 0;
+const radius = (c) => { const cs = getComputedStyle(c); const [a, b] = cs.borderTopLeftRadius.split(' ');
+  const m = cs.transform === 'none' ? new DOMMatrix() : new DOMMatrix(cs.transform);
+  return { x: (parseFloat(a) || 0) * m.a, y: (parseFloat(b ?? a) || 0) * m.d }; };
+const rechteck = (c) => { const r = c.getBoundingClientRect(); return { l: r.left, t: r.top, r: r.right, b: r.bottom }; };
+const link = sr.querySelector(x.klick);
+const vonEl = x.start ? sr.querySelector(x.start) : link.querySelector('.cover');
+const start = rechteck(vonEl); const radStart = radius(vonEl).x;
+const id = x.id ?? link.dataset.serie;
+link.click();
+const t0 = performance.now();
+const istZiel = new Function('e', 'x', 'return ' + x.istZiel);
+const hat = () => B.calls.find((c) => /translate\\(/.test(JSON.stringify(c.kf)) && istZiel(c.el, x));
+let flug = null;
+while (performance.now() - t0 < 2500 && !flug) { await new Promise((r) => requestAnimationFrame(r)); flug = hat(); }
+if (!flug) return { flug: false, vt: B.vt };
+const proben = [];
+const t1 = performance.now();
+while (flug.an.playState !== 'finished' && performance.now() - t1 < 1500) {
+  proben.push({ ...rechteck(flug.el), vis: radius(flug.el).x });
+  await new Promise((r) => requestAnimationFrame(r));
+}
+await new Promise((r) => requestAnimationFrame(r));
+const ende = rechteck(flug.el);
+const ziel = parseFloat(getComputedStyle(flug.el).borderTopLeftRadius) || 0;
+return { flug: true, start, ende, radStart, radZiel: ziel, proben, letzter: proben.length ? proben[proben.length - 1].vis : null, vt: B.vt, kf: flug.kf, stil: { pe: flug.el.style.pointerEvents, tf: getComputedStyle(flug.el).transform } };
+"""
+
+BEW_BLATT = """
+const B = window.__bew;
+B.calls.length = 0;
+const knopf = sr.querySelector(x.knopf);
+knopf.click();
+const t0 = performance.now();
+const tops = []; let d = null;
+while (performance.now() - t0 < 900) {
+  await new Promise((r) => requestAnimationFrame(r));
+  d = sr.querySelector('dialog[open]');
+  if (d) { const r = d.getBoundingClientRect(); tops.push(r.top); }
+}
+d = sr.querySelector('dialog[open]');
+const r = d ? d.getBoundingClientRect() : null;
+const w = sr.querySelector('.hinten');
+return { da: !!d, tops, endTop: r ? r.top : null, hoehe: r ? r.height : null, imHinten: d ? d.closest('.hinten') !== null : null,
+  hinten: w ? getComputedStyle(w).transform : null, klip: w ? getComputedStyle(w).clipPath : null, hell: w ? getComputedStyle(w).filter : null,
+  vt: B.vt, mitTransform: B.calls.filter((c) => c.kf.some((k) => 'transform' in k)).length };
+"""
+
+
+def jsa(L: Lauf, code, arg=None):
+    """Wie `L.js`, aber der Code darf `await` benutzen (Messungen Bild für Bild)."""
+    return L.pg.evaluate("([a, x]) => { const el = window.__el, sr = el.shadowRoot; const AF = Object.getPrototypeOf(async function () {}).constructor; return (new AF('el', 'sr', 'x', a))(el, sr, x); }", [code, arg])
+
+
+def bew_start(L: Lauf):
+    L.js(BEW_AUFZEICHNEN)
+
+
+def ablauf_bewegung(L: Lauf):
+    """A6m, Prüfung: Cover-Flug (Messung 7 h1, h2), Blatt ohne Sprung und iOS-Effekt (h4), „weniger Bewegung“. Chromium sieht, was auf dem iPhone auffiel."""
+    L.gehe("#bibliothek")
+    if not L.da("a.lrow[data-serie], a.rcard[data-serie]"):
+        return  # leere Bibliothek: nichts, was fliegen könnte
+    bew_start(L)
+    with L.schritt("bewegung-flug-hin"):
+        L.gehe("#bibliothek")
+        r = jsa(L, BEW_FLUG, {"klick": "a.lrow[data-serie], a.rcard[data-serie]", "istZiel": "e.classList.contains('se-xl')"})
+        L.ruhe()
+        flug_pruefen(L, r, "hin")
+        L.pruefe(r["vt"] == 0, "bewegung-flug-hin", "startViewTransition wurde aufgerufen")
+        id_ = L.hash().removeprefix("#serie-")
+    with L.schritt("bewegung-flug-zurueck"):
+        r = jsa(L, BEW_FLUG, {"klick": "a[data-zurueck]", "start": ".cover.se-xl", "id": id_, "istZiel": "!e.classList.contains('se-xl') && e.dataset.cover === x.id"})
+        L.ruhe()
+        flug_pruefen(L, r, "zurueck")
+        L.pruefe(r["vt"] == 0, "bewegung-flug-zurueck", "startViewTransition wurde aufgerufen")
+    for ziel, knopf in (("bibliothek-sortieren", "[data-sortieren]"),):
+        with L.schritt(f"bewegung-blatt-{ziel}"):
+            L.aufraeumen()
+            L.gehe("#bibliothek")
+            hoch = L.job.get("layout") == "unten"
+            r = jsa(L, BEW_BLATT, {"knopf": knopf})
+            L.pruefe(r["da"], "bewegung-blatt", "Blatt nicht offen")
+            if r["da"]:
+                grenze = 0.02 * r["hoehe"] + 3
+                zu_hoch = max((r["endTop"] - t for t in r["tops"]), default=0)
+                L.pruefe(zu_hoch <= grenze, "bewegung-blatt", f"Blatt liegt beim Öffnen {zu_hoch:.0f} px über seinem Endpunkt (erlaubt {grenze:.0f}): es springt")
+                L.pruefe(r["imHinten"] is False, "bewegung-blatt", "Das Blatt steckt in der verkleinerten Fläche (.hinten)")
+                if hoch:
+                    L.pruefe(r["hinten"].startswith("matrix(0.94,") and r["hinten"].endswith(")"), "bewegung-blatt", f"Seite hinter dem Blatt: {r['hinten']!r}, erwartet matrix(0.94 …)")
+                    L.pruefe("round" in r["klip"] or "inset" in r["klip"], "bewegung-blatt", f"Seite hinter dem Blatt ohne runde Ecken: {r['klip']!r}")
+                    L.pruefe("brightness(0.8)" in r["hell"], "bewegung-blatt", f"Seite hinter dem Blatt nicht abgedunkelt: {r['hell']!r}")
+                else:
+                    L.pruefe(r["hinten"] in (None, "none"), "bewegung-blatt", f"Ab 700 px darf die Seite nicht skaliert werden: {r['hinten']!r}")
+            L.js("el.schliesseBlatt('x')")
+            L.pg.wait_for_timeout(900)
+            L.pruefe(L.js("return getComputedStyle(sr.querySelector('.hinten')).transform") == "none", "bewegung-blatt", "Seite hinter dem Blatt nach dem Schließen nicht wieder ohne transform")
+            L.pruefe(not L.da("dialog"), "bewegung-blatt", "Dialog noch im DOM")
+    with L.schritt("bewegung-reduziert"):
+        L.pg.emulate_media(reduced_motion="reduce")
+        try:
+            L.gehe("#bibliothek")
+            L.pruefe(L.js("return getComputedStyle(el).getPropertyValue('--dauer-feder').trim()") == "150ms", "bewegung-reduziert", "--dauer-feder ist bei „weniger Bewegung“ nicht 150ms")
+            r = jsa(L, BEW_BLATT, {"knopf": "[data-sortieren]"})
+            L.pruefe(r["da"] and r["mitTransform"] == 0, "bewegung-reduziert", f"Animation mit transform trotz „weniger Bewegung“ ({r['mitTransform']})")
+            L.pruefe(r["hinten"] in (None, "none"), "bewegung-reduziert", f"Seite hinter dem Blatt skaliert: {r['hinten']!r}")
+            L.js("el.schliesseBlatt('x')")
+            L.pg.wait_for_timeout(500)
+            r = L.js("""
+              const aus = [];
+              for (const e of sr.querySelectorAll('*')) { const t = getComputedStyle(e).transitionProperty; if (/\\b(transform|all)\\b/.test(t)) aus.push(e.localName + '.' + (e.className?.baseVal ?? e.className) + ': ' + t); }
+              return aus.slice(0, 5);""")
+            L.pruefe(not r, "bewegung-reduziert", f"transform in transition-property: {r}")
+            L.js("window.__bew.calls.length = 0")
+            r = jsa(L, BEW_FLUG, {"klick": "a.lrow[data-serie], a.rcard[data-serie]", "istZiel": "e.classList.contains('se-xl')"})
+            L.pruefe(r["flug"] is False, "bewegung-reduziert", "Cover fliegt trotz „weniger Bewegung“")
+        finally:
+            L.pg.emulate_media(reduced_motion="no-preference")
+
+
+def flug_pruefen(L: Lauf, r, richtung):
+    z = f"bewegung-flug-{richtung}"
+    if not L.pruefe(r["flug"], z, "Kein Cover-Flug (animate mit translate fehlt)"):
+        return
+    s, e = r["start"], r["ende"]
+    kasten = {"l": min(s["l"], e["l"]), "t": min(s["t"], e["t"]), "r": max(s["r"], e["r"]), "b": max(s["b"], e["b"])}
+    tol = 4 + 0.03 * max(kasten["r"] - kasten["l"], kasten["b"] - kasten["t"])  # Feder schwingt etwa 1,5 % über das Ziel
+    abw = max([0] + [max(kasten["l"] - p["l"], kasten["t"] - p["t"], p["r"] - kasten["r"], p["b"] - kasten["b"]) for p in r["proben"]])
+    L.pruefe(abw <= tol, z, f"Der Flug verlässt den Kasten aus Start und Ziel um {abw:.0f} px (erlaubt {tol:.0f})")
+    lo, hi = min(r["radStart"], r["radZiel"]) - 2, max(r["radStart"], r["radZiel"]) + 2
+    schlecht = [p["vis"] for p in r["proben"] if not lo <= p["vis"] <= hi]
+    L.pruefe(not schlecht, z, f"Sichtbarer Eckenradius springt aus [{lo:.1f}, {hi:.1f}]: {[round(v, 1) for v in schlecht[:4]]}")
+    if r["letzter"] is not None:
+        L.pruefe(abs(r["letzter"] - r["radZiel"]) <= 1.5 or len(r["proben"]) < 2, z, f"Ecke im letzten Bild {r['letzter']:.1f} px, Ziel {r['radZiel']:.1f} px")
+    L.pruefe(r["stil"]["pe"] == "" and r["stil"]["tf"] == "none", z, f"Nach dem Flug nicht aufgeräumt: {r['stil']}")
+
+
+
 ABLAEUFE = [ablauf_unterkante, ablauf_reiter, ablauf_klicks, ablauf_reihen, ablauf_suche, ablauf_bibliothek, ablauf_serie, ablauf_cover, ablauf_leise, ablauf_box, ablauf_technik, ablauf_blaetter,
             ablauf_tobies_weg1, ablauf_tobies_weg2, ablauf_tobies_meldung, ablauf_tobies_umhaengen, ablauf_tobies_geben, ablauf_tobies_lernmodus,
-            ablauf_tobies_name_geben_weit_unten, ablauf_hinzufuegen, ablauf_eingang_liste, ablauf_eingang, ablauf_papierkorb, ablauf_papierkorb_punkt]
+            ablauf_tobies_name_geben_weit_unten, ablauf_hinzufuegen, ablauf_eingang_liste, ablauf_eingang, ablauf_papierkorb, ablauf_papierkorb_punkt, ablauf_bewegung]
 
 
 # ------------------------------------------------------------------ Browser und Läufe

@@ -1,10 +1,13 @@
 /* Tobi Box: neue Alltagsseite für Home Assistant (Paket A6, Design docs/designs/ha-oberflaeche.md).
  *
- * Panel-Gerüst ohne Bewegung: vier Reiter, Panelbreite per ResizeObserver, Kopf, Hash-Routen, Tokens aus dem
+ * Panel-Gerüst: vier Reiter, Panelbreite per ResizeObserver, Kopf, Hash-Routen, Tokens aus dem
  * HA-Theme mit Kontrastfunktion, Zustände (Lädt, Fehler, Leer), Blätter (<dialog>), Meldungen, Abo der
  * WebSocket-Themen über hass.connection, Platz für den Mini-Player und der Punkt am Reiter „Geräte“.
  * Die Inhalte der Seiten sind eigene Module unter seiten/ (A7: Start, Bibliothek, Suche; weitere folgen in A7b, A8, A12),
- * gemeinsame Bausteine stehen in bausteine.js, das Verzeichnis in seiten/index.js. Bewegung kommt mit A6m.
+ * gemeinsame Bausteine stehen in bausteine.js, das Verzeichnis in seiten/index.js. Die Bewegung (A6m: Blätter, iOS-Blatt-Effekt,
+ * Meldungen, Seitenwechsel, Pille, Cover-Flug der Serienseite) steht hier und in bewegung.js; die Werte sind Tokens im Stil (`--dauer-*`,
+ * `--kurve*`, `--feder*`, `--druck*`, `--hinten-*`). Bindend ist Messung 7 (docs/plan/messungen-ha-testpanel.md): nie `startViewTransition`,
+ * FLIP mit Ecken, Blatt-Effekt nur auf dem sichtbaren Inhalt (`.hinten`), das Blatt steckt nicht darin.
  *
  * Technik: Lit aus ./lit-all.min.js (fest eingecheckt, dasselbe wie die alte Seite, nichts aus dem Netz).
  * Namen und Texte aus Daten werden nur als Text gesetzt (Lit maskiert selbst). Die Texte stehen in texte.js.
@@ -15,6 +18,7 @@ import { fuellen, fehlerText, SEITE, TOBIE, LEER, TECHNIK, SUCHE, EINGANG } from
 import { eingangAbleiten, bandZustand, naechsteAenderung } from './eingang.js';
 import { SEITEN } from './seiten/index.js';
 import { folgenAktion } from './seiten/tobies.js';
+import { reduziert, kannAnimieren, tokenMs, kurve, animiere, nachEnde, flip, rechteck } from './bewegung.js';
 import { initLit, bausteinStil, CoverLader, leererZustand, kopfAktion, korbNeueFremde, korbNeuesteMs } from './bausteine.js';
 
 export const VERTRAG_V = 1;
@@ -507,6 +511,8 @@ if (lit) {
       this._kbd = false;
       this._bilder = {};
       this._themenStand = '';
+      this._flug = null; // vorgemerkter Cover-Flug der Serienseite: { art: 'hin' | 'zurueck', id, rect, radius, zeit }
+      this._pillenStand = new Map(); // letzte Stelle der Pillen (Reiter, Segmente), auch wenn die Seite neu gebaut wird
       this._seiten = {}; // je Seite ein Objekt aus seiten/<name>.js (erzeuge(ctx)), angelegt beim ersten Besuch
       this._seiteObj = null;
       this._seiteKey = null;
@@ -520,12 +526,17 @@ if (lit) {
        * `hashchange` kommt dann nicht (B1). Darum hören wir auch auf `location-changed` und `popstate`. Fokus und Scrollen nur,
        * wenn sich die Adresse wirklich geändert hat (Zurück-Taste meldet `popstate` und `hashchange` zugleich). */
       this._onHash = () => {
+        const vorher = this._route;
+        const kopf = vorher.name === 'serie' ? this.renderRoot.querySelector('.cover.se-xl[data-cover-gross]') : null;
+        const kopfFlaeche = kopf ? { rect: rechteck(kopf.getBoundingClientRect()), radius: this._radius(kopf) } : null;
         this._leseHash();
+        this._flugNachHash(vorher, kopfFlaeche);
         if (this._hash === this._behandelt) return;
         this._behandelt = this._hash;
         this._schliesseBlattBeiRoute(); this._fokusMain = true; this._scrollOben = true; this.requestUpdate();
       };
       this._onResize = () => this._messeBreite();
+      this._coverKlick = (e) => this._coverMerken(e);
     }
 
     /* ---- Lebenslauf */
@@ -550,6 +561,7 @@ if (lit) {
       this._fokusAus = () => setTimeout(() => { this._kbd = false; }, 0);
       this.renderRoot.addEventListener('focusin', this._fokusEin);
       this.renderRoot.addEventListener('focusout', this._fokusAus);
+      this.renderRoot.addEventListener('click', this._coverKlick, true);
       this._vv = window.visualViewport;
       this._vvFn = () => this._tastatur(this.renderRoot.activeElement);
       this._vv?.addEventListener?.('resize', this._vvFn);
@@ -567,6 +579,8 @@ if (lit) {
       this._covers.abmelden();
       this.renderRoot.removeEventListener('focusin', this._fokusEin);
       this.renderRoot.removeEventListener('focusout', this._fokusAus);
+      this.renderRoot.removeEventListener('click', this._coverKlick, true);
+      clearTimeout(this._hintenTimer);
       this._vv?.removeEventListener?.('resize', this._vvFn);
       this.store.detach();
     }
@@ -589,6 +603,8 @@ if (lit) {
       if (ch.has('hass')) this._wendeTokens();
       this._covers.beobachte(this.renderRoot);
       this._seiteObj?.nachRender?.(this.renderRoot);
+      this._pillenSetzen();
+      this._coverFlug();
     }
 
     /* Der Seitenkopf trägt den Titel der Seite (große Überschrift am Computer, Titel neben dem Menüknopf am Handy). Steht dieselbe
@@ -650,6 +666,106 @@ if (lit) {
       this._kbd = !!(feld && vv && vv.height < (window.innerHeight || 0) * 0.8);
     }
 
+    /* ================================================================== Bewegung der Seiten (A6m) */
+    _radius(el) { try { return parseFloat(getComputedStyle(el).borderTopLeftRadius) || 0; } catch { return 0; } }
+
+    /* Seitenwechsel (Reiter, Unterseiten ohne Cover-Übergang): nur kurzes Überblenden, die Seite gleitet nie. */
+    _seiteBlenden() {
+      const m = this.renderRoot.querySelector('main');
+      if (!m || !kannAnimieren(m)) return;
+      animiere(m, [{ opacity: 0 }, { opacity: 1 }], { duration: tokenMs(this, '--dauer-kurz'), easing: kurve(this) });
+    }
+
+    /* Tipp auf eine Kachel, Zeile oder einen Treffer mit Cover: die Fläche des Covers merken (Cover-Flug der Serienseite, R17-1). */
+    _coverMerken(e) {
+      if (e.defaultPrevented || (e.button ?? 0) > 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      const a = e.target?.closest?.('a[data-serie]');
+      const c = a?.querySelector('.cover[data-cover]');
+      if (!c) return;
+      this._flug = { art: 'hin', id: a.dataset.serie, rect: rechteck(c.getBoundingClientRect()), radius: this._radius(c), zeit: Date.now() };
+    }
+
+    /* Die Adresse hat gewechselt: ein Flug „hin“ gilt nur für seine Serienseite; wer die Serienseite verlässt, merkt sich den großen Kopf für den Rückflug. */
+    _flugNachHash(vorher, kopfFlaeche) {
+      const r = this._route;
+      if (this._flug?.art === 'hin' && !(r.name === 'serie' && r.id === this._flug.id)) this._flug = null;
+      if (this._hash === this._behandelt) return;
+      if (vorher.name === 'serie' && r.name !== 'serie' && kopfFlaeche) this._flug = { art: 'zurueck', id: vorher.id, ...kopfFlaeche, zeit: Date.now() };
+    }
+
+    /* Nach jedem Zeichnen: wartet ein Flug und steht das Cover jetzt da, fliegt es (FLIP mit `element.animate`, nie View Transitions). */
+    _coverFlug() {
+      const f = this._flug;
+      if (!f) return;
+      if (Date.now() - f.zeit > (f.art === 'hin' ? 3000 : 2000)) { this._flug = null; return; }
+      const r = this._route;
+      const wurzel = this.renderRoot;
+      let el = null;
+      if (f.art === 'hin') {
+        if (r.name !== 'serie' || r.id !== f.id) return;
+        el = wurzel.querySelector('.cover.se-xl[data-cover-gross]');
+        if (!el || el.dataset.coverGross !== f.id) return; // die Serie lädt noch
+      } else {
+        if (r.name === 'serie') { this._flug = null; return; }
+        el = [...wurzel.querySelectorAll('a[data-serie] .cover[data-cover]')].find((c) => c.dataset.cover === f.id) ?? null;
+        if (!el) return; // die neue Seite lädt noch
+        const sicht = wurzel.querySelector(this._layout === 'seite' ? '.spalte' : '.rahmen')?.getBoundingClientRect();
+        const b = el.getBoundingClientRect();
+        if (sicht && (b.bottom <= sicht.top || b.top >= sicht.bottom || b.right <= sicht.left || b.left >= sicht.right)) { this._flug = null; return; } // nicht im sichtbaren Teil: nur Überblenden
+      }
+      this._flug = null;
+      if (reduziert() || !kannAnimieren(el)) return; // kein Flug: die Seite schaltet direkt um
+      const nach = rechteck(el.getBoundingClientRect());
+      const an = flip(el, f.rect, nach, { dauer: tokenMs(this, '--dauer-feder'), easing: kurve(this, '--feder'), radiusVon: f.radius, radiusNach: this._radius(el) });
+      if (an && f.art === 'hin') this._restBlenden(wurzel.querySelector('main'), el);
+    }
+
+    /* Der Rest der Serienseite blendet über (`--dauer-mittel`); das fliegende Cover bleibt dabei unberührt. */
+    _restBlenden(knoten, cover) {
+      for (const c of knoten?.children ?? []) {
+        if (c === cover) continue;
+        if (c.contains(cover)) this._restBlenden(c, cover);
+        else animiere(c, [{ opacity: 0 }, { opacity: 1 }], { duration: tokenMs(this, '--dauer-mittel'), easing: kurve(this) });
+      }
+    }
+
+    /* Pille (X33): ein eigenes Element je Segment-Umschalter und für den aktiven Reiter (unten und in der Seitenleiste, nicht in der oberen Leiste).
+     * Es gleitet zur neuen Stelle (CSS-Übergang `transform` mit `--feder`, Breite und Höhe mit `--kurve`) und merkt sich die letzte Stelle,
+     * auch wenn der Umschalter neu gebaut wird (`_pillenStand`). Ohne Pille (Zeile ohne aktiven Eintrag) bleibt der Knopf selbst gefüllt (`.hp` fehlt). */
+    _pillenSetzen() {
+      const wurzel = this.renderRoot;
+      const nav = wurzel.querySelector('.tr');
+      if (nav) {
+        const l = this._layout;
+        const a = l === 'oben' ? null : nav.querySelector('a[aria-current="page"]');
+        this._pille(nav, a && (l === 'seite' ? a : a.querySelector('.ti')), `reiter|${l}`);
+      }
+      for (const seg of wurzel.querySelectorAll('.seg2')) {
+        this._pille(seg, seg.querySelector(':scope > button[aria-pressed="true"]'), `seg|${seg.closest('dialog') ? 'blatt' : 'seite'}|${seg.getAttribute('aria-label') || ''}`);
+      }
+    }
+
+    _pille(host, ziel, schluessel) {
+      let p = host.querySelector(':scope > .pille');
+      if (!ziel || !ziel.offsetWidth) { if (p) p.style.display = 'none'; host.classList.remove('hp'); return; }
+      let x = 0; let y = 0; let n = ziel;
+      while (n && n !== host) { x += n.offsetLeft; y += n.offsetTop; n = n.offsetParent; }
+      if (n !== host) return;
+      const g = { x, y, w: ziel.offsetWidth, h: ziel.offsetHeight };
+      const neu = !p;
+      if (!p) { p = host.ownerDocument.createElement('i'); p.className = 'pille'; p.setAttribute('aria-hidden', 'true'); host.insertBefore(p, host.firstChild); }
+      p.style.display = '';
+      if (host.classList.contains('tr')) { try { p.style.borderRadius = getComputedStyle(ziel).borderRadius; } catch { /* ohne Stil */ } }
+      const setze = (q) => { p.style.width = `${q.w}px`; p.style.height = `${q.h}px`; p.style.transform = `translate(${q.x}px, ${q.y}px)`; };
+      const alt = this._pillenStand.get(schluessel);
+      if (neu) {
+        p.style.transition = 'none'; setze(alt ?? g); void p.offsetWidth; p.style.transition = '';
+        if (alt) setze(g);
+      } else setze(g);
+      host.classList.add('hp');
+      this._pillenStand.set(schluessel, g);
+    }
+
     /* ---- Routen */
     get _faehigkeiten() { return this.store.s.faehigkeiten; }
     get _route() { return parseRoute(this._hash, { faehigkeiten: this.store.s.phase === 'bereit' ? this._faehigkeiten : null }); }
@@ -678,12 +794,14 @@ if (lit) {
      * `kopfKnopf: { label, fn }` ersetzt das „×“ durch einen Textknopf oben rechts (Hochladen, Design 5.6); `fokus: 'titel'` setzt den
      * Fokus beim Öffnen auf die Überschrift statt auf den ersten Knopf.
      * Antwort: Promise mit dem Grund ('x', 'knopf', 'esc', 'hintergrund', 'wischen', 'route', 'ersetzt', 'code').
-     * A6m ersetzt _blattAn und _blattAus durch Bewegung; _blattAus ruft `fertig` erst nach dem Ende der Bewegung. */
+     * Bewegung (A6m): das Blatt federt herein und gleitet hinaus; `close()` und das Auflösen des Versprechens kommen erst nach dem Ende
+     * der Bewegung (`_blattAus` ruft `fertig` erst dann). Am Handy (unter 700 px) tritt die Seite dahinter zurück (iOS-Blatt-Effekt, `.hinten`). */
     oeffneBlatt({ titel, inhalt = nothing, knoepfe = [], rolle = null, kopfKnopf = null, fokus = null } = {}) {
+      const nachfolger = !!this._blatt; // Blatt direkt aus einem anderen: der Hintergrund bleibt stehen, nur das neue gleitet herein
       if (this._blatt) this._blattEntfernen(this._blatt, 'ersetzt', false);
       const rueck = this.renderRoot.activeElement || (typeof document !== 'undefined' ? document.activeElement : null);
       return new Promise((aufloesen) => {
-        this._blatt = { titel, inhalt, knoepfe, rolle, kopfKnopf, fokus, offen: false, schliesst: false, aufloesen, rueck: this._blattRueck ?? rueck };
+        this._blatt = { titel, inhalt, knoepfe, rolle, kopfKnopf, fokus, offen: false, schliesst: false, nachfolger, aufloesen, rueck: this._blattRueck ?? rueck };
         this._blattRueck = null;
       });
     }
@@ -701,18 +819,98 @@ if (lit) {
       const b = this._blatt;
       const d = this.renderRoot.querySelector('dialog.blatt');
       if (!d) return;
+      /* Das <dialog> bleibt beim Wechsel von Blatt zu Blatt dasselbe Element: Reste der letzten Bewegung wegräumen. */
+      try { d.getAnimations?.().forEach((a) => a.cancel()); } catch { /* ohne */ }
+      d.style.transform = ''; d.style.removeProperty('--bd');
+      d.classList.remove('zu', 'zieht'); delete d.dataset.closing; delete d.dataset.wisch;
       b.offen = true;
+      const effekt = this._hintenVorbereiten();
+      /* Messung 7 (h4b): das Blatt steht beim `showModal()` schon am Endpunkt; die Bewegung beginnt in derselben Aufgabe direkt danach,
+       * der Fokus wird ohne Scrollen gesetzt, und der Dialog schneidet bis zum Ende der Bewegung ab (`overflow: clip`, Klasse `auf`).
+       * Sonst scrollt das iPhone zum ×-Knopf, und das Blatt springt. */
+      d.classList.add('auf');
       if (typeof d.showModal === 'function') { try { d.showModal(); } catch { d.setAttribute('open', ''); } } else d.setAttribute('open', '');
-      this._wischen(d);
       this._blattAn(d);
+      if (effekt) this._hintenEin();
+      this._wischen(d);
       this._meldungenPlatz();
       const erst = (b.fokus === 'titel' ? d.querySelector('h2') : null) || d.querySelector('[autofocus]') || d.querySelector('.knoepfe button, .blatt-b button, .blatt-b input, .blatt-b select, .blatt-b a') || d.querySelector('h2');
       erst?.focus?.({ preventScroll: true });
     }
 
-    /* Haken für A6m (Bewegung): hier ohne Bewegung. */
-    _blattAn() {}
-    _blattAus(d, fertig) { fertig(); }
+    get _schmal() { return (window.innerWidth || 0) < REITER_UNTEN_BIS; }
+
+    /* Hereinfedern: am Handy um die eigene Höhe von unten, ab 700 px nur 32 px mit Überblenden; bei „weniger Bewegung“ nur Überblenden. */
+    _blattAn(d) {
+      const ende = () => d.classList.remove('auf');
+      if (!kannAnimieren(d)) { ende(); return; }
+      const rot = reduziert();
+      const kf = rot ? [{ opacity: 0 }, { opacity: 1 }]
+        : this._schmal ? [{ transform: 'translateY(100%)' }, { transform: 'none' }]
+          : [{ transform: 'translateY(32px)', opacity: 0 }, { transform: 'none', opacity: 1 }];
+      const dauer = tokenMs(this, rot ? '--dauer-kurz' : '--dauer-feder');
+      const an = animiere(d, kf, { duration: dauer, easing: kurve(this, rot ? '--kurve' : '--feder') });
+      if (!an) { ende(); return; }
+      nachEnde(an, dauer + 100, ende);
+    }
+
+    /* Hinausgleiten (Tippen: `--dauer-mittel`, `--kurve-aus`; nach dem Wegwischen mit Feder), dann erst `fertig` (= `close()`). */
+    _blattAus(d, fertig) {
+      d.dataset.closing = '1';
+      d.classList.add('zu');
+      d.classList.remove('auf');
+      this._hintenAus();
+      if (!kannAnimieren(d)) { fertig(); return; }
+      const rot = reduziert();
+      let kf; let name; let kv = '--kurve-aus';
+      if (rot) { kf = [{ opacity: 1 }, { opacity: 0 }]; name = '--dauer-kurz'; kv = '--kurve'; } else if (d.dataset.wisch === '1') {
+        let dy = 0;
+        try { dy = parseFloat(/translateY\((-?[\d.]+)px\)/.exec(d.style.transform)?.[1]) || 0; } catch { /* ohne */ }
+        kf = [{ transform: `translateY(${dy}px)` }, { transform: 'translateY(100%)' }]; name = '--dauer-feder'; kv = '--feder';
+      } else if (this._schmal) { kf = [{ transform: 'none' }, { transform: 'translateY(100%)' }]; name = '--dauer-mittel'; } else {
+        kf = [{ transform: 'none', opacity: 1 }, { transform: 'translateY(32px)', opacity: 0 }]; name = '--dauer-mittel';
+      }
+      const dauer = tokenMs(this, name);
+      const an = animiere(d, kf, { duration: dauer, easing: kurve(this, kv), fill: 'forwards' });
+      if (!an) { fertig(); return; }
+      nachEnde(an, dauer + 100, fertig);
+    }
+
+    /* ---- iOS-Blatt-Effekt (nur am Handy, Messung 7 h4a): `.hinten` (Seite ohne Blatt und Meldungen) wird kleiner, rund und dunkler.
+     * Drehpunkt und Ausschnitt gehören zum sichtbaren Teil des Panels (gemessen vor dem Verkleinern). Das Blatt steckt nicht darin. */
+    _hintenVorbereiten() {
+      if (this._layout !== 'unten' || reduziert() || this.hasAttribute('data-voll')) return false; // Player voll: Seite ist ganz verdeckt, kein Effekt
+      const w = this.renderRoot.querySelector('.hinten'); const app = this.renderRoot.querySelector('.app');
+      if (!w || !app) return false;
+      clearTimeout(this._hintenTimer);
+      if (!w.classList.contains('effekt-an')) {
+        const rw = w.getBoundingClientRect(); const rp = this.getBoundingClientRect();
+        const oben = Math.max(0, rp.top); const unten = Math.min(window.innerHeight || rp.bottom, rp.bottom);
+        w.style.setProperty('--oy', `${(oben + unten) / 2 - rw.top}px`);
+        w.style.setProperty('--ct', `${Math.max(0, oben - rw.top)}px`);
+        w.style.setProperty('--cb', `${Math.max(0, rw.bottom - unten)}px`);
+        w.classList.add('effekt-an'); app.classList.add('hinten-an');
+      }
+      return true;
+    }
+
+    _hintenEin() {
+      const w = this.renderRoot.querySelector('.hinten');
+      if (!w) return;
+      void w.offsetWidth; // erst jetzt auf „t = 1“, damit der Übergang von 0 an läuft
+      w.classList.add('effekt');
+    }
+
+    _hintenAus() {
+      const w = this.renderRoot.querySelector('.hinten'); const app = this.renderRoot.querySelector('.app');
+      if (!w || !w.classList.contains('effekt-an')) return;
+      w.classList.remove('effekt', 'zieht'); w.style.removeProperty('--t');
+      clearTimeout(this._hintenTimer);
+      this._hintenTimer = setTimeout(() => {
+        w.classList.remove('effekt-an'); app?.classList.remove('hinten-an');
+        for (const k of ['--oy', '--ct', '--cb']) w.style.removeProperty(k);
+      }, tokenMs(this, '--dauer-feder') + 100);
+    }
 
     _blattEntfernen(b, grund, mitFokus) {
       if (this._blatt !== b) return;
@@ -723,6 +921,7 @@ if (lit) {
         d.removeAttribute('open');
       }
       this._blatt = null;
+      if (grund !== 'ersetzt') this._hintenAus();
       this._meldungenPlatz(true);
       b.aufloesen(grund);
       if (mitFokus) {
@@ -753,6 +952,7 @@ if (lit) {
         ly = e.clientY; lt = e.timeStamp;
         dy = Math.max(0, ddy);
         d.style.transform = `translateY(${dy}px)`;
+        this._ziehen(d, dy);
       });
       const ende = () => {
         if (y0 === null) return;
@@ -760,10 +960,26 @@ if (lit) {
         if (!war) return;
         try { d.releasePointerCapture(id); } catch { /* ohne */ }
         this._gewischtAm = Date.now();
-        if (dy > (d.offsetHeight || 0) * 0.25 || (vel > 0.5 && dy > 30)) { d.dataset.wisch = '1'; this.schliesseBlatt('wischen'); } else d.style.transform = '';
+        if (dy > (d.offsetHeight || 0) * 0.25 || (vel > 0.5 && dy > 30)) { d.dataset.wisch = '1'; this.schliesseBlatt('wischen'); } else this._zurueckFedern(d, dy);
       };
       d.addEventListener('pointerup', ende);
       d.addEventListener('pointercancel', ende);
+    }
+
+    /* Beim Ziehen geht der Effekt anteilig zurück (`--t` von 1 bis 0, ohne Übergang) und der Hintergrund wird durchsichtiger. */
+    _ziehen(d, dy) {
+      const t = Math.max(0, 1 - dy / (d.offsetHeight || 1));
+      d.classList.add('zieht'); d.style.setProperty('--bd', String(t));
+      const w = this.renderRoot.querySelector('.hinten');
+      if (w?.classList.contains('effekt-an')) { w.classList.add('zieht'); w.style.setProperty('--t', String(t)); }
+    }
+
+    /* Loslassen unter der Schwelle: das Blatt federt zurück, die Seite dahinter mit. */
+    _zurueckFedern(d, dy) {
+      d.style.transform = ''; d.style.removeProperty('--bd'); d.classList.remove('zieht');
+      const w = this.renderRoot.querySelector('.hinten');
+      if (w) { w.classList.remove('zieht'); w.style.removeProperty('--t'); }
+      if (!reduziert() && dy > 0) animiere(d, [{ transform: `translateY(${dy}px)` }, { transform: 'none' }], { duration: tokenMs(this, '--dauer-feder'), easing: kurve(this, '--feder') });
     }
 
     _blattKlick(e) {
@@ -779,7 +995,7 @@ if (lit) {
     _blattHtml() {
       const b = this._blatt;
       if (!b) return nothing;
-      return html`<dialog class="blatt" aria-labelledby="blatt-t" role=${b.rolle ?? nothing}
+      return html`<dialog class="blatt" aria-labelledby="blatt-t" role=${b.rolle ?? nothing} ?data-nachfolger=${b.nachfolger}
           @cancel=${(e) => { e.preventDefault(); this.schliesseBlatt('esc'); }} @click=${(e) => this._blattKlick(e)}>
         <div class="blatt-in">
           <div class="griff" aria-hidden="true"></div>
@@ -805,14 +1021,31 @@ if (lit) {
       if (d) { if (tb.parentNode !== d) d.appendChild(tb); tb.classList.add('imblatt'); } else { if (tb.parentNode !== app) app.appendChild(tb); tb.classList.remove('imblatt'); }
     }
 
-    _meldungWeg(el) { if (el.parentNode) el.parentNode.removeChild(el); }
+    /* Meldung entfernen: sie gleitet hinaus (`--dauer-mittel`, `--kurve-aus`; nach einem Wegwischen in die Richtung des Fingers) und wird dann
+     * entfernt. `sofort` ohne Bewegung (eine neue Meldung ersetzt die alte im selben Bild: nichts blinkt). Ohne Web Animations API sofort. */
+    _meldungWeg(el, { sofort = false, dx = null } = {}) {
+      if (!el.parentNode || el._geht) return;
+      const weg = () => { if (el.parentNode) el.parentNode.removeChild(el); };
+      if (sofort || !kannAnimieren(el)) { weg(); return; }
+      el._geht = true;
+      const rot = reduziert();
+      const oben = this._tb?.classList.contains('imblatt');
+      let kf;
+      if (rot) kf = [{ opacity: 1 }, { opacity: 0 }];
+      else if (dx !== null) kf = [{ transform: `translateX(${dx}px)`, opacity: 1 }, { transform: `translateX(${dx < 0 ? -1 : 1}${'00%'})`, opacity: 0 }];
+      else kf = [{ transform: 'none', opacity: 1 }, { transform: `translateY(${oben ? '-' : ''}24px)`, opacity: 0 }];
+      const dauer = tokenMs(this, rot ? '--dauer-kurz' : '--dauer-mittel');
+      const an = animiere(el, kf, { duration: dauer, easing: kurve(this, rot ? '--kurve' : '--kurve-aus'), fill: 'forwards' });
+      if (!an) { weg(); return; }
+      nachEnde(an, dauer + 100, weg);
+    }
 
     /* melde(text, { fehler, aktion: { text, fn } }): Erfolg 4,5 s, mit Aktion 6 s, Fehler bleibt bis „OK“ oder Wegwischen. */
     melde(text, { fehler = false, aktion = null } = {}) {
       const tb = this._tb;
       if (!tb) return null;
       this._meldungenPlatz();
-      if (!fehler) tb.querySelectorAll('.toast:not(.err)').forEach((x) => this._meldungWeg(x));
+      if (!fehler) tb.querySelectorAll('.toast:not(.err)').forEach((x) => this._meldungWeg(x, { sofort: true }));
       const doc = tb.ownerDocument;
       const el = doc.createElement('div');
       el.className = `toast${fehler ? ' err' : ''}`;
@@ -825,13 +1058,20 @@ if (lit) {
         el.appendChild(knopf);
       }
       tb.appendChild(el);
+      // Hereinfedern um 24 px (im Blatt von oben, sonst von unten); bei „weniger Bewegung“ nur einblenden
+      const rot = reduziert();
+      animiere(el, rot ? [{ opacity: 0 }, { opacity: 1 }] : [{ transform: `translateY(${tb.classList.contains('imblatt') ? '-' : ''}24px)`, opacity: 0 }, { transform: 'none', opacity: 1 }],
+        { duration: tokenMs(this, rot ? '--dauer-kurz' : '--dauer-feder'), easing: kurve(this, rot ? '--kurve' : '--feder') });
       // Wegwischen nach links oder rechts (Schwelle 70 px)
       let x0 = null; let dx = 0;
       el.addEventListener('pointerdown', (e) => { if (e.target.closest?.('.tok')) return; x0 = e.clientX; dx = 0; try { el.setPointerCapture(e.pointerId); } catch { /* ohne */ } });
       el.addEventListener('pointermove', (e) => { if (x0 === null) return; dx = e.clientX - x0; el.style.transform = `translateX(${dx}px)`; el.style.opacity = String(Math.max(0.3, 1 - Math.abs(dx) / 300)); });
       const ende = () => {
         if (x0 === null) return; x0 = null;
-        if (Math.abs(dx) > 70) this._meldungWeg(el); else { el.style.transform = ''; el.style.opacity = ''; }
+        if (Math.abs(dx) > 70) { const d0 = dx; el.style.transform = ''; el.style.opacity = ''; this._meldungWeg(el, { dx: d0 }); } else {
+          const d0 = dx; el.style.transform = ''; el.style.opacity = '';
+          if (!reduziert() && d0) animiere(el, [{ transform: `translateX(${d0}px)` }, { transform: 'none' }], { duration: tokenMs(this, '--dauer-feder'), easing: kurve(this, '--feder') });
+        }
       };
       el.addEventListener('pointerup', ende); el.addEventListener('pointercancel', ende);
       if (fehler) { knopf.addEventListener('click', () => this._meldungWeg(el)); return el; }
@@ -1022,10 +1262,12 @@ if (lit) {
       const key = aktiv ? `${r.name}|${r.id ?? ''}|${r.sub ?? ''}` : null; // Technik: jede Unterseite betritt neu
       if (key === this._seiteKey) return;
       const alt = this._seiteObj;
+      const warSeite = this._seiteKey !== null;
       this._seiteKey = key;
       this._seiteObj = key ? this._seiteFuer(r.name) : null;
       alt?.verlassen?.();
       this._seiteObj?.betreten?.(r);
+      if (warSeite && key && !(this._flug?.art === 'hin' && this._flug.id === r.id)) this._seiteBlenden();
     }
 
     _seite(r) {
@@ -1110,6 +1352,7 @@ if (lit) {
       const r = this._route;
       const l = this._layout;
       return html`<div class="app" data-layout=${l} ?data-kbd=${this._kbd}>
+        <div class="hinten">
         <div class="rahmen">
           ${l === 'seite' ? this._seitenleiste(r) : nothing}
           <div class="spalte">
@@ -1122,6 +1365,7 @@ if (lit) {
         </div>
         ${l === 'seite' ? nothing : this._miniHtml()}
         ${l === 'unten' ? this._nav(r) : nothing}
+        </div>
         ${this._blattHtml()}
         <div class="toastbox"></div>
         <div id="live" class="sr" role="status" aria-live="polite"></div>
@@ -1142,7 +1386,20 @@ if (lit) {
         --c1: #ad1457; --c2: #00695c; --c3: #5e35b1; --c4: #8d4a00; --c5: #1565c0; --c6: #2e7d32; --on-cover: #ffffff; --shine: rgba(255, 255, 255, 0.2);
         --dauer-kurz: 150ms; --dauer-mittel: 250ms; --dauer-lang: 350ms; --dauer-feder: 500ms;
         --kurve: cubic-bezier(.2, 0, 0, 1); --kurve-aus: cubic-bezier(.4, 0, 1, 1);
+        --feder: var(--kurve); --feder-weich: var(--kurve); /* Rückfall ohne linear() */
+        --druck: 0.97; --druck-zeile: 0.98; --hinten-skala: 0.94; --hinten-radius: 14px; --hinten-dunkel: 0.8; --hinten-grund: #000;
         --minih: 0px;
+      }
+      /* Feder (Design 4): Response ca. 0,45 s, Dämpfung ca. 0,8 (schwingt etwa 1,5 Prozent über das Ziel, nach 500 ms ruhig); weich: Response 0,5 s, Dämpfung 0,9 */
+      @supports (transition-timing-function: linear(0, 1)) {
+        :host { --feder: linear(0, 0.031, 0.108, 0.21, 0.322, 0.435, 0.541, 0.637, 0.72, 0.791, 0.849, 0.896, 0.932, 0.96, 0.98, 0.995, 1.004, 1.01, 1.014, 1.015, 1.015, 1.014, 1.013, 1.011, 1.009, 1.008, 1);
+          --feder-weich: linear(0, 0.024, 0.082, 0.161, 0.25, 0.341, 0.431, 0.514, 0.591, 0.659, 0.719, 0.771, 0.815, 0.852, 0.883, 0.909, 0.93, 0.946, 0.96, 0.97, 0.979, 0.985, 0.99, 0.994, 0.996, 0.998, 0.999, 1); }
+      }
+      /* Reduzierte Bewegung: nur Überblenden. Alle Federn werden zur Kurve, alle Dauern kurz, kein Skalieren, kein Abdunkeln, keine Übergänge von transform. */
+      @media (prefers-reduced-motion: reduce) {
+        :host { --dauer-mittel: var(--dauer-kurz); --dauer-lang: var(--dauer-kurz); --dauer-feder: var(--dauer-kurz); --feder: var(--kurve); --feder-weich: var(--kurve);
+          --druck: 1; --druck-zeile: 1; --hinten-skala: 1; --hinten-radius: 0px; --hinten-dunkel: 1; }
+        *, *::before, *::after { transition-property: opacity, background-color, color, border-color, box-shadow !important; }
       }
       * { box-sizing: border-box; }
       /* overflow: clip statt nur hidden: „hidden“ lässt sich per Programm scrollen (scrollIntoView, Fokus); dann rutscht die
@@ -1155,6 +1412,15 @@ if (lit) {
       a { color: var(--primary-ink); }
       :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; border-radius: 6px; }
       .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+      /* .hinten = alles hinter dem Blatt (Seite, Mini-Player, Reiterleiste), ohne Blatt und Meldungen. Nur sie wird beim Blatt kleiner (iOS-Effekt, Messung 7). */
+      .hinten { flex: 1 1 0; min-height: 0; min-width: 0; display: flex; flex-direction: column; background: var(--bg); }
+      .app.hinten-an { background: var(--hinten-grund); }
+      .hinten.effekt-an { transform-origin: 50% var(--oy, 50%); transform: scale(calc(1 - (1 - var(--hinten-skala)) * var(--t, 0)));
+        clip-path: inset(var(--ct, 0px) 0 var(--cb, 0px) 0 round calc(var(--hinten-radius) * var(--t, 0)));
+        filter: brightness(calc(1 - (1 - var(--hinten-dunkel)) * var(--t, 0)));
+        transition: transform var(--dauer-feder) var(--feder), clip-path var(--dauer-feder) var(--feder), filter var(--dauer-feder) var(--feder-weich); }
+      .hinten.effekt { --t: 1; }
+      .hinten.effekt-an.zieht { transition: none; }
       .rahmen { flex: 1 1 0; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
       .spalte { min-height: 100%; display: flex; flex-direction: column; min-width: 0; }
       main { flex: 1 0 auto; min-width: 0; padding: 4px max(16px, env(safe-area-inset-right, 0px)) 24px max(16px, env(safe-area-inset-left, 0px)); outline: none; }
@@ -1177,7 +1443,12 @@ if (lit) {
 
       /* Reiter */
       nav.tabs { z-index: 20; background: var(--card); }
-      nav.tabs .tr { display: flex; }
+      nav.tabs .tr { display: flex; position: relative; }
+      /* Pille (X33): ein Element, das zur neuen Stelle gleitet (aktiver Reiter unten und in der Seitenleiste, Segment-Umschalter) */
+      .pille { position: absolute; left: 0; top: 0; z-index: 0; pointer-events: none; will-change: transform; transition: transform var(--dauer-feder) var(--feder), width var(--dauer-mittel) var(--kurve), height var(--dauer-mittel) var(--kurve); }
+      nav.tabs .tr > .pille { background: var(--primary-soft); }
+      nav.tabs .tr.hp a[aria-current="page"], nav.tabs .tr.hp a[aria-current="page"] .ti, aside.seite nav.tabs .tr.hp a[aria-current="page"] { background: none; }
+      nav.tabs.oben .pille { display: none; }
       nav.tabs a { flex: 1 1 0; min-width: 0; min-height: 64px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
         text-decoration: none; color: var(--text2); font-size: 14px; font-weight: 500; position: relative; padding: 4px 2px; border-radius: 8px; text-align: center; overflow-wrap: anywhere; }
       nav.tabs a svg { fill: currentColor; display: block; }
@@ -1279,7 +1550,13 @@ if (lit) {
       /* Blatt */
       dialog.blatt { border: 0; padding: 0; background: var(--card); color: var(--text); width: 100%; max-width: 560px; max-height: 92vh; max-height: 92dvh;
         overscroll-behavior: contain; overflow: auto; border-radius: var(--r-big); box-shadow: 0 8px 32px var(--shadow); touch-action: pan-x pinch-zoom; }
-      dialog.blatt::backdrop { background: var(--scrim, rgba(0, 0, 0, 0.5)); }
+      dialog.blatt::backdrop { background: var(--scrim, rgba(0, 0, 0, 0.5)); opacity: var(--bd, 1); }
+      dialog.blatt[open]::backdrop { animation: bd-ein var(--dauer-mittel) var(--kurve); }
+      dialog.blatt[data-nachfolger]::backdrop { animation: none; }
+      dialog.blatt.zu::backdrop { opacity: 0; transition: opacity var(--dauer-mittel) var(--kurve-aus); }
+      dialog.blatt.zieht::backdrop { transition: none; }
+      @keyframes bd-ein { from { opacity: 0; } }
+      dialog.blatt.auf { overflow: clip; } /* bis zum Ende des Hereinfederns kann der Dialog nicht scrollen (Messung 7 h4b) */
       .blatt-in { position: relative; padding: 20px max(16px, env(safe-area-inset-right, 0px)) max(20px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
       .blatt h2 { margin: 0 0 8px; padding-right: 56px; touch-action: none; outline: none; }
       .griff { height: 20px; margin: -12px 0 0; touch-action: none; display: grid; place-items: center; }
@@ -1287,7 +1564,8 @@ if (lit) {
       .blatt-x { float: right; position: sticky; top: 0; z-index: 3; margin: -8px -8px 0 8px; background: var(--card); border: 0; }
       .blatt-oben { float: right; position: sticky; top: 0; z-index: 3; margin: -12px -8px 0 8px; min-width: 64px; background: var(--card); color: var(--primary-ink); font-weight: 500; }
       .knoepfe:not(:empty) { position: sticky; bottom: 0; z-index: 2; background: var(--card); margin-top: 16px; padding: 8px 0; display: flex; flex-wrap: wrap; gap: 12px; justify-content: flex-end; }
-      @media (max-width: 699px) { dialog.blatt { margin: auto 0 0; max-width: none; border-radius: var(--r-big) var(--r-big) 0 0; } }
+      /* Am Handy füllt eine Fläche in Kartenfarbe unter dem Blatt den Spalt, wenn die Feder leicht über das Ziel schwingt */
+      @media (max-width: 699px) { dialog.blatt { margin: auto 0 0; max-width: none; border-radius: var(--r-big) var(--r-big) 0 0; box-shadow: 0 8px 32px var(--shadow), 0 80px 0 0 var(--card); } }
 
       /* Meldungen */
       .toastbox { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(var(--navh) + var(--minih) + 16px); z-index: 2000; display: grid; gap: 8px; width: min(92%, 520px); pointer-events: none; }
@@ -1298,6 +1576,15 @@ if (lit) {
       .toast.err { background: var(--danger-bg); color: var(--danger); border: 2px solid var(--danger); }
       .toast .tok { min-width: 56px; min-height: 44px; border-radius: 22px; border: 1px solid currentColor; background: none; color: inherit; font-weight: 700; padding: 0 16px; flex: none; }
       @media (prefers-reduced-motion: reduce) { .skel { animation: none; } }
+
+      /* Druck-Rückmeldung (X34): beim Drücken leicht kleiner, beim Loslassen federt es zurück; Zeilen weniger. Nicht an ausgegrauten Knöpfen. */
+      :is(.btn, .iconbtn, .rund, .tile, .qt, .rcard, .back, .hz-kachel, .ttile, .tb-opt, .tb-weg, .rowbtn, .lrow, .slink, .tb-wzeile, .se-wrow, .tzeile, a.gstatus, a.glink) { transition: transform var(--dauer-feder) var(--feder); }
+      :is(.btn, .iconbtn, .rund, .tile, .qt, .rcard, .back, .hz-kachel, .ttile, .tb-opt, .tb-weg):active:not(:disabled):not([aria-disabled="true"]) { transform: scale(var(--druck)); transition-duration: var(--dauer-kurz); transition-timing-function: var(--kurve); }
+      :is(.rowbtn, .lrow, .slink, .tb-wzeile, .se-wrow, .tzeile, a.gstatus, a.glink):active:not(:disabled):not([aria-disabled="true"]) { transform: scale(var(--druck-zeile)); transition-duration: var(--dauer-kurz); transition-timing-function: var(--kurve); }
+      .seg2 { position: relative; }
+      .seg2 > .pille { background: var(--primary); border-radius: 24px; box-shadow: inset 0 0 0 2px var(--primary-ink), 0 1px 3px var(--shadow); }
+      .seg2 button { position: relative; z-index: 1; }
+      .seg2.hp > button[aria-pressed="true"] { background: transparent; box-shadow: none; }
     `, bausteinStil(), ...Object.values(SEITEN).map((x) => x.stil?.()).filter(Boolean)];
   }
 
