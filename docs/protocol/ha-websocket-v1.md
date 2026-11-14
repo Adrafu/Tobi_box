@@ -2061,9 +2061,10 @@ Start von AP 3.1) und aus dem Design:
     ab** (`invalid_format`). Eine neue Seite darf deshalb ein neues optionales
     Eingabefeld nur senden, wenn `hello.faehigkeiten` es zusagt. Seite und Backend
     liegen im selben Paket (`custom_components/tobibox/`), und die Adresse der Seite
-    trägt die Version der Integration (`/tobibox_static/tobibox-panel.js?v=<version>`), um
+    trägt die Version der Integration (`/api/tobibox/static/tobibox-app.js?v=<version>-<stand>`), um
     den Browser-Zwischenspeicher zu umgehen; das Problem entsteht nur bei einer
-    alten Seite im Zwischenspeicher.
+    alten Seite im Zwischenspeicher. Die Dateien liegen unter `/api/`, weil der Service
+    Worker von HA nur dort nichts zwischenspeichert (AC5).
 *   **Erhöhung** von `v` bei: Befehl, Feld oder Code entfernt oder umbenannt,
     Bedeutung oder Wertebereich geändert, neues **Pflichtfeld**. Dann bekommt die neue
     Hauptversion einen **neuen Wurzelnamen** für die Befehle (`tobibox2/…`) und läuft
