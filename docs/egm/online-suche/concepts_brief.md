@@ -39,7 +39,17 @@ Arten sind geraten, Cover fehlen oder sind unscharf. Von Hand alles zu korrigier
   die Automatik nie.
 - Vertragsänderungen (neue Befehle, neue Felder wie Beschreibung und Alter) nur nach Freigabe durch Tobias (Stufe 0).
 
-## 5. Offene Fragen für den Entwurf
+## 5. Weitere Entscheidungen (Tobias, 14.11.)
+
+| Nr. | Frage | Antwort |
+|---|---|---|
+| O5 | Nachholen für die vorhandene Bibliothek? | **Ja**, einmal über alle Einträge (die Vorschlagsliste der Projektleitung ist der erste Lauf zum Ansehen) |
+| O6 | Ab wann ohne Nachfrage übernehmen? | **Nur wenn Titel und Künstler genau passen**, sonst „bitte ansehen“ |
+| O7 | Wer darf „Online suchen“? | **Nur Administratoren** |
+| O8 | Beschreibung und Alter wo? | **Je Folge** (angezeigt auf der Serienseite bei der Folge) |
+| O9 | Apple antwortet nicht | Satz „Online-Suche gerade nicht erreichbar, später noch einmal“; alles andere geht normal weiter |
+
+## 6. Ursprünglich offene Fragen (beantwortet durch O5–O9)
 
 1. **Nachholen:** Läuft die Automatik auch einmal über die vorhandene Bibliothek (wie die Cover-Suche aus den Tags), oder
    nur bei neuen Einträgen? Wenn ja: alles auf einmal mit Vorschlagsliste oder still mit „bitte ansehen“?
