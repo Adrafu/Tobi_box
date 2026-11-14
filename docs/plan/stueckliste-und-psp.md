@@ -782,6 +782,7 @@ CAD (4.2) startet erst, wenn 3.2 auf dem Breadboard läuft.
 | **Systemuhr am Pi ohne `[netz]`/`[strom]` (3.17, 09.11., Projektleitung, B15)** | Gilt nur mit NTP-Synchronisierung als sicher (`timedatectl`, `/run/systemd/timesync/synchronized`); am Mac weiter sicher |
 | **Update bis Stufe 3b (3.17, 09.11., Projektleitung, B16)** | `UpdateStarten` wird an HA mit `befehl_abgelehnt` (`detail` „Update kommt mit Stufe 3b.“) beantwortet statt still verworfen |
 | **Simulations-Ring (3.17, 09.11., Projektleitung)** | In `gui/seite.html` zeigt der Ring die Farben normiert (volle Deckkraft); die echte Helligkeit steht als Zahl und im Helligkeitsbalken daneben. Der 25-%-Deckel der Box bleibt |
+| **A17 als kleine Korrektur (3.22, 14.11., Projektleitung)** | A17 bestand nach R17-9 (Adressen schon getauscht) und AC4 (kein Notschalter) nur noch aus `require_admin=False` für `/tobibox` und den Tests; die Projektleitung hat das selbst gemacht statt über einen Agenten (Commit `4f27760`). Das Testpanel `/tobibox-test` bleibt nur für Administratoren. Abnahme A-1c am 14.11. angenommen |
 
 ## Bewusst nicht enthalten
 
