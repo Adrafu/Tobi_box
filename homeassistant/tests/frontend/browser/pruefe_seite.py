@@ -1601,7 +1601,7 @@ def ablauf_eingang_liste(L: Lauf):
         L.pruefe(bool(kaputt) and "Felix - Briefe von Felix/Briefe von Felix.mp3" in kaputt[0]["namen"] and "Anderer Ordner/Briefe von Felix.mp3" in kaputt[0]["namen"], "liste-dateien", f"Gleiche Dateinamen brauchen den Ordner davor: {kaputt}")
         L.messe("liste-dateien-nicht")
         te = L.js("const k = sr.querySelector(\"[data-liste='zuletzt'] [data-phase='pruefen'][data-quelle='nas'] [data-liegt-noch]\")?.closest('[data-eintrag]'); return k ? { text: k.textContent.replace(/\\s+/g, ' ').trim(), rest: k.querySelectorAll('[data-liegt-noch] [data-gruppe]').length, richtig: !!k.querySelector('[data-richtig]') } : null")
-        L.pruefe(te is not None and "Daraus ist geworden: Neuer Eintrag „Bibi Blocksberg“" in te["text"] and "Liegt noch im Eingang:" in te["text"] and te["rest"] == 2 and "Geschuetzt.m4b" in te["text"], "liste-dateien", f"Karte „teilweise“: {te}")
+        L.pruefe(te is not None and "Daraus ist geworden: Hörspiel „Bibi Blocksberg“" in te["text"] and "Liegt noch im Eingang:" in te["text"] and te["rest"] == 2 and "Geschuetzt.m4b" in te["text"], "liste-dateien", f"Karte „teilweise“: {te}")
         L.pruefe(te is not None and not te["richtig"], "liste-dateien", "Bei „teilweise“ gibt es kein „Das ist richtig“")
         L.messe("liste-dateien-teilweise")
         L.mock("/eingang", {"zustand": "leer"})

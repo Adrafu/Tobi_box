@@ -1287,6 +1287,45 @@ test('Liste: „geht nicht“ mit Grund und nächster Handlung (Kopierschutz); o
   } finally { weg(); }
 });
 
+test('Liste: „geht nicht“ nennt die Dateien je Grund (drei Namen, „und N weitere“, gleicher Name mit Ordner)', { ...MIT_DOM }, async () => {
+  const h = (code, datei) => ({ code, datei, text: 'x' });
+  const s = await start({ eingang: [eingangEintrag({ name: 'Hafen', quelle: 'nas', art: 'ordner', dateien: 1812, status: 'blockiert', fertig_am: null, zuerst_gesehen: minuten(10), hinweise: [
+    h('probedekodierung_fehlgeschlagen', 'Die Haferhorde/26. Kapitel 24_ Volle Mähne.mp3.mp3'), h('probedekodierung_fehlgeschlagen', 'Felix/Briefe.mp3'),
+    h('probedekodierung_fehlgeschlagen', 'Anderer/Briefe.mp3'), h('probedekodierung_fehlgeschlagen', 'X/vier.mp3'), h('probedekodierung_fehlgeschlagen', 'X/fuenf.mp3'),
+    h('kopierschutz', 'Buch.m4b')] })] });
+  try {
+    const k = karteMit(s, 'Hafen');
+    assert.equal(k.dataset.phase, 'fehler');
+    const gr = [...k.querySelectorAll('[data-gruppe]')];
+    assert.equal(gr.length, 2);
+    assert.deepEqual([...gr[0].querySelectorAll('[data-datei]')].map((x) => kText(x)), ['26. Kapitel 24_ Volle Mähne.mp3.mp3', 'Felix/Briefe.mp3', 'Anderer/Briefe.mp3']);
+    assert.equal(kText(gr[0].querySelector('[data-weitere]')), 'und 2 weitere');
+    assert.match(kText(gr[0]), /^Die Datei ist kaputt oder unvollständig\. Bitte noch einmal kopieren\./);
+    assert.deepEqual([...gr[1].querySelectorAll('[data-datei]')].map((x) => kText(x)), ['Buch.m4b']);
+    assert.equal(gr[1].querySelector('[data-weitere]'), null);
+    assert.doesNotMatch(kText(k), /Die Haferhorde\//, 'nur der Dateiname, nicht der Pfad');
+  } finally { weg(); }
+});
+
+test('Liste: „teilweise“ zeigt „Daraus ist geworden“ und darunter „Liegt noch im Eingang“ mit Grund und Dateien, ohne „Das ist richtig“', { ...MIT_DOM }, async () => {
+  const s = await start({ eingangErledigt: [nasFertig({ name: 'Gemischt', dateien: 4, status: 'teilweise', pruefen: true, wunsch: { ziel: 'neu', art: 'hoerspiel' },
+    hinweise: [{ code: 'probedekodierung_fehlgeschlagen', datei: 'Gemischt/Kaputt.mp3', text: 'x' }, { code: 'kopierschutz', datei: 'Gemischt/Zu.m4b', text: 'x' }],
+    ergebnis: [erg({ pruefen: true, pruefen_gruende: ['tags_fehlen'] })] })] });
+  try {
+    const k = karteMit(s, 'Gemischt');
+    assert.equal(k.dataset.phase, 'pruefen');
+    assert.match(kText(k.querySelector('[data-daraus]')), /^Daraus ist geworden: Hörspiel „Bibi Blocksberg“/);
+    const rest = k.querySelector('[data-liegt-noch]');
+    assert.match(kText(rest), /^Liegt noch im Eingang:/);
+    assert.equal(rest.querySelectorAll('[data-gruppe]').length, 2);
+    assert.match(kText(rest), /Kaputt\.mp3/);
+    assert.match(kText(rest), /Zu\.m4b/);
+    assert.doesNotMatch(kText(rest), /In der Datei steht kein Albumname/, 'der Grund des Einsortierten steht oben, nicht beim Rest');
+    assert.match(kText(k), /In der Datei steht kein Albumname/);
+    assert.equal(k.querySelector('[data-richtig]'), null);
+  } finally { weg(); }
+});
+
 test('Liste: „Es fehlt noch eine Datei“ (teilweise, gruppe_unvollstaendig): gelbe Karte mit dem Satz, ohne „Das ist richtig“', { ...MIT_DOM }, async () => {
   const s = await start({ eingangErledigt: [nasFertig({ name: 'Upload cd34ef56', quelle: 'upload', dateien: 2, status: 'teilweise', pruefen: true, hinweise: [{ code: 'gruppe_unvollstaendig', datei: null, text: 'x' }], ergebnis: [erg({ pruefen: true })] })] });
   try {

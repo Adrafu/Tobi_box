@@ -748,7 +748,7 @@ class HinzSeite {
   /* Grund und betroffene Dateien: ein Satz je Grund, darunter die Namen („und N weitere“ ab der vierten Datei). */
   _gruppen(hinweise) {
     return hinweisGruppen(hinweise).map((g) => html`<div class="hz-gruppe" data-gruppe><span class="hz-grund" data-grund>${g.satz}</span>
-      ${g.namen.length ? html`<ul class="hz-dateien" data-dateien>${g.namen.map((n) => html`<li data-datei>${n}</li>`)}${g.weitere ? html`<li class="muted" data-weitere>${fuellen(EINGANG.daraus_weitere, { anzahl: g.weitere })}</li>` : nothing}</ul>` : nothing}</div>`);
+      ${g.namen.length ? html`<ul class="hz-dateien" data-dateien>${g.namen.map((n) => html`<li data-datei>${n}</li>`)}${g.weitere ? html`<li data-weitere>${fuellen(EINGANG.daraus_weitere, { anzahl: g.weitere })}</li>` : nothing}</ul>` : nothing}</div>`);
   }
 
   _erledigt(z) { return z.art === 'upload' ? this.m.anzeigePhase(z.auftrag) === 'fertig' : z.zustand === 'fertig'; }

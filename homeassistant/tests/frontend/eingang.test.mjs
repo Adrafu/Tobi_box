@@ -488,3 +488,33 @@ test('Zeitgeber: „Alles hinzugefügt.“ verschwindet von selbst, wenn die 15 
   assert.ok(s.el.store._eingangTimer, 'ein Zeitgeber ist geplant');
   weg();
 });
+
+/* ------------------------------------------------------------------ betroffene Dateien (Befund aus dem echten HA) */
+
+test('hinweisGruppen: nur Dateinamen, je Grund eine Gruppe, höchstens drei Namen und „und N weitere“, bei gleichem Namen der Ordner davor', () => {
+  const h = (code, datei) => ({ code, datei, text: 'x' });
+  const g = E.hinweisGruppen([
+    h('probedekodierung_fehlgeschlagen', 'Die Haferhorde - Volle Mähne!/26. Kapitel 24_ Volle Mähne.mp3.mp3'),
+    h('probedekodierung_fehlgeschlagen', 'Felix - Briefe von Felix/Briefe von Felix.mp3'),
+    h('nicht_lesbar', 'Anderer/Briefe von Felix.mp3'),
+    h('probedekodierung_fehlgeschlagen', 'A/vier.mp3'),
+    h('probedekodierung_fehlgeschlagen', 'A/fuenf.mp3'),
+    h('kopierschutz', 'x/y/Buch.m4b'),
+    h('gruppe_unvollstaendig', null),
+  ]);
+  assert.equal(g.length, 2, 'probedekodierung und nicht_lesbar haben denselben Satz; gruppe_unvollstaendig fehlt');
+  assert.equal(g[0].satz, HINWEISE.probedekodierung_fehlgeschlagen);
+  assert.deepEqual(g[0].namen, ['26. Kapitel 24_ Volle Mähne.mp3.mp3', 'Felix - Briefe von Felix/Briefe von Felix.mp3', 'Anderer/Briefe von Felix.mp3']);
+  assert.equal(g[0].weitere, 2);
+  assert.deepEqual(g[1].namen, ['Buch.m4b']);
+  assert.equal(g[1].weitere, 0);
+  assert.deepEqual(E.hinweisGruppen([{ code: 'neu_unbekannt', datei: 'a\\b\\c.mp3' }]), [{ satz: EINGANG.grund_sonst, namen: ['c.mp3'], weitere: 0 }]);
+  assert.deepEqual(E.hinweisGruppen([]), []);
+});
+
+test('ergebnisGruende: nur die Gründe der einsortierten Teile; bei „teilweise“ bleibt das Band „bitte kurz ansehen“', () => {
+  const e = eingangEintrag({ id: 't', status: 'teilweise', fertig_am: vor(5), ergebnis: [ergebnis({ pruefen: true, pruefen_gruende: ['tags_fehlen'] })], hinweise: [{ code: 'kopierschutz', datei: 'a.m4b', text: 'x' }] });
+  assert.deepEqual(E.ergebnisGruende(e), [GRUENDE.tags_fehlen]);
+  const abl = E.eingangAbleiten([e], { jetzt: JETZT });
+  assert.equal(E.bandZustand(abl, { jetzt: JETZT }).art, 'pruefen');
+});
