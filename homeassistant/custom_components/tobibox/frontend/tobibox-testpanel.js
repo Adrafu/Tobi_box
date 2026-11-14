@@ -33,11 +33,9 @@ class TobiboxTestpanel extends HTMLElement {
       tobibox-testpanel audio{width:100%} tobibox-testpanel img{max-width:100%;max-height:200px}
       tobibox-testpanel h3{font-size:14px;margin:12px 0 4px}
       tobibox-testpanel .tt-karte{margin:8px 0;padding:12px 16px;border-radius:12px;background:var(--primary-color,#03a9f4);color:#fff}
-      tobibox-testpanel dialog.tt-d{position:fixed;inset:0;width:100%;height:100%;max-width:none;max-height:none;margin:0;padding:0;border:0;background:transparent;overflow:hidden}
+      tobibox-testpanel dialog.tt-d{position:fixed;inset:0;width:100%;height:100%;max-width:none;max-height:none;margin:0;padding:0;border:0;background:transparent;overflow:clip}
       tobibox-testpanel dialog.tt-d::backdrop{background:transparent}
-      tobibox-testpanel .tt-blatt{position:absolute;left:0;right:0;bottom:0;max-height:70%;box-sizing:border-box;padding:8px 16px 24px;background:var(--card-background-color,#fff);color:var(--primary-text-color);border-radius:16px 16px 0 0;box-shadow:0 -2px 16px rgba(0,0,0,.3);transform:translateY(100%);transition:transform ${FEDER_MS}ms var(--tt-feder);touch-action:none}
-      tobibox-testpanel .tt-blatt.an{transform:none}
-      tobibox-testpanel .tt-blatt.zieht{transition:none}
+      tobibox-testpanel .tt-blatt{position:absolute;left:0;right:0;bottom:0;max-height:70%;box-sizing:border-box;padding:8px 16px 24px;background:var(--card-background-color,#fff);color:var(--primary-text-color);border-radius:16px 16px 0 0;box-shadow:0 -2px 16px rgba(0,0,0,.3);touch-action:none;outline:none}
       tobibox-testpanel .tt-griff{width:40px;height:5px;border-radius:3px;background:var(--divider-color,#999);margin:0 auto 8px}
       tobibox-testpanel .tt-kopf{display:flex;justify-content:space-between;align-items:center}
       tobibox-testpanel .tt-kopf button{font-size:24px;min-width:44px;min-height:44px}
@@ -70,7 +68,7 @@ class TobiboxTestpanel extends HTMLElement {
       <button id="h4-auf">Blatt öffnen</button><pre id="aus-h4"></pre>
       <h3>h5 Anzeige</h3><pre id="aus-h5"></pre>
     </section></div>
-    <dialog id="h4-dlg" class="tt-d" aria-label="Test-Blatt"><div id="h4-blatt" class="tt-blatt">
+    <dialog id="h4-dlg" class="tt-d" aria-label="Test-Blatt"><div id="h4-blatt" class="tt-blatt" tabindex="-1" autofocus>
         <div class="tt-griff"></div>
         <div class="tt-kopf"><b>Test-Blatt</b><button id="h4-x" aria-label="Schließen">×</button></div>
         <p>Wische nach unten, tippe auf × oder tippe neben das Blatt, um es zu schließen.</p></div></dialog>`;
@@ -331,7 +329,13 @@ class TobiboxTestpanel extends HTMLElement {
       ? `translate(${von.left - nach.left}px,${von.top - nach.top}px) scale(${von.width / nach.width},${von.height / nach.height})`
       : `translate(${nach.left - von.left}px,${nach.top - von.top}px) scale(${nach.width / von.width},${nach.height / von.height})`;
     el.style.transformOrigin = '0 0';
-    const kf = auf ? [{ transform: tr }, { transform: 'none' }] : [{ transform: 'none' }, { transform: tr }];
+    /* Ecken: scale() verzerrt den Radius. Darum den sichtbaren Radius je Achse durch die Skala teilen und mit animieren. */
+    const radius = (x) => parseFloat(getComputedStyle(x).borderTopLeftRadius) || 0;
+    const rv = radius(auf ? e.mini : el), rn = radius(auf ? el : e.mini);
+    const sx = auf ? von.width / nach.width : nach.width / von.width, sy = auf ? von.height / nach.height : nach.height / von.height;
+    const eck = (r) => `${r / sx}px / ${r / sy}px`;
+    const kf = auf ? [{ transform: tr, borderRadius: eck(rv) }, { transform: 'none', borderRadius: `${rn}px` }]
+      : [{ transform: 'none', borderRadius: `${rv}px` }, { transform: tr, borderRadius: eck(rn) }];
     let an, kurve = 'Feder';
     try { an = el.animate(kf, { duration: FEDER_MS, easing: feder(), fill: auf ? 'none' : 'forwards' }); }
     catch (err) { kurve = `Rückfall-Kurve (${err.name})`; an = el.animate(kf, { duration: FEDER_MS, easing: KURVE, fill: auf ? 'none' : 'forwards' }); }
@@ -340,9 +344,10 @@ class TobiboxTestpanel extends HTMLElement {
     /* Selbstprüfung: Rechteck jeden Frame lesen; es darf den Kasten aus Start und Ziel nicht verlassen (Feder-Überschwingen erlaubt). */
     const kasten = { l: Math.min(von.left, nach.left), t: Math.min(von.top, nach.top), r: Math.max(von.right, nach.right), b: Math.max(von.bottom, nach.bottom) };
     const tol = 4 + 0.03 * Math.max(kasten.r - kasten.l, kasten.b - kasten.t);
-    let abw = 0, lauft = true;
+    let abw = 0, lauft = true, eckeEnde = rv;
     const lies = () => {
       const r = el.getBoundingClientRect();
+      try { eckeEnde = parseFloat(getComputedStyle(el).borderTopLeftRadius) * new DOMMatrix(getComputedStyle(el).transform).a; } catch { /* kein DOMMatrix */ }
       abw = Math.max(abw, kasten.l - r.left, kasten.t - r.top, r.right - kasten.r, r.bottom - kasten.b);
       if (lauft) requestAnimationFrame(lies);
     };
@@ -350,9 +355,11 @@ class TobiboxTestpanel extends HTMLElement {
     const fertig = () => {
       lauft = false;
       el.style.transformOrigin = '';
+      const eckenText = `sichtbare Ecken im letzten Frame: ${eckeEnde.toFixed(1)} px (Ziel ${rn.toFixed(1)} px)`;
       if (!auf) { e.zeigen(false); an.cancel(); }
       z.push(`FLIP fertig nach ${Math.round(performance.now() - t0)} ms (Soll ${FEDER_MS})`);
       z.push(`Flug blieb zwischen Start und Ziel: ${abw <= tol ? 'ja' : `nein (größte Abweichung ${Math.round(abw)} px)`}`);
+      z.push(eckenText);
       this._sag(aus, z.join('\n'));
     };
     an.finished.then(fertig, (err) => { lauft = false; z.push(`FLIP abgebrochen: ${err && err.name}`); this._sag(aus, z.join('\n')); });
@@ -400,9 +407,12 @@ class TobiboxTestpanel extends HTMLElement {
     w.style.setProperty('--tt-ct', `${Math.max(0, sichtOben - rw.top)}px`);
     w.style.setProperty('--tt-cb', `${Math.max(0, rw.bottom - sichtUnten)}px`);
     w.classList.add('tt-hinten-an');
-    blatt.classList.remove('an', 'zieht'); blatt.style.transform = '';
+    blatt.classList.remove('zieht'); blatt.style.transform = '';
+    /* Das Blatt steht schon am Endpunkt, wenn der Dialog aufgeht: WebKit scrollt sonst beim Fokussieren des × das Blatt aus dem Bild. */
     dlg.showModal();
-    void blatt.offsetWidth; void w.offsetWidth;
+    dlg.scrollTop = 0;
+    try { blatt.focus({ preventScroll: true }); } catch { /* egal */ }
+    void w.offsetWidth;
     /* Selbstprüfung: das Blatt darf nie höher sein als sein Endpunkt (Feder-Überschwingen erlaubt) */
     const ziel = dlg.getBoundingClientRect().bottom - blatt.offsetHeight;
     let hoch = 0, lauft = true;
@@ -411,7 +421,9 @@ class TobiboxTestpanel extends HTMLElement {
       if (lauft) requestAnimationFrame(lies);
     };
     lies();
-    blatt.classList.add('an'); w.classList.add('tt-hinten');
+    w.classList.add('tt-hinten');
+    const kfB = [{ transform: 'translateY(100%)' }, { transform: 'none' }];
+    try { blatt.animate(kfB, { duration: FEDER_MS, easing: feder() }); } catch { blatt.animate(kfB, { duration: FEDER_MS, easing: KURVE }); }
     setTimeout(() => {
       lauft = false;
       const cs = getComputedStyle(w);
@@ -424,15 +436,20 @@ class TobiboxTestpanel extends HTMLElement {
     const dlg = this.$('h4-dlg'), blatt = this.$('h4-blatt');
     if (!dlg.open || this._h4zu) return;
     this._h4zu = true;
-    blatt.classList.remove('an', 'zieht'); blatt.style.transform = '';
     const w = this.$('inhalt');
+    let dy = 0;
+    try { dy = new DOMMatrix(getComputedStyle(blatt).transform).m42; } catch { /* kein DOMMatrix */ }
+    blatt.classList.remove('zieht'); blatt.style.transform = '';
     w.classList.remove('tt-hinten', 'tt-zieht'); w.style.removeProperty('--tt-t');
-    setTimeout(() => {
+    const zu = () => {
       dlg.close();
+      blatt.getAnimations().forEach((x) => x.cancel());
       w.classList.remove('tt-hinten-an');
       if (this._h4p) this._h4p.style.background = this._h4bg || '';
       this._sag('aus-h4', 'Blatt geschlossen.');
-    }, FEDER_MS + 50);
+    };
+    if (typeof blatt.animate !== 'function') { zu(); return; }
+    blatt.animate([{ transform: `translateY(${dy}px)` }, { transform: 'translateY(100%)' }], { duration: FEDER_MS, easing: KURVE, fill: 'forwards' }).finished.then(zu, zu);
   }
   _blattWischen(blatt) {
     let y0 = null, t0 = 0, dy = 0;
