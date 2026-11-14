@@ -150,6 +150,19 @@ export function teile(text, term) {
   return { vor: t.slice(0, i), treffer: t.slice(i, i + w.length), nach: t.slice(i + w.length) };
 }
 
+/* Papierkorb: Einträge anderer Benutzer, die nach `seitMs` (Millisekunden, Serverzeit aus `geloescht_am`) hineinkamen (AC3). Ein Eintrag ohne
+ * `geloescht_von` (Eingangs-Lauf, Aktion, alter Eintrag) gehört niemandem und zählt nie. Neueste zuerst, wie `papierkorb/list` sie liefert. */
+export function korbZeitMs(e) { const t = Date.parse(e?.geloescht_am || ''); return Number.isFinite(t) ? t : NaN; }
+export function korbNeueFremde(eintraege, eigeneId, seitMs) {
+  return (eintraege || []).filter((e) => e?.geloescht_von && (eigeneId == null || e.geloescht_von.id !== eigeneId) && korbZeitMs(e) > (seitMs ?? 0));
+}
+/* Der neueste Zeitpunkt in der Liste (Millisekunden) oder 0, wenn keiner da ist. */
+export function korbNeuesteMs(eintraege) {
+  let m = 0;
+  for (const e of eintraege || []) { const t = korbZeitMs(e); if (t > m) m = t; }
+  return m;
+}
+
 /* Wartet auf `p`; nach `ms` Millisekunden kommt der Fehler { code: 'zeitgrenze' } (Design 6: nach 10 s Fehlerzustand). */
 export function ladeMitGrenze(p, ms = 10000) {
   let timer;

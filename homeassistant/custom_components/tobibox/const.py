@@ -89,8 +89,6 @@ PRUEF_INTERVALL_S: Final = 600
 # --- Schutz für Nicht-Administratoren (Vertrag W, 2.4 und 14.10) -----------------
 AENDERUNGEN_JE_MINUTE: Final = 30
 PAPIERKORB_AKTIONEN_JE_10_MIN: Final = 20
-#: Mitteilung an die Administratoren bei **mehr als** so vielen Einträgen eines Benutzers in einer Stunde
-PAPIERKORB_MELDUNG_AB: Final = 3
 UPLOAD_BYTES_JE_STUNDE: Final = 16 * 1024**3
 KONFIG_STAENDE_ANZAHL: Final = 10
 

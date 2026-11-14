@@ -15,7 +15,7 @@ import { fuellen, fehlerText, SEITE, TOBIE, LEER, TECHNIK, SUCHE, EINGANG } from
 import { eingangAbleiten, bandZustand, naechsteAenderung } from './eingang.js';
 import { SEITEN } from './seiten/index.js';
 import { folgenAktion } from './seiten/tobies.js';
-import { initLit, bausteinStil, CoverLader, leererZustand, kopfAktion } from './bausteine.js';
+import { initLit, bausteinStil, CoverLader, leererZustand, kopfAktion, korbNeueFremde, korbNeuesteMs } from './bausteine.js';
 
 export const VERTRAG_V = 1;
 export const REITER_UNTEN_BIS = 700; // Panelbreite unter 700 px: Reiter unten
@@ -195,13 +195,14 @@ export function parseRoute(hash, { faehigkeiten = null } = {}) {
 /* ------------------------------------------------------------------ Daten: hello, Abo, Listen (ohne DOM) */
 
 const GRENZE_LAEDT_MS = 10000;
+const KORB_GESEHEN = 'tobibox.korb_gesehen'; // localStorage: Zeitpunkt (ms) des neuesten Papierkorb-Eintrags, den dieses Gerät gesehen hat (AC3)
 const THEMEN = ['boxen', 'neue_tobies', 'konfig']; // dazu `eingang` (Band und Punkt, A11b) und `warteschlange`, wenn hello die Fähigkeit zusagt (Vertrag 4.5, 4.8)
 
 export class AppStore {
   constructor({ ladeGrenzeMs = GRENZE_LAEDT_MS } = {}) {
     this.ladeGrenzeMs = ladeGrenzeMs;
     this.s = { phase: 'laedt', fehlerCode: null, faehigkeiten: null, grenzen: {}, boxen: {}, boxAnzeigen: {}, neue: [], warteschlange: [], platz: [], konfigZustand: 'ok', verbindungWeg: false,
-      eingang: [], offeneSerien: null, lokaleUploads: 0, lokaleNamen: [] }; // Eingang: Einträge aus `eingang/list`; offeneSerien: Serien, die noch „bitte prüfen“ sind (A11b)
+      eingang: [], offeneSerien: null, lokaleUploads: 0, lokaleNamen: [], korbNeu: [] }; // korbNeu: neue Papierkorb-Einträge anderer Benutzer, nur für Administratoren (AC3);  Eingang: Einträge aus `eingang/list`; offeneSerien: Serien, die noch „bitte prüfen“ sind (A11b)
     this.hass = null;
     this.onNeuerTobie = null; // ({ uid, box, anzeige }) beim ersten Auftauchen einer unbekannten Kennung nach dem Start
     this.onWiederda = null; // () nach dem Wiederverbinden: die aktive Seite lädt neu
@@ -211,6 +212,7 @@ export class AppStore {
     this._lauf = 0;
     this._bekannt = new Set();
     this._eingangTimer = null;
+    this._korbGesehen = null; // Millisekunden (Serverzeit): was im Papierkorb schon gesehen ist; je Gerät in `localStorage`, ohne Speicher nur bis zum Neuladen
   }
 
   onChange(fn) { this._ls.add(fn); return () => this._ls.delete(fn); }
@@ -261,7 +263,7 @@ export class AppStore {
       this.s.grenzen = hello.grenzen || {}; // upload_max_bytes, upload_parallel, endungen … (A11a: Hinzufügen)
       this.s.boxAnzeigen = { ...(hello.grenzen?.box_anzeigen || {}), ...(hello.box_anzeigen || {}) };
       this.s.konfigZustand = hello.konfig?.zustand || 'ok';
-      const themen = [...THEMEN, ...(fae.includes('eingang') ? ['eingang'] : []), ...(fae.includes('warteschlange') ? ['warteschlange'] : [])];
+      const themen = [...THEMEN, ...(fae.includes('eingang') ? ['eingang'] : []), ...(fae.includes('warteschlange') ? ['warteschlange'] : []), ...(this._korbBeobachten() ? ['medien'] : [])];
       this._abo = await this.hass.connection.subscribeMessage((ev) => this._ereignis(ev), { type: 'tobibox/subscribe', themen });
       if (lauf !== this._lauf) return;
       await this._ladeListen();
@@ -296,6 +298,47 @@ export class AppStore {
     }
     this._set(neu);
     await this.ladeEingang();
+    this.ladeKorbNeu(); // nicht abwarten: der Punkt am Technik-Symbol darf den Start nicht aufhalten
+  }
+
+  /* Papierkorb-Punkt am Technik-Symbol (AC3, nur Administratoren): neue Einträge anderer Benutzer seit dem letzten Besuch von „Technik › Speicher“
+   * auf diesem Gerät. Gelesen wird `papierkorb/list` (Vertrag W 3.3: `geloescht_von`, `geloescht_am`); neu geladen wird beim Start, nach dem
+   * Wiederverbinden und bei jedem Ereignis `medien`/`papierkorb_geaendert`. Es gibt kein HA-Ereignis und keine HA-Mitteilung. */
+  _korbBeobachten() { return this.hass?.user?.is_admin === true && (this.s.faehigkeiten || []).includes('papierkorb'); }
+
+  _korbLiesGesehen() {
+    try { const v = Number(window.localStorage?.getItem(KORB_GESEHEN)); return Number.isFinite(v) && v > 0 ? v : null; } catch { return null; }
+  }
+  _korbMerke(ms) { try { window.localStorage?.setItem(KORB_GESEHEN, String(ms)); } catch { /* ohne Speicher: gilt bis zum Neuladen */ } }
+
+  /* Stand „gesehen“ in Millisekunden oder null, solange er noch nicht feststeht. */
+  korbGesehenStand() { return this._korbGesehen; }
+
+  async ladeKorbNeu() {
+    if (!this.hass || !this._korbBeobachten()) { if (this.s.korbNeu.length) this._set({ korbNeu: [] }); return; }
+    if (this._korbLaedt) { this._korbNochmal = true; return; }
+    this._korbLaedt = true;
+    const lauf = this._lauf;
+    try {
+      do {
+        this._korbNochmal = false;
+        const r = await this._api('tobibox/papierkorb/list', { limit: 100, offset: 0 });
+        if (lauf !== this._lauf) return;
+        const liste = r.eintraege || [];
+        if (this._korbGesehen === null) { // erster Besuch auf diesem Gerät: was jetzt schon drin liegt, ist nicht neu
+          this._korbGesehen = this._korbLiesGesehen() ?? Math.max(1, korbNeuesteMs(liste));
+          if (this._korbLiesGesehen() === null) this._korbMerke(this._korbGesehen);
+        }
+        this._set({ korbNeu: korbNeueFremde(liste, this.hass?.user?.id, this._korbGesehen) });
+      } while (this._korbNochmal);
+    } catch { /* der nächste Anlass (Ereignis, Neuladen) holt es noch einmal */ } finally { this._korbLaedt = false; }
+  }
+
+  /* Die Seite „Technik › Speicher“ hat den Papierkorb geladen und angezeigt: alles darin gilt als gesehen, der Punkt verschwindet. */
+  korbGesehen(eintraege) {
+    const ms = Math.max(1, this._korbGesehen ?? 0, korbNeuesteMs(eintraege)); // mindestens 1: „0“ wäre im Speicher nicht von „nie“ zu unterscheiden
+    if (ms !== this._korbGesehen) { this._korbGesehen = ms; this._korbMerke(ms); }
+    if (this.s.korbNeu.length) this._set({ korbNeu: [] });
   }
 
   /* Eingang (A11b): `eingang/list` (Filter `alle`: was noch im Eingang liegt und die letzten einsortierten) und, wenn ein Eintrag „bitte ansehen“
@@ -405,6 +448,8 @@ export class AppStore {
       if ((ev.art === 'snapshot' || ev.art === 'geaendert') && d.konfig) this._set({ konfigZustand: d.konfig.zustand || 'ok' });
     } else if (ev.thema === 'eingang') {
       if (ev.art === 'geaendert' || ev.art === 'neu_einsortiert' || ev.art === 'durchlauf_fertig') this.ladeEingang(); // `snapshot` bringt nur Zahlen
+    } else if (ev.thema === 'medien') {
+      if (ev.art === 'papierkorb_geaendert') this.ladeKorbNeu();
     } else if (ev.thema === 'warteschlange' && ev.art !== 'snapshot') {
       this.ladeWarteschlange();
       if (ev.art === 'abgearbeitet' && d.uid) {
@@ -952,6 +997,9 @@ if (lit) {
         neue: () => app.store.s.neue, // unbekannte Tobies (`neue_tobies/list` und Ereignisse)
         warteschlange: () => app.store.s.warteschlange, // Vormerkungen (`warteschlange/list` und Ereignisse), leer ohne die Fähigkeit
         warteschlangeNeuLaden: () => app.store.ladeWarteschlange(),
+        get nutzerId() { return app.hass?.user?.id; }, // eigene HA-Benutzerkennung (Papierkorb: „von anderen“)
+        korbGesehenStand: () => app.store.korbGesehenStand(), // Papierkorb (AC3): bis wann dieses Gerät alles gesehen hat (ms) oder null
+        korbGesehen: (eintraege) => app.store.korbGesehen(eintraege), // Papierkorb gezeigt: der Punkt am Technik-Symbol geht
         platz: () => app.store.s.platz, // Tobies, die eine Vormerkung ohne Namen genommen haben (Karte auf „Geräte“)
         platzEntfernen: (uid) => app.store.platzEntfernen(uid),
         ereignis: (fn) => app.store.onEreignis(fn), // `fn(ev)` für jedes Ereignis des Abos; gibt die Abmeldung zurück
@@ -1010,13 +1058,16 @@ if (lit) {
       return this._titel(r);
     }
 
+    /* Punkt am Technik-Symbol (AC3): nur Administratoren, nur bei neuen Papierkorb-Einträgen anderer Benutzer */
+    _korbPunkt() { return this._admin && this.store.s.phase === 'bereit' && this.store.s.korbNeu.length > 0; }
+
     _kopfSymbole(r) {
       const seite = this.store.s.phase === 'bereit' ? this._seiteFuer(r.name) : null;
       const aktion = typeof seite?.kopfAktionen === 'function' ? seite.kopfAktionen(r)
         : (r.name === 'start' ? kopfAktion({ href: '#suche', label: SEITE.suchen, symbol: 'search' }) : nothing);
       // Technik: am Computer steht sie in der Seitenleiste, sonst als rundes Symbol im Kopf
       const technik = this._admin && this._layout !== 'seite'
-        ? html`<a class="rund tech" href="#technik" aria-label=${SEITE.technik} aria-current=${r.tab === 'technik' ? 'page' : nothing}>${ic('tool')}</a>` : nothing;
+        ? html`<a class="rund tech" href="#technik" aria-label=${this._korbPunkt() ? `${SEITE.technik}, ${TECHNIK.korb.punkt}` : SEITE.technik} aria-current=${r.tab === 'technik' ? 'page' : nothing}>${ic('tool')}${this._korbPunkt() ? html`<span class="dot ruhig" data-punkt="papierkorb" aria-hidden="true"></span>` : nothing}</a>` : nothing;
       return html`${aktion}${technik}`;
     }
 
@@ -1047,7 +1098,7 @@ if (lit) {
         ${this._nav(r)}
         <div class="werkzeuge">
           <a class="srow" href="#hinzufuegen">${ic('plus', 24)}<span>${SEITE.hinzufuegen}</span></a>
-          ${this._admin ? html`<a class="srow tech" href="#technik" aria-current=${aktiv}>${ic('tool', 24)}<span>${SEITE.technik}</span></a>` : nothing}</div>
+          ${this._admin ? html`<a class="srow tech" href="#technik" aria-current=${aktiv}>${ic('tool', 24)}<span>${SEITE.technik}</span>${this._korbPunkt() ? html`<span class="dot ruhig" data-punkt="papierkorb" aria-hidden="true"></span><span class="sr">${TECHNIK.korb.punkt}</span>` : nothing}</a>` : nothing}</div>
       </aside>`;
     }
 
@@ -1116,7 +1167,11 @@ if (lit) {
       .kopf h1 { font-size: 24px; margin: 0; font-weight: 500; flex: 1; min-width: 0; overflow-wrap: anywhere; line-height: 1.2; }
       .symbole { display: flex; gap: 8px; flex: none; margin-left: auto; }
       .rund { width: 48px; height: 48px; border-radius: 24px; border: 0; background: var(--primary-soft); color: var(--primary-ink); display: inline-grid; place-items: center; text-decoration: none; flex: none; }
+      .rund { position: relative; }
       .rund svg { fill: currentColor; }
+      .rund .dot.ruhig, .srow .dot.ruhig { display: inline-block; width: 12px; height: 12px; border-radius: 6px; background: var(--primary-ink); border: 2px solid var(--card); box-sizing: content-box; }
+      .rund .dot.ruhig { position: absolute; top: 6px; right: 6px; }
+      .srow .dot.ruhig { margin-left: auto; }
       .rund[aria-current="page"] { outline: 2px solid var(--primary-ink); outline-offset: -2px; }
       ha-menu-button { flex: none; color: var(--text); }
 

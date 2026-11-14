@@ -4,7 +4,7 @@
   kein Benutzer (HA-Aktionen, Eingangs-Lauf, Tests); das gilt wie ein Administrator, ohne Schutzregeln.
 * ``Mengen``: gleitende Zeitfenster je Benutzer und Art (``zu_viele_aenderungen``). Administratoren sind ausgenommen.
   Die Zähler leben im Arbeitsspeicher; ein Neustart von HA vergisst sie (wie bei ``anfrage_id``).
-* Papierkorb: Mitteilung an die Administratoren und Protokollzeile (2.4, Punkt „Papierkorb für Alltag“).
+* Papierkorb: Protokollzeile (2.4, Punkt „Papierkorb für Alltag“); die Mitteilung an Administratoren ist entfallen (AC3), die Seite zeigt das Neue.
 """
 
 from __future__ import annotations
@@ -152,10 +152,13 @@ class Schutz:
     def cover_gebucht(self, nutzer: Nutzer | None) -> None:
         self.mengen.buche_fuer("cover", nutzer)
 
-    # --- Papierkorb: Protokoll und Mitteilung (2.4) -------------------------------------------------------
+    # --- Papierkorb: Protokoll (2.4) -------------------------------------------------------
 
     def papierkorb_gebucht(self, nutzer: Nutzer | None, eintrag: dict[str, Any], tobies: list[dict[str, Any]]) -> None:
-        """Nach jeder Papierkorb-Aktion: Protokollzeile für alle, Mitteilung nur für Nicht-Administratoren."""
+        """Nach jeder Papierkorb-Aktion: Zähler für die Grenze und Protokollzeile.
+
+        Keine HA-Mitteilung (AC3): die Seite zeigt Administratoren das Neue aus ``papierkorb/list`` (``geloescht_von``, ``geloescht_am``).
+        """
         self.mengen.buche_fuer("papierkorb", nutzer)
         _LOGGER.info(
             "Papierkorb: %s (%s) legt %s „%s“ in den Papierkorb (Eintrag %s, %s, %d Tobies)",
@@ -167,28 +170,3 @@ class Schutz:
             eintrag.get("geloescht_am"),
             len(tobies),
         )
-        if ist_admin(nutzer) or nutzer is None or not nutzer.id:
-            return
-        hub = self.hub
-        person = nutzer.name or nutzer.id
-        if tobies:
-            namen = ", ".join(t.get("name") or t["uid"] for t in tobies)
-            hub.benachrichtige(
-                f"tobibox_papierkorb_tobies_{eintrag['id']}",
-                "benachrichtigung_papierkorb_tobies_titel",
-                "benachrichtigung_papierkorb_tobies",
-                person=person,
-                eintrag=eintrag.get("anzeige"),
-                tobies=namen,
-            )
-        # Einträge in der letzten Stunde, auch dieser (jede Papierkorb-Aktion zählt einmal)
-        self.mengen.buche("papierkorb_stunde", nutzer.id)
-        anzahl = self.mengen.summe("papierkorb_stunde", nutzer.id, STUNDE_S)
-        if anzahl > const.PAPIERKORB_MELDUNG_AB:
-            hub.benachrichtige(
-                f"tobibox_papierkorb_viele_{nutzer.id}",
-                "benachrichtigung_papierkorb_viele_titel",
-                "benachrichtigung_papierkorb_viele",
-                person=person,
-                anzahl=anzahl,
-            )

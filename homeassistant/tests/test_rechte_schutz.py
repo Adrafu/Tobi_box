@@ -2,7 +2,7 @@
 
 * Tabelle 2.1 als Parametertest: jeder Befehl der Vertragsübersicht in genau einer Zeile, Administrator und Normal-Benutzer.
 * Die Schutzregeln für Nicht-Administratoren einzeln.
-* Papierkorb: Mitteilung, Protokoll, ``geloescht_von``, ``papierkorb/restore_letzte_stunde``.
+* Papierkorb: keine Mitteilung (AC3), Protokoll, ``geloescht_von``, ``papierkorb/restore_letzte_stunde``.
 * Frühere Stände der Liste, ``stand`` einer Serie.
 """
 
@@ -412,7 +412,7 @@ async def test_boxen_list_ereignisse_nur_fuer_admins(admin, normal, bestand):
 
 
 # --------------------------------------------------------------------------
-# Papierkorb: geloescht_von, Protokoll, Mitteilung, Letzte Stunde
+# Papierkorb: geloescht_von, Protokoll, keine Mitteilung (AC3), Letzte Stunde
 # --------------------------------------------------------------------------
 
 
@@ -449,49 +449,27 @@ async def test_protokollzeile_je_papierkorb_aktion(admin, normal, caplog):
     assert any(e2["id"] in r.getMessage() for r in caplog.records)  # auch Administratoren stehen im Protokoll
 
 
-async def test_mitteilung_bei_vier_loeschungen_in_einer_stunde(hass, normal, admin, nas, lege_mp3, integration, freezer):
+async def test_keine_mitteilung_bei_vielen_loeschungen_in_einer_stunde(hass, normal, admin, nas, lege_mp3, integration, freezer):
+    # AC3: früher entstand ab der vierten Löschung eine HA-Mitteilung für alle Benutzer; jetzt zeigt die Seite das Neue (papierkorb/list)
     pfad = nas.serie("viele", "viele", "Viele Folgen", [f"f{i}.mp3" for i in range(8)])
     for i in range(8):
         lege_mp3(pfad / f"f{i}.mp3")
     await integration.medien.pruefen()
-    for i in range(3):
+    for i in range(6):
         await ok(normal, "folge/delete", serie_id="viele", folge=f"f{i}.mp3")
     assert notizen(hass, "tobibox_papierkorb") == {}
-    await ok(normal, "folge/delete", serie_id="viele", folge="f3.mp3")  # die vierte
-    meldungen = notizen(hass, "tobibox_papierkorb")
-    assert len(meldungen) == 1
-    text = next(iter(meldungen.values()))["message"]
-    assert "Normal" in text and "4" in text
-    # weitere Löschungen aktualisieren dieselbe Mitteilung, es entsteht keine zweite
-    await ok(normal, "folge/delete", serie_id="viele", folge="f4.mp3")
-    assert len(notizen(hass, "tobibox_papierkorb")) == 1 and "5" in next(iter(notizen(hass, "tobibox_papierkorb").values()))["message"]
+    liste = (await ok(admin, "papierkorb/list"))["eintraege"]  # die Seite liest hier „wer“ und „wann“
+    assert len(liste) == 6 and all(e["geloescht_von"] == {"id": normal.nutzer.id, "name": "Normal"} and e["geloescht_am"] for e in liste)
 
 
-async def test_keine_mitteilung_wenn_die_loeschungen_ueber_eine_stunde_verteilt_sind(hass, normal, nas, lege_mp3, integration, freezer):
-    pfad = nas.serie("viele", "viele", "Viele Folgen", [f"f{i}.mp3" for i in range(6)])
-    for i in range(6):
-        lege_mp3(pfad / f"f{i}.mp3")
-    await integration.medien.pruefen()
-    wer = Nutzer(normal.nutzer.id, "Normal", False)
-    for i in range(6):  # direkt über die Funktionen des Hubs: die WebSocket-Verbindung überlebt so lange Pausen nicht
-        await integration.medien.folge_loeschen("viele", f"f{i}.mp3", False, None, wer)
-        freezer.tick(timedelta(minutes=25))
-    assert notizen(hass, "tobibox_papierkorb") == {}
-
-
-async def test_mitteilung_bei_einem_eintrag_mit_tobies(hass, admin, normal, integration):
+async def test_keine_mitteilung_bei_einem_eintrag_mit_tobies(hass, admin, normal, integration):
     await ok(admin, "zuordnung/set", uid=UID, ziel=FOLGE, name="Rabe aus Holz")
     assert await fehler(normal, "folge/delete", serie_id="rabe", folge="a.mp3") == "tobies_betroffen"
-    assert notizen(hass, "tobibox_papierkorb") == {}  # nichts passiert, keine Mitteilung
     await ok(normal, "folge/delete", serie_id="rabe", folge="a.mp3", tobies_bestaetigt=True)
-    meldungen = notizen(hass, "tobibox_papierkorb")
-    assert len(meldungen) == 1
-    text = next(iter(meldungen.values()))["message"]
-    assert "Normal" in text and "Rabe aus Holz" in text
     # auch eine ganze Serie mit Tobies
     await ok(admin, "zuordnung/set", uid=UID2, ziel=SERIE_ZWEI)
     await ok(normal, "serie/delete", serie_id="zwei", tobies_bestaetigt=True)
-    assert len(notizen(hass, "tobibox_papierkorb")) == 2
+    assert notizen(hass, "tobibox_papierkorb") == {}  # AC3: keine HA-Mitteilung, sie wäre für alle Benutzer sichtbar
 
 
 async def test_keine_mitteilung_fuer_administratoren(hass, admin, nas, lege_mp3, integration):

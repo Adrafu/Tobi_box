@@ -739,7 +739,7 @@ export function createMockHass(opts = {}) {
     connection,
     fetchWithAuth,
     auth: { data: { access_token: 'token-123' }, expired: false, refreshAccessToken: async () => { hass.auth.data.access_token = 'token-neu'; hass.auth.expired = false; } },
-    user: { is_admin: istAdmin },
+    user: { id: opts.userId ?? 'u-admin', is_admin: istAdmin }, // `userId`: eigene HA-Benutzerkennung (Papierkorb: „von anderen“)
     language: 'de',
   };
 

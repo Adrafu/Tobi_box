@@ -514,7 +514,7 @@ test('Papierkorb einer Folge ohne Tobie: Rückfrage ohne Tobie-Satz, folge/delet
   assert.equal(titelBlatt(s), '„Der Rabe“ in den Papierkorb?');
   assert.equal(blatt(s).getAttribute('role'), 'alertdialog');
   assert.equal(blattText(s).replace(/^.*?Der Rabe“ in den Papierkorb\? ?/, '').replace(/ ?(Abbrechen|In den Papierkorb)/g, '').trim(),
-    'Es verschwindet aus der Liste. Der Administrator bekommt eine Mitteilung und kann es zurückholen.');
+    'Es verschwindet aus der Liste. Der Administrator sieht es und kann es zurückholen.');
   assert.deepEqual(s.qa('dialog.blatt[open] .knoepfe button').map((b) => b.textContent.trim()), ['Abbrechen', 'In den Papierkorb']);
   await klick(s, leisteKnopf(s, 'In den Papierkorb'));
   const a = aufrufe(s, 'folge/delete').map(ohneId);
@@ -532,7 +532,7 @@ test('Papierkorb einer Folge mit Tobie: die Rückfrage nennt ihn, gesendet wird 
   const s = await oeffne('s1');
   await folgeMenue(s, 'folge-02.mp3');
   await klick(s, punkt(s, 'papierkorb'));
-  assert.match(blattText(s), /Es verschwindet aus der Liste\. 1 Tobie spielt dann nichts mehr: Tobie ohne Namen\. Der Administrator bekommt eine Mitteilung/);
+  assert.match(blattText(s), /Es verschwindet aus der Liste\. 1 Tobie spielt dann nichts mehr: Tobie ohne Namen\. Der Administrator sieht es/);
   await klick(s, leisteKnopf(s, 'In den Papierkorb'));
   assert.equal(aufrufe(s, 'folge/delete').at(-1).tobies_bestaetigt, true);
   assert.deepEqual(namen(s), ['Der Rabe', 'Der Super-Papagei']);
@@ -544,7 +544,7 @@ test('Papierkorb der Serie: die Rückfrage nennt alle Tobies mit Namen (Serie un
   await menue(s);
   await klick(s, punkt(s, 'papierkorb'));
   assert.equal(titelBlatt(s), '„Die drei ???“ in den Papierkorb?');
-  assert.match(blattText(s), /Es verschwindet aus der Bibliothek\. 2 Tobies spielen dann nichts mehr: Anna, Tobie ohne Namen\. Der Administrator bekommt eine Mitteilung und kann es zurückholen\./);
+  assert.match(blattText(s), /Es verschwindet aus der Bibliothek\. 2 Tobies spielen dann nichts mehr: Anna, Tobie ohne Namen\. Der Administrator sieht es und kann es zurückholen\./);
   assert.equal(aufrufe(s, 'serie/delete').length, 0, 'erst die Rückfrage');
   await klick(s, leisteKnopf(s, 'In den Papierkorb'));
   const a = aufrufe(s, 'serie/delete').map(ohneId);

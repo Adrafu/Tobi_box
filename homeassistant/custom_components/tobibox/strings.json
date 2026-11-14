@@ -339,18 +339,6 @@
     },
     "zu_viele_aenderungen": {
       "message": "Das waren gerade sehr viele Änderungen. Bitte kurz warten und dann noch einmal versuchen."
-    },
-    "benachrichtigung_papierkorb_tobies_titel": {
-      "message": "Tobi Box: Etwas mit Tobies im Papierkorb"
-    },
-    "benachrichtigung_papierkorb_tobies": {
-      "message": "{person} hat „{eintrag}“ in den Papierkorb gelegt. Dazu gehören Tobies: {tobies}. Ein Administrator kann es auf der Seite „Tobi Box“ im Papierkorb zurückholen."
-    },
-    "benachrichtigung_papierkorb_viele_titel": {
-      "message": "Tobi Box: Viel im Papierkorb"
-    },
-    "benachrichtigung_papierkorb_viele": {
-      "message": "{person} hat in der letzten Stunde {anzahl} Einträge in den Papierkorb gelegt. Ein Administrator kann sie auf der Seite „Tobi Box“ im Papierkorb zurückholen („Letzte Stunde zurückholen“)."
     }
   },
   "services": {

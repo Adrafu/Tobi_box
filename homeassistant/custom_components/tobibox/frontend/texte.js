@@ -788,7 +788,13 @@ export const TECHNIK = {
   },
   korb: {
     titel: 'Papierkorb', anzahl: { eins: '1 Eintrag', mehr: '{anzahl} Einträge' }, summe: '{anzahl} · {groesse}',
-    satz: 'Legt jemand ohne Admin-Rechte einen Eintrag mit Tobies oder mehr als 3 Einträge in einer Stunde in den Papierkorb, bekommen Administratoren eine Mitteilung in Home Assistant.',
+    satz: 'Legt jemand anderes etwas in den Papierkorb, sehen Administratoren einen Punkt am Technik-Symbol und oben auf „Speicher“ einen Hinweis.', // AC3: keine Mitteilung in Home Assistant
+    punkt: 'Neu im Papierkorb', // Screenreader am Punkt des Technik-Symbols (AC3)
+    neu: { // Hinweis oben in „Technik › Speicher“ (AC3)
+      titel: 'Neu im Papierkorb:', zeile: '{name} hat „{anzeige}“ am {zeit} hineingelegt.', zeile_ohne_name: '„{anzeige}“ am {zeit}.',
+      weitere: { eins: 'Dazu 1 weiterer Eintrag.', mehr: 'Dazu {anzahl} weitere Einträge.' },
+      hilfe: 'Antippen holt einen Eintrag zurück. „Letzte Stunde zurückholen“ steht unten.',
+    },
     typ: { folge: 'Folge', serie: 'Eintrag', eingang: 'Eingang' },
     aus: 'aus „{serie}“', dateien: { eins: '1 Datei', mehr: '{anzahl} Dateien' },
     geloescht: 'gelöscht am {zeit}', geloescht_von: 'gelöscht am {zeit} von {name}', tippen: 'Tippen zum Wiederherstellen',
@@ -975,7 +981,7 @@ export const SERIE = {
     serie: 'Es verschwindet aus der Bibliothek.',
     folge: 'Es verschwindet aus der Liste.',
     tobies: { eins: '{anzahl} Tobie spielt dann nichts mehr: {namen}.', mehr: '{anzahl} Tobies spielen dann nichts mehr: {namen}.' },
-    admin: 'Der Administrator bekommt eine Mitteilung und kann es zurückholen.',
+    admin: 'Der Administrator sieht es und kann es zurückholen.', // AC3: statt „bekommt eine Mitteilung“
     knopf: 'In den Papierkorb',
     fertig: '„{titel}“ ist im Papierkorb.',
   },

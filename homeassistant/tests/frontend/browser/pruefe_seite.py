@@ -1651,7 +1651,7 @@ def ablauf_papierkorb(L: Lauf):
         L.klick("[data-menue-serie]")
         L.klick('dialog [data-menue="papierkorb"]')
         satz = L.js("return sr.querySelector('dialog[open]')?.textContent.replace(/\\s+/g, ' ')") or ""
-        L.pruefe("Der Administrator bekommt eine Mitteilung und kann es zurückholen." in satz, "korb-serie", f"Die Rückfrage nennt die Mitteilung nicht: {satz!r}")
+        L.pruefe("Der Administrator sieht es und kann es zurückholen." in satz, "korb-serie", f"Die Rückfrage nennt die Mitteilung nicht: {satz!r}")
         L.messe("korb-rueckfrage")
         L.klick("dialog[open] .knoepfe .btn.danger")
         L.warte_hash("#bibliothek")
@@ -1671,9 +1671,38 @@ def ablauf_papierkorb(L: Lauf):
         L.pruefe(bool(re.match(r"^\d+ Eintr(?:ag|äge) zurückgeholt\.$", L.toast())), "korb-letzte-stunde", f"Meldung: {L.toast()!r}")
 
 
+def ablauf_papierkorb_punkt(L: Lauf):
+    """AC3: Punkt am Technik-Symbol und Hinweis „Neu im Papierkorb“. Eine andere Person legt etwas in den Papierkorb (`/korb` im Mock-Server): der Administrator
+    sieht den Punkt (Kopf, am Computer in der Seitenleiste), der Benutzer nichts. Nach dem Besuch von „Technik › Speicher“ ist der Punkt weg; der Hinweis steht oben."""
+    admin = L.job["rolle"] == "admin"
+    punkt = '[data-punkt="papierkorb"]'
+    with L.schritt("korb-punkt"):
+        L.gehe("#start")
+        L.pruefe(not L.da(punkt), "korb-punkt", "Punkt am Technik-Symbol, obwohl nichts Neues im Papierkorb liegt")
+        L.mock("/korb", {"anzeige": "Folge vom Besuch", "von": "Person B"})
+        if not admin:
+            L.pg.wait_for_timeout(600)
+            L.ruhe()
+            L.pruefe(not L.da(punkt) and not L.da("a.rund.tech"), "korb-punkt", "Der Benutzer sieht den Punkt am Technik-Symbol")
+            return
+        L.warte_da(punkt)
+        ziel = L.js("return sr.querySelector('[data-punkt=\"papierkorb\"]')?.closest('a')?.className ?? ''")
+        L.pruefe(("srow" in ziel) if L.job["layout"] == "seite" else ("rund" in ziel), "korb-punkt", f"Der Punkt sitzt nicht am Technik-Symbol ({ziel!r}, Layout {L.job['layout']})")
+        L.messe("korb-punkt")
+    with L.schritt("korb-hinweis"):
+        L.gehe("#technik-speicher")
+        L.warte_da("[data-korb-neu]")
+        text = L.js("return sr.querySelector('[data-korb-neu]')?.textContent.replace(/\\s+/g, ' ') ?? ''")
+        L.pruefe("Neu im Papierkorb:" in text and "Person B" in text and "Folge vom Besuch" in text, "korb-hinweis", f"Hinweis unvollständig: {text!r}")
+        L.pruefe(not L.da(punkt), "korb-hinweis", "Der Punkt bleibt nach dem Besuch von „Speicher“")
+        L.messe("korb-hinweis")
+        L.gehe("#start")
+        L.pruefe(not L.da(punkt), "korb-hinweis", "Der Punkt kommt nach dem Besuch zurück")
+
+
 ABLAEUFE = [ablauf_unterkante, ablauf_reiter, ablauf_klicks, ablauf_reihen, ablauf_suche, ablauf_bibliothek, ablauf_serie, ablauf_cover, ablauf_leise, ablauf_box, ablauf_technik, ablauf_blaetter,
             ablauf_tobies_weg1, ablauf_tobies_weg2, ablauf_tobies_meldung, ablauf_tobies_umhaengen, ablauf_tobies_geben, ablauf_tobies_lernmodus,
-            ablauf_tobies_name_geben_weit_unten, ablauf_hinzufuegen, ablauf_eingang_liste, ablauf_eingang, ablauf_papierkorb]
+            ablauf_tobies_name_geben_weit_unten, ablauf_hinzufuegen, ablauf_eingang_liste, ablauf_eingang, ablauf_papierkorb, ablauf_papierkorb_punkt]
 
 
 # ------------------------------------------------------------------ Browser und Läufe

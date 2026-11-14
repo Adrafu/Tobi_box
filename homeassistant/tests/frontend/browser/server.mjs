@@ -78,7 +78,7 @@ function bauen(schluessel) {
   });
   // A-1b: Ereignisse des Mocks sammeln; die Prüfseite holt sie mit `GET /ev` (Abo `subscribeMessage` der Seite)
   m.ereignisse = [];
-  m.hass.connection.subscribeMessage((ev) => m.ereignisse.push(ev), { type: 'tobibox/subscribe', themen: ['boxen', 'neue_tobies', 'konfig', 'warteschlange', 'eingang'] });
+  m.hass.connection.subscribeMessage((ev) => m.ereignisse.push(ev), { type: 'tobibox/subscribe', themen: ['boxen', 'neue_tobies', 'konfig', 'warteschlange', 'eingang', 'medien'] });
   return m;
 }
 
@@ -259,6 +259,16 @@ const server = http.createServer(async (req, res) => {
     m.backend.konfig = { ...m.backend.konfig, zustand };
     m.emit('konfig', 'geaendert', { konfig: m.backend.konfig });
     res.end(JSON.stringify({ zustand }));
+    return;
+  }
+  /* AC3: eine andere Person legt etwas in den Papierkorb (Punkt am Technik-Symbol, Hinweis „Neu im Papierkorb“): Body { anzeige, von } */
+  if (p === '/korb' && req.method === 'POST') {
+    const m = holeMock(u.searchParams.get('k') || 'admin');
+    const { anzeige = 'Neue Folge aus dem Papierkorb', von = 'Person B' } = JSON.parse(await koerper(req));
+    const id = `cccc${Date.now().toString(16).slice(-8)}`;
+    m.backend.papierkorb.unshift({ id, typ: 'folge', serie_id: 's1', serie_name: 'Die drei ???', folge: `${id}.mp3`, anzeige, art: 'datei', tracks: 1, groesse_bytes: 5000000, grund: 'manuell', geloescht_am: new Date().toISOString(), geloescht_von: { id: 'u-fremd', name: von } });
+    m.emit('medien', 'papierkorb_geaendert', {});
+    res.end(JSON.stringify({ id }));
     return;
   }
   if (p === '/api/tobibox/upload' && req.method === 'POST') { await upload(req, res); return; }

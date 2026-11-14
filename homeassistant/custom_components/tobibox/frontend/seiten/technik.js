@@ -11,7 +11,7 @@
  * Schnittstelle zur App: siehe bausteine.js. Befehle: docs/protocol/ha-websocket-v1.md (Nr. 9, 10 bis 12, 21, 23, 31 bis 34, 44 bis 46).
  */
 import { groesse, zeitKurz } from '../tobibox-panel.js'; // lädt auch die Komponente <tobibox-panel>; ohne DOM harmlos
-import { html, nothing, css, ic, ladeMitGrenze, zaehle } from '../bausteine.js';
+import { html, nothing, css, ic, ladeMitGrenze, zaehle, korbNeueFremde } from '../bausteine.js';
 import { TECHNIK, SEITE, LEER, fuellen } from '../texte.js';
 
 export const UNTERSEITEN = ['boxen', 'speicher', 'liste', 'tobies', 'meldungen', 'einstellungen'];
@@ -42,17 +42,33 @@ class TechnikSeite {
     this.staende = { phase: 'laedt', fehlerCode: null, liste: [] };
     this.beschaeftigt = null; // Name der laufenden Aktion; sperrt ihren Knopf
     this._lauf = 0;
+    this.korbVon = null; // Papierkorb (AC3): Stand „gesehen“ beim Betreten von „Speicher“ (ms); was danach von anderen kam, steht im Hinweis oben
+    this._vorSub = null;
+    this._korbAbmelden = null;
   }
 
   betreten(route) {
     this.route = route;
     const sub = unterseite(route);
     this.ladeBasis();
-    if (sub === 'speicher') this.ladeKorb();
+    if (sub === 'speicher') {
+      if (this._vorSub !== 'speicher') this.korbVon = this.ctx.korbGesehenStand(); // nur beim Hereinkommen, nicht beim Neuladen nach einem Verbindungsabbruch
+      this._korbBeobachten();
+      this.ladeKorb();
+    } else this._korbBeobachtenEnde();
+    this._vorSub = sub;
     if (sub === 'liste' && this.ctx.faehig('konfig_staende')) this.ladeStaende();
   }
   neuLaden() { if (this.route) this.betreten(this.route); }
-  verlassen() { this._lauf += 1; }
+  verlassen() { this._lauf += 1; this._vorSub = null; this._korbBeobachtenEnde(); }
+
+  /* Solange „Speicher“ offen ist: kommt etwas in den Papierkorb (oder geht heraus), wird die Liste neu geholt (Thema `medien` im Abo). */
+  _korbBeobachten() {
+    this._korbAbmelden ??= this.ctx.ereignis?.((ev) => {
+      if (ev?.thema === 'medien' && ev.art === 'papierkorb_geaendert' && !this.beschaeftigt) this.ladeKorb();
+    }) ?? null;
+  }
+  _korbBeobachtenEnde() { try { this._korbAbmelden?.(); } catch { /* egal */ } this._korbAbmelden = null; }
 
   /* ---- Daten */
   async ladeBasis() {
@@ -76,6 +92,7 @@ class TechnikSeite {
       const r = await ladeMitGrenze(ctx.api('tobibox/papierkorb/list', { limit: KORB_SEITE, offset }), ctx.grenzeMs);
       if (lauf !== this._lauf) return;
       this.korb = { phase: 'bereit', fehlerCode: null, ladeMehr: false, eintraege: offset ? [...this.korb.eintraege, ...(r.eintraege || [])] : (r.eintraege || []), gesamt: r.gesamt ?? 0, bytes: r.gesamt_bytes ?? 0 };
+      if (this.ctx.admin) this.ctx.korbGesehen?.(this.korb.eintraege); // AC3: der Punkt am Technik-Symbol geht, der Hinweis unten bleibt, solange die Seite offen ist
     } catch (e) {
       if (lauf !== this._lauf) return;
       this.korb = { ...this.korb, phase: 'fehler', fehlerCode: e?.code || 'unknown_error', ladeMehr: false };
@@ -308,6 +325,22 @@ class TechnikSeite {
       <span class="tz-t"><strong>${e.anzeige}</strong><span class="muted">${teile.join(' · ')} · ${T.tippen}</span></span>${ic('chev', 24)}</button>`;
   }
 
+  /* Hinweis „Neu im Papierkorb: …“ (AC3): Einträge anderer Benutzer, die seit dem letzten Besuch auf diesem Gerät hineinkamen; nur Administratoren. */
+  _korbNeu() {
+    const { ctx, korb: k } = this;
+    if (!ctx.admin || k.phase !== 'bereit' || this.korbVon === null) return nothing;
+    const neu = korbNeueFremde(k.eintraege, ctx.nutzerId, this.korbVon);
+    if (!neu.length) return nothing;
+    const N = TECHNIK.korb.neu;
+    const zeilen = neu.slice(0, 3).map((e) => (e.geloescht_von?.name
+      ? fuellen(N.zeile, { name: e.geloescht_von.name, anzeige: e.anzeige, zeit: zeitKurz(e.geloescht_am) })
+      : fuellen(N.zeile_ohne_name, { anzeige: e.anzeige, zeit: zeitKurz(e.geloescht_am) })));
+    const mehr = neu.length - zeilen.length;
+    return html`<div class="note" role="status" data-korb-neu><strong>${N.titel}</strong>
+      <ul class="korb-neu">${zeilen.map((z) => html`<li>${z}</li>`)}</ul>
+      ${mehr > 0 ? html`<p>${zaehle(N.weitere, mehr)}</p>` : nothing}<p>${N.hilfe}</p></div>`;
+  }
+
   _papierkorb() {
     const { ctx, korb: k } = this;
     const T = TECHNIK.korb;
@@ -370,7 +403,7 @@ class TechnikSeite {
         return html`${kopf}${baender}${this._panel('boxen', box.box)}
           <div class="tstapel">${this._zeile('#technik-tobies', TECHNIK.box.lernmodus.titel, TECHNIK.box.lernmodus.zeile)}</div>`;
       case 'speicher':
-        return html`${kopf}${baender}${this._aufraeumen()}${this._papierkorb()}
+        return html`${kopf}${baender}${this._korbNeu()}${this._aufraeumen()}${this._papierkorb()}
           <section class="tkarte" data-karte="eingang" aria-labelledby="t-eingang"><h3 id="t-eingang">${TECHNIK.eingang}</h3>${this._panel('eingang')}</section>`;
       case 'liste':
         return html`${kopf}${baender}${this._panel('liste')}${ctx.faehig('konfig_staende') ? this._staende() : nothing}`;
@@ -398,4 +431,6 @@ export const stil = () => css`
   .taktion .muted { margin: 4px 0 0; }
   .tknoepfe { margin: 12px 0 8px; }
   .alt { margin: 12px 0; }
+  .korb-neu { margin: 4px 0; padding-left: 20px; }
+  .korb-neu li { margin: 2px 0; }
 `;

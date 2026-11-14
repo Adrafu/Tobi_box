@@ -27,7 +27,7 @@ Verträge (die Integration ändert sie nicht): `docs/protocol/ha-websocket-v1.md
     führen auf `#geraete`).
 *   **Rechte:** Drei Stufen (Vertrag W, Abschnitt 2.1):
     *   **lesen:** jeder angemeldete HA-Benutzer,
-    *   **alltag:** jeder angemeldete HA-Benutzer, mit den Schutzregeln aus 2.4 (zum Beispiel Papierkorb mit Mitteilung),
+    *   **alltag:** jeder angemeldete HA-Benutzer, mit den Schutzregeln aus 2.4 (zum Beispiel Papierkorb mit Punkt am Technik-Symbol für Administratoren, AC3),
     *   **admin:** nur Administratoren, zum Beispiel Papierkorb leeren, Liste neu ausrollen, Lernmodus, „Cover neu suchen“.
     Die Stufe steht am Befehl als `recht=` (`websocket_api.py`).
 *   **Boxen mit Namen:** Die Anzeigenamen stellst du in den Optionen der Integration ein, Feld „Namen der Boxen“,
@@ -53,23 +53,15 @@ Stand: Teile A-1a (Lesen und Abends), A-1b (Tobies) und A-1c (Hinzufügen und Co
 *   **Eigenes Cover:** „Cover ändern“ im Menü „⋯“ der Serie oder des Einzeltitels. Der Browser schneidet das Quadrat zu und sendet es als JPEG mit 1024 × 1024 Pixeln. Hochgeladen wird höchstens 3 MiB (`COVER_UPLOAD_MAX_BYTES`). Das Backend prüft Typ und Maße, bevor es ein Bild dekodiert, und verkleinert auf 512 px und 192 px. Die Originaldatei wird nie gespeichert. Grenze: 20 Cover je Stunde und Benutzer (`COVER_JE_STUNDE`). Eigene Cover bleiben bei „Cover neu suchen“ erhalten.
 *   **Cover auf den Boxen:** `cover*.jpg` wird nicht synchronisiert. Das Cover erscheint nur in der Seite.
 
-## Papierkorb-Mitteilung
+## Papierkorb: Punkt am Technik-Symbol (AC3)
 
-Legt ein Nicht-Administrator einen Eintrag mit Tobies in den Papierkorb, oder mehr als 3 Einträge in einer Stunde, legt die Integration eine Mitteilung in Home Assistant an (`persistent_notification`). Administratoren lösen keine Mitteilung aus, und Aufrufe ohne Benutzer (Automationen, Skripte) auch nicht.
+Es gibt **keine** Mitteilung in Home Assistant mehr und kein HA-Ereignis. Eine HA-Mitteilung sehen alle Benutzer, mit dem Namen der Person; das ist entfallen (Entscheidung AC3, `docs/egm/ha-ui/resolve.md`). Stattdessen zeigt die Seite Administratoren das Neue.
 
-*   **Fundstelle:** `schutz.py`, `papierkorb_gebucht`. Die Mitteilung geht über `hub.py`, `benachrichtige`, an `persistent_notification.async_create`. Die Grenze 3 steht in `const.py` (`PAPIERKORB_MELDUNG_AB`). Die Texte stehen in `translations/de.json`, nicht in `texte.js`.
-*   **Was HA zeigt:** Bei Tobies der Titel „Tobi Box: Etwas mit Tobies im Papierkorb“, bei vielen Einträgen „Tobi Box: Viel im Papierkorb“. Der Text nennt den Anzeigenamen der Person und den Eintrag. Die Kennung ist `tobibox_papierkorb_tobies_<Eintrag>` bzw. `tobibox_papierkorb_viele_<Benutzer>`.
-*   **Wer sie sieht:** Die Integration gibt keinen Empfänger an. HA kennt bei Mitteilungen keine Empfänger, deshalb sehen **alle HA-Benutzer** die Mitteilung, nicht nur die Administratoren. Das ist ein Befund aus dem Plan (`docs/plan/stueckliste-und-psp.md`, Eintrag 3.22). Im Code ist es noch nicht geändert. Die Mitteilung nennt den Namen der Person, deshalb ist das für die Datenschutzfrage wichtig.
-*   **Wegräumen:** Die Integration nimmt die Mitteilung nicht von selbst weg. Sie bleibt, bis jemand sie in HA schließt.
+*   **Punkt:** Am Technik-Symbol (Kopf, am Computer die Seitenleiste) steht ein Punkt, wenn seit dem letzten Besuch von „Technik“, „Speicher und Netz“ **auf diesem Gerät** Einträge **anderer Benutzer** im Papierkorb liegen. Nicht-Administratoren sehen nichts.
+*   **Hinweis:** Oben in „Speicher und Netz“ steht „Neu im Papierkorb:“ mit Person, Eintrag und Zeit. Darunter liegt der Papierkorb mit „Letzte Stunde zurückholen“. Nach dem Besuch ist der Punkt weg.
+*   **Woher:** Die Seite liest `papierkorb/list` (`geloescht_von`, `geloescht_am`) und hört auf das Thema `medien` (`papierkorb_geaendert`). „Zuletzt angesehen“ steht je Gerät im `localStorage` (`tobibox.korb_gesehen`). Beim ersten Besuch auf einem Gerät gilt, was schon im Papierkorb liegt, nicht als neu.
+*   **Backend:** `schutz.py`, `papierkorb_gebucht`, schreibt nur noch die Protokollzeile und zählt für die Grenze (20 Aktionen in 10 Minuten). Die Grenze „mehr als 3 Einträge in einer Stunde“ und die Texte in `translations/de.json` sind entfallen.
 *   **Zurückholen:** Unter „Technik“, „Speicher und Netz“, Papierkorb: einzelne Einträge oder „Letzte Stunde zurückholen“ (nur Administratoren).
-
-## Rückweg: Adressen tauschen (A17)
-
-**Noch nicht umgesetzt, kommt mit A17.** Heute gibt es dafür keinen Befehl und keine Option. Dieser Abschnitt beschreibt nur das Vorhaben aus dem Design (`docs/designs/ha-oberflaeche.md`, Abschnitte 5.9, 10.1 und 15, A17). Die Anleitung zum Zurücktauschen schreiben wir, wenn A17 gebaut ist.
-
-*   **Heute:** `/tobibox` zeigt die neue Seite und ist nur für Administratoren (`require_admin=True` in `__init__.py`). Die alte Komponente ist in „Technik“ eingebettet. Eine Adresse `/tobibox-alt` gibt es noch nicht.
-*   **Vorhaben A17:** Die Seite für alle HA-Benutzer öffnen (`require_admin` fällt), und die Adressen tauschen: `/tobibox` zeigt die neue Seite, `/tobibox-alt` die alte. Der Tausch soll sich zurücknehmen lassen. Vorher wird die Tabelle 10.2 mit einem Testbenutzer geprüft.
-*   **Notschalter (Design 5.9, G19):** Eine Option in den Integrationseinstellungen „Alltagsseite für alle Benutzer“ (Vorgabe: an). Im Code gibt es sie heute nicht. Die Zeile A17 im Design nennt sie nicht, das muss geklärt werden.
 
 ## Vorlage: Mitteilung aufs Handy bei einem neuen Tobie
 

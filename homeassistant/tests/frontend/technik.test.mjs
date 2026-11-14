@@ -380,7 +380,7 @@ test('Bibliothek aufräumen: ein Fehler des Backends steht in Worten und bleibt 
 const korbEintrag = (id, extra = {}) => ({ id, typ: 'folge', serie_id: 's1', serie_name: 'Die drei ???', folge: `${id}.mp3`, anzeige: `Folge ${id}`, art: 'datei', tracks: 1, groesse_bytes: 4000000,
   grund: 'manuell', geloescht_am: '2026-11-08T10:00:00Z', geloescht_von: null, ...extra });
 
-test('Papierkorb: jede Zeile ganz antippbar, mit „gelöscht von“ (nur wenn bekannt), Name „… wiederherstellen“, Satz zur Mitteilung', MIT_DOM, async () => {
+test('Papierkorb: jede Zeile ganz antippbar, mit „gelöscht von“ (nur wenn bekannt), Name „… wiederherstellen“, Satz zum Hinweis (AC3)', MIT_DOM, async () => {
   const s = await seite({ hash: '#technik', faehigkeiten: ALLE });
   s.m.backend.papierkorb = [
     korbEintrag('aaaa', { geloescht_von: { id: 'u1', name: 'Person B' } }),
@@ -396,7 +396,7 @@ test('Papierkorb: jede Zeile ganz antippbar, mit „gelöscht von“ (nur wenn b
   assert.ok(z[0].querySelector('svg'), 'Pfeil');
   assert.doesNotMatch(z[1].textContent, / von /, 'ohne geloescht_von kein „von“');
   assert.match(z[1].textContent, /12 Dateien/);
-  assert.match(s.q('[data-karte="papierkorb"]').textContent, /bekommen Administratoren eine Mitteilung in Home Assistant/);
+  assert.match(s.q('[data-karte="papierkorb"]').textContent, /sehen Administratoren einen Punkt am Technik-Symbol und oben auf „Speicher“ einen Hinweis/);
   assert.match(s.q('[data-korb-summe]').textContent, /2 Einträge/);
   weg();
 });
@@ -535,4 +535,142 @@ test('Technik: Texte nennen keine echten Namen und keine Netz-Adressen', () => {
   const alles = JSON.stringify(TECHNIK);
   assert.doesNotMatch(alles, /https?:\/\//);
   assert.ok(Object.keys(TECHNIK.zeilen).join() === UNTERSEITEN.join());
+});
+
+/* ---- AC3: Punkt am Technik-Symbol und Hinweis „Neu im Papierkorb“ (kein HA-Ereignis, keine HA-Mitteilung) */
+
+const KORB_SCHLUESSEL = 'tobibox.korb_gesehen';
+const punktKorb = (s) => s.q('[data-punkt="papierkorb"]');
+const fremder = (id, extra = {}) => korbEintrag(id, { geloescht_am: '2026-11-09T10:00:00Z', geloescht_von: { id: 'u-b', name: 'Person B' }, ...extra });
+
+async function korbSeite(opts = {}, hash = '#start') {
+  window.localStorage.removeItem(KORB_SCHLUESSEL);
+  return technik(hash, opts);
+}
+const neuesEreignis = async (s, eintraege) => {
+  s.m.backend.papierkorb = [...eintraege, ...s.m.backend.papierkorb];
+  s.m.emit('medien', 'papierkorb_geaendert', {});
+  await s.flush(10);
+};
+
+test('Papierkorb-Punkt (AC3): Administrator, vorhandene Einträge sind nicht neu, ein neuer Eintrag einer anderen Person setzt den Punkt', MIT_DOM, async () => {
+  const s = await korbSeite({}, '#start');
+  s.m.backend.papierkorb = [];
+  assert.equal(s.m.aufrufe('tobibox/papierkorb/list').length >= 1, true, 'die App fragt den Papierkorb ab');
+  assert.ok(s.m.subs.at(-1).themen.includes('medien'), 'Thema `medien` im Abo');
+  assert.equal(punktKorb(s), null, 'beim ersten Besuch auf diesem Gerät nichts Neues');
+  await neuesEreignis(s, [fremder('aaaa')]);
+  assert.ok(punktKorb(s), 'Punkt am Technik-Symbol im Kopf');
+  assert.ok(punktKorb(s).closest('a.rund.tech'));
+  assert.match(s.q('a.rund.tech').getAttribute('aria-label'), new RegExp(TECHNIK.korb.punkt));
+  weg();
+});
+
+test('Papierkorb-Punkt (AC3): am Computer in der Seitenleiste', MIT_DOM, async () => {
+  const s = await korbSeite({ breite: 1280 });
+  await neuesEreignis(s, [fremder('aaaa')]);
+  assert.ok(punktKorb(s).closest('a.srow.tech'), 'Punkt an der Zeile „Technik“ der Seitenleiste');
+  assert.equal(s.q('a.rund.tech'), null);
+  weg();
+});
+
+test('Papierkorb-Punkt (AC3): eigene Einträge und Einträge ohne Person zählen nicht', MIT_DOM, async () => {
+  const s = await korbSeite({ userId: 'u-ich' });
+  await neuesEreignis(s, [fremder('eigen', { geloescht_von: { id: 'u-ich', name: 'Ich' } }), fremder('ohne', { geloescht_von: null })]);
+  assert.equal(punktKorb(s), null);
+  weg();
+});
+
+test('Papierkorb-Punkt (AC3): Nicht-Administrator sieht keinen Punkt, fragt den Papierkorb nicht ab und abonniert `medien` nicht', MIT_DOM, async () => {
+  const s = await korbSeite({ istAdmin: false, darf: true });
+  assert.equal(s.m.aufrufe('tobibox/papierkorb/list').length, 0);
+  assert.ok(!s.m.subs.at(-1).themen.includes('medien'));
+  assert.equal(punktKorb(s), null);
+  assert.equal(s.q('a.rund.tech'), null);
+  weg();
+});
+
+test('Papierkorb-Hinweis (AC3): „Neu im Papierkorb“ mit Person, Eintrag und Zeit; der Punkt geht, nach dem nächsten Besuch ist auch der Hinweis weg', MIT_DOM, async () => {
+  const s = await korbSeite({}, '#start');
+  await neuesEreignis(s, [fremder('aaaa'), fremder('bbbb', { anzeige: 'Zweite Folge' })]);
+  assert.ok(punktKorb(s));
+  await geheZu(s, '#technik-speicher');
+  await s.flush(10);
+  const h = s.q('[data-korb-neu]');
+  assert.ok(h, 'Hinweis oben');
+  assert.match(h.textContent, /Neu im Papierkorb:/);
+  assert.match(h.textContent, /Person B hat „Folge aaaa“ am \d\d\.\d\d\., \d\d:\d\d hineingelegt\./);
+  assert.match(h.textContent, /Person B hat „Zweite Folge“/);
+  assert.ok(h.compareDocumentPosition(s.q('[data-karte="aufraeumen"]')) & 4, 'der Hinweis steht über den Karten');
+  assert.equal(punktKorb(s), null, 'der Punkt verschwindet beim Besuch');
+  assert.equal(s.m.aufrufe('tobibox/papierkorb/restore').length, 0);
+  assert.ok(window.localStorage.getItem(KORB_SCHLUESSEL), 'der Stand „gesehen“ steht im Speicher dieses Geräts');
+  // weg und wieder hin: nichts Neues
+  await geheZu(s, '#technik');
+  await geheZu(s, '#technik-speicher');
+  await s.flush(10);
+  assert.equal(s.q('[data-korb-neu]'), null);
+  assert.equal(punktKorb(s), null);
+  weg();
+});
+
+test('Papierkorb-Hinweis (AC3): mehr als drei Einträge, der Rest als „Dazu n weitere“; Nicht-Administrator sieht keinen Hinweis', MIT_DOM, async () => {
+  const s = await korbSeite({}, '#start');
+  await neuesEreignis(s, ['a1', 'a2', 'a3', 'a4', 'a5'].map((id) => fremder(id)));
+  await geheZu(s, '#technik-speicher');
+  await s.flush(10);
+  assert.equal(s.qa('[data-korb-neu] li').length, 3);
+  assert.match(s.q('[data-korb-neu]').textContent, /Dazu 2 weitere Einträge\./);
+  weg();
+  window.localStorage.removeItem(KORB_SCHLUESSEL);
+  const n = await technik('#technik-speicher', { istAdmin: false, darf: true });
+  assert.equal(n.q('[data-korb-neu]'), null);
+  weg();
+});
+
+test('Papierkorb-Punkt (AC3): der Stand „gesehen“ bleibt im Speicher des Geräts, ein späterer Eintrag setzt den Punkt nach dem Neuladen', MIT_DOM, async () => {
+  window.localStorage.setItem(KORB_SCHLUESSEL, String(Date.parse('2026-11-09T09:00:00Z')));
+  const s = await technik('#start', { userId: 'u-ich' });
+  s.m.backend.papierkorb = [fremder('neu1')];
+  s.m.emit('medien', 'papierkorb_geaendert', {});
+  await s.flush(10);
+  assert.ok(punktKorb(s));
+  weg();
+  const t = await technik('#start', { userId: 'u-ich', papierkorb: [fremder('neu1')] });
+  t.m.backend.papierkorb = [fremder('neu1')];
+  t.m.emit('medien', 'papierkorb_geaendert', {});
+  await t.flush(10);
+  assert.ok(punktKorb(t), 'noch nicht besucht: der Punkt ist nach dem Neuladen wieder da');
+  weg();
+});
+
+test('Papierkorb-Punkt (AC3): ohne localStorage (wirft) kein Fehler, es gilt der Stand seit dem Start der Seite', MIT_DOM, async () => {
+  const echt = window.Storage.prototype;
+  const { getItem, setItem } = echt;
+  echt.getItem = () => { throw new Error('gesperrt'); };
+  echt.setItem = () => { throw new Error('gesperrt'); };
+  try {
+    const s = await technik('#start', {});
+    s.m.backend.papierkorb = [fremder('aaaa')];
+    s.m.emit('medien', 'papierkorb_geaendert', {});
+    await s.flush(10);
+    assert.ok(punktKorb(s));
+    await geheZu(s, '#technik-speicher');
+    await s.flush(10);
+    assert.ok(s.q('[data-korb-neu]'));
+    assert.equal(punktKorb(s), null);
+    weg();
+  } finally { echt.getItem = getItem; echt.setItem = setItem; }
+});
+
+test('Papierkorb-Hinweis (AC3): kommt auf „Speicher“ etwas dazu, wird die Liste neu geholt (Thema `medien`)', MIT_DOM, async () => {
+  const s = await korbSeite({}, '#technik-speicher');
+  s.m.reset();
+  s.m.backend.papierkorb = [fremder('spaet'), ...s.m.backend.papierkorb];
+  s.m.emit('medien', 'papierkorb_geaendert', {});
+  await s.flush(10);
+  assert.ok(s.m.aufrufe('tobibox/papierkorb/list').length >= 1);
+  assert.ok(s.qa('[data-liste="papierkorb"] button.tzeile').some((b) => /Folge spaet/.test(b.textContent)));
+  assert.equal(punktKorb(s), null, 'wer die Liste ansieht, braucht keinen Punkt');
+  weg();
 });

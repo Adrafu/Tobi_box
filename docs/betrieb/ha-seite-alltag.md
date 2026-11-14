@@ -67,7 +67,7 @@ Ein einzelnes Lied oder eine einzelne Folge hat eine eigene Seite. Dort steht zu
 
 1.  Öffne die Serie. Für eine einzelne Folge öffnest du die Folge.
 2.  Tippe auf den Knopf mit den drei Punkten (⋯) und dann auf „In den Papierkorb …“. Bei einer Folge heißt der Punkt „Papierkorb …“.
-3.  Lies die Frage. Sie nennt die Tobies, die dann nichts mehr spielen. Der Administrator bekommt eine Mitteilung und kann es zurückholen.
+3.  Lies die Frage. Sie nennt die Tobies, die dann nichts mehr spielen. Der Administrator sieht es (Punkt am Technik-Symbol, Hinweis „Neu im Papierkorb“) und kann es zurückholen.
 4.  Tippe auf „In den Papierkorb“.
 
 ## Unter „Geräte“ den Zustand der Boxen sehen
