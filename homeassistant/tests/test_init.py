@@ -27,32 +27,33 @@ async def test_panel_nur_fuer_administratoren_mit_version_im_pfad(hass, integrat
     assert p.component_name == "custom"
     cfg = p.config["_panel_custom"]
     assert cfg["name"] == "tobibox-app"  # R17-9: die neue Seite übernimmt /tobibox
-    assert re.fullmatch(r"/tobibox_static/tobibox-app\.js\?v=0\.1\.0-[0-9a-f]{12}", cfg["module_url"])  # Version der Integration und Stand der Dateien (B4)
+    assert re.fullmatch(r"/api/tobibox/static/tobibox-app\.js\?v=0\.1\.0-[0-9a-f]{12}", cfg["module_url"])  # Version der Integration und Stand der Dateien (B4)
+    assert cfg["module_url"].startswith("/api/")  # der Service Worker von HA holt nur /api/ und /auth/ immer frisch (siehe TobiboxStaticView)
     assert cfg["embed_iframe"] is False and cfg["trust_external"] is False
 
 
 async def test_statische_dateien_sind_oeffentlich_und_ohne_geheimnisse(hass, integration, hass_client_no_auth, frontend_dir):
     client = await hass_client_no_auth()
-    antwort = await client.get("/tobibox_static/tobibox-app.js")
+    antwort = await client.get("/api/tobibox/static/tobibox-app.js")
     assert antwort.status == 200
     assert "Attrappe" in await antwort.text()
-    assert (await client.get("/tobibox_static/tobibox-panel.js")).status == 200  # alte Komponente bleibt ausgeliefert (Einbettung später)
-    assert (await client.get("/tobibox_static/gibtsnicht.js")).status == 404
+    assert (await client.get("/api/tobibox/static/tobibox-panel.js")).status == 200  # alte Komponente bleibt ausgeliefert (Einbettung später)
+    assert (await client.get("/api/tobibox/static/gibtsnicht.js")).status == 404
 
 
 async def test_statische_dateien_senden_no_cache_und_bleiben_im_ordner(hass, integration, hass_client_no_auth, frontend_dir):
     """B4: der Browser fragt bei jedem Laden nach (ETag, 304); kein Zugriff aus dem Ordner heraus."""
     client = await hass_client_no_auth()
-    antwort = await client.get("/tobibox_static/tobibox-app.js")
+    antwort = await client.get("/api/tobibox/static/tobibox-app.js")
     assert antwort.headers["Cache-Control"] == "no-cache"
     etag = antwort.headers.get("ETag")
     assert etag
-    assert (await client.get("/tobibox_static/tobibox-app.js", headers={"If-None-Match": etag})).status == 304
+    assert (await client.get("/api/tobibox/static/tobibox-app.js", headers={"If-None-Match": etag})).status == 304
     (frontend_dir / "seiten").mkdir()
     (frontend_dir / "seiten" / "x.js").write_text("// x\n", encoding="utf-8")
-    assert (await client.get("/tobibox_static/seiten/x.js")).status == 200
-    assert (await client.get("/tobibox_static/..%2Fsecret.txt")).status in (400, 404)  # HA lehnt Pfade mit .. schon vorher ab
-    assert (await client.get("/tobibox_static/seiten")).status == 404
+    assert (await client.get("/api/tobibox/static/seiten/x.js")).status == 200
+    assert (await client.get("/api/tobibox/static/..%2Fsecret.txt")).status in (400, 404)  # HA lehnt Pfade mit .. schon vorher ab
+    assert (await client.get("/api/tobibox/static/seiten")).status == 404
 
 
 def test_frontend_stand_aendert_sich_mit_dem_inhalt(tmp_path):

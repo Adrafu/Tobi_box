@@ -466,14 +466,19 @@ def _etag_passt(kopf: str | None, stand: str) -> bool:
 
 
 class TobiboxStaticView(HomeAssistantView):
-    """``/tobibox_static/<Datei>``: die Dateien der Seite, immer mit ``Cache-Control: no-cache`` (B4).
+    """``/api/tobibox/static/<Datei>``: die Dateien der Seite, immer mit ``Cache-Control: no-cache`` (B4).
+
+    Warum unter ``/api/``: Der Service Worker von Home Assistant holt ``/api/…`` und ``/auth/…`` immer frisch aus dem Netz,
+    alles andere liefert er stale-while-revalidate aus seinem Cache (24 Stunden). Unter einem anderen Pfad kämen die
+    Untermodule (Imports ohne ``?v=``) nach dem Einspielen beim ersten Öffnen aus dem alten Cache, und die Seite bliebe
+    schwarz („does not provide an export named …“). ``Cache-Control: no-cache`` hilft dagegen nicht, der Service Worker sitzt davor.
 
     Die Seite besteht aus vielen ES-Modulen, die einander ohne ``?v=`` laden. Eine Version in jeder Import-Adresse ließe
     dasselbe Modul unter zwei Adressen doppelt laufen und müsste in jeder Datei stehen. Darum bleiben die Adressen
     gleich und der Browser fragt bei jedem Laden nach (``ETag`` und ``Last-Modified`` bringt ``FileResponse`` mit:
     unverändert = ``304``, ohne Inhalt). Ohne Anmeldung, wie bisher die statischen Pfade: die Dateien enthalten keine Geheimnisse."""
 
-    url = "/tobibox_static/{pfad:.+}"
+    url = "/api/tobibox/static/{pfad:.+}"  # gleich STATIC_URL in __init__.py
     name = "tobibox:static"
     requires_auth = False
     cors_allowed = False

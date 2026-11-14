@@ -1723,6 +1723,127 @@ def finde_browser(p):
     raise RuntimeError("Kein Browser: TOBIBOX_BROWSER setzen oder `playwright install chromium` ausführen")
 
 
+# ------------------------------------------------------------------ Service Worker von Home Assistant
+# Befund im echten HA (Workbox, sw-modern.js): /api/ und /auth/ immer aus dem Netz, alles andere stale-while-revalidate aus
+# dem Cache "file-cache". Die Panel-Datei hat ?v=…, ihre Untermodule (Imports ohne ?v=) kamen nach dem Einspielen beim ersten
+# Öffnen aus dem alten Cache: schwarze Seite, "does not provide an export named …". Diese Prüfung stellt das nach.
+SW_JS = """
+const CACHE = 'file-cache';
+self.addEventListener('install', () => self.skipWaiting());
+self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));
+self.addEventListener('fetch', (e) => {
+  const u = new URL(e.request.url);
+  if (e.request.method !== 'GET' || u.origin !== self.location.origin || u.pathname === '/sw.js') return;
+  if (/\\/(api|auth)\\/.*/.test(u.pathname)) return;  // NetworkOnly: der Browser holt es selbst aus dem Netz
+  e.respondWith((async () => {  // StaleWhileRevalidate
+    const cache = await caches.open(CACHE);
+    const alt = await cache.match(e.request);
+    const frisch = fetch(e.request).then((r) => { if (r.ok) return cache.put(e.request, r.clone()).then(() => r); return r; });
+    e.waitUntil(frisch.catch(() => {}));
+    return alt || frisch;
+  })());
+});
+"""
+SW_SEITE = """<!doctype html><meta charset="utf-8"><body>laedt
+<script type="module">
+const q = new URLSearchParams(location.search);
+await navigator.serviceWorker.register('/sw.js');
+await navigator.serviceWorker.ready;
+if (!navigator.serviceWorker.controller) { location.reload(); await new Promise(() => {}); }
+try { await import(`PRAEFIX/app.js?v=${q.get('stand')}`); }
+catch (e) { document.body.textContent = 'FEHLER ' + e.message; console.error(e.message); }
+</script>"""
+
+
+def sw_static_url():
+    """Der Pfad, unter dem die Integration ihre Seitendateien ausliefert: STATIC_URL aus __init__.py (nicht nachgebaut, damit ein alter Pfad rot wird)."""
+    quelle = (HIER.parents[2] / "custom_components" / "tobibox" / "__init__.py").read_text(encoding="utf-8")
+    m = re.search(r'^STATIC_URL\s*=\s*"([^"]+)"', quelle, re.M)
+    if not m:
+        raise RuntimeError("STATIC_URL in custom_components/tobibox/__init__.py nicht gefunden")
+    return m.group(1)
+
+
+def sw_server(praefix):
+    """Kleiner Server nur für diese Prüfung: Seite, Service Worker und zwei Stände der Dateien unter `praefix`."""
+    import http.server
+    import threading
+
+    zustand = {"stand": 1}
+
+    class H(http.server.BaseHTTPRequestHandler):
+        def log_message(self, *a):
+            pass
+
+        def antwort(self, typ, text):
+            self.send_response(200)
+            self.send_header("Content-Type", typ)
+            self.send_header("Cache-Control", "no-cache")
+            self.end_headers()
+            self.wfile.write(text.encode())
+
+        def do_GET(self):  # noqa: N802
+            pfad = self.path.split("?")[0]
+            if pfad == "/sw.js":
+                return self.antwort("text/javascript", SW_JS)
+            if pfad == "/stand/2":
+                zustand["stand"] = 2  # wie ein Einspielen: neue Dateien liegen auf dem Server
+                return self.antwort("text/plain", "ok")
+            if pfad == "/seite":
+                return self.antwort("text/html", SW_SEITE.replace("PRAEFIX", praefix))
+            if pfad == f"{praefix}/app.js":  # Panel-Datei: neue Adresse (?v=) bei jedem Stand, importiert das Untermodul ohne ?v=
+                neu_ = zustand["stand"] == 2
+                return self.antwort("text/javascript", "import { alt%s } from './bausteine.js';\n"
+                                    "document.body.textContent = 'INHALT stand %d ' + alt%s;\n" % (", neu" if neu_ else "", zustand["stand"], " + neu" if neu_ else ""))
+            if pfad == f"{praefix}/bausteine.js":
+                return self.antwort("text/javascript", "export const alt = 'alt';\n" + ("export const neu = '-neu';\n" if zustand["stand"] == 2 else ""))
+            self.send_response(404)
+            self.end_headers()
+
+    srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), H)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    return srv
+
+
+def pruefe_service_worker(praefix=None):
+    """Seite laden (der Service Worker steuert sie), Dateien auf neuen Stand bringen, neu laden: keine Konsolenfehler, Inhalt da.
+    Gibt Befunde als (Kategorie, Zustand, Text) zurück. Rot, sobald die Seitendateien unter einem Pfad liegen, den der Service Worker cacht."""
+    from playwright.sync_api import sync_playwright
+
+    praefix = praefix or sw_static_url()
+    befunde: list[tuple[str, str, str]] = []
+    srv = sw_server(praefix)
+    basis = f"http://127.0.0.1:{srv.server_address[1]}"
+    try:
+        with sync_playwright() as p:
+            b = p.chromium.launch(args=["--no-sandbox"], **finde_browser(p))
+            try:
+                pg = b.new_context().new_page()
+                pg.set_default_timeout(8000)
+                konsole: list[str] = []
+                pg.on("console", lambda m: konsole.append(m.text) if m.type == "error" else None)
+                pg.on("pageerror", lambda e: konsole.append(f"pageerror: {e}"))
+                pg.goto(f"{basis}/seite?stand=1")
+                pg.wait_for_function("() => document.body.textContent.startsWith('INHALT')")  # nach dem ersten Neuladen steuert der SW die Seite
+                if pg.evaluate("() => !navigator.serviceWorker.controller"):
+                    befunde.append(("ablauf", "service-worker", "Der Service Worker steuert die Seite nicht, die Prüfung wäre wirkungslos"))
+                pg.evaluate("() => fetch('/stand/2')")
+                konsole.clear()
+                pg.goto(f"{basis}/seite?stand=2")  # neue Panel-Adresse, wie nach einem Einspielen; die Untermodule haben dieselbe Adresse wie zuvor
+                with contextlib.suppress(PlaywrightTimeout):
+                    pg.wait_for_function("() => document.body.textContent.startsWith('INHALT') || document.body.textContent.startsWith('FEHLER')")
+                text = pg.evaluate("() => document.body.textContent")
+                if "INHALT stand 2 alt-neu" not in text:
+                    befunde.append(("ablauf", "service-worker", f"Nach dem Einspielen zeigt die Seite beim ersten Öffnen nicht den neuen Stand: {text[:150]!r} (Seitendateien unter {praefix}/ vom Service Worker aus dem Cache?)"))
+                for k in konsole:
+                    befunde.append(("konsole", "service-worker", k[:300]))
+            finally:
+                b.close()
+    finally:
+        srv.shutdown()
+    return befunde
+
+
 def lauf_job(job):
     from playwright.sync_api import sync_playwright  # erst im Kindprozess
 
@@ -1834,6 +1955,8 @@ def main():
     ap.add_argument("--jobs", type=int, default=min(4, os.cpu_count() or 2), help="parallele Läufe")
     ap.add_argument("--bilder", help="Ordner für Bildschirmfotos der gemessenen Zustände")
     ap.add_argument("--nur", action="append", help="nur Abläufe, deren Name dies enthält (mehrfach möglich, zum Beispiel --nur tobies_weg1); lässt die Seitenmessung aus")
+    ap.add_argument("--nur-sw", action="store_true", help="nur die Prüfung mit dem nachgebauten Service Worker von HA (wenige Sekunden)")
+    ap.add_argument("--sw-pfad", help="Pfad für die Seitendateien in der Service-Worker-Prüfung (Standard: STATIC_URL der Integration)")
     ap.add_argument("--json", help="Befunde als JSON in diese Datei schreiben")
     ap.add_argument("--zeige", type=int, default=6, help="Beispiele je Gruppe in der Zusammenfassung")
     a = ap.parse_args()
@@ -1847,9 +1970,21 @@ def main():
     except RuntimeError as e:
         print(f"Aufbau fehlgeschlagen: {e}", file=sys.stderr)
         return 2
+    try:
+        sw_befunde = pruefe_service_worker(a.sw_pfad)
+    except Exception as e:  # noqa: BLE001
+        sw_befunde = [("ablauf", "service-worker", f"Prüfung abgebrochen: {type(e).__name__}: {e}")]
+    print(f"Service Worker (Dateien unter {a.sw_pfad or sw_static_url()}): {'OK' if not sw_befunde else str(len(sw_befunde)) + ' Befunde'}", flush=True)
+    if a.nur_sw:
+        proc.terminate()
+        for _, _, t in sw_befunde:
+            print("  ", t)
+        print("\nERGEBNIS:", "alles in Ordnung" if not sw_befunde else f"{len(sw_befunde)} Befunde")
+        return 1 if sw_befunde else 0
     jobs = jobs_bauen(a, basis)
     print(f"{len(jobs)} Läufe, {a.jobs} parallel, Server {basis}", flush=True)
     ergebnisse = []
+    ergebnisse.append({"job": {"profil": "sw", "thema": "-", "art": "-", "breite": 0, "kennung": "sw"}, "befunde": sw_befunde, "hinweise": [], "zustaende": 0, "schritte": 1, "dauer": 0.0, "fehler": None})
     try:
         with cf.ProcessPoolExecutor(max_workers=a.jobs) as ex:
             for r in ex.map(lauf_job, jobs):

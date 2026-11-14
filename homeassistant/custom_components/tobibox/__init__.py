@@ -31,7 +31,7 @@ FRONTEND_PFAD = Path(__file__).parent / "frontend"
 #: (Datei bleibt, wird später in „Technik“ eingebettet) hat keinen eigenen Seitenleisten-Eintrag mehr.
 PANEL_URL = "tobibox"
 PANEL_ELEMENT = "tobibox-app"
-STATIC_URL = "/tobibox_static"
+STATIC_URL = "/api/tobibox/static"
 PANEL_DATEI = "tobibox-app.js"
 ALTE_PANEL_DATEI = "tobibox-panel.js"
 
