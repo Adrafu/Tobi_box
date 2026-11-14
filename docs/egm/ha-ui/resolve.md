@@ -223,3 +223,11 @@ HA nicht gefahrlos auslösbar.
 | AB8 | (PL) Zwei unbekannte Tobies sehen in der Karte auf „Geräte“ gleich aus („Gerade aufgelegt, vor weniger als einer Minute.“) | **(Tobias)** Uhrzeit dazu: „Aufgelegt um 21:01, vor 2 Minuten.“ (nur in der Karte mit mehreren Tobies) |
 
 **Abnahme A-1b (Tobias, 13.11.): angenommen** („Ja mach weiter“), AB8 eingebaut. Weiter mit A-1c (A8f, A11a, A11b, A14-1c, A15-1c).
+
+## Befunde im echten HA vor der Abnahme A-1c (14.11.)
+
+| Nr. | Befund | Festlegung |
+|---|---|---|
+| AC1 | Großer NAS-Ordner (1812 Dateien) bleibt ganz „blockiert“, weil zwei Dateien nicht dekodierbar sind; die Seite nennt die Dateien nicht | **(Tobias)** Backend soll vertragsgemäß arbeiten (11.10, T10: nur die betroffene Gruppe bleibt liegen, Rest einsortiert, `teilweise`); die Seite nennt die betroffenen Dateien |
+| AC2 | „Bitte kurz ansehen“ (`serie_aus_ordner`), obwohl beim Hochladen eine vorhandene Serie ausdrücklich gewählt war | **(Tobias)** beheben (Python, mit dem nächsten Neustart) |
+| AC3 | Papierkorb-Mitteilung ist in HA für alle Benutzer sichtbar (HA-Mitteilungen kennen keine Empfänger) | **(Tobias)** HA-Mitteilung entfällt; **nur** ein Punkt am Technik-Symbol für Administratoren und oben in „Technik › Papierkorb“ ein Hinweis auf das Neue; **kein** HA-Ereignis. Ändert Design 5.9/10.3 („Mitteilung an Administratoren“) |
