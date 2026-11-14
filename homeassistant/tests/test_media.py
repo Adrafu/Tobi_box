@@ -604,6 +604,48 @@ async def test_serien_zusammenfuehren(hass, integration, nas, lege_mp3):
     assert err.value.code == "serie_nicht_gefunden"
 
 
+async def test_serie_loeschen_verwaiste_zuordnung_braucht_keine_bestaetigung(hass, integration, nas, lege_mp3):
+    """Befund A-1c: Zuordnung auf eine gelöschte Folge, Serie ohne Folgen: löschen klappt ohne Rückfrage, Zuordnung bleibt."""
+    hub = integration
+    leer = nas.serie("leer", "leer", "Leer", ["weg.mp3"])
+    pfad = nas.serie("voll", "voll", "Voll", ["a.mp3"])
+    lege_mp3(leer / "weg.mp3")
+    lege_mp3(pfad / "a.mp3")
+    await hub.medien.pruefen()
+    await hub.zuordnung_setzen(UID1, {"typ": "folge", "serie": "leer", "folge": "weg.mp3"})
+    await hub.zuordnung_setzen(UID2, {"typ": "folge", "serie": "voll", "folge": "a.mp3"})
+    await hub.medien.folge_loeschen("leer", "weg.mp3", True, None)  # wie bei Tobias: Zuordnung bleibt, Folge ist weg
+    assert (await hub.medien.serie_holen("leer"))["anzahl_tobies"] == 1  # Vertrag: zählt serie und folge
+    revision = hub.store.konfig["revision"]
+    erg = await hub.medien.serie_loeschen("leer", False, None)
+    assert erg["eintrag"]["typ"] == "serie"
+    assert erg["betroffene_tobies"] == [{"uid": UID1, "name": None}]
+    assert hub.store.konfig["zuordnungen"][UID1]["ziel"] == {"typ": "folge", "serie": "leer", "folge": "weg.mp3"}
+    assert hub.store.konfig["revision"] == revision
+    with pytest.raises(TobiboxFehler) as err:  # vorhandene Folge: weiter Rückfrage
+        await hub.medien.serie_loeschen("voll", False, None)
+    assert err.value.code == "tobies_betroffen"
+
+
+async def test_zusammenfuehren_verwaiste_zuordnung_braucht_keine_bestaetigung(hass, integration, nas, lege_mp3):
+    hub = integration
+    leer = nas.serie("leer", "leer", "Leer", ["weg.mp3"])
+    nas.serie("ziel", "z", "Ziel")
+    q = nas.serie("voll", "voll", "Voll", ["a.mp3"])
+    lege_mp3(leer / "weg.mp3")
+    lege_mp3(q / "a.mp3")
+    await hub.medien.pruefen()
+    await hub.zuordnung_setzen(UID1, {"typ": "folge", "serie": "leer", "folge": "weg.mp3"})
+    await hub.zuordnung_setzen(UID2, {"typ": "folge", "serie": "voll", "folge": "a.mp3"})
+    await hub.medien.folge_loeschen("leer", "weg.mp3", True, None)
+    with pytest.raises(TobiboxFehler) as err:  # vorhandene Folge: weiter Rückfrage
+        await hub.medien.serien_zusammenfuehren("voll", "z", False, None, None)
+    assert err.value.code == "tobies_betroffen"
+    erg = await hub.medien.serien_zusammenfuehren("leer", "z", False, None, None)  # nur verwaiste Zuordnung: ohne Rückfrage
+    assert erg["eintrag"]["grund"] == "zusammengefuehrt"
+    assert hub.store.konfig["zuordnungen"][UID1]["ziel"]["serie"] == "z"  # wird wie bisher mit umgehängt
+
+
 async def test_zusammenfuehren_nur_normale_verschiedene_serien(hass, integration, nas):
     hub = integration
     nas.serie("a", "a", "A")

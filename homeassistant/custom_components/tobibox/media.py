@@ -574,6 +574,17 @@ class Medien:
         """Tobies, deren Ziel auf die Serie oder eine ihrer Folgen zeigt."""
         return self.hub.tobies(lambda z: z.get("serie") == serie_id and z["typ"] in ("serie", "folge"))
 
+    def tobies_mit_wirkung(self, serie: Any) -> list[dict[str, Any]]:
+        """Tobies für die Rückfrage: Ziel ist die Serie selbst oder eine **vorhandene** Folge.
+
+        Ein Tobie auf eine schon gelöschte Folge spielt ohnehin nichts und braucht keine Bestätigung
+        (sonst fragt die Seite endlos, weil sie ihn nicht sieht). ``tobies_der_serie`` zählt ihn weiter mit.
+        """
+        vorhanden = set(serie.folgen)
+        return self.hub.tobies(
+            lambda z: z.get("serie") == serie.id and (z["typ"] == "serie" or (z["typ"] == "folge" and z.get("folge") in vorhanden))
+        )
+
     def tobies_der_folge(self, serie_id: str, folge: str) -> list[dict[str, Any]]:
         return self.hub.tobies(lambda z: z["typ"] == "folge" and z.get("serie") == serie_id and z.get("folge") == folge)
 
@@ -1176,7 +1187,7 @@ class Medien:
             serie, pfad = await self._frisch(serie_id)
             self._pruefe_stand(serie, stand)
             tobies = self.tobies_der_serie(serie_id)
-            if tobies and not tobies_bestaetigt:
+            if self.tobies_mit_wirkung(serie) and not tobies_bestaetigt:
                 raise TobiboxFehler("tobies_betroffen")
             summen = self._index_pruefsummen(f"{pfad.name}/")
             try:
@@ -1320,7 +1331,7 @@ class Medien:
             self._pruefe_stand(quelle, stand_quelle)
             self._pruefe_stand(ziel, stand_ziel)
             tobies = self.tobies_der_serie(quelle_id)
-            if tobies and not tobies_bestaetigt:
+            if self.tobies_mit_wirkung(quelle) and not tobies_bestaetigt:
                 raise TobiboxFehler("tobies_betroffen")
             self._brauche_konfig_bereit(tobies)
             umbenannt: list[dict[str, str]] = []

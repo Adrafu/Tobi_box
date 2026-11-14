@@ -285,6 +285,8 @@ export function createMockHass(opts = {}) {
     if (s.typ === 'ueberraschung') throw fehler('ziel_ungueltig');
     if (ziel.typ === 'folge') holeFolge(s, ziel.folge);
   };
+  // Rückfrage beim Löschen/Zusammenführen einer Serie: nur Ziel Serie oder vorhandene Folge (ein Tobie auf eine gelöschte Folge spielt ohnehin nichts)
+  const mitWirkung = (s) => Object.values(b.zuordnungen).filter((z) => z.ziel.serie === s.id && (z.ziel.typ === 'serie' || (z.ziel.typ === 'folge' && s.folgen.some((f) => f.name === z.ziel.folge))));
   const betroffeneFolge = (sid, fname) => Object.values(b.zuordnungen).filter((z) => z.ziel.typ === 'folge' && z.ziel.serie === sid && z.ziel.folge === fname);
   const konfigBereit = () => { if (b.konfig.zustand !== 'ok') throw fehler('konfig_nicht_bereit'); };
 
@@ -411,7 +413,7 @@ export function createMockHass(opts = {}) {
     'tobibox/serie/delete': (m) => {
       const s = holeSerie(m.serie_id); pruefeStand(s, m.stand);
       const tob = Object.values(b.zuordnungen).filter((z) => z.ziel.serie === s.id);
-      if (tob.length && !m.tobies_bestaetigt) throw fehler('tobies_betroffen');
+      if (mitWirkung(s).length && !m.tobies_bestaetigt) throw fehler('tobies_betroffen');
       delete b.serien[s.id];
       const e = alsEintrag('serie', s); b.papierkorb.unshift(e);
       return { eintrag: e, betroffene_tobies: tob.map(kurzTobie), ueberraschung: b.ueberraschung };
@@ -436,7 +438,7 @@ export function createMockHass(opts = {}) {
       if (q === z || q.typ !== 'normal' || z.typ !== 'normal') throw fehler('ziel_ungueltig');
       pruefeStand(q, m.stand_quelle); pruefeStand(z, m.stand_ziel);
       const tob = Object.values(b.zuordnungen).filter((t) => t.ziel.serie === q.id);
-      if (tob.length && !m.tobies_bestaetigt) throw fehler('tobies_betroffen');
+      if (mitWirkung(q).length && !m.tobies_bestaetigt) throw fehler('tobies_betroffen');
       const n = q.folgen.length;
       tob.forEach((t) => { t.ziel = { ...t.ziel, serie: z.id }; });
       z.folgen.push(...q.folgen); q.folgen = [];

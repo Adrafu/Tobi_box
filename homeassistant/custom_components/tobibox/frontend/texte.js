@@ -909,6 +909,7 @@ export const SERIE = {
   mehr: 'Mehr', // sichtbarer Text des Knopfs im großen Kopf am Computer (AB3)
   spalten: { nr: 'Nr.', titel: 'Titel', dauer: 'Dauer' }, // Kopfzeile der Folgenliste am Computer (AB3)
   weg: { satz: 'Das gibt es nicht mehr.', link: 'Zurück zur Bibliothek' }, // Prototyp (serie/get: serie_nicht_gefunden)
+  tobies_unklar: 'Das geht gerade nicht. Bitte die Seite neu laden.', // neu, nicht im Design (Backend meldet Tobies, die Seite sieht keine)
   abschnitt: { hoerspiel: 'Folgen', hoerbuch: 'Hörbuch', musik: 'Lieder', geschichte: 'Geschichten' }, // Design 5.3
   schon_gehoert: 'Schon {prozent} % gehört · noch {dauer}', // Design 5.3
   kapitel: '{anzahl} Kapitel', // Ordner-Folgen: „2:19 · 14 Kapitel“

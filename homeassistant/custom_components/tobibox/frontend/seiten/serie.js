@@ -408,8 +408,15 @@ class SerieSeite {
   async _nochmalFragen(x, ziel, ausloeser, frage) {
     await this.laden(true);
     const neu = this.z.serie?.folgen?.find((f) => f.name === x.name);
-    if (neu) frage(neu);
-    return false; // das nächste Blatt hat das alte ersetzt
+    if (neu?.tobies?.length) { frage(neu); return false; } // das nächste Blatt hat das alte ersetzt
+    return this._keineTobies();
+  }
+
+  /* Das Backend meldet Tobies, die Seite sieht auch nach dem Neuladen keine: nie still dieselbe Rückfrage wiederholen (Schleife),
+   * sondern Meldung zeigen und das Blatt schließen. */
+  _keineTobies() {
+    if (this.z.serie) this.ctx.meldeFehler(SERIE.tobies_unklar);
+    return undefined;
   }
 
   /* ---- Zusammenführen (Administrator) */
@@ -436,7 +443,11 @@ class SerieSeite {
           this.ctx.melde(fuellen(SERIE.zusammen.fertig, w));
           return undefined;
         } catch (err) {
-          if (err?.code === 'tobies_betroffen') { await this.laden(true); if (this.z.serie) this._frageZusammen(ziel, ausloeser); return false; }
+          if (err?.code === 'tobies_betroffen') {
+            await this.laden(true);
+            if (this.z.serie && tobiesDerSerie(this.z.serie).length) { this._frageZusammen(ziel, ausloeser); return false; }
+            return this._keineTobies();
+          }
           return this._fehler(err) === 'zu' ? undefined : false;
         } finally { this._busy = false; }
       },
@@ -467,7 +478,11 @@ class SerieSeite {
           this.ctx.melde(fuellen(SERIE.papierkorb.fertig, { titel: q.name }));
           return undefined;
         } catch (err) {
-          if (err?.code === 'tobies_betroffen') { await this.laden(true); if (this.z.serie) this.serieLoeschen(ausloeser); return false; }
+          if (err?.code === 'tobies_betroffen') {
+            await this.laden(true);
+            if (this.z.serie && tobiesDerSerie(this.z.serie).length) { this.serieLoeschen(ausloeser); return false; }
+            return this._keineTobies();
+          }
           return this._fehler(err) === 'zu' ? undefined : false;
         } finally { this._busy = false; }
       },

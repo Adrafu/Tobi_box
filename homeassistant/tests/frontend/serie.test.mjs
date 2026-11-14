@@ -592,6 +592,20 @@ test('Papierkorb der Serie: meldet das Backend „Tobies betroffen“, lädt die
   weg();
 });
 
+test('Papierkorb der Serie: „Tobies betroffen“, aber nach dem Neuladen sieht die Seite keine → keine Schleife, Meldung, Blatt zu', MIT_DOM, async () => {
+  const s = await oeffne('s2');
+  await menue(s);
+  await klick(s, punkt(s, 'papierkorb'));
+  // Das Backend meldet Tobies (zum Beispiel auf eine schon gelöschte Folge), die Seite bekommt keine zu sehen.
+  s.m.failNext('tobibox/serie/delete', 'tobies_betroffen', 'tobies_betroffen', 'tobies_betroffen');
+  await klick(s, leisteKnopf(s, 'In den Papierkorb'));
+  assert.equal(aufrufe(s, 'serie/delete').length, 1, 'kein zweiter und dritter Versuch');
+  assert.equal(blatt(s), null, 'das Blatt ist zu');
+  assert.equal(s.q('.toast.err .tmsg').textContent, SERIE.tobies_unklar);
+  assert.equal(hash(), '#serie-s2');
+  weg();
+});
+
 test('Papierkorb: Nicht-Administratoren dürfen (Alltag); stand_veraltet bei der Serie → Meldung, Blatt zu, neu geladen', MIT_DOM, async () => {
   const s = await seite({ hash: '', nichtAdmin: true });
   beispiele(s.m);
