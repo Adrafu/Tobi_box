@@ -201,7 +201,7 @@ export class AppStore {
   constructor({ ladeGrenzeMs = GRENZE_LAEDT_MS } = {}) {
     this.ladeGrenzeMs = ladeGrenzeMs;
     this.s = { phase: 'laedt', fehlerCode: null, faehigkeiten: null, grenzen: {}, boxen: {}, boxAnzeigen: {}, neue: [], warteschlange: [], platz: [], konfigZustand: 'ok', verbindungWeg: false,
-      eingang: [], offeneSerien: null, lokaleUploads: 0 }; // Eingang: Einträge aus `eingang/list`; offeneSerien: Serien, die noch „bitte prüfen“ sind (A11b)
+      eingang: [], offeneSerien: null, lokaleUploads: 0, lokaleNamen: [] }; // Eingang: Einträge aus `eingang/list`; offeneSerien: Serien, die noch „bitte prüfen“ sind (A11b)
     this.hass = null;
     this.onNeuerTobie = null; // ({ uid, box, anzeige }) beim ersten Auftauchen einer unbekannten Kennung nach dem Start
     this.onWiederda = null; // () nach dem Wiederverbinden: die aktive Seite lädt neu
@@ -327,10 +327,21 @@ export class AppStore {
   /* Was die Seiten vom Eingang sehen (Ableitung nach eingang.js). */
   eingangAbl() { return eingangAbleiten(this.s.eingang, { offeneSerien: this.s.offeneSerien }); }
 
-  /* Uploads, die diese Seite selbst gerade sendet (A11a meldet sie); sie zählen im Band wie laufende Einträge. */
-  setLokaleUploads(n) {
+  /* Uploads, die diese Seite selbst gerade sendet (A11a meldet sie); sie zählen im Band wie laufende Einträge. `namen` sind die Namen im Eingang, die zu
+   * diesen Uploads gehören (Gruppen-Ordner „Upload ab12cd34“, Dateinamen): ein Eintrag mit so einem Namen zählt nicht noch einmal. */
+  setLokaleUploads(n, namen = []) {
     const z = Math.max(0, Number(n) || 0);
-    if (z !== this.s.lokaleUploads) this._set({ lokaleUploads: z });
+    const liste = (Array.isArray(namen) ? namen : []).map(String);
+    if (z === this.s.lokaleUploads && liste.join('\n') === this.s.lokaleNamen.join('\n')) return;
+    this._set({ lokaleUploads: z, lokaleNamen: liste });
+  }
+
+  /* Das Band und der Punkt am Reiter: wie `eingangAbl()`, ohne die laufenden Einträge, die zu einem Upload dieser Seite gehören (der zählt als `lokaleUploads`). */
+  eingangAblBand() {
+    const abl = this.eingangAbl();
+    const namen = this.s.lokaleNamen;
+    if (!namen.length) return abl;
+    return { ...abl, laeuft: abl.laeuft.filter((x) => x.eintrag.quelle === 'nas' || !namen.includes(x.eintrag.name)) };
   }
 
   /* Ein Zeitgeber, damit „Alles hinzugefügt.“ und Einträge nach 24 Stunden von selbst verschwinden. */
@@ -889,7 +900,7 @@ if (lit) {
      * Der Zustand kommt aus `eingang/list` und den Ereignissen (store.s.eingang), nie aus dem Speicher dieser Seite. */
     _eingangBand() {
       if (this.store.s.phase !== 'bereit') return nothing;
-      const z = bandZustand(this.store.eingangAbl(), { lokal: this.store.s.lokaleUploads });
+      const z = bandZustand(this.store.eingangAblBand(), { lokal: this.store.s.lokaleUploads });
       if (!z) return nothing;
       return html`<div class=${`eband ${z.art}`} role="status" data-eingang-band=${z.art}><a href="#hinzufuegen"><span class="et">${z.text}</span>${ic('chev', 22)}</a></div>`;
     }
@@ -932,7 +943,7 @@ if (lit) {
         uploadBand: () => app._eingangBand(), // Band über der Zeile „Bibliothek“ (Design 5.2 Punkt 2a, A11b)
         eingang: () => app.store.eingangAbl(), // Ableitung nach eingang.js: { liste, laeuft, pruefen, fehler, fertig }
         eingangNeuLaden: () => app.store.ladeEingang(), // nach „Das ist richtig“ und nach jedem Upload
-        lokaleUploads: (n) => app.store.setLokaleUploads(n), // A11a: Zahl der Uploads dieser Seite, damit das Band sie mitzählt
+        lokaleUploads: (n, namen) => app.store.setLokaleUploads(n, namen), // A11a: Zahl der Uploads dieser Seite (und ihre Namen im Eingang), damit das Band sie einmal mitzählt
         grenzen: () => app.store.s.grenzen || {}, // `hello.grenzen` (upload_max_bytes, upload_parallel, endungen …)
         neuesXhr: () => (app.xhrFactory ? app.xhrFactory() : new XMLHttpRequest()), // Upload mit Fortschritt (A11a); Tests setzen `xhrFactory`
         blattFokus: () => app.updateComplete.then(() => app.renderRoot.querySelector('dialog.blatt #blatt-t')?.focus?.({ preventScroll: true })), // Fokus auf die Überschrift des offenen Blatts
@@ -1021,7 +1032,7 @@ if (lit) {
       const n = this.store.s.neue.length;
       const punkt = n ? html`<span class="dot" aria-hidden="true">${n}</span><span class="sr">${n === 1 ? TOBIE.neue_tobies_punkt : fuellen(TOBIE.neue_tobies_punkt_mehr, { anzahl: n })}</span>` : nothing;
       // Bibliothek: ruhiger Punkt ohne Zahl, solange etwas hinzugefügt wird (Design 5.2 Punkt 2a, N15)
-      const laeuft = this.store.s.phase === 'bereit' && (this.store.eingangAbl().laeuft.length + this.store.s.lokaleUploads) > 0;
+      const laeuft = this.store.s.phase === 'bereit' && (this.store.eingangAblBand().laeuft.length + this.store.s.lokaleUploads) > 0;
       const punktLib = laeuft ? html`<span class="dot ruhig" data-punkt="eingang" aria-hidden="true"></span><span class="sr">${EINGANG.punkt}</span>` : nothing;
       return html`<nav class=${`tabs ${this._layout}`} aria-label=${SEITE.bereiche}><div class="tr">
         ${REITER.map((id) => html`<a href=${`#${id}`} aria-current=${r.tab === id ? 'page' : nothing}><span class="ti">${ic({ start: 'home', bibliothek: 'lib', tobies: 'tag', geraete: 'spk' }[id], 26)}</span><span class="tn">${SEITE.reiter[id]}</span>${id === 'geraete' ? punkt : id === 'bibliothek' ? punktLib : nothing}</a>`)}

@@ -2,7 +2,7 @@
 
 So benutzt du die Seite „Tobi Box“ in Home Assistant. Du brauchst dafür nur das Handy oder den Computer, auf dem du Home Assistant schon öffnest.
 
-Stand: Teil A-1a (Lesen und Abends) und Teil A-1b (Tobies). Wo etwas noch fehlt, steht „kommt bald“.
+Stand: Teil A-1a (Lesen und Abends), Teil A-1b (Tobies) und Teil A-1c (Hinzufügen und Cover). Teil A-1c ist noch nicht vom Administrator abgenommen. Wo etwas noch fehlt, steht „kommt bald“.
 
 ## Die Seite finden
 
@@ -193,6 +193,104 @@ Der Lernmodus mit Countdown ist nur für Administratoren. Er steht unter „Tech
 **Gute-Nacht-Karte**
 
 Ganz unten in der Zielwahl steht die „Gute-Nacht-Karte“ („Timer, dann wird es still“). Wähle sie als Ziel, dann spielt der Tobie den Timer und danach ist es still.
+
+## Hinzufügen
+
+Hier lädst du Hörspiele, Bücher, Alben und einzelne Lieder hoch. Du brauchst dafür nur die Dateien auf dem Handy oder dem Computer.
+
+**Vom Handy:**
+
+1.  Tippe auf „Bibliothek“.
+2.  Tippe oben auf das „+“. Der Knopf heißt „Hinzufügen“.
+3.  Es öffnet sich gleich die Dateiauswahl. Wähle die Dateien.
+4.  Es folgt das Blatt „Was lädst du hoch?“ (siehe unten).
+
+**Am Computer:**
+
+1.  Klicke in der Bibliothek auf das „+“.
+2.  Auf der Seite „Hinzufügen“ wählst du „Dateien wählen“ oder „Ordner vom Computer wählen“. Du kannst die Dateien oder den Ordner auch in die Fläche „Dateien oder Ordner hierher ziehen“ ziehen.
+3.  Es folgt das Blatt „Was lädst du hoch?“.
+
+Unter den Knöpfen steht „Zuletzt hinzugefügt“. Dort siehst du, was in den letzten 24 Stunden hochgeladen wurde.
+
+### Das Blatt „Was lädst du hoch?“
+
+Das Blatt zeigt vier Kacheln. Wähle die, die zu deinen Dateien passt:
+
+| Kachel | Was sie tut |
+|---|---|
+| **Neu anlegen** („Hörspiel, Buch, Album“) | Alle Dateien gehören zusammen und werden etwas Neues: ein neues Hörspiel, Hörbuch oder Album. |
+| **Zu Vorhandenem** („Neue Folgen dazu“) | Die Dateien kommen als neue Folgen in einen Eintrag, den es schon gibt. Du wählst ihn aus. |
+| **Einzeln** („Lied oder Folge für sich“) | Jede Datei wird ein eigenes Lied oder eine eigene Folge. |
+| **Sortier du** („Ich lese die Angaben“) | Die Seite liest die Angaben in den Dateien (Album, Interpret, Titel) und sortiert selbst ein. |
+
+Tippe auf „Abbrechen“ oben rechts, wenn du doch nichts hochladen willst.
+
+### Vorschau, „Ändern“ und „Hochladen“
+
+Nach einer Kachel kommt die Vorschau „Das passiert gleich“. Sie sagt in einem Satz, was passiert, zum Beispiel: „3 Dateien → neues Hörbuch „Kapitän Knopf“, Kapitel 1–3.“ Darunter stehen die Angaben, die dieser Weg braucht:
+
+*   **Neu anlegen:** ein Name (aus den Dateien vorgeschlagen) und „Welche Art?“ mit Hörspiel, Hörbuch, Album oder Geschichten.
+*   **Zu Vorhandenem:** „Wohin soll es?“. Wähle das Hörspiel, Buch oder Album, zu dem die Dateien gehören. Du kannst suchen.
+*   **Einzeln:** die Art (Lied, Geschichte, Folge oder Hörbuch) und ein Name je Datei.
+*   **Sortier du:** keine Angaben. Ein Absatz erklärt, wie die Seite einsortiert.
+
+Bei mehreren Dateien steht dort: „Die Dateien bleiben zusammen. Einsortiert wird, wenn alle 3 da sind.“
+
+Die Knöpfe unten:
+
+*   **„Ändern“** bringt dich zurück zu den Kacheln. Deine Eingaben bleiben erhalten.
+*   **„Hochladen“** startet den Upload. Fehlt noch etwas, sagt die Seite es: „Bitte einen Namen eingeben.“ oder „Bitte zuerst wählen, wohin es soll.“
+
+### Während des Hochladens
+
+1.  Der Upload startet sofort. Du siehst „Wird hochgeladen … 37 %“. Bei mehreren Dateien steht dort „Datei 2 von 3 wird hochgeladen … 37 %“.
+2.  Danach steht dort „Wird einsortiert …“.
+3.  Am Ende steht bei „Zuletzt hinzugefügt“, was daraus geworden ist, zum Beispiel „Hörbuch „Kapitän Knopf“ · 3 Kapitel“. Mit „Öffnen“ kommst du direkt zum Eintrag.
+
+**Bildschirm anlassen, bis es fertig ist.** Dieser Satz steht während des Hochladens. Wenn das Handy den Bildschirm sperrt, kann der Upload stehen bleiben. Dann steht dort „Unterbrochen. Wähle die Datei noch einmal.“
+
+### Die Anzeige in der Bibliothek
+
+Solange etwas hochgeladen oder einsortiert wird, steht oben in der Bibliothek ein Band, zum Beispiel „1 Eintrag wird gerade hinzugefügt.“ Ist alles fertig, steht dort „Alles hinzugefügt.“ Bist du auf einer anderen Seite, zeigt ein Punkt am Reiter „Bibliothek“, dass noch etwas läuft.
+
+### Wenn der Upload Fragen hat
+
+Es gibt drei Fälle. Die Karte steht bei „Zuletzt hinzugefügt“ und sagt, was du tun kannst.
+
+*   **Gelbe Karte „Bitte kurz ansehen.“** Die Datei ist da, aber bei den Angaben war die Seite unsicher. Die Karte nennt den Grund. Mit „Ansehen“ öffnest du den Eintrag. Stimmt alles, tippe auf „Das ist richtig“. Stimmt die Art nicht, ändere sie im Eintrag über „⋯“ und „Art ändern“.
+*   **Rote Karte „Geht leider nicht.“** Die Datei ist nicht übernommen. Der Grund steht darunter:
+    *   Falsches Format: „Dieses Dateiformat spielt die Box nicht. Erlaubt sind MP3, M4A, M4B, AAC, FLAC, OGG, Opus und WAV.“ Nimm eine Datei in einem dieser Formate.
+    *   Kopiergeschützt (zum Beispiel von Audible oder Apple Books): Die Box kann sie nicht abspielen. Nimm eine Datei ohne Kopierschutz.
+    *   Kaputt oder unvollständig: „Die Datei ist kaputt oder unvollständig. Bitte noch einmal kopieren.“
+    *   Darin ist keine Audiodatei: „Darin ist keine Audiodatei.“
+*   **Gelbe Karte „Es fehlt noch eine Datei.“** Bei mehreren Dateien ist eine nicht angekommen. Die Karte sagt zum Beispiel „2 von 3 Dateien sind angekommen.“ Tippe auf „Fehlende Datei wählen“ und wähle sie noch einmal. Kommt sie nicht, wird mit den vorhandenen einsortiert und mit „Bitte ansehen“ markiert.
+
+Wenn die Verbindung abbricht, steht dort „Die Verbindung ist abgebrochen.“ Dann schau nach einigen Minuten unter „Zuletzt hinzugefügt“ nach, ob die Datei angekommen ist. Wenn nicht, wähle sie noch einmal.
+
+### Dateien über 2 GB
+
+Eine Datei darf höchstens 2 GB groß sein. Ein langes Hörbuch passt meist noch als eine Datei. Ist sie größer, steht dort: „Die Datei ist zu groß (mehr als 2 GB).“ Dann:
+
+1.  Kopiere die Datei am Computer in den Eingang-Ordner auf dem NAS.
+2.  Frag den Administrator nach dem Ordner.
+3.  Die Datei wird dann von selbst einsortiert. Sie erscheint bei „Zuletzt hinzugefügt“ mit „Wird einsortiert …“.
+
+## Cover ändern
+
+Das Cover ist das Bild bei einer Serie oder einem Einzeltitel. Du kannst ein eigenes Foto nehmen. Es gilt dann vor dem automatischen Cover. Das Cover erscheint nur in der Seite, nicht auf der Box.
+
+1.  Öffne die Serie oder den Einzeltitel.
+2.  Tippe auf den Knopf mit den drei Punkten (⋯) und dann auf „Cover ändern“.
+3.  Tippe auf „Foto wählen“. Am Handy kannst du ein neues Foto aufnehmen oder eines aus der Galerie nehmen.
+4.  Schneide das Bild zu. Verschiebe das Foto mit dem Finger oder mit den Pfeilen. Mit dem Regler „Ausschnitt größer oder kleiner“ wählst du den Ausschnitt. Das Quadrat in der Vorschau ist das Cover.
+5.  Tippe auf „Speichern“. Danach steht dort: „Das neue Cover ist gespeichert.“
+
+Mit „Abbrechen“ verwirfst du das Foto. Am Cover ändert sich dann nichts.
+
+**Zurück zum automatischen Cover:** Ist ein eigenes Foto da, steht unten „Zurück zum automatischen Cover“. Tippe darauf. Danach steht dort: „Es gilt wieder das automatische Cover.“
+
+**Foto zu groß oder falsch:** Ein Foto darf höchstens 20 MB groß sein. Sonst steht dort: „Das Foto ist zu groß (mehr als 20 MB). Nimm ein kleineres.“ Ist die Datei kein Bild, steht dort: „Das ist kein Bild. Bitte ein Foto wählen.“
 
 ## Wenn etwas nicht klappt
 

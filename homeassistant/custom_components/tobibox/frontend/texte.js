@@ -489,6 +489,12 @@ export const HINZU = {
     text: '{angekommen} von {anzahl} Dateien sind angekommen. Wähle die fehlende Datei noch einmal. Kommt sie nicht, wird mit den vorhandenen einsortiert und mit „Bitte ansehen“ markiert.',
     knopf: 'Fehlende Datei wählen', // Design 5.6, 6.1
   },
+  quelle: { nas: 'vom NAS', upload: 'vom Handy' }, // Design 7.3 Punkt 5 (`quelle` des Eintrags im Eingang, V-5)
+  erledigte: { // Design 7.3 Punkt 5: „Erledigte ausblenden“ merkt nur das Gerät (ehrlich gesagt: „auf diesem Gerät“)
+    aus: 'Erledigte ausblenden', zeigen: 'Erledigte zeigen', geraet: 'Das gilt nur auf diesem Gerät.',
+    versteckt: { eins: '1 erledigter Eintrag ist ausgeblendet.', mehr: '{anzahl} erledigte Einträge sind ausgeblendet.' }, // neu, nicht im Design
+  },
+  geht_nicht_sonst: 'Das hat nicht geklappt. Versuche es später noch einmal, sonst frag {verwalter_akk}.', // neu, nicht im Design (Eintrag „geht nicht“ ohne bekannten Grund)
   unterbrochen: 'Unterbrochen. Wähle die Datei noch einmal.', // Design 7.3 Punkt 8
   abgebrochen: 'Abgebrochen. Es wurde nichts einsortiert.', // neu, nicht im Design
   abgebrochen_teil: 'Abgebrochen. {angekommen} von {anzahl} Dateien waren schon angekommen. Sie werden nach einiger Zeit mit „Bitte ansehen“ einsortiert.', // neu, nicht im Design

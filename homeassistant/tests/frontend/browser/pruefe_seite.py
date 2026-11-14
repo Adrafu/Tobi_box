@@ -1539,9 +1539,124 @@ def ablauf_eingang(L: Lauf):
         L.messe("ablauf-eingang-bestaetigt")
 
 
+def ablauf_eingang_liste(L: Lauf):
+    """A11b Teil 2 (zugleich Rest von A14-1c): die Liste „Zuletzt hinzugefügt“ aus `eingang/list` nur über echte Klicks. Einträge vom NAS in allen Zuständen
+    (wird einsortiert, geht nicht, bitte kurz ansehen, fertig) mit „vom NAS“ und den Gründen; „Das ist richtig“; „Erledigte ausblenden“ (nur dieses Gerät);
+    ein Upload ist eine Zeile (nicht zwei); Neuladen mitten im Hochladen: „Unterbrochen. Wähle die Datei noch einmal.“ und weiter mit derselben Gruppe."""
+    import tempfile
+
+    karten = "[data-liste='zuletzt'] [data-eintrag]"
+    anzahl = f"() => window.__el.shadowRoot.querySelectorAll(\"{karten}\").length"
+
+    def karten_lesen():
+        return L.js("return [...sr.querySelectorAll(x)].map((k) => ({ phase: k.dataset.phase, quelle: k.querySelector('[data-quelle]')?.textContent.trim() ?? null, text: k.textContent.replace(/\\s+/g, ' ').trim() }))", karten)
+
+    with L.schritt("liste-nas"):
+        L.gehe("#hinzufuegen")
+        L.mock("/eingang", {"zustand": "nas"})
+        L.pg.wait_for_function("() => window.__el.shadowRoot.querySelectorAll(\"[data-liste='zuletzt'] [data-eintrag][data-quelle='nas']\").length === 4", timeout=8000)
+        L.ruhe()
+        k = [x for x in karten_lesen() if x["quelle"] == "vom NAS"]  # Karten früherer Abläufe (eigene Uploads) stehen auch in der Liste
+        L.pruefe(sorted(x["phase"] for x in k) == ["fehler", "fertig", "pruefen", "sortieren"], "liste-nas", f"Zustände der Karten: {[x['phase'] for x in k]}")
+        L.pruefe(all(x["quelle"] == "vom NAS" for x in k), "liste-nas", f"„vom NAS“ fehlt: {[x['quelle'] for x in k]}")
+        t = {x["phase"]: x["text"] for x in k}
+        L.pruefe("Wird einsortiert …" in t.get("sortieren", ""), "liste-nas", f"„Wird einsortiert …“ fehlt: {t.get('sortieren')!r}")
+        L.pruefe("Diese Datei ist kopiergeschützt" in t.get("fehler", "") and "Nimm eine Datei ohne Kopierschutz." in t.get("fehler", ""), "liste-nas", f"Grund und nächste Handlung fehlen: {t.get('fehler')!r}")
+        L.pruefe("In der Datei steht kein Albumname" in t.get("pruefen", "") and "Daraus ist geworden: Neuer Eintrag „Bibi Blocksberg“" in t.get("pruefen", ""), "liste-nas", f"Gründe und „Daraus ist geworden“ fehlen: {t.get('pruefen')!r}")
+        L.pruefe("Daraus ist geworden: „Kleine Reise“ · 1 neue Folge" in t.get("fertig", ""), "liste-nas", f"Daraus bei „fertig“: {t.get('fertig')!r}")
+        L.pruefe(all("Anders einsortieren" not in x["text"] for x in k), "liste-nas", "„Anders einsortieren“ gehört nicht in diese Liste")
+        L.pruefe(L.js("return [...sr.querySelectorAll(\"[data-phase='pruefen'] .btns .btn\")].map((b) => b.textContent.trim()).join('|')") == "Ansehen|Das ist richtig|Das stimmt nicht", "liste-nas", "Knöpfe der Karte „bitte ansehen“")
+        L.messe("liste-nas")
+    with L.schritt("liste-richtig"):
+        L.klick("[data-phase='pruefen'] [data-richtig]")
+        L.pg.wait_for_function("() => !window.__el.shadowRoot.querySelector(\"[data-phase='pruefen']\")", timeout=6000)
+        L.ruhe()
+        L.pruefe("Danke" in L.toast(), "liste-richtig", f"Meldung: {L.toast()!r}")
+        L.pruefe(L.js("return sr.querySelectorAll(\"[data-quelle='nas'][data-phase='fertig']\").length") == 2, "liste-richtig", "Die bestätigte Karte steht nicht mehr als „fertig“ da")
+        L.pruefe(L.js("return !!sr.activeElement?.closest?.(\"[data-phase='fertig']\")"), "liste-richtig", "Fokus nach „Das ist richtig“ nicht auf der Karte")
+        zum_reiter(L, "bibliothek")
+        L.pg.wait_for_function("() => !window.__el.shadowRoot.querySelector('[data-eingang-band=pruefen]')", timeout=6000)
+        L.gehe("#hinzufuegen")
+    with L.schritt("liste-ausblenden"):
+        L.pruefe(L.js("return sr.querySelector('[data-erledigte-hinweis]')?.textContent.trim()") == "Das gilt nur auf diesem Gerät.", "liste-ausblenden", "Der Hinweis „auf diesem Gerät“ fehlt")
+        voll = L.js("return sr.querySelectorAll(x).length", karten)
+        erledigte = L.js("return sr.querySelectorAll(x + \"[data-phase='fertig']\").length", karten)
+        L.klick("[data-erledigte-aus]")
+        L.pruefe(L.js("return sr.querySelectorAll(x).length", karten) == voll - erledigte and L.js("return sr.querySelectorAll(x + \"[data-phase='fertig']\").length", karten) == 0, "liste-ausblenden", "Erledigte sind nicht ausgeblendet")
+        L.pruefe(f"{erledigte} erledigte Einträge sind ausgeblendet. Das gilt nur auf diesem Gerät." in L.js("return sr.querySelector('[data-erledigte-hinweis]').textContent"), "liste-ausblenden", "Hinweis zu den ausgeblendeten")
+        L.messe("liste-ausgeblendet")
+        L.klick("[data-erledigte-aus]")
+        L.pruefe(L.js("return sr.querySelectorAll(x).length", karten) == voll, "liste-ausblenden", "„Erledigte zeigen“ bringt sie nicht zurück")
+        L.mock("/eingang", {"zustand": "leer"})
+        L.pg.wait_for_function("() => !window.__el.shadowRoot.querySelector(\"[data-liste='zuletzt'] [data-quelle='nas']\")", timeout=8000)
+    with L.schritt("liste-neuladen"):
+        with tempfile.TemporaryDirectory(prefix="tb-hz2-") as tmp:
+            tmp = Path(tmp)
+            drei = hz_dateien(tmp, ["11 Der Leuchtturm.mp3", "12 Die Welle.mp3", "13 Der Nebel.mp3"])
+            L.aufraeumen()
+            meine = lambda: [x for x in karten_lesen() if "Leuchtturm" in x["text"]]  # Karten dieses Ablaufs (frühere Abläufe lassen eigene Karten stehen)
+            hz_waehlen(L, "[data-dateien-waehlen]", drei)
+            L.klick('dialog[open] [data-ziel="neu"]')
+            L.pg.locator("dialog[open] #hz-name").fill("Sturmgeschichten")
+            L.klick("dialog[open] .knoepfe button.primary")
+            L.pg.wait_for_function("() => /Datei 2 von 3/.test(window.__el.shadowRoot.querySelector('[data-liste=\"zuletzt\"] [data-status]')?.textContent ?? '')", timeout=15000)
+            L.pruefe(len(meine()) == 1, "liste-doppelt", "Ein Upload ist eine Zeile")
+            L.pg.reload()
+            L.pg.wait_for_function("() => window.__el && window.__el.shadowRoot && window.__el.shadowRoot.querySelector('main') && window.__mess", timeout=15000)
+            L.ruhe()
+            L.gehe("#hinzufuegen")
+            L.warte_da("[data-liste='zuletzt'] [data-phase='fehlt']")
+            k = [x for x in meine() if x["phase"] == "fehlt"]
+            L.pruefe(len(k) == 1 and len(meine()) == 1, "liste-neuladen", f"Nach dem Neuladen eine Karte „fehlt“ erwartet: {meine()}")
+            L.pruefe(bool(k) and "Unterbrochen. Wähle die Datei noch einmal." in k[0]["text"] and "Es fehlt noch eine Datei." in k[0]["text"], "liste-neuladen", f"Text: {k and k[0]['text']!r}")
+            L.messe("liste-unterbrochen")
+            for _ in range(3):  # jede Wahl schickt eine Datei; die Gruppe ist komplett, wenn nichts „Unterbrochen“ mehr zeigt
+                if not L.da("[data-liste='zuletzt'] [data-fehlende]"):
+                    break
+                hz_waehlen(L, "[data-liste='zuletzt'] [data-fehlende]", [drei[1]])
+                L.pg.wait_for_function("() => !window.__el.shadowRoot.querySelector(\"[data-liste='zuletzt'] [data-phase='hochladen'], [data-liste='zuletzt'] [data-phase='wartet']\")", timeout=15000)
+            L.pg.wait_for_function("() => { const s = window.__el.shadowRoot; return !s.querySelector(\"[data-liste='zuletzt'] [data-phase='hochladen'], [data-liste='zuletzt'] [data-phase='wartet'], [data-liste='zuletzt'] [data-phase='sortieren'], [data-liste='zuletzt'] [data-phase='fehlt']\"); }", timeout=20000)
+            L.ruhe()
+            L.pruefe(len(meine()) == 1 and meine()[0]["phase"] in ("fertig", "pruefen"), "liste-neuladen", f"Nach dem Weitersenden ist es eine Zeile, einsortiert: {meine()}")
+            L.pruefe(L.js("return el.store.s.lokaleUploads") == 0, "liste-neuladen", "Das Band zählt noch einen Upload, obwohl alles einsortiert ist")
+            ups = L.mock("/zustand")["uploads"]
+            L.pruefe(len({u["gruppe"] for u in ups if u["name"] == "Sturmgeschichten"}) == 1, "liste-neuladen", "Dieselbe Gruppe nach dem Neuladen")
+
+
+def ablauf_papierkorb(L: Lauf):
+    """A14-1c: Papierkorb nur über echte Klicks. Als Nicht-Administrator: Eintrag in den Papierkorb mit der Rückfrage („Der Administrator bekommt eine Mitteilung und kann
+    es zurückholen.“), Meldung; „Letzte Stunde zurückholen“ ist Administratorsache (Technik), der Benutzer sieht die Sperre. Als Administrator: „Letzte Stunde zurückholen“ mit Rückfrage.
+    Läuft zuletzt: die Serie `kurz` ist danach im Papierkorb."""
+    admin = L.job["rolle"] == "admin"
+    with L.schritt("korb-serie"):
+        L.gehe("#serie-kurz")
+        name = L.js("return sr.querySelector('main h2')?.textContent.trim()")
+        L.klick("[data-menue-serie]")
+        L.klick('dialog [data-menue="papierkorb"]')
+        satz = L.js("return sr.querySelector('dialog[open]')?.textContent.replace(/\\s+/g, ' ')") or ""
+        L.pruefe("Der Administrator bekommt eine Mitteilung und kann es zurückholen." in satz, "korb-serie", f"Die Rückfrage nennt die Mitteilung nicht: {satz!r}")
+        L.messe("korb-rueckfrage")
+        L.klick("dialog[open] .knoepfe .btn.danger")
+        L.warte_hash("#bibliothek")
+        L.pruefe(f"„{name}“ ist im Papierkorb." in L.toast(), "korb-serie", f"Meldung: {L.toast()!r} (Name {name!r})")
+        L.gehe("#serie-kurz")
+        L.pruefe(not L.da("[data-menue-serie]"), "korb-serie", "Die Serie im Papierkorb ist noch zu öffnen")
+    with L.schritt("korb-letzte-stunde"):
+        L.gehe("#technik-speicher")
+        if not admin:
+            L.pruefe(L.da('[data-zustand="nur-admin"]') and not L.da('[data-aktion="letzte_stunde"]'), "korb-letzte-stunde", "Der Benutzer sieht „Letzte Stunde zurückholen“")
+            return
+        L.warte_da('[data-aktion="letzte_stunde"]')
+        L.klick('[data-aktion="letzte_stunde"]')
+        L.pruefe("Alles, was in der letzten Stunde in den Papierkorb kam" in (L.js("return sr.querySelector('dialog[open]')?.textContent") or ""), "korb-letzte-stunde", "Rückfrage fehlt")
+        L.klick("dialog[open] .knoepfe .btn.primary")
+        L.pg.wait_for_function("() => /zurückgeholt\\./.test(window.__el.shadowRoot.querySelector('.toast:not(.err) .tmsg')?.textContent ?? '')", timeout=6000)
+        L.pruefe(bool(re.match(r"^\d+ Eintr(?:ag|äge) zurückgeholt\.$", L.toast())), "korb-letzte-stunde", f"Meldung: {L.toast()!r}")
+
+
 ABLAEUFE = [ablauf_unterkante, ablauf_reiter, ablauf_klicks, ablauf_reihen, ablauf_suche, ablauf_bibliothek, ablauf_serie, ablauf_cover, ablauf_leise, ablauf_box, ablauf_technik, ablauf_blaetter,
             ablauf_tobies_weg1, ablauf_tobies_weg2, ablauf_tobies_meldung, ablauf_tobies_umhaengen, ablauf_tobies_geben, ablauf_tobies_lernmodus,
-            ablauf_tobies_name_geben_weit_unten, ablauf_hinzufuegen, ablauf_eingang]
+            ablauf_tobies_name_geben_weit_unten, ablauf_hinzufuegen, ablauf_eingang_liste, ablauf_eingang, ablauf_papierkorb]
 
 
 # ------------------------------------------------------------------ Browser und Läufe
@@ -1582,7 +1697,8 @@ def lauf_job(job):
                 pg.on("console", lambda m: konsole.append(f"{m.type}: {m.text}") if m.type in ("error", "warning") and not gewollt.search(m.text) else None)
                 pg.on("pageerror", lambda e: konsole.append(f"pageerror: {e}"))
                 pg.on("response", lambda r: konsole.append(f"HTTP {r.status} {r.url}") if r.status >= 400 and not (r.status in (413, 507) and r.url.endswith("/api/tobibox/upload")) else None)
-                pg.on("requestfailed", lambda r: konsole.append(f"requestfailed {r.url} {r.failure}"))
+                # Das Neuladen mitten im Hochladen (Ablauf „liste-neuladen“) bricht die laufende Anfrage ab: gewollt
+                pg.on("requestfailed", lambda r: konsole.append(f"requestfailed {r.url} {r.failure}") if not (r.url.endswith("/api/tobibox/upload") and "ERR_ABORTED" in str(r.failure)) else None)
                 q = f"theme={job['thema']}&k={job['profil']}~{job['kennung']}" + (f"&pw={job['breite']}" if job["art"] == "panel" else "") + ("&hs=256" if job["art"] == "ha" else "")
                 pg.goto(f"{job['basis']}/seite.html?{q}")
                 pg.wait_for_function("() => window.__el && window.__el.shadowRoot && window.__el.shadowRoot.querySelector('main') && window.__mess", timeout=15000)

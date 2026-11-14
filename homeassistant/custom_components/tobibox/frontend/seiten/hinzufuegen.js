@@ -9,15 +9,20 @@
  *   - Einstiege: Seite (Knöpfe, Ziehen), „+“ der Bibliothek am Handy (`plusKlick`: gleich die Dateiauswahl, N26), Menü „Dateien in diesen Eintrag“
  *     der Serienseite (`dateienInEintrag`: gleich die Vorschau b).
  *
- * Für A11b (Eingang-Anbindung, 24-Stunden-Liste): „Zuletzt hinzugefügt“ ist `modell.zeilen()` (neueste zuerst). Jede Zeile ist ein Auftrag dieses Geräts
- * (`art: 'upload'`); A11b mischt Einträge aus `eingang/list` mit anderem `art` (zum Beispiel `'eingang'`) dazu und gibt `karte(zeile)` eine Darstellung dafür.
+ * A11b (Eingang-Anbindung): „Zuletzt hinzugefügt“ ist **eine** Liste (`HinzSeite.zeilen()`, neueste zuerst): die Aufträge dieses Geräts (`modell.zeilen()`,
+ * `art: 'upload'`) und alle Einträge der letzten 24 Stunden aus `eingang/list` (`art: 'eingang'`; auch vom NAS und von anderen Geräten, `ctx.eingang()`).
+ * Ein Auftrag und der Eintrag, den er im Eingang angelegt hat, sind **eine** Zeile: der Auftrag „besitzt“ den Eintrag (`gehoertZu`: Gruppen-Ordner
+ * „Upload <8 Zeichen>“ oder Dateiname), der Eintrag wird dann nicht noch einmal gezeigt. Nach einem Neuladen gibt es nur noch die Einträge aus `eingang/list`;
+ * Uploads, die mitten im Hochladen stehen geblieben sind, merkt sich das Gerät (`localStorage`, nur Namen und Wunsch) und zeigt sie als
+ * „Unterbrochen. Wähle die Datei noch einmal.“ (Design 7.3 Punkt 8). Band und Punkt am Reiter zählen die Aufträge über `ctx.lokaleUploads(n, namen)`.
  * Das Ergebnis des eigenen Hochladens kommt aus `eingang/list` (Abfrage alle paar Sekunden, nur solange etwas einsortiert wird): `a.eingang` =
  * `{ art: 'fertig' | 'pruefen' | 'fehler' | 'fehlt' | 'lange', eintraege, ergebnis, hinweise }`; die Texte dazu baut `ergebnisText`, die Gründe
  * `gruende`. Ohne Fähigkeit `einsortier_wunsch` gibt es keine Wahl: die Dateien gehen gleich hoch (alte Felder `serie_id`, `gruppe`).
  */
 import { html, nothing, css, ic, cover, untertitel } from '../bausteine.js';
-import { HINZU, KACHELN, SEITE, SERIE, TOBIES, GRUENDE, HINWEISE, FEHLER, ZEILE, fuellen, fehlerText } from '../texte.js';
+import { HINZU, KACHELN, SEITE, SERIE, TOBIES, GRUENDE, HINWEISE, FEHLER, ZEILE, EINGANG, fuellen, fehlerText } from '../texte.js';
 import { Zielwahl } from './tobies.js';
+import { FENSTER_MS, eintragGruende, daraus as eingangDaraus } from '../eingang.js';
 import {
   Hochlader, GRUPPE_MAX, ZUSTAENDE_NEU_WAEHLEN, neueId, pruefeDateien, sortiereNatuerlich, nameVorschlag, artVorschlag, liesAngaben, titelAusDateiname,
   dateienAusDrop, gesamtProzent, dateiProzent, aktuelleDatei, phaseVon, dateiFehlerText, grenzeText,
@@ -105,6 +110,9 @@ export function vorschauZeilen(w) {
 
 const eindeutig = (liste) => [...new Set(liste)];
 
+/* Die Marke einer Karte („fertig“, „bitte ansehen“, „geht nicht“ …): Farbe und Wort, nie nur die Farbe. */
+const marke = (art, text) => html`<span class=${`hz-marke ${art}`} data-marke=${art}>${art === 'ok' ? sym('haken', 18) : nothing}${text}</span>`;
+
 /* Wie das Hochladen im Backend ankommt (Design 7.3 Punkt 3, Vertrag 14.4). */
 export function wunschFuer(w, gruppe = neueId()) {
   const n = w.dateien.length;
@@ -129,6 +137,20 @@ export function eingangsNamen(a) {
 }
 
 const fertigEintrag = (e) => !!e.fertig_am || ['blockiert', 'teilweise', 'erledigt'].includes(e.status);
+
+/* Gehört dieser Eintrag aus `eingang/list` zu diesem Auftrag? (Dann zeigt die Seite nur den Auftrag.) Nur Einträge, die über den Upload kamen:
+ * ein Eintrag vom NAS mit zufällig demselben Dateinamen ist ein anderer. */
+export function gehoertZu(a, e) {
+  if (!e || e.quelle === 'nas') return false;
+  const n = eingangsNamen(a);
+  return (!!n.ordner && e.name === n.ordner) || n.dateien.includes(e.name);
+}
+
+/* Was sich das Gerät merkt (`localStorage`; jeder Zugriff in `try`, ohne Speicher geht alles weiter, nur ohne Merken). */
+const SPEICHER_OFFEN = 'tobibox.hinzufuegen.offen'; // Aufträge, die beim Neuladen mitten im Hochladen waren
+const SPEICHER_AUS = 'tobibox.hinzufuegen.erledigte_aus'; // „Erledigte ausblenden“ (Design 7.3 Punkt 5: nur dieses Gerät)
+const speicherLies = (k) => { try { return window.localStorage?.getItem(k) ?? null; } catch { return null; } };
+const speicherSchreibe = (k, v) => { try { if (v === null) window.localStorage?.removeItem(k); else window.localStorage?.setItem(k, v); } catch { /* ohne Speicher */ } };
 
 /* Ordnet die Antwort von `eingang/list` einem Auftrag zu. Liefert `null`, solange der Eintrag fehlt oder noch einsortiert wird, sonst
  * { art, eintraege, ergebnis, hinweise }. */
@@ -246,10 +268,60 @@ class HinzModell {
     this.ueber = false; // etwas wird über die Ziehfläche gezogen
     this.abfrageMs = ABFRAGE_MS; // Tests setzen kürzere Zeiten
     this.langeMs = LANGE_MS;
+    this.erledigteAus = speicherLies(SPEICHER_AUS) === '1'; // „Erledigte ausblenden“ gilt nur auf diesem Gerät
+    this.bestaetigt = new Set(); // Einträge, bei denen jemand hier „Das ist richtig“ getippt hat (für Backends ohne Bibliothek, die `pruefen` nicht löschen)
+    this.fokusId = null; // Eintrag, dessen Karte nach dem nächsten Zeichnen den Fokus bekommt
     this.lader = new Hochlader(ctx, {
-      aenderung: () => ctx.neuZeichnen(),
+      aenderung: () => { this._lokale(); ctx.neuZeichnen(); },
       fertig: (a) => this._nachUpload(a),
     });
+    this._wiederherstellen();
+  }
+
+  /* ---- Merken über das Neuladen hinweg: Aufträge, die bei „wird hochgeladen“ oder „es fehlt eine Datei“ stehen, mit Namen und Wunsch (keine Dateien).
+   * Nach dem Neuladen stehen die nicht fertigen Dateien auf „Unterbrochen. Wähle die Datei noch einmal.“ (Design 7.3 Punkt 8); die schon angekommenen
+   * bleiben angekommen, ein Auftrag mit Gruppe sendet beim erneuten Wählen mit derselben `gruppe` weiter. Älter als 24 Stunden: vergessen. */
+  _wiederherstellen() {
+    let roh = [];
+    try { roh = JSON.parse(speicherLies(SPEICHER_OFFEN) || '[]'); } catch { roh = []; }
+    if (!Array.isArray(roh)) return;
+    const jetzt = Date.now();
+    for (const r of roh) {
+      if (!r || !Array.isArray(r.dateien) || !(jetzt - Number(r.angelegt) <= FENSTER_MS)) continue;
+      const dateien = r.dateien.map((d) => ({
+        id: d.id || neueId(), datei: null, name: String(d.name ?? ''), groesse: Number(d.groesse) || 0, wunschName: d.wunschName ?? null,
+        zustand: d.fertig ? 'fertig' : 'unterbrochen', gesendet: d.fertig ? Number(d.groesse) || 0 : 0, code: null, hinweis: null, eingangName: d.eingangName ?? null,
+      }));
+      if (!dateien.some((d) => d.zustand !== 'fertig')) continue;
+      this.eintraege.push({
+        id: r.id || neueId(), art: 'upload', wunsch: r.wunsch ?? null, abgelehnt: Array.isArray(r.abgelehnt) ? r.abgelehnt : [], angelegt: Number(r.angelegt), eingang: null, details: null, polls: 0,
+        dateien, erledigt: true, laeuft: false, gestartet: true, abgebrochen: false, wiederhergestellt: true,
+      });
+    }
+    this.eintraege.sort((x, y) => y.angelegt - x.angelegt);
+  }
+
+  _merkeOffene() {
+    const offen = this.eintraege.filter((a) => a.dateien.length && ['wartet', 'hochladen', 'fehlt'].includes(phaseVon(a)));
+    speicherSchreibe(SPEICHER_OFFEN, offen.length ? JSON.stringify(offen.map((a) => ({
+      id: a.id, wunsch: a.wunsch, angelegt: a.angelegt, abgelehnt: (a.abgelehnt || []).map((x) => ({ name: x.name, code: x.code, groesse: x.groesse })),
+      dateien: a.dateien.map((d) => ({ id: d.id, name: d.name, groesse: d.groesse, wunschName: d.wunschName, fertig: d.zustand === 'fertig', eingangName: d.eingangName })),
+    }))) : null);
+  }
+
+  /* Band und Punkt am Reiter „Bibliothek“ zählen die Aufträge mit (`ctx.lokaleUploads`); die Namen sagen, welche Einträge im Eingang schon zu ihnen gehören,
+   * damit nichts doppelt zählt. */
+  _lokale() {
+    const l = this.laufend;
+    const namen = l.flatMap((a) => { const n = eingangsNamen(a); return [n.ordner, ...n.dateien].filter(Boolean); });
+    try { this.ctx.lokaleUploads?.(l.length, namen); } catch { /* die Seite darf daran nicht scheitern */ }
+    this._merkeOffene();
+  }
+
+  setzeErledigteAus(an) {
+    this.erledigteAus = !!an;
+    speicherSchreibe(SPEICHER_AUS, an ? '1' : null);
+    this.ctx.neuZeichnen();
   }
 
   zeilen() { return this.eintraege.map((a) => ({ art: 'upload', id: a.id, auftrag: a })); }
@@ -400,6 +472,7 @@ class HinzModell {
     };
     this.eintraege.unshift(a);
     this.lader.einreihen(a);
+    this._lokale();
     this.ctx.schliesseBlatt?.('knopf');
     if (!/^#hinzufuegen\b/.test(window.location.hash || '')) this.ctx.navigiere('#hinzufuegen');
     this.ctx.neuZeichnen();
@@ -412,6 +485,7 @@ class HinzModell {
     if (g.fehler.length) { this.ctx.meldeFehler(fehlerText(g.fehler[0].code, { grenze: grenzeText(this.ctx.grenzen?.().upload_max_bytes), admin: this.ctx.admin })); return; }
     if (!g.gut.length) return;
     a.fokus = false;
+    a.fortgesetzt = true;
     this.lader.nochEinmal(a, g.gut[0]);
   }
 
@@ -419,13 +493,14 @@ class HinzModell {
 
   /* ---- Nach dem Hochladen: Ergebnis aus dem Eingang */
   _nachUpload(a) {
+    this.ctx.eingangNeuLaden?.(); // der Eingang kennt die Datei jetzt: Band und Liste holen sich den neuen Stand
     if (phaseVon(a) !== 'sortieren') { this._merke(a); return; }
     a.fertigAm = Date.now();
     if (!this.ctx.faehig('eingang')) { a.eingang = { art: 'fertig', eintraege: [], ergebnis: [], hinweise: [], angekommen: a.dateien.length, ohne: true }; this._merke(a); return; }
     this._planeAbfrage(this.abfrageMs[0]);
   }
 
-  _merke(a) { a.fokus = true; this.ctx.ansage(this._ansageText(a)); this.ctx.neuZeichnen(); }
+  _merke(a) { a.fokus = true; this._lokale(); this.ctx.ansage(this._ansageText(a)); this.ctx.neuZeichnen(); }
 
   _ansageText(a) {
     const p = this.anzeigePhase(a);
@@ -455,12 +530,13 @@ class HinzModell {
     for (const a of offen) {
       a.polls += 1;
       const e = antwort ? eingangFuer(a, liste) : null;
-      if (e) { a.eingang = e; this._ladeDetails(a); this._merke(a); } else if (Date.now() - (a.fertigAm || 0) > this.langeMs) {
+      if (e) { a.eingang = e; this._ladeDetails(a); this._merke(a); this.ctx.eingangNeuLaden?.(); } else if (Date.now() - (a.fertigAm || 0) > this.langeMs) {
         a.eingang = { art: 'lange', eintraege: [], ergebnis: [], hinweise: [], angekommen: 0 };
         this._merke(a);
       }
     }
     if (this.eintraege.some((a) => phaseVon(a) === 'sortieren' && !a.eingang)) this._planeAbfrage(Math.max(...offen.map((a) => a.polls)) >= 20 ? 10000 : this.abfrageMs[1]);
+    this._lokale();
     this.ctx.neuZeichnen();
   }
 
@@ -481,6 +557,20 @@ class HinzModell {
       a.eingang = { ...a.eingang, art: 'fertig', ergebnis: a.eingang.ergebnis.map((x) => ({ ...x, pruefen: false })) };
       a.fokus = true;
       this.ctx.melde(SERIE.ansehen.danke);
+      this.ctx.eingangNeuLaden?.(); // das Band in der Bibliothek zählt den Eintrag nicht mehr als „bitte kurz ansehen“
+    } catch (err) { this.ctx.meldeFehler(this.ctx.fehlerText(err?.code || 'unknown_error')); }
+    this.ctx.neuZeichnen();
+  }
+
+  /* „Das ist richtig“ bei einem Eintrag aus dem Eingang (NAS, anderes Gerät, nach dem Neuladen): bestätigt die betroffenen Serien (Vertrag 28). */
+  async richtigEintrag(e) {
+    const ids = eindeutig((e.ergebnis || []).filter((x) => x.pruefen && x.serie_id).map((x) => x.serie_id));
+    try {
+      for (const id of ids) await this.ctx.api('tobibox/einsortierung/bestaetigen', { serie_id: id });
+      this.bestaetigt.add(e.id);
+      this.fokusId = e.id;
+      this.ctx.melde(SERIE.ansehen.danke);
+      this.ctx.eingangNeuLaden?.();
     } catch (err) { this.ctx.meldeFehler(this.ctx.fehlerText(err?.code || 'unknown_error')); }
     this.ctx.neuZeichnen();
   }
@@ -590,7 +680,14 @@ class HinzSeite {
     this.m = modell(ctx);
   }
 
+  /* Die Seite lädt beim Öffnen `eingang/list` neu (Design 7.3 Punkt 5); danach halten die Ereignisse des Themas `eingang` die Liste aktuell. */
+  betreten() { this.ctx.eingangNeuLaden?.(); }
+
   nachRender(wurzel) {
+    if (this.m.fokusId) { // nach „Das ist richtig“ bei einem Eintrag aus dem Eingang: die Karte, die den Knopf ersetzt hat
+      const k = wurzel.querySelector(`[data-eintrag="${this.m.fokusId}"]`);
+      if (k) { this.m.fokusId = null; k.focus({ preventScroll: true }); }
+    }
     // Die Fertig-Karte erhält den Fokus, wenn sie die Fortschrittskarte ersetzt (Design 14; `aria-live` allein genügt Tastaturnutzern nicht)
     for (const a of this.m.eintraege) {
       if (!a.fokus) continue;
@@ -606,7 +703,9 @@ class HinzSeite {
   render() {
     const m = this.m;
     const fein = zeigerFein();
-    const zeilen = m.zeilen();
+    const alle = this.zeilen();
+    const erledigt = alle.filter((z) => this._erledigt(z)).length;
+    const zeilen = m.erledigteAus ? alle.filter((z) => !this._erledigt(z)) : alle;
     return html`<a class="back" href="#bibliothek" data-zurueck>${SEITE.zurueck.bibliothek}</a><h2>${SEITE.seiten.hinzufuegen}</h2>
       <div class="hz-wahl" data-hinzufuegen>
         <button type="button" class="btn primary hz-gross" data-dateien-waehlen @click=${() => m.waehle()}>${sym('datei', 28)}${HINZU.dateien_waehlen}</button>
@@ -615,11 +714,42 @@ class HinzSeite {
       ${fein ? html`<div class=${`hz-zieh${m.ueber ? ' ueber' : ''}`} data-ziehflaeche @dragenter=${(e) => { e.preventDefault(); m.ueber = true; this.ctx.neuZeichnen(); }}
         @dragover=${(e) => { e.preventDefault(); }} @dragleave=${(e) => { if (e.currentTarget === e.target) { m.ueber = false; this.ctx.neuZeichnen(); } }} @drop=${(e) => m.ziehen(e)}>
         ${sym('datei', 32)}<span>${m.ueber ? HINZU.ziehen_los : HINZU.ziehen}</span></div>` : nothing}
-      ${zeilen.length ? html`<h3 class="hz-h" data-titel="zuletzt">${HINZU.zuletzt}</h3><div class="hz-liste" data-liste="zuletzt">${zeilen.map((z) => this.karte(z))}</div>` : nothing}`;
+      ${alle.length ? html`<h3 class="hz-h" data-titel="zuletzt">${HINZU.zuletzt}</h3>
+        ${erledigt || m.erledigteAus ? this._ausblenden(erledigt) : nothing}
+        ${zeilen.length ? html`<div class="hz-liste" data-liste="zuletzt">${zeilen.map((z) => this.karte(z))}</div>` : nothing}` : nothing}`;
   }
 
-  /* Eine Zeile unter „Zuletzt hinzugefügt“. A11b ergänzt hier die Einträge aus dem Eingang (`z.art !== 'upload'`). */
+  /* „Erledigte ausblenden“: ein Schalter, der sich nur dieses Gerät merkt (Design 7.3 Punkt 5; ehrlich gesagt). */
+  _ausblenden(erledigt) {
+    const m = this.m;
+    const T = HINZU.erledigte;
+    return html`<div class="hz-aus" data-erledigte>
+      <button type="button" class="btn" data-erledigte-aus aria-pressed=${m.erledigteAus ? 'true' : 'false'} @click=${() => m.setzeErledigteAus(!m.erledigteAus)}>${m.erledigteAus ? T.zeigen : T.aus}</button>
+      <span class="muted" data-erledigte-hinweis>${m.erledigteAus && erledigt ? `${fuellen(erledigt === 1 ? T.versteckt.eins : T.versteckt.mehr, { anzahl: erledigt })} ` : ''}${T.geraet}</span></div>`;
+  }
+
+  /* Die Zeilen von „Zuletzt hinzugefügt“, neueste zuerst: die Aufträge dieses Geräts und die Einträge der letzten 24 Stunden aus `eingang/list`, die zu
+   * keinem Auftrag gehören (NAS, andere Geräte, nach dem Neuladen). Ein Auftrag und sein Eintrag im Eingang sind eine Zeile. */
+  zeilen() {
+    const m = this.m;
+    const abl = this.ctx.eingang?.() ?? null;
+    const liste = abl?.liste || [];
+    const lokal = m.zeilen().filter((z) => {
+      const a = z.auftrag;
+      if (!a.wiederhergestellt || a.fortgesetzt) return true; // nach „Datei noch einmal wählen“ läuft der Auftrag wieder: er bleibt sichtbar
+      const e = liste.map((x) => x.eintrag).filter((x) => gehoertZu(a, x));
+      return !e.some(fertigEintrag); // der Eingang hat die Gruppe inzwischen selbst einsortiert (30 Minuten Ruhe): dann steht dort der Eintrag
+    }).map((z) => ({ ...z, zeit: z.auftrag.angelegt }));
+    const frei = liste.filter((x) => !lokal.some((z) => gehoertZu(z.auftrag, x.eintrag)))
+      .map((x) => ({ art: 'eingang', id: x.eintrag.id, eintrag: x.eintrag, zustand: x.zustand === 'pruefen' && m.bestaetigt.has(x.eintrag.id) && x.eintrag.status !== 'teilweise' ? 'fertig' : x.zustand, zeit: x.zeit }));
+    return [...lokal, ...frei].sort((x, y) => y.zeit - x.zeit);
+  }
+
+  _erledigt(z) { return z.art === 'upload' ? this.m.anzeigePhase(z.auftrag) === 'fertig' : z.zustand === 'fertig'; }
+
+  /* Eine Zeile unter „Zuletzt hinzugefügt“: ein Auftrag dieses Geräts (`upload`) oder ein Eintrag aus dem Eingang (`eingang`). */
   karte(z) {
+    if (z.art === 'eingang') return this._eingangKarte(z);
     if (z.art !== 'upload') return nothing;
     const a = z.auftrag;
     const p = this.m.anzeigePhase(a);
@@ -665,6 +795,48 @@ class HinzSeite {
     }
     if (p === 'fehlt') return this._fehlt(a, kopf, marke);
     return this._fehler(a, kopf, marke);
+  }
+
+  /* ---- Einträge aus dem Eingang (NAS: ohne die Leiste „Hochladen“ davor, Design 7.3 Punkt 10; anderes Gerät, nach dem Neuladen): wird einsortiert, fertig, bitte kurz ansehen, geht nicht, es fehlt noch eine Datei.
+   * „Anders einsortieren“ gibt es hier nicht (Design 15, A11b: kommt mit A-3); „Das stimmt nicht“ führt zur Serienseite, dort steht die Auswahl (Design 5.3). */
+  _eingangKarte(z) {
+    const e = z.eintrag;
+    const T = HINZU;
+    const n = Math.max(1, Number(e.dateien) || 1);
+    const generisch = !e.name || /^Upload [0-9a-f]{6,}$/i.test(e.name); // der Ordner, den die Seite für eine Gruppe anlegt, heißt nur „Upload ab12cd34“
+    const titel = generisch ? dateienText(n) : fuellen(T.titel_dateien, { dateien: dateienText(n), namen: e.name });
+    const q = T.quelle[e.quelle] ?? null;
+    const kopf = html`<div class="hz-titel" data-titel-eintrag>${titel}</div>`;
+    const zeile = (art, text) => html`<div class="hz-zeile2">${art ? marke(art, text) : nothing}${q ? html`<span class="hz-quelle" data-quelle=${e.quelle}>${q}</span>` : nothing}</div>`;
+    const ids = eindeutig((e.ergebnis || []).map((x) => x.serie_id).filter(Boolean));
+    const offene = eindeutig((e.ergebnis || []).filter((x) => x.pruefen && x.serie_id).map((x) => x.serie_id));
+    const ziel = (liste) => (liste.length === 1 ? `#serie-${encodeURIComponent(liste[0])}` : '#bibliothek?sortierung=neu');
+    const wasDaraus = eingangDaraus(e) || EINGANG.daraus_nichts;
+    const rahmen = (klasse, phase, inhalt) => html`<div class=${`hz-karte ${klasse}`} data-eintrag=${e.id} data-phase=${phase} data-quelle=${e.quelle ?? nothing} tabindex="-1">${kopf}${inhalt}</div>`;
+    if (z.zustand === 'laeuft') {
+      return rahmen('', 'sortieren', html`${zeile(null)}${e.quelle === 'nas' ? nothing : this._schritte(null, 1)}<div class="hz-status" role="status" data-status>${T.einsortiert}</div>`);
+    }
+    if (z.zustand === 'fehler') {
+      const saetze = eintragGruende(e);
+      return rahmen('note err', 'fehler', html`${zeile('err', T.marke.geht_nicht)}
+        <div data-geht-nicht><strong>${T.geht_nicht}</strong> ${(saetze.length ? saetze : [fuellen(T.geht_nicht_sonst)]).map((t) => html` <span class="hz-grund" data-grund>${t}</span>`)}</div>`);
+    }
+    if (z.zustand === 'pruefen') {
+      const fehlt = (e.hinweise || []).some((h) => h.code === 'gruppe_unvollstaendig');
+      const saetze = eintragGruende(e);
+      const richtig = e.status !== 'teilweise' && offene.length > 0;
+      const wohin = offene.length ? offene : ids;
+      return rahmen('note warn', fehlt ? 'fehlt' : 'pruefen', html`${zeile('warn', fehlt ? T.marke.fehlt : T.marke.ansehen)}
+        <div><strong>${T.ansehen_titel}</strong> ${(saetze.length ? saetze : [EINGANG.grund_sonst]).map((t) => html` <span class="hz-grund" data-grund>${t}</span>`)}</div>
+        <div data-daraus>${wasDaraus}</div>
+        ${wohin.length || richtig ? html`<div class="btns">
+          ${wohin.length ? html`<a class="btn" href=${ziel(wohin)} data-ansehen>${T.ansehen}</a>` : nothing}
+          ${richtig ? html`<button type="button" class="btn" data-richtig @click=${() => this.m.richtigEintrag(e)}>${T.richtig}</button>` : nothing}
+          ${wohin.length ? html`<a class="btn" href=${ziel(wohin)} data-stimmt-nicht>${SERIE.ansehen.stimmt_nicht}</a>` : nothing}</div>` : nothing}`);
+    }
+    return rahmen('fertig', 'fertig', html`${zeile('ok', T.marke.fertig)}
+      <div class="hz-text" data-daraus>${wasDaraus}</div>
+      ${ids.length ? html`<div class="btns"><a class="btn" href=${ziel(ids)} data-oeffnen>${T.oeffnen}</a></div>` : nothing}`);
   }
 
   /* Dateien, die nicht hochgeladen werden (zu groß, falsches Format), neben denen, die hochgeladen werden: die Warnung steht an der Karte (Design 5.6). */
@@ -745,6 +917,9 @@ export const stil = () => css`
   .hz-karte.note { margin: 0; box-shadow: none; }
   .hz-karte.fertig { border: 1px solid var(--line); }
   .hz-titel { font-weight: 500; overflow-wrap: anywhere; }
+  .hz-quelle { font-size: 14px; color: var(--text); }
+  .hz-aus { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin: 0 0 8px; }
+  .hz-aus .muted { font-size: 14px; }
   .hz-zeile2 { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
   .hz-marke { display: inline-flex; align-items: center; gap: 4px; min-height: 24px; padding: 0 10px; border-radius: 12px; font-size: 13px; font-weight: 700; border: 1px solid var(--line); background: var(--card); color: var(--text); }
   .hz-marke svg { fill: currentColor; }

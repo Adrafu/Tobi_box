@@ -96,6 +96,13 @@ const ZUSTAENDE_EINGANG = (() => {
     pruefen2: (j) => [[], [ansehen(j), ansehen(j, { fertig_am: vor(j, 40), quelle: 'nas', wunsch: null })]],
     fehler: (j) => [[eingangEintrag({ status: 'blockiert', fertig_am: null, zuerst_gesehen: vor(j, 30), hinweise: [{ code: 'kopierschutz', datei: 'a.m4b', text: 'x' }] })], []],
     fertig: (j) => [[], [eingangEintrag({ fertig_am: vor(j, 2) })]],
+    /* A11b Teil 2: Einträge vom NAS in jedem Zustand (Liste „Zuletzt hinzugefügt“): wird einsortiert, geht nicht (Kopierschutz), bitte kurz ansehen, fertig */
+    nas: (j) => [
+      [lauf(j, { name: 'Neuer Ordner mit langem Namen vom NAS', quelle: 'nas', art: 'ordner', dateien: 6 }),
+        eingangEintrag({ name: 'Kopiergeschützt.m4b', quelle: 'nas', status: 'blockiert', fertig_am: null, zuerst_gesehen: vor(j, 30), hinweise: [{ code: 'kopierschutz', datei: 'Kopiergeschützt.m4b', text: 'x' }] })],
+      [ansehen(j, { name: 'Bibi-Ordner', quelle: 'nas', art: 'ordner', dateien: 3, wunsch: null }),
+        eingangEintrag({ name: 'Sommerlieder', quelle: 'nas', art: 'ordner', dateien: 4, fertig_am: vor(j, 3), ergebnis: [{ serie_id: 'kurz', serie_name: 'Kleine Reise', serie_neu: false, folge: 'x.mp3', anzeige: 'x', tracks: 1, pruefen: false, pruefen_gruende: [] }] })],
+    ],
   };
 })();
 
@@ -138,7 +145,7 @@ function einsortieren(m, gr) {
   const w = gr.wunsch;
   const id = (x) => `up${Math.abs([...x].reduce((a, c) => (a * 31 + c.charCodeAt(0)) | 0, 7))}`;
   const eintrag = { id: id(gr.eingangName), name: gr.eingangName, art: gr.ordner ? 'ordner' : 'datei', dateien: gr.dateien.length, ignoriert: 0, groesse_bytes: gr.dateien.reduce((a, d) => a + d.groesse, 0),
-    zuerst_gesehen: '2026-11-13T12:00:00Z', geaendert_am: '2026-11-13T12:00:00Z', status: 'erledigt', hinweise: [], ergebnis: [], fertig_am: '2026-11-13T12:00:01Z', quelle: 'upload', wunsch: w.ziel ? { ziel: w.ziel, art: w.art ?? null } : null, pruefen: false };
+    zuerst_gesehen: new Date().toISOString(), geaendert_am: new Date().toISOString(), status: 'erledigt', hinweise: [], ergebnis: [], fertig_am: new Date().toISOString(), quelle: 'upload', wunsch: w.ziel ? { ziel: w.ziel, art: w.art ?? null } : null, pruefen: false };
   if (gr.dateien.some((d) => /kopierschutz/i.test(d.name))) {
     Object.assign(eintrag, { status: 'blockiert', fertig_am: null, hinweise: [{ code: 'kopierschutz', datei: gr.dateien[0].name, text: 'x' }] });
     b.eingangErledigt.unshift(eintrag);
@@ -256,7 +263,7 @@ const server = http.createServer(async (req, res) => {
     const f = ZUSTAENDE_EINGANG[zustand];
     if (!f) { res.statusCode = 400; res.end(JSON.stringify({ fehler: 'unbekannter Zustand' })); return; }
     [m.backend.eingang, m.backend.eingangErledigt] = f(Date.now());
-    if (zustand.startsWith('pruefen') && m.backend.serien.pruef) { // frühere Abläufe haben die Serie vielleicht schon bestätigt: wieder „bitte prüfen“
+    if ((zustand.startsWith('pruefen') || zustand === 'nas') && m.backend.serien.pruef) { // frühere Abläufe haben die Serie vielleicht schon bestätigt: wieder „bitte prüfen“
       const sr = m.backend.serien.pruef;
       sr.pruefen = true; sr.folgen[0].pruefen = true; sr.folgen[0].pruefen_gruende = ['tags_fehlen', 'nummer_doppelt'];
     }

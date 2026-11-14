@@ -74,7 +74,12 @@ export function mitIO(an) {
 export const tick = () => new Promise((r) => setTimeout(r, 0));
 export const warte = (ms) => new Promise((r) => setTimeout(r, ms));
 const offene = [];
-export function weg() { while (offene.length) offene.pop().remove(); }
+/* Räumt auf: die Seiten und, was „Hinzufügen“ sich auf dem Gerät merkt (A11b: unterbrochene Uploads, „Erledigte ausblenden“ in `localStorage`;
+ * ein Test darf dem nächsten nichts hinterlassen). Anderes im Speicher bleibt, wie es ist (die Bibliothek-Tests prüfen gerade das Neuladen). */
+export function weg() {
+  while (offene.length) offene.pop().remove();
+  try { for (const k of ['tobibox.hinzufuegen.offen', 'tobibox.hinzufuegen.erledigte_aus']) window.localStorage.removeItem(k); } catch { /* ohne Speicher */ }
+}
 
 /* Seite mit Mock-Backend. opts: Mock-Optionen (`viele`, `leer`, `darf`, `faehigkeiten` …); breite: Panelbreite; hash; narrow. */
 export async function seite({ breite = 390, hash = '', narrow = false, ...mockOpts } = {}) {

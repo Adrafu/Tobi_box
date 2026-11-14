@@ -5,12 +5,15 @@
  * rechts), Vorschau und Sätze je Weg (a, b, c, e), „Wohin soll es?“, „Ändern“ behält die Eingaben, Prüfungen vor „Hochladen“, die Felder des Uploads
  * (`gruppe`, `gruppe_anzahl`, …), „Datei 2 von 3“, der Satz „Bildschirm anlassen …“ nur während des Hochladens, Wake Lock (auch ohne `navigator.wakeLock`),
  * Warten, Abbrechen, Unterbrechung, Fehlercodes (Format, zu groß vorab und als 413, kein Speicher), Ergebnis aus dem Eingang, Menü „Dateien in diesen Eintrag“.
+ * A11b Teil 2 (ganz unten): die Liste „Zuletzt hinzugefügt“ aus `eingang/list` (NAS, anderes Gerät, 24 Stunden), eine Liste ohne Doppelungen, Band und Punkt zählen die
+ * eigenen Uploads, Wiederaufnahme nach dem Neuladen, „Das ist richtig“ bei einem Eintrag aus dem Eingang, „Erledigte ausblenden“ nur auf diesem Gerät.
  * Backend und XMLHttpRequest sind der Mock aus mock-hass.mjs (Modus `xhr: 'manuell'`: der Test lässt Fortschritt und Antwort kommen).
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { seite, geheZu, weg, warte, tippe, jsdom, domBereit, MIT_DOM } from './dom-helfer.mjs';
-import { FAEHIGKEITEN } from './mock-hass.mjs';
+import { FAEHIGKEITEN, eingangEintrag } from './mock-hass.mjs';
+import * as dh from './dom-helfer.mjs';
 
 if (jsdom) await domBereit(); // `File` und `window` für die Tests der reinen Funktionen
 const FRONT = '../../custom_components/tobibox/frontend';
@@ -1150,5 +1153,433 @@ test('Sichtbare Marken: jede Zustandsmarke hat Text (Farbe nie allein) und die K
     await klick(s, knopf(s, 'Hochladen'));
     await bis(() => karte(s));
     assert.match(kText(karte(s)), /Bildschirm anlassen, bis es fertig ist\./);
+  } finally { weg(); }
+});
+
+/* ================================================================== A11b Teil 2: Liste aus dem Eingang */
+
+const minuten = (min) => new Date(Date.now() - min * 60000).toISOString();
+const erg = (teil = {}) => ({ serie_id: 's2', serie_name: 'Bibi Blocksberg', serie_neu: true, folge: 'b-01.mp3', anzeige: 'Hexen gibt es doch', tracks: 1, pruefen: false, pruefen_gruende: [], ...teil });
+const nasFertig = (teil = {}) => eingangEintrag({ name: 'Bibi-Ordner', art: 'ordner', dateien: 3, quelle: 'nas', fertig_am: minuten(5), zuerst_gesehen: minuten(8), ergebnis: [erg()], ...teil });
+const nasLaeuft = (teil = {}) => eingangEintrag({ name: 'Neuer-Ordner', art: 'ordner', dateien: 6, quelle: 'nas', status: 'laeuft', fertig_am: null, zuerst_gesehen: minuten(1), ...teil });
+const karteMit = (s, teil) => karten(s).find((k) => kText(k).includes(teil));
+const bandText = (s) => s.q('[data-eingang-band]')?.textContent.replace(/\s+/g, ' ').trim();
+
+test('Liste: Einträge vom NAS erscheinen ohne Upload-Schritt, mit „vom NAS“, „Wird einsortiert …“ und „Daraus ist geworden“', { ...MIT_DOM }, async () => {
+  const s = await start({ eingang: [nasLaeuft()], eingangErledigt: [nasFertig()] });
+  try {
+    assert.equal(karten(s).length, 2);
+    const lauf = karteMit(s, 'Neuer-Ordner');
+    assert.equal(lauf.dataset.phase, 'sortieren');
+    assert.equal(lauf.querySelector('[data-quelle]').textContent.trim(), 'vom NAS');
+    assert.equal(lauf.querySelector('[data-status]').textContent.trim(), 'Wird einsortiert …');
+    assert.equal(lauf.querySelector('[data-abbrechen]'), null, 'ein Eintrag vom NAS wird nicht hochgeladen, es gibt nichts abzubrechen');
+    assert.ok(!/Bildschirm/.test(kText(lauf)));
+    assert.equal(lauf.querySelector('[data-schritte]'), null, 'vom NAS: kein Hochladeschritt (Design 7.3 Punkt 10)');
+    const fertig = karteMit(s, 'Bibi-Ordner');
+    assert.equal(fertig.dataset.phase, 'fertig');
+    assert.equal(fertig.querySelector('[data-marke]').textContent.trim(), 'fertig');
+    assert.equal(fertig.querySelector('[data-quelle]').textContent.trim(), 'vom NAS');
+    assert.equal(fertig.querySelector('[data-daraus]').textContent.trim(), 'Daraus ist geworden: Neuer Eintrag „Bibi Blocksberg“ · 1 Folge');
+    assert.equal(fertig.querySelector('[data-oeffnen]').getAttribute('href'), '#serie-s2');
+    assert.equal(fertig.querySelector('[data-oeffnen]').textContent.trim(), 'Öffnen');
+    assert.match(kText(fertig), /^3 Dateien: Bibi-Ordner/);
+    assert.equal(s.q('[data-liste="zuletzt"]').children.length, 2);
+  } finally { weg(); }
+});
+
+test('Liste: Einträge vom Handy (anderes Gerät) heißen „vom Handy“, der Ordner „Upload ab12cd34“ wird nicht als Name gezeigt; Ältere als 24 Stunden fehlen', { ...MIT_DOM }, async () => {
+  const s = await start({
+    eingangErledigt: [
+      nasFertig({ name: 'Upload ab12cd34', quelle: 'upload', dateien: 3 }),
+      nasFertig({ name: 'Zu alt', fertig_am: minuten(25 * 60), zuerst_gesehen: minuten(25 * 60 + 5) }),
+      nasFertig({ name: 'Grenze', fertig_am: minuten(23 * 60 + 50), zuerst_gesehen: minuten(24 * 60) }),
+    ],
+  });
+  try {
+    assert.equal(karten(s).length, 2);
+    const h = karteMit(s, '3 Dateien');
+    assert.equal(h.querySelector('[data-quelle]').textContent.trim(), 'vom Handy');
+    assert.ok(!/Upload ab12cd34/.test(kText(h)));
+    assert.ok(!karteMit(s, 'Zu alt'));
+    assert.ok(karteMit(s, 'Grenze'));
+    assert.equal(s.q('[data-titel="zuletzt"]').textContent.trim(), 'Zuletzt hinzugefügt');
+  } finally { weg(); }
+});
+
+test('Liste: ohne Einträge in den letzten 24 Stunden steht keine Liste da', { ...MIT_DOM }, async () => {
+  const s = await start({ eingangErledigt: [nasFertig({ fertig_am: minuten(30 * 60), zuerst_gesehen: minuten(30 * 60) })] });
+  try {
+    assert.equal(s.q('[data-liste="zuletzt"]'), null);
+    assert.equal(s.q('[data-titel="zuletzt"]'), null);
+  } finally { weg(); }
+});
+
+test('Liste: „bitte kurz ansehen“ mit Gründen (jeder Code ein Satz, ohne Doppelte), „Daraus ist geworden“, „Ansehen“, „Das ist richtig“ und „Das stimmt nicht“; kein „Anders einsortieren“', { ...MIT_DOM }, async () => {
+  const e = nasFertig({ pruefen: true, ergebnis: [erg({ pruefen: true, pruefen_gruende: ['tags_fehlen', 'nummer_doppelt', 'track_doppelt', 'track_teils_leer'] })] });
+  const s = await start({ eingangErledigt: [e] });
+  try {
+    const k = karte(s);
+    assert.equal(k.dataset.phase, 'pruefen');
+    assert.ok(k.classList.contains('warn'));
+    assert.equal(k.querySelector('[data-marke]').textContent.trim(), 'bitte ansehen');
+    assert.equal(k.querySelector('[data-quelle]').textContent.trim(), 'vom NAS');
+    assert.deepEqual([...k.querySelectorAll('[data-grund]')].map((x) => x.textContent), [GRUENDE.tags_fehlen, GRUENDE.nummer_doppelt, GRUENDE.track_doppelt]);
+    assert.match(kText(k), /Bitte kurz ansehen\. In der Datei steht kein Albumname/);
+    assert.equal(k.querySelector('[data-daraus]').textContent.trim(), 'Daraus ist geworden: Neuer Eintrag „Bibi Blocksberg“ · 1 Folge');
+    assert.deepEqual([...k.querySelectorAll('.btns .btn')].map((b) => b.textContent.trim()), ['Ansehen', 'Das ist richtig', 'Das stimmt nicht']);
+    assert.equal(k.querySelector('[data-ansehen]').getAttribute('href'), '#serie-s2');
+    assert.equal(k.querySelector('[data-stimmt-nicht]').getAttribute('href'), '#serie-s2');
+    assert.ok(!/Anders einsortieren/.test(kText(k)));
+    assert.equal(bandText(s) ?? null, null, 'das Band gibt es nur in der Bibliothek');
+  } finally { weg(); }
+});
+
+test('Liste: ein Grund, den die Seite nicht kennt, wird nie als Code gezeigt, sondern als Rückfallsatz', { ...MIT_DOM }, async () => {
+  const s = await start({ eingangErledigt: [nasFertig({ pruefen: true, ergebnis: [erg({ pruefen: true, pruefen_gruende: ['gibt_es_nicht'] })] })] });
+  try {
+    assert.equal(karte(s).querySelector('[data-grund]').textContent, 'Beim Einsortieren war etwas unsicher. Schau kurz, ob Name und Art stimmen.');
+    assert.ok(!/gibt_es_nicht/.test(kText(karte(s))));
+  } finally { weg(); }
+});
+
+test('Liste: „Das ist richtig“ bestätigt die Serie; der Eintrag ist nicht mehr „zu prüfen“ (Band weg), die Karte bleibt als „fertig“ und erhält den Fokus', { ...MIT_DOM }, async () => {
+  const s = await start({ eingangErledigt: [nasFertig({ pruefen: true, ergebnis: [erg({ pruefen: true, pruefen_gruende: ['tags_fehlen'] })] })] });
+  try {
+    assert.equal(s.el.ctx.eingang().pruefen.length, 1, 'bei „bitte ansehen“ ist die Serie `s2` im Mock noch zu prüfen');
+    await klick(s, karte(s).querySelector('[data-richtig]'));
+    await s.flush(12);
+    assert.deepEqual(s.m.aufrufe('tobibox/einsortierung/bestaetigen').map((m) => m.serie_id), ['s2']);
+    assert.equal(s.el.ctx.eingang().pruefen.length, 0, 'im Eingang nichts mehr zu prüfen');
+    const k = karte(s);
+    assert.equal(k.dataset.phase, 'fertig');
+    assert.equal(k.querySelector('[data-richtig]'), null);
+    assert.equal(s.el.shadowRoot.activeElement, k, 'der Knopf ist weg, der Fokus geht auf die Karte');
+    assert.deepEqual(s.qa('.toast:not(.err) .tmsg').map((x) => x.textContent), ['Danke, ist erledigt.']);
+    await geheZu(s, '#bibliothek');
+    assert.ok(!/bitte kurz ansehen/.test(bandText(s) ?? ''), 'kein orange Band mehr');
+  } finally { weg(); }
+});
+
+test('Liste: Fehler bei „Das ist richtig“ bleibt als Meldung stehen und die Karte bleibt „bitte ansehen“', { ...MIT_DOM }, async () => {
+  const s = await start({ eingangErledigt: [nasFertig({ pruefen: true, ergebnis: [erg({ pruefen: true, pruefen_gruende: ['tags_fehlen'] })] })] });
+  try {
+    s.m.on('tobibox/einsortierung/bestaetigen', () => { throw Object.assign(new Error('x'), { code: 'serie_nicht_gefunden' }); });
+    await klick(s, karte(s).querySelector('[data-richtig]'));
+    assert.equal(karte(s).dataset.phase, 'pruefen');
+    assert.equal(fehler(s).length, 1);
+  } finally { weg(); }
+});
+
+test('Liste: „geht nicht“ mit Grund und nächster Handlung (Kopierschutz); ohne bekannten Grund ein allgemeiner Satz mit nächster Handlung', { ...MIT_DOM }, async () => {
+  const s = await start({ eingang: [
+    eingangEintrag({ name: 'a.m4b', quelle: 'nas', status: 'blockiert', fertig_am: null, zuerst_gesehen: minuten(10), hinweise: [{ code: 'kopierschutz', datei: 'a.m4b', text: 'x' }] }),
+    eingangEintrag({ name: 'b.mp3', quelle: 'nas', status: 'blockiert', fertig_am: null, zuerst_gesehen: minuten(20), hinweise: [] }),
+  ] });
+  try {
+    const k = karteMit(s, 'a.m4b');
+    assert.equal(k.dataset.phase, 'fehler');
+    assert.ok(k.classList.contains('err'));
+    assert.equal(k.querySelector('[data-marke]').textContent.trim(), 'geht nicht');
+    assert.match(kText(k), /Geht leider nicht\. Diese Datei ist kopiergeschützt .* Nimm eine Datei ohne Kopierschutz\./);
+    assert.match(kText(karteMit(s, 'b.mp3')), /Geht leider nicht\. Das hat nicht geklappt\. Versuche es später noch einmal, sonst frag /);
+    assert.equal(k.querySelector('[data-richtig]'), null);
+  } finally { weg(); }
+});
+
+test('Liste: „Es fehlt noch eine Datei“ (teilweise, gruppe_unvollstaendig): gelbe Karte mit dem Satz, ohne „Das ist richtig“', { ...MIT_DOM }, async () => {
+  const s = await start({ eingangErledigt: [nasFertig({ name: 'Upload cd34ef56', quelle: 'upload', dateien: 2, status: 'teilweise', pruefen: true, hinweise: [{ code: 'gruppe_unvollstaendig', datei: null, text: 'x' }], ergebnis: [erg({ pruefen: true })] })] });
+  try {
+    const k = karte(s);
+    assert.equal(k.dataset.phase, 'fehlt');
+    assert.equal(k.querySelector('[data-marke]').textContent.trim(), 'fehlt noch etwas');
+    assert.match(kText(k), /Es fehlt noch eine Datei\. Wähle die fehlende Datei noch einmal\./);
+    assert.equal(k.querySelector('[data-richtig]'), null, 'die fehlende Datei bestätigt man nicht weg');
+    assert.ok(k.querySelector('[data-ansehen]'));
+  } finally { weg(); }
+});
+
+test('Liste: mehrere Einträge, neueste zuerst; Eintrag mit mehreren Serien führt „Ansehen“ zur Bibliothek, mit einer zur Serie', { ...MIT_DOM }, async () => {
+  const s = await start({ eingangErledigt: [
+    nasFertig({ name: 'Älter', fertig_am: minuten(50), zuerst_gesehen: minuten(55) }),
+    nasFertig({ name: 'Neuer', fertig_am: minuten(2), zuerst_gesehen: minuten(3), pruefen: true, ergebnis: [erg({ pruefen: true }), erg({ serie_id: 's1', serie_name: 'Die drei ???', pruefen: false })] }),
+  ] });
+  try {
+    assert.match(kText(karten(s)[0]), /Neuer/);
+    assert.match(kText(karten(s)[1]), /Älter/);
+    assert.equal(karten(s)[0].querySelector('[data-ansehen]').getAttribute('href'), '#serie-s2', 'nur eine Serie ist noch zu prüfen');
+  } finally { weg(); }
+});
+
+test('Ohne die Fähigkeit `eingang` gibt es keine Liste aus dem Eingang und keine Abfrage', { ...MIT_DOM }, async () => {
+  const s = await start({ faehigkeiten: ALLE.filter((f) => f !== 'eingang'), eingang: [nasLaeuft()] });
+  try {
+    assert.equal(karten(s).length, 0);
+    assert.equal(s.m.aufrufe('tobibox/eingang/list').length, 0);
+  } finally { weg(); }
+});
+
+test('Die Seite lädt beim Öffnen `eingang/list` neu (Design 7.3 Punkt 5) und folgt dem Ereignis `geaendert`', { ...MIT_DOM }, async () => {
+  const s = await start({ hash: '#bibliothek' });
+  try {
+    const n0 = s.m.aufrufe('tobibox/eingang/list').length;
+    s.m.backend.eingang = [nasLaeuft()];
+    await geheZu(s, '#hinzufuegen');
+    await bis(() => karten(s).length === 1);
+    assert.ok(s.m.aufrufe('tobibox/eingang/list').length > n0, 'beim Öffnen neu geholt');
+    s.m.backend.eingang = [nasLaeuft(), nasLaeuft({ name: 'Zweiter' })];
+    s.m.emit('eingang', 'geaendert', {});
+    await bis(() => karten(s).length === 2);
+  } finally { weg(); }
+});
+
+/* ---- eine Liste, keine Doppelungen */
+
+/* Der Eingang meldet den Eintrag des laufenden Uploads (Gruppen-Ordner), solange `zustand` es sagt. */
+function eingangMeldet(s, wie) {
+  s.m.on('tobibox/eingang/list', () => {
+    const x = s.m.xhrs[0];
+    const gruppe = x ? feld(x, 'gruppe') : null;
+    const l = wie.zustand === 'leer' || !gruppe ? [] : [eingangEintrag({
+      name: `Upload ${gruppe.slice(0, 8)}`, art: 'ordner', dateien: 3, quelle: 'upload', wunsch: { ziel: 'neu', art: 'hoerbuch' },
+      ...(wie.zustand === 'laeuft' ? { status: 'laeuft', fertig_am: null, zuerst_gesehen: minuten(0) } : { ergebnis: [erg({ serie_id: 'neu1', serie_name: 'Kapitän Knopf' })], fertig_am: minuten(0) }),
+    })];
+    return { eintraege: l, gesamt: l.length, sortierung_laeuft: false, geprueft_am: new Date().toISOString() };
+  });
+}
+
+test('Keine Doppelung: der eigene Upload und sein Eintrag im Eingang sind eine Zeile, beim Einsortieren und danach; das Band zählt ihn einmal', { ...MIT_DOM }, async () => {
+  const s = await start();
+  try {
+    s.m.backend.serien.neu1 = { ...buch };
+    const wie = { zustand: 'leer' };
+    eingangMeldet(s, wie);
+    await bisSortiert(s);
+    assert.equal(karten(s).length, 1);
+    assert.equal(s.el.store.s.lokaleUploads, 1, 'die Seite meldet einen laufenden Upload');
+    wie.zustand = 'laeuft';
+    s.m.emit('eingang', 'geaendert', {});
+    await bis(() => s.el.ctx.eingang().laeuft.length === 1);
+    await s.flush(8);
+    assert.equal(karten(s).length, 1, 'der Eintrag aus dem Eingang ist derselbe wie der Upload');
+    assert.equal(karten(s)[0].dataset.phase, 'sortieren');
+    await geheZu(s, '#bibliothek');
+    assert.equal(bandText(s), '1 Eintrag wird gerade hinzugefügt.', 'nicht 2');
+    assert.equal(s.qa('[data-punkt="eingang"]').length, 1);
+    await geheZu(s, '#hinzufuegen');
+    wie.zustand = 'fertig';
+    s.m.emit('eingang', 'geaendert', {});
+    await bis(() => karte(s)?.dataset.phase === 'fertig');
+    await s.flush(8);
+    assert.equal(karten(s).length, 1);
+    assert.equal(karte(s).querySelector('[data-quelle]'), null, 'der eigene Auftrag zeigt keine Quelle');
+    assert.equal(s.el.store.s.lokaleUploads, 0);
+  } finally { weg(); }
+});
+
+test('Band und Punkt zählen den eigenen Upload schon beim Hochladen, bevor der Eingang ihn kennt (und verschwinden, wenn alles einsortiert ist)', { ...MIT_DOM }, async () => {
+  const s = await start();
+  try {
+    s.m.backend.serien.neu1 = { ...buch };
+    eingangMeldet(s, { zustand: 'leer' });
+    await hochladen(s, HAFEN(), 'neu', async () => { tippe(s.q('#hz-name'), 'Kapitän Knopf'); });
+    await bis(() => s.m.xhrs[0]);
+    assert.equal(s.el.store.s.lokaleUploads, 1);
+    await geheZu(s, '#bibliothek');
+    assert.equal(bandText(s), '1 Eintrag wird gerade hinzugefügt.');
+    assert.ok(s.q('nav.tabs a[href="#bibliothek"] .dot'), 'ruhiger Punkt am Reiter');
+    await geheZu(s, '#hinzufuegen');
+    await klick(s, s.q('[data-abbrechen]'));
+    assert.equal(s.el.store.s.lokaleUploads, 0, 'abgebrochen: zählt nicht mehr');
+    await geheZu(s, '#bibliothek');
+    assert.ok(!/gerade hinzugefügt/.test(bandText(s) ?? ''));
+  } finally { weg(); }
+});
+
+test('Nach dem Upload holt die Seite `eingang/list` neu und das Band in der Bibliothek zeigt „bitte kurz ansehen“ (ohne Ereignis)', { ...MIT_DOM }, async () => {
+  const s = await start();
+  try {
+    s.m.backend.serien.neu1 = { ...buch, pruefen: true };
+    eingangAntwort(s, ({ ordner }) => [eingangEintrag({ name: ordner, art: 'ordner', dateien: 3, quelle: 'upload', pruefen: true, fertig_am: minuten(0), ergebnis: [erg({ serie_id: 'neu1', serie_name: 'Kapitän Knopf', pruefen: true, pruefen_gruende: ['tags_fehlen'] })] })]);
+    await bisSortiert(s);
+    await bis(() => karte(s)?.dataset.phase === 'pruefen');
+    await bis(() => s.el.ctx.eingang().pruefen.length === 1);
+    await geheZu(s, '#bibliothek');
+    assert.equal(bandText(s), '1 neuer Eintrag bitte kurz ansehen.');
+    await geheZu(s, '#hinzufuegen');
+    assert.equal(karten(s).length, 1, 'eine Karte, nicht zwei');
+    await klick(s, karte(s).querySelector('[data-richtig]'));
+    await s.flush(10);
+    assert.equal(s.el.ctx.eingang().pruefen.length, 0, 'der Auftrag meldet „Das ist richtig“ auch dem Band');
+  } finally { weg(); }
+});
+
+/* ---- Neuladen: Wiederaufnahme */
+
+/* „Neuladen der Seite“: ein neues Element gegen dasselbe Backend; der Speicher im Seitenobjekt geht verloren, `localStorage` bleibt. */
+async function neuLaden(s, ziel = '#hinzufuegen') {
+  s.el.remove();
+  const el = new dh.App();
+  el.xhrFactory = s.m.xhrFactory;
+  document.body.appendChild(el);
+  dh.FakeRO.melde(390);
+  window.history.replaceState(null, '', `/tobibox${ziel}`);
+  el.hass = s.m.hass;
+  const flush = async (n = 10) => { for (let i = 0; i < n; i += 1) { await warte(0); await el.updateComplete; } };
+  await flush();
+  const t = { el, m: s.m, q: (sel) => el.shadowRoot.querySelector(sel), qa: (sel) => [...el.shadowRoot.querySelectorAll(sel)], flush };
+  t.mo = H.modell(el.ctx);
+  t.mo.lader.drosselMs = 0; t.mo.lader.wiederholenMs = 5; t.mo.abfrageMs = [15, 15];
+  await flush(10);
+  return t;
+}
+
+test('Neuladen mitten im Hochladen: die Seite zeigt „Unterbrochen. Wähle die Datei noch einmal.“ für die Dateien, die nicht angekommen sind; die angekommene bleibt angekommen', { ...MIT_DOM }, async () => {
+  const s = await start();
+  try {
+    await hochladen(s, HAFEN(), 'neu', async () => { tippe(s.q('#hz-name'), 'Kapitän Knopf'); await klick(s, s.q('[data-art-wahl="hoerbuch"]')); });
+    await bis(() => s.m.xhrs[0]);
+    const gruppe = feld(s.m.xhrs[0], 'gruppe');
+    await fertig(s, 0); // Datei 1 ist da, Datei 2 ist unterwegs
+    await bis(() => s.m.xhrs[1]);
+    const t = await neuLaden(s);
+    assert.equal(karten(t).length, 1);
+    const k = karte(t);
+    assert.equal(k.dataset.phase, 'fehlt');
+    assert.match(kText(k), /Es fehlt noch eine Datei\. 1 von 3 Dateien sind angekommen\./);
+    assert.deepEqual([...k.querySelectorAll('[data-dateifehler]')].map((x) => x.textContent), ['Unterbrochen. Wähle die Datei noch einmal.', 'Unterbrochen. Wähle die Datei noch einmal.']);
+    assert.match(kText(k), /3 Dateien: 01 Der Hafen\.mp3, 02 Die Karte\.mp3 …/);
+    assert.equal(t.el.store.s.lokaleUploads, 0, 'nichts läuft, das Band zählt nichts');
+    // die Datei noch einmal wählen: dieselbe Gruppe und dieselbe Zahl, damit der Eingang sie zusammen einsortiert
+    await klick(t, k.querySelector('[data-fehlende]'));
+    await waehle(t, [datei('02 Die Karte.mp3')], 'fehlende');
+    const x = await bis(() => t.m.xhrs.find((y) => feld(y, 'gruppe') === gruppe && y !== s.m.xhrs[0]));
+    assert.equal(feld(x, 'gruppe_anzahl'), '3');
+    assert.equal(feld(x, 'ziel'), 'neu');
+    assert.equal(feld(x, 'name'), 'Kapitän Knopf');
+    assert.equal(feld(x, 'art'), 'hoerbuch');
+    assert.equal(karten(t).length, 1, 'der fortgesetzte Auftrag bleibt eine sichtbare Zeile');
+    assert.equal(t.el.store.s.lokaleUploads, 1, 'und zählt wieder im Band');
+  } finally { weg(); }
+});
+
+test('Neuladen: ein Upload, der schon ganz angekommen war, erscheint nur noch als Eintrag aus dem Eingang (nichts Unterbrochenes, nichts doppelt)', { ...MIT_DOM }, async () => {
+  const s = await start();
+  try {
+    eingangAntwort(s, () => []);
+    await bisSortiert(s);
+    const gruppe = feld(s.m.xhrs[0], 'gruppe');
+    assert.equal(karte(s).dataset.phase, 'sortieren');
+    s.m.on('tobibox/eingang/list', () => ({ eintraege: [eingangEintrag({ name: `Upload ${gruppe.slice(0, 8)}`, art: 'ordner', dateien: 3, quelle: 'upload', status: 'laeuft', fertig_am: null, zuerst_gesehen: minuten(0) })], gesamt: 1, sortierung_laeuft: true, geprueft_am: new Date().toISOString() }));
+    const t = await neuLaden(s);
+    assert.equal(karten(t).length, 1);
+    assert.equal(karte(t).dataset.phase, 'sortieren');
+    assert.equal(karte(t).querySelector('[data-quelle]').textContent.trim(), 'vom Handy');
+    assert.equal(karte(t).querySelector('[data-dateifehler]'), null);
+  } finally { weg(); }
+});
+
+test('Neuladen: ist der Eingang mit der unvollständigen Gruppe schon fertig (nach 30 Minuten), steht nur der Eintrag da, nicht auch noch „Unterbrochen“', { ...MIT_DOM }, async () => {
+  const s = await start();
+  try {
+    await hochladen(s, HAFEN(), 'neu', async () => { tippe(s.q('#hz-name'), 'Kapitän Knopf'); });
+    await bis(() => s.m.xhrs[0]);
+    const gruppe = feld(s.m.xhrs[0], 'gruppe');
+    await fertig(s, 0);
+    await bis(() => s.m.xhrs[1]);
+    s.m.on('tobibox/eingang/list', () => ({ eintraege: [eingangEintrag({ name: `Upload ${gruppe.slice(0, 8)}`, art: 'ordner', dateien: 1, quelle: 'upload', status: 'teilweise', pruefen: true, hinweise: [{ code: 'gruppe_unvollstaendig', datei: null, text: 'x' }], ergebnis: [erg({ pruefen: true })] })], gesamt: 1, sortierung_laeuft: false, geprueft_am: new Date().toISOString() }));
+    const t = await neuLaden(s);
+    assert.equal(karten(t).length, 1);
+    assert.equal(karte(t).querySelector('[data-quelle]')?.textContent.trim(), 'vom Handy');
+    assert.equal(karte(t).querySelector('[data-dateifehler]'), null);
+  } finally { weg(); }
+});
+
+test('Ein abgebrochener oder fertiger Upload wird nach dem Neuladen nicht „unterbrochen“ (es wird nur gemerkt, was mitten im Hochladen steht)', { ...MIT_DOM }, async () => {
+  const s = await start();
+  try {
+    await hochladen(s, [datei('Lied.mp3')], 'einzeln');
+    await bis(() => s.m.xhrs[0]);
+    await klick(s, s.q('[data-abbrechen]'));
+    await s.flush(6);
+    assert.equal(window.localStorage.getItem('tobibox.hinzufuegen.offen'), null);
+    const t = await neuLaden(s);
+    assert.equal(karten(t).length, 0);
+  } finally { weg(); }
+});
+
+test('Ohne Speicher (localStorage wirft) läuft die Seite weiter, nur ohne Merken', { ...MIT_DOM }, async () => {
+  const P = window.Storage.prototype;
+  const { getItem, setItem, removeItem } = P;
+  P.getItem = () => { throw new Error('gesperrt'); }; P.setItem = () => { throw new Error('gesperrt'); }; P.removeItem = () => { throw new Error('gesperrt'); };
+  try {
+    const s = await start({ eingangErledigt: [nasFertig()] });
+    assert.equal(karten(s).length, 1);
+    await hochladen(s, [datei('Lied.mp3')], 'einzeln');
+    await fertig(s, 0);
+    await klick(s, s.q('[data-erledigte-aus]'));
+    assert.equal(s.mo.erledigteAus, true, 'gilt, solange die Seite offen ist');
+  } finally { Object.assign(P, { getItem, setItem, removeItem }); weg(); }
+});
+
+/* ---- „Erledigte ausblenden“ */
+
+test('„Erledigte ausblenden“ blendet fertige Einträge aus und sagt ehrlich, dass das nur dieses Gerät betrifft; es bleibt nach dem Neuladen', { ...MIT_DOM }, async () => {
+  const s = await start({ eingang: [nasLaeuft()], eingangErledigt: [nasFertig(), nasFertig({ name: 'Zweiter', fertig_am: minuten(9), zuerst_gesehen: minuten(10) }), nasFertig({ name: 'Dritter', pruefen: true, fertig_am: minuten(11), ergebnis: [erg({ pruefen: true })] })] });
+  try {
+    assert.equal(karten(s).length, 4);
+    const knopfAus = s.q('[data-erledigte-aus]');
+    assert.equal(knopfAus.textContent.trim(), 'Erledigte ausblenden');
+    assert.equal(knopfAus.getAttribute('aria-pressed'), 'false');
+    assert.equal(s.q('[data-erledigte-hinweis]').textContent.trim(), 'Das gilt nur auf diesem Gerät.');
+    await klick(s, knopfAus);
+    assert.equal(karten(s).length, 2, 'es bleiben „wird einsortiert“ und „bitte ansehen“');
+    assert.ok(karteMit(s, 'Neuer-Ordner') && karteMit(s, 'Dritter'));
+    assert.equal(s.q('[data-erledigte-aus]').textContent.trim(), 'Erledigte zeigen');
+    assert.equal(s.q('[data-erledigte-aus]').getAttribute('aria-pressed'), 'true');
+    assert.equal(s.q('[data-erledigte-hinweis]').textContent.trim(), '2 erledigte Einträge sind ausgeblendet. Das gilt nur auf diesem Gerät.');
+    assert.equal(window.localStorage.getItem('tobibox.hinzufuegen.erledigte_aus'), '1');
+    assert.equal(s.m.aufrufe('tobibox/einstellungen/set').length, 0, 'nichts geht an den Server');
+    const t = await neuLaden(s);
+    assert.equal(karten(t).length, 2, 'das Gerät merkt es');
+    await klick(t, t.q('[data-erledigte-aus]'));
+    assert.equal(karten(t).length, 4);
+    assert.equal(window.localStorage.getItem('tobibox.hinzufuegen.erledigte_aus'), null);
+  } finally { weg(); }
+});
+
+test('„Erledigte ausblenden“ gibt es nur, wenn es etwas Erledigtes gibt; sind alle ausgeblendet, bleibt der Schalter zum Zurückholen', { ...MIT_DOM }, async () => {
+  const s = await start({ eingang: [nasLaeuft()] });
+  try {
+    assert.equal(s.q('[data-erledigte-aus]'), null);
+  } finally { weg(); }
+  const t = await start({ eingangErledigt: [nasFertig()] });
+  try {
+    await klick(t, t.q('[data-erledigte-aus]'));
+    assert.equal(karten(t).length, 0);
+    assert.equal(t.q('[data-liste="zuletzt"]'), null);
+    assert.equal(t.q('[data-erledigte-hinweis]').textContent.trim(), '1 erledigter Eintrag ist ausgeblendet. Das gilt nur auf diesem Gerät.');
+    await klick(t, t.q('[data-erledigte-aus]'));
+    assert.equal(karten(t).length, 1);
+  } finally { weg(); }
+});
+
+test('Eigene fertige Aufträge gehören zu den Erledigten', { ...MIT_DOM }, async () => {
+  const s = await start();
+  try {
+    s.m.backend.serien.neu1 = { ...buch };
+    eingangAntwort(s, ({ ordner }) => [erledigt({ name: ordner, fertig_am: minuten(0), ergebnis: [{ serie_id: 'neu1', serie_name: 'Kapitän Knopf', serie_neu: true, folge: 'Kapitän Knopf', tracks: 3, pruefen: false, pruefen_gruende: [] }] })]);
+    await bisSortiert(s);
+    await bis(() => karte(s)?.dataset.phase === 'fertig');
+    await klick(s, s.q('[data-erledigte-aus]'));
+    assert.equal(karten(s).length, 0);
+  } finally { weg(); }
+});
+
+test('Jetzt prüfen: die Seite „Hinzufügen“ sendet `eingang/sortieren` nicht (Design 5.6: „Sonst nichts“; der Knopf gehört nach Technik)', { ...MIT_DOM }, async () => {
+  const s = await start({ eingang: [nasLaeuft()] });
+  try {
+    assert.ok(!/Jetzt prüfen/.test(s.q('main').textContent));
+    assert.equal(s.m.aufrufe('tobibox/eingang/sortieren').length, 0);
   } finally { weg(); }
 });

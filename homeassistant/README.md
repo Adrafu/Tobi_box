@@ -34,16 +34,42 @@ Verträge (die Integration ändert sie nicht): `docs/protocol/ha-websocket-v1.md
     Schreibweise `box1=Box 1, box2=Box 2` (Vor dem Gleichheitszeichen steht der Box-Name, danach der Anzeigename, bis
     40 Zeichen). Ohne Eintrag gilt der Name, den die Box selbst meldet.
 *   **Hochladen:** Das Backend nimmt Dateien bis 2 GiB an (`upload_max_mib`, Vorgabe 2048 MiB, in den Optionen änderbar).
-    Die Seite zum Hochladen (Knopf „+“) kommt mit Teil A-1c; heute zeigt sie noch den leeren Platz.
+    Die Seite zum Hochladen (Knopf „+“) ist da; Ablauf und Grenzen stehen im Abschnitt „Hinzufügen, Cover und die 2-GiB-Grenze“.
 *   **Cover:** Das Backend holt und liefert Cover (Befehl `cover/neu_suchen` nur für Administratoren, Bild hochladen
-    für alle). Eigene Cover per Foto in der Seite kommen mit Teil A-1c.
+    für alle). Eigene Cover per Foto in der Seite: „Cover ändern“, siehe unten.
 *   **Tobies und Warteschlange:** Der Reiter „Tobies“ zeigt das Regal aller Tobies und die Kachel „+ Neuer Tobie“. Dort
     lässt sich ein Tobie auch vormerken („Später auflegen“): die Warteschlange ordnet ihn an, sobald er auf einer Box
     liegt (Vertrag W, Abschnitt 3.13, Befehle 47 bis 49, Recht `alltag`). Die Anleitung dafür steht in
     `docs/betrieb/ha-seite-alltag.md` (Abschnitt „Tobies“). Der Lernmodus mit Countdown bleibt Administratoren vorbehalten
     (unter „Technik“).
 
-Stand: Teile A-1a (Lesen und Abends) und A-1b (Tobies). Was dort fehlt, steht oben beim jeweiligen Punkt.
+Stand: Teile A-1a (Lesen und Abends), A-1b (Tobies) und A-1c (Hinzufügen und Cover) sind gebaut. A-1c ist noch nicht abgenommen (A16-1c). Was dort fehlt, steht oben beim jeweiligen Punkt.
+
+## Hinzufügen, Cover und die 2-GiB-Grenze
+
+*   **Hinzufügen:** Der Knopf „+“ in der Bibliothek. Am Handy öffnet er gleich die Dateiauswahl; am Computer kommt die Seite „Hinzufügen“ mit „Dateien wählen“, „Ordner vom Computer wählen“ und der Ziehfläche. Danach das Blatt „Was lädst du hoch?“ mit vier Kacheln (Neu anlegen, Zu Vorhandenem, Einzeln, Sortier du), die Vorschau und „Hochladen“. Die Auswahl geht als Wunsch mit dem Upload an das Backend (`ziel`, `art`, `name`, `serie_id`, `gruppe`, `gruppe_anzahl`, Vertrag W). Die Anleitung für die Partnerin steht in `docs/betrieb/ha-seite-alltag.md`, Abschnitt „Hinzufügen“.
+*   **Grenze je Datei: 2 GiB.** Vorgabe `UPLOAD_MAX_MIB_VORGABE` = 2048 (`const.py`). Ein bestehender Eintrag mit 500 MiB hebt die Migration auf Version 2 an. Größere Dateien gehen über den Eingang-Ordner auf dem NAS (`eingang/`); dort sortiert die Integration sie wie jede andere Datei ein. Der Freie-Platz-Test rechnet mit 2 GiB Reserve und den laufenden Uploads.
+*   **Mengengrenze:** 16 GiB je Stunde (`UPLOAD_BYTES_JE_STUNDE`, `const.py`), Fehler `zu_viele_aenderungen`. Die Angabe „je Benutzer“ steht im Design (Abschnitt 5.6a und 10.3).
+*   **Eigenes Cover:** „Cover ändern“ im Menü „⋯“ der Serie oder des Einzeltitels. Der Browser schneidet das Quadrat zu und sendet es als JPEG mit 1024 × 1024 Pixeln. Hochgeladen wird höchstens 3 MiB (`COVER_UPLOAD_MAX_BYTES`). Das Backend prüft Typ und Maße, bevor es ein Bild dekodiert, und verkleinert auf 512 px und 192 px. Die Originaldatei wird nie gespeichert. Grenze: 20 Cover je Stunde und Benutzer (`COVER_JE_STUNDE`). Eigene Cover bleiben bei „Cover neu suchen“ erhalten.
+*   **Cover auf den Boxen:** `cover*.jpg` wird nicht synchronisiert. Das Cover erscheint nur in der Seite.
+
+## Papierkorb-Mitteilung
+
+Legt ein Nicht-Administrator einen Eintrag mit Tobies in den Papierkorb, oder mehr als 3 Einträge in einer Stunde, legt die Integration eine Mitteilung in Home Assistant an (`persistent_notification`). Administratoren lösen keine Mitteilung aus, und Aufrufe ohne Benutzer (Automationen, Skripte) auch nicht.
+
+*   **Fundstelle:** `schutz.py`, `papierkorb_gebucht`. Die Mitteilung geht über `hub.py`, `benachrichtige`, an `persistent_notification.async_create`. Die Grenze 3 steht in `const.py` (`PAPIERKORB_MELDUNG_AB`). Die Texte stehen in `translations/de.json`, nicht in `texte.js`.
+*   **Was HA zeigt:** Bei Tobies der Titel „Tobi Box: Etwas mit Tobies im Papierkorb“, bei vielen Einträgen „Tobi Box: Viel im Papierkorb“. Der Text nennt den Anzeigenamen der Person und den Eintrag. Die Kennung ist `tobibox_papierkorb_tobies_<Eintrag>` bzw. `tobibox_papierkorb_viele_<Benutzer>`.
+*   **Wer sie sieht:** Die Integration gibt keinen Empfänger an. HA kennt bei Mitteilungen keine Empfänger, deshalb sehen **alle HA-Benutzer** die Mitteilung, nicht nur die Administratoren. Das ist ein Befund aus dem Plan (`docs/plan/stueckliste-und-psp.md`, Eintrag 3.22). Im Code ist es noch nicht geändert. Die Mitteilung nennt den Namen der Person, deshalb ist das für die Datenschutzfrage wichtig.
+*   **Wegräumen:** Die Integration nimmt die Mitteilung nicht von selbst weg. Sie bleibt, bis jemand sie in HA schließt.
+*   **Zurückholen:** Unter „Technik“, „Speicher und Netz“, Papierkorb: einzelne Einträge oder „Letzte Stunde zurückholen“ (nur Administratoren).
+
+## Rückweg: Adressen tauschen (A17)
+
+**Noch nicht umgesetzt, kommt mit A17.** Heute gibt es dafür keinen Befehl und keine Option. Dieser Abschnitt beschreibt nur das Vorhaben aus dem Design (`docs/designs/ha-oberflaeche.md`, Abschnitte 5.9, 10.1 und 15, A17). Die Anleitung zum Zurücktauschen schreiben wir, wenn A17 gebaut ist.
+
+*   **Heute:** `/tobibox` zeigt die neue Seite und ist nur für Administratoren (`require_admin=True` in `__init__.py`). Die alte Komponente ist in „Technik“ eingebettet. Eine Adresse `/tobibox-alt` gibt es noch nicht.
+*   **Vorhaben A17:** Die Seite für alle HA-Benutzer öffnen (`require_admin` fällt), und die Adressen tauschen: `/tobibox` zeigt die neue Seite, `/tobibox-alt` die alte. Der Tausch soll sich zurücknehmen lassen. Vorher wird die Tabelle 10.2 mit einem Testbenutzer geprüft.
+*   **Notschalter (Design 5.9, G19):** Eine Option in den Integrationseinstellungen „Alltagsseite für alle Benutzer“ (Vorgabe: an). Im Code gibt es sie heute nicht. Die Zeile A17 im Design nennt sie nicht, das muss geklärt werden.
 
 ## Vorlage: Mitteilung aufs Handy bei einem neuen Tobie
 
