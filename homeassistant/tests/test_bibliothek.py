@@ -350,7 +350,7 @@ async def test_serien_list_ohne_eingaben_ist_wie_vorher(api, bibliothek):
     assert (r["gesamt"], r["weitere"]) == (7, False)
     kurz = r["serien"][0]
     assert kurz.keys() == {"id", "name", "typ", "ordner", "anzahl_folgen", "anzahl_tobies", "angelegt_am", "stand", "pruefen",
-                           "anzahl_pruefen", "hinweise", "art", "art_quelle", "einzeln", "cover_stand", "cover_quelle"}
+                           "anzahl_pruefen", "hinweise", "art", "art_quelle", "einzeln", "cover_stand", "cover_quelle", "dauer_s"}
 
 
 async def test_serien_list_ohne_limit_liefert_alle_auch_ueber_200(api, nas, integration):
@@ -466,7 +466,7 @@ async def test_serien_list_sortierung(api, bibliothek, nas):
     r = await ok(api, "serien/list", sortierung="neu")  # zuletzt angelegt zuerst
     assert namen(r) == ["Märchenstunde", "Der Mond und der Fuchs", "Räuber Hotzenplotz", "Der kleine Rabe", "Straße der Träume",
                         "Das große Buch", "Kinderlieder zum Mitsingen"]
-    assert await fehler(api, "serien/list", sortierung="angehoert") == "invalid_format"  # Fähigkeit reinhoeren: Paket A4d
+    assert namen(await ok(api, "serien/list", sortierung="angehoert")) == namen(await ok(api, "serien/list"))  # nichts gehört: nach Name (Paket A4d)
     assert await fehler(api, "serien/list", sortierung="zufall") == "invalid_format"
 
 
@@ -671,10 +671,9 @@ def test_pruefe_konfig_behaelt_angelegt_am_und_verwirft_ungueltiges():
 async def test_hello_sagt_bibliothek_zu(api, normal):
     for client in (api, normal):
         f = (await ok(client, "hello", v=1))["faehigkeiten"]
-        assert f[-6:-4] == ["konfig_staende", "bibliothek"]  # A1, A3; danach A3d (``einsortier_wunsch``) A4 (``cover``) und A9c (``warteschlange``, ``zuordnung_rueckgaengig``)
-        for spaeter in ("reinhoeren", "hoerkopie"):
-            assert spaeter not in f
-    assert const.FAEHIGKEITEN[-6:-4] == ("konfig_staende", "bibliothek")
+        assert f[-7:-5] == ["konfig_staende", "bibliothek"]  # A1, A3; danach A3d (``einsortier_wunsch``) A4 (``cover``), A9c (``warteschlange``, ``zuordnung_rueckgaengig``) und A4c (``reinhoeren``)
+        assert "hoerkopie" not in f  # A-3
+    assert const.FAEHIGKEITEN[-7:-5] == ("konfig_staende", "bibliothek")
 
 
 # --------------------------------------------------------------------------

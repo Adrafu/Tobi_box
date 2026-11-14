@@ -45,6 +45,7 @@ HTTP_STATUS: Final = {
     "einstellung_ungueltig": 400,
     "sortierung_laeuft": 409,
     "zu_viele_aenderungen": 429,
+    "zu_viele_streams": 429,
     "wunsch_ungueltig": 400,
     "cover_ungueltig": 400,
     "cover_nicht_gefunden": 404,

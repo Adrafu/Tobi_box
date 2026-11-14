@@ -12,12 +12,14 @@ Dekorator (jeder angemeldete Benutzer); für Nicht-Administratoren prüfen die Z
 from __future__ import annotations
 
 import logging
+import math
 from collections.abc import Awaitable, Callable
 from typing import Any
 
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant, callback
 
+from . import audio
 from .const import (
     ARTEN,
     DOMAIN,
@@ -26,6 +28,9 @@ from .const import (
     FOLGEN_LIMIT_MAX,
     FOLGEN_LIMIT_VORGABE,
     FOLGEN_SORTIERUNGEN,
+    HOERSTELLE_LISTE_LIMIT_MAX,
+    HOERSTELLE_LISTE_LIMIT_VORGABE,
+    HOERSTELLE_SCHREIBEN_JE_MINUTE,
     KONFIG_STAENDE_ANZAHL,
     RE_ANFRAGE_ID,
     SERIEN_LIMIT_MAX,
@@ -35,7 +40,7 @@ from .const import (
 )
 from .fehler import TobiboxFehler
 from .hub import FEHLT, Hub
-from .schutz import Nutzer
+from .schutz import MINUTE_S, Nutzer
 
 try:  # HA 2026.10 und neuer: ``probatio``; ältere Versionen: ``voluptuous``
     import probatio as vol
@@ -164,6 +169,14 @@ def _nutzer(connection: Any) -> Nutzer:
     return Nutzer.aus_verbindung(connection)
 
 
+def _nutzer_id(connection: Any) -> str:
+    """Die Benutzerkennung **aus der Verbindung** (Vertrag W, 2.1, Hörstelle); ohne Benutzer kein Zugriff."""
+    nutzer_id = _nutzer(connection).id
+    if not nutzer_id:
+        raise TobiboxFehler("unauthorized")
+    return nutzer_id
+
+
 def _felder(msg: dict[str, Any], *ohne: str) -> dict[str, Any]:
     """Die Eingabefelder ohne ``id`` und ``type`` (für den Fingerabdruck der ``anfrage_id``)."""
     return {k: v for k, v in msg.items() if k not in ("id", "type", "anfrage_id", *ohne)}
@@ -234,12 +247,13 @@ async def ws_serien_list(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
         sortierung=msg.get("sortierung", "name"),
         limit=msg.get("limit"),
         offset=msg.get("offset", 0),
+        nutzer_id=_nutzer(connection).id,
     )
 
 
 @befehl("serie/get", {**SERIE_ID}, recht="lesen")
 async def ws_serie_get(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
-    return await hub.medien.serie_holen(msg["serie_id"])
+    return await hub.medien.serie_holen(msg["serie_id"], _nutzer(connection).id)
 
 
 @befehl("serie/create", {vol.Required("name"): _text, vol.Optional("typ"): vol.In(["normal", "ueberraschung"]), **ANFRAGE_ID}, recht="admin")
@@ -309,6 +323,87 @@ async def ws_folgen_list(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
 @befehl("serie/art_setzen", {**SERIE_ID, vol.Required("art"): vol.In(ARTEN)}, recht="alltag")
 async def ws_serie_art_setzen(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
     return {"serie": await hub.medien.serie_art_setzen(msg["serie_id"], msg["art"])}
+
+
+# --------------------------------------------------------------------------
+# 39 bis 42: Reinhören (Fähigkeit ``reinhoeren``, Vertrag W, 3.12, 14.5 und 14.6)
+# --------------------------------------------------------------------------
+
+
+def _zahl(x: Any) -> float:
+    """Endliche Zahl (``bool`` ist keine Zahl); ``NaN`` und unendlich lehnt die Prüfung ab."""
+    if not isinstance(x, (int, float)) or isinstance(x, bool) or not math.isfinite(x):
+        raise vol.Invalid("Zahl erwartet")
+    return x
+
+
+def _zahl_ab_null(x: Any) -> float:
+    if _zahl(x) < 0:
+        raise vol.Invalid("Zahl ab 0 erwartet")
+    return x
+
+
+def _zahl_ueber_null(x: Any) -> float:
+    if _zahl(x) <= 0:
+        raise vol.Invalid("Zahl über 0 erwartet")
+    return x
+
+
+@befehl(
+    "audio/bereit",
+    {
+        **SERIE_ID,
+        vol.Optional("folge"): _text,
+        # nur für das Testpanel (``/tobibox-test``), das den Namen aus der Messung A0b noch sendet; entfällt mit dem Testpanel
+        vol.Optional("folge_id"): _text,
+        vol.Optional("track"): _ganz(0, 100000),
+        vol.Optional("vorbereiten"): _wahrheit,
+    },
+    recht="alltag",
+)
+async def ws_audio_bereit(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
+    folge = msg.get("folge", msg.get("folge_id"))
+    if folge is None:
+        raise TobiboxFehler("invalid_format")
+    return await audio.bereit(
+        hub, _nutzer(connection), connection.refresh_token_id, msg["serie_id"], folge, msg.get("track"), msg.get("vorbereiten", True)
+    )
+
+
+@befehl("hoerstelle/get", {**SERIE_ID}, recht="lesen")
+async def ws_hoerstelle_get(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
+    await hub.medien._stelle_geprueft_sicher()
+    return hub.hoerstellen.hole(_nutzer_id(connection), msg["serie_id"])
+
+
+@befehl(
+    "hoerstelle/set",
+    {
+        **SERIE_ID,
+        vol.Required("folge"): _text,
+        vol.Required("position_s"): _zahl_ab_null,
+        vol.Required("dauer_s"): _zahl_ueber_null,
+        vol.Optional("track"): _ganz(0, 100000),
+        vol.Optional("fertig"): _wahrheit,
+    },
+    recht="alltag",
+)
+async def ws_hoerstelle_set(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
+    """Antwortet sofort (``{}``); geschrieben wird gesammelt (60 s, 14.6). Höchstens 30 Aufrufe je Minute und Benutzer (nicht für Administratoren)."""
+    nutzer = _nutzer(connection)
+    hub.schutz.mengen.pruefe("hoerstelle", nutzer, HOERSTELLE_SCHREIBEN_JE_MINUTE, MINUTE_S)
+    await hub.medien._stelle_geprueft_sicher()
+    hub.hoerstellen.setze(
+        _nutzer_id(connection), msg["serie_id"], msg["folge"], msg["position_s"], msg["dauer_s"], msg.get("track"), msg.get("fertig")
+    )
+    hub.schutz.mengen.buche_fuer("hoerstelle", nutzer)
+    return {}
+
+
+@befehl("hoerstelle/liste", {vol.Optional("limit"): _ganz(1, HOERSTELLE_LISTE_LIMIT_MAX)}, recht="lesen")
+async def ws_hoerstelle_liste(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
+    await hub.medien._stelle_geprueft_sicher()
+    return {"eintraege": hub.hoerstellen.liste(_nutzer_id(connection), msg.get("limit", HOERSTELLE_LISTE_LIMIT_VORGABE))}
 
 
 @befehl("cover/neu_suchen", {vol.Optional("serie_id"): _text}, recht="admin")

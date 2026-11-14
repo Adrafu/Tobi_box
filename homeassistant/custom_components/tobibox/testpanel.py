@@ -220,7 +220,6 @@ def async_register_views(hass: HomeAssistant) -> None:
     """Ansichten und Befehle (einmal je HA-Lauf; sie lassen sich nicht abmelden)."""
     if hass.data.get(f"{DOMAIN}_testpanel_angemeldet"):
         return
-    audio.async_register(hass)
     hass.http.register_view(TobiboxMessView())
     websocket_api.async_register_command(hass, ws_ffmpeg_messen)
     hass.data[f"{DOMAIN}_testpanel_angemeldet"] = True

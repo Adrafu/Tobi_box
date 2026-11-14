@@ -339,6 +339,9 @@
     },
     "zu_viele_aenderungen": {
       "message": "Das waren gerade sehr viele Änderungen. Bitte kurz warten und dann noch einmal versuchen."
+    },
+    "zu_viele_streams": {
+      "message": "Es laufen schon zu viele Wiedergaben. Bitte eine beenden und noch einmal versuchen."
     }
   },
   "services": {

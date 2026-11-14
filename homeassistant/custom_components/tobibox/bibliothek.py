@@ -249,10 +249,12 @@ class Bibliothek:
         sortierung: str = "name",
         limit: int | None = None,
         offset: int = 0,
+        hoerzeiten: dict[str, str] | None = None,
     ) -> tuple[list[SerieInfo], int, bool, dict[str, int]]:
         """``(Einträge dieser Seite, gesamt nach Filter, weitere, Tobie-Zähler)``.
 
-        Ohne ``limit`` kommt alles (``SERIEN_OHNE_LIMIT_MAX``), wie bis 11.11."""
+        Ohne ``limit`` kommt alles (``SERIEN_OHNE_LIMIT_MAX``), wie bis 11.11. ``hoerzeiten`` (Serien-ID -> Zeit der letzten Wiedergabe **des
+        Anfragenden**) gehört zur Sortierung ``angehoert``: zuletzt angehört zuerst, danach alles Ungehörte nach Name."""
         filter_ = filter_ or []
         worte = suchworte(text) if text else []
         zaehler = self.tobie_zaehler()
@@ -277,6 +279,10 @@ class Bibliothek:
         if sortierung == "neu":
             treffer.sort(key=lambda z: z.sortier)
             treffer.sort(key=lambda z: z.angelegt, reverse=True)
+        elif sortierung == "angehoert":
+            gehoert = hoerzeiten or {}
+            treffer.sort(key=lambda z: z.sortier)
+            treffer.sort(key=lambda z: gehoert.get(z.info.serie.id, ""), reverse=True)  # ``""`` (nie gehört) sortiert hinten; Gleichstand: Name
         else:
             treffer.sort(key=lambda z: z.sortier)
         gesamt = len(treffer)
@@ -347,7 +353,7 @@ class Bibliothek:
                     "tobies": list(je_folge.get((s.id, f.name), [])),
                     "serie_hat_tobie": ganze.get(s.id, False),
                     "cover_stand": z.info.cover_stand,  # K8: wie in der Serie-Kurzform (A4)
-                    "dauer_s": None,  # K8: Dauern werden nirgends gespeichert; sie kommen mit Stufe A-2
+                    "dauer_s": self.medien.hub.medieninfo.dauer_s(s.id, f.name),  # K8: aus dem Store ``tobibox.medieninfo`` (A3b); ``None``, solange unbekannt
                 }
             )
         return zeilen, gesamt, offset + len(seite) < gesamt

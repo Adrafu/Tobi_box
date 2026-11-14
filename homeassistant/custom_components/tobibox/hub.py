@@ -29,6 +29,7 @@ from homeassistant.helpers.event import async_call_later, async_track_time_inter
 from .const import (
     ANFRAGE_ID_ANZAHL,
     ANFRAGE_ID_DAUER_S,
+    AUDIO_VERBINDUNGEN_JE_BENUTZER,
     CONF_BOX_ANZEIGEN,
     CONF_BOXEN,
     CONF_MEDIEN_PFAD,
@@ -59,8 +60,10 @@ from .const import (
 )
 from .bibliothek import passt, suchform, suchworte
 from .cover import CoverDienst
+from .dauer import DauerDienst
 from .eingang import Eingang
 from .fehler import TobiboxFehler
+from .hoerstelle import Hoerstellen
 from .lernmodus import Lernmodus
 from .medieninfo import MedienInfo
 from .media import Medien, name_pruefen
@@ -169,6 +172,8 @@ class Hub:
         self.schutz = Schutz(self)
         self.medieninfo = MedienInfo(hass)
         self.cover = CoverDienst(self)
+        self.dauer = DauerDienst(self)
+        self.hoerstellen = Hoerstellen(self)
         self.medien = Medien(self)
         self.eingang = Eingang(self)
         self.mqtt = MqttSchicht(self)
@@ -202,6 +207,7 @@ class Hub:
         await self.warteschlange.beim_start()
         await self.eingang.async_laden()
         await self.medieninfo.async_laden()
+        await self.hoerstellen.async_laden()
         await self.mqtt.async_start()
         self._start_task = self.hass.async_create_background_task(self._start_pruefung(), "tobibox_start")
         self._abmelden.append(
@@ -231,6 +237,7 @@ class Hub:
         self.mqtt.async_stop()
         self.eingang.abbrechen()
         self.cover.abbrechen()
+        self.dauer.abbrechen()
         for t in (self._start_task, self._export_task):
             if t is not None and not t.done():
                 t.cancel()
@@ -242,6 +249,7 @@ class Hub:
             await self.store.async_speichern()
             await self.eingang.speichern_sofort()
             await self.medieninfo.async_speichern()
+            await self.hoerstellen.async_speichern()
 
     async def _timer_pruefung(self, _now: Any) -> None:
         """Alle 10 min: Freigabe prüfen, danach den Eingang (Vertrag W, Nr. 9 und 30)."""
@@ -541,6 +549,9 @@ class Hub:
         with contextlib.suppress(Exception):
             await self._timer_pruefung(None)
         self.cover.nachholen_beim_start()  # einmal, im Hintergrund, nur Einträge ohne Marke (Vertrag W, 14.3)
+        self.dauer.nachholen_beim_start()  # einmal, im Hintergrund, nur Folgen ohne Dauer (Vertrag W, 14.7)
+        with contextlib.suppress(Exception):
+            await self.hoerstellen.bereinige_beim_start()  # unbekannte Benutzer, gelöschte Serien und Folgen (Vertrag W, 14.6)
 
     async def _bestimme_zustand(self) -> None:
         store = self.store
@@ -985,6 +996,7 @@ class Hub:
                 "name_max_bytes": 255,
                 "limit_max": LIMIT_MAX,
                 "warteschlange_max": WARTESCHLANGE_MAX,
+                "audio_verbindungen_je_benutzer": AUDIO_VERBINDUNGEN_JE_BENUTZER,  # Fähigkeit ``reinhoeren`` (Vertrag W, 14.10)
             },
         }
 

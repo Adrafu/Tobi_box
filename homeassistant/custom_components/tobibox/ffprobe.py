@@ -127,14 +127,16 @@ def _grenzen_setzen() -> None:  # pragma: no cover - läuft im Kindprozess
         pass
 
 
-def _laufe(args: list[str]) -> subprocess.CompletedProcess[bytes] | None:
-    """Startet das Programm mit Zeit- und Speicherlimit. ``None`` bei Zeitüberschreitung."""
+def _laufe(args: list[str], zeitlimit: float | None = None) -> subprocess.CompletedProcess[bytes] | None:
+    """Startet das Programm mit Zeit- und Speicherlimit. ``None`` bei Zeitüberschreitung.
+
+    ``zeitlimit`` kann das Limit nur **verkürzen** (Nachholen der Dauer im Hintergrund: ``MEDIENINFO_ZEITGRENZE_S``)."""
     try:
         return subprocess.run(  # noqa: S603
             args,
             stdin=subprocess.DEVNULL,
             capture_output=True,
-            timeout=FFPROBE_ZEITLIMIT_S,
+            timeout=FFPROBE_ZEITLIMIT_S if zeitlimit is None else min(zeitlimit, FFPROBE_ZEITLIMIT_S),
             check=False,
             preexec_fn=_grenzen_setzen if os.name == "posix" else None,  # noqa: PLW1509
         )
@@ -169,15 +171,17 @@ def sieht_aus_wie_text(pfad: str | os.PathLike[str]) -> bool:
     return druckbar / len(kopf) >= 0.95
 
 
-def probe_datei(pfad: str | os.PathLike[str], endung: str | None = None) -> Probe:
-    """Öffnet die Datei mit ``ffprobe`` (gehärtet) und liest Format, Codec, Dauer und Tags."""
+def probe_datei(pfad: str | os.PathLike[str], endung: str | None = None, zeitlimit: float | None = None) -> Probe:
+    """Öffnet die Datei mit ``ffprobe`` (gehärtet) und liest Format, Codec, Dauer und Tags.
+
+    ``zeitlimit``: kürzere Zeitgrenze als die vorgegebene (nie länger), z. B. für das Nachholen der Dauer."""
     programm = ffprobe_pfad()
     if programm is None:
         return Probe(status=FFPROBE_FEHLT)
     endung = (endung or endung_von(os.fspath(pfad))).lower()
     if endung not in FORMAT_JE_ENDUNG:
         return Probe(status=FORMAT_NICHT_ERLAUBT)
-    lauf = _laufe(baue_ffprobe_befehl(pfad, endung, programm))
+    lauf = _laufe(baue_ffprobe_befehl(pfad, endung, programm), zeitlimit)
     if lauf is None or lauf.returncode != 0:
         # Eine Textdatei mit Audio-Endung (oder eine Playlist) ist kein Defekt, sondern das falsche Format.
         return Probe(status=FORMAT_NICHT_ERLAUBT if sieht_aus_wie_text(pfad) else NICHT_LESBAR)

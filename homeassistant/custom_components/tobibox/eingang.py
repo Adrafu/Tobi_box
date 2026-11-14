@@ -1211,6 +1211,7 @@ class Eingang:
                 await self._cover_uebernehmen(serie, pfad, neue_folgen)
             serie.ordner = ordner
             await medien._aktualisiere_cache(serie, ordner)
+            self._dauer_merken(serie.id, neue_folgen)
             if doppelter_name:
                 medien.merke_hinweis(serie, "serie_name_doppelt", name=serie.name)
             for g, endname in neue_folgen:
@@ -1234,6 +1235,17 @@ class Eingang:
             if neu and neue_folgen:
                 zaehler["serien_neu"] += 1
         self.hub.emit("medien", "serien_geaendert", {"serie_ids": [serie.id]})
+
+    def _dauer_merken(self, serie_id: str, neue_folgen: list[tuple[Gruppe, str]]) -> None:
+        """Dauer und Spuren der neuen Folgen aus den Proben, die ohnehin gelaufen sind (Vertrag W, 14.7: „beim Einsortieren gespeichert“);
+        was fehlt, holt der Hintergrundlauf nach. Ein Fehler hier hält das Einsortieren nie auf."""
+        try:
+            for g, endname in neue_folgen:
+                proben = [(g.zielnamen.get(d.rel, d.rel), d.pruefung.probe.dauer_s if d.pruefung else None) for d in g.dateien]
+                self.hub.dauer.merke_aus_proben(serie_id, endname, proben)
+            self.hub.dauer.anstossen([serie_id])
+        except Exception:
+            _LOGGER.exception("Dauer beim Einsortieren nicht gemerkt")
 
     async def _cover_uebernehmen(self, serie: Serie, pfad: Path, neue_folgen: list[tuple[Gruppe, str]]) -> None:
         """Cover zum Einsortieren (Vertrag W, 14.3): ein mitgeliefertes Bild im Eingangs-Eintrag wird **kopiert**; die Datei dort folgt

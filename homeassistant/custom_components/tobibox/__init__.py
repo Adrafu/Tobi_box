@@ -17,7 +17,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.loader import async_get_integration
 
-from . import testpanel, websocket_api
+from . import audio, testpanel, websocket_api
 from .const import CONF_UPLOAD_MAX_MIB, DOMAIN, TESTPANEL, UPLOAD_MAX_MIB_ALT, UPLOAD_MAX_MIB_VORGABE
 from .http import TobiboxCoverView, TobiboxStaticView, TobiboxUploadView
 from .hub import Hub
@@ -71,6 +71,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if not hass.data.get(_GEMERKT):
         hass.http.register_view(TobiboxUploadView())
         hass.http.register_view(TobiboxCoverView())
+        audio.async_register_views(hass)  # Reinhören: Audio-Ansicht (Vertrag W, 14.5); der Befehl ``audio/bereit`` steht in ``websocket_api``
         if frontend_da:
             hass.http.register_view(TobiboxStaticView(FRONTEND_PFAD))  # mit Cache-Control: no-cache (B4), siehe http.py
         hass.data[_GEMERKT] = True

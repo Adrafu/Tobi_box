@@ -103,7 +103,7 @@ ARTEN: Final = ("hoerspiel", "hoerbuch", "musik", "geschichte")
 ART_QUELLEN: Final = ("tags", "geraten", "manuell")
 ART_VORGABE: Final = "hoerspiel"
 FILTER_WERTE: Final = ("ohne_tobie", "neu", "pruefen", "sammlung", "einzeln")
-SERIEN_SORTIERUNGEN: Final = ("name", "neu")
+SERIEN_SORTIERUNGEN: Final = ("name", "neu", "angehoert")
 FOLGEN_SORTIERUNGEN: Final = ("titel", "neu")
 SUCHTEXT_MIN: Final = 2
 SUCHTEXT_MAX: Final = 100
@@ -209,6 +209,8 @@ FAEHIGKEITEN: Final = (
     # A9c (13.11., A0-Q): Befehle 47 bis 49, Thema ``warteschlange``; ``als_neu`` bei ``zuordnung/remove``
     "warteschlange",
     "zuordnung_rueckgaengig",
+    # A4c (A-2): Audio-Ansicht, Befehle 39 bis 42 (``audio/bereit``, ``hoerstelle/*``), Sortierung ``angehoert``. ``hoerkopie`` fehlt bis A-3
+    "reinhoeren",
 )
 
 # --- MQTT-Themen (``mqtt-v1.md`` Abschnitt 2) ----------------------------------
@@ -240,7 +242,27 @@ GERAETENAMEN: Final = frozenset(
 #: Schalter f\u00fcr das Testpanel unter ``/tobibox-test`` (Messungen A0b). Auf ``False`` setzen, um es zu entfernen.
 TESTPANEL: Final = True
 AUDIO_VERBINDUNGEN_JE_BENUTZER: Final = 6
+#: ``audio/bereit`` je Minute und Benutzer (Vertrag W, 2.4 und 14.10); Administratoren sind wie bei allen Mengen ausgenommen
+AUDIO_BEREIT_JE_MINUTE: Final = 6
 AUDIO_LINK_GUELTIG_S: Final = 86400
+
+# --- Reinhören: Hörstelle und Dauer (Vertrag W, 14.6, 14.7 und 14.10) ---------------------------------
+#: ``hoerstelle/set`` je Minute und Benutzer (eigener Zähler)
+HOERSTELLE_SCHREIBEN_JE_MINUTE: Final = 30
+#: im Speicher sofort, auf der Platte gesammelt (``Store.async_delay_save``)
+HOERSTELLE_SPEICHER_VERZOEGERUNG_S: Final = 60
+HOERSTELLE_MAX_SERIEN: Final = 2000
+HOERSTELLE_MAX_FOLGEN: Final = 100
+#: Ist die Dauer einer Folge nicht bekannt, gilt die gesendete bis höchstens so viel
+HOERSTELLE_DAUER_UNBEKANNT_MAX_S: Final = 86400
+#: „fertig“: bis auf so viele Sekunden ans Ende (Design 5.12)
+HOERSTELLE_FERTIG_REST_S: Final = 2
+HOERSTELLE_LISTE_LIMIT_MAX: Final = 12
+HOERSTELLE_LISTE_LIMIT_VORGABE: Final = 8
+#: keine gespeicherte Dauer über 48 Stunden (eine FLAC-Datei mit Stille kann Hunderte Stunden „dauern“)
+DAUER_DECKEL_S: Final = 172800
+#: feste Zeitgrenze je Datei beim Nachholen im Hintergrund (zusätzlich ``FFPROBE_ZEITLIMIT_S``)
+MEDIENINFO_ZEITGRENZE_S: Final = 20
 #: Mess-Endpunkt: z\u00e4hlt Bytes und verwirft sie (Grenze wie die k\u00fcnftige Dateigr\u00f6\u00dfe, 2 GiB)
 MESS_UPLOAD_MAX_BYTES: Final = 2 * 1024**3
 #: ffmpeg-Messung: L\u00e4nge des umgewandelten St\u00fccks und feste Zeitgrenzen

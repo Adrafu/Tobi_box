@@ -593,12 +593,15 @@ class Medien:
 
     # --- Serie-Kurzform und Folge-Objekt -------------------------------------------
 
-    def kurzform(self, info: SerieInfo, tobie_zaehler: dict[str, int] | None = None) -> dict[str, Any]:
-        """Serie-Kurzform (Vertrag W, Abschnitt 3 und 14.2). Listen reichen ``tobie_zaehler`` durch (einmal gezählt)."""
+    def kurzform(self, info: SerieInfo, tobie_zaehler: dict[str, int] | None = None, nutzer_id: str | None = None) -> dict[str, Any]:
+        """Serie-Kurzform (Vertrag W, Abschnitt 3 und 14.2). Listen reichen ``tobie_zaehler`` durch (einmal gezählt).
+
+        ``dauer_s``: Summe der bekannten Folgendauern (``null``, solange keine bekannt ist). ``hoerstelle``: nur wenn der **Anfragende**
+        (``nutzer_id`` aus der Verbindung) angefangen hat, nur seine eigene (14.2)."""
         s = info.serie
         anzahl_pruefen = sum(1 for n in s.folgen if s.info(n).get("pruefen"))
         anzahl_tobies = len(self.tobies_der_serie(s.id)) if tobie_zaehler is None else tobie_zaehler.get(s.id, 0)
-        return {
+        aus = {
             "id": s.id,
             "name": s.name,
             "typ": s.typ,
@@ -615,7 +618,12 @@ class Medien:
             "einzeln": bool(s.einzeln),
             "cover_stand": info.cover_stand,
             "cover_quelle": info.cover_quelle,
+            "dauer_s": self.hub.medieninfo.serie_dauer(s.id, s.folgen),
         }
+        hoerstelle = self.hub.hoerstellen.kurz(nutzer_id, s.id)
+        if hoerstelle is not None:
+            aus["hoerstelle"] = hoerstelle
+        return aus
 
     def _folge_objekt(
         self, s: Serie, ordner: str, name: str, platte: tuple[tuple[str, int, int, bool], tuple | None]
@@ -905,14 +913,18 @@ class Medien:
         sortierung: str = "name",
         limit: int | None = None,
         offset: int = 0,
+        nutzer_id: str | None = None,
     ) -> dict[str, Any]:
-        """``serien/list`` (Vertrag W, Nr. 3 und 14.2). Ohne Eingaben wie bis 11.11.: alle Einträge nach Name."""
+        """``serien/list`` (Vertrag W, Nr. 3 und 14.2). Ohne Eingaben wie bis 11.11.: alle Einträge nach Name.
+
+        ``nutzer_id``: der Anfragende (aus der Verbindung): für ``hoerstelle`` und die Sortierung ``angehoert``."""
         await self._stelle_geprueft_sicher()
         infos, gesamt, weitere, zaehler = self.bibliothek.serien(
-            art=art, text=text, auch_folgen=auch_folgen, filter_=filter_, sortierung=sortierung, limit=limit, offset=offset
+            art=art, text=text, auch_folgen=auch_folgen, filter_=filter_, sortierung=sortierung, limit=limit, offset=offset,
+            hoerzeiten=self.hub.hoerstellen.zeiten(nutzer_id) if sortierung == "angehoert" else None,
         )
         return {
-            "serien": [self.kurzform(i, zaehler) for i in infos],
+            "serien": [self.kurzform(i, zaehler, nutzer_id) for i in infos],
             "gesamt": gesamt,
             "weitere": weitere,
             "ueberraschung": self.ueberraschung_status(),
@@ -1001,11 +1013,28 @@ class Medien:
         self.serien[serie.id] = info
         return info
 
-    async def serie_holen(self, serie_id: str) -> dict[str, Any]:
+    async def serie_holen(self, serie_id: str, nutzer_id: str | None = None) -> dict[str, Any]:
         serie, pfad = await self._frisch(serie_id)
         info = await self._aktualisiere_cache(serie, pfad.name)
-        aus = self.kurzform(info)
-        aus["folgen"] = info.folgen_objekte
+        aus = self.kurzform(info, nutzer_id=nutzer_id)
+        # ``dauer_s`` und ``spuren_s`` fehlen, solange unbekannt; ``hoerstelle`` nur, wenn der Anfragende angefangen hat (Vertrag W, 14.2).
+        # Beides kommt zur Antwortzeit dazu (nicht in den Zwischenspeicher: der Hintergrundlauf füllt die Dauer nach, die Hörstelle ist je Benutzer).
+        medieninfo = self.hub.medieninfo
+        hoerstellen = self.hub.hoerstellen.je_folge(nutzer_id, serie_id)
+        folgen = []
+        for objekt in info.folgen_objekte:
+            f = dict(objekt)
+            name = f["name"]
+            dauer = medieninfo.dauer_s(serie_id, name)
+            if dauer is not None:
+                f["dauer_s"] = dauer
+            spuren = medieninfo.spuren_s(serie_id, name)
+            if spuren is not None:
+                f["spuren_s"] = spuren
+            if name in hoerstellen:
+                f["hoerstelle"] = hoerstellen[name]
+            folgen.append(f)
+        aus["folgen"] = folgen
         aus["zuordnungen"] = self.tobies_der_ganzen_serie(serie_id)
         return aus
 
@@ -1168,6 +1197,7 @@ class Medien:
             serie.folgen = [n for n in serie.folgen if n != folge]
             serie.folgen_info.pop(folge, None)
             self._pruefergebnisse.pop((pfad.name, folge), None)
+            self.hub.medieninfo.loesche_folge(serie_id, folge)  # Dauer der gelöschten Folge (eine neue Datei gleichen Namens wird neu gemessen)
             try:
                 await self._executor(schreibe_serie, pfad, serie)
             except OSError as err:
@@ -1209,6 +1239,7 @@ class Medien:
                 self.hub.eingang.index_wiederherstellen(summen, f"{pfad.name}/")
                 raise self._fehler_schreiben(err) from err
             self.serien.pop(serie_id, None)
+            self.hub.medieninfo.loesche_serie_folgen(serie_id)
             for k in [k for k in self._pruefergebnisse if k[0] == pfad.name]:
                 self._pruefergebnisse.pop(k, None)
         eintrag = eintrag_fuer_seite(meta)
@@ -1273,6 +1304,7 @@ class Medien:
                 raise self._fehler_schreiben(err) from err
             for sp in ((quelle_pfad.name, folge), (ziel_pfad.name, neuer_name)):
                 self._pruefergebnisse.pop(sp, None)
+            self.hub.medieninfo.uebertrage_folge(serie_id, folge, ziel_serie_id, neuer_name)  # die Dauer wandert mit
             konfig = None
             veroeffentlicht = None
             if tobies:
@@ -1352,6 +1384,7 @@ class Medien:
                 if info:
                     ziel.folgen_info[neuer] = info
                 self.hub.eingang.index_entferne_praefix(f"{quelle_pfad.name}/{folge}")
+                self.hub.medieninfo.uebertrage_folge(quelle_id, folge, ziel_id, neuer)  # die Dauer wandert mit
                 neue_namen[folge] = neuer
                 quelle.folgen = [n for n in quelle.folgen if n != folge]
                 quelle.folgen_info.pop(folge, None)
@@ -1391,6 +1424,7 @@ class Medien:
             except OSError as err:
                 raise self._fehler_schreiben(err) from err
             self.serien.pop(quelle_id, None)
+            self.hub.medieninfo.loesche_serie_folgen(quelle_id)
             for k in [k for k in self._pruefergebnisse if k[0] == quelle_pfad.name]:
                 self._pruefergebnisse.pop(k, None)
             konfig = None
@@ -1487,6 +1521,7 @@ class Medien:
                     raise self._fehler_schreiben(err) from err
                 self.hub.eingang.index_wiederherstellen(meta.get("index_pruefsummen") or [], f"{pfad.name}/{name}")
                 info = await self._aktualisiere_cache(serie, pfad.name)
+            self.hub.dauer.anstossen([ziel_id])  # die Dauer der zurückgeholten Folge fehlt (Hintergrund)
             self.hub.emit("medien", "serien_geaendert", {"serie_ids": [ziel_id]})
             self.hub.emit("medien", "papierkorb_geaendert", {})
             return {"serie": self.kurzform(info), "folge": name}
@@ -1509,6 +1544,7 @@ class Medien:
                 await self._executor(shutil.rmtree, eintrag_pfad, True)
                 self.hub.eingang.index_wiederherstellen(meta.get("index_pruefsummen") or [], f"{ordner}/")
                 info = await self._aktualisiere_cache(serie, ordner, [])
+            self.hub.dauer.anstossen([serie.id])  # die Dauern der zurückgeholten Serie fehlen (Hintergrund)
             self.hub.emit("medien", "serien_geaendert", {"serie_ids": [serie.id]})
             self.hub.emit("medien", "papierkorb_geaendert", {})
             return {"serie": self.kurzform(info), "folge": None}

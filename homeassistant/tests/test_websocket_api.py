@@ -94,6 +94,7 @@ async def test_hello(api, api_lesend, integration):
         "cover",  # 12.11., Paket A4: Foto-Upload, Cover-Ansicht, Befehl 44
         "warteschlange",  # 13.11., Paket A9c: Befehle 47 bis 49, Thema ``warteschlange``
         "zuordnung_rueckgaengig",  # 13.11., Paket A9c: ``als_neu`` bei ``zuordnung/remove``
+        "reinhoeren",  # 14.11., Paket A4c: Audio-Ansicht, Befehle 39 bis 42, Sortierung ``angehoert``
     ]
     assert r["konfig"]["zustand"] == "ok" and r["konfig"]["revision"] == 1
     g = r["grenzen"]
@@ -102,6 +103,7 @@ async def test_hello(api, api_lesend, integration):
     assert g["endungen"] == ["mp3", "m4a", "m4b", "aac", "flac", "ogg", "opus", "wav"]
     assert (g["serie_name_max"], g["folge_anzeige_max"], g["tobie_name_max"], g["name_max_bytes"], g["limit_max"]) == (100, 200, 60, 255, 100)
     assert g["warteschlange_max"] == 5  # 13.11. (A0-Q)
+    assert g["audio_verbindungen_je_benutzer"] == 6  # A4c (Vertrag W, 14.10)
     assert (await ok(api_lesend, "hello", v=1))["darf_schreiben"] is False
 
 
@@ -243,14 +245,15 @@ async def test_serien_list_und_serie_get(hass, api, nas, integration):
     assert r["pruefung_laeuft"] is False and r["geprueft_am"]
     rabe = next(s for s in r["serien"] if s["id"] == "rabe")
     assert rabe.keys() == {"id", "name", "typ", "ordner", "anzahl_folgen", "anzahl_tobies", "angelegt_am", "stand", "pruefen", "anzahl_pruefen", "hinweise",
-                           "art", "art_quelle", "einzeln", "cover_stand", "cover_quelle"}  # seit 12.11. (Pakete A3, A4)
+                           "art", "art_quelle", "einzeln", "cover_stand", "cover_quelle", "dauer_s"}  # seit 12.11. (Pakete A3, A4, A3b)
     assert (rabe["anzahl_folgen"], rabe["typ"], rabe["ordner"], rabe["pruefen"], rabe["anzahl_pruefen"]) == (2, "normal", "rabe", False, 0)
     assert (rabe["art"], rabe["art_quelle"], rabe["einzeln"]) == ("hoerspiel", "geraten", False)  # alte serie.json ohne art
     assert (r["gesamt"], r["weitere"]) == (3, False)
     s = await ok(api, "serie/get", serie_id="rabe")
     assert s["stand"] == rabe["stand"] and s["zuordnungen"] == []
     a, b = s["folgen"]
-    assert a.keys() == {"name", "anzeige", "nummer", "datum", "art", "tracks", "groesse_bytes", "pruefung", "hinweis", "pruefen", "pruefen_gruende", "tobies"}
+    # ``dauer_s`` und ``spuren_s`` fehlen, solange die Dauer unbekannt ist (der Hintergrundlauf holt sie nach), ``hoerstelle`` fehlt ohne Hörstelle
+    assert a.keys() - {"dauer_s", "spuren_s"} == {"name", "anzeige", "nummer", "datum", "art", "tracks", "groesse_bytes", "pruefung", "hinweis", "pruefen", "pruefen_gruende", "tobies"}
     assert (a["name"], a["anzeige"], a["nummer"], a["art"], a["tracks"]) == ("a.mp3", "Eins", 1, "datei", 1)
     assert (b["anzeige"], b["nummer"], b["datum"]) == ("b", None, None)  # Dateiname ohne Endung
     assert await fehler(api, "serie/get", serie_id="gibtsnicht") == "serie_nicht_gefunden"

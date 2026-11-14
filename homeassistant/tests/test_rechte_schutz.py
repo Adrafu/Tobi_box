@@ -131,10 +131,10 @@ TABELLE = [
     (36, "einstellungen/set", "alltag", {"gute_nacht": {"timer_min": 20, "ausblenden_s": 30}}, None, True),
     (37, "folgen/list", "lesen", {"text": "rabe", "filter": ["ohne_tobie"], "limit": 10}, None, True),
     (38, "serie/art_setzen", "alltag", {"serie_id": "rabe", "art": "hoerbuch"}, None, True),
-    (39, "audio/bereit", "alltag", {"serie_id": "rabe", "folge_id": "a.mp3"}, None, True),
-    (40, "hoerstelle/get", "lesen", {}, None, False),
-    (41, "hoerstelle/set", "alltag", {}, None, False),
-    (42, "hoerstelle/liste", "lesen", {}, None, False),
+    (39, "audio/bereit", "alltag", {"serie_id": "rabe", "folge": "a.mp3"}, None, True),
+    (40, "hoerstelle/get", "lesen", {"serie_id": "rabe"}, None, True),
+    (41, "hoerstelle/set", "alltag", {"serie_id": "rabe", "folge": "a.mp3", "position_s": 0.5, "dauer_s": 1.0}, None, True),
+    (42, "hoerstelle/liste", "lesen", {}, None, True),
     (43, "einsortierung/neu", "alltag", {}, None, False),
     (44, "cover/neu_suchen", "admin", {}, None, True),
     (45, "hoerkopie/neu_erzeugen", "admin", {}, None, False),
@@ -192,9 +192,8 @@ async def test_tabelle_2_1_normal_benutzer(normal, nr, befehl, recht, felder, ad
 async def test_hello_sagt_nur_zu_was_gebaut_ist(admin, normal):
     for client in (admin, normal):
         f = (await ok(client, "hello", v=1))["faehigkeiten"]
-        assert f[-6:] == ["konfig_staende", "bibliothek", "einsortier_wunsch", "cover", "warteschlange", "zuordnung_rueckgaengig"]  # A1, A3, A3d, A4, A9c
-        for spaeter in ("reinhoeren", "hoerkopie"):
-            assert spaeter not in f
+        assert f[-7:] == ["konfig_staende", "bibliothek", "einsortier_wunsch", "cover", "warteschlange", "zuordnung_rueckgaengig", "reinhoeren"]  # A1, A3, A3d, A4, A9c, A4c
+        assert "hoerkopie" not in f  # A-3
     assert (await ok(admin, "hello", v=1))["darf_schreiben"] is True
     assert (await ok(normal, "hello", v=1))["darf_schreiben"] is False
 
