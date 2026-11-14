@@ -1589,6 +1589,23 @@ def ablauf_eingang_liste(L: Lauf):
         L.pruefe(L.js("return sr.querySelectorAll(x).length", karten) == voll, "liste-ausblenden", "„Erledigte zeigen“ bringt sie nicht zurück")
         L.mock("/eingang", {"zustand": "leer"})
         L.pg.wait_for_function("() => !window.__el.shadowRoot.querySelector(\"[data-liste='zuletzt'] [data-quelle='nas']\")", timeout=8000)
+    with L.schritt("liste-dateien"):
+        # Befund aus dem echten HA: „geht nicht“ und „teilweise“ nennen die Dateien (Namen je Grund, „und N weitere“), lange Namen brechen um
+        L.mock("/eingang", {"zustand": "dateien"})
+        L.pg.wait_for_function("() => window.__el.shadowRoot.querySelectorAll(\"[data-liste='zuletzt'] [data-quelle='nas'] [data-gruppe]\").length >= 4", timeout=8000)
+        L.ruhe()
+        fe = L.js("const k = sr.querySelector(\"[data-liste='zuletzt'] [data-phase='fehler'][data-quelle='nas']\"); return { gruppen: [...k.querySelectorAll('[data-gruppe]')].map((g) => ({ satz: g.querySelector('[data-grund]').textContent.trim(), namen: [...g.querySelectorAll('[data-datei]')].map((d) => d.textContent.trim()), weitere: g.querySelector('[data-weitere]')?.textContent.trim() ?? null })) }")
+        kaputt = [g for g in fe["gruppen"] if g["satz"].startswith("Die Datei ist kaputt")]
+        L.pruefe(len(fe["gruppen"]) == 2 and len(kaputt) == 1, "liste-dateien", f"Zwei Gründe erwartet: {fe}")
+        L.pruefe(bool(kaputt) and len(kaputt[0]["namen"]) == 3 and kaputt[0]["weitere"] == "und 1 weitere", "liste-dateien", f"Drei Namen und „und 1 weitere“ erwartet: {kaputt}")
+        L.pruefe(bool(kaputt) and "Felix - Briefe von Felix/Briefe von Felix.mp3" in kaputt[0]["namen"] and "Anderer Ordner/Briefe von Felix.mp3" in kaputt[0]["namen"], "liste-dateien", f"Gleiche Dateinamen brauchen den Ordner davor: {kaputt}")
+        L.messe("liste-dateien-nicht")
+        te = L.js("const k = sr.querySelector(\"[data-liste='zuletzt'] [data-phase='pruefen'][data-quelle='nas'] [data-liegt-noch]\")?.closest('[data-eintrag]'); return k ? { text: k.textContent.replace(/\\s+/g, ' ').trim(), rest: k.querySelectorAll('[data-liegt-noch] [data-gruppe]').length, richtig: !!k.querySelector('[data-richtig]') } : null")
+        L.pruefe(te is not None and "Daraus ist geworden: Neuer Eintrag „Bibi Blocksberg“" in te["text"] and "Liegt noch im Eingang:" in te["text"] and te["rest"] == 2 and "Geschuetzt.m4b" in te["text"], "liste-dateien", f"Karte „teilweise“: {te}")
+        L.pruefe(te is not None and not te["richtig"], "liste-dateien", "Bei „teilweise“ gibt es kein „Das ist richtig“")
+        L.messe("liste-dateien-teilweise")
+        L.mock("/eingang", {"zustand": "leer"})
+        L.pg.wait_for_function("() => !window.__el.shadowRoot.querySelector(\"[data-liste='zuletzt'] [data-quelle='nas']\")", timeout=8000)
     with L.schritt("liste-neuladen"):
         with tempfile.TemporaryDirectory(prefix="tb-hz2-") as tmp:
             tmp = Path(tmp)

@@ -103,6 +103,19 @@ const ZUSTAENDE_EINGANG = (() => {
       [ansehen(j, { name: 'Bibi-Ordner', quelle: 'nas', art: 'ordner', dateien: 3, wunsch: null }),
         eingangEintrag({ name: 'Sommerlieder', quelle: 'nas', art: 'ordner', dateien: 4, fertig_am: vor(j, 3), ergebnis: [{ serie_id: 'kurz', serie_name: 'Kleine Reise', serie_neu: false, folge: 'x.mp3', anzeige: 'x', tracks: 1, pruefen: false, pruefen_gruende: [] }] })],
     ],
+    /* Dateien im Eingang: „geht nicht“ mit langen Namen (zwei Gründe, vier Dateien, darunter zwei mit gleichem Dateinamen) und „teilweise“ (ein Teil einsortiert, ein Teil liegt noch da) */
+    dateien: (j) => [
+      [eingangEintrag({ name: 'Die Haferhorde - Volle Mähne mit einem sehr langen Ordnernamen', quelle: 'nas', art: 'ordner', dateien: 1812, status: 'blockiert', fertig_am: null, zuerst_gesehen: vor(j, 30), hinweise: [
+        { code: 'probedekodierung_fehlgeschlagen', datei: 'Die Haferhorde - Volle Mähne!/26. Kapitel 24_ Volle Mähne mit einem wirklich sehr langen Dateinamen ohne Leerzeichen_und_Unterstrichen.mp3.mp3', text: 'x' },
+        { code: 'probedekodierung_fehlgeschlagen', datei: 'Felix - Briefe von Felix/Briefe von Felix.mp3', text: 'x' },
+        { code: 'probedekodierung_fehlgeschlagen', datei: 'Anderer Ordner/Briefe von Felix.mp3', text: 'x' },
+        { code: 'probedekodierung_fehlgeschlagen', datei: 'Ordner/04 Vier.mp3', text: 'x' },
+        { code: 'kopierschutz', datei: 'Hörbücher/Gruesse_aus_der_Ferne_ungekuerzte_Lesung_Teil_1.m4b', text: 'x' }] })],
+      [eingangEintrag({ name: 'Gemischter Ordner', quelle: 'nas', art: 'ordner', dateien: 6, status: 'teilweise', fertig_am: vor(j, 4), pruefen: true, wunsch: { ziel: 'neu', art: 'hoerspiel' },
+        ergebnis: [{ serie_id: 'pruef', serie_name: 'Bibi Blocksberg', serie_neu: true, folge: 'b1.mp3', anzeige: 'Hexen gibt es doch', tracks: 1, pruefen: true, pruefen_gruende: ['tags_fehlen'] }],
+        hinweise: [{ code: 'probedekodierung_fehlgeschlagen', datei: 'Gemischter Ordner/Kaputte_Datei_mit_einem_sehr_langen_Namen_der_nicht_umbrechen_will_01_02_03_04_05.mp3', text: 'x' },
+          { code: 'kopierschutz', datei: 'Gemischter Ordner/Geschuetzt.m4b', text: 'x' }] })],
+    ],
   };
 })();
 
@@ -263,7 +276,7 @@ const server = http.createServer(async (req, res) => {
     const f = ZUSTAENDE_EINGANG[zustand];
     if (!f) { res.statusCode = 400; res.end(JSON.stringify({ fehler: 'unbekannter Zustand' })); return; }
     [m.backend.eingang, m.backend.eingangErledigt] = f(Date.now());
-    if ((zustand.startsWith('pruefen') || zustand === 'nas') && m.backend.serien.pruef) { // frühere Abläufe haben die Serie vielleicht schon bestätigt: wieder „bitte prüfen“
+    if ((zustand.startsWith('pruefen') || zustand === 'nas' || zustand === 'dateien') && m.backend.serien.pruef) { // frühere Abläufe haben die Serie vielleicht schon bestätigt: wieder „bitte prüfen“
       const sr = m.backend.serien.pruef;
       sr.pruefen = true; sr.folgen[0].pruefen = true; sr.folgen[0].pruefen_gruende = ['tags_fehlen', 'nummer_doppelt'];
     }

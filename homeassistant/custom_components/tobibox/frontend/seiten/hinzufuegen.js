@@ -22,7 +22,7 @@
 import { html, nothing, css, ic, cover, untertitel } from '../bausteine.js';
 import { HINZU, KACHELN, SEITE, SERIE, TOBIES, GRUENDE, HINWEISE, FEHLER, ZEILE, EINGANG, fuellen, fehlerText } from '../texte.js';
 import { Zielwahl } from './tobies.js';
-import { FENSTER_MS, eintragGruende, daraus as eingangDaraus } from '../eingang.js';
+import { FENSTER_MS, eintragGruende, ergebnisGruende, hinweisGruppen, daraus as eingangDaraus } from '../eingang.js';
 import {
   Hochlader, GRUPPE_MAX, ZUSTAENDE_NEU_WAEHLEN, neueId, pruefeDateien, sortiereNatuerlich, nameVorschlag, artVorschlag, liesAngaben, titelAusDateiname,
   dateienAusDrop, gesamtProzent, dateiProzent, aktuelleDatei, phaseVon, dateiFehlerText, grenzeText,
@@ -745,6 +745,12 @@ class HinzSeite {
     return [...lokal, ...frei].sort((x, y) => y.zeit - x.zeit);
   }
 
+  /* Grund und betroffene Dateien: ein Satz je Grund, darunter die Namen („und N weitere“ ab der vierten Datei). */
+  _gruppen(hinweise) {
+    return hinweisGruppen(hinweise).map((g) => html`<div class="hz-gruppe" data-gruppe><span class="hz-grund" data-grund>${g.satz}</span>
+      ${g.namen.length ? html`<ul class="hz-dateien" data-dateien>${g.namen.map((n) => html`<li data-datei>${n}</li>`)}${g.weitere ? html`<li class="muted" data-weitere>${fuellen(EINGANG.daraus_weitere, { anzahl: g.weitere })}</li>` : nothing}</ul>` : nothing}</div>`);
+  }
+
   _erledigt(z) { return z.art === 'upload' ? this.m.anzeigePhase(z.auftrag) === 'fertig' : z.zustand === 'fertig'; }
 
   /* Eine Zeile unter „Zuletzt hinzugefügt“: ein Auftrag dieses Geräts (`upload`) oder ein Eintrag aus dem Eingang (`eingang`). */
@@ -817,18 +823,21 @@ class HinzSeite {
       return rahmen('', 'sortieren', html`${zeile(null)}${e.quelle === 'nas' ? nothing : this._schritte(null, 1)}<div class="hz-status" role="status" data-status>${T.einsortiert}</div>`);
     }
     if (z.zustand === 'fehler') {
-      const saetze = eintragGruende(e);
+      const gr = this._gruppen(e.hinweise);
       return rahmen('note err', 'fehler', html`${zeile('err', T.marke.geht_nicht)}
-        <div data-geht-nicht><strong>${T.geht_nicht}</strong> ${(saetze.length ? saetze : [fuellen(T.geht_nicht_sonst)]).map((t) => html` <span class="hz-grund" data-grund>${t}</span>`)}</div>`);
+        <div data-geht-nicht><strong>${T.geht_nicht}</strong> ${gr.length ? gr : html` <span class="hz-grund" data-grund>${fuellen(T.geht_nicht_sonst)}</span>`}</div>`);
     }
     if (z.zustand === 'pruefen') {
       const fehlt = (e.hinweise || []).some((h) => h.code === 'gruppe_unvollstaendig');
-      const saetze = eintragGruende(e);
+      const teilweise = e.status === 'teilweise' && !fehlt;
+      const saetze = teilweise ? ergebnisGruende(e) : eintragGruende(e);
+      const rest = teilweise ? this._gruppen(e.hinweise) : [];
       const richtig = e.status !== 'teilweise' && offene.length > 0;
       const wohin = offene.length ? offene : ids;
       return rahmen('note warn', fehlt ? 'fehlt' : 'pruefen', html`${zeile('warn', fehlt ? T.marke.fehlt : T.marke.ansehen)}
-        <div><strong>${T.ansehen_titel}</strong> ${(saetze.length ? saetze : [EINGANG.grund_sonst]).map((t) => html` <span class="hz-grund" data-grund>${t}</span>`)}</div>
+        <div><strong>${T.ansehen_titel}</strong> ${(saetze.length || teilweise ? saetze : [EINGANG.grund_sonst]).map((t) => html` <span class="hz-grund" data-grund>${t}</span>`)}</div>
         <div data-daraus>${wasDaraus}</div>
+        ${rest.length ? html`<div data-liegt-noch><strong>${T.liegt_noch}</strong> ${rest}</div>` : nothing}
         ${wohin.length || richtig ? html`<div class="btns">
           ${wohin.length ? html`<a class="btn" href=${ziel(wohin)} data-ansehen>${T.ansehen}</a>` : nothing}
           ${richtig ? html`<button type="button" class="btn" data-richtig @click=${() => this.m.richtigEintrag(e)}>${T.richtig}</button>` : nothing}
@@ -891,10 +900,11 @@ class HinzSeite {
   _fehler(a, kopf, marke) {
     const e = a.eingang;
     const angekommen = a.dateien.filter((d) => d.zustand === 'fertig').length;
-    const gruende = e ? nichtGruende(e) : [];
+    const gr = e ? this._gruppen(e.hinweise) : [];
+    const gruende = e && !gr.length ? nichtGruende(e) : [];
     return html`<div class="hz-karte note err" data-eintrag=${a.id} data-phase="fehler" tabindex="-1">${kopf}
       <div class="hz-zeile2">${marke('err', HINZU.marke.geht_nicht)}</div>
-      <div data-geht-nicht><strong>${HINZU.geht_nicht}</strong>${gruende.map((t) => html` <span class="hz-grund">${t}</span>`)}</div>
+      <div data-geht-nicht><strong>${HINZU.geht_nicht}</strong> ${gr}${gruende.map((t) => html` <span class="hz-grund">${t}</span>`)}</div>
       ${e ? nothing : this._dateiZeilen(a)}
       ${!e && angekommen ? html`<div data-angekommen>${fuellen(HINZU.andere_angekommen, { angekommen })}</div>` : nothing}
       ${!e && a.dateien.some((d) => ZUSTAENDE_NEU_WAEHLEN.includes(d.zustand)) ? html`<div class="btns"><button type="button" class="btn" data-fehlende @click=${() => this.m.waehle({ mehrere: false, fuerAuftrag: a })}>${HINZU.fehlt.knopf}</button></div>` : nothing}</div>`;
@@ -928,7 +938,10 @@ export const stil = () => css`
   .hz-marke.err { background: var(--card); color: var(--danger); border-color: var(--danger); }
   .hz-status { font-size: 16px; }
   .hz-text { overflow-wrap: anywhere; }
-  .hz-grund { display: inline; }
+  .hz-grund { display: inline; overflow-wrap: anywhere; }
+  .hz-gruppe { display: grid; gap: 4px; margin-top: 4px; min-width: 0; overflow-wrap: anywhere; }
+  .hz-gruppe .hz-dateien { padding-left: 8px; }
+  [data-liegt-noch] { display: grid; gap: 2px; min-width: 0; }
   .hz-abgelehnt { font-size: 15px; padding: 8px 12px; border-radius: 12px; background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn); overflow-wrap: anywhere; }
   .hz-bleib { font-weight: 500; }
   .hz-balken { height: 8px; background: var(--divider); border-radius: 4px; overflow: hidden; }

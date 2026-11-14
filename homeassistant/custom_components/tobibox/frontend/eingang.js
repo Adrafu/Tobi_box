@@ -15,6 +15,8 @@
  *   grundSatz(code, werte)             Code → Satz für Eltern („bitte kurz ansehen“ und „geht nicht“), mit Rückfall für unbekannte Codes
  *   gruendeSaetze(codes)               mehrere Codes → Sätze ohne Doppelte; ohne bekannten Code der Rückfall
  *   eintragGruende(e)                  alle Sätze eines Eingangs-Eintrags (`hinweise` und `ergebnis[].pruefen_gruende`)
+ *   dateiName(pfad), hinweisGruppen(hinweise, opt)   Dateiname aus dem Pfad; Hinweise nach Grund gruppiert: [{ satz, namen, weitere }] (höchstens 3 Namen, der Rest als Zahl)
+ *   ergebnisGruende(e)                 nur die Sätze der einsortierten Teile (`ergebnis[].pruefen_gruende`)
  *   daraus(e, opt)                     „Daraus ist geworden: …“ als Satz, oder '' ohne Ergebnis
  *   naechsteAenderung(eintraege, opt)  ms bis sich Band oder Liste durch bloßen Zeitablauf ändern (für einen Zeitgeber), oder null
  */
@@ -112,6 +114,46 @@ export function eintragGruende(e, werte = {}) {
   const saetze = [...new Set(bekannt)];
   if (!saetze.length && codes.length) return [EINGANG.grund_sonst];
   return saetze;
+}
+
+/* Nur die Gründe der einsortierten Teile (bei `teilweise` stehen die Hinweise getrennt unter „Liegt noch im Eingang“). */
+export function ergebnisGruende(e) {
+  const codes = (e?.ergebnis || []).flatMap((r) => r.pruefen_gruende || []);
+  const bekannt = [...new Set(codes.filter((c) => Object.hasOwn(GRUENDE, c) || Object.hasOwn(HINWEISE, c)))].map((c) => grundSatz(c));
+  const saetze = [...new Set(bekannt)];
+  return !saetze.length && codes.length ? [EINGANG.grund_sonst] : saetze;
+}
+
+/* ------------------------------------------------------------------ betroffene Dateien */
+
+const teile = (pfad) => String(pfad ?? '').split(/[\\/]+/).filter(Boolean);
+
+/* Nur der Dateiname eines Pfads (Pfade mit / oder \). */
+export function dateiName(pfad) { const t = teile(pfad); return t.length ? t[t.length - 1] : ''; }
+
+/* Hinweise nach Grund gruppiert: je Satz die Namen der betroffenen Dateien (nur Dateiname; haben zwei denselben Namen, steht der letzte Ordner davor),
+ * höchstens `hoechstens` (3) Namen, der Rest als `weitere`. Gleiche Sätze (zwei Codes, ein Wortlaut) und doppelte Dateien zählen einmal.
+ * `gruppe_unvollstaendig` gehört nicht dazu (das ist „fehlt noch etwas“). Rückgabe: [{ satz, namen: [...], weitere: n }]. */
+export function hinweisGruppen(hinweise, { hoechstens = 3 } = {}) {
+  const nachSatz = new Map();
+  for (const h of Array.isArray(hinweise) ? hinweise : []) {
+    if (!h || h.code === 'gruppe_unvollstaendig') continue;
+    const satz = Object.hasOwn(GRUENDE, h.code) || Object.hasOwn(HINWEISE, h.code) ? grundSatz(h.code) : EINGANG.grund_sonst;
+    if (!nachSatz.has(satz)) nachSatz.set(satz, new Set());
+    if (h.datei) nachSatz.get(satz).add(String(h.datei));
+  }
+  const alle = [...nachSatz.values()].flatMap((m) => [...m]);
+  const haeufig = new Map();
+  for (const p of alle) haeufig.set(dateiName(p), (haeufig.get(dateiName(p)) || 0) + 1);
+  const anzeige = (p) => {
+    const t = teile(p);
+    const name = t[t.length - 1] ?? '';
+    return haeufig.get(name) > 1 && t.length > 1 ? `${t[t.length - 2]}/${name}` : name;
+  };
+  return [...nachSatz].map(([satz, pfade]) => {
+    const namen = [...pfade].map(anzeige);
+    return { satz, namen: namen.slice(0, hoechstens), weitere: Math.max(0, namen.length - hoechstens) };
+  });
 }
 
 /* ------------------------------------------------------------------ „Daraus ist geworden: …“ */

@@ -484,6 +484,7 @@ export const HINZU = {
   ansehen: 'Ansehen', // Design 7.3 (3b)
   richtig: 'Das ist richtig', // Design 7.3 (3b)
   geht_nicht: 'Geht leider nicht.', // Design 7.3 (3c)
+  liegt_noch: 'Liegt noch im Eingang:', // neu, nicht im Design (Status „teilweise“: ein Teil ist einsortiert, der Rest bleibt liegen; darunter Grund und Dateien)
   fehlt: {
     titel: 'Es fehlt noch eine Datei.', // Design 6.1 (gruppe_unvollstaendig), geteilt in Titel und Text
     text: '{angekommen} von {anzahl} Dateien sind angekommen. Wähle die fehlende Datei noch einmal. Kommt sie nicht, wird mit den vorhandenen einsortiert und mit „Bitte ansehen“ markiert.',

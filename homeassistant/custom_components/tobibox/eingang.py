@@ -73,6 +73,8 @@ STORAGE_KEY = "tobibox_eingang"
 UEBERSPRUNGENE_EINTRAEGE = frozenset({"@recycle", "@eadir", "#recycle", "$recycle.bin", "lost+found", "@recently-snapshot"})
 
 KENNZ_SCHWACH_SERIE = ("serie_aus_interpret", "serie_aus_ordner")
+#: Kennzeichen, die nur gelten, wenn die Serie aus den Tags oder dem Ordner geraten wurde (nicht bei ausdrücklicher Wahl)
+KENNZ_SERIE_GERATEN = KENNZ_SCHWACH_SERIE + ("serie_widerspruch", "serie_mehrdeutig")
 
 
 # --------------------------------------------------------------------------
@@ -1043,6 +1045,9 @@ class Eingang:
             if g.vorgabe_serie_id:
                 if g.vorgabe_serie_id in medien.serien and not medien.serien[g.vorgabe_serie_id].serie.einzeln:
                     ziel_id = g.vorgabe_serie_id
+                    # Die Serie ist ausdrücklich gewählt (11.5 Nr. 1, V-7): „Serie geraten“ gilt dafür nicht
+                    g.kennz = [c for c in g.kennz if c not in KENNZ_SERIE_GERATEN]
+                    g.serie_schwach = False
                 else:
                     g.merke("vorgabe_serie_fehlt")
                     hinweise[g.eintrag].append(self._hinweis("vorgabe_serie_fehlt", g.dateien[0].rel))

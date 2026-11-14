@@ -972,3 +972,81 @@ async def test_serie_name_doppelt_steht_auch_bei_serien_list_und_serie_get(hass,
     await integration.medien.serie_umbenennen(neu["id"], "Sternlieder")
     assert (await integration.medien.serie_holen(neu["id"]))["hinweise"] == []
     integration.eingang.abbrechen()
+
+
+# --------------------------------------------------------------------------
+# Großer Sammel-Ordner mit vielen Unterordnern (Befund aus dem echten HA)
+# --------------------------------------------------------------------------
+
+
+def _pruefung_mit_defekten(*defekt: str):
+    echt = ffprobe.pruefe_datei
+
+    def tu_so(datei, endung=None):
+        p = echt(datei, endung)
+        if os.path.basename(datei) in defekt:
+            return ffprobe.Pruefung("warnung", ffprobe.PROBEDEKODIERUNG, p.probe)
+        return p
+
+    return tu_so
+
+
+async def test_sammelordner_je_buch_ein_album_nur_die_defekten_buecher_bleiben(hass, integration, nas):
+    wurzel = nas.eingang / "Sammlung"
+    for i in (1, 2, 3):
+        erzeuge_audio(wurzel / "Buch A" / f"{i}.mp3", frequenz=300 + i, album="Buch A", album_artist="Autor")
+        erzeuge_audio(wurzel / "Buch B" / f"{i}.mp3", frequenz=400 + i, album="Buch B", album_artist="Autor")
+        erzeuge_audio(wurzel / "Buch C" / f"{i}.mp3", frequenz=500 + i, album="Buch C", album_artist="Autor")
+    (wurzel / "Buch A" / "cover.jpg").write_bytes(b"x")
+    # zwei Dateien in zwei verschiedenen Büchern lassen sich nicht dekodieren
+    erzeuge_audio(wurzel / "Buch D" / "kaputt.mp3", frequenz=600, album="Buch D", album_artist="Autor")
+    erzeuge_audio(wurzel / "Buch E" / "kaputt2.mp3", frequenz=700, album="Buch E", album_artist="Autor")
+    with patch("custom_components.tobibox.eingang.ffprobe.pruefe_datei", side_effect=_pruefung_mit_defekten("kaputt.mp3", "kaputt2.mp3")):
+        await sortiere(integration)
+    serie = alle_serien(nas)["Autor"]
+    assert sorted(serie["folgen"]) == ["Buch A", "Buch B", "Buch C"]
+    eintrag = (await integration.eingang.liste("offen", 50, 0))["eintraege"][0]
+    assert eintrag["status"] == "teilweise"
+    assert {(h["code"], h["datei"]) for h in eintrag["hinweise"]} == {
+        ("probedekodierung_fehlgeschlagen", "Buch D/kaputt.mp3"),
+        ("probedekodierung_fehlgeschlagen", "Buch E/kaputt2.mp3"),
+    }
+    assert (wurzel / "Buch D" / "kaputt.mp3").exists() and (wurzel / "Buch E" / "kaputt2.mp3").exists()
+    assert not (wurzel / "Buch A").exists() or not list((wurzel / "Buch A").glob("*.mp3"))
+
+
+async def test_wunsch_ergaenzen_ohne_tags_macht_keinen_fehlalarm_serie_geraten(hass, integration, nas):
+    """Die Serie ist ausdrücklich gewählt (V-7): ``serie_aus_ordner`` und Verwandte sind dann falsch."""
+    nas.serie("ziel", "ziel", "Test-Serie", [])
+    await integration.medien.pruefen()
+    rel = lege_upload(integration, nas, 1, wunsch("ergaenzen"), serie_id="ziel", gruppe=None)
+    await pass_ohne_sofort(hass, integration)
+    info = folge_info(alle_serien(nas)["Test-Serie"], rel)
+    assert not info.get("pruefen") and not info.get("pruefen_gruende")
+    erg = integration.eingang.protokoll[-1]
+    assert erg["ergebnis"][0]["pruefen"] is False and erg["ergebnis"][0]["pruefen_gruende"] == []
+    assert not (await integration.eingang.liste("alle", 50, 0))["eintraege"][0]["pruefen"]
+    integration.eingang.abbrechen()
+
+
+async def test_wunsch_ergaenzen_behaelt_echte_gruende_nummer_doppelt(hass, integration, nas):
+    nas.serie("ziel", "ziel", "Test-Serie", ["alt.mp3"], folgen_info={"alt.mp3": {"anzeige": "Folge 1", "nummer": 1}})
+    erzeuge_audio(nas.medien / "ziel" / "alt.mp3", frequenz=900)
+    await integration.medien.pruefen()
+    rel = lege_upload(integration, nas, 1, wunsch("ergaenzen"), serie_id="ziel", gruppe=None, title="Folge 1")
+    await pass_ohne_sofort(hass, integration)
+    info = folge_info(alle_serien(nas)["Test-Serie"], rel)
+    assert "nummer_doppelt" in info["pruefen_gruende"] and "serie_aus_ordner" not in info["pruefen_gruende"]
+    integration.eingang.abbrechen()
+
+
+async def test_upload_mit_serie_vorgabe_ohne_wunsch_hat_keine_serie_geraten_gruende(hass, integration, nas):
+    nas.serie("ziel", "ziel", "Test-Serie", [])
+    await integration.medien.pruefen()
+    erzeuge_audio(nas.eingang / "Upload abcd1234" / "x.mp3")
+    integration.eingang.registriere_upload("Upload abcd1234/x.mp3", "ziel", None)
+    await integration.eingang.durchlauf_und_warten(sofort=False)
+    await hass.async_block_till_done()
+    info = folge_info(alle_serien(nas)["Test-Serie"], "x.mp3")
+    assert not set(info.get("pruefen_gruende", [])) & {"serie_aus_ordner", "serie_aus_interpret", "serie_widerspruch"}
+    integration.eingang.abbrechen()
