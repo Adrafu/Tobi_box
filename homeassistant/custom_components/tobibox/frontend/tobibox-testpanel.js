@@ -1,4 +1,4 @@
-/* Tobi Box: Testpanel unter /tobibox-neu (Paket A0b). Nur zum Messen; wird mit TESTPANEL = False in const.py abgeschaltet. */
+/* Tobi Box: Testpanel unter /tobibox-test (Paket A0b). Nur zum Messen; wird mit TESTPANEL = False in const.py abgeschaltet. */
 const MESS_URL = '/api/tobibox/testpanel/messung';
 const FORMATE = {
   mp3: 'audio/mpeg', 'm4a/aac': 'audio/mp4; codecs="mp4a.40.2"', m4b: 'audio/mp4', flac: 'audio/flac',
@@ -24,7 +24,8 @@ class TobiboxTestpanel extends HTMLElement {
 
   _start() {
     this.innerHTML = `<style>
-      tobibox-testpanel{display:block;height:100%;overflow:auto;box-sizing:border-box;padding:16px;font:14px/1.4 system-ui,sans-serif;color:var(--primary-text-color);background:var(--primary-background-color)}
+      tobibox-testpanel{display:block;height:100%;overflow:auto;box-sizing:border-box;font:14px/1.4 system-ui,sans-serif;color:var(--primary-text-color)}
+      tobibox-testpanel .tt-inhalt{min-height:100%;box-sizing:border-box;padding:16px;background:var(--primary-background-color)}
       tobibox-testpanel section{background:var(--card-background-color,#fff);border-radius:12px;padding:12px 16px;margin:0 0 12px}
       tobibox-testpanel h2{font-size:16px;margin:0 0 8px}
       tobibox-testpanel select,tobibox-testpanel input,tobibox-testpanel button{font:inherit;max-width:100%;margin:2px 0}
@@ -40,11 +41,12 @@ class TobiboxTestpanel extends HTMLElement {
       tobibox-testpanel .tt-griff{width:40px;height:5px;border-radius:3px;background:var(--divider-color,#999);margin:0 auto 8px}
       tobibox-testpanel .tt-kopf{display:flex;justify-content:space-between;align-items:center}
       tobibox-testpanel .tt-kopf button{font-size:24px;min-width:44px;min-height:44px}
-      tobibox-testpanel.tt-hinten-an{transform-origin:50% 50%;transform:scale(calc(1 - .06 * var(--tt-t, 0)));border-radius:calc(14px * var(--tt-t, 0));filter:brightness(calc(1 - .2 * var(--tt-t, 0)));transition:transform ${FEDER_MS}ms var(--tt-feder),border-radius ${FEDER_MS}ms var(--tt-feder),filter ${FEDER_MS}ms ease}
-      tobibox-testpanel.tt-hinten{--tt-t:1}
-      tobibox-testpanel.tt-zieht{transition:none}
+      /* iOS-Blatt-Effekt: nur der Inhalt (.tt-inhalt) wird kleiner, nie der Dialog. Drehpunkt und Ausschnitt setzt _blattAuf (--tt-oy, --tt-ct, --tt-cb). */
+      tobibox-testpanel .tt-inhalt.tt-hinten-an{transform-origin:50% var(--tt-oy, 50%);transform:scale(calc(1 - .06 * var(--tt-t, 0)));clip-path:inset(var(--tt-ct, 0px) 0 var(--tt-cb, 0px) 0 round calc(14px * var(--tt-t, 0)));filter:brightness(calc(1 - .2 * var(--tt-t, 0)));transition:transform ${FEDER_MS}ms var(--tt-feder),clip-path ${FEDER_MS}ms var(--tt-feder),filter ${FEDER_MS}ms ease}
+      tobibox-testpanel .tt-inhalt.tt-hinten{--tt-t:1}
+      tobibox-testpanel .tt-inhalt.tt-zieht{transition:none}
     </style>
-    <h1>Tobi Box: Testpanel</h1>
+    <div id="inhalt" class="tt-inhalt"><h1>Tobi Box: Testpanel</h1>
     <section><h2>a) Abspielen</h2>
       <select id="serie"><option>Bibliothek wird geladen …</option></select>
       <select id="folge"></select> <select id="track" hidden></select>
@@ -67,11 +69,11 @@ class TobiboxTestpanel extends HTMLElement {
       <h3>h4 iOS-Blatt-Effekt</h3>
       <button id="h4-auf">Blatt öffnen</button><pre id="aus-h4"></pre>
       <h3>h5 Anzeige</h3><pre id="aus-h5"></pre>
-      <dialog id="h4-dlg" class="tt-d" aria-label="Test-Blatt"><div id="h4-blatt" class="tt-blatt">
+    </section></div>
+    <dialog id="h4-dlg" class="tt-d" aria-label="Test-Blatt"><div id="h4-blatt" class="tt-blatt">
         <div class="tt-griff"></div>
         <div class="tt-kopf"><b>Test-Blatt</b><button id="h4-x" aria-label="Schließen">×</button></div>
-        <p>Wische nach unten, tippe auf × oder tippe neben das Blatt, um es zu schließen.</p></div></dialog>
-    </section>`;
+        <p>Wische nach unten, tippe auf × oder tippe neben das Blatt, um es zu schließen.</p></div></dialog>`;
     this._formate(); this._safeArea(); this._bewegung();
     this.$('serie').onchange = () => this._serieWahl();
     this.$('folge').onchange = () => this._folgeWahl();
@@ -324,7 +326,10 @@ class TobiboxTestpanel extends HTMLElement {
     const von = (auf ? e.mini : el).getBoundingClientRect();
     if (auf) e.zeigen(true);
     const nach = (auf ? el : e.mini).getBoundingClientRect();
-    const tr = `translate(${von.left - nach.left}px,${von.top - nach.top}px) scale(${von.width / nach.width},${von.height / nach.height})`;
+    /* Öffnen: Element sitzt am Ziel und startet umgekehrt am Mini-Cover. Schließen: Element sitzt am Start und fliegt zum Mini-Cover. */
+    const tr = auf
+      ? `translate(${von.left - nach.left}px,${von.top - nach.top}px) scale(${von.width / nach.width},${von.height / nach.height})`
+      : `translate(${nach.left - von.left}px,${nach.top - von.top}px) scale(${nach.width / von.width},${nach.height / von.height})`;
     el.style.transformOrigin = '0 0';
     const kf = auf ? [{ transform: tr }, { transform: 'none' }] : [{ transform: 'none' }, { transform: tr }];
     let an, kurve = 'Feder';
@@ -332,13 +337,25 @@ class TobiboxTestpanel extends HTMLElement {
     catch (err) { kurve = `Rückfall-Kurve (${err.name})`; an = el.animate(kf, { duration: FEDER_MS, easing: KURVE, fill: auf ? 'none' : 'forwards' }); }
     z.push(`FLIP gestartet (${auf ? 'öffnen' : 'schließen'}), Kurve: ${kurve}, Zustand: ${an.playState}`);
     this._sag(aus, z.join('\n'));
+    /* Selbstprüfung: Rechteck jeden Frame lesen; es darf den Kasten aus Start und Ziel nicht verlassen (Feder-Überschwingen erlaubt). */
+    const kasten = { l: Math.min(von.left, nach.left), t: Math.min(von.top, nach.top), r: Math.max(von.right, nach.right), b: Math.max(von.bottom, nach.bottom) };
+    const tol = 4 + 0.03 * Math.max(kasten.r - kasten.l, kasten.b - kasten.t);
+    let abw = 0, lauft = true;
+    const lies = () => {
+      const r = el.getBoundingClientRect();
+      abw = Math.max(abw, kasten.l - r.left, kasten.t - r.top, r.right - kasten.r, r.bottom - kasten.b);
+      if (lauft) requestAnimationFrame(lies);
+    };
+    requestAnimationFrame(lies);
     const fertig = () => {
+      lauft = false;
       el.style.transformOrigin = '';
       if (!auf) { e.zeigen(false); an.cancel(); }
       z.push(`FLIP fertig nach ${Math.round(performance.now() - t0)} ms (Soll ${FEDER_MS})`);
+      z.push(`Flug blieb zwischen Start und Ziel: ${abw <= tol ? 'ja' : `nein (größte Abweichung ${Math.round(abw)} px)`}`);
       this._sag(aus, z.join('\n'));
     };
-    an.finished.then(fertig, (err) => { z.push(`FLIP abgebrochen: ${err && err.name}`); this._sag(aus, z.join('\n')); });
+    an.finished.then(fertig, (err) => { lauft = false; z.push(`FLIP abgebrochen: ${err && err.name}`); this._sag(aus, z.join('\n')); });
   }
 
   /* h3: Karte fährt mit linear()-Feder herein (CSS-Übergang) */
@@ -375,16 +392,32 @@ class TobiboxTestpanel extends HTMLElement {
     const p = this.parentElement || (this.getRootNode() && this.getRootNode().host);
     this._h4p = p;
     if (p) { this._h4bg = p.style.background; p.style.background = '#000'; }
-    this.classList.add('tt-hinten-an');
+    const w = this.$('inhalt');
+    /* Sichtbarer Teil des Inhalts (Fenster geschnitten mit Panel), in Koordinaten des Inhalts, gemessen vor dem Verkleinern. */
+    const rw = w.getBoundingClientRect(), rp = this.getBoundingClientRect();
+    const sichtOben = Math.max(0, rp.top), sichtUnten = Math.min(window.innerHeight, rp.bottom);
+    w.style.setProperty('--tt-oy', `${(sichtOben + sichtUnten) / 2 - rw.top}px`);
+    w.style.setProperty('--tt-ct', `${Math.max(0, sichtOben - rw.top)}px`);
+    w.style.setProperty('--tt-cb', `${Math.max(0, rw.bottom - sichtUnten)}px`);
+    w.classList.add('tt-hinten-an');
     blatt.classList.remove('an', 'zieht'); blatt.style.transform = '';
     dlg.showModal();
-    void blatt.offsetWidth; void this.offsetWidth;
-    blatt.classList.add('an'); this.classList.add('tt-hinten');
+    void blatt.offsetWidth; void w.offsetWidth;
+    /* Selbstprüfung: das Blatt darf nie höher sein als sein Endpunkt (Feder-Überschwingen erlaubt) */
+    const ziel = dlg.getBoundingClientRect().bottom - blatt.offsetHeight;
+    let hoch = 0, lauft = true;
+    const lies = () => {
+      hoch = Math.max(hoch, ziel - blatt.getBoundingClientRect().top);
+      if (lauft) requestAnimationFrame(lies);
+    };
+    lies();
+    blatt.classList.add('an'); w.classList.add('tt-hinten');
     setTimeout(() => {
-      const cs = getComputedStyle(this);
+      lauft = false;
+      const cs = getComputedStyle(w);
       let skala = '?';
       try { skala = new DOMMatrix(cs.transform).a.toFixed(3); } catch { /* kein DOMMatrix */ }
-      this._sag('aus-h4', `Blatt offen. Panel dahinter: Skala ${skala} (Soll 0,940), Ecken ${cs.borderTopLeftRadius}, Helligkeit ${cs.filter}.\nHintergrund hinter dem Panel gesetzt auf: ${p ? p.tagName.toLowerCase() : 'nichts gefunden'}. Kopfleiste von HA: bleibt, wie sie ist (bitte ansehen).`);
+      this._sag('aus-h4', `Blatt offen. Panel dahinter: Skala ${skala} (Soll 0,940), Ecken ${cs.clipPath}, Helligkeit ${cs.filter}.\nBlatt kam von unten, ohne Sprung: ${hoch <= 6 ? 'ja' : `nein (oberster Punkt ${Math.round(hoch)} px über dem Ziel)`}\nHintergrund hinter dem Panel gesetzt auf: ${p ? p.tagName.toLowerCase() : 'nichts gefunden'}. Kopfleiste von HA: bleibt, wie sie ist (bitte ansehen).`);
     }, FEDER_MS + 100);
   }
   _blattZu() {
@@ -392,10 +425,11 @@ class TobiboxTestpanel extends HTMLElement {
     if (!dlg.open || this._h4zu) return;
     this._h4zu = true;
     blatt.classList.remove('an', 'zieht'); blatt.style.transform = '';
-    this.classList.remove('tt-hinten', 'tt-zieht'); this.style.removeProperty('--tt-t');
+    const w = this.$('inhalt');
+    w.classList.remove('tt-hinten', 'tt-zieht'); w.style.removeProperty('--tt-t');
     setTimeout(() => {
       dlg.close();
-      this.classList.remove('tt-hinten-an');
+      w.classList.remove('tt-hinten-an');
       if (this._h4p) this._h4p.style.background = this._h4bg || '';
       this._sag('aus-h4', 'Blatt geschlossen.');
     }, FEDER_MS + 50);
@@ -406,21 +440,21 @@ class TobiboxTestpanel extends HTMLElement {
       if (e.target.closest('button')) return;
       y0 = e.clientY; t0 = performance.now(); dy = 0;
       try { blatt.setPointerCapture(e.pointerId); } catch { /* egal */ }
-      blatt.classList.add('zieht'); this.classList.add('tt-zieht');
+      blatt.classList.add('zieht'); this.$('inhalt').classList.add('tt-zieht');
     });
     blatt.addEventListener('pointermove', (e) => {
       if (y0 === null) return;
       dy = Math.max(0, e.clientY - y0);
       blatt.style.transform = `translateY(${dy}px)`;
-      this.style.setProperty('--tt-t', String(Math.max(0, 1 - dy / (blatt.offsetHeight || 1))));
+      this.$('inhalt').style.setProperty('--tt-t', String(Math.max(0, 1 - dy / (blatt.offsetHeight || 1))));
     });
     const los = () => {
       if (y0 === null) return;
       const v = dy / Math.max(1, performance.now() - t0);
       y0 = null;
-      blatt.classList.remove('zieht'); this.classList.remove('tt-zieht');
+      blatt.classList.remove('zieht'); this.$('inhalt').classList.remove('tt-zieht');
       if (dy > blatt.offsetHeight * 0.25 || v > 0.6) { this._blattZu(); return; }
-      blatt.style.transform = ''; this.style.removeProperty('--tt-t');
+      blatt.style.transform = ''; this.$('inhalt').style.removeProperty('--tt-t');
     };
     blatt.addEventListener('pointerup', los);
     blatt.addEventListener('pointercancel', los);
