@@ -1374,7 +1374,7 @@ Regeln: Vor dem Bau Resolve mit Tobias. Jedes Paket hat eigene Tests und ist all
 ```
 GEBAUT (12.11.):   A0 ─► A0b (Messungen 1–6) ─► A1 ─► A2 ─► A3 ─► A3d ─► A4 ─► A4b ─► A5
 FREIGEGEBEN:       A0-Q (13.11., im Vertrag übernommen) ─► A9c
-OFFEN (Tobias):    A0b-h (Messung 7: Bewegung im Testpanel, Shadow-DOM, iPhone, Android) ─► A6m, A8m
+ERLEDIGT 14.11.:   A0b-h (Messung 7: Bewegung im Testpanel, iPhone; Android weggelassen) ─► A6m, A8m
 
 A-1a Lesen/Abends: A5 ─► A5b ─► A6 ─► A6b ─► A7 ─► A7b ─► A8 ─► A12/A13 ─► A14-1a ─► A15-1a ─► A16-1a
 A-1b Tobies:       A16-1a ─► A9 ─► A10 ─► A14-1b ─► A15-1b ─► A16-1b          (A9c vor A10; A9c darf schon neben A6–A8 laufen)
@@ -1400,7 +1400,7 @@ A-3 Kopien/Kapitel: A16-2 ─► A3b3 ─► A3c ─► A4c3 ─► A8d ─► A
 | AP | Inhalt | Modell | Stand |
 |---|---|---|---|
 | **A0** | **Vertrag W und Datenmodell** (Eintrag „Änderung 12.11.“, Abschnitt 2.1 ersetzt, W-19 gestrichen, 2 GiB, `gruppe_anzahl`, V-1 bis V-9, Store `tobibox.medieninfo`) mit Freigabe durch Tobias | Sonnet | **gebaut/freigegeben 12.11.** |
-| **A0b** | **Testpanel und Messungen** `/tobibox-test`: Messungen 1 bis 6 gemacht (`docs/plan/messungen-ha-testpanel.md`: Companion-App, gesperrter Bildschirm, `ffmpeg` 40× Echtzeit, Springen, Upload 551 MB, Formate). **A0b-h (offen, Tobias):** Messung 7 „Bewegung“ im Testpanel (Abschnitt h): Cover-Flug per FLIP **unter echtem Shadow-DOM**, iOS-Blatt-Effekt neben HA-Kopf (Wrapper-`transform`, `position: fixed`, Bildrate), Cover-Farben unter der Glasleiste, Zusammenspiel mit HA-eigenen View Transitions (N1, N17, N18, N28); Ergebnis nach `docs/plan/` | Tobias | **1 bis 6 gemacht, A0b-h offen** |
+| **A0b** | **Testpanel und Messungen** `/tobibox-test`: Messungen 1 bis 6 gemacht (`docs/plan/messungen-ha-testpanel.md`: Companion-App, gesperrter Bildschirm, `ffmpeg` 40× Echtzeit, Springen, Upload 551 MB, Formate). **A0b-h (gemacht 14.11., Ergebnis und Folgen für A6m in `docs/plan/messungen-ha-testpanel.md`, Messung 7):** Messung 7 „Bewegung“ im Testpanel (Abschnitt h): Cover-Flug per FLIP **unter echtem Shadow-DOM**, iOS-Blatt-Effekt neben HA-Kopf (Wrapper-`transform`, `position: fixed`, Bildrate), Cover-Farben unter der Glasleiste, Zusammenspiel mit HA-eigenen View Transitions (N1, N17, N18, N28); Ergebnis nach `docs/plan/` | Tobias | **1 bis 6 gemacht, A0b-h offen** |
 | **A0-Q** | Vertragsänderung Warteschlange (Nr. 47 bis 49, Thema `warteschlange`, `warteschlange_voll`/`warteschlange_doppelt`, Fähigkeiten `warteschlange`, `zuordnung_rueckgaengig`, `als_neu`), **Lernmodus 18 bis 20 nur Administrator** (5.13). **Freigegeben in Runde 17**, im Vertrag übernommen | Sonnet | **freigegeben 13.11.** |
 
 **A-1a Lesen und Abends** (ohne Player, ohne Hörstellen, ohne Dauer, Kapitel, Hörkopien und ohne Bewegung; Untertitel „Hörspiel · 12 Folgen“):
