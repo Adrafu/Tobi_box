@@ -18,10 +18,10 @@ def panel(hass):
     return hass.data[frontend.DATA_PANELS].get("tobibox")
 
 
-async def test_panel_nur_fuer_administratoren_mit_version_im_pfad(hass, integration):
+async def test_panel_fuer_alle_benutzer_mit_version_im_pfad(hass, integration):
     p = panel(hass)
     assert p is not None
-    assert p.require_admin is True  # Vorgabe der Projektleitung 09.11.
+    assert p.require_admin is False  # A17 (14.11.): nach der Abnahme A-1c für alle HA-Benutzer
     assert p.sidebar_title == "Tobi Box"
     assert p.frontend_url_path == "tobibox"
     assert p.component_name == "custom"
@@ -77,7 +77,8 @@ async def test_alte_komponente_hat_keinen_seitenleisten_eintrag(hass, starte_int
     panels = hass.data[frontend.DATA_PANELS]
     tobibox = {k: v for k, v in panels.items() if k.startswith("tobibox")}
     assert set(tobibox) == {"tobibox", "tobibox-test"}
-    assert all(p.require_admin is True for p in tobibox.values())
+    assert tobibox["tobibox"].require_admin is False  # A17
+    assert tobibox["tobibox-test"].require_admin is True  # Testpanel bleibt nur für Administratoren
     assert tobibox["tobibox"].config["_panel_custom"]["name"] == "tobibox-app"
     assert tobibox["tobibox-test"].config["_panel_custom"]["name"] == "tobibox-testpanel"
     assert tobibox["tobibox-test"].sidebar_title == "Tobi Box (Test)"

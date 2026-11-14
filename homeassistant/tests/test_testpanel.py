@@ -148,4 +148,4 @@ async def test_seite_wird_registriert_und_ist_abschaltbar(hass, starte_integrati
     assert panels[testpanel.PANEL_URL].require_admin is True
     assert panels[testpanel.PANEL_URL].sidebar_title == "Tobi Box (Test)"
     assert "tobibox-neu" not in panels
-    assert panels["tobibox"].require_admin is True  # die neue Seite (App) liegt unter /tobibox
+    assert panels["tobibox"].require_admin is False  # A17 (14.11.): die neue Seite (App) unter /tobibox ist für alle HA-Benutzer

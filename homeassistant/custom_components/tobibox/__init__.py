@@ -86,7 +86,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             sidebar_icon="mdi:speaker-wireless",
             module_url=f"{STATIC_URL}/{PANEL_DATEI}?v={integration.version}-{stand}",  # Stand der Dateien: neue Adresse bei jeder Änderung
             embed_iframe=False,
-            require_admin=True,
+            require_admin=False,  # A17 (14.11.): für alle HA-Benutzer; die Rechte prüft allein das Backend (Vertrag W, 2.1)
         )
     else:
         _LOGGER.warning("Die Seite %s fehlt; die Seitenleiste zeigt \"Tobi Box\" erst nach der Installation der Seite", FRONTEND_PFAD / PANEL_DATEI)
