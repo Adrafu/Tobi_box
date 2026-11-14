@@ -783,6 +783,7 @@ CAD (4.2) startet erst, wenn 3.2 auf dem Breadboard läuft.
 | **Update bis Stufe 3b (3.17, 09.11., Projektleitung, B16)** | `UpdateStarten` wird an HA mit `befehl_abgelehnt` (`detail` „Update kommt mit Stufe 3b.“) beantwortet statt still verworfen |
 | **Simulations-Ring (3.17, 09.11., Projektleitung)** | In `gui/seite.html` zeigt der Ring die Farben normiert (volle Deckkraft); die echte Helligkeit steht als Zahl und im Helligkeitsbalken daneben. Der 25-%-Deckel der Box bleibt |
 | **A17 als kleine Korrektur (3.22, 14.11., Projektleitung)** | A17 bestand nach R17-9 (Adressen schon getauscht) und AC4 (kein Notschalter) nur noch aus `require_admin=False` für `/tobibox` und den Tests; die Projektleitung hat das selbst gemacht statt über einen Agenten (Commit `4f27760`). Das Testpanel `/tobibox-test` bleibt nur für Administratoren. Abnahme A-1c am 14.11. angenommen |
+| **Schnellerer Bau ab A6m (3.22, 14.11., Tobias: „Ja“)** | Pakete laufen parallel, wo sich die Dateien nicht überschneiden: Python-Teil von A-2 (A3b, A4c, A4d) neben A6m. Der Player (A8b, A8e, A7c) kommt danach in **einem** Auftrag, Markup und Stil aus `docs/egm/ha-ui/prototyp.html`. Der volle Prüflauf (pytest, jsdom, Browser) läuft einmal am Ende eines Bündels, nicht nach jedem Paket. Abnahmen A16-m und A16-2 werden zusammengelegt (A8m kommt vor diese gemeinsame Abnahme) |
 
 ## Bewusst nicht enthalten
 
