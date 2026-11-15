@@ -12,7 +12,7 @@
  */
 import { html, nothing, css, repeat, ic, cover, coverKlasse, coverGrossUrl, ladeMitGrenze, untertitel, uhr, dauerText, norm, eq, abspiel, laeuftAn } from '../bausteine.js';
 import { SERIE, ZEILE, GRUENDE, TOBIE, SEITE, PLAYER, fuellen } from '../texte.js';
-import { knopfText } from '../player.js';
+import { knopfText, globalPos } from '../player.js';
 import { coverBlatt, coverFehlerText, coverStil } from './cover.js';
 import { gespieltVonKarte, folgenChips, gebenLink } from './tobies.js';
 import { dateienInEintrag } from './hinzufuegen.js';
@@ -666,9 +666,11 @@ class SerieSeite {
     let fort = nothing;
     if (h?.fertig) fort = html`<span class="ls se-ok">${ic('check', 16)} ${ZEILE.fertig}</span>`;
     else if (h && typeof h.position_s === 'number' && h.position_s > 1 && x.dauer_s > 0) {
-      const p = Math.round(Math.min(1, h.position_s / x.dauer_s) * 100);
+      // Ordner-Folge: `position_s` gilt im Track `h.track` (AM4); die Stelle in der ganzen Folge ergibt sich aus den Track-Längen. Ohne `track` wie bisher.
+      const stelle = typeof h.track === 'number' ? globalPos(x, h.track, h.position_s) : h.position_s;
+      const p = Math.round(Math.min(1, stelle / x.dauer_s) * 100);
       fort = html`<span class="pbar" role="progressbar" aria-label=${ZEILE.fortschritt} aria-valuemin="0" aria-valuemax="100" aria-valuenow=${p}><i style=${`width:${p}%`}></i></span>
-        <span class="ls">${fuellen(ZEILE.rest, { dauer: uhr(Math.max(0, x.dauer_s - h.position_s)) })}</span>`;
+        <span class="ls">${fuellen(ZEILE.rest, { dauer: uhr(Math.max(0, x.dauer_s - stelle)) })}</span>`;
     }
     const laeuft = laeuftAn(this.id, x.name);
     const spielt = laeuft && abspiel.spielt;

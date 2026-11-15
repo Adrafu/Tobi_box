@@ -252,7 +252,7 @@ export class Spieler {
     const mit = { ...serie, hoerstelle: stand?.weiter ? { ...(serie.hoerstelle || {}), folge: stand.weiter.folge } : serie.hoerstelle,
       folgen: folgen.map((f) => (stand?.folgen?.[f.name] ? { ...f, hoerstelle: stand.folgen[f.name] } : f)) };
     this._stellen = {};
-    for (const [n, e] of Object.entries(stand?.folgen || {})) this._stellen[n] = { position_s: e.position_s, fertig: e.fertig, track: stand.weiter?.folge === n ? stand.weiter.track ?? 0 : 0 };
+    for (const [n, e] of Object.entries(stand?.folgen || {})) this._stellen[n] = { position_s: e.position_s, fertig: e.fertig, track: e.track ?? (stand.weiter?.folge === n ? stand.weiter.track ?? 0 : 0) };
     let i;
     let pos = 0;
     let track = 0;

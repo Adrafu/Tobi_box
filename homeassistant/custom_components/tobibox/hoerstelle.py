@@ -234,6 +234,17 @@ class Hoerstellen:
         anteil, rest = self._anteil(serie_id, name, f)
         return {"folge": name, "position_s": f["p"], "track": f.get("track", 0), "anteil": anteil, "rest_s": rest, "zeit": f["t"]}
 
+    def _ist_ordner(self, serie_id: str, folge: str) -> bool:
+        """Ordner-Folge = mehr als ein Track (Vertrag W 14.5)."""
+        info = self.hub.medien.serien.get(serie_id)
+        if info is None:
+            return False
+        return any(o.get("name") == folge and int(o.get("tracks") or 1) > 1 for o in info.folgen_objekte)
+
+    def _track_feld(self, serie_id: str, folge: str, f: dict[str, Any]) -> dict[str, int]:
+        """``{"track": n}`` (0-basiert) nur bei Ordner-Folgen, sonst leer (Entscheidung AM4)."""
+        return {"track": int(f.get("track", 0))} if self._ist_ordner(serie_id, folge) else {}
+
     def hole(self, nutzer_id: str, serie_id: str) -> dict[str, Any]:
         """Befehl 40: ``weiter`` und ``folgen`` **des Anfragenden**."""
         self.hub.medien.finde(serie_id)
@@ -243,7 +254,7 @@ class Hoerstellen:
         vorhanden = self._vorhandene(serie_id, e)
         return {
             "weiter": self._weiter(serie_id, e, vorhanden),
-            "folgen": {n: {"position_s": f["p"], "dauer_s": f["d"], "fertig": f["fertig"], "zeit": f["t"]} for n, f in vorhanden.items()},
+            "folgen": {n: {"position_s": f["p"], "dauer_s": f["d"], "fertig": f["fertig"], "zeit": f["t"], **self._track_feld(serie_id, n, f)} for n, f in vorhanden.items()},
         }
 
     def liste(self, nutzer_id: str, limit: int) -> list[dict[str, Any]]:
@@ -272,11 +283,11 @@ class Hoerstellen:
         return {"anteil": weiter["anteil"], "rest_s": weiter["rest_s"], "zeit": weiter["zeit"], "folge": weiter["folge"]}
 
     def je_folge(self, nutzer_id: str | None, serie_id: str) -> dict[str, dict[str, Any]]:
-        """Feld ``hoerstelle`` je Folge von ``serie/get``: ``position_s``, ``fertig`` (nur des Anfragenden)."""
+        """Feld ``hoerstelle`` je Folge von ``serie/get``: ``position_s``, ``fertig``, bei Ordner-Folgen ``track`` (nur des Anfragenden)."""
         e = self._eintrag(nutzer_id, serie_id)
         if e is None:
             return {}
-        return {n: {"position_s": f["p"], "fertig": f["fertig"]} for n, f in self._vorhandene(serie_id, e).items()}
+        return {n: {"position_s": f["p"], "fertig": f["fertig"], **self._track_feld(serie_id, n, f)} for n, f in self._vorhandene(serie_id, e).items()}
 
     def zeiten(self, nutzer_id: str | None) -> dict[str, str]:
         """Serien-ID -> Zeit der letzten Wiedergabe des Anfragenden (für die Sortierung ``angehoert``)."""

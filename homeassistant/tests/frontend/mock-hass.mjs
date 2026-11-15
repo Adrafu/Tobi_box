@@ -296,6 +296,7 @@ export function createMockHass(opts = {}) {
     if (sp && f.dauer_s && e.track < sp.length) return [sp.slice(0, e.track).reduce((a, c) => a + c, 0) + Math.min(e.p, sp[e.track]), f.dauer_s];
     return [Math.min(e.p, e.d), e.d];
   }
+  const ordnerFolge = (s, name) => { const f = s.folgen.find((x) => x.name === name); return f?.art === 'ordner' && f.tracks > 1; };
   function hoerKurz(s) {
     const e = b.hoerstellen[s.id];
     if (!e) return s.hoerstelle;
@@ -315,7 +316,7 @@ export function createMockHass(opts = {}) {
     ...kurzform(s),
     folgen: s.folgen.map((f) => {
       const h = b.hoerstellen[s.id]?.folgen?.[f.name];
-      return { ...f, ...(h ? { hoerstelle: { position_s: h.p, fertig: h.fertig } } : {}), tobies: Object.values(b.zuordnungen).filter((z) => z.ziel.typ === 'folge' && z.ziel.serie === s.id && z.ziel.folge === f.name).map(kurzTobie) };
+      return { ...f, ...(h ? { hoerstelle: { position_s: h.p, fertig: h.fertig, ...(f.art === 'ordner' && f.tracks > 1 ? { track: h.track ?? 0 } : {}) } } : {}), tobies: Object.values(b.zuordnungen).filter((z) => z.ziel.typ === 'folge' && z.ziel.serie === s.id && z.ziel.folge === f.name).map(kurzTobie) };
     }),
     zuordnungen: Object.values(b.zuordnungen).filter((z) => z.ziel.typ === 'serie' && z.ziel.serie === s.id).map(kurzTobie),
   });
@@ -435,7 +436,7 @@ export function createMockHass(opts = {}) {
       const s = holeSerie(m.serie_id);
       const e = b.hoerstellen[s.id];
       if (!e) return { weiter: null, folgen: {} };
-      const folgen = Object.fromEntries(Object.entries(e.folgen).filter(([n]) => s.folgen.some((f) => f.name === n)).map(([n, f]) => [n, { position_s: f.p, dauer_s: f.d, fertig: f.fertig, zeit: f.t }]));
+      const folgen = Object.fromEntries(Object.entries(e.folgen).filter(([n]) => s.folgen.some((f) => f.name === n)).map(([n, f]) => [n, { position_s: f.p, dauer_s: f.d, fertig: f.fertig, zeit: f.t, ...(ordnerFolge(s, n) ? { track: f.track ?? 0 } : {}) }]));
       const k = hoerKurz(s);
       const f = e.folgen[e.folge];
       return { weiter: f && folgen[e.folge] ? { folge: e.folge, position_s: f.p, track: f.track, anteil: k.anteil, rest_s: k.rest_s, zeit: f.t } : null, folgen };

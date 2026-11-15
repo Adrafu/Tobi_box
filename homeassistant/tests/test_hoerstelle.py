@@ -119,6 +119,18 @@ async def test_ordner_folge_stelle_im_track_anteil_ueber_die_ganze_folge(anna):
     assert (await ok(anna, "hoerstelle/get", serie_id="rabe"))["folgen"]["Buch"]["dauer_s"] == 200  # Länge des Tracks, in dem die Stelle liegt
 
 
+async def test_track_steht_bei_ordner_folgen_in_get_und_serie_get_bei_einzeldateien_nicht(anna):
+    await setze(anna, folge="Buch", track=2, position=50, dauer=300)
+    await setze(anna, folge="a.mp3", position=10)
+    r = await ok(anna, "hoerstelle/get", serie_id="rabe")
+    assert r["folgen"]["Buch"]["track"] == 2
+    assert "track" not in r["folgen"]["a.mp3"]
+    s = await ok(anna, "serie/get", serie_id="rabe")
+    h = {f["name"]: f["hoerstelle"] for f in s["folgen"] if "hoerstelle" in f}
+    assert h["Buch"] == {"position_s": 50, "fertig": False, "track": 2}
+    assert h["a.mp3"] == {"position_s": 10, "fertig": False}
+
+
 async def test_ordner_folge_ist_erst_am_ende_des_letzten_tracks_fertig(anna):
     await setze(anna, folge="Buch", track=0, position=100, dauer=100)  # Ende von Track 1: noch nicht fertig
     assert (await ok(anna, "hoerstelle/get", serie_id="rabe"))["folgen"]["Buch"]["fertig"] is False

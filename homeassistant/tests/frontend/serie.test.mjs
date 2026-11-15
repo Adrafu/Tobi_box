@@ -181,6 +181,21 @@ test('Folgenliste: Folgen-Nummer aus den Daten, Dauer, „· 14 Kapitel“ bei O
   weg();
 });
 
+test('Folgenliste: Ordner-Folge mit `hoerstelle.track` rechnet die Stelle über die ganze Folge (AM4); ohne `track` wie bisher', MIT_DOM, async () => {
+  const s = await seite({ hash: '' });
+  beispiele(s.m);
+  const sr = s.m.backend.serien.s1;
+  sr.folgen = [folge('buch', 'Das Buch', { art: 'ordner', tracks: 3, dauer_s: 300, spuren_s: [100, 100, 100], hoerstelle: { position_s: 50, fertig: false, track: 2 } }),
+    folge('buch2', 'Das zweite Buch', { art: 'ordner', tracks: 3, dauer_s: 300, spuren_s: [100, 100, 100], hoerstelle: { position_s: 50, fertig: false } })];
+  await geheZu(s, '#serie-s1');
+  await s.flush(8);
+  const z = s.qa('[data-folge]');
+  assert.equal(z[0].querySelector('.pbar').getAttribute('aria-valuenow'), '83', 'Track 3, 50 s: 250 von 300 s');
+  assert.match(z[0].textContent, /noch 0:50/);
+  assert.equal(z[1].querySelector('.pbar').getAttribute('aria-valuenow'), '17', 'ohne track: Annahme Track 1');
+  weg();
+});
+
 test('Lange Folgenliste: ab mehr als 20 ein Suchfeld und „Mehr laden“ in Päckchen von 20; Suche ohne Rücksicht auf Umlaute', MIT_DOM, async () => {
   const s = await oeffne('lang');
   assert.equal(s.qa('[data-folge]').length, 20);
