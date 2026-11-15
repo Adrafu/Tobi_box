@@ -1365,7 +1365,7 @@ Ausgabe: `zustand` = `bereit`, `wird_vorbereitet` oder `fehlt`. Bei `bereit`: `p
 |---|---|---|---|
 | `serie_id` | string | **ja** | |
 
-Ausgabe: `weiter` (object `{folge, position_s, track, anteil, rest_s, zeit}` oder `null`) und `folgen` (object: Name der Folge → `{position_s, dauer_s, fertig, zeit}`), jeweils nur die **eigene** Hörstelle des Anfragenden. Fehler: `serie_nicht_gefunden`. Recht: lesen. Idempotent: ja. MQTT: –.
+Ausgabe: `weiter` (object `{folge, position_s, track, anteil, rest_s, zeit}` oder `null`) und `folgen` (object: Name der Folge → `{position_s, dauer_s, fertig, zeit}`, bei Ordner-Folgen zusätzlich `track` (0-basiert, seit 15.11., Entscheidung AM4)), jeweils nur die **eigene** Hörstelle des Anfragenden. Fehler: `serie_nicht_gefunden`. Recht: lesen. Idempotent: ja. MQTT: –.
 
 #### 41. `tobibox/hoerstelle/set` (Fähigkeit `reinhoeren`)
 
@@ -2643,7 +2643,7 @@ Die Ausgabe bekommt `gesamt` (nach Filter) und `weitere` (bool). **Fehlt `limit`
 
 **Einzeltitel** sind eine **normale Serie** mit genau einer Folge und `einzeln: true` (eigene ID, Ordner, `serie.json`, Cover, Papierkorb, Umbenennen, Befehl 38). Neue Folgen kommen nicht hinein: `ergaenzen` (14.4) antwortet `wunsch_ungueltig`, `folge/verschieben` mit einem Einzeltitel als Ziel `ziel_ungueltig`; `serien/zusammenfuehren` darf ihn als Quelle, nicht als Ziel benutzen. Ein Tobie auf einen Einzeltitel zeigt auf die **Folge** (`ziel.typ="folge"`), nicht auf die Serie.
 
-**Folge-Objekt von `serie/get` bekommt** (Ausgabefelder): `dauer_s` (Zahl oder fehlt), `spuren_s` (bei Ordner-Folgen: Liste der Track-Längen), `kapitel` (Liste aus `titel`, `start_s` und bei Ordner-Folgen `track` (0-basiert), nur wenn mindestens zwei, Regeln 14.7), `hoerstelle` (`position_s`, `fertig`; nur des Anfragenden, nur wenn angefangen) und `hoerkopie` (`original`, `nicht_angelegt`, `wartet`, `fertig`, `fehler`; bei `fehler` zusätzlich `grund`). **`stand`** der Serie rechnet künftig **nur** über `name`, `folgen` und die von Menschen gesetzten Felder von `folgen_info` (`anzeige`, `nummer`, `datum`, `pruefen`); Werte aus dem Store `tobibox.medieninfo` und Hintergrundläufe ändern ihn nie (Abschnitt 3, Serie-Kurzform).
+**Folge-Objekt von `serie/get` bekommt** (Ausgabefelder): `dauer_s` (Zahl oder fehlt), `spuren_s` (bei Ordner-Folgen: Liste der Track-Längen), `kapitel` (Liste aus `titel`, `start_s` und bei Ordner-Folgen `track` (0-basiert), nur wenn mindestens zwei, Regeln 14.7), `hoerstelle` (`position_s`, `fertig`, bei Ordner-Folgen zusätzlich `track` (0-basiert, seit 15.11., Entscheidung AM4); nur des Anfragenden, nur wenn angefangen) und `hoerkopie` (`original`, `nicht_angelegt`, `wartet`, `fertig`, `fehler`; bei `fehler` zusätzlich `grund`). **`stand`** der Serie rechnet künftig **nur** über `name`, `folgen` und die von Menschen gesetzten Felder von `folgen_info` (`anzeige`, `nummer`, `datum`, `pruefen`); Werte aus dem Store `tobibox.medieninfo` und Hintergrundläufe ändern ihn nie (Abschnitt 3, Serie-Kurzform).
 
 ### 14.3 Cover (V-1, Fähigkeit `cover`)
 

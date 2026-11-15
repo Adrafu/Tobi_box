@@ -251,3 +251,7 @@ HA nicht gefahrlos auslösbar.
 | AM3 | Seitenwechsel flackern oft | (PL) Erst den neuen Inhalt zeichnen, dann kurz überblenden, nie ganz durchsichtig; Prüfskript misst die Deckkraft je Bild |
 
 Behebung zusammen mit dem Player (A8b, A8e, A7c, A8m).
+
+| Nr. | Frage | Entscheidung |
+|---|---|---|
+| AM4 | (PL, 15.11.) `serie/get` liefert die Hörstelle je Folge ohne `track`; der Fortschrittsbalken einer Ordner-Folge steht deshalb falsch | **(Tobias, 15.11.: „A“)** `hoerstelle` in `serie/get` und `folgen` in `hoerstelle/get` bekommen bei Ordner-Folgen zusätzlich `track` (0-basiert). Zusatz am Vertrag W, nichts Bestehendes ändert sich. Wird vor der gemeinsamen Abnahme gebaut, damit nur ein Neustart nötig ist |
