@@ -157,10 +157,13 @@ test('Serienseite öffnen: animate mit translate am großen Cover (FLIP), startV
     assert.equal(gross.style.visibility, '', 'danach ist das echte Cover da');
     assert.equal(flug.el.isConnected, false, 'und der Klon weg (im selben Bild)');
     assert.equal(vt.mock.callCount(), 0, 'startViewTransition nie');
+    const halb = (l) => l.filter((x) => x.kf.some((k) => typeof k.opacity === 'number' && k.opacity < 1) && x.el !== flug.el);
+    assert.deepEqual(halb(aufrufe).filter((x) => x.el.closest?.('main')).length, 0, 'AM19: die Serienseite blendet nicht über, sie steht im ersten Bild deckend da');
     // zurück: das Cover der Zeile fliegt von der Fläche des großen Covers an seinen Platz
     const vorher = aufrufe.length;
     s.q('a.back').click();
     await warte(30); await s.flush(10);
+    assert.equal(halb(aufrufe.slice(vorher)).filter((x) => x.el.closest?.('main')).length, 0, 'AM19: auch zurück blendet die Seite nicht über');
     const rueck = aufrufe.slice(vorher).find((a) => a.el.dataset?.flugklon === '1' && a.el.dataset?.cover === id && a.kf.some((k) => typeof k.transform === 'string' && k.transform.includes('translate(')));
     assert.ok(rueck, 'zurück fliegt das Cover der Zeile');
     assert.equal(rueck.kf[0].transform, 'none', 'der Klon ist so groß wie das große Cover und startet dort');

@@ -1712,7 +1712,7 @@ if (!window.__bew) {
   const alt = Element.prototype.animate;
   if (alt) Element.prototype.animate = function (kf, opts) {
     const an = alt.call(this, kf, opts);
-    B.calls.push({ el: this, kf: JSON.parse(JSON.stringify(kf)), an });
+    B.calls.push({ el: this, kf: JSON.parse(JSON.stringify(kf)), an, bg0: this.style ? this.style.backgroundImage.slice(0, 14) : null, bild0: this.dataset ? this.dataset.bild : null });
     return an;
   };
   const vt = document.startViewTransition;
@@ -2619,10 +2619,128 @@ def ablauf_play_pause_lage(L: Lauf):
     player_aus(L)
 
 
+# AM19: jedes Bild (rAF) des Wechsels Liste/Start → Serienseite (und zurück) aufnehmen. Je Bild: kleinste Deckkraft von main und seinen Kindern (auch über die Vorfahren), welche Seite steht
+# da (`bib`, `serie`, `laedt` = Ladeplatzhalter), ob der Kopf der Serienseite einen Titel hat, ob das große Cover ein Bild trägt, ob die Ersatzkachel (.bst) zu sehen ist, ob der Klon
+# des Cover-Flugs da ist und ein Bild trägt. x = { klick, art: 'hin' | 'zurueck', verz (ms, Verzögerung von serie/get), tipp (ms zwischen Zeiger-runter und Klick), dauer (ms) }.
+BEW_WECHSEL = """
+const B = window.__bew; B.calls.length = 0;
+const wsp = el.hass.connection;
+if (!wsp.__verz) { const o = wsp.sendMessagePromise; wsp.__verz = { ms: 0 }; wsp.sendMessagePromise = async (m) => { if (m && m.type === 'tobibox/serie/get' && wsp.__verz.ms) await new Promise((r) => setTimeout(r, wsp.__verz.ms)); return o(m); }; }
+wsp.__verz.ms = x.verz || 0;
+const eff = (n) => { let o = 1; for (let e = n; e && e.nodeType === 1; e = e.parentElement) o *= parseFloat(getComputedStyle(e).opacity); return o; };
+const sicht = (e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(e).visibility !== 'hidden'; };
+const bildDa = (e) => !!e && /url\\(/.test(getComputedStyle(e).backgroundImage);
+const bstSicht = (e) => !!e && [...e.querySelectorAll('.bst')].some((b) => getComputedStyle(b).visibility !== 'hidden' && sicht(b));
+let ausloeser; let alle = [];
+if (x.art === 'hin') {
+  alle = [...sr.querySelectorAll(x.klick)].filter((a) => a.querySelector('.cover[data-cover]'));
+  for (let i = 0; i < 60 && !alle.some((a) => a.querySelector('.cover').dataset.bild === '1'); i += 1) await new Promise((r) => setTimeout(r, 50));
+  ausloeser = alle[(x.nr ?? 0) * 3 % alle.length]; // eine Serie, die in dieser Seite noch nicht geöffnet wurde (kalt)
+  ausloeser.scrollIntoView({ block: 'center' });
+  for (let i = 0; i < 40 && ausloeser.querySelector('.cover').dataset.bild !== '1'; i += 1) await new Promise((r) => setTimeout(r, 50)); // das kleine Bild lädt, sobald es sichtbar ist
+  await new Promise((r) => setTimeout(r, 250));
+} else ausloeser = sr.querySelector(x.klick);
+const kleinBild = x.art === 'hin' ? ausloeser.querySelector('.cover').dataset.bild === '1' : bildDa(sr.querySelector('main .cover.se-xl')); // war ein Bild da?
+const t0 = performance.now();
+const proben = [];
+const nimm = () => {
+  const m = sr.querySelector('main');
+  const kinder = m ? [...m.children].filter(sicht) : [];
+  const hero = m?.querySelector('.se-hero'); const xl = m?.querySelector('.cover.se-xl');
+  const klone = [...sr.querySelectorAll('[data-flugklon]')]; const klon = klone[0];
+  const serieSeite = !!hero; const bibSeite = !!m?.querySelector('a.lrow[data-serie], a.rcard[data-serie], a.tile[data-serie], a.qt[data-serie]');
+  proben.push({ t: Math.round(performance.now() - t0), hash: location.hash, op: Math.min(1, ...[m, ...kinder].filter(Boolean).map(eff)), seite: serieSeite ? 'serie' : (m?.querySelector('.laedt') ? 'laedt' : (bibSeite ? 'bib' : 'leer')),
+    titel: hero ? (hero.querySelector('h2')?.textContent.trim() ?? '') : null, xlBild: xl ? bildDa(xl) : null, xlBst: xl ? bstSicht(xl) : null, klon: !!klon, klonBild: klone.length ? klone.every(bildDa) : null, klonBst: klone.some(bstSicht), klonStil: klone.map((k) => `${k.style.backgroundImage.slice(0, 12)}|${k.dataset.cover}|${k.dataset.stand}|${k.dataset.bild}|${k.className}`).join(' ; ') || null,
+    heroTop: hero ? Math.round(hero.getBoundingClientRect().top) : null, vorFolgen: !!m?.querySelector('[data-folge]') });
+};
+const r0 = ausloeser.getBoundingClientRect();
+const zeiger = (art) => ausloeser.dispatchEvent(new PointerEvent(art, { bubbles: true, composed: true, cancelable: true, pointerId: 1, pointerType: 'touch', button: 0, clientX: r0.left + r0.width / 2, clientY: r0.top + r0.height / 2 }));
+let weiter = true;
+const lauf = (async () => { while (weiter) { nimm(); await new Promise((r) => requestAnimationFrame(r)); } })();
+if (x.art === 'hin') { zeiger('pointerdown'); await new Promise((r) => setTimeout(r, x.tipp ?? 90)); zeiger('pointerup'); }
+ausloeser.click();
+await new Promise((r) => setTimeout(r, x.dauer ?? 1400));
+weiter = false; await lauf;
+const flugs = B.calls.filter((c) => c.el.dataset && c.el.dataset.flugklon === '1').map((c) => `${c.bg0}|${c.bild0}`);
+const sid = x.id ?? ausloeser.dataset.serie; const urlKeys = Object.keys(Object.fromEntries(el._covers.urls)).filter((k) => k.startsWith(sid));
+return { kleinBild, urlKeys, flugs, proben, vt: B.vt, id: ausloeser.dataset.serie ?? null, anzahl: alle.length };
+"""
+
+
+def wechsel_pruefen(L: Lauf, z, r, ausgabe=False, sofort=False):
+    """Auswertung zu BEW_WECHSEL (AM19): kein Bild des Wechsels mit halb durchsichtiger Seite, leerem Kopf, Ersatzkachel (wenn ein Bild da war) oder Ladeplatzhalter."""
+    pr = r["proben"]
+    if ausgabe:
+        print(z, "kleinBild", r["kleinBild"], len(pr), "Bilder", "id", r.get("id"), "Links", r.get("anzahl"), r.get("urlKeys"), r.get("flugs"))
+        for p in pr:
+            print("   ", p["t"], p["hash"][:12], "op %.2f" % p["op"], p["seite"], "titel=%r" % (p["titel"],), "xlBild", p["xlBild"], "xlBst", p["xlBst"], "klon", p["klon"], p["klonBild"], p["klonBst"], p.get("klonStil"), "heroTop", p["heroTop"], "folgen", p["vorFolgen"])
+    start = next((i for i, p in enumerate(pr) if p["hash"] != pr[0]["hash"]), None)
+    if start is None:
+        L.pruefe(False, z, "Die Adresse hat nicht gewechselt")
+        return
+    w = pr[start:]
+    halb = [p for p in w if p["op"] < 0.99]
+    L.pruefe(not halb, z, f"{len(halb)} von {len(w)} Bildern des Wechsels mit halb durchsichtiger Seite (kleinste Deckkraft {min([p['op'] for p in halb] or [1]):.2f})")
+    laedt = [p for p in w if p["seite"] in ("laedt", "leer")]
+    L.pruefe(not laedt, z, f"{len(laedt)} Bilder des Wechsels zeigen den Ladeplatzhalter oder eine leere Seite ({laedt[0]['seite'] if laedt else ''})")
+    leer = [p for p in w if p["seite"] == "serie" and not p["titel"]]
+    L.pruefe(not leer, z, f"{len(leer)} Bilder mit leerem Kopf der Serienseite")
+    if r["kleinBild"]:
+        bst = [p for p in w if (p["seite"] == "serie" and p["xlBst"]) or (p["klon"] and p["klonBst"])]
+        L.pruefe(not bst, z, f"{len(bst)} Bilder mit Ersatzkachel (Buchstabe) statt Cover")
+        ohne = [p for p in w if p["klon"] and not p["klonBild"]]
+        L.pruefe(not ohne, z, f"{len(ohne)} Bilder, in denen der Klon kein Bild trägt")
+    if sofort:  # zweites Öffnen derselben Serie: die Seite steht im ersten Bild nach dem Wechsel da, ohne auf serie/get zu warten (das hier 600 ms braucht)
+        spaet = [p for p in w if p["seite"] != "serie"]
+        L.pruefe(not spaet, z, f"{len(spaet)} Bilder nach dem Wechsel ohne die Serienseite (wartet auf serie/get?)")
+
+
+def ablauf_wechsel_serie(L: Lauf):
+    """AM19: Wechsel Bibliothek/Start → Serienseite und zurück, Bild für Bild; mit langsamer CPU (4×) und verzögertem serie/get (150 ms) und ohne. Zweites Öffnen derselben Serie wartet nicht auf serie/get."""
+    L.gehe("#bibliothek")
+    if not L.da("a.lrow[data-serie], a.rcard[data-serie]"):
+        return
+    ausgabe = bool(os.environ.get("TOBIBOX_WECHSEL_AUSGABE"))
+    bew_start(L)
+    cdp = L.pg.context.new_cdp_session(L.pg)
+    try:
+        for name, hash_, sel in (("bibliothek", "#bibliothek", "a.lrow[data-serie], a.rcard[data-serie]"), ("start", "#start", "a.tile[data-serie], a.qt[data-serie], a.rcard[data-serie]")):
+            for nr, (drossel, verz) in enumerate(((1, 0), (4, 150))):
+                z = f"wechsel-{name}-cpu{drossel}-verz{verz}"
+                with L.schritt(z):
+                    L.gehe(hash_)
+                    if not L.da(sel):
+                        continue
+                    L.pg.wait_for_timeout(500)
+                    cdp.send("Emulation.setCPUThrottlingRate", {"rate": drossel})
+                    try:
+                        r = jsa(L, BEW_WECHSEL, {"klick": sel, "art": "hin", "verz": verz, "nr": nr + (2 if name == "start" else 0)})
+                        wechsel_pruefen(L, z + "-hin", r, ausgabe)
+                        L.pg.wait_for_timeout(300)
+                        r = jsa(L, BEW_WECHSEL, {"klick": "a[data-zurueck]", "art": "zurueck", "verz": 0, "id": r["id"]})
+                        wechsel_pruefen(L, z + "-zurueck", r, ausgabe)
+                        # eine andere Serie dazwischen (die Seite behält sonst nur die letzte), dann zum zweiten Mal dieselbe wie oben, und serie/get braucht jetzt 600 ms:
+                        # die Seite steht sofort da (AM19: zuletzt geöffnete Serien werden gemerkt)
+                        L.pg.wait_for_timeout(300)
+                        r2 = jsa(L, BEW_WECHSEL, {"klick": sel, "art": "hin", "verz": 0, "nr": nr + 5 + (2 if name == "start" else 0), "dauer": 800})
+                        L.pg.wait_for_timeout(300)
+                        jsa(L, BEW_WECHSEL, {"klick": "a[data-zurueck]", "art": "zurueck", "verz": 0, "id": r2["id"], "dauer": 800})
+                        L.pg.wait_for_timeout(300)
+                        r = jsa(L, BEW_WECHSEL, {"klick": sel, "art": "hin", "verz": 600, "nr": nr + (2 if name == "start" else 0)})
+                        wechsel_pruefen(L, z + "-nochmal", r, ausgabe, sofort=True)
+                        L.pg.wait_for_timeout(900)
+                        r = jsa(L, BEW_WECHSEL, {"klick": "a[data-zurueck]", "art": "zurueck", "verz": 0, "id": r["id"]})
+                    finally:
+                        cdp.send("Emulation.setCPUThrottlingRate", {"rate": 1})
+    finally:
+        cdp.detach()
+        L.js("if (el.hass.connection.__verz) el.hass.connection.__verz.ms = 0;")
+
+
 ABLAEUFE = [ablauf_unterkante, ablauf_reiter, ablauf_klicks, ablauf_reihen, ablauf_suche, ablauf_bibliothek, ablauf_serie, ablauf_cover, ablauf_leise, ablauf_box, ablauf_technik, ablauf_blaetter,
             ablauf_tobies_weg1, ablauf_tobies_weg2, ablauf_tobies_meldung, ablauf_tobies_umhaengen, ablauf_tobies_geben, ablauf_tobies_lernmodus,
             ablauf_tobies_name_geben_weit_unten, ablauf_hinzufuegen, ablauf_eingang_liste, ablauf_eingang, ablauf_papierkorb, ablauf_papierkorb_punkt, ablauf_bewegung,
-            ablauf_druck, ablauf_seitenwechsel, ablauf_player_bewegung, ablauf_play_pause_lage, ablauf_flug_ruhe, ablauf_blatt_tastatur, ablauf_serie_zeile, ablauf_player]
+            ablauf_druck, ablauf_seitenwechsel, ablauf_player_bewegung, ablauf_play_pause_lage, ablauf_wechsel_serie, ablauf_flug_ruhe, ablauf_blatt_tastatur, ablauf_serie_zeile, ablauf_player]
 
 
 # ------------------------------------------------------------------ Browser und Läufe

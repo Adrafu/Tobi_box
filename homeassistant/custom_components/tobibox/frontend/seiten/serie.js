@@ -20,6 +20,7 @@ import { dateienInEintrag } from './hinzufuegen.js';
 import { gruendeSaetze, eintragFuerSerie, daraus as eingangDaraus } from '../eingang.js';
 
 export const SICHTBAR = 20; // Folgen, die zuerst gezeigt werden; ab mehr als 20 gibt es das Suchfeld (Design 5.3)
+const MERKEN = 20; // AM19: so viele zuletzt geöffnete Serien merkt sich die Seite (nur im Speicher)
 const WAHL_GROESSE = 30; // Päckchen der Zielwahl
 const ARTEN = ['hoerspiel', 'hoerbuch', 'musik', 'geschichte'];
 const ENDE_FEHLER = ['stand_veraltet', 'serie_nicht_gefunden', 'folge_nicht_gefunden']; // Blatt schließen, neu laden
@@ -87,13 +88,24 @@ class SerieSeite {
     this._kette = Promise.resolve(); // Reihenfolge: Änderungen laufen nacheinander (jede mit dem neuesten `stand`)
     this._busy = false;
     this._fokus = null;
+    this._speicher = new Map(); // AM19: die zuletzt geöffneten Serien (id → Antwort von serie/get), nur im Speicher der Seite
+  }
+
+  /* AM19: Antwort merken (die zuletzt benutzte steht hinten); höchstens `MERKEN` Serien. */
+  _merke(id, serie) {
+    if (!id) return;
+    this._speicher.delete(id);
+    if (serie) this._speicher.set(id, serie);
+    while (this._speicher.size > MERKEN) this._speicher.delete(this._speicher.keys().next().value);
   }
 
   betreten(route) {
     const id = route?.id ?? null;
     if (id !== this.id) {
+      this._merke(this.id, this.z.phase === 'bereit' ? this.z.serie : null); // die Serie, die man gerade verlassen hat
       this.id = id;
-      this.z = { phase: 'laedt', fehlerCode: null, serie: null };
+      const gemerkt = this._speicher.get(id); // AM19: schon einmal geöffnet: sofort zeigen, still auffrischen
+      this.z = gemerkt ? { phase: 'bereit', fehlerCode: null, serie: gemerkt } : { phase: 'laedt', fehlerCode: null, serie: null };
       this.sterm = '';
       this.gezeigt = SICHTBAR;
       this.ordnen = false;
@@ -107,7 +119,7 @@ class SerieSeite {
   /* Hat die Seite noch nichts zu zeigen? Dann lässt die App die vorige Seite kurz stehen, statt Platzhalter aufblitzen zu lassen. */
   laedt(route) { return route?.id !== this.id || this.z.phase === 'laedt'; }
 
-  verlassen() { this._lauf += 1; this.ordnen = false; }
+  verlassen() { this._lauf += 1; this.ordnen = false; if (this.z.phase === 'bereit') this._merke(this.id, this.z.serie); }
 
   /* ---- Daten */
   async laden(still = false) {
@@ -116,15 +128,17 @@ class SerieSeite {
     if (!still || this.z.phase !== 'bereit') this.z = { ...this.z, phase: 'laedt', fehlerCode: null };
     this.ctx.neuZeichnen();
     try {
-      const r = await ladeMitGrenze(this.ctx.api('tobibox/serie/get', { serie_id: id }), this.ctx.grenzeMs);
+      const r = await ladeMitGrenze(this.ctx.serieVorgeladen?.(id) ?? this.ctx.api('tobibox/serie/get', { serie_id: id }), this.ctx.grenzeMs); // AM19: schon beim Antippen geholt?
       if (lauf !== this._lauf) return;
       this.ctx.covers.merke([r]);
       const warPruefen = brauchtPruefung(this.z.serie);
       this.z = { phase: 'bereit', fehlerCode: null, serie: r };
+      this._merke(id, r); // der frische Stand ersetzt den gemerkten
       if (warPruefen && !brauchtPruefung(r)) this.ctx.eingangNeuLaden?.(); // Band in der Bibliothek: Umbenennen und „Art ändern“ löschen das Kennzeichen auch
     } catch (err) {
       if (lauf !== this._lauf) return;
       const code = err?.code || 'unknown_error';
+      if (code === 'serie_nicht_gefunden') this._speicher.delete(id);
       this.z = code === 'serie_nicht_gefunden' ? { phase: 'weg', fehlerCode: code, serie: null } : { ...this.z, phase: 'fehler', fehlerCode: code };
     }
     this.ctx.neuZeichnen();

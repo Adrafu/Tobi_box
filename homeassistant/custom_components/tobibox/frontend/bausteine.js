@@ -232,6 +232,7 @@ export class CoverLader {
       }, { rootMargin: '200px' });
     }
     for (const el of wurzel.querySelectorAll('[data-cover]')) {
+      if (el.hasAttribute('data-flugklon')) continue; // AM19: der fliegende Klon behält sein Bild (er trägt `data-cover` von seinem Vorbild und wurde sonst hier geleert)
       const key = `${el.dataset.cover}:${el.dataset.stand}`;
       if (el._coverKey === key) continue;
       el._coverKey = key;

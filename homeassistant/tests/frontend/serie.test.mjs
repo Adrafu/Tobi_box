@@ -942,6 +942,63 @@ test('Zusammenspiel: Tipp auf eine Bibliothekszeile öffnet die Serienseite; „
   weg();
 });
 
+test('AM19: serie/get kommt schon beim Antippen (Zeiger runter) und wird beim Seitenwechsel nur einmal gebraucht', MIT_DOM, async () => {
+  const s = await seite({ viele: true, hash: '#bibliothek' });
+  await s.flush(10);
+  const zeile = s.q('.lrow');
+  const id = zeile.dataset.serie;
+  const vorher = aufrufe(s, 'serie/get').length;
+  zeile.dispatchEvent(new window.Event('pointerdown', { bubbles: true, composed: true }));
+  await s.flush(4);
+  assert.equal(aufrufe(s, 'serie/get').length, vorher + 1, 'beim Antippen geholt');
+  assert.equal(aufrufe(s, 'serie/get').at(-1).serie_id, id);
+  await geheZu(s, zeile.getAttribute('href'));
+  await s.flush(8);
+  assert.equal(aufrufe(s, 'serie/get').length, vorher + 1, 'die Serienseite nimmt die Antwort und fragt nicht noch einmal');
+  assert.ok(s.q('main h2'), 'die Seite steht');
+  weg();
+});
+
+test('AM19: zuletzt geöffnete Serien stehen sofort da (ohne auf serie/get zu warten) und werden still aufgefrischt; der frische Stand ersetzt den gemerkten', MIT_DOM, async () => {
+  const s = await oeffne('s1');
+  assert.equal(s.q('main h2').textContent, 'Die drei ???');
+  await geheZu(s, '#serie-s2'); // eine andere dazwischen: die Seite hatte früher nur die letzte behalten
+  assert.equal(s.q('main h2').textContent, 'Bibi Blocksberg');
+  // serie/get dauert jetzt 300 ms, und s1 hat inzwischen einen neuen Namen
+  const c = s.m.hass.connection; const alt = c.sendMessagePromise;
+  c.sendMessagePromise = async (m) => { if (m.type === 'tobibox/serie/get') await warte(300); return alt(m); };
+  s.m.backend.serien.s1.name = 'Die drei ??? (neu)';
+  const n = aufrufe(s, 'serie/get').length;
+  await geheZu(s, '#serie-s1');
+  assert.equal(s.q('main h2').textContent, 'Die drei ???', 'sofort der gemerkte Stand, kein Ladeplatzhalter');
+  assert.equal(s.q('main .laedt'), null);
+  assert.deepEqual(namen(s), ['Der Rabe', 'Das Gespensterschloss', 'Der Super-Papagei']);
+  await warte(400); await s.flush(8);
+  assert.equal(aufrufe(s, 'serie/get').length, n + 1, 'trotzdem still aufgefrischt');
+  assert.equal(s.q('main h2').textContent, 'Die drei ??? (neu)', 'danach gilt der frische Stand');
+  await geheZu(s, '#serie-s2');
+  await geheZu(s, '#serie-s1');
+  assert.equal(s.q('main h2').textContent, 'Die drei ??? (neu)', 'auch der Speicher ist aufgefrischt');
+  c.sendMessagePromise = alt;
+  weg();
+});
+
+test('AM19: der Speicher hält höchstens 20 Serien; eine Serie, die es nicht mehr gibt, bleibt nicht stehen', MIT_DOM, async () => {
+  const s = await oeffne('s1');
+  const seiteObj = s.el._seiteObj;
+  for (let i = 0; i < 25; i += 1) seiteObj._merke(`x${i}`, { id: `x${i}` });
+  assert.equal(seiteObj._speicher.size, 20);
+  assert.ok(!seiteObj._speicher.has('x0') && seiteObj._speicher.has('x24'), 'die ältesten fliegen raus');
+  await geheZu(s, '#serie-s2');
+  assert.ok(seiteObj._speicher.has('s1'), 'die verlassene Serie ist gemerkt');
+  delete s.m.backend.serien.s1; // gelöscht, während man woanders war
+  await geheZu(s, '#serie-s1');
+  await s.flush(10);
+  assert.ok(s.q('[data-zustand="weg"]'), 'nach dem Auffrischen: „Das gibt es nicht mehr“');
+  assert.ok(!seiteObj._speicher.has('s1'));
+  weg();
+});
+
 test('Seite beim Verlassen: laufende Antworten werden verworfen (kein Zeichnen auf der falschen Seite)', MIT_DOM, async () => {
   const s = await seite({ hash: '' });
   let los;

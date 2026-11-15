@@ -544,7 +544,7 @@ if (lit) {
       };
       this._onResize = () => this._messeBreite();
       this._coverKlick = (e) => this._coverMerken(e);
-      this._coverZeiger = (e) => this._grossVorladen(e.target?.closest?.('a[data-serie]')?.querySelector('.cover[data-cover]'));
+      this._coverZeiger = (e) => { const a = e.target?.closest?.('a[data-serie]'); this._grossVorladen(a?.querySelector('.cover[data-cover]')); this._serieVorladen(a?.dataset?.serie); };
     }
 
     /* ---- Lebenslauf */
@@ -780,6 +780,26 @@ if (lit) {
       if (id && stand && stand !== '?') coverGrossUrl(this._covers, id, stand);
     }
 
+    /* AM19: `serie/get` schon beim Antippen holen (Zeiger runter, die Adresse wechselt erst beim Loslassen). Die Serienseite nimmt die Antwort einmal aus diesem Speicher (höchstens 4 s alt). */
+    _serieVorladen(id) {
+      if (!id || this.store.s.phase !== 'bereit') return;
+      this._vorSerien ??= new Map();
+      const alt = this._vorSerien.get(id);
+      if (alt && Date.now() - alt.zeit < 4000) return;
+      let p;
+      try { p = this.store._api('tobibox/serie/get', { serie_id: id }); } catch { return; }
+      p.catch(() => {}); // wird die Antwort nie abgeholt, bleibt kein Fehler übrig
+      this._vorSerien.set(id, { p, zeit: Date.now() });
+      if (this._vorSerien.size > 8) this._vorSerien.delete(this._vorSerien.keys().next().value);
+    }
+
+    _serieVorgeladen(id) {
+      const v = this._vorSerien?.get(id);
+      if (!v) return null;
+      this._vorSerien.delete(id);
+      return Date.now() - v.zeit < 4000 ? v.p : null;
+    }
+
     /* Die Adresse hat gewechselt: ein Flug „hin“ gilt nur für seine Serienseite; wer die Serienseite verlässt, merkt sich den großen Kopf für den Rückflug. */
     _flugNachHash(vorher, kopfFlaeche) {
       const r = this._route;
@@ -911,12 +931,12 @@ if (lit) {
       this._flug = null;
       if (reduziert() || !kannAnimieren(el)) return; // kein Flug: die Seite schaltet direkt um
       const nach = gemessen;
+      this._bildSofort(el);
       // der Flug läuft mit einem Klon in der obersten Schicht (Befund Tobias 14.11.: in der Liste malten die Nachbarzeilen über das fliegende Cover)
       const dauer = tokenMs(this, '--dauer-feder');
       const an = flipKlon(el, f.rect, nach, { overlay: wurzel.querySelector('.app'), dauer, easing: kurve(this, '--feder'), radiusVon: f.radius, radiusNach: this._radius(el) });
       if (an) nachEnde(an, dauer + 300, () => an.aufraeumen());
       if (an) this._zielFolgen(an, el, nach);
-      if (an && f.art === 'hin') this._restBlenden(wurzel.querySelector('main'), el);
     }
 
     /* Das Ziel kann sich während des Flugs noch bewegen (Zeilen werden gezeichnet, Bilder bekommen Platz): jedes Bild neu messen und das Ende des Flugs nachführen,
@@ -933,13 +953,12 @@ if (lit) {
       requestAnimationFrame(schritt);
     }
 
-    /* Der Rest der Serienseite blendet über (`--dauer-mittel`); das fliegende Cover bleibt dabei unberührt. */
-    _restBlenden(knoten, cover) {
-      for (const c of knoten?.children ?? []) {
-        if (c === cover) continue;
-        if (c.contains(cover)) this._restBlenden(c, cover);
-        else animiere(c, [{ opacity: 0.6 }, { opacity: 1 }], { duration: tokenMs(this, '--dauer-mittel'), easing: kurve(this) });
-      }
+    /* AM19: Hat das Ziel des Flugs sein Bild noch nicht (die Liste wurde gerade neu gezeichnet, der Cover-Lader kommt erst im nächsten Bild), bekommt es das schon geladene kleine
+     * Bild sofort: der Klon trägt dann ein Bild und nicht die Ersatzkachel. */
+    _bildSofort(el) {
+      if (!el || el.style.backgroundImage || !el.dataset.cover || !el.dataset.stand) return;
+      const u = this._covers.kleinSofort(el.dataset.cover, el.dataset.stand);
+      if (u) { el.style.backgroundImage = `url("${u}")`; el.dataset.bild = '1'; }
     }
 
     /* Pille (X33): ein eigenes Element je Segment-Umschalter und für den aktiven Reiter (unten und in der Seitenleiste, nicht in der oberen Leiste).
@@ -1442,6 +1461,7 @@ if (lit) {
       const app = this;
       return {
         api: (type, felder) => app.store._api(type, felder),
+        serieVorgeladen: (id) => app._serieVorgeladen(id),
         faehig: (name) => (app.store.s.faehigkeiten || []).includes(name),
         get admin() { return app._admin; },
         get layout() { return app._layout; },
@@ -1510,14 +1530,16 @@ if (lit) {
       if (key === this._seiteKey) return;
       const alt = this._seiteObj;
       const warSeite = this._seiteKey !== null;
-      // Wechsel auf eine Seite, die erst laden muss (Serienseite): die alte bleibt stehen, bis die neue Daten hat (höchstens 700 ms), statt kurz Platzhalter zu zeigen
-      this._vorSeite = alt && warSeite && key && r.name !== this._seiteRoute?.name ? { obj: alt, route: this._seiteRoute, bis: Date.now() + 700 } : null;
+      const vorName = this._seiteRoute?.name;
+      // Wechsel auf eine Seite, die erst laden muss (Serienseite): die alte bleibt stehen, bis die neue Daten hat (höchstens 300 ms, AM19), statt kurz Platzhalter zu zeigen
+      this._vorSeite = alt && warSeite && key && r.name !== this._seiteRoute?.name ? { obj: alt, route: this._seiteRoute, bis: Date.now() + 300 } : null; // AM19: spätestens nach 300 ms zeigt die neue Seite, was da ist
       this._seiteRoute = key ? r : null;
       this._seiteKey = key;
       this._seiteObj = key ? this._seiteFuer(r.name) : null;
       alt?.verlassen?.();
       this._seiteObj?.betreten?.(r);
-      if (warSeite && key && !(this._flug?.art === 'hin' && this._flug.id === r.id)) this._seiteBlenden();
+      // AM19: in die Serienseite und von ihr weg steht die neue Seite im ersten Bild deckend da (nur das Cover fliegt); die anderen Wechsel blenden kurz über
+      if (warSeite && key && r.name !== 'serie' && vorName !== 'serie') this._seiteBlenden();
     }
 
     _seite(r) {
