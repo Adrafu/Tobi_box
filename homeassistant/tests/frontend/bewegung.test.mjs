@@ -145,22 +145,26 @@ test('Serienseite öffnen: animate mit translate am großen Cover (FLIP), startV
     await warte(30); await s.flush(10);
     const gross = s.q('.cover.se-xl');
     assert.ok(gross, 'die Serienseite ist da');
-    const flug = aufrufe.find((a) => a.el === gross && a.kf.some((k) => typeof k.transform === 'string' && k.transform.includes('translate(')));
-    assert.ok(flug, 'das große Cover fliegt (animate mit translate)');
+    const flug = aufrufe.find((a) => a.el.dataset?.flugklon === '1' && a.el.classList.contains('se-xl') && a.kf.some((k) => typeof k.transform === 'string' && k.transform.includes('translate(')));
+    assert.ok(flug, 'das große Cover fliegt als Klon in der obersten Schicht (animate mit translate)');
+    assert.equal(flug.el.parentNode, s.q('.app'), 'der Klon liegt in der Deckschicht, nicht in der Liste');
+    assert.equal(gross.style.visibility, 'hidden', 'das echte Cover bleibt verdeckt, bis der Klon gelandet ist');
     assert.match(flug.kf[0].transform, /scale\(0\.\d+/, 'von der kleinen Fläche der Zeile');
     assert.equal(flug.kf[1].transform, 'none');
     assert.ok(/px \/ /.test(flug.kf[0].borderRadius) && /px$/.test(flug.kf[1].borderRadius), 'die Ecken laufen mit (je Achse gegen die Skala)');
-    assert.equal(gross.style.pointerEvents, 'none', 'nur das fliegende Cover fängt keine Eingaben ab');
+    assert.equal(flug.el.style.pointerEvents, 'none', 'nur das fliegende Cover fängt keine Eingaben ab');
     flug.an.ende(); await warte(5);
-    assert.equal(gross.style.pointerEvents, '', 'danach wieder aufgeräumt');
+    assert.equal(gross.style.visibility, '', 'danach ist das echte Cover da');
+    assert.equal(flug.el.isConnected, false, 'und der Klon weg (im selben Bild)');
     assert.equal(vt.mock.callCount(), 0, 'startViewTransition nie');
     // zurück: das Cover der Zeile fliegt von der Fläche des großen Covers an seinen Platz
     const vorher = aufrufe.length;
     s.q('a.back').click();
     await warte(30); await s.flush(10);
-    const rueck = aufrufe.slice(vorher).find((a) => a.el.dataset?.cover === id && a.kf.some((k) => typeof k.transform === 'string' && k.transform.includes('translate(')));
+    const rueck = aufrufe.slice(vorher).find((a) => a.el.dataset?.flugklon === '1' && a.el.dataset?.cover === id && a.kf.some((k) => typeof k.transform === 'string' && k.transform.includes('translate(')));
     assert.ok(rueck, 'zurück fliegt das Cover der Zeile');
-    assert.match(rueck.kf[0].transform, /scale\(2\.\d+/, 'es startet groß');
+    assert.equal(rueck.kf[0].transform, 'none', 'der Klon ist so groß wie das große Cover und startet dort');
+    assert.match(rueck.kf[1].transform, /scale\(0\.\d+/, 'und landet klein an der Stelle des Covers der Zeile');
     assert.equal(vt.mock.callCount(), 0);
     weg();
   } finally { zurueck(); nachher(); }

@@ -29,7 +29,8 @@ function bauen(schluessel) {
   const profil = schluessel.split('~')[0];
   const leer = profil === 'leer';
   const m = createMockHass({
-    faehigkeiten: [...new Set([...FAEHIGKEITEN, ...FAEHIGKEITEN_V11, ...FAEHIGKEITEN_A9, 'konfig_staende', 'hoerkopie', 'einsortier_wunsch'])],
+    sigPraefix: `m${[...schluessel].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7)}`, // eigene Signaturen je Lauf: ein künstlicher Audio-Fehler trifft nur den Lauf, der ihn auslöst (der Server ist für alle parallelen Läufe derselbe)
+  faehigkeiten: [...new Set([...FAEHIGKEITEN, ...FAEHIGKEITEN_V11, ...FAEHIGKEITEN_A9, 'konfig_staende', 'hoerkopie', 'einsortier_wunsch', 'reinhoeren'])],
     viele: leer ? false : 130, leer, darf: true, istAdmin: profil !== 'user',
   });
   mitStaenden(m);
@@ -120,6 +121,38 @@ const ZUSTAENDE_EINGANG = (() => {
     ],
   };
 })();
+
+/* A8b: eine echte Testdatei zum Hören (WAV, 8 kHz, 8 Bit, mono, 40 Sekunden Sinuston), ausgeliefert wie die Audio-Ansicht der Integration
+ * (Vertrag 14.5): `GET /api/tobibox/audio/<serie>/<folge>[?track=n&authSig=…]` mit Range (206, Content-Range, Accept-Ranges). Jede Folge hat
+ * dieselbe Datei; der Abruf wird mitgezählt (`GET /audio-zaehler`), damit die Prüfung sieht, dass wirklich geladen wurde. */
+const WAV_S = 40;
+const WAV = (() => {
+  const n = 8000 * WAV_S;
+  const b = Buffer.alloc(44 + n);
+  b.write('RIFF', 0); b.writeUInt32LE(36 + n, 4); b.write('WAVEfmt ', 8); b.writeUInt32LE(16, 16); b.writeUInt16LE(1, 20); b.writeUInt16LE(1, 22);
+  b.writeUInt32LE(8000, 24); b.writeUInt32LE(8000, 28); b.writeUInt16LE(1, 32); b.writeUInt16LE(8, 34); b.write('data', 36); b.writeUInt32LE(n, 40);
+  for (let i = 0; i < n; i += 1) b[44 + i] = 128 + Math.round(40 * Math.sin((2 * Math.PI * 440 * i) / 8000));
+  return b;
+})();
+const audioAbrufe = [];
+const audioFehler = new Map(); // Signatur-Präfix des Laufs -> { n, ab };  // die nächsten n Abrufe mit einer Signatur ab `mock-<ab>` antworten mit 503 (`POST /audio-fehler`): `<audio>` meldet das wie 401 und 404 nur als „Format error“
+function audio(req, res, p) {
+  audioAbrufe.push({ pfad: p + (new URL(req.url, 'http://x').search || ''), range: req.headers.range || null });
+  const [, pre, nr] = /authSig=([A-Za-z0-9]+)-(\d+)/.exec(req.url) || [];
+  const af = audioFehler.get(pre);
+  if (af && af.n > 0 && Number(nr) >= af.ab) { af.n -= 1; res.statusCode = 503; res.setHeader('retry-after', '1'); res.end('medien_nicht_erreichbar'); return; }
+  const range = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range || '');
+  res.setHeader('accept-ranges', 'bytes');
+  res.setHeader('content-type', 'audio/wav');
+  if (!range) { res.setHeader('content-length', WAV.length); res.end(req.method === 'HEAD' ? undefined : WAV); return; }
+  const von = range[1] === '' ? Math.max(0, WAV.length - Number(range[2])) : Number(range[1]);
+  const bis = range[1] === '' || range[2] === '' ? WAV.length - 1 : Math.min(Number(range[2]), WAV.length - 1);
+  if (von > bis || von >= WAV.length) { res.statusCode = 416; res.setHeader('content-range', `bytes */${WAV.length}`); res.end(); return; }
+  res.statusCode = 206;
+  res.setHeader('content-range', `bytes ${von}-${bis}/${WAV.length}`);
+  res.setHeader('content-length', bis - von + 1);
+  res.end(req.method === 'HEAD' ? undefined : WAV.subarray(von, bis + 1));
+}
 
 const mocks = new Map();
 const holeMock = (k) => { if (!mocks.has(k)) mocks.set(k, bauen(k)); return mocks.get(k); };
@@ -223,6 +256,11 @@ const server = http.createServer(async (req, res) => {
   const u = new URL(req.url, 'http://x');
   const p = u.pathname;
   res.setHeader('cache-control', 'no-store');
+  if (p.startsWith('/api/tobibox/audio/') && (req.method === 'GET' || req.method === 'HEAD')) { audio(req, res, p); return; }
+  if (p === '/audio-zaehler') { res.end(JSON.stringify(audioAbrufe)); return; }
+  if (p === '/audio-fehler' && req.method === 'POST') { { const b = JSON.parse(await koerper(req)); audioFehler.set(holeMock(b.k).opts.sigPraefix, { n: Number(b.n) || 0, ab: Number(b.ab) || 0 }); } res.end('{}'); return; }
+  /* Aufrufe eines Befehls im Mock dieses Laufs (nur lesen): `GET /aufrufe?k=…&typ=tobibox/audio/bereit` */
+  if (p === '/aufrufe') { res.end(JSON.stringify(holeMock(u.searchParams.get('k') || 'admin').aufrufe(u.searchParams.get('typ')))); return; }
   if (p === '/favicon.ico') { res.statusCode = 204; res.end(); return; }
   if (p === '/ws' && req.method === 'POST') {
     const m = holeMock(u.searchParams.get('k') || 'admin');

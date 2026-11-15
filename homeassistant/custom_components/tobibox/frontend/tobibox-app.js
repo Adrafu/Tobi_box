@@ -14,12 +14,13 @@
  * Die Illustrationen der leeren Zustände (A6b) kommen aus ./illustrationen.js; fehlt die Datei oder ein Bild,
  * steht ein schlichter Platzhalter da.
  */
-import { fuellen, fehlerText, SEITE, TOBIE, LEER, TECHNIK, SUCHE, EINGANG } from './texte.js';
+import { fuellen, fehlerText, SEITE, TOBIE, LEER, TECHNIK, SUCHE, EINGANG, PLAYER } from './texte.js';
 import { eingangAbleiten, bandZustand, naechsteAenderung } from './eingang.js';
 import { SEITEN } from './seiten/index.js';
 import { folgenAktion } from './seiten/tobies.js';
-import { reduziert, kannAnimieren, tokenMs, kurve, animiere, nachEnde, flip, rechteck } from './bewegung.js';
-import { initLit, bausteinStil, CoverLader, leererZustand, kopfAktion, korbNeueFremde, korbNeuesteMs } from './bausteine.js';
+import { reduziert, kannAnimieren, tokenMs, kurve, animiere, nachEnde, flipKlon, rechteck } from './bewegung.js';
+import { initLit, bausteinStil, CoverLader, leererZustand, kopfAktion, korbNeueFremde, korbNeuesteMs, ic as symbol } from './bausteine.js';
+import { Spieler, spielerStil } from './player.js';
 
 export const VERTRAG_V = 1;
 export const REITER_UNTEN_BIS = 700; // Panelbreite unter 700 px: Reiter unten
@@ -518,6 +519,8 @@ if (lit) {
       this._seiteKey = null;
       this._covers = new CoverLader(() => this.hass);
       this.ctx = this._baueCtx();
+      this.spieler = new Spieler(this.ctx); // Player (A8b): `<audio>`, Leiste und Vollansicht; die Seiten erreichen ihn über `ctx.spieler`
+      this._spielerMini = false;
       this.store.onWiederda = () => this._seiteObj?.neuLaden?.();
       this._off = this.store.onChange(() => { this._tick += 1; if (this.store.s.phase === 'bereit') this._leseHash(); });
       this.store.onNeuerTobie = (n) => this._neuerTobie(n);
@@ -565,6 +568,7 @@ if (lit) {
       this._vv = window.visualViewport;
       this._vvFn = () => this._tastatur(this.renderRoot.activeElement);
       this._vv?.addEventListener?.('resize', this._vvFn);
+      this.spieler.anmelden();
       ladeIllustrationen().then((b) => { this._bilder = b; });
     }
 
@@ -582,6 +586,7 @@ if (lit) {
       this.renderRoot.removeEventListener('click', this._coverKlick, true);
       clearTimeout(this._hintenTimer);
       this._vv?.removeEventListener?.('resize', this._vvFn);
+      this.spieler.abmelden();
       this.store.detach();
     }
 
@@ -589,6 +594,7 @@ if (lit) {
       if (ch.has('hass') && this.hass) {
         if (!this.store.hass) this.store.attach(this.hass); else this.store.hass = this.hass;
       }
+      this.spieler.vorZeichnen(); // Kreuzblende des Mini-Covers: eine Kopie des alten Covers, solange es noch im DOM steht
     }
 
     updated(ch) {
@@ -605,6 +611,23 @@ if (lit) {
       this._seiteObj?.nachRender?.(this.renderRoot);
       this._pillenSetzen();
       this._coverFlug();
+      this._spielerNach();
+    }
+
+    /* Player (A8b, A8m): Leiste zeigen oder verstecken, `data-voll` am Host (Vollansicht deckt die Seite: kein iOS-Blatt-Effekt), danach die Vollansicht
+     * öffnen und die gemerkte Stelle holen. */
+    _spielerNach() {
+      const sp = this.spieler;
+      const da = !!sp.s;
+      const m = this.miniPlatz;
+      if (da !== this._spielerMini) {
+        this._spielerMini = da;
+        this.setMini(da, (da && m?.offsetHeight) || 67);
+        if (da) sp.miniEinblenden();
+      } else if (da && m && m.offsetHeight && this.style.getPropertyValue('--minih') !== `${m.offsetHeight}px`) this.style.setProperty('--minih', `${m.offsetHeight}px`);
+      if (this.hasAttribute('data-voll') !== sp.offen) this.toggleAttribute('data-voll', sp.offen);
+      sp.nachRender();
+      if (this.store.s.phase === 'bereit') sp.wiederherstellen();
     }
 
     /* Der Seitenkopf trägt den Titel der Seite (große Überschrift am Computer, Titel neben dem Menüknopf am Handy). Steht dieselbe
@@ -672,8 +695,9 @@ if (lit) {
     /* Seitenwechsel (Reiter, Unterseiten ohne Cover-Übergang): nur kurzes Überblenden, die Seite gleitet nie. */
     _seiteBlenden() {
       const m = this.renderRoot.querySelector('main');
-      if (!m || !kannAnimieren(m)) return;
-      animiere(m, [{ opacity: 0 }, { opacity: 1 }], { duration: tokenMs(this, '--dauer-kurz'), easing: kurve(this) });
+      if (!m || !kannAnimieren(m) || reduziert()) return; // bei „weniger Bewegung“ schaltet die Seite direkt um
+      // erst ist der neue Inhalt gezeichnet (wir sind nach dem Zeichnen), dann ein kurzes Überblenden, das nie ganz durchsichtig wird (kein leeres Bild)
+      animiere(m, [{ opacity: 0.6 }, { opacity: 1 }], { duration: tokenMs(this, '--dauer-kurz'), easing: kurve(this) });
     }
 
     /* Tipp auf eine Kachel, Zeile oder einen Treffer mit Cover: die Fläche des Covers merken (Cover-Flug der Serienseite, R17-1). */
@@ -716,7 +740,10 @@ if (lit) {
       this._flug = null;
       if (reduziert() || !kannAnimieren(el)) return; // kein Flug: die Seite schaltet direkt um
       const nach = rechteck(el.getBoundingClientRect());
-      const an = flip(el, f.rect, nach, { dauer: tokenMs(this, '--dauer-feder'), easing: kurve(this, '--feder'), radiusVon: f.radius, radiusNach: this._radius(el) });
+      // der Flug läuft mit einem Klon in der obersten Schicht (Befund Tobias 14.11.: in der Liste malten die Nachbarzeilen über das fliegende Cover)
+      const dauer = tokenMs(this, '--dauer-feder');
+      const an = flipKlon(el, f.rect, nach, { overlay: wurzel.querySelector('.app'), dauer, easing: kurve(this, '--feder'), radiusVon: f.radius, radiusNach: this._radius(el) });
+      if (an) nachEnde(an, dauer + 300, () => an.aufraeumen());
       if (an && f.art === 'hin') this._restBlenden(wurzel.querySelector('main'), el);
     }
 
@@ -725,7 +752,7 @@ if (lit) {
       for (const c of knoten?.children ?? []) {
         if (c === cover) continue;
         if (c.contains(cover)) this._restBlenden(c, cover);
-        else animiere(c, [{ opacity: 0 }, { opacity: 1 }], { duration: tokenMs(this, '--dauer-mittel'), easing: kurve(this) });
+        else animiere(c, [{ opacity: 0.6 }, { opacity: 1 }], { duration: tokenMs(this, '--dauer-mittel'), easing: kurve(this) });
       }
     }
 
@@ -1245,8 +1272,19 @@ if (lit) {
         ereignis: (fn) => app.store.onEreignis(fn), // `fn(ev)` für jedes Ereignis des Abos; gibt die Abmeldung zurück
         navigiere: (hash, o = {}) => app.navigiere(hash, o.ersetzen === true), // Seitenwechsel im Modell von HA (pushState + `location-changed`)
         gesperrt: () => app.store.s.konfigZustand !== 'ok' || app.store.s.verbindungWeg, // Liste gesperrt oder keine Verbindung: Knöpfe, die ändern, grau (A7b)
-        folgenAktionen: (x) => folgenAktion(app.ctx, x), // „⋯“ in Folgenzeilen der Suche: „Einem Tobie geben …“ (A9); A8b ergänzt das Abspielen
+        get spieler() { return app.spieler; }, // Player (A8b): `starte`, `schalte`, `spieleId`, `laeuft`, `ist`
+        nachZeichnen: () => app.updateComplete,
+        meldungenPlatz: (ohneBlatt) => app._meldungenPlatz(ohneBlatt === true),
+        folgenAktionen: (x) => html`${app.ctx.faehig('reinhoeren') ? app._spielKnopf(x) : nothing}${folgenAktion(app.ctx, x)}`, // Abspielen und „⋯“ in Folgenzeilen der Suche (A8b, A9)
       };
+    }
+
+    /* Abspielknopf in einer Folgenzeile der Suche (48 px, rund, gefüllt): spielt genau diese Folge, bei der laufenden „Pause“. */
+    _spielKnopf(x) {
+      const titel = x.anzeige || x.folge;
+      const spielt = this.spieler.laeuft(x.serie_id, x.folge);
+      return html`<button type="button" class="iconbtn fillp se-play" data-abspielen aria-label=${fuellen(spielt ? PLAYER.folge.pausieren : PLAYER.folge.abspielen, { titel })}
+        @click=${() => this.spieler.spieleId(x.serie_id, x.folge)}>${symbol(spielt ? 'pause' : 'play', 24)}</button>`;
     }
 
     _seiteFuer(name) {
@@ -1263,6 +1301,9 @@ if (lit) {
       if (key === this._seiteKey) return;
       const alt = this._seiteObj;
       const warSeite = this._seiteKey !== null;
+      // Wechsel auf eine Seite, die erst laden muss (Serienseite): die alte bleibt stehen, bis die neue Daten hat (höchstens 700 ms), statt kurz Platzhalter zu zeigen
+      this._vorSeite = alt && warSeite && key && r.name !== this._seiteRoute?.name ? { obj: alt, route: this._seiteRoute, bis: Date.now() + 700 } : null;
+      this._seiteRoute = key ? r : null;
       this._seiteKey = key;
       this._seiteObj = key ? this._seiteFuer(r.name) : null;
       alt?.verlassen?.();
@@ -1279,6 +1320,8 @@ if (lit) {
       if (s.phase === 'fehler') return this._fehlerKarte();
       if (s.phase === 'veraltet') return this._veraltetKarte();
       const seite = this._seiteFuer(r.name);
+      const vor = this._vorSeite;
+      if (seite && vor && Date.now() < vor.bis && typeof seite.laedt === 'function' && seite.laedt(r)) return vor.obj.render(vor.route);
       if (seite) return seite.render(r);
       const h2 = (extra = '') => html`<h2 class=${extra}>${this._titel(r)}</h2>`;
       switch (r.name) {
@@ -1346,7 +1389,7 @@ if (lit) {
 
     /* Der Platz liegt außerhalb des Scrollbereichs (unten, oben) bündig auf der Leiste; in der Seitenleisten-Ansicht
      * unten in der Inhaltsspalte. Der Zustand (hidden) überlebt einen Wechsel des Ortes (siehe updated). */
-    _miniHtml() { return html`<div class="mini" ?hidden=${!this._miniAn} part="mini"><slot name="mini"></slot></div>`; }
+    _miniHtml() { return html`<div class="mini" ?hidden=${!this._miniAn} part="mini">${this.spieler.miniHtml()}<slot name="mini"></slot></div>`; }
 
     render() {
       const r = this._route;
@@ -1366,6 +1409,7 @@ if (lit) {
         ${l === 'seite' ? nothing : this._miniHtml()}
         ${l === 'unten' ? this._nav(r) : nothing}
         </div>
+        ${this.spieler.vollHtml()}
         ${this._blattHtml()}
         <div class="toastbox"></div>
         <div id="live" class="sr" role="status" aria-live="polite"></div>
@@ -1585,7 +1629,7 @@ if (lit) {
       .seg2 > .pille { background: var(--primary); border-radius: 24px; box-shadow: inset 0 0 0 2px var(--primary-ink), 0 1px 3px var(--shadow); }
       .seg2 button { position: relative; z-index: 1; }
       .seg2.hp > button[aria-pressed="true"] { background: transparent; box-shadow: none; }
-    `, bausteinStil(), ...Object.values(SEITEN).map((x) => x.stil?.()).filter(Boolean)];
+    `, bausteinStil(), spielerStil(), ...Object.values(SEITEN).map((x) => x.stil?.()).filter(Boolean)];
   }
 
   if (!customElements.get('tobibox-app')) customElements.define('tobibox-app', TobiboxApp);

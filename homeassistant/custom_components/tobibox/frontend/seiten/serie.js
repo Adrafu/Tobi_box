@@ -7,11 +7,12 @@
  * andere nicht da (nicht nur gesperrt).
  *
  * „Gespielt von“ mit Chips, „+ Tobie“ und „Einem Tobie geben …“ (Karte und „⋯“ der Folge) kommen aus seiten/tobies.js (A9).
- * „Cover ändern“ (A8f, Design 5.5) steht in seiten/cover.js. Noch nicht hier: Player und „Reinhören“ (A8b),
- * Kapitelzeile (A8d), „Anders einsortieren“ (A-3), Playlists (Stufe C), Cover-Flug (A6m/A8m). Schnittstelle zur App: bausteine.js.
+ * „Cover ändern“ (A8f, Design 5.5) steht in seiten/cover.js. „Reinhören / Hier weiterhören“, der Abspielknopf der Folgenzeilen und die Abspiel-Anzeige
+ * (A8b, A7c, A8m) rufen den Player (`ctx.spieler`, player.js). Noch nicht hier: Kapitelzeile (A8d), „Anders einsortieren“ (A-3), Playlists (Stufe C), Cover-Flug (A6m/A8m). Schnittstelle zur App: bausteine.js.
  */
-import { html, nothing, css, repeat, ic, cover, coverKlasse, coverGrossUrl, ladeMitGrenze, untertitel, uhr, dauerText, norm } from '../bausteine.js';
-import { SERIE, ZEILE, GRUENDE, TOBIE, SEITE, fuellen } from '../texte.js';
+import { html, nothing, css, repeat, ic, cover, coverKlasse, coverGrossUrl, ladeMitGrenze, untertitel, uhr, dauerText, norm, eq, abspiel, laeuftAn } from '../bausteine.js';
+import { SERIE, ZEILE, GRUENDE, TOBIE, SEITE, PLAYER, fuellen } from '../texte.js';
+import { knopfText } from '../player.js';
 import { coverBlatt, coverFehlerText, coverStil } from './cover.js';
 import { gespieltVonKarte, folgenChips, gebenLink } from './tobies.js';
 import { dateienInEintrag } from './hinzufuegen.js';
@@ -109,6 +110,9 @@ class SerieSeite {
   }
 
   neuLaden() { return this.laden(true); }
+
+  /* Hat die Seite noch nichts zu zeigen? Dann lässt die App die vorige Seite kurz stehen, statt Platzhalter aufblitzen zu lassen. */
+  laedt(route) { return route?.id !== this.id || this.z.phase === 'laedt'; }
 
   verlassen() { this._lauf += 1; this.ordnen = false; }
 
@@ -588,7 +592,7 @@ class SerieSeite {
     if (z.phase === 'fehler') return html`${this._leiste(null)}${ctx.fehlerKarte(z.fehlerCode, () => this.laden())}`;
     if (z.phase === 'weg') return html`${this._leiste(null)}<div class="note err" role="alert" data-zustand="weg">${SERIE.weg.satz} <a href="#bibliothek">${SERIE.weg.link}</a></div>`;
     const s = z.serie;
-    return html`${this._leiste(s)}${this._kopf(s)}${gespieltVonKarte(s)}${this._ansehen(s)}${s.einzeln ? this._einzeln(s) : this._folgen(s)}`;
+    return html`${this._leiste(s)}${this._kopf(s)}${this._rein(s)}${gespieltVonKarte(s)}${this._ansehen(s)}${s.einzeln ? this._einzeln(s) : this._folgen(s)}`;
   }
 
   _kopf(s) {
@@ -596,10 +600,23 @@ class SerieSeite {
     const gross = this.ctx.layout === 'seite';
     return html`<div class="se-hero">
       <div class=${`cover se-xl ${coverKlasse(s.id)}`} data-cover-gross=${s.id} data-stand=${s.cover_stand ?? ''} aria-hidden="true"><span class="bst">${anfang(s.name)}</span></div>
-      <div class="se-htxt"><h2 tabindex="-1">${s.name}</h2><div class="muted" data-untertitel>${untertitel(s)}</div>
+      <div class="se-htxt"><h2 tabindex="-1">${s.name}${laeuftAn(s.id) ? eq(abspiel.spielt) : nothing}</h2><div class="muted" data-untertitel>${untertitel(s)}</div>
         ${fort ? html`<div class="muted" data-fortschritt>${fort}</div>` : nothing}
         ${gross ? html`<div class="btns se-aktionen"><button type="button" class="btn se-mehr-knopf" data-menue-serie aria-haspopup="dialog" aria-label=${fuellen(SERIE.mehr_zu, { titel: s.name })}
           @click=${(e) => this.serieMenue(e.currentTarget)}>${ic('more', 24)}${SERIE.mehr}</button></div>` : nothing}</div></div>`;
+  }
+
+  /* Großer Knopf „Reinhören / Hier weiterhören / Noch einmal hören / Pause“ (Design 5.3, 56 px): startet den Player; der Zusatz nennt Folge und Stelle.
+   * Beim ersten Mal der Satz „Das spielt hier am Handy oder Computer, nicht auf der Box.“ (G17). Ohne Fähigkeit `reinhoeren` oder ohne Folgen fehlt er. */
+  _rein(s) {
+    const { ctx } = this;
+    if (!ctx.faehig('reinhoeren') || !(s.folgen || []).length) return nothing;
+    const sp = ctx.spieler;
+    const t = knopfText(s, { spielt: sp.laeuft(s.id) });
+    return html`<div class="se-rein" data-rein>
+      <button type="button" class="btn primary xl" data-reinhoeren data-art=${t.art} @click=${() => sp.schalte({ serie: s })}>${ic(t.art === 'pause' ? 'pause' : 'play', 24)}${t.label}</button>
+      ${t.zusatz ? html`<div class="muted" data-rein-zusatz>${t.zusatz}</div>` : nothing}
+      ${t.art === 'rein' && !sp.hinweisGesehen() ? html`<div class="muted" data-rein-hinweis>${PLAYER.knopf.hinweis}</div>` : nothing}</div>`;
   }
 
   _ansehen(s) {
@@ -636,7 +653,7 @@ class SerieSeite {
       ${alle.length > SICHTBAR && !ordnen ? html`<label class="sr" for="se-suche">${SERIE.suchen.label}</label>
         <input id="se-suche" class="se-sfeld" type="search" autocomplete="off" placeholder=${SERIE.suchen.platzhalter} .value=${this.sterm}
           @input=${(e) => { this.sterm = e.target.value; this.gezeigt = SICHTBAR; ctx.neuZeichnen(); }}>` : nothing}
-      ${treffer.length ? html`<div class="se-karte" data-liste="folgen">${ctx.layout === 'seite' && !ordnen ? html`<div class="se-spalten" aria-hidden="true"><span class="c-nr">${SERIE.spalten.nr}</span><span>${SERIE.spalten.titel}</span><span class="c-dauer">${SERIE.spalten.dauer}</span><span></span></div>` : nothing}${repeat(treffer.slice(0, this.gezeigt), ({ x }) => x.name, ({ x, i }) => this._zeile(x, i, alle.length, ordnen))}</div>
+      ${treffer.length ? html`<div class="se-karte" data-liste="folgen">${ctx.layout === 'seite' && !ordnen ? html`<div class="se-spalten" aria-hidden="true" ?data-play=${ctx.faehig('reinhoeren')}><span class="c-nr">${SERIE.spalten.nr}</span><span>${SERIE.spalten.titel}</span><span class="c-dauer">${SERIE.spalten.dauer}</span>${ctx.faehig('reinhoeren') ? html`<span></span>` : nothing}<span></span></div>` : nothing}${repeat(treffer.slice(0, this.gezeigt), ({ x }) => x.name, ({ x, i }) => this._zeile(x, i, alle.length, ordnen))}</div>
           ${rest > 0 ? html`<div class="btns se-mehr"><button type="button" class="btn" data-mehr @click=${() => { this.gezeigt += SICHTBAR; ctx.neuZeichnen(); }}>${fuellen(SERIE.mehr_laden, { anzahl: Math.min(rest, SICHTBAR) })}</button></div>` : nothing}`
         : ctx.leer('suche', 'sucheOhneTreffer', { werte: { suchwort: term }, aktion: () => { this.sterm = ''; ctx.neuZeichnen(); } })}`;
   }
@@ -653,14 +670,18 @@ class SerieSeite {
       fort = html`<span class="pbar" role="progressbar" aria-label=${ZEILE.fortschritt} aria-valuemin="0" aria-valuemax="100" aria-valuenow=${p}><i style=${`width:${p}%`}></i></span>
         <span class="ls">${fuellen(ZEILE.rest, { dauer: uhr(Math.max(0, x.dauer_s - h.position_s)) })}</span>`;
     }
-    return html`<div class="frow se-zeile" data-folge=${x.name}>
-      <span class="se-num" aria-hidden="true">${x.nummer ?? i + 1}</span>
+    const laeuft = laeuftAn(this.id, x.name);
+    const spielt = laeuft && abspiel.spielt;
+    const sp = this.ctx.faehig('reinhoeren') && !ordnen;
+    return html`<div class="frow se-zeile" data-folge=${x.name} ?data-play=${sp}>
+      <span class="se-num">${laeuft ? eq(abspiel.spielt) : html`<span aria-hidden="true">${x.nummer ?? i + 1}</span>`}</span>
       <div class="grow"><span class="nm">${titel}</span>${meta ? html`<span class="muted se-meta-voll">${meta}</span>` : nothing}${teile.kapitel ? html`<span class="muted se-meta-kap">${teile.kapitel}</span>` : nothing}${fort}${folgenChips(this.id, x)}</div>
       <span class="se-dauer" aria-hidden="true">${teile.dauer}</span>
       ${ordnen
         ? html`<button type="button" class="iconbtn se-ord" data-auf ?disabled=${i === 0} aria-label=${fuellen(SERIE.reihenfolge.hoch, { titel })} @click=${() => this.bewege(i, -1)}>▲</button>
           <button type="button" class="iconbtn se-ord" data-ab ?disabled=${i === n - 1} aria-label=${fuellen(SERIE.reihenfolge.runter, { titel })} @click=${() => this.bewege(i, 1)}>▼</button>`
-        : html`<button type="button" class="iconbtn se-more" data-menue-folge aria-haspopup="dialog" aria-label=${fuellen(SERIE.mehr_zu, { titel })} @click=${(e) => this.folgeMenue(x, e.currentTarget)}>${ic('more', 22)}</button>`}</div>`;
+        : html`${sp ? html`<button type="button" class="iconbtn fillp se-play" data-abspielen aria-label=${fuellen(spielt ? PLAYER.folge.pausieren : PLAYER.folge.abspielen, { titel })}
+          @click=${() => this.ctx.spieler.schalte({ serie: this.z.serie, folge: x.name })}>${ic(spielt ? 'pause' : 'play', 24)}</button>` : nothing}<button type="button" class="iconbtn se-more" data-menue-folge aria-haspopup="dialog" aria-label=${fuellen(SERIE.mehr_zu, { titel })} @click=${(e) => this.folgeMenue(x, e.currentTarget)}>${ic('more', 22)}</button>`}</div>`;
   }
 }
 
@@ -671,6 +692,11 @@ export const stil = () => css`
   .se-mehr-knopf { margin-right: -8px; } /* ohne Fläche wie im Prototyp (Kopf), die Zeilen haben die getönte Fläche (X25) */
   .se-more { min-width: 44px; min-height: 44px; width: 44px; height: 44px; border-radius: 12px; border: 0; background: var(--primary-soft); color: var(--primary-ink); flex: none; margin-left: 8px; }
   .se-more svg, .se-mehr-knopf svg { fill: currentColor; }
+  .se-play { margin-left: 8px; }
+  .se-num { display: grid; place-items: center; }
+  .se-rein { display: grid; justify-items: center; gap: 6px; margin: 4px 0 12px; text-align: center; }
+  .se-rein .btn { width: 100%; max-width: 420px; }
+  .app:not([data-layout="unten"]) .se-rein { justify-items: start; text-align: left; }
   .se-hero { display: grid; justify-items: center; text-align: center; gap: 8px; margin: 4px 0 16px; }
   .se-htxt { display: grid; gap: 2px; justify-items: center; min-width: 0; max-width: 100%; }
   .se-htxt h2 { margin: 4px 0 2px; font-size: 24px; line-height: 1.25; overflow-wrap: anywhere; outline: none; }
@@ -696,6 +722,8 @@ export const stil = () => css`
   .app[data-layout="seite"] .se-abschnitt { font-size: 22px; font-weight: 700; letter-spacing: -0.2px; }
   .app[data-layout="seite"] .se-karte { padding: 0; overflow: hidden; border-radius: 20px; box-shadow: 0 1px 4px var(--shadow); }
   .app[data-layout="seite"] .se-spalten, .app[data-layout="seite"] .se-zeile { display: grid; grid-template-columns: 56px minmax(0, 1fr) 96px 44px; column-gap: 12px; align-items: center; padding-inline: 20px; }
+  .app[data-layout="seite"] .se-spalten[data-play], .app[data-layout="seite"] .se-zeile[data-play] { grid-template-columns: 56px minmax(0, 1fr) 96px 48px 44px; }
+  .app[data-layout="seite"] .se-zeile .se-play { margin-left: 0; }
   .app[data-layout="seite"] .se-spalten { min-height: 48px; font-size: 13px; font-weight: 500; letter-spacing: 0.4px; text-transform: uppercase; color: var(--text2); border-bottom: 1px solid var(--divider); }
   .app[data-layout="seite"] .se-spalten .c-nr { text-align: center; }
   .app[data-layout="seite"] .se-spalten .c-dauer, .app[data-layout="seite"] .se-dauer { text-align: right; }

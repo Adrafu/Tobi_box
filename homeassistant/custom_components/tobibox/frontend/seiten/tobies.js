@@ -1126,7 +1126,6 @@ export const tobies = seite(TobiesSeite, () => css`
   .tb-regal > div { min-width: 0; display: grid; }
   .ttile { border: 0; background: var(--card); box-shadow: 0 1px 3px var(--shadow); border-radius: var(--r-card); padding: 14px 12px 12px; min-height: 148px; text-align: left; display: grid;
     gap: 10px; align-content: start; color: var(--text); min-width: 0; text-decoration: none; width: 100%; }
-  .ttile:active { background: var(--primary-soft); }
   .ttile:disabled { opacity: 0.6; }
   .fig { width: 52px; height: 52px; border-radius: 26px; background: var(--primary-soft); color: var(--primary-ink); display: grid; place-items: center; flex: none; }
   .fig svg { fill: currentColor; }

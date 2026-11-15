@@ -1017,3 +1017,47 @@ export const COVER = {
   nach_verkleinern_zu_gross: 'Das Foto ist auch verkleinert noch zu groß. Nimm ein anderes Foto.', // neu, nicht im Design
   netz: 'Das Foto ist nicht angekommen. Prüfe die Verbindung und versuche es noch einmal.', // neu, nicht im Design
 };
+
+// Player und Reinhören (Design 5.12, 5.3, 5.2; Pakete A8b, A8e, A7c). Wörtlich aus dem Prototyp (docs/egm/ha-ui/prototyp.html) und Design 5.12.
+// Platzhalter: titel, serie, name, zeit, eintrag.
+export const PLAYER = {
+  mini: {
+    oeffnen: 'Player öffnen: {titel}, {serie}', // aria-label der Leiste
+    tipp: 'Antippen oder nach oben wischen: Player öffnen', // title der Leiste (Prototyp)
+    abspielen: 'Abspielen',
+    pause: 'Pause',
+  },
+  voll: {
+    laeuft: 'Läuft gerade',
+    gesperrt: 'Gesperrt', // Titel der Ansicht, solange gesperrt (Design 5.12, X14)
+    schliessen: 'Player schließen',
+    mehr: 'Mehr zum Player',
+    position: 'Position in der Folge',
+    vorige: 'Vorige Folge',
+    naechste: 'Nächste Folge',
+    zurueck30: '30 Sekunden zurück',
+    vor30: '30 Sekunden vor',
+    sperren: 'Sperren',
+    entsperren_aria: 'Entsperren: 2 Sekunden gedrückt halten',
+    gedrueckt_halten: 'Gedrückt halten',
+    entsperren_hinweis: 'Zum Entsperren zwei Sekunden gedrückt halten.', // Meldung beim kurzen Tippen
+    ansage_gesperrt: 'Gesperrt. Zum Entsperren zwei Sekunden gedrückt halten.',
+    ansage_entsperrt: 'Entsperrt.',
+    stelle_gemerkt: 'Die Stelle wird gemerkt, auch für das andere Gerät.', // Hinweis unter den Knöpfen (Prototyp ohne den Zusatz „Vorschau“)
+    folge_von: '{eintrag} · {nr} von {anzahl}', // „Eintrag · 2 von 20“
+    zeit_von: '{zeit} von {gesamt}', // aria-valuetext der Zeitleiste
+    vorbereitet: 'Die Hörprobe wird vorbereitet …', // nur Anzeige in der Vollansicht, Satz in HOERPROBE.vorbereitung
+  },
+  tempo: { titel: 'Wiedergabe', abschnitt: 'Geschwindigkeit', label: 'Geschwindigkeit', werte: { 1: '1×', 1.25: '1,25×', 1.5: '1,5×' }, schliessen: 'Schließen' }, // Design 5.12, X14
+  knopf: { // „Reinhören“ auf der Serienseite (Design 5.3)
+    rein: 'Reinhören',
+    weiter: 'Hier weiterhören',
+    nochmal: 'Noch einmal hören',
+    pause: 'Pause',
+    zusatz: '{ziel} · ab {zeit}', // „Folge 3: Die alte Mühle · ab 0:47“
+    hinweis: 'Das spielt hier am Handy oder Computer, nicht auf der Box.', // beim ersten Mal (G17)
+  },
+  folge: { abspielen: '{titel} abspielen', pausieren: '{titel} pausieren' }, // aria-label der Abspielknöpfe der Zeilen
+  reihe: { weiterhoeren: '{name} weiterhören' }, // aria-label des Knopfs auf der Kachel der Reihe „Am Handy weiterhören“ (Start)
+  anzeige: { laeuft: 'läuft gerade', pausiert: 'pausiert' }, // Abspiel-Anzeige (drei Balken), Design 4
+};

@@ -134,7 +134,7 @@ test('Start: ohne Antwort wird es nach der Zeitgrenze der Fehlerzustand', MIT_DO
   s.m.on('tobibox/serien/list', () => new Promise(() => {}));
   await geheZu(s, '#bibliothek');
   await geheZu(s, '#start');
-  assert.ok(s.q('.laedt .skel'));
+  assert.ok(s.q('[data-start="schnellzugriff"]') && !s.q('.laedt .skel'), 'die schon geladenen Kacheln bleiben stehen, kein Platzhalter-Blitz beim Reiterwechsel');
   await warte(120);
   await s.flush();
   assert.ok(s.q('[data-zustand="fehler"]'));

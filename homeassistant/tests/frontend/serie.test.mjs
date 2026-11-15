@@ -886,7 +886,8 @@ test('Seite beim Verlassen: laufende Antworten werden verworfen (kein Zeichnen a
   let los;
   s.m.on('tobibox/serie/get', async () => { await new Promise((r) => { los = r; }); return s.m.backend.serien.s1 && { ...s.m.backend.serien.s1, folgen: [], zuordnungen: [] }; });
   await geheZu(s, '#serie-s1');
-  assert.ok(s.q('[aria-busy="true"]'), 'lädt');
+  assert.equal(s.q('[aria-busy="true"]'), null, 'während die Serie lädt, bleibt die vorige Seite stehen (kein Platzhalter-Blitz, Befund Tobias 14.11.)');
+  assert.ok(s.q('[data-start="schnellzugriff"]'));
   await geheZu(s, '#bibliothek');
   los();
   await s.flush(8);

@@ -1721,7 +1721,10 @@ window.__bew.calls.length = 0;
 return true;
 """
 
-# Misst einen Cover-Flug Bild für Bild. x = { klick: Selektor des Links, start: Selektor des Covers vorher (sonst das Cover im Link), istZiel: JS-Ausdruck über e und x: ist e das fliegende Cover? }
+# Misst einen Cover-Flug Bild für Bild. Der Flug läuft mit einem Klon in der obersten Schicht (Befund Tobias 14.11.: in der Liste malten Nachbarzeilen über das
+# fliegende Cover). x = { klick: Selektor des Links, start: Selektor des Covers vorher (sonst das Cover im Link), istZiel: JS-Ausdruck über e und x (e = Klon),
+# ziel: Selektor des echten Covers am Ziel (`{id}` wird ersetzt) }. Je Bild: liegt der Klon wirklich OBEN (elementFromPoint in seiner Mitte), und gibt es ein Bild,
+# in dem weder der Klon noch das echte Cover zu sehen ist (Lücke)?
 BEW_FLUG = """
 const B = window.__bew;
 B.calls.length = 0;
@@ -1733,23 +1736,36 @@ const link = sr.querySelector(x.klick);
 const vonEl = x.start ? sr.querySelector(x.start) : link.querySelector('.cover');
 const start = rechteck(vonEl); const radStart = radius(vonEl).x;
 const id = x.id ?? link.dataset.serie;
+const zielEl = () => sr.querySelector(x.ziel.replace('{id}', id));
 link.click();
 const t0 = performance.now();
 const istZiel = new Function('e', 'x', 'return ' + x.istZiel);
-const hat = () => B.calls.find((c) => /translate\\(/.test(JSON.stringify(c.kf)) && istZiel(c.el, x));
+const hat = () => B.calls.find((c) => c.el.dataset.flugklon === '1' && /translate\\(/.test(JSON.stringify(c.kf)) && istZiel(c.el, x));
 let flug = null;
 while (performance.now() - t0 < 2500 && !flug) { await new Promise((r) => requestAnimationFrame(r)); flug = hat(); }
 if (!flug) return { flug: false, vt: B.vt };
 const proben = [];
+const sichtbar = (e) => !!e && e.isConnected && getComputedStyle(e).visibility !== 'hidden';
 const t1 = performance.now();
-while (flug.an.playState !== 'finished' && performance.now() - t1 < 1500) {
-  proben.push({ ...rechteck(flug.el), vis: radius(flug.el).x });
+const probe = () => {
+  const r = rechteck(flug.el); const z = zielEl();
+  const mx = (r.l + r.r) / 2; const my = (r.t + r.b) / 2;
+  const pe = flug.el.style.pointerEvents; flug.el.style.pointerEvents = 'auto'; // der Klon fängt keine Eingaben ab (N17); für die Messung der Schichten kurz an
+  const hit = sr.elementFromPoint(mx, my); const oben = !!hit && flug.el.contains(hit); // der Klon oder sein Buchstabe
+  flug.el.style.pointerEvents = pe;
+  proben.push({ ...r, vis: radius(flug.el).x, oben, luecke: !sichtbar(flug.el) && !sichtbar(z), klonDa: flug.el.isConnected });
+};
+while (flug.el.isConnected && flug.an.playState !== 'finished' && flug.an.playState !== 'idle' && performance.now() - t1 < 1500) {
+  probe();
   await new Promise((r) => requestAnimationFrame(r));
 }
-await new Promise((r) => requestAnimationFrame(r));
-const ende = rechteck(flug.el);
-const ziel = parseFloat(getComputedStyle(flug.el).borderTopLeftRadius) || 0;
-return { flug: true, start, ende, radStart, radZiel: ziel, proben, letzter: proben.length ? proben[proben.length - 1].vis : null, vt: B.vt, kf: flug.kf, stil: { pe: flug.el.style.pointerEvents, tf: getComputedStyle(flug.el).transform } };
+for (let i = 0; i < 3; i += 1) { await new Promise((r) => requestAnimationFrame(r)); const z = zielEl(); proben.push({ nachher: true, luecke: !sichtbar(flug.el) && !sichtbar(z) }); }
+const z = zielEl();
+const ende = z ? rechteck(z) : null;
+const ziel = z ? parseFloat(getComputedStyle(z).borderTopLeftRadius) || 0 : 0;
+const imFlug = proben.filter((p) => !p.nachher);
+return { flug: true, start, ende, radStart, radZiel: ziel, proben: imFlug, luecken: proben.filter((p) => p.luecke).length, vt: B.vt, kf: flug.kf,
+  stil: { klonDa: flug.el.isConnected, zielSichtbar: sichtbar(z), tf: z ? getComputedStyle(z).transform : null, pe: z ? z.style.pointerEvents : null, ueberlagerLetzter: (flug.el.parentNode && flug.el.parentNode.host) ? 'shadow' : (flug.el.parentNode ? flug.el.parentNode.className : null) } };
 """
 
 BEW_BLATT = """
@@ -1790,13 +1806,13 @@ def ablauf_bewegung(L: Lauf):
     bew_start(L)
     with L.schritt("bewegung-flug-hin"):
         L.gehe("#bibliothek")
-        r = jsa(L, BEW_FLUG, {"klick": "a.lrow[data-serie], a.rcard[data-serie]", "istZiel": "e.classList.contains('se-xl')"})
+        r = jsa(L, BEW_FLUG, {"klick": "a.lrow[data-serie], a.rcard[data-serie]", "istZiel": "e.classList.contains('se-xl')", "ziel": ".cover.se-xl"})
         L.ruhe()
         flug_pruefen(L, r, "hin")
         L.pruefe(r["vt"] == 0, "bewegung-flug-hin", "startViewTransition wurde aufgerufen")
         id_ = L.hash().removeprefix("#serie-")
     with L.schritt("bewegung-flug-zurueck"):
-        r = jsa(L, BEW_FLUG, {"klick": "a[data-zurueck]", "start": ".cover.se-xl", "id": id_, "istZiel": "!e.classList.contains('se-xl') && e.dataset.cover === x.id"})
+        r = jsa(L, BEW_FLUG, {"klick": "a[data-zurueck]", "start": ".cover.se-xl", "id": id_, "istZiel": "!e.classList.contains('se-xl') && e.dataset.cover === x.id", "ziel": "a[data-serie=\"{id}\"] .cover[data-cover]"})
         L.ruhe()
         flug_pruefen(L, r, "zurueck")
         L.pruefe(r["vt"] == 0, "bewegung-flug-zurueck", "startViewTransition wurde aufgerufen")
@@ -1838,7 +1854,7 @@ def ablauf_bewegung(L: Lauf):
               return aus.slice(0, 5);""")
             L.pruefe(not r, "bewegung-reduziert", f"transform in transition-property: {r}")
             L.js("window.__bew.calls.length = 0")
-            r = jsa(L, BEW_FLUG, {"klick": "a.lrow[data-serie], a.rcard[data-serie]", "istZiel": "e.classList.contains('se-xl')"})
+            r = jsa(L, BEW_FLUG, {"klick": "a.lrow[data-serie], a.rcard[data-serie]", "istZiel": "e.classList.contains('se-xl')", "ziel": ".cover.se-xl"})
             L.pruefe(r["flug"] is False, "bewegung-reduziert", "Cover fliegt trotz „weniger Bewegung“")
         finally:
             L.pg.emulate_media(reduced_motion="no-preference")
@@ -1846,9 +1862,11 @@ def ablauf_bewegung(L: Lauf):
 
 def flug_pruefen(L: Lauf, r, richtung):
     z = f"bewegung-flug-{richtung}"
-    if not L.pruefe(r["flug"], z, "Kein Cover-Flug (animate mit translate fehlt)"):
+    if not L.pruefe(r["flug"], z, "Kein Cover-Flug (animate mit translate am Klon fehlt)"):
         return
     s, e = r["start"], r["ende"]
+    if not L.pruefe(e is not None, z, "Das echte Cover am Ziel fehlt nach dem Flug"):
+        return
     kasten = {"l": min(s["l"], e["l"]), "t": min(s["t"], e["t"]), "r": max(s["r"], e["r"]), "b": max(s["b"], e["b"])}
     tol = 4 + 0.03 * max(kasten["r"] - kasten["l"], kasten["b"] - kasten["t"])  # Feder schwingt etwa 1,5 % über das Ziel
     abw = max([0] + [max(kasten["l"] - p["l"], kasten["t"] - p["t"], p["r"] - kasten["r"], p["b"] - kasten["b"]) for p in r["proben"]])
@@ -1856,15 +1874,380 @@ def flug_pruefen(L: Lauf, r, richtung):
     lo, hi = min(r["radStart"], r["radZiel"]) - 2, max(r["radStart"], r["radZiel"]) + 2
     schlecht = [p["vis"] for p in r["proben"] if not lo <= p["vis"] <= hi]
     L.pruefe(not schlecht, z, f"Sichtbarer Eckenradius springt aus [{lo:.1f}, {hi:.1f}]: {[round(v, 1) for v in schlecht[:4]]}")
-    if r["letzter"] is not None:
-        L.pruefe(abs(r["letzter"] - r["radZiel"]) <= 1.5 or len(r["proben"]) < 2, z, f"Ecke im letzten Bild {r['letzter']:.1f} px, Ziel {r['radZiel']:.1f} px")
-    L.pruefe(r["stil"]["pe"] == "" and r["stil"]["tf"] == "none", z, f"Nach dem Flug nicht aufgeräumt: {r['stil']}")
+    if r["proben"]:
+        L.pruefe(abs(r["proben"][-1]["vis"] - r["radZiel"]) <= 1.5 or len(r["proben"]) < 2, z, f"Ecke im letzten Bild {r['proben'][-1]['vis']:.1f} px, Ziel {r['radZiel']:.1f} px")
+    # Befund Tobias 14.11.: der Flug zurück lief hinter den Zeilen der Liste. Der Klon muss in jedem Bild OBEN liegen (elementFromPoint in seiner Mitte), und es darf kein
+    # Bild geben, in dem weder der Klon noch das echte Cover zu sehen ist.
+    unten = [i for i, p in enumerate(r["proben"]) if not p["oben"]]
+    L.pruefe(not unten, z, f"Der fliegende Klon liegt in {len(unten)} von {len(r['proben'])} Bildern NICHT oben (elementFromPoint liefert etwas anderes)")
+    L.pruefe(r["luecken"] == 0, z, f"{r['luecken']} Bilder, in denen weder der Klon noch das echte Cover zu sehen ist")
+    L.pruefe(not r["stil"]["klonDa"] and r["stil"]["zielSichtbar"] and r["stil"]["tf"] == "none", z, f"Nach dem Flug nicht aufgeräumt: {r['stil']}")
+
+
+# ------------------------------------------------------------------ Befunde Tobias 14.11. (A6m auf dem iPhone): Druck-Rückmeldung, Seitenwechsel
+BEW_DRUCK = """
+// Hält den Finger auf dem Ziel (Touch über CDP wäre echter; hier genügt der Zeigerzustand `:active` über das Playwright-Mausereignis): misst bei jedem Bild die
+// Hintergrundfarbe der Zeile, bis sie weg ist. Die Farbe darf sich nie ändern.
+const zeile = sr.querySelector(x.sel);
+const zu = [];
+const farbe = () => getComputedStyle(zeile).backgroundColor;
+window.__druck = { vorher: farbe(), proben: zu, laeuft: true };
+const t0 = performance.now();
+const schritt = () => {
+  if (zeile.isConnected && getComputedStyle(zeile).display !== 'none') zu.push(farbe());
+  if (performance.now() - t0 < 1500 && window.__druck.laeuft) requestAnimationFrame(schritt);
+};
+requestAnimationFrame(schritt);
+const r = zeile.getBoundingClientRect();
+return { x: r.left + r.width / 2, y: r.top + Math.min(r.height / 2, 30) };
+"""
+
+BEW_OPAK = """
+// Misst `main` und seine Kinder bei jedem Bild: kleinste Deckkraft und Bilder mit leerem Inhalt (weder Text noch Platzhalter), solange die Anzeige wechselt.
+const m = sr.querySelector('main');
+const t0 = performance.now();
+const o = { min: 1, leer: 0, bilder: 0 };
+window.__opak = o;
+const schritt = () => {
+  const mm = sr.querySelector('main');
+  if (mm) {
+    let mi = Number(getComputedStyle(mm).opacity);
+    for (const k of mm.children) mi = Math.min(mi, Number(getComputedStyle(k).opacity));
+    for (const a of mm.getAnimations({ subtree: true })) { const t = a.effect && a.effect.getComputedTiming(); if (t && a.playState === 'running' && a.effect.target) { const v = Number(getComputedStyle(a.effect.target).opacity); if (!Number.isNaN(v)) mi = Math.min(mi, v); } }
+    o.min = Math.min(o.min, mi);
+    o.bilder += 1;
+    if (!mm.textContent.trim() && !mm.querySelector('.skel, svg, img, .cover')) o.leer += 1;
+  }
+  if (performance.now() - t0 < x.ms) requestAnimationFrame(schritt); else o.fertig = true;
+};
+requestAnimationFrame(schritt);
+return true;
+"""
+
+
+def ablauf_druck(L: Lauf):
+    """Befund 2 (Tobias 14.11.): Eine Zeile oder Kachel, die zu einer anderen Seite führt, darf beim Drücken keine Hintergrundfarbe bekommen (sie blitzte vor dem
+    Seitenwechsel auf, und iOS lässt :active hängen). Gemessen am Telefon-Layout mit gedrücktem Zeiger: die Hintergrundfarbe bleibt in jedem Bild gleich."""
+    if L.job.get("layout") != "unten":
+        return  # am Computer gilt der Hover (Maus), kein Drücken mit dem Finger
+    for name, hash_, sel in (("lrow", "#bibliothek", "a.lrow[data-serie]"), ("tile", "#start", ".reihe a.tile[data-serie]"), ("qt", "#start", "a.qt[data-serie]")):
+        with L.schritt(f"druck-{name}"):
+            L.gehe(hash_)
+            if not L.da(sel):
+                continue
+            pos = jsa(L, BEW_DRUCK, {"sel": sel})
+            L.pg.mouse.move(pos["x"], pos["y"])
+            L.pg.mouse.down()
+            L.pg.wait_for_timeout(250)  # gedrückt gehalten: hier stand früher die Farbe
+            r = L.js("return window.__druck")
+            L.pruefe(len(set(r["proben"])) <= 1 and (not r["proben"] or r["proben"][0] == r["vorher"]), f"druck-{name}",
+                     f"Hintergrund der Zeile ändert sich beim Drücken: vorher {r['vorher']}, gemessen {sorted(set(r['proben']))}")
+            L.pg.mouse.up()  # der Klick führt zur Serie
+            L.pg.wait_for_timeout(300)
+            L.js("window.__druck.laeuft = false")
+            r = L.js("return window.__druck")
+            L.pruefe(len(set(r["proben"])) <= 1, f"druck-{name}", f"Hintergrund ändert sich im Bild vor dem Seitenwechsel: {sorted(set(r['proben']))}")
+            L.ruhe()
+
+
+def ablauf_seitenwechsel(L: Lauf):
+    """Befund 3 (Tobias 14.11.): Seitenwechsel flackerten (neuer Inhalt begann bei Deckkraft 0, alter verschwand vor dem neuen, Platzhalter blitzten auf). Gemessen werden
+    `main` und seine Kinder in jedem Bild bei Reiterwechsel sowie Serienseite öffnen und schließen: nie unter 0,5, nie ein leerer Hauptteil."""
+    schritte = [("reiter-bibliothek", "#start", lambda: L.klick("nav a[href='#bibliothek']")),
+                ("reiter-start", "#bibliothek", lambda: L.klick("nav a[href='#start']")),
+                ("reiter-tobies", "#start", lambda: L.klick("nav a[href='#tobies']")),
+                ("serie-auf", "#bibliothek", lambda: L.klick("a.lrow[data-serie], a.rcard[data-serie]")),
+                ("serie-zu", None, lambda: L.klick("a[data-zurueck]"))]
+    for name, start, tu in schritte:
+        with L.schritt(f"wechsel-{name}"):
+            if start:
+                L.gehe(start)
+            if not L.da("nav a[href='#bibliothek'], aside nav a[href='#bibliothek']"):
+                return
+            if name.startswith("serie") and name == "serie-auf" and not L.da("a.lrow[data-serie], a.rcard[data-serie]"):
+                return
+            L.js(BEW_OPAK, {"ms": 900})
+            if name.startswith("reiter") and L.job.get("layout") == "seite":
+                sel = {"reiter-bibliothek": "bibliothek", "reiter-start": "start", "reiter-tobies": "tobies"}[name]
+                L.klick(f"aside nav a[href='#{sel}']")
+            else:
+                tu()
+            L.pg.wait_for_function("() => window.__el.shadowRoot && window.__opak && window.__opak.fertig", timeout=5000)
+            o = L.js("return window.__opak")
+            L.pruefe(o["min"] >= 0.5, f"wechsel-{name}", f"Die Deckkraft von main fällt auf {o['min']:.2f} (erlaubt: nie unter 0,5, sonst ein leeres Bild)")
+            L.pruefe(o["leer"] <= 1, f"wechsel-{name}", f"{o['leer']} Bilder mit leerem Hauptteil (erlaubt: höchstens eins)")
+            L.ruhe()
+    with L.schritt("wechsel-reduziert"):
+        L.pg.emulate_media(reduced_motion="reduce")
+        try:
+            L.gehe("#start")
+            L.js(BEW_OPAK, {"ms": 500})
+            L.gehe("#bibliothek")
+            L.pg.wait_for_function("() => window.__opak && window.__opak.fertig", timeout=5000)
+            o = L.js("return window.__opak")
+            L.pruefe(o["min"] >= 0.999, "wechsel-reduziert", f"Bei „weniger Bewegung“ blendet die Seite trotzdem über (Deckkraft bis {o['min']:.2f})")
+        finally:
+            L.pg.emulate_media(reduced_motion="no-preference")
+
+
+# ------------------------------------------------------------------ A8b, A8e, A8m: Player (echter Ton, Range, Wischen, Sperre, Cover-Flug)
+BEW_PLAYER_FLUG = """
+// Cover-Flug der Vollansicht, Bild für Bild: `x.knopf` wird geklickt, der Klon (data-flugklon) wird verfolgt.
+const B = window.__bew; B.calls.length = 0;
+const mini = () => sr.querySelector('.mini .mopen .cover');
+const rechteck = (c) => { const r = c.getBoundingClientRect(); return { l: r.left, t: r.top, r: r.right, b: r.bottom }; };
+const sichtbar = (e) => !!e && e.isConnected && getComputedStyle(e).visibility !== 'hidden';
+const start = x.auf ? rechteck(mini()) : rechteck(sr.querySelector('dialog.player .pin > .cover'));
+const grossEl = () => sr.querySelector('dialog.player .pin > .cover');
+sr.querySelector(x.knopf).click();
+const t0 = performance.now();
+let flug = null;
+while (performance.now() - t0 < 2500 && !flug) { await new Promise((r) => requestAnimationFrame(r)); flug = B.calls.find((c) => c.el.dataset.flugklon === '1' && /translate\\(/.test(JSON.stringify(c.kf))); }
+if (!flug) return { flug: false, vt: B.vt, mitTransform: B.calls.filter((c) => c.kf.some((k) => 'transform' in k && /translate|scale/.test(k.transform))).length };
+const proben = []; let luecken = 0; const t1 = performance.now();
+const ziel = () => (x.auf ? grossEl() : mini());
+const probe = () => {
+  const r = rechteck(flug.el);
+  const pe = flug.el.style.pointerEvents; flug.el.style.pointerEvents = 'auto'; // der Klon fängt keine Eingaben ab (N17); für die Messung der Schichten kurz an
+  const hit = sr.elementFromPoint((r.l + r.r) / 2, (r.t + r.b) / 2); const oben = !!hit && flug.el.contains(hit);
+  flug.el.style.pointerEvents = pe;
+  const luecke = !sichtbar(flug.el) && !sichtbar(ziel()) && !(x.auf ? false : sr.querySelector('dialog.player'));
+  proben.push({ ...r, oben, luecke });
+};
+while (flug.el.isConnected && flug.an.playState !== 'finished' && flug.an.playState !== 'idle' && performance.now() - t1 < 1500) { probe(); await new Promise((r) => requestAnimationFrame(r)); }
+for (let i = 0; i < 4; i += 1) { await new Promise((r) => requestAnimationFrame(r)); if (!sichtbar(flug.el) && !sichtbar(ziel())) luecken += 1; }
+luecken += proben.filter((p) => p.luecke).length;
+const z = ziel();
+return { flug: true, vt: B.vt, start, ende: z ? rechteck(z) : null, proben, luecken, klonDa: flug.el.isConnected, zielSichtbar: sichtbar(z),
+  miniSichtbar: sichtbar(mini()), dialogDa: !!sr.querySelector('dialog.player'), tf: z ? getComputedStyle(z).transform : null };
+"""
+
+BEW_AUDIO = """
+const a = sr.querySelector('audio');
+return a ? { da: true, t: a.currentTime, pausiert: a.paused, src: a.getAttribute('src'), dauer: a.duration, fehler: a.error ? a.error.code : null, rate: a.playbackRate } : { da: false };
+"""
+
+
+def audio_stand(L: Lauf):
+    return L.js(BEW_AUDIO)
+
+
+def touch_wischen(L: Lauf, x, y0, y1, schritte=8):
+    """Wischen mit echten Touch-Ereignissen (CDP `Input.dispatchTouchEvent`), nur im Telefon-Layout."""
+    cdp = L.pg.context.new_cdp_session(L.pg)
+    try:
+        cdp.send("Input.dispatchTouchEvent", {"type": "touchStart", "touchPoints": [{"x": x, "y": y0}]})
+        for i in range(1, schritte + 1):
+            cdp.send("Input.dispatchTouchEvent", {"type": "touchMove", "touchPoints": [{"x": x, "y": y0 + (y1 - y0) * i / schritte}]})
+            L.pg.wait_for_timeout(16)
+        cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
+    finally:
+        cdp.detach()
+
+
+def maus_wischen(L: Lauf, x, y0, y1, schritte=8):
+    L.pg.mouse.move(x, y0)
+    L.pg.mouse.down()
+    for i in range(1, schritte + 1):
+        L.pg.mouse.move(x, y0 + (y1 - y0) * i / schritte)
+        L.pg.wait_for_timeout(12)
+    L.pg.mouse.up()
+
+
+def player_start(L: Lauf):
+    """Reinhören starten und warten, bis wirklich Ton läuft (echter Chromium, Testdatei vom Server, signierter Pfad über audio/bereit). Die Serie ist die erste der
+    Bibliothek (frühere Abläufe löschen und benennen Serien um, eine feste Kennung wäre nicht sicher)."""
+    L.gehe("#bibliothek")
+    L.warte_da("a.lrow[data-serie], a.rcard[data-serie]")
+    sid = L.js("return sr.querySelector('a.lrow[data-serie], a.rcard[data-serie]').dataset.serie")
+    L.gehe(f"#serie-{sid}")
+    L.warte_da("[data-reinhoeren]")
+    L.klick("[data-reinhoeren]")
+    L.pg.wait_for_function("() => { const a = window.__el.shadowRoot.querySelector('audio'); return a && a.currentTime > 0.4 && !a.paused; }", timeout=8000)
+    L.ruhe()
+
+
+def player_aus(L: Lauf):
+    """Wiedergabe anhalten und den Player wegräumen (Leiste bleibt bis zum Neuladen; die Abläufe danach stören sich nicht daran)."""
+    L.js("const a = sr.querySelector('audio'); if (a) a.pause(); el.spieler.gesperrt = false; if (el.spieler.offen) { el.spieler.schliessen('knopf'); }")
+    L.pg.wait_for_timeout(700)
+
+
+def ablauf_player(L: Lauf):
+    """A8b, A8e, A14-2: Reinhören mit echtem Ton, Springen (Range), Wischen auf und zu (Maus, Touch), Neuladen und Weiterhören, Fehler 503 → neues audio/bereit, Sperre mit
+    Halten (1,5 s nicht, 2,2 s ja)."""
+    L.gehe("#bibliothek")
+    if not L.da("a.lrow[data-serie], a.rcard[data-serie]"):
+        return
+    telefon = L.job.get("layout") == "unten"
+    k = f"{L.job['profil']}~{L.job['kennung']}"
+    with L.schritt("player-start"):
+        player_start(L)
+        a = audio_stand(L)
+        L.pruefe(a["da"] and a["src"] and "/api/tobibox/audio/" in a["src"] and "authSig=" in a["src"], "player-start", f"src ist kein signierter Pfad: {a}")
+        L.pruefe(a["fehler"] is None, "player-start", f"Der Ton lässt sich nicht laden: Fehler {a['fehler']}")
+        L.pruefe(L.js("return !sr.querySelector('.mini').hidden && sr.querySelector('.mini .mt').textContent.length > 0"), "player-start", "Leiste fehlt")
+        bereit = L.pg.evaluate("async (k) => (await (await fetch(`/aufrufe?k=${encodeURIComponent(k)}&typ=tobibox/audio/bereit`)).json())", k)
+        L.pruefe(bereit and "folge" in bereit[0] and "folge_id" not in bereit[0], "player-start", f"audio/bereit ohne `folge`: {bereit[:1]}")
+    with L.schritt("player-voll-springen"):
+        L.klick(".mini .mopen")
+        L.warte_da("dialog.player[open] .pslider")
+        L.pg.wait_for_timeout(700)
+        L.pruefe(L.js("return el.hasAttribute('data-voll')"), "player-voll", "data-voll fehlt am Host")
+        t0 = audio_stand(L)["t"]
+        L.klick('dialog.player [data-p="fwd"]')
+        L.pg.wait_for_timeout(600)
+        t1 = audio_stand(L)["t"]
+        L.pruefe(t1 >= t0 + 25, "player-springen", f"+30 s: {t0:.1f} → {t1:.1f}")
+        z = L.pg.evaluate("async (k) => (await (await fetch('/audio-zaehler')).json())", k)
+        L.pruefe(any(x["range"] for x in z), "player-springen", "Kein Abruf mit Range (Springen braucht 206)")
+        L.klick('dialog.player [data-p="back"]')
+        L.pg.wait_for_timeout(400)
+        L.pruefe(audio_stand(L)["t"] < t1 - 20, "player-springen", "−30 s ging nicht")
+        L.js("el.spieler.tempo = 1")
+        L.messe("player-voll")
+    with L.schritt("player-sperre"):
+        L.klick('dialog.player [data-p="lock"]')
+        L.pg.wait_for_selector('dialog.player [data-p="unlock"]')
+        aus = L.js("return [...sr.querySelectorAll('dialog.player button, dialog.player input')].filter((b) => !b.matches('[data-p=unlock]') && !b.disabled).map((b) => b.getAttribute('aria-label') || b.className)")
+        L.pruefe(not aus, "player-sperre", f"Bedienelemente nicht gesperrt: {aus}")
+        L.pruefe(L.js("return sr.querySelector('#p-ansicht').textContent") == "Gesperrt", "player-sperre", "Titel der Ansicht heißt nicht „Gesperrt“")
+        L.pg.keyboard.press("Escape")
+        L.pg.wait_for_timeout(300)
+        L.pruefe(L.da("dialog.player[open]"), "player-sperre", "Esc schließt die gesperrte Vollansicht")
+        L.messe("player-gesperrt")
+        box = L.pg.locator('dialog.player [data-p="unlock"]').bounding_box()
+        mx, my = box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
+        L.pg.mouse.move(mx, my)
+        L.pg.mouse.down()
+        L.pg.wait_for_timeout(1500)
+        L.pruefe(L.js("return el.spieler.gesperrt"), "player-sperre", "1,5 s Halten entsperrt schon")
+        L.pg.mouse.up()
+        L.pg.wait_for_timeout(300)
+        L.pg.mouse.down()
+        L.pg.wait_for_timeout(2400)
+        L.pg.mouse.up()
+        L.pg.wait_for_timeout(300)
+        L.pruefe(not L.js("return el.spieler.gesperrt"), "player-sperre", "2,4 s Halten entsperrt nicht")
+        L.ruhe()
+    with L.schritt("player-wischen"):
+        L.pruefe(L.da("dialog.player[open]"), "player-wischen", "Vollansicht nicht offen")
+        h = L.pg.viewport_size["height"]
+        w = L.pg.viewport_size["width"]
+        (touch_wischen if telefon else maus_wischen)(L, w / 2, h * 0.30, h * 0.30 + 40)  # zu kurz (unter 70 px)
+        L.pg.wait_for_timeout(700)
+        L.pruefe(L.da("dialog.player[open]"), "player-wischen", "Ein Wisch unter 70 px schließt schon")
+        for art, f in (("maus", maus_wischen), ("touch", touch_wischen)):
+            if art == "touch" and not telefon:
+                continue
+            f(L, w / 2, h * 0.25, h * 0.25 + 320)
+            L.pg.wait_for_function("() => !window.__el.shadowRoot.querySelector('dialog.player')", timeout=3000)
+            L.pruefe(L.js("return !sr.querySelector('.mini .cover').closest('.hebt')"), "player-wischen", f"Mini-Cover nach dem Wischen ({art}) nicht wieder sichtbar")
+            # Wischen nach oben in der Leiste öffnet; nach unten tut nichts
+            mb = L.pg.locator(".mini .mopen").bounding_box()
+            cx, cy = mb["x"] + 80, mb["y"] + mb["height"] / 2
+            f(L, cx, cy, cy + 40)
+            L.pg.wait_for_timeout(500)
+            L.pruefe(not L.da("dialog.player"), "player-wischen", f"Wischen nach unten in der Leiste ({art}) öffnet")
+            L.pg.wait_for_timeout(300)
+            f(L, cx, cy, cy - 90)
+            L.pg.wait_for_selector("dialog.player[open]", timeout=3000)
+            L.pg.wait_for_timeout(700)
+        L.pruefe(L.da("dialog.player[open]"), "player-wischen", "Wischen nach oben öffnet nicht")
+        # Knopf bleibt: Antippen von „Player schließen“
+        L.klick('dialog.player [data-p="close"]')
+        L.pg.wait_for_function("() => !window.__el.shadowRoot.querySelector('dialog.player')", timeout=3000)
+    with L.schritt("player-fehler"):
+        # die nächsten Abrufe der Datei antworten mit 503: <audio> meldet nur „Format error“, die Seite fragt per audio/bereit neu und spielt trotzdem
+        n0 = len(L.pg.evaluate("async (k) => (await (await fetch(`/aufrufe?k=${encodeURIComponent(k)}&typ=tobibox/audio/bereit`)).json())", k))
+        L.pg.evaluate("async ([ab, k]) => { await (await fetch('/audio-fehler', { method: 'POST', body: JSON.stringify({ n: 2, ab, k }) })).text(); }", [n0 + 1, k])  # nur Abrufe mit der nächsten (neuen) Signatur scheitern
+        L.klick('.mini .mplay')  # Pause
+        L.js("const sp = el.spieler; sp._laden(sp.s.serie, sp.s.i, 0, 0, { auto: true })")  # dieselbe Folge noch einmal laden (die erste Serie hat vielleicht nur eine Folge)
+        L.pg.wait_for_function("() => { const a = window.__el.shadowRoot.querySelector('audio'); return a && a.currentTime > 0.3 && !a.paused; }", timeout=9000)
+        for _ in range(24):  # die Wiederholungen nach dem Fehler brauchen etwas Zeit (jede fragt neu, Antwort, Laden, Fehler)
+            n1 = len(L.pg.evaluate("async (k) => (await (await fetch(`/aufrufe?k=${encodeURIComponent(k)}&typ=tobibox/audio/bereit`)).json())", k))
+            if n1 >= n0 + 2:
+                break
+            L.pg.wait_for_timeout(250)
+        stand = L.js("const sp = el.spieler; const a = sr.querySelector('audio'); return { z: sp.zustand, v: sp._versuche, q: sp._quelle, g: sp._geladen, ser: sp.s && sp.s.serie.id, f: sp.folge && sp.folge.name, art: sp.folge && sp.folge.art, err: a && a.error && a.error.code, t: a && a.currentTime, p: a && a.paused, src: a && a.getAttribute('src') }")
+        L.pruefe(n1 >= n0 + 2, "player-fehler", f"Nach dem 503 kein neues audio/bereit: {n0} → {n1}; Stand {stand}")
+        L.pruefe(not L.toast() and not L.da(".toast.err"), "player-fehler", "Der einzelne Fehler zeigt eine Meldung")
+    with L.schritt("player-neuladen"):
+        L.klick(".mini .mplay") if not audio_stand(L).get("pausiert", True) else None
+        L.pg.wait_for_timeout(500)
+        titel = L.js("return sr.querySelector('.mini .mt').textContent")
+        pos = audio_stand(L)["t"]
+        L.pg.wait_for_timeout(500)  # `hoerstelle/set` ist beim Server angekommen
+        L.pg.reload()
+        L.pg.wait_for_function("() => window.__el && window.__el.shadowRoot && window.__el.shadowRoot.querySelector('main') && window.__mess", timeout=15000)
+        L.pg.wait_for_function("() => { const m = window.__el.shadowRoot.querySelector('.mini'); return m && !m.hidden; }", timeout=8000)
+        L.ruhe()
+        L.pruefe(L.js("return sr.querySelector('.mini .mt').textContent") == titel, "player-neuladen", "Nach dem Neuladen steht ein anderer Titel in der Leiste")
+        a = audio_stand(L)
+        L.pruefe(not a["da"] or a["pausiert"], "player-neuladen", "Nach dem Neuladen spielt schon Ton")
+        L.klick(".mini .mplay")
+        L.pg.wait_for_function("() => { const a = window.__el.shadowRoot.querySelector('audio'); return a && !a.paused && a.currentTime > 0.2; }", timeout=9000)
+        L.pruefe(audio_stand(L)["t"] >= min(pos, 30) - 3, "player-neuladen", f"Weiterhören nicht an der Stelle (vorher {pos:.1f}, jetzt {audio_stand(L)['t']:.1f})")
+        L.messe("player-mini")
+    with L.schritt("player-start-reihe"):
+        L.js("sr.querySelector('audio').pause()")
+        L.gehe("#start")
+        L.pg.wait_for_selector('[data-reihe="weiterhoeren"] .wh', timeout=6000)
+        L.pruefe(L.js("return sr.querySelectorAll('[data-reihe=weiterhoeren] .playov').length") >= 1, "player-start-reihe", "Kein Abspielknopf in der Reihe „Am Handy weiterhören“")
+        L.messe("player-start-reihe")
+    player_aus(L)
+
+
+def ablauf_player_bewegung(L: Lauf):
+    """A8m: Cover-Flug Mini-Player ↔ Vollansicht per FLIP mit Klon in der obersten Schicht (Messung 7, Befund Tobias 14.11.): bleibt zwischen Start und Ende, liegt in jedem Bild
+    oben, keine Lücke, danach Mini-Cover sichtbar und nichts verschoben; nie startViewTransition; „weniger Bewegung“ ohne Flug."""
+    L.gehe("#bibliothek")
+    if not L.da("a.lrow[data-serie], a.rcard[data-serie]"):
+        return
+    bew_start(L)
+    with L.schritt("player-flug"):
+        player_start(L)
+        for richtung, knopf, auf in (("auf", ".mini .mopen", True), ("zu", 'dialog.player [data-p="close"]', False)):
+            r = jsa(L, BEW_PLAYER_FLUG, {"knopf": knopf, "auf": auf})
+            z = f"player-flug-{richtung}"
+            if not L.pruefe(r["flug"], z, "Kein Cover-Flug der Vollansicht (animate mit translate am Klon fehlt)"):
+                continue
+            s, e = r["start"], r["ende"]
+            kasten = {"l": min(s["l"], e["l"]), "t": min(s["t"], e["t"]), "r": max(s["r"], e["r"]), "b": max(s["b"], e["b"])}
+            tol = 4 + 0.03 * max(kasten["r"] - kasten["l"], kasten["b"] - kasten["t"])
+            abw = max([0] + [max(kasten["l"] - p["l"], kasten["t"] - p["t"], p["r"] - kasten["r"], p["b"] - kasten["b"]) for p in r["proben"]])
+            L.pruefe(abw <= tol, z, f"Der Flug verlässt den Kasten aus Start und Ziel um {abw:.0f} px (erlaubt {tol:.0f})")
+            unten = [p for p in r["proben"] if not p["oben"]]
+            L.pruefe(not unten, z, f"Der Klon liegt in {len(unten)} von {len(r['proben'])} Bildern nicht oben")
+            L.pruefe(r["luecken"] == 0, z, f"{r['luecken']} Bilder ohne sichtbares Cover")
+            L.pruefe(r["vt"] == 0, z, "startViewTransition wurde aufgerufen")
+            L.pruefe(not r["klonDa"], z, "Der Klon bleibt nach dem Flug stehen")
+            if richtung == "auf":
+                L.pruefe(r["zielSichtbar"] and r["tf"] == "none", z, f"Das große Cover ist nach dem Flug nicht sichtbar/unverschoben: {r['tf']}")
+                L.pg.wait_for_timeout(300)
+            else:
+                L.pg.wait_for_function("() => !window.__el.shadowRoot.querySelector('dialog.player')", timeout=3000)
+                L.pruefe(L.js("const c = sr.querySelector('.mini .mopen .cover'); return getComputedStyle(c).visibility === 'visible' && getComputedStyle(c).transform === 'none'"), z, "Das Mini-Cover ist nach dem Schließen nicht sichtbar oder verschoben")
+    with L.schritt("player-flug-reduziert"):
+        L.pg.emulate_media(reduced_motion="reduce")
+        try:
+            r = jsa(L, BEW_PLAYER_FLUG, {"knopf": ".mini .mopen", "auf": True})
+            L.pruefe(r["flug"] is False, "player-flug-reduziert", "Cover fliegt trotz „weniger Bewegung“")
+            L.pg.wait_for_selector("dialog.player[open]")
+            L.pg.wait_for_timeout(400)
+            L.klick('dialog.player [data-p="close"]')
+            L.pg.wait_for_function("() => !window.__el.shadowRoot.querySelector('dialog.player')", timeout=3000)
+            L.pruefe(L.js("return getComputedStyle(sr.querySelector('.mini .mopen .cover')).visibility") == "visible", "player-flug-reduziert", "Mini-Cover danach nicht sichtbar")
+        finally:
+            L.pg.emulate_media(reduced_motion="no-preference")
+    player_aus(L)
 
 
 
 ABLAEUFE = [ablauf_unterkante, ablauf_reiter, ablauf_klicks, ablauf_reihen, ablauf_suche, ablauf_bibliothek, ablauf_serie, ablauf_cover, ablauf_leise, ablauf_box, ablauf_technik, ablauf_blaetter,
             ablauf_tobies_weg1, ablauf_tobies_weg2, ablauf_tobies_meldung, ablauf_tobies_umhaengen, ablauf_tobies_geben, ablauf_tobies_lernmodus,
-            ablauf_tobies_name_geben_weit_unten, ablauf_hinzufuegen, ablauf_eingang_liste, ablauf_eingang, ablauf_papierkorb, ablauf_papierkorb_punkt, ablauf_bewegung]
+            ablauf_tobies_name_geben_weit_unten, ablauf_hinzufuegen, ablauf_eingang_liste, ablauf_eingang, ablauf_papierkorb, ablauf_papierkorb_punkt, ablauf_bewegung,
+            ablauf_druck, ablauf_seitenwechsel, ablauf_player_bewegung, ablauf_player]
 
 
 # ------------------------------------------------------------------ Browser und Läufe
@@ -2022,12 +2405,12 @@ def lauf_job(job):
                 pg = ctx.new_page()
                 pg.set_default_timeout(8000)
                 # Gewollte Fehlerantworten des Mock-Servers beim Hochladen (A11a: 413 und 507 gehören zum Ablauf) sind keine Befunde
-                gewollt = re.compile(r"status of (413|507)\b")
+                gewollt = re.compile(r"status of (413|507|503)\b")  # 503: der Prüfablauf „player-fehler“ lässt den Audio-Abruf einmal scheitern
                 pg.on("console", lambda m: konsole.append(f"{m.type}: {m.text}") if m.type in ("error", "warning") and not gewollt.search(m.text) else None)
                 pg.on("pageerror", lambda e: konsole.append(f"pageerror: {e}"))
-                pg.on("response", lambda r: konsole.append(f"HTTP {r.status} {r.url}") if r.status >= 400 and not (r.status in (413, 507) and r.url.endswith("/api/tobibox/upload")) else None)
+                pg.on("response", lambda r: konsole.append(f"HTTP {r.status} {r.url}") if r.status >= 400 and not (r.status in (413, 507) and r.url.endswith("/api/tobibox/upload")) and not (r.status == 503 and "/api/tobibox/audio/" in r.url) else None)
                 # Das Neuladen mitten im Hochladen (Ablauf „liste-neuladen“) bricht die laufende Anfrage ab: gewollt
-                pg.on("requestfailed", lambda r: konsole.append(f"requestfailed {r.url} {r.failure}") if not (r.url.endswith("/api/tobibox/upload") and "ERR_ABORTED" in str(r.failure)) else None)
+                pg.on("requestfailed", lambda r: konsole.append(f"requestfailed {r.url} {r.failure}") if not ((r.url.endswith("/api/tobibox/upload") or "/ev?" in r.url or "/api/tobibox/audio/" in r.url.split("?")[0]) and "ERR_ABORTED" in str(r.failure)) else None)  # Neuladen (Abläufe „liste-neuladen“, „player-neuladen“) bricht die laufende Anfrage, die Abfrage der Ereignisse und das noch ladende Audio ab (nur Audio-Pfad, nur ERR_ABORTED): gewollt
                 q = f"theme={job['thema']}&k={job['profil']}~{job['kennung']}" + (f"&pw={job['breite']}" if job["art"] == "panel" else "") + ("&hs=256" if job["art"] == "ha" else "")
                 pg.goto(f"{job['basis']}/seite.html?{q}")
                 pg.wait_for_function("() => window.__el && window.__el.shadowRoot && window.__el.shadowRoot.querySelector('main') && window.__mess", timeout=15000)

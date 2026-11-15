@@ -259,7 +259,7 @@ class GeraeteSeite {
     this._uhr = setInterval(() => this.ctx.neuZeichnen(), 60000); // die Marke „jetzt“ wandert
     this._uhr.unref?.();
     pruefePlatz(this.ctx); // Karte „Platz bekommen“ weg, wenn der Tobie schon einen Namen hat
-    this.laden();
+    this.laden(this.z.phase === 'bereit' || this.z.phase === 'ohne'); // schon Daten da: still auffrischen
   }
 
   neuLaden() { this.laden(true); }
@@ -556,7 +556,6 @@ export const stil = () => css`
   .gboxen > div { min-width: 0; }
   main h2.abends { margin-top: 24px; }
   .gstatus { display: flex; gap: 12px; align-items: center; }
-  a.gstatus:active { background: var(--primary-soft); }
   .gstatus .txt { min-width: 0; flex: 1; }
   .gstatus .sent { font-weight: 500; font-size: 17px; overflow-wrap: anywhere; }
   .gstatus .dotx { display: inline-block; width: 10px; height: 10px; border-radius: 5px; margin-right: 6px; background: var(--ok); }
@@ -623,7 +622,6 @@ export const stil = () => css`
   .gdetail .gz .k { color: var(--text2); flex: 0 0 40%; font-size: 14px; padding-top: 2px; }
   .gdetail .gz .v { flex: 1; min-width: 0; overflow-wrap: anywhere; }
   a.glink { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 0 16px; color: var(--text); text-decoration: none; font-weight: 500; }
-  a.glink:active { background: var(--primary-soft); }
   a.glink .chev { margin-left: auto; color: var(--text2); }
   a.glink .chev svg { width: 24px; height: 24px; fill: currentColor; display: block; }
   a.glink.gkarte { padding: 0 16px; }

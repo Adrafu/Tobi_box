@@ -106,3 +106,45 @@ export function flip(el, von, nach, { liegt = 'nach', dauer, easing, radiusVon: 
   if (an.finished && typeof an.finished.then === 'function') an.finished.then(auf0, auf0); else { an.onfinish = auf0; an.oncancel = auf0; }
   return an;
 }
+
+/* Flug eines Klons in einer Deckschicht (Befund Tobias, 14.11.: der Flug zurück in die Bibliothek lief hinter den Zeilen, weil das echte Cover
+ * mitten in der Liste animiert wurde und die Nachbarzeilen darüber malten). `el` ist das echte Cover am Ziel (oder dort, wo es hingehört); der Klon
+ * fliegt von `von` nach `nach` (Rechtecke im Fenster) in `overlay` (`position: fixed`, ganz oben, ohne Eingaben). Währenddessen sind die Elemente aus
+ * `verberge` (Standard: `el`) mit `visibility: hidden` verdeckt; beim Aufräumen werden sie gezeigt und der Klon entfernt, in derselben Aufgabe
+ * (kein Bild ohne Cover, kein doppeltes Cover). Die Ecken laufen mit (Messung 7), je Achse gegen die Skala ausgeglichen.
+ * Rückgabe: die Animation (mit `an.aufraeumen()`) oder `null` (keine Web Animations API, leere Fläche, kein Überlager): dann geschieht nichts.
+ * `auto: false`: die Animation räumt nicht selbst auf, der Aufrufer ruft `an.aufraeumen()` (Vollansicht schließen: erst Mini-Cover zeigen). */
+export function flipKlon(el, von, nach, { overlay, verberge = null, dauer, easing, radiusVon: rv0, radiusNach: rn0, z = 2147483000, auto = true } = {}) {
+  if (!overlay || !kannAnimieren(overlay) || !flaeche(von) || !flaeche(nach)) return null;
+  const rv = rv0 ?? radiusVon(el);
+  const rn = rn0 ?? radiusVon(el);
+  const B = von.width > nach.width ? von : nach; // der Klon ist so groß wie die größere Fläche (kein Hochskalieren eines kleinen Bildes)
+  const k = el.cloneNode(true);
+  k.removeAttribute('id');
+  k.setAttribute('data-flugklon', '1');
+  k.setAttribute('aria-hidden', 'true');
+  Object.assign(k.style, { position: 'fixed', left: `${B.left}px`, top: `${B.top}px`, width: `${B.width}px`, height: `${B.height}px`, margin: '0',
+    transformOrigin: '0 0', pointerEvents: 'none', zIndex: String(z), visibility: 'visible', translate: 'none' });
+  const alt = (verberge ?? [el]).map((x) => [x, x.style.visibility]);
+  overlay.appendChild(k);
+  for (const [x] of alt) x.style.visibility = 'hidden';
+  const stufe = (r, rad) => {
+    if (r === B) return { transform: 'none', borderRadius: `${rad}px` };
+    const sx = r.width / B.width;
+    const sy = r.height / B.height;
+    return { transform: `translate(${r.left - B.left}px, ${r.top - B.top}px) scale(${sx}, ${sy})`, borderRadius: `${rad / sx}px / ${rad / sy}px` };
+  };
+  const kf = [stufe(von, rv), stufe(nach, rn)];
+  const an = animiere(k, kf, { duration: dauer, easing, fill: 'forwards' });
+  let fertig = false;
+  const aufraeumen = () => {
+    if (fertig) return;
+    fertig = true;
+    for (const [x, v] of alt) x.style.visibility = v;
+    k.remove();
+  };
+  if (!an) { aufraeumen(); return null; }
+  an.aufraeumen = aufraeumen;
+  if (auto) { if (an.finished && typeof an.finished.then === 'function') an.finished.then(aufraeumen, aufraeumen); else { an.onfinish = aufraeumen; an.oncancel = aufraeumen; } }
+  return an;
+}

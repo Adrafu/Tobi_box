@@ -50,7 +50,7 @@
  *   bausteinStil()              das CSS dazu; die App hängt es vor die Stile der Seiten.
  *   Reine Funktionen: norm, zaehle, dauerText, uhr, untertitel, fortschritt, coverKlasse, teile, ladeMitGrenze.
  */
-import { fuellen, ZEILE } from './texte.js';
+import { fuellen, ZEILE, PLAYER } from './texte.js';
 
 /* Lit steckt in lebenden Bindungen: Ohne DOM sind sie `undefined`. Wer das Modul ohne DOM lädt (Tests der reinen Funktionen),
  * bekommt sie mit `initLit(lit)` nachgereicht; tobibox-app.js ruft das, sobald es Lit geladen hat. Stile sind darum Funktionen. */
@@ -255,9 +255,29 @@ export const ICON = {
   moon: 'M9 2c-1.05 0-2.05.16-3 .46 4.06 1.27 7 5.06 7 9.54 0 4.48-2.94 8.27-7 9.54.95.3 1.95.46 3 .46 5.52 0 10-4.48 10-10S14.52 2 9 2z',
   clock: 'M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z',
   down: 'M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z',
+  play: 'M8 5v14l11-7z',
+  pause: 'M6 19h4V5H6v14zm8-14v14h4V5h-4z',
+  prev: 'M6 6h2v12H6zm3.5 6l8.5 6V6z',
+  next: 'M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z',
+  lock: 'M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z',
 };
 
 export const ic = (n, gr = 24) => html`<svg viewBox="0 0 24 24" width=${gr} height=${gr} aria-hidden="true" focusable="false"><path d=${ICON[n]}></path></svg>`;
+
+/* „30“-Symbol für die Sprungknöpfe des Players (Prototyp `ic30`); `vor` spiegelt den Pfeil. */
+export const ic30 = (vor = false, gr = 32) => html`<svg viewBox="0 0 24 24" width=${gr} height=${gr} aria-hidden="true" focusable="false"><g transform=${vor ? 'translate(24,0) scale(-1,1)' : nothing}><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"></path></g><text x="12" y="16.2" font-size="7.5" font-weight="700" text-anchor="middle" font-family="Roboto, system-ui, sans-serif">30</text></svg>`;
+
+/* ------------------------------------------------------------------ Abspiel-Anzeige (Design 4, A8m)
+ * Was gerade läuft, steht hier (der Player trägt es ein, bevor er die Seite neu zeichnen lässt). Die Bausteine lesen es beim Zeichnen:
+ * drei kleine Balken an dem, was läuft; sie bewegen sich, solange gespielt wird, bei Pause stehen sie still. */
+export const abspiel = { serie: null, folge: null, spielt: false };
+
+export const laeuftAn = (serieId, folge = null) => !!serieId && abspiel.serie === serieId && (folge === null || abspiel.folge === folge);
+
+export function eq(spielt) {
+  return html`<span class=${`eq${spielt ? '' : ' still'}`} role="img" aria-label=${spielt ? PLAYER.anzeige.laeuft : PLAYER.anzeige.pausiert}><i></i><i></i><i></i></span>`;
+}
+const eqSerie = (id) => (laeuftAn(id) ? eq(abspiel.spielt) : nothing);
 
 /* ------------------------------------------------------------------ Templates */
 
@@ -287,16 +307,16 @@ export function listenZeile(s, { term = '' } = {}) {
       <span class="lt">${markiert(s.name, term)}</span><span class="ls">${untertitel(s)}</span>
       ${f ? html`<span class="pbar" role="progressbar" aria-label=${ZEILE.fortschritt} aria-valuemin="0" aria-valuemax="100" aria-valuenow=${Math.round(f.anteil * 100)}><i style=${`width:${Math.round(f.anteil * 100)}%`}></i></span><span class="ls">${f.text}</span>` : nothing}
       ${marke(s)}</span>
-    ${tobies ? html`<span class="tbadge" role="img" aria-label=${zaehle(ZEILE.tobies, tobies)}>${ic('tag', 16)}${tobies}</span>` : nothing}</a>`;
+    ${eqSerie(s.id)}${tobies ? html`<span class="tbadge" role="img" aria-label=${zaehle(ZEILE.tobies, tobies)}>${ic('tag', 16)}${tobies}</span>` : nothing}</a>`;
 }
 
 export function kachel(s) {
-  return html`<a class="tile" href=${`#serie-${s.id}`} data-serie=${s.id}><span class="pos">${cover(s)}${marke(s)}</span>
+  return html`<a class="tile" href=${`#serie-${s.id}`} data-serie=${s.id}><span class="pos">${cover(s)}${marke(s)}${eqSerie(s.id)}</span>
     <span class="tn">${s.name}</span><span class="tm">${untertitel(s, { dauer: false })}</span></a>`;
 }
 
 export function schnellKachel(s) {
-  return html`<a class="qt" href=${`#serie-${s.id}`} data-serie=${s.id}>${cover(s)}<span class="qn">${s.name}</span></a>`;
+  return html`<a class="qt" href=${`#serie-${s.id}`} data-serie=${s.id}>${cover(s)}<span class="qn">${s.name}</span>${eqSerie(s.id)}</a>`;
 }
 
 /* Karte im Cover-Raster der Bibliothek (Computer, AB3): Cover, darunter Titel und Untertitel; auf dem Cover das Tobie-Symbol mit
@@ -304,7 +324,7 @@ export function schnellKachel(s) {
 export function rasterKachel(s, { term = '' } = {}) {
   const f = fortschritt(s);
   const tobies = s.anzahl_tobies ?? 0;
-  return html`<a class="rcard" href=${`#serie-${s.id}`} data-serie=${s.id}><span class="rpos">${cover(s)}${marke(s)}
+  return html`<a class="rcard" href=${`#serie-${s.id}`} data-serie=${s.id}><span class="rpos">${cover(s)}${marke(s)}${eqSerie(s.id)}
       ${tobies ? html`<span class="tbadge on" role="img" aria-label=${zaehle(ZEILE.tobies, tobies)}>${ic('tag', 16)}${tobies}</span>` : nothing}</span>
     <span class="rt">${markiert(s.name, term)}</span><span class="rs">${untertitel(s, { dauer: false })}</span>
     ${f ? html`<span class="pbar" role="progressbar" aria-label=${ZEILE.fortschritt} aria-valuemin="0" aria-valuemax="100" aria-valuenow=${Math.round(f.anteil * 100)}><i style=${`width:${Math.round(f.anteil * 100)}%`}></i></span>` : nothing}</a>`;
@@ -320,7 +340,7 @@ export function kopfAktion({ href, label, symbol, primaer = false, onKlick = nul
 export function folgenZeile(x, { term = '', stand, aktionen = nothing } = {}) {
   const titel = x.anzeige || x.folge;
   return html`<div class="frow"><a class="slink" href=${`#serie-${x.serie_id}`} data-serie=${x.serie_id}>${cover({ id: x.serie_id, name: x.serie_name, cover_stand: stand }, 'sm')}
-      <span class="grow"><span class="nm">${markiert(titel, term)}</span><span class="muted">${x.serie_einzeln ? 'Einzeltitel' : x.serie_name}</span></span></a>${aktionen}</div>`;
+      <span class="grow"><span class="nm">${markiert(titel, term)}</span><span class="muted">${x.serie_einzeln ? 'Einzeltitel' : x.serie_name}</span></span>${laeuftAn(x.serie_id, x.folge) ? eq(abspiel.spielt) : nothing}</a>${aktionen}</div>`;
 }
 
 /* Segment-Umschalter: 2 bis 4 gleich breite Wahlmöglichkeiten, `aria-pressed`, Pfeiltasten springen und wählen. */
@@ -364,6 +384,20 @@ export const bausteinStil = () => css`
   .cover.lr { width: 72px; font-size: 32px; flex: none; }
   .cover.lg { width: 120px; font-size: 52px; flex: none; }
 
+  /* Abspiel-Anzeige (A8m): drei Balken, Bewegung solange gespielt wird, bei Pause stehen sie still; auf Covern hell auf Scrim */
+  .eq { display: inline-flex; align-items: flex-end; gap: 2px; width: 16px; height: 16px; flex: none; }
+  .eq i { display: block; flex: 1; height: 100%; border-radius: 1px; background: var(--primary-ink); transform-origin: 50% 100%; animation: eq 0.9s ease-in-out infinite alternate; }
+  .eq i:nth-child(2) { animation-duration: 0.7s; animation-delay: -0.3s; }
+  .eq i:nth-child(3) { animation-duration: 1.1s; animation-delay: -0.6s; }
+  @keyframes eq { from { transform: scaleY(0.25); } to { transform: scaleY(1); } }
+  .eq.still i { animation: none; }
+  .eq.still i:nth-child(1) { transform: scaleY(0.45); } .eq.still i:nth-child(2) { transform: scaleY(0.9); } .eq.still i:nth-child(3) { transform: scaleY(0.65); }
+  .pos > .eq, .rpos > .eq { position: absolute; right: 6px; bottom: 6px; box-sizing: content-box; padding: 6px; border-radius: 8px; background: var(--scrim); }
+  .pos > .eq i, .rpos > .eq i { background: var(--on-cover); }
+  .lrow > .eq, .slink > .eq, .qt > .eq { align-self: center; }
+  .qt > .eq { margin-right: 4px; }
+  @media (prefers-reduced-motion: reduce) { .eq i { animation: none !important; } }
+
   mark { background: var(--primary-soft); color: var(--text); border-radius: 3px; padding: 0 1px; }
   .badge { display: inline-block; font-size: 13px; font-weight: 500; padding: 2px 10px; border-radius: 12px; background: var(--warn-bg); color: var(--warn); }
   .count { font-size: 14px; color: var(--text2); margin: 4px 0 12px; }
@@ -379,7 +413,6 @@ export const bausteinStil = () => css`
   .hscroll { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 4px; }
   .tile { flex: 0 0 120px; border: 0; background: none; padding: 4px; text-align: left; display: grid; gap: 6px; align-content: start; border-radius: var(--r-card);
     min-width: 0; color: inherit; text-decoration: none; }
-  .tile:active { background: var(--primary-soft); }
   .tile .tn { font-weight: 500; font-size: 15px; line-height: 1.25; overflow-wrap: anywhere; }
   .tile .tm { font-size: 13px; color: var(--text2); }
   .tile .pos { position: relative; }
@@ -387,7 +420,6 @@ export const bausteinStil = () => css`
   .qgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0 0 8px; }
   .qt { display: flex; align-items: center; gap: 10px; min-height: 56px; padding: 0 8px 0 0; border: 0; border-radius: 12px; background: var(--card);
     box-shadow: 0 1px 3px var(--shadow); color: var(--text); text-align: left; min-width: 0; overflow: hidden; text-decoration: none; }
-  .qt:active { background: var(--primary-soft); }
   .qt .cover { width: 56px; border-radius: 0; flex: none; font-size: 24px; }
   .qt .qn { font-size: 14px; font-weight: 500; line-height: 1.25; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
     overflow-wrap: anywhere; min-width: 0; }
@@ -396,7 +428,8 @@ export const bausteinStil = () => css`
   .lrow { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--divider); text-decoration: none; color: inherit; min-height: 84px;
     content-visibility: auto; contain-intrinsic-size: auto 92px; }
   .lrow:first-child { border-top: 0; }
-  .lrow:active, .slink:active { background: var(--primary-soft); }
+  /* Zeilen und Kacheln, die zu einer anderen Seite führen, bekommen beim Drücken keine Hintergrundfarbe (sie blitzte im Bild vor dem Seitenwechsel auf,
+     iOS lässt :active hängen); nur das leichte Einziehen (--druck-zeile) bleibt. */
   .lrow .grow { flex: 1; min-width: 0; display: grid; gap: 1px; }
   .lt { display: block; font-weight: 500; line-height: 1.3; overflow-wrap: anywhere; }
   .ls { display: block; font-size: 14px; color: var(--text2); }

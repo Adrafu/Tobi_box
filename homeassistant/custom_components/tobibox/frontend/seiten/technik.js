@@ -419,7 +419,6 @@ export const stil = () => css`
   .tstapel { display: grid; gap: 8px; margin: 8px 0 16px; }
   .tzeile { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 64px; padding: 8px 12px 8px 16px;
     border: 1px solid var(--line); border-radius: var(--r-card); background: var(--card); color: var(--text); text-align: left; text-decoration: none; }
-  .tzeile:active { background: var(--primary-soft); }
   .tzeile:disabled { opacity: .6; }
   .tzeile svg { flex: none; fill: var(--text2); }
   .tz-t { display: grid; gap: 2px; min-width: 0; overflow-wrap: anywhere; }

@@ -65,6 +65,14 @@ export const SCHEMA_WS = {
   'tobibox/warteschlange/abbrechen': { req: ['eintrag_id'], braucht: 'warteschlange' },
 };
 export const FAEHIGKEITEN_A9 = ['warteschlange', 'zuordnung_rueckgaengig'];
+/* A-2 Reinhören (Vertrag W Nr. 39 bis 42, 14.5, 14.6): Fähigkeit `reinhoeren`. Der Mock führt die Hörstelle je Serie im Speicher (ein Benutzer) und
+ * baut den signierten Pfad wie das Backend: `/api/tobibox/audio/<serie>/<folge>[?track=n&]authSig=…`, jedes Segment mit `encodeURIComponent`. */
+export const SCHEMA_REIN = {
+  'tobibox/audio/bereit': { req: ['serie_id', 'folge'], opt: ['track', 'vorbereiten'], braucht: 'reinhoeren' },
+  'tobibox/hoerstelle/get': { req: ['serie_id'], braucht: 'reinhoeren' },
+  'tobibox/hoerstelle/set': { req: ['serie_id', 'folge', 'position_s', 'dauer_s'], opt: ['track', 'fertig'], braucht: 'reinhoeren' },
+  'tobibox/hoerstelle/liste': { opt: ['limit'], braucht: 'reinhoeren' },
+};
 /* A8: Befehle nur für Administratoren (Vertrag 2.1). Mit der Mock-Option `nichtAdmin` darf der Benutzer alles andere (Alltag). */
 export const ADMIN_BEFEHLE = new Set(['folgen/order', 'serien/zusammenfuehren', 'serie/create', 'papierkorb/restore', 'papierkorb/empty'].map((x) => `tobibox/${x}`));
 export const FELDER_V11 = {
@@ -93,7 +101,7 @@ export const NACHRICHT_MAX = 64 * 1024; // Vertrag 8: eine Nachricht hat höchst
 export const FAEHIGKEITEN_V11 = ['einstellungen', 'eingang_entfernen', 'zuordnung_uid', 'konfig_lesen', 'upload_fertig_details'];
 
 /* Befehle, die nur Administratoren ausführen dürfen (Vertrag 2.1). */
-const LESEN = new Set(['hello', 'subscribe', 'serien/list', 'folgen/list', 'serie/get', 'papierkorb/list', 'neue_tobies/list', 'zuordnung/list', 'boxen/list', 'eingang/list', 'konfig/export_lesen', 'einstellungen/get', 'konfig/get'].map((x) => `tobibox/${x}`));
+const LESEN = new Set(['hello', 'subscribe', 'serien/list', 'folgen/list', 'serie/get', 'papierkorb/list', 'neue_tobies/list', 'zuordnung/list', 'boxen/list', 'eingang/list', 'konfig/export_lesen', 'einstellungen/get', 'konfig/get', 'hoerstelle/get', 'hoerstelle/liste'].map((x) => `tobibox/${x}`));
 
 export const FAEHIGKEITEN = ['medien', 'upload', 'zuordnung', 'tobie_namen', 'neue_tobies', 'lernmodus', 'boxen', 'papierkorb', 'liste_ausrollen', 'konfig_export', 'sync', 'eingang', 'korrektur', 'serie_loeschen', 'bibliothek', 'cover'];
 
@@ -127,6 +135,20 @@ function pruefeBibliothek(type, f, faehigkeiten) {
     if (!erlaubt.includes(f.sortierung)) throw fehler('invalid_format', 'sortierung');
     if (f.sortierung === 'angehoert' && faehigkeiten && !faehigkeiten.includes('reinhoeren')) throw fehler('invalid_format', 'angehoert braucht reinhoeren');
   }
+}
+
+/* Wertebereiche der Befehle 39 bis 42 (Vertrag W). */
+function pruefeRein(type, f) {
+  const zahl = (x) => typeof x === 'number' && Number.isFinite(x);
+  if ('serie_id' in f && !(typeof f.serie_id === 'string' && f.serie_id)) throw fehler('invalid_format', 'serie_id');
+  if ('folge' in f && !(typeof f.folge === 'string' && f.folge)) throw fehler('invalid_format', 'folge');
+  if ('track' in f && !(Number.isInteger(f.track) && f.track >= 0)) throw fehler('invalid_format', 'track');
+  if ('vorbereiten' in f && typeof f.vorbereiten !== 'boolean') throw fehler('invalid_format', 'vorbereiten');
+  if ('fertig' in f && typeof f.fertig !== 'boolean') throw fehler('invalid_format', 'fertig');
+  if ('position_s' in f && !(zahl(f.position_s) && f.position_s >= 0)) throw fehler('invalid_format', 'position_s');
+  if ('dauer_s' in f && !(zahl(f.dauer_s) && f.dauer_s > 0)) throw fehler('invalid_format', 'dauer_s');
+  if ('limit' in f && !(Number.isInteger(f.limit) && f.limit >= 1 && f.limit <= 12)) throw fehler('invalid_format', 'limit 1 bis 12');
+  void type;
 }
 
 /* Wie das Backend: ohne Groß/Klein und ohne Umlaute; alle Wörter des Suchtexts müssen vorkommen. */
@@ -189,7 +211,7 @@ export function beispielBibliothek(n = 130) {
 
 /* `faehigkeiten`: was das (simulierte) Backend zusagt. Ohne Angabe wird nur die Form geprüft (alles ist erlaubt). */
 export function pruefeEingabe(msg, faehigkeiten = null) {
-  const sch = SCHEMA[msg.type] || SCHEMA_V11[msg.type] || SCHEMA_BIB[msg.type] || SCHEMA_TECHNIK[msg.type] || SCHEMA_WS[msg.type];
+  const sch = SCHEMA[msg.type] || SCHEMA_V11[msg.type] || SCHEMA_BIB[msg.type] || SCHEMA_TECHNIK[msg.type] || SCHEMA_WS[msg.type] || SCHEMA_REIN[msg.type];
   if (!sch) throw fehler('unknown_command', `Unbekannter Befehl ${msg.type}`);
   if (faehigkeiten && sch.braucht && !faehigkeiten.includes(sch.braucht)) throw fehler('unknown_command', `Unbekannter Befehl ${msg.type}`);
   const { type, id, ...felder } = msg; // eslint-disable-line no-unused-vars
@@ -201,6 +223,7 @@ export function pruefeEingabe(msg, faehigkeiten = null) {
     if (felder[k] === undefined) throw fehler('invalid_format', `Feld ${k} ist undefined`);
   }
   pruefeBibliothek(msg.type, felder, faehigkeiten);
+  if (SCHEMA_REIN[msg.type]) pruefeRein(msg.type, felder);
   for (const k of sch.req || []) if (!(k in felder)) throw fehler('invalid_format', `Pflichtfeld ${k} fehlt`);
   for (const k of sch.must || []) if (!(k in felder)) throw fehler('invalid_format', `Die Seite muss ${k} senden`);
   if ('bestaetigt' in felder && felder.bestaetigt !== true) throw fehler('invalid_format', 'bestaetigt muss true sein');
@@ -244,9 +267,11 @@ export function createMockHass(opts = {}) {
     eingangErledigt: [],
     warteschlange: [], // A9: Vormerkungen in der Reihenfolge der Anlage
     wsNr: 0,
+    sigZaehler: 0,
     lern: null,
     exportDatei: { vorhanden: true, liste_id: 'liste-aaaa', revision: 9, exportiert_am: '2026-11-09T09:00:00Z', anzahl_zuordnungen: 4, anzahl_fenster: 0, neuer_als_ha: true },
     gesehenAnfragen: new Map(),
+    hoerstellen: {}, // A-2: Serie → { zeit, folge, folgen: { Name → { p, d, t, fertig, track } } } (ein Benutzer)
     einstellungen: { leise_zeiten: { zeitzone: 'Europe/Berlin', fenster: [] }, gute_nacht: { timer_min: 30, ausblenden_s: 60 }, lesezeichen_tage: 14 },
   };
 
@@ -262,8 +287,24 @@ export function createMockHass(opts = {}) {
     pruefen: s.pruefen, anzahl_pruefen: s.folgen.filter((f) => f.pruefen).length, hinweise: s.hinweise,
     art: s.art ?? 'hoerspiel', art_quelle: s.art ? 'manuell' : 'tags', einzeln: !!s.einzeln, kapitel_anzahl: s.kapitel_anzahl ?? 0,
     dauer_s: s.dauer_s ?? null, cover_stand: s.cover_stand ?? null, cover_quelle: s.cover_stand ? (s.cover_quelle ?? 'auto') : null,
-    ...(s.hoerstelle ? { hoerstelle: s.hoerstelle } : {}),
+    ...(hoerKurz(s) ? { hoerstelle: hoerKurz(s) } : {}),
   });
+  /* Hörstelle des Anfragenden (Vertrag 14.2, 14.6): aus dem Speicher des Mocks, sonst die feste Angabe der Serie (`s.hoerstelle`). */
+  function hoerMass(s, name, e) {
+    const f = s.folgen.find((x) => x.name === name);
+    const sp = Array.isArray(f?.spuren_s) && f.spuren_s.length > 1 ? f.spuren_s : null;
+    if (sp && f.dauer_s && e.track < sp.length) return [sp.slice(0, e.track).reduce((a, c) => a + c, 0) + Math.min(e.p, sp[e.track]), f.dauer_s];
+    return [Math.min(e.p, e.d), e.d];
+  }
+  function hoerKurz(s) {
+    const e = b.hoerstellen[s.id];
+    if (!e) return s.hoerstelle;
+    const name = s.folgen.some((f) => f.name === e.folge) ? e.folge : null;
+    const f = name && e.folgen[name];
+    if (!f) return s.hoerstelle;
+    const [p, g] = hoerMass(s, name, f);
+    return f.fertig ? { anteil: 1, rest_s: 0, zeit: f.t, folge: name } : { anteil: Math.round(Math.min(1, p / g) * 10000) / 10000, rest_s: Math.max(0, Math.round(g - p)), zeit: f.t, folge: name };
+  }
   function tobiesAuf(id) {
     return Object.values(b.zuordnungen).filter((z) => z.ziel.serie === id);
   }
@@ -272,7 +313,10 @@ export function createMockHass(opts = {}) {
   const holeFolge = (s, name) => { const f = s.folgen.find((x) => x.name === name); if (!f) throw fehler('folge_nicht_gefunden'); return f; };
   const mitTobies = (s) => ({
     ...kurzform(s),
-    folgen: s.folgen.map((f) => ({ ...f, tobies: Object.values(b.zuordnungen).filter((z) => z.ziel.typ === 'folge' && z.ziel.serie === s.id && z.ziel.folge === f.name).map(kurzTobie) })),
+    folgen: s.folgen.map((f) => {
+      const h = b.hoerstellen[s.id]?.folgen?.[f.name];
+      return { ...f, ...(h ? { hoerstelle: { position_s: h.p, fertig: h.fertig } } : {}), tobies: Object.values(b.zuordnungen).filter((z) => z.ziel.typ === 'folge' && z.ziel.serie === s.id && z.ziel.folge === f.name).map(kurzTobie) };
+    }),
     zuordnungen: Object.values(b.zuordnungen).filter((z) => z.ziel.typ === 'serie' && z.ziel.serie === s.id).map(kurzTobie),
   });
   const pruefeStand = (s, st) => { if (st !== undefined && st !== stand(s)) throw fehler('stand_veraltet'); };
@@ -341,7 +385,7 @@ export function createMockHass(opts = {}) {
       if (f.includes('pruefen')) l = l.filter((s) => s.pruefen);
       const name = (x, y) => x.name.localeCompare(y.name, 'de', { numeric: true });
       if (m.sortierung === 'neu') l.sort((x, y) => Date.parse(y.angelegt_am ?? '2026-10-01T10:00:00Z') - Date.parse(x.angelegt_am ?? '2026-10-01T10:00:00Z') || name(x, y));
-      else if (m.sortierung === 'angehoert') l.sort((x, y) => (Date.parse(y.hoerstelle?.zeit ?? 0) || 0) - (Date.parse(x.hoerstelle?.zeit ?? 0) || 0) || name(x, y));
+      else if (m.sortierung === 'angehoert') l.sort((x, y) => (Date.parse(hoerKurz(y)?.zeit ?? 0) || 0) - (Date.parse(hoerKurz(x)?.zeit ?? 0) || 0) || name(x, y));
       else if (m.sortierung === 'name' || (!m.sortierung && ['art', 'text', 'auch_folgen', 'filter', 'limit', 'offset'].some((k) => k in m))) l.sort(name);
       // ganz ohne Eingabe (alte Seite) bleibt die Reihenfolge des Speichers; das echte Backend sortiert auch dann nach Name
       const gesamt = l.length;
@@ -379,6 +423,48 @@ export function createMockHass(opts = {}) {
         groesse_mb: Math.round(fo.groesse_bytes / 1048576), tobies: direkt.map(kurzTobie), serie_hat_tobie: ganze || direkt.length > 0 || tobiesAuf(s.id).length > 0 })) };
     },
     'tobibox/serie/get': (m) => mitTobies(holeSerie(m.serie_id)),
+    'tobibox/audio/bereit': (m) => {
+      const s = holeSerie(m.serie_id);
+      const f = holeFolge(s, m.folge);
+      const tracks = f.art === 'ordner' && f.tracks > 1 ? f.tracks : 1;
+      if ((m.track ?? 0) >= tracks) throw fehler('folge_nicht_gefunden');
+      const pfad = `/api/tobibox/audio/${encodeURIComponent(s.id)}/${encodeURIComponent(f.name)}`;
+      return { zustand: 'bereit', pfad: `${pfad}?${m.track === undefined ? '' : `track=${m.track}&`}authSig=${opts.sigPraefix ?? 'mock'}-${++b.sigZaehler}`, quelle: 'original' };
+    },
+    'tobibox/hoerstelle/get': (m) => {
+      const s = holeSerie(m.serie_id);
+      const e = b.hoerstellen[s.id];
+      if (!e) return { weiter: null, folgen: {} };
+      const folgen = Object.fromEntries(Object.entries(e.folgen).filter(([n]) => s.folgen.some((f) => f.name === n)).map(([n, f]) => [n, { position_s: f.p, dauer_s: f.d, fertig: f.fertig, zeit: f.t }]));
+      const k = hoerKurz(s);
+      const f = e.folgen[e.folge];
+      return { weiter: f && folgen[e.folge] ? { folge: e.folge, position_s: f.p, track: f.track, anteil: k.anteil, rest_s: k.rest_s, zeit: f.t } : null, folgen };
+    },
+    'tobibox/hoerstelle/set': (m) => {
+      const s = holeSerie(m.serie_id);
+      const f = holeFolge(s, m.folge);
+      const tracks = f.art === 'ordner' && f.tracks > 1 ? f.tracks : 1;
+      const nr = m.track ?? 0;
+      if (nr >= tracks) throw fehler('invalid_format', 'track');
+      if (m.position_s > m.dauer_s + 2) throw fehler('invalid_format', 'position_s über dauer_s');
+      const jetzt = new Date(Date.now()).toISOString();
+      const e = (b.hoerstellen[s.id] ??= { zeit: jetzt, folge: m.folge, folgen: {} });
+      e.zeit = jetzt; e.folge = m.folge;
+      e.folgen[m.folge] = { p: Math.round(m.position_s), d: Math.round(m.dauer_s) || 1, t: jetzt, fertig: !!m.fertig || (nr >= tracks - 1 && m.position_s >= m.dauer_s - 2), track: nr };
+      return {};
+    },
+    'tobibox/hoerstelle/liste': (m) => {
+      const l = [];
+      for (const [sid, e] of Object.entries(b.hoerstellen)) {
+        const s = b.serien[sid];
+        const f = s && e.folgen[e.folge];
+        if (!s || !f || f.fertig || !s.folgen.some((x) => x.name === e.folge)) continue;
+        const k = hoerKurz(s);
+        l.push({ serie_id: sid, name: s.name, folge: e.folge, position_s: f.p, track: f.track, anteil: k.anteil, rest_s: k.rest_s, zeit: f.t });
+      }
+      l.sort((x, y) => y.zeit.localeCompare(x.zeit));
+      return { eintraege: l.slice(0, m.limit ?? 8) };
+    },
     'tobibox/serie/create': (m) => {
       if (!m.name.trim()) throw fehler('name_ungueltig');
       if (m.typ === 'ueberraschung' && Object.values(b.serien).some((s) => s.typ === 'ueberraschung')) throw fehler('ueberraschung_existiert');
