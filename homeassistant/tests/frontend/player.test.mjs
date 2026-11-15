@@ -709,7 +709,7 @@ mit('„Hier weiterhören“ spielt die Folge an der gemerkten Stelle (hoerstell
   assert.equal(s.q('.mini .mt').textContent, 'Das Gespensterschloss');
 });
 
-mit('Folgenzeile: runder Abspielknopf (48 px) spielt genau diese Folge, bei der laufenden „Pause“; die Nummer wird zur Abspiel-Anzeige', async () => {
+mit('Folgenzeile (AM11): die ganze Zeile (Knopf über der Zeilenfläche) spielt genau diese Folge, bei der laufenden „Pause“; die Nummer wird zur Abspiel-Anzeige', async () => {
   const s = await spielSeite({ hash: '#serie-s1' });
   const knopf = (n) => s.q(`[data-folge="${n}"] [data-abspielen]`);
   assert.equal(knopf('folge-02.mp3').getAttribute('aria-label'), 'Das Gespensterschloss abspielen');
@@ -729,6 +729,27 @@ mit('Folgenzeile: runder Abspielknopf (48 px) spielt genau diese Folge, bei der 
   assert.equal(s.q('[data-folge="folge-02.mp3"] .se-num .eq').getAttribute('aria-label'), 'pausiert');
   assert.ok(s.q('[data-folge="folge-02.mp3"] .se-num .eq').classList.contains('still'), 'bei Pause stehen die Balken still');
   assert.equal(bereitAufrufe(s).length, 1, 'Pause fragt nichts mehr');
+});
+
+mit('Folgenzeile (AM11): kein runder Play-Knopf mehr; „⋯“ und Tobie-Chip starten nichts', async () => {
+  const s = await spielSeite({ hash: '#serie-s1' });
+  assert.equal(s.q('.se-play'), null, 'der runde Play-Knopf entfällt');
+  const zeile = s.q('[data-folge="folge-02.mp3"]');
+  const flaeche = zeile.querySelector(':scope > .se-zeilenknopf[data-abspielen]');
+  assert.ok(flaeche, 'die Zeilenfläche ist ein Knopf (Tastatur, Name)');
+  assert.equal(flaeche.getAttribute('aria-label'), 'Das Gespensterschloss abspielen');
+  assert.ok(!flaeche.contains(zeile.querySelector('[data-menue-folge]')), '„⋯“ steckt nicht im Zeilenknopf');
+  zeile.querySelector('[data-menue-folge]').click();
+  await s.flush(10);
+  assert.ok(s.q('dialog.blatt[open]'), '„⋯“ öffnet das Menü');
+  assert.equal(bereitAufrufe(s).length, 0, '„⋯“ startet nichts');
+  s.el.schliesseBlatt('code'); await s.flush(10);
+  const chip = zeile.querySelector('.tb-chips a');
+  if (chip) { chip.addEventListener('click', (e) => e.preventDefault()); chip.click(); await s.flush(6); assert.equal(bereitAufrufe(s).length, 0, 'ein Tobie-Chip startet nichts'); }
+  assert.ok(chip, 'die Zeile hat einen Tobie-Chip');
+  flaeche.click();
+  await s.flush(12);
+  assert.equal(bereitAufrufe(s).at(-1)?.folge, 'folge-02.mp3', 'ein Tipp auf die Zeilenfläche startet die Folge');
 });
 
 mit('Ohne die Fähigkeit reinhoeren: kein Knopf „Reinhören“, kein Abspielknopf, keine Leiste', async () => {
@@ -769,6 +790,31 @@ mit('Start: Reihe „Am Handy weiterhören“ mit Balken, „noch … Min.“ un
   assert.equal(a.currentTime, 50);
   assert.equal(s.q('.wh[data-weiter="s1"] .playov').getAttribute('aria-label'), 'Die drei ??? weiterhören');
   assert.ok(s.q('.wh[data-weiter="s1"] .eq'), 'die Abspiel-Anzeige auf dem Cover');
+});
+
+mit('Start (AM8, AM9): der Rückflug merkt sich die angetippte Kachel (Reihe, Platz) und den waagrechten Stand jeder Reihe', async () => {
+  const s = await spielSeite({ hash: '#start' });
+  s.m.backend.hoerstellen.s1 = { zeit: '2026-11-14T10:00:00Z', folge: 'folge-02.mp3', folgen: { 'folge-02.mp3': { p: 50, d: 130, t: '2026-11-14T10:00:00Z', fertig: false, track: 0 } } };
+  await geheZu(s, '#tobies'); await geheZu(s, '#start'); await s.flush(10);
+  const kacheln = (reihe) => [...s.el.shadowRoot.querySelectorAll(`.hscroll[data-reihe="${reihe}"] a[data-serie]`)];
+  const oben = kacheln('weiterhoeren');
+  const unten = kacheln('neu');
+  const id = oben[0].dataset.serie;
+  const platz = unten.findIndex((a) => a.dataset.serie === id);
+  assert.ok(platz >= 0, 'die Serie steht in beiden Reihen');
+  // die Flug-Messung ersetzen: der Test liest nur, was die App sich merkt
+  let flug = null; let reihenWieder = null;
+  s.el._coverFlug = function () { if (this._flug?.art === 'zurueck') flug = { ...this._flug }; };
+  const alt = s.el._scrollHalten;
+  s.el._scrollHalten = function () { reihenWieder = this._reihenWieder ? { ...this._reihenWieder } : reihenWieder; return alt.call(this); };
+  const hscroll = s.el.shadowRoot.querySelector('.hscroll[data-reihe="neu"]');
+  Object.defineProperty(hscroll, 'scrollLeft', { value: 300, writable: true, configurable: true });
+  unten[platz].dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true, button: 0 }));
+  assert.deepEqual({ ...s.el._angetippt }, { id, reihe: 'neu', index: platz });
+  await geheZu(s, `#serie-${id}`); await s.flush(10);
+  await geheZu(s, '#start'); await s.flush(10);
+  assert.deepEqual(flug?.kachel, { id, reihe: 'neu', index: platz }, 'der Rückflug kennt die untere Kachel, nicht die oberste');
+  assert.equal(reihenWieder?.neu, 300, 'der waagrechte Stand der Reihe wird wiederhergestellt');
 });
 
 mit('Start: ein Fehler der Hörstelle lässt nur die Reihe weg, nie den Start', async () => {

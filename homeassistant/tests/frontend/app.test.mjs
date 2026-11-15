@@ -334,6 +334,36 @@ test('Bei offener Tastatur verschwinden Leiste und Mini-Player (visualViewport)'
   delete window.visualViewport;
 });
 
+test('AM10: Blatt mit Textfeld sitzt bei offener Tastatur über der Tastatur (Abstand unten, Höhe des sichtbaren Teils), danach wieder normal', MIT_DOM, async () => {
+  await domBereit();
+  const breite = window.innerWidth; const hoeheFenster = window.innerHeight;
+  window.innerWidth = 390; window.innerHeight = 800;
+  window.visualViewport = { height: 464, offsetTop: 0, addEventListener() {}, removeEventListener() {} };
+  try {
+    const s = await seite();
+    s.el._vv = window.visualViewport;
+    const { d } = await blattOeffnen(s);
+    const feld = document.createElement('input');
+    d.querySelector('.blatt-in').appendChild(feld);
+    assert.ok(!d.hasAttribute('data-kbd'), 'ohne Tastatur nichts gesetzt');
+    feld.focus();
+    feld.dispatchEvent(new window.Event('focusin', { bubbles: true, composed: true }));
+    await s.flush();
+    assert.ok(d.hasAttribute('data-kbd'));
+    assert.equal(d.style.getPropertyValue('--vv-unten'), '336px', 'Seitenhöhe 800 − sichtbarer Teil 464');
+    assert.equal(d.style.getPropertyValue('--vv-hoehe'), '464px');
+    s.el._vv = { height: 464, offsetTop: 40, addEventListener() {}, removeEventListener() {} }; // iOS schiebt den sichtbaren Teil nach unten
+    s.el._vvFn();
+    assert.equal(d.style.getPropertyValue('--vv-unten'), '296px');
+    feld.blur();
+    feld.dispatchEvent(new window.Event('focusout', { bubbles: true, composed: true }));
+    await new Promise((r) => setTimeout(r, 20)); await s.flush();
+    assert.ok(!d.hasAttribute('data-kbd'), 'Tastatur zu: wieder normal');
+    assert.equal(d.style.getPropertyValue('--vv-unten'), '');
+    weg();
+  } finally { window.innerWidth = breite; window.innerHeight = hoeheFenster; delete window.visualViewport; }
+});
+
 /* ------------------------------------------------------------------ Abo, Zustände */
 
 test('Start: hello mit v=1, Abo der Themen über hass.connection, Listen laden', MIT_DOM, async () => {

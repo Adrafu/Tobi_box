@@ -533,12 +533,13 @@ if (lit) {
         const kopf = vorher.name === 'serie' ? this.renderRoot.querySelector('.cover.se-xl[data-cover-gross]') : null;
         const kopfFlaeche = kopf ? { rect: rechteck(kopf.getBoundingClientRect()), radius: this._radius(kopf) } : null;
         const stand = this._scrollStand(); // Scrollstand der Seite, die wir gerade verlassen (AM6)
+        const reihen = this._reihenStand(); // und der Reihen darauf (AM9)
         this._leseHash();
         this._flugNachHash(vorher, kopfFlaeche);
         if (this._hash === this._behandelt) return;
         const vorherHash = this._behandelt;
         this._behandelt = this._hash;
-        const scrollWieder = this._herkunftNachHash(vorherHash, stand);
+        const scrollWieder = this._herkunftNachHash(vorherHash, stand, reihen);
         this._schliesseBlattBeiRoute(); this._fokusMain = true; this._scrollOben = scrollWieder === null; this._scrollWieder = scrollWieder; this.requestUpdate();
       };
       this._onResize = () => this._messeBreite();
@@ -565,7 +566,7 @@ if (lit) {
         this._ro.observe(this);
       } else window.addEventListener('resize', this._onResize);
       this._fokusEin = (e) => this._tastatur(e.target);
-      this._fokusAus = () => setTimeout(() => { this._kbd = false; }, 0);
+      this._fokusAus = () => setTimeout(() => this._tastatur(this.renderRoot.activeElement), 0); // Fokus wechselt von einem Knopf ins Feld: nach dem Wechsel neu entscheiden (nicht einfach „zu“)
       this.renderRoot.addEventListener('focusin', this._fokusEin);
       this.renderRoot.addEventListener('focusout', this._fokusAus);
       this.renderRoot.addEventListener('click', this._coverKlick, true);
@@ -573,6 +574,7 @@ if (lit) {
       this._vv = window.visualViewport;
       this._vvFn = () => this._tastatur(this.renderRoot.activeElement);
       this._vv?.addEventListener?.('resize', this._vvFn);
+      this._vv?.addEventListener?.('scroll', this._vvFn); // AM10: iOS schiebt den sichtbaren Teil (`offsetTop`), wenn die Tastatur aufgeht
       this.spieler.anmelden();
       ladeIllustrationen().then((b) => { this._bilder = b; });
     }
@@ -617,6 +619,7 @@ if (lit) {
       this._covers.beobachte(this.renderRoot);
       this._seiteObj?.nachRender?.(this.renderRoot);
       this._pillenSetzen();
+      this._blattTastatur();
       this._coverFlug();
       this._spielerNach();
     }
@@ -694,6 +697,31 @@ if (lit) {
       const feld = ziel && ziel.matches?.('input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]):not([type=button]):not([type=submit]), textarea');
       const vv = this._vv;
       this._kbd = !!(feld && vv && vv.height < (window.innerHeight || 0) * 0.8);
+      this._blattTastatur();
+    }
+
+    /* AM10: Blatt mit Textfeld bei offener Tastatur. Das Blatt hängt am unteren Rand der ganzen Seite (Layout-Viewport), den die Tastatur auf dem iPhone verdeckt (der Layout-Viewport
+     * schrumpft nicht, nur `visualViewport`). Darum: Abstand unten = Seitenhöhe − (offsetTop + Höhe des sichtbaren Teils), Höhe des Blatts höchstens der sichtbare Teil; ist es höher,
+     * scrollt das Blatt in sich, und das Feld mit dem Fokus bleibt im Bild. Nur am Handy (unter 700 px), wo das Blatt unten sitzt. */
+    _blattTastatur() {
+      const d = this.renderRoot?.querySelector?.('dialog.blatt');
+      if (!d) return;
+      const vv = this._vv;
+      if (!(this._kbd && vv && this._schmal)) {
+        if (d.hasAttribute('data-kbd')) { d.removeAttribute('data-kbd'); d.style.removeProperty('--vv-unten'); d.style.removeProperty('--vv-hoehe'); }
+        return;
+      }
+      const unten = Math.max(0, (window.innerHeight || 0) - (vv.offsetTop || 0) - vv.height);
+      d.setAttribute('data-kbd', '');
+      d.style.setProperty('--vv-unten', `${unten}px`);
+      d.style.setProperty('--vv-hoehe', `${vv.height}px`);
+      const feld = this.renderRoot.activeElement;
+      if (!feld || !d.contains(feld) || typeof requestAnimationFrame !== 'function') return;
+      requestAnimationFrame(() => { // erst nach dem Layout: das Feld im Blatt in den sichtbaren Teil des Blatts scrollen (nur das Blatt, nie die Seite)
+        const f = feld.getBoundingClientRect(); const b = d.getBoundingClientRect();
+        if (f.bottom > b.bottom - 8) d.scrollTop += f.bottom - b.bottom + 8;
+        else if (f.top < b.top + 8) d.scrollTop -= b.top + 8 - f.top;
+      });
     }
 
     /* ================================================================== Bewegung der Seiten (A6m) */
@@ -715,6 +743,27 @@ if (lit) {
       if (!c) return;
       this._grossVorladen(c);
       this._flug = { art: 'hin', id: a.dataset.serie, rect: rechteck(c.getBoundingClientRect()), radius: this._radius(c), zeit: Date.now() };
+      this._angetippt = { id: a.dataset.serie, ...this._kachelStelle(a) };
+    }
+
+    /* AM8: Stelle einer Kachel: die waagrechte Reihe (`data-reihe`) und der Platz unter den Serien-Links der Reihe, sonst der Platz auf der ganzen Seite. */
+    _kachelContainer(reihe) {
+      const w = this.renderRoot;
+      return reihe ? w.querySelector(`.hscroll[data-reihe="${reihe}"]`) : w.querySelector('main');
+    }
+
+    _kachelStelle(a) {
+      const reihe = a.closest('.hscroll[data-reihe]')?.dataset.reihe ?? null;
+      const box = this._kachelContainer(reihe);
+      const index = box ? [...box.querySelectorAll('a[data-serie]')].indexOf(a) : -1;
+      return { reihe, index };
+    }
+
+    /* AM9: waagrechter Scrollstand jeder Reihe (Start), mit der Herkunft gemerkt. */
+    _reihenStand() {
+      const aus = {};
+      for (const h of this.renderRoot?.querySelectorAll?.('.hscroll[data-reihe]') ?? []) aus[h.dataset.reihe] = h.scrollLeft;
+      return aus;
     }
 
     /* AM7: das große Cover schon beim Antippen holen (Zeiger runter, bevor die Adresse wechselt); die Serienseite nimmt dasselbe Versprechen aus dem Speicher. */
@@ -740,16 +789,26 @@ if (lit) {
 
     /* Die Adresse hat gewechselt (einmal je Wechsel). Nach einer Serienseite hin: Herkunft merken (Stapel, damit Serie → Serie → zurück → zurück stimmt). Zurück auf die
      * Herkunft (Knopf, Zurück-Taste, Wischen): Eintrag vom Stapel nehmen und den Scrollstand zurückgeben. Jede andere Seite räumt den Stapel. */
-    _herkunftNachHash(vorherHash, stand) {
+    _herkunftNachHash(vorherHash, stand, reihen = {}) {
       const st = this._herkunftStapel ?? (this._herkunftStapel = []);
       const nach = parseRoute(this._hash);
       const von = parseRoute(vorherHash);
       const oben = st[st.length - 1];
       const gleich = (a, b) => String(a || '').replace(/^#/, '') === String(b || '').replace(/^#/, '') || (!String(a || '').replace(/^#/, '') && String(b).replace(/^#/, '') === 'start') || (!String(b || '').replace(/^#/, '') && String(a).replace(/^#/, '') === 'start');
-      if (oben && gleich(oben.hash, this._hash)) { st.pop(); return nach.name === 'serie' ? null : oben.scroll; }
+      if (oben && gleich(oben.hash, this._hash)) {
+        st.pop();
+        if (nach.name === 'serie') return null;
+        // AM8/AM9: der Rückflug geht zur angetippten Kachel, die Reihen stehen wieder, wo sie waren
+        if (this._flug?.art === 'zurueck' && oben.kachel?.id === this._flug.id) this._flug.kachel = oben.kachel;
+        this._reihenWieder = oben.reihen && Object.keys(oben.reihen).length ? oben.reihen : null;
+        return oben.scroll;
+      }
       if (nach.name === 'serie') {
         if (von.name !== 'serie' || vorherHash !== this._hash) {
-          if (SEITE.zurueck[von.name]) st.push({ hash: vorherHash || '#start', name: von.name, scroll: von.name === 'serie' ? 0 : stand });
+          if (SEITE.zurueck[von.name]) {
+            const kachel = this._angetippt && this._angetippt.id === nach.id ? this._angetippt : null;
+            st.push({ hash: vorherHash || '#start', name: von.name, scroll: von.name === 'serie' ? 0 : stand, reihen: von.name === 'serie' ? {} : reihen, kachel });
+          }
           else st.length = 0;
         }
         if (st.length > 12) st.shift();
@@ -768,18 +827,23 @@ if (lit) {
         const r = this.renderRoot.querySelector('.rahmen'); const sp = this.renderRoot.querySelector('.spalte');
         if (r && Math.abs(r.scrollTop - v) > 0.5) r.scrollTop = v;
         if (sp && Math.abs(sp.scrollTop - v) > 0.5) sp.scrollTop = v;
+        // AM9: die waagrechten Reihen (ohne Einrasten, das den Stand verschieben würde)
+        for (const [id, x] of Object.entries(this._reihenWieder ?? {})) {
+          const h = this.renderRoot.querySelector(`.hscroll[data-reihe="${id}"]`);
+          if (h && Math.abs(h.scrollLeft - x) > 0.5) h.scrollLeft = x;
+        }
         return true;
       };
       setze();
       if (this._scrollSchleife) return;
       this._scrollSchleife = true;
       const bis = Date.now() + 600;
-      const stopp = () => { this._scrollWieder = null; };
+      const stopp = () => { this._scrollWieder = null; this._reihenWieder = null; };
       this.renderRoot.addEventListener('touchstart', stopp, { once: true, passive: true });
       this.renderRoot.addEventListener('wheel', stopp, { once: true, passive: true });
       const schritt = () => {
         if (this._scrollWieder == null || Date.now() > bis || !this.isConnected || typeof requestAnimationFrame !== 'function') {
-          this._scrollWieder = null; this._scrollSchleife = false;
+          this._scrollWieder = null; this._reihenWieder = null; this._scrollSchleife = false;
           this.renderRoot.removeEventListener('touchstart', stopp); this.renderRoot.removeEventListener('wheel', stopp);
           return;
         }
@@ -812,8 +876,11 @@ if (lit) {
         if (r.name === 'serie') { this._flug = null; return; }
         const alle = [...wurzel.querySelectorAll('a[data-serie] .cover[data-cover]')].filter((c) => c.dataset.cover === f.id);
         const vp = wurzel.querySelector(this._layout === 'seite' ? '.spalte' : '.rahmen')?.getBoundingClientRect();
-        // mehrere Kacheln derselben Serie (Start): die erste, die im sichtbaren Teil liegt
-        el = (vp && alle.find((c) => { const b = c.getBoundingClientRect(); return b.bottom > vp.top && b.top < vp.bottom && b.right > vp.left && b.left < vp.right; })) ?? alle[0] ?? null;
+        // AM8: die angetippte Kachel (Reihe und Platz); gibt es sie nicht mehr: mehrere Kacheln derselben Serie (Start): die erste, die im sichtbaren Teil liegt
+        const k = f.kachel;
+        const box = k ? this._kachelContainer(k.reihe) : null;
+        const genau = box?.querySelectorAll('a[data-serie]')[k.index]?.querySelector('.cover[data-cover]');
+        el = (genau && genau.dataset.cover === f.id ? genau : null) ?? (vp && alle.find((c) => { const b = c.getBoundingClientRect(); return b.bottom > vp.top && b.top < vp.bottom && b.right > vp.left && b.left < vp.right; })) ?? alle[0] ?? null;
         if (!el) return; // die neue Seite lädt noch
         const sicht = wurzel.querySelector(this._layout === 'seite' ? '.spalte' : '.rahmen')?.getBoundingClientRect();
         const b = el.getBoundingClientRect();
@@ -1721,7 +1788,8 @@ if (lit) {
       .blatt-oben { float: right; position: sticky; top: 0; z-index: 3; margin: -12px -8px 0 8px; min-width: 64px; background: var(--card); color: var(--primary-ink); font-weight: 500; }
       .knoepfe:not(:empty) { position: sticky; bottom: 0; z-index: 2; background: var(--card); margin-top: 16px; padding: 8px 0; display: flex; flex-wrap: wrap; gap: 12px; justify-content: flex-end; }
       /* Am Handy füllt eine Fläche in Kartenfarbe unter dem Blatt den Spalt, wenn die Feder leicht über das Ziel schwingt */
-      @media (max-width: 699px) { dialog.blatt { margin: auto 0 0; max-width: none; border-radius: var(--r-big) var(--r-big) 0 0; box-shadow: 0 8px 32px var(--shadow), 0 80px 0 0 var(--card); } }
+      @media (max-width: 699px) { dialog.blatt[data-kbd] { margin-bottom: var(--vv-unten, 0px); max-height: calc(var(--vv-hoehe, 100dvh) - 8px); }
+        dialog.blatt { margin: auto 0 0; max-width: none; border-radius: var(--r-big) var(--r-big) 0 0; box-shadow: 0 8px 32px var(--shadow), 0 80px 0 0 var(--card); } }
 
       /* Meldungen */
       .toastbox { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(var(--navh) + var(--minih) + 16px); z-index: 2000; display: grid; gap: 8px; width: min(92%, 520px); pointer-events: none; }

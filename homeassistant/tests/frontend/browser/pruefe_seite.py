@@ -2361,8 +2361,63 @@ def flug_herkunft(L: Lauf, name, hash_, link, scrolle, weg, ausgabe):
         flug_ruhe_messen(L, r, z + "-zurueck", ausgabe, scroll=hin_scroll)
 
 
+REIHE_NEU = '.hscroll[data-reihe="neu"]'
+
+
+def flug_reihe(L: Lauf, fall, weg, ausgabe):
+    """AM8 und AM9: Start, Reihe „Neu hinzugefügt“. `am8`: eine Serie steht in der Reihe und noch einmal weiter oben (Schnellzugriff); die Kachel der Reihe wird angetippt, der Rückflug
+    landet auf ihr (±1 px), nicht auf der oberen. `am9`: die Reihe steht um etwa 300 px nach rechts gescrollt, eine Kachel darin wird angetippt; nach dem Zurück steht die Reihe wieder
+    dort (±2 px) und der Rückflug landet auf der angetippten Kachel (nicht: Reihe am Anfang, Ziel außerhalb, kein Flug)."""
+    z = f"flug-reihe-{fall}-{weg}"
+    with L.schritt(z):
+        L.gehe("#start")
+        L.warte_da(REIHE_NEU + " a[data-serie]")
+        L.js("for (const k of [...el._covers.bilder.keys()]) if (k.endsWith(':gross')) el._covers.bilder.delete(k)")
+        # die Serie der zweiten Kachel steht zusätzlich in „Am Handy weiterhören“ (eine Reihe darüber): so gibt es sie zweimal sichtbar auf dem Start
+        L.pg.evaluate("""async (reihe) => {
+          const sr = window.__el.shadowRoot; const id = sr.querySelectorAll(reihe + ' a[data-serie]')[1].dataset.serie; const c = window.__el.hass.connection;
+          const se = await c.sendMessagePromise({ type: 'tobibox/serie/get', serie_id: id });
+          await c.sendMessagePromise({ type: 'tobibox/hoerstelle/set', serie_id: id, folge: se.folgen[0].name, position_s: 10, dauer_s: 100 });
+          window.__am8Serie = { id, folge: se.folgen[0].name };
+        }""", REIHE_NEU)
+        L.gehe("#bibliothek")
+        L.gehe("#start")
+        L.warte_da('.hscroll[data-reihe="weiterhoeren"] a[data-serie]')
+        L.js("""const s = sr.querySelector(el.getAttribute('data-layout') === 'seite' ? '.spalte' : '.rahmen'); const w = sr.querySelector('.hscroll[data-reihe="weiterhoeren"]');
+          if (s) { s.scrollTop = 0; s.scrollTop = Math.max(0, w.getBoundingClientRect().top - 160); }
+          const r = sr.querySelector(x.reihe); r.scrollLeft = x.fall === 'am9' ? 300 : 0;""", {"reihe": REIHE_NEU, "fall": fall})
+        L.pg.wait_for_timeout(700)
+        L.pg.evaluate("() => window.__ruhe()")
+        wahl = L.js("""
+          const row = sr.querySelector(x.reihe); const rr = row.getBoundingClientRect();
+          const tiles = [...row.querySelectorAll('a[data-serie]')];
+          const ganz = (a) => { const c = a.querySelector('.cover').getBoundingClientRect(); return c.left >= Math.max(rr.left, 0) && c.right <= Math.min(rr.right, innerWidth) && c.top > 120 && c.bottom < innerHeight - 60; };
+          const imBild = (a) => { const c = a.querySelector('.cover').getBoundingClientRect(); return c.left >= 0 && c.right <= innerWidth && c.top >= 0 && c.bottom <= innerHeight; };
+          const andere = (a) => [...sr.querySelectorAll(`a[data-serie="${a.dataset.serie}"]`)].filter((o) => o !== a && imBild(o)).length;
+          const a = tiles.find((t) => ganz(t) && (x.fall === 'am8' ? andere(t) > 0 : !sr.querySelectorAll(`a[data-serie="${t.dataset.serie}"]`)[1]));
+          return a ? { id: a.dataset.serie, links: row.scrollLeft, index: tiles.indexOf(a) } : { diag: { rr: rr.toJSON(), h: innerHeight, w: innerWidth, t: tiles.map((t) => { const c = t.querySelector('.cover').getBoundingClientRect(); return [Math.round(c.left), Math.round(c.top), Math.round(c.bottom), andere(t)]; }) } };""", {"reihe": REIHE_NEU, "fall": fall})
+        if not L.pruefe("id" in wahl, z, f"Keine passende Kachel in der Reihe (am8: Serie auch ausserhalb der Reihe; am9: eigene Kachel im sichtbaren Teil) {wahl}"):
+            return
+        if fall == "am9":
+            L.pruefe(wahl["links"] > 100, z, f"Die Reihe liess sich nicht nach rechts scrollen (scrollLeft {wahl['links']})")
+        r = jsa(L, BEW_FLUG_RUHE, {"klick": f'{REIHE_NEU} a[data-serie="{wahl["id"]}"]', "istZiel": "e.classList.contains('se-xl')", "ziel": ".cover.se-xl"})
+        L.ruhe()
+        flug_ruhe_messen(L, r, z + "-hin", ausgabe, bild=True)
+        hin_scroll = r.get("scrollVorher", 0)
+        L.pg.wait_for_timeout(800)
+        r = jsa(L, BEW_FLUG_RUHE, {**FLUG_ZURUECK, "id": wahl["id"], "aus": "klick" if weg == "knopf" else "zurueck-taste", "knopf": "a[data-zurueck]" if weg == "knopf" else None,
+                                   "ziel": REIHE_NEU + ' a[data-serie="{id}"] .cover[data-cover]'})
+        L.ruhe()
+        L.pruefe(L.hash() in ("#start", ""), z, f"Nach dem Zurück steht {L.hash()!r}, erwartet '#start'")
+        flug_ruhe_messen(L, r, z + "-zurueck", ausgabe, scroll=hin_scroll)
+        nachher = L.js("return sr.querySelector(x).scrollLeft", REIHE_NEU)
+        L.pruefe(abs(nachher - wahl["links"]) <= 2, z, f"Die Reihe steht nach dem Zurück bei {nachher:.0f} px, vorher bei {wahl['links']:.0f} px (erlaubt ±2 px)")
+        # aufräumen: die Hörstelle der Prüfung gilt als fertig gehört (fällt aus der Reihe „Am Handy weiterhören“)
+        L.pg.evaluate("""async () => { const m = window.__am8Serie; if (m) await window.__el.hass.connection.sendMessagePromise({ type: 'tobibox/hoerstelle/set', serie_id: m.id, folge: m.folge, position_s: 100, dauer_s: 100, fertig: true }); }""")
+
+
 def ablauf_flug_ruhe(L: Lauf):
-    """AM5, AM6, AM7: Hin- und Rückflug des Covers von Start und Bibliothek, mit laufendem Player (Mini-Leiste), oben und gescrollt, Rückweg per „‹ Start/Bibliothek“ und per
+    """AM5 bis AM9: Hin- und Rückflug des Covers von Start und Bibliothek, mit laufendem Player (Mini-Leiste), oben und gescrollt, Rückweg per „‹ Start/Bibliothek“ und per
     Zurück-Taste. Das Ziel steht beim Start des Flugs ruhig (AM5), der Knopf heißt nach der Herkunft, der Scrollstand kehrt zurück (AM6), das große Cover hat nie ein leeres Bild (AM7)."""
     L.gehe("#bibliothek")
     if not L.da("a.lrow[data-serie], a.rcard[data-serie]"):
@@ -2379,13 +2434,83 @@ def ablauf_flug_ruhe(L: Lauf):
                                        ("bibliothek", "#bibliothek", "a.lrow[data-serie], a.rcard[data-serie]", 900), ("start", "#start", "a.rcard[data-serie], a.qt[data-serie], a.tile[data-serie], a.lrow[data-serie]", 0)):
         for weg in ("knopf", "zurueck-taste"):
             flug_herkunft(L, name, hash_, link, scrolle, weg, ausgabe)
+    for fall in ("am8", "am9"):
+        for weg in ("knopf", "zurueck-taste"):
+            flug_reihe(L, fall, weg, ausgabe)
     player_aus(L)
+
+
+def ablauf_serie_zeile(L: Lauf):
+    """AM11: Die ganze Folgenzeile der Serienseite ist eine Fläche zum Antippen (Knopf über der Zeile, Name wie der frühere Play-Knopf). Der runde Play-Knopf entfällt; „⋯“ und Tobie-Chips
+    bleiben eigene Ziele. Geprüft mit `elementFromPoint`: Zeilenmitte und freie Stelle → Zeilenknopf, „⋯“-Mitte → „⋯“, Chip-Mitte → Chip; der Zeilenknopf deckt die ganze Zeile (±1 px)."""
+    with L.schritt("serie-zeile"):
+        L.gehe("#serie-lang")
+        L.warte_da('[data-folge="f02.mp3"]')
+        L.js("sr.querySelector('[data-folge=\"f02.mp3\"]').scrollIntoView({ block: 'center' })")
+        L.pg.wait_for_timeout(500)
+        r = L.js("""
+          const z = sr.querySelector('[data-folge="f02.mp3"]'); const mitte = (e) => { const b = e.getBoundingClientRect(); return [b.left + b.width / 2, b.top + b.height / 2]; };
+          const treffer = (e) => { const [x, y] = mitte(e); const t = sr.elementFromPoint(x, y); return t ? (t.closest('.se-zeilenknopf, .se-more, .tb-chip, .se-play') || t).className : null; };
+          const k = z.querySelector('.se-zeilenknopf'); const zb = z.getBoundingClientRect(); const kb = k ? k.getBoundingClientRect() : null;
+          const nm = z.querySelector('.nm'); const chip = z.querySelector('.tb-chip');
+          return { play: !!z.querySelector('.se-play'), knopf: !!k, name: k && k.getAttribute('aria-label'),
+            deckt: kb && Math.max(Math.abs(kb.left - zb.left), Math.abs(kb.top - zb.top), Math.abs(kb.right - zb.right), Math.abs(kb.bottom - zb.bottom)),
+            aufText: treffer(nm), aufMehr: treffer(z.querySelector('.se-more')), aufChip: chip ? treffer(chip) : null, aufDauer: z.querySelector('.se-dauer').offsetParent ? treffer(z.querySelector('.se-dauer')) : null };""")
+        L.pruefe(not r["play"], "serie-zeile", "Der runde Play-Knopf (.se-play) steht noch in der Zeile")
+        L.pruefe(r["knopf"] and r["deckt"] is not None and r["deckt"] <= 1, "serie-zeile", f"Der Zeilenknopf deckt die Zeile nicht ({r})")
+        L.pruefe("abspielen" in (r["name"] or "") or "pausieren" in (r["name"] or ""), "serie-zeile", f"Name des Zeilenknopfs: {r['name']!r}")
+        L.pruefe("se-zeilenknopf" in (r["aufText"] or ""), "serie-zeile", f"Ein Tipp auf den Titel trifft {r['aufText']!r}, nicht den Zeilenknopf")
+        L.pruefe(r["aufDauer"] is None or "se-zeilenknopf" in r["aufDauer"], "serie-zeile", f"Ein Tipp auf die Dauer trifft {r['aufDauer']!r}, nicht den Zeilenknopf")
+        L.pruefe("se-more" in (r["aufMehr"] or ""), "serie-zeile", f"Ein Tipp auf „⋯“ trifft {r['aufMehr']!r}")
+        if r["aufChip"] is not None:
+            L.pruefe("tb-chip" in r["aufChip"], "serie-zeile", f"Ein Tipp auf den Tobie-Chip trifft {r['aufChip']!r}")
+
+
+def ablauf_blatt_tastatur(L: Lauf):
+    """AM10 (Tobias, iPhone): Das Blatt „Umbenennen“ sitzt bei offener Tastatur direkt über der Tastatur. Die Tastatur wird nachgestellt, indem `visualViewport` der App durch ein Ersatzobjekt
+    mit kleinerer Höhe ersetzt wird (das Layout-Viewport bleibt, wie auf dem iPhone). Geprüft: Unterkante des Blatts ≤ Oberkante der Tastatur, Titel, Textfeld und „Speichern“ liegen
+    ganz im sichtbaren Teil (auch bei sehr wenig Platz: das Blatt scrollt in sich), danach sitzt das Blatt wieder unten. Nur im Telefon-Layout (unter 700 px)."""
+    if L.js("return innerWidth") >= 700:
+        return
+    with L.schritt("blatt-tastatur"):
+        L.gehe("#serie-lang")
+        L.warte_da("[data-menue-serie]")
+        L.klick("[data-menue-serie]")
+        L.klick('dialog [data-menue="name"]')
+        L.warte_da("#se-name")
+        L.pg.wait_for_timeout(700)
+        hoehe = L.js("return innerHeight")
+        for tastatur, versatz in ((336, 0), (336, 40), (560, 0)):
+            z = f"blatt-tastatur-{tastatur}-{versatz}"
+            # Ersatz: der sichtbare Teil beginnt `versatz` px unter dem Seitenanfang und ist `hoehe - tastatur - versatz` hoch; die Tastatur beginnt bei `hoehe - tastatur`
+            L.js("el._vvEcht ??= el._vv; el._vv = { height: innerHeight - x.t - x.v, offsetTop: x.v, addEventListener() {}, removeEventListener() {} }; sr.querySelector('#se-name').blur(); sr.querySelector('#se-name').focus();", {"t": tastatur, "v": versatz})
+            L.pg.wait_for_timeout(500)
+            m = L.js("""
+              const d = sr.querySelector('dialog.blatt[open]'); const r = (e) => { const b = e.getBoundingClientRect(); return { t: b.top, b: b.bottom, l: b.left, r: b.right }; };
+              return { dialog: r(d), feld: r(sr.querySelector('#se-name')), speichern: r(d.querySelector('.knoepfe .btn.primary')), titel: r(d.querySelector('h2')), kbd: d.hasAttribute('data-kbd'), diag: [el._kbd, el._schmal, !!el._vv, el._vv && el._vv.height, innerHeight, sr.activeElement && sr.activeElement.id, el._layout], scroll: d.scrollTop, hoch: d.scrollHeight > d.clientHeight };""")
+            kbd = hoehe - tastatur
+            sichtbar_oben = versatz
+            L.pruefe(m["kbd"], z, f"Das Blatt weiss nichts von der Tastatur (data-kbd fehlt) {m['diag']}")
+            L.pruefe(m["dialog"]["b"] <= kbd + 1, z, f"Unterkante des Blatts {m['dialog']['b']:.0f} px liegt unter der Oberkante der Tastatur {kbd} px")
+            L.pruefe(m["dialog"]["t"] >= sichtbar_oben - 1, z, f"Oberkante des Blatts {m['dialog']['t']:.0f} px liegt über dem sichtbaren Teil ({sichtbar_oben} px)")
+            for name in ("feld", "speichern"):
+                L.pruefe(sichtbar_oben - 1 <= m[name]["t"] and m[name]["b"] <= kbd + 1 and m[name]["b"] <= m["dialog"]["b"] + 1 and m[name]["t"] >= m["dialog"]["t"] - 1, z, f"{name} liegt nicht ganz im sichtbaren Teil des Blatts: {m[name]} (Blatt {m['dialog']}, Tastatur ab {kbd})")
+            if tastatur < 500:
+                L.pruefe(m["titel"]["t"] >= m["dialog"]["t"] - 1 and m["titel"]["b"] <= kbd + 1, z, f"Titel nicht sichtbar: {m['titel']}")
+        # Tastatur zu: das Blatt sitzt wieder ganz unten
+        L.js("el._vv = el._vvEcht; sr.querySelector('#se-name').blur();")
+        L.pg.wait_for_timeout(500)
+        m = L.js("const d = sr.querySelector('dialog.blatt[open]'); return { b: d.getBoundingClientRect().bottom, kbd: d.hasAttribute('data-kbd'), h: innerHeight };")
+        L.pruefe(not m["kbd"] and abs(m["b"] - m["h"]) <= 1, "blatt-tastatur-zu", f"Nach dem Schliessen der Tastatur sitzt das Blatt nicht unten ({m})")
+        L.js("el.schliesseBlatt('code')")
+        L.pg.wait_for_timeout(500)
+        L.ruhe()
 
 
 ABLAEUFE = [ablauf_unterkante, ablauf_reiter, ablauf_klicks, ablauf_reihen, ablauf_suche, ablauf_bibliothek, ablauf_serie, ablauf_cover, ablauf_leise, ablauf_box, ablauf_technik, ablauf_blaetter,
             ablauf_tobies_weg1, ablauf_tobies_weg2, ablauf_tobies_meldung, ablauf_tobies_umhaengen, ablauf_tobies_geben, ablauf_tobies_lernmodus,
             ablauf_tobies_name_geben_weit_unten, ablauf_hinzufuegen, ablauf_eingang_liste, ablauf_eingang, ablauf_papierkorb, ablauf_papierkorb_punkt, ablauf_bewegung,
-            ablauf_druck, ablauf_seitenwechsel, ablauf_player_bewegung, ablauf_flug_ruhe, ablauf_player]
+            ablauf_druck, ablauf_seitenwechsel, ablauf_player_bewegung, ablauf_flug_ruhe, ablauf_blatt_tastatur, ablauf_serie_zeile, ablauf_player]
 
 
 # ------------------------------------------------------------------ Browser und Läufe

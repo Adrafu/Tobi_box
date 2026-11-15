@@ -679,7 +679,7 @@ class SerieSeite {
       ${alle.length > SICHTBAR && !ordnen ? html`<label class="sr" for="se-suche">${SERIE.suchen.label}</label>
         <input id="se-suche" class="se-sfeld" type="search" autocomplete="off" placeholder=${SERIE.suchen.platzhalter} .value=${this.sterm}
           @input=${(e) => { this.sterm = e.target.value; this.gezeigt = SICHTBAR; ctx.neuZeichnen(); }}>` : nothing}
-      ${treffer.length ? html`<div class="se-karte" data-liste="folgen">${ctx.layout === 'seite' && !ordnen ? html`<div class="se-spalten" aria-hidden="true" ?data-play=${ctx.faehig('reinhoeren')}><span class="c-nr">${SERIE.spalten.nr}</span><span>${SERIE.spalten.titel}</span><span class="c-dauer">${SERIE.spalten.dauer}</span>${ctx.faehig('reinhoeren') ? html`<span></span>` : nothing}<span></span></div>` : nothing}${repeat(treffer.slice(0, this.gezeigt), ({ x }) => x.name, ({ x, i }) => this._zeile(x, i, alle.length, ordnen))}</div>
+      ${treffer.length ? html`<div class="se-karte" data-liste="folgen">${ctx.layout === 'seite' && !ordnen ? html`<div class="se-spalten" aria-hidden="true"><span class="c-nr">${SERIE.spalten.nr}</span><span>${SERIE.spalten.titel}</span><span class="c-dauer">${SERIE.spalten.dauer}</span><span></span></div>` : nothing}${repeat(treffer.slice(0, this.gezeigt), ({ x }) => x.name, ({ x, i }) => this._zeile(x, i, alle.length, ordnen))}</div>
           ${rest > 0 ? html`<div class="btns se-mehr"><button type="button" class="btn" data-mehr @click=${() => { this.gezeigt += SICHTBAR; ctx.neuZeichnen(); }}>${fuellen(SERIE.mehr_laden, { anzahl: Math.min(rest, SICHTBAR) })}</button></div>` : nothing}`
         : ctx.leer('suche', 'sucheOhneTreffer', { werte: { suchwort: term }, aktion: () => { this.sterm = ''; ctx.neuZeichnen(); } })}`;
   }
@@ -701,15 +701,16 @@ class SerieSeite {
     const laeuft = laeuftAn(this.id, x.name);
     const spielt = laeuft && abspiel.spielt;
     const sp = this.ctx.faehig('reinhoeren') && !ordnen;
+    // AM11: die ganze Zeile spielt. Ein durchsichtiger Knopf über der Zeilenfläche (Name wie der frühere Knopf) trägt die Bedienung; „⋯“ und die Tobie-Chips liegen darüber und bleiben eigene Ziele.
     return html`<div class="frow se-zeile" data-folge=${x.name} ?data-play=${sp}>
-      <span class="se-num">${laeuft ? eq(abspiel.spielt) : html`<span aria-hidden="true">${x.nummer ?? i + 1}</span>`}</span>
+      ${sp ? html`<button type="button" class="se-zeilenknopf" data-abspielen aria-label=${fuellen(spielt ? PLAYER.folge.pausieren : PLAYER.folge.abspielen, { titel })}
+        @click=${() => this.ctx.spieler.schalte({ serie: this.z.serie, folge: x.name })}></button>` : nothing}<span class="se-num">${laeuft ? eq(abspiel.spielt) : html`<span aria-hidden="true">${x.nummer ?? i + 1}</span>`}</span>
       <div class="grow"><span class="nm">${titel}</span>${meta ? html`<span class="muted se-meta-voll">${meta}</span>` : nothing}${teile.kapitel ? html`<span class="muted se-meta-kap">${teile.kapitel}</span>` : nothing}${fort}${folgenChips(this.id, x)}</div>
       <span class="se-dauer" aria-hidden="true">${teile.dauer}</span>
       ${ordnen
         ? html`<button type="button" class="iconbtn se-ord" data-auf ?disabled=${i === 0} aria-label=${fuellen(SERIE.reihenfolge.hoch, { titel })} @click=${() => this.bewege(i, -1)}>▲</button>
           <button type="button" class="iconbtn se-ord" data-ab ?disabled=${i === n - 1} aria-label=${fuellen(SERIE.reihenfolge.runter, { titel })} @click=${() => this.bewege(i, 1)}>▼</button>`
-        : html`${sp ? html`<button type="button" class="iconbtn fillp se-play" data-abspielen aria-label=${fuellen(spielt ? PLAYER.folge.pausieren : PLAYER.folge.abspielen, { titel })}
-          @click=${() => this.ctx.spieler.schalte({ serie: this.z.serie, folge: x.name })}>${ic(spielt ? 'pause' : 'play', 24)}</button>` : nothing}<button type="button" class="iconbtn se-more" data-menue-folge aria-haspopup="dialog" aria-label=${fuellen(SERIE.mehr_zu, { titel })} @click=${(e) => this.folgeMenue(x, e.currentTarget)}>${ic('more', 22)}</button>`}</div>`;
+        : html`<button type="button" class="iconbtn se-more" data-menue-folge aria-haspopup="dialog" aria-label=${fuellen(SERIE.mehr_zu, { titel })} @click=${(e) => this.folgeMenue(x, e.currentTarget)}>${ic('more', 22)}</button>`}</div>`;
   }
 }
 
@@ -720,7 +721,14 @@ export const stil = () => css`
   .se-mehr-knopf { margin-right: -8px; } /* ohne Fläche wie im Prototyp (Kopf), die Zeilen haben die getönte Fläche (X25) */
   .se-more { min-width: 44px; min-height: 44px; width: 44px; height: 44px; border-radius: 12px; border: 0; background: var(--primary-soft); color: var(--primary-ink); flex: none; margin-left: 8px; }
   .se-more svg, .se-mehr-knopf svg { fill: currentColor; }
-  .se-play { margin-left: 8px; }
+  /* AM11: Zeilenfläche als Knopf. Text und Zahlen lassen den Tipp durch; „⋯“ und Chips fangen ihn selbst ab. */
+  .se-zeile { position: relative; transition: transform var(--dauer-feder) var(--feder); }
+  .se-zeile:has(> .se-zeilenknopf:active) { transform: scale(var(--druck-zeile)); transition-duration: var(--dauer-kurz); transition-timing-function: var(--kurve); }
+  .se-zeilenknopf { position: absolute; inset: 0; z-index: 0; width: 100%; padding: 0; border: 0; background: none; color: inherit; font: inherit; border-radius: 12px; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  .se-zeilenknopf:focus-visible { outline: 3px solid var(--focus); outline-offset: -3px; }
+  .se-zeile > :not(.se-zeilenknopf) { position: relative; }
+  .se-zeile[data-play] > .se-num, .se-zeile[data-play] > .grow, .se-zeile[data-play] > .se-dauer { pointer-events: none; }
+  .se-zeile[data-play] .tb-chips, .se-zeile .se-more, .se-zeile .se-ord { pointer-events: auto; }
   .se-num { display: grid; place-items: center; }
   .se-rein { display: grid; justify-items: center; gap: 6px; margin: 4px 0 12px; text-align: center; }
   .se-rein .btn { width: 100%; max-width: 420px; }
@@ -750,8 +758,6 @@ export const stil = () => css`
   .app[data-layout="seite"] .se-abschnitt { font-size: 22px; font-weight: 700; letter-spacing: -0.2px; }
   .app[data-layout="seite"] .se-karte { padding: 0; overflow: hidden; border-radius: 20px; box-shadow: 0 1px 4px var(--shadow); }
   .app[data-layout="seite"] .se-spalten, .app[data-layout="seite"] .se-zeile { display: grid; grid-template-columns: 56px minmax(0, 1fr) 96px 44px; column-gap: 12px; align-items: center; padding-inline: 20px; }
-  .app[data-layout="seite"] .se-spalten[data-play], .app[data-layout="seite"] .se-zeile[data-play] { grid-template-columns: 56px minmax(0, 1fr) 96px 48px 44px; }
-  .app[data-layout="seite"] .se-zeile .se-play { margin-left: 0; }
   .app[data-layout="seite"] .se-spalten { min-height: 48px; font-size: 13px; font-weight: 500; letter-spacing: 0.4px; text-transform: uppercase; color: var(--text2); border-bottom: 1px solid var(--divider); }
   .app[data-layout="seite"] .se-spalten .c-nr { text-align: center; }
   .app[data-layout="seite"] .se-spalten .c-dauer, .app[data-layout="seite"] .se-dauer { text-align: right; }
