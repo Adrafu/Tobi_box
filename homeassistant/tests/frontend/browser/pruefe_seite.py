@@ -2464,6 +2464,16 @@ def ablauf_serie_zeile(L: Lauf):
         L.pruefe("se-more" in (r["aufMehr"] or ""), "serie-zeile", f"Ein Tipp auf „⋯“ trifft {r['aufMehr']!r}")
         if r["aufChip"] is not None:
             L.pruefe("tb-chip" in r["aufChip"], "serie-zeile", f"Ein Tipp auf den Tobie-Chip trifft {r['aufChip']!r}")
+        # AM13: Tipp auf die laufende Folge öffnet die Vollansicht, der Ton läuft weiter
+        L.klick('[data-folge="f02.mp3"] .se-zeilenknopf')
+        L.pg.wait_for_function("() => { const a = window.__el.shadowRoot.querySelector('audio'); return a && a.currentTime > 0.4 && !a.paused; }", timeout=8000)
+        L.pruefe("im Player öffnen" in (L.js("return sr.querySelector('[data-folge=\"f02.mp3\"] .se-zeilenknopf').getAttribute('aria-label')") or ""), "serie-zeile-oeffnen", "Die laufende Folge heisst nicht „im Player öffnen“")
+        L.klick('[data-folge="f02.mp3"] .se-zeilenknopf')
+        L.pg.wait_for_selector("dialog.player[open]", timeout=4000)
+        L.pg.wait_for_timeout(500)
+        a = audio_stand(L)
+        L.pruefe(L.da("dialog.player[open]") and not a.get("pausiert", True), "serie-zeile-oeffnen", f"Tipp auf die laufende Folge: Vollansicht offen, Ton darf nicht pausiert sein ({a})")
+        player_aus(L)
 
 
 def ablauf_blatt_tastatur(L: Lauf):

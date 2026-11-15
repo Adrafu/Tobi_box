@@ -699,12 +699,14 @@ class SerieSeite {
         <span class="ls">${fuellen(ZEILE.rest, { dauer: uhr(Math.max(0, x.dauer_s - stelle)) })}</span>`;
     }
     const laeuft = laeuftAn(this.id, x.name);
-    const spielt = laeuft && abspiel.spielt;
     const sp = this.ctx.faehig('reinhoeren') && !ordnen;
     // AM11: die ganze Zeile spielt. Ein durchsichtiger Knopf über der Zeilenfläche (Name wie der frühere Knopf) trägt die Bedienung; „⋯“ und die Tobie-Chips liegen darüber und bleiben eigene Ziele.
+    // AM13: Ist es die geladene Folge (läuft oder pausiert), öffnet der Tipp die Vollansicht des Players und lässt den Ton, wie er ist. Jede andere Folge startet wie bisher.
+    const geladen = laeuft && this.ctx.spieler.ist(this.z.serie.id, x.name) && !!this.ctx.spieler._quelle;
+    const tippe = () => { if (geladen) this.ctx.spieler.oeffnen(); else this.ctx.spieler.schalte({ serie: this.z.serie, folge: x.name }); };
     return html`<div class="frow se-zeile" data-folge=${x.name} ?data-play=${sp}>
-      ${sp ? html`<button type="button" class="se-zeilenknopf" data-abspielen aria-label=${fuellen(spielt ? PLAYER.folge.pausieren : PLAYER.folge.abspielen, { titel })}
-        @click=${() => this.ctx.spieler.schalte({ serie: this.z.serie, folge: x.name })}></button>` : nothing}<span class="se-num">${laeuft ? eq(abspiel.spielt) : html`<span aria-hidden="true">${x.nummer ?? i + 1}</span>`}</span>
+      ${sp ? html`<button type="button" class="se-zeilenknopf" data-abspielen aria-label=${fuellen(geladen ? PLAYER.folge.oeffnen : PLAYER.folge.abspielen, { titel })}
+        @click=${tippe}></button>` : nothing}<span class="se-num">${laeuft ? eq(abspiel.spielt) : html`<span aria-hidden="true">${x.nummer ?? i + 1}</span>`}</span>
       <div class="grow"><span class="nm">${titel}</span>${meta ? html`<span class="muted se-meta-voll">${meta}</span>` : nothing}${teile.kapitel ? html`<span class="muted se-meta-kap">${teile.kapitel}</span>` : nothing}${fort}${folgenChips(this.id, x)}</div>
       <span class="se-dauer" aria-hidden="true">${teile.dauer}</span>
       ${ordnen

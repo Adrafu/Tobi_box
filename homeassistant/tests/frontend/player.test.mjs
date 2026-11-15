@@ -709,7 +709,7 @@ mit('„Hier weiterhören“ spielt die Folge an der gemerkten Stelle (hoerstell
   assert.equal(s.q('.mini .mt').textContent, 'Das Gespensterschloss');
 });
 
-mit('Folgenzeile (AM11): die ganze Zeile (Knopf über der Zeilenfläche) spielt genau diese Folge, bei der laufenden „Pause“; die Nummer wird zur Abspiel-Anzeige', async () => {
+mit('Folgenzeile (AM11): die ganze Zeile (Knopf über der Zeilenfläche) spielt genau diese Folge; die Nummer wird zur Abspiel-Anzeige', async () => {
   const s = await spielSeite({ hash: '#serie-s1' });
   const knopf = (n) => s.q(`[data-folge="${n}"] [data-abspielen]`);
   assert.equal(knopf('folge-02.mp3').getAttribute('aria-label'), 'Das Gespensterschloss abspielen');
@@ -718,17 +718,54 @@ mit('Folgenzeile (AM11): die ganze Zeile (Knopf über der Zeilenfläche) spielt 
   lade(s.audio(), 130);
   await s.flush(8);
   assert.equal(bereitAufrufe(s).at(-1).folge, 'folge-02.mp3');
-  assert.equal(knopf('folge-02.mp3').getAttribute('aria-label'), 'Das Gespensterschloss pausieren');
+  assert.equal(knopf('folge-02.mp3').getAttribute('aria-label'), 'Das Gespensterschloss im Player öffnen', 'AM13: die geladene Folge öffnet den Player');
   assert.equal(knopf('folge-01.mp3').getAttribute('aria-label'), 'Der Rabe abspielen');
   assert.ok(s.q('[data-folge="folge-02.mp3"] .se-num .eq'), 'die Abspiel-Anzeige steht statt der Nummer');
   assert.equal(s.q('[data-folge="folge-02.mp3"] .se-num .eq').getAttribute('aria-label'), 'läuft gerade');
   assert.equal(s.q('[data-folge="folge-01.mp3"] .se-num .eq'), null);
   assert.ok(s.q('.se-hero h2 .eq'), 'auch am Kopf der Serienseite, hinter dem Namen');
-  knopf('folge-02.mp3').click();
+  s.el.spieler.toggle();
   await s.flush(8);
   assert.equal(s.q('[data-folge="folge-02.mp3"] .se-num .eq').getAttribute('aria-label'), 'pausiert');
   assert.ok(s.q('[data-folge="folge-02.mp3"] .se-num .eq').classList.contains('still'), 'bei Pause stehen die Balken still');
   assert.equal(bereitAufrufe(s).length, 1, 'Pause fragt nichts mehr');
+});
+
+mit('Folgenzeile (AM13): Tipp auf die geladene Folge öffnet die Vollansicht und lässt den Ton; jede andere Folge startet', async () => {
+  const s = await spielSeite({ hash: '#serie-s1' });
+  const knopf = (n) => s.q(`[data-folge="${n}"] [data-abspielen]`);
+  knopf('folge-02.mp3').click();
+  await s.flush(12);
+  const a = s.audio();
+  lade(a, 130);
+  await s.flush(8);
+  assert.equal(a.paused, false, 'die Folge läuft');
+  assert.equal(s.q('dialog.player'), null);
+  // laufend: Tipp öffnet die Vollansicht, der Ton läuft weiter
+  knopf('folge-02.mp3').click();
+  await s.flush(12);
+  assert.ok(s.q('dialog.player'), 'die Vollansicht ist offen');
+  assert.equal(a.paused, false, 'der Ton läuft weiter');
+  assert.equal(bereitAufrufe(s).length, 1, 'nichts neu geladen');
+  s.el.spieler.schliessen('knopf'); await s.flush(30);
+  s.el.spieler.offen = false; s.el.neuZeichnen?.(); await s.flush(8);
+  // pausiert: Tipp öffnet die Vollansicht, bleibt pausiert
+  s.el.spieler.toggle();
+  await s.flush(8);
+  assert.equal(a.paused, true, 'pausiert');
+  s.el.spieler.offen = false; await s.flush(8);
+  assert.equal(knopf('folge-02.mp3').getAttribute('aria-label'), 'Das Gespensterschloss im Player öffnen');
+  knopf('folge-02.mp3').click();
+  await s.flush(12);
+  assert.ok(s.q('dialog.player'), 'auch pausiert öffnet der Tipp die Vollansicht');
+  assert.equal(a.paused, true, 'und bleibt pausiert');
+  s.el.spieler.offen = false; await s.flush(8);
+  // andere Folge: startet
+  assert.equal(knopf('folge-01.mp3').getAttribute('aria-label'), 'Der Rabe abspielen');
+  knopf('folge-01.mp3').click();
+  await s.flush(12);
+  assert.equal(bereitAufrufe(s).at(-1).folge, 'folge-01.mp3', 'eine andere Folge startet');
+  assert.equal(s.q('dialog.player'), null, 'ohne Vollansicht');
 });
 
 mit('Folgenzeile (AM11): kein runder Play-Knopf mehr; „⋯“ und Tobie-Chip starten nichts', async () => {

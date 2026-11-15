@@ -1057,7 +1057,7 @@ export const PLAYER = {
     zusatz: '{ziel} · ab {zeit}', // „Folge 3: Die alte Mühle · ab 0:47“
     hinweis: 'Das spielt hier am Handy oder Computer, nicht auf der Box.', // beim ersten Mal (G17)
   },
-  folge: { abspielen: '{titel} abspielen', pausieren: '{titel} pausieren' }, // aria-label der Abspielknöpfe der Zeilen
+  folge: { abspielen: '{titel} abspielen', pausieren: '{titel} pausieren', oeffnen: '{titel} im Player öffnen' }, // aria-label der Abspielknöpfe der Zeilen; `oeffnen` (AM13) für die geladene Folge der Serienseite
   reihe: { weiterhoeren: '{name} weiterhören' }, // aria-label des Knopfs auf der Kachel der Reihe „Am Handy weiterhören“ (Start)
   anzeige: { laeuft: 'läuft gerade', pausiert: 'pausiert' }, // Abspiel-Anzeige (drei Balken), Design 4
 };
