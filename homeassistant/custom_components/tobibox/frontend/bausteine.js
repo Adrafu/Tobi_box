@@ -217,7 +217,7 @@ export class CoverLader {
   async _setze(el) {
     const key = el._coverKey;
     const url = await this.blobUrl(el.dataset.cover, el.dataset.stand);
-    if (url && el._coverKey === key && el.isConnected) {
+    if (url && el._coverKey === key && el.isConnected && !el.dataset.gross) { // `gross`: der Player hat schon die große Fassung gesetzt (AM14)
       el.style.backgroundImage = `url("${url}")`;
       el.dataset.bild = '1';
     }

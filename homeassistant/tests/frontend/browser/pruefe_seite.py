@@ -2007,7 +2007,13 @@ while (performance.now() - t0 < 2500 && !flug) { await new Promise((r) => reques
 if (!flug) return { flug: false, vt: B.vt, mitTransform: B.calls.filter((c) => c.kf.some((k) => 'transform' in k && /translate|scale/.test(k.transform))).length };
 const proben = []; let luecken = 0; const t1 = performance.now();
 const ziel = () => (x.auf ? grossEl() : mini());
+// AM14: in jedem Bild trägt der Klon ein Bild (`url(`) und zeigt keine Ersatzkachel (`.bst` sichtbar)
+const bildDa = (e) => !!e && /url\\(/.test(getComputedStyle(e).backgroundImage);
+const bstZu = (e) => !!e && [...e.querySelectorAll('.bst')].some((b) => getComputedStyle(b).visibility !== 'hidden');
+const quelleBild = bildDa(x.auf ? mini() : grossEl()); // war am Start schon ein Bild da?
+const bildProben = [];
 const probe = () => {
+  bildProben.push({ klonBild: bildDa(flug.el), klonBst: bstZu(flug.el), zielBst: bstZu(ziel()) && sichtbar(ziel()) });
   const r = rechteck(flug.el);
   const pe = flug.el.style.pointerEvents; flug.el.style.pointerEvents = 'auto'; // der Klon fängt keine Eingaben ab (N17); für die Messung der Schichten kurz an
   const hit = sr.elementFromPoint((r.l + r.r) / 2, (r.t + r.b) / 2); const oben = !!hit && flug.el.contains(hit);
@@ -2019,7 +2025,7 @@ while (flug.el.isConnected && flug.an.playState !== 'finished' && flug.an.playSt
 for (let i = 0; i < 4; i += 1) { await new Promise((r) => requestAnimationFrame(r)); if (!sichtbar(flug.el) && !sichtbar(ziel())) luecken += 1; }
 luecken += proben.filter((p) => p.luecke).length;
 const z = ziel();
-return { flug: true, vt: B.vt, start, ende: z ? rechteck(z) : null, proben, luecken, klonDa: flug.el.isConnected, zielSichtbar: sichtbar(z),
+return { flug: true, quelleBild, bildProben, zielBild: bildDa(z), zielBst: bstZu(z), vt: B.vt, start, ende: z ? rechteck(z) : null, proben, luecken, klonDa: flug.el.isConnected, zielSichtbar: sichtbar(z),
   miniSichtbar: sichtbar(mini()), dialogDa: !!sr.querySelector('dialog.player'), tf: z ? getComputedStyle(z).transform : null };
 """
 
@@ -2223,6 +2229,13 @@ def ablauf_player_bewegung(L: Lauf):
             L.pruefe(r["luecken"] == 0, z, f"{r['luecken']} Bilder ohne sichtbares Cover")
             L.pruefe(r["vt"] == 0, z, "startViewTransition wurde aufgerufen")
             L.pruefe(not r["klonDa"], z, "Der Klon bleibt nach dem Flug stehen")
+            # AM14: Bild nie leer, Ersatzkachel nie zu sehen, solange am Start schon ein Bild da war
+            if r["quelleBild"]:
+                bp = r["bildProben"]
+                L.pruefe(bp and all(p["klonBild"] for p in bp), z, f"Der Klon hat in {sum(1 for p in bp if not p['klonBild'])} von {len(bp)} Bildern kein Hintergrundbild")
+                L.pruefe(not any(p["klonBst"] for p in bp), z, f"Die Ersatzkachel (Buchstabe) ist im Klon in {sum(1 for p in bp if p['klonBst'])} von {len(bp)} Bildern zu sehen")
+                L.pruefe(not any(p["zielBst"] for p in bp), z, "Die Ersatzkachel des Ziels ist während des Flugs zu sehen")
+                L.pruefe(r["zielBild"] and not r["zielBst"], z, "Das Ziel hat nach der Landung kein Bild oder zeigt die Ersatzkachel")
             if richtung == "auf":
                 L.pruefe(r["zielSichtbar"] and r["tf"] == "none", z, f"Das große Cover ist nach dem Flug nicht sichtbar/unverschoben: {r['tf']}")
                 L.pg.wait_for_timeout(300)

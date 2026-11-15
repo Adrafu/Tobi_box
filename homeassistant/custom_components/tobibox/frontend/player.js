@@ -819,26 +819,52 @@ export class Spieler {
     const w = this.ctx.wurzel;
     if (!w) return;
     const d = w.querySelector('dialog.player');
+    if (d) this._grossesCover(d); // AM14: zuerst das Bild setzen, erst danach klont `_dialogEin` das große Cover für den Flug
     if (d && !d.dataset.offen) { d.dataset.offen = '1'; this._dialogEin(d); }
-    if (d) this._grossesCover(d);
     this._miniWechsel();
     this._tick();
     const sl = d?.querySelector('.pslider');
     if (sl && !this._zieht) { const g = this.gesamt; sl.value = String(Math.round(Math.min(this.gpos, g || this.gpos))); }
   }
 
-  /* Das große Cover bekommt zuerst das Bild des Mini-Covers (kein Aufblitzen im Flug) und dann die große Fassung. */
+  /* Das große Cover bekommt zuerst das kleine Bild (vom Mini-Cover oder aus dem Cover-Lader) und dann die große Fassung (AM14, wie AM7 auf der Serienseite).
+   * So trägt auch der Klon im Flug (Öffnen und Schließen) schon ein Bild und nicht die Ersatzkachel. Die große Fassung wird erst dekodiert und blendet dann über. */
   _grossesCover(d) {
     const big = d.querySelector('.pin > .cover');
     const mini = this._miniCover();
     const { serie } = this.s;
     if (!big || big.dataset.pxl === serie.id + (serie.cover_stand ?? '')) return;
-    big.dataset.pxl = serie.id + (serie.cover_stand ?? '');
-    if (mini?.style.backgroundImage) { big.style.backgroundImage = mini.style.backgroundImage; big.dataset.bild = '1'; }
+    const key = serie.id + (serie.cover_stand ?? '');
+    big.dataset.pxl = key;
+    delete big.dataset.gross;
+    let klein = mini?.style.backgroundImage || '';
+    if (!klein && serie.cover_stand) { const u = this.ctx.covers?.kleinSofort?.(serie.id, serie.cover_stand); if (u) klein = `url("${u}")`; }
+    if (klein) { big.style.backgroundImage = klein; big.dataset.bild = '1'; }
     if (!serie.cover_stand) return;
-    coverGrossUrl(this.ctx.covers, serie.id, serie.cover_stand).then((url) => {
-      if (url && big.isConnected && big.dataset.pxl === serie.id + (serie.cover_stand ?? '')) { big.style.backgroundImage = `url("${url}")`; big.dataset.bild = '1'; }
+    coverGrossUrl(this.ctx.covers, serie.id, serie.cover_stand).then(async (url) => {
+      if (!url || !big.isConnected || big.dataset.pxl !== key) return;
+      if (klein && typeof Image === 'function') { // erst dekodieren, dann überblenden: kein Sprung, kein Aufblitzen
+        try { const img = new Image(); img.src = url; if (typeof img.decode === 'function') await img.decode(); } catch { /* ohne Dekodieren weiter */ }
+        if (!big.isConnected || big.dataset.pxl !== key) return;
+      }
+      this._grossSetzen(big, url, klein);
     });
+  }
+
+  /* Die große Fassung an die Stelle des kleinen Bildes: eine Schicht blendet darüber ein, dann wird sie zum Hintergrund. Das kleine Bild bleibt darunter, bis die Schicht fertig ist. */
+  _grossSetzen(el, url, klein) {
+    const fertig = () => { el.style.backgroundImage = `url("${url}")`; el.dataset.bild = '1'; el.dataset.gross = '1'; };
+    if (!klein || reduziert() || !kannAnimieren(el)) { fertig(); return; }
+    const o = el.ownerDocument.createElement('i');
+    o.setAttribute('aria-hidden', 'true');
+    o.setAttribute('data-gross-schicht', '1');
+    Object.assign(o.style, { position: 'absolute', inset: '0', borderRadius: 'inherit', backgroundImage: `url("${url}")`, backgroundSize: 'cover', backgroundPosition: 'center', pointerEvents: 'none', opacity: '0' });
+    if (getComputedStyle(el).position === 'static') el.style.position = 'relative';
+    el.appendChild(o);
+    const an = animiere(o, [{ opacity: 0 }, { opacity: 1 }], { duration: 220, easing: 'ease-out', fill: 'forwards' });
+    const ende = () => { fertig(); o.remove(); };
+    if (!an) { ende(); return; }
+    if (an.finished && typeof an.finished.then === 'function') an.finished.then(ende, ende); else { an.onfinish = ende; an.oncancel = ende; }
   }
 
   _mini() { return this.ctx.wurzel?.querySelector?.('.mini') ?? null; }

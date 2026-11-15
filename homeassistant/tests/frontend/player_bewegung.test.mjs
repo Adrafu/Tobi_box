@@ -17,7 +17,7 @@ function fakeAnimate() {
     let ok;
     const finished = new Promise((r) => { ok = r; });
     const an = { finished, ende: ok, cancel() { ok(); } };
-    aufrufe.push({ el: this, kf, opts, an });
+    aufrufe.push({ el: this, kf, opts, an, bg: this.style?.backgroundImage ?? '', bild: this.dataset?.bild });
     return an;
   };
   return aufrufe;
@@ -87,6 +87,41 @@ mit('Öffnen: das große Cover fliegt per FLIP (animate mit translate und scale)
   assert.equal(flug.el.isConnected, false, 'der Klon ist weg');
   assert.equal(gross.style.transform, '');
   assert.equal(vt.mock.callCount(), 0, 'startViewTransition wird nie aufgerufen');
+});
+
+mit('AM14: beim Start des Flugs trägt das große Cover schon ein Bild (vom Mini-Cover oder aus dem Cover-Lader), der Klon zeigt nie die Ersatzkachel', async () => {
+  const aufrufe = fakeAnimate();
+  const { s } = await spielend();
+  const mini = () => s.q('.mini .mopen .cover');
+  // a) das Mini-Cover hat sein Bild schon
+  mini().style.backgroundImage = 'url("blob:mini-bild")';
+  let d = await oeffneVoll(s);
+  let flug = aufrufe.find((a) => klon(a) && mitTranslate(a));
+  assert.ok(flug, 'Flug beim Öffnen');
+  assert.match(flug.bg, /blob:mini-bild/, 'der Klon wird erst nach dem Bildwechsel gebaut und trägt das Bild des Mini-Covers');
+  assert.equal(flug.bild, '1', 'und `data-bild`: die Ersatzkachel (.bst) bleibt verdeckt');
+  // b) das Mini-Cover hat noch kein Bild, der Cover-Lader kennt das kleine schon
+  aufrufe.forEach((a) => a.an.ende());
+  await warte(10);
+  d.querySelector('[data-p="close"]').click();
+  await s.flush(6);
+  const zu = aufrufe.filter((a) => klon(a) && mitTranslate(a)).pop();
+  assert.match(zu.bg, /url\("blob:/, 'auch der Rückflug klont ein Bild');
+  zu.an.ende();
+  await s.flush(10);
+  assert.equal(s.q('dialog.player'), null);
+  aufrufe.length = 0;
+  const serie = s.el.spieler.s.serie;
+  mini().style.backgroundImage = '';
+  const stand = serie.cover_stand || 'abc12345';
+  serie.cover_stand = stand;
+  s.el._covers.urls.set(`${serie.id}:${stand}`, 'blob:lader-bild');
+  s.el.spieler.oeffnen();
+  await s.flush(8);
+  flug = aufrufe.find((a) => klon(a) && mitTranslate(a));
+  assert.ok(flug, 'Flug beim zweiten Öffnen');
+  assert.match(flug.bg, /blob:lader-bild/, 'ohne Bild am Mini-Cover kommt das kleine Bild sofort aus dem Cover-Lader (kleinSofort)');
+  assert.equal(flug.bild, '1');
 });
 
 mit('Schließen: das große Cover fliegt zur Fläche des Mini-Covers, die Vollansicht gleitet hinunter; danach ist das Mini-Cover wieder sichtbar und nichts bleibt verschoben', async (t, { vt }) => {
