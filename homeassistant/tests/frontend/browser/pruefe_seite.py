@@ -683,7 +683,8 @@ def ablauf_klicks(L: Lauf):
         L.pruefe(L.da("[data-untertitel]") or L.da(".se-hero") or L.da("[data-zustand]"), "klick-kachel", "Serienseite zeigt sich nach dem Klick nicht")
         L.pg.locator("a[data-zurueck]").first.click(timeout=5000)
         L.ruhe()
-        L.pruefe(L.hash() == "#bibliothek" and L.da("[data-liste=bibliothek], [data-leer]"), "klick-zurueck", f"Zurück-Link zeigt die Bibliothek nicht ({L.hash()})")
+        # AM6: der Knopf führt dorthin zurück, woher man kam: hier vom Start
+        L.pruefe(L.hash() in ("#start", "") and not L.da("[data-liste=bibliothek]"), "klick-zurueck", f"Zurück-Link führt nicht auf den Start zurück ({L.hash()})")
         L.pg.go_back()
         L.ruhe()
         L.pruefe(L.js("return location.hash").startswith("#serie-") and L.da(".se-hero"), "klick-browser-zurueck", "Zurück-Taste des Browsers wechselt die Seite nicht")
@@ -1913,7 +1914,7 @@ const schritt = () => {
   if (mm) {
     let mi = Number(getComputedStyle(mm).opacity);
     for (const k of mm.children) mi = Math.min(mi, Number(getComputedStyle(k).opacity));
-    for (const a of mm.getAnimations({ subtree: true })) { const t = a.effect && a.effect.getComputedTiming(); if (t && a.playState === 'running' && a.effect.target) { const v = Number(getComputedStyle(a.effect.target).opacity); if (!Number.isNaN(v)) mi = Math.min(mi, v); } }
+    for (const a of mm.getAnimations({ subtree: true })) { const t = a.effect && a.effect.getComputedTiming(); if (t && a.playState === 'running' && a.effect.target && !a.effect.target.hasAttribute('data-gross-schicht')) { const v = Number(getComputedStyle(a.effect.target).opacity); if (!Number.isNaN(v)) mi = Math.min(mi, v); } }
     o.min = Math.min(o.min, mi);
     o.bilder += 1;
     if (!mm.textContent.trim() && !mm.querySelector('.skel, svg, img, .cover')) o.leer += 1;
@@ -2243,11 +2244,148 @@ def ablauf_player_bewegung(L: Lauf):
     player_aus(L)
 
 
+# Misst die RUHE des Ziels beim Cover-Flug (Befund AM5, Tobias 15.11.: das Cover sprang beim Rückflug „ein bisschen unter den Ort und hüpfte dann hin“, weil das Ziel
+# gemessen wurde, bevor die Liste fertig stand: Zeilen mit `content-visibility: auto` messen im ersten Bild mit der geschätzten Höhe). Je Bild: Ziel-Rechteck (auch solange
+# es `visibility: hidden` ist, und welches Element es ist), dazu das Endrechteck des Klons (aus seinen Schlüsselbildern) und das Ziel nach der Landung. Zusätzlich (AM7):
+# das Hintergrundbild des Ziels und des Klons in jedem Bild (nie leer, wenn das kleine Bild schon da war) und der Scrollstand (AM6).
+# x = { aus: "klick" | "zurueck-taste", klick: Selektor des Links (sichtbarer zuerst), start, id, istZiel, ziel }.
+BEW_FLUG_RUHE = """
+const B = window.__bew;
+B.calls.length = 0;
+const rechteck = (c) => { const r = c.getBoundingClientRect(); return { l: r.left, t: r.top, r: r.right, b: r.bottom }; };
+const scrollStand = () => Math.max(sr.querySelector('.rahmen')?.scrollTop ?? 0, sr.querySelector('.spalte')?.scrollTop ?? 0);
+let link = null;
+if (x.klick) {
+  const alle = [...sr.querySelectorAll(x.klick)].filter((a) => a.querySelector('.cover[data-cover]'));
+  const sichtbar = (a) => { const r = a.querySelector('.cover').getBoundingClientRect(); return r.top > 120 && r.bottom < innerHeight - 140 && r.left >= 0 && r.right <= innerWidth; };
+  for (let i = 0; i < 60 && !alle.some((a) => sichtbar(a) && a.querySelector('.cover').dataset.bild === '1'); i += 1) await new Promise((r) => setTimeout(r, 50)); // die kleinen Bilder der sichtbaren Zeilen laden
+  link = alle.find((a) => sichtbar(a) && a.querySelector('.cover').dataset.bild === '1') ?? alle.find(sichtbar) ?? alle[0];
+}
+const id = x.id ?? link.dataset.serie;
+const zielEl = () => sr.querySelector(x.ziel.replace('{id}', id));
+const ids = new WeakMap(); let zaehler = 0;
+const kennung = (e) => { if (!e) return 0; if (!ids.has(e)) ids.set(e, ++zaehler); return ids.get(e); };
+const scrollVorher = scrollStand();
+const kleinDa = link ? link.querySelector('.cover').dataset.bild === '1' : null;
+if (x.aus === 'zurueck-taste') history.back(); else (link ?? sr.querySelector(x.knopf)).click();
+const t0 = performance.now();
+const istZiel = new Function('e', 'x', 'return ' + x.istZiel);
+const hat = () => B.calls.find((c) => c.el.dataset.flugklon === '1' && /translate\\(/.test(JSON.stringify(c.kf)) && istZiel(c.el, x));
+let flug = null;
+while (performance.now() - t0 < 2500 && !flug) { await new Promise((r) => requestAnimationFrame(r)); flug = hat(); }
+if (!flug) { const c = zielEl(); return { flug: false, diag: { hash: location.hash, scroll: scrollStand(), top: c ? c.getBoundingClientRect().top : null, hoehe: innerHeight, vorher: scrollVorher } }; }
+const tStart = performance.now() - t0;
+const k = flug.el;
+const zahl = (t, n) => { const m = new RegExp(n + '\\\\(([^)]*)\\\\)').exec(t); return m ? m[1].split(',').map((v) => parseFloat(v)) : null; };
+const proben = [];
+const t1 = performance.now();
+let tLand = null;
+const probe = (phase) => { const z = zielEl(); proben.push({ t: Math.round(performance.now() - t1), ab: tLand === null ? null : Math.round(performance.now() - tLand), phase, ziel: z ? rechteck(z) : null, id: kennung(z),
+  vis: z ? getComputedStyle(z).visibility : null, bgZiel: z ? getComputedStyle(z).backgroundImage : null, bgKlon: k.isConnected ? getComputedStyle(k).backgroundImage : null }); };
+while (k.isConnected && flug.an.playState !== 'finished' && flug.an.playState !== 'idle' && performance.now() - t1 < 1500) { probe('flug'); await new Promise((r) => requestAnimationFrame(r)); }
+const kfEnde = flug.an.effect.getKeyframes(); // das Ende der Bahn am Schluss des Flugs (das Ziel darf sie nachführen)
+const letzte = kfEnde[kfEnde.length - 1].transform;
+const [dx, dy] = zahl(letzte, 'translate') ?? [0, 0];
+const [sx, sy = sx] = zahl(letzte, 'scale') ?? [1, 1];
+const kl = parseFloat(k.style.left); const kt = parseFloat(k.style.top); const kw = parseFloat(k.style.width); const kh = parseFloat(k.style.height);
+const klonEnde = { l: kl + dx, t: kt + dy, r: kl + dx + kw * sx, b: kt + dy + kh * sy };
+tLand = performance.now();
+while (performance.now() - tLand < 1000) { probe('nach'); await new Promise((r) => requestAnimationFrame(r)); }
+return { flug: true, startNachMs: Math.round(tStart), klonEnde, proben, scrollVorher, scrollNachher: scrollStand(), kleinDa, schichten: sr.querySelectorAll('[data-gross-schicht]').length };
+"""
+
+
+def flug_ruhe_messen(L: Lauf, r, z, ausgabe=False, bild=False, scroll=None):
+    """Auswertung zu BEW_FLUG_RUHE: (a) das Klon-Endrechteck liegt auf ±1 px auf dem Ziel bei der Landung, (b) das Ziel bewegt sich 500 ms nach der Landung um höchstens 1 px,
+    (c) das Ziel ist während des Flugs dasselbe Element und bewegt sich nicht (sonst fliegt der Klon an eine Stelle, die es nicht mehr gibt). `bild` (AM7): in jedem Bild
+    hat das Ziel und der Klon ein Hintergrundbild. `scroll` (AM6): der Scrollstand nach der Landung ist der gegebene (±2 px)."""
+    if not L.pruefe(r["flug"], z, f"Kein Cover-Flug (animate mit translate am Klon fehlt) {r.get('diag', '')}"):
+        return
+    pr = r["proben"]
+    nach = [p for p in pr if p["phase"] == "nach" and p["ziel"] and p["ab"] <= 500]
+    if ausgabe:
+        print(z, "Start nach", r["startNachMs"], "ms; Klon-Ende", {k: round(v, 1) for k, v in r["klonEnde"].items()}, "Scroll", r["scrollVorher"], "->", r["scrollNachher"])
+        for p in pr[:: max(1, len(pr) // 24)]:
+            print("   ", p["phase"], p["t"], "ms Ziel", {k: round(v, 1) for k, v in (p["ziel"] or {}).items()}, "Element", p["id"], p["vis"], (p["bgZiel"] or "")[:30], (p["bgKlon"] or "")[:30])
+    if not L.pruefe(nach, z, "Das echte Cover am Ziel fehlt nach der Landung"):
+        return
+    ende, lk = nach[0]["ziel"], r["klonEnde"]
+    off = max(abs(ende[k] - lk[k]) for k in ("l", "t", "r", "b"))
+    L.pruefe(off <= 1, z, f"Der Klon landet {off:.1f} px neben dem Ziel (erlaubt 1 px): das Ziel wurde zu früh gemessen")
+    sprung = max(max(abs(p["ziel"][k] - ende[k]) for k in ("l", "t", "r", "b")) for p in nach)
+    L.pruefe(sprung <= 1, z, f"Das Ziel bewegt sich nach der Landung um {sprung:.1f} px (erlaubt 1 px)")
+    im_flug = [p for p in pr if p["phase"] == "flug" and p["ziel"]]
+    if im_flug:
+        gleich = {p["id"] for p in im_flug} | {nach[0]["id"]}
+        L.pruefe(len(gleich) == 1, z, f"Das Ziel wird während des Flugs neu gebaut ({len(gleich)} verschiedene Elemente)")
+        flug_sprung = max(max(abs(p["ziel"][k] - ende[k]) for k in ("l", "t", "r", "b")) for p in im_flug)
+        L.pruefe(flug_sprung <= 1, z, f"Das Ziel liegt während des Flugs bis zu {flug_sprung:.1f} px neben seinem Endplatz")
+    L.pruefe(r["startNachMs"] <= 160, z, f"Der Flug startet erst {r['startNachMs']} ms nach dem Antippen (erlaubt 160 ms)")
+    if bild and r["kleinDa"]:
+        # der Platzhalter-Farbverlauf (`linear-gradient`) zählt nicht: gesucht ist ein echtes Bild (`url(`)
+        leer = [p for p in pr if "url(" not in (p["bgZiel"] or "") or (p["phase"] == "flug" and "url(" not in (p["bgKlon"] or ""))]
+        L.pruefe(not leer, z, f"Das große Cover hat in {len(leer)} von {len(pr)} Bildern kein Hintergrundbild (das kleine Bild fehlt als Platzhalter)")
+        L.pruefe(r["schichten"] == 0, z, "Die Überblend-Schicht des großen Covers bleibt stehen")
+    if scroll is not None:
+        L.pruefe(abs(r["scrollNachher"] - scroll) <= 2, z, f"Scrollstand nach dem Zurück {r['scrollNachher']:.0f} px, vor dem Hinflug {scroll:.0f} px (erlaubt ±2 px)")
+
+
+FLUG_ZURUECK = {"start": ".cover.se-xl", "istZiel": "!e.classList.contains('se-xl') && e.dataset.cover === x.id", "ziel": "a[data-serie=\"{id}\"] .cover[data-cover]"}
+
+
+def flug_herkunft(L: Lauf, name, hash_, link, scrolle, weg, ausgabe):
+    """Eine Herkunft: Seite öffnen, auf `scrolle` px scrollen, ein Cover antippen (Hinflug, AM7: Bild nie leer), Beschriftung und Ziel des Zurück-Knopfs prüfen (AM6), zurück per
+    Knopf oder Zurück-Taste (Rückflug ruhig, AM5; Scrollstand wie vorher, AM6)."""
+    z = f"flug-ruhe-{name}-{scrolle}-{weg}"
+    with L.schritt(z):
+        L.gehe(hash_)
+        L.warte_da(link)
+        L.js("for (const k of [...el._covers.bilder.keys()]) if (k.endsWith(':gross')) el._covers.bilder.delete(k)")  # das große Bild wird neu geholt (der Server liefert es 400 ms später)
+        L.js("const s = sr.querySelector(el.getAttribute('data-layout') === 'seite' ? '.spalte' : '.rahmen'); if (s) s.scrollTop = x;", scrolle)
+        L.pg.wait_for_timeout(600)
+        L.pg.evaluate("() => window.__ruhe()")
+        if scrolle:
+            L.pg.wait_for_function("(s) => { const sr = window.__el.shadowRoot; const r = sr.querySelector('.rahmen'); const p = sr.querySelector('.spalte'); return Math.max(r?.scrollTop ?? 0, p?.scrollTop ?? 0) > s - 3; }", arg=scrolle - 1 if scrolle > 1 else 0)
+        r = jsa(L, BEW_FLUG_RUHE, {"klick": link, "istZiel": "e.classList.contains('se-xl')", "ziel": ".cover.se-xl"})
+        L.ruhe()
+        flug_ruhe_messen(L, r, z + "-hin", ausgabe, bild=True)
+        hin_scroll = r.get("scrollVorher", 0)
+        L.pg.wait_for_timeout(800)
+        id_ = L.hash().removeprefix("#serie-")
+        zk = L.js("const a = sr.querySelector('a[data-zurueck]'); return a ? { text: a.textContent.trim(), href: a.getAttribute('href') } : null")
+        erwartet = {"start": ("‹ Start", "#start"), "bibliothek": ("‹ Bibliothek", "#bibliothek")}[name]
+        L.pruefe(zk == {"text": erwartet[0], "href": erwartet[1]}, z, f"Zurück-Knopf {zk}, erwartet {erwartet}")
+        r = jsa(L, BEW_FLUG_RUHE, {**FLUG_ZURUECK, "id": id_, "aus": "klick" if weg == "knopf" else "zurueck-taste", "knopf": "a[data-zurueck]" if weg == "knopf" else None})
+        L.ruhe()
+        L.pruefe(L.hash() in (erwartet[1], "") if name == "start" else L.hash() == erwartet[1], z, f"Nach dem Zurück steht {L.hash()!r}, erwartet {erwartet[1]!r}")
+        flug_ruhe_messen(L, r, z + "-zurueck", ausgabe, scroll=hin_scroll)
+
+
+def ablauf_flug_ruhe(L: Lauf):
+    """AM5, AM6, AM7: Hin- und Rückflug des Covers von Start und Bibliothek, mit laufendem Player (Mini-Leiste), oben und gescrollt, Rückweg per „‹ Start/Bibliothek“ und per
+    Zurück-Taste. Das Ziel steht beim Start des Flugs ruhig (AM5), der Knopf heißt nach der Herkunft, der Scrollstand kehrt zurück (AM6), das große Cover hat nie ein leeres Bild (AM7)."""
+    L.gehe("#bibliothek")
+    if not L.da("a.lrow[data-serie], a.rcard[data-serie]"):
+        return
+    ausgabe = bool(os.environ.get("TOBIBOX_FLUG_AUSGABE"))
+    bew_start(L)
+    with L.schritt("flug-ruhe-player-start"):
+        player_start(L)
+    L.js("el.spieler.offen && el.spieler.schliessen('knopf')")
+    L.pg.wait_for_timeout(700)
+    # die Leiste bleibt sichtbar, der Ton wird angehalten und zurückgestellt (die Testdatei ist nur 40 s lang, die Abläufe danach starten wieder bei 0)
+    L.js("const a = sr.querySelector('audio'); if (a) { a.pause(); a.currentTime = 0; }")
+    for name, hash_, link, scrolle in (("bibliothek", "#bibliothek", "a.lrow[data-serie], a.rcard[data-serie]", 0), ("bibliothek", "#bibliothek", "a.lrow[data-serie], a.rcard[data-serie]", 120),
+                                       ("bibliothek", "#bibliothek", "a.lrow[data-serie], a.rcard[data-serie]", 900), ("start", "#start", "a.rcard[data-serie], a.qt[data-serie], a.tile[data-serie], a.lrow[data-serie]", 0)):
+        for weg in ("knopf", "zurueck-taste"):
+            flug_herkunft(L, name, hash_, link, scrolle, weg, ausgabe)
+    player_aus(L)
+
 
 ABLAEUFE = [ablauf_unterkante, ablauf_reiter, ablauf_klicks, ablauf_reihen, ablauf_suche, ablauf_bibliothek, ablauf_serie, ablauf_cover, ablauf_leise, ablauf_box, ablauf_technik, ablauf_blaetter,
             ablauf_tobies_weg1, ablauf_tobies_weg2, ablauf_tobies_meldung, ablauf_tobies_umhaengen, ablauf_tobies_geben, ablauf_tobies_lernmodus,
             ablauf_tobies_name_geben_weit_unten, ablauf_hinzufuegen, ablauf_eingang_liste, ablauf_eingang, ablauf_papierkorb, ablauf_papierkorb_punkt, ablauf_bewegung,
-            ablauf_druck, ablauf_seitenwechsel, ablauf_player_bewegung, ablauf_player]
+            ablauf_druck, ablauf_seitenwechsel, ablauf_player_bewegung, ablauf_flug_ruhe, ablauf_player]
 
 
 # ------------------------------------------------------------------ Browser und Läufe

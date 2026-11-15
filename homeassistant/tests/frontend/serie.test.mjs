@@ -86,12 +86,35 @@ test('folgenMeta und serienFortschritt: nur, was das Backend kennt', () => {
 
 /* ------------------------------------------------------------------ Kopf */
 
-test('Kopf: „‹ Bibliothek“, Menü, großes Cover, Titel und Untertitel; serie/get mit der Kennung; kein Player, keine Karte „Gespielt von“', MIT_DOM, async () => {
+test('Herkunft (AM6): der Zurück-Knopf heißt und führt nach der Herkunft; ohne Herkunft Bibliothek; Serie → Serie → zurück', MIT_DOM, async () => {
+  const s = await seite({ hash: '#bibliothek' });
+  beispiele(s.m);
+  await geheZu(s, '#serie-s1'); await s.flush(10);
+  let z = s.q('a[data-zurueck]');
+  assert.equal(z.textContent, '‹ Bibliothek'); assert.equal(z.getAttribute('href'), '#bibliothek');
+  await geheZu(s, '#suche'); await s.flush(10);
+  await geheZu(s, '#serie-s2'); await s.flush(10);
+  z = s.q('a[data-zurueck]');
+  assert.equal(z.textContent, '‹ Suche'); assert.equal(z.getAttribute('href'), '#suche');
+  // Serie → Serie: Herkunft ist die vorige Serie, danach wieder die Suche (keine Schleife)
+  await geheZu(s, '#serie-s1'); await s.flush(10);
+  z = s.q('a[data-zurueck]');
+  assert.equal(z.getAttribute('href'), '#serie-s2');
+  await geheZu(s, '#serie-s2'); await s.flush(10);
+  z = s.q('a[data-zurueck]');
+  assert.equal(z.getAttribute('href'), '#suche', 'nach dem Zurück steht wieder die Suche darunter');
+  // direkt geöffnet (Neuladen): keine Herkunft
+  const t = await seite({ hash: '#serie-s1' }); await t.flush(10);
+  assert.equal(t.q('a[data-zurueck]').textContent, '‹ Bibliothek');
+  assert.equal(t.q('a[data-zurueck]').getAttribute('href'), '#bibliothek');
+});
+
+test('Kopf: „‹ Start“ (Herkunft), Menü, großes Cover, Titel und Untertitel; serie/get mit der Kennung; kein Player, keine Karte „Gespielt von“', MIT_DOM, async () => {
   const s = await oeffne('s1');
   assert.deepEqual(aufrufe(s, 'serie/get').map(ohneId).at(-1), { serie_id: 's1' });
   const zurueck = s.q('a[data-zurueck]');
-  assert.equal(zurueck.textContent, '‹ Bibliothek');
-  assert.equal(zurueck.getAttribute('href'), '#bibliothek');
+  assert.equal(zurueck.textContent, '‹ Start', 'der Test beginnt auf dem Start');
+  assert.equal(zurueck.getAttribute('href'), '#start');
   assert.equal(s.q('main h2').textContent, 'Die drei ???');
   assert.equal(s.q('[data-untertitel]').textContent, 'Hörspiel · 3 Folgen');
   const mehr = s.q('[data-menue-serie]');

@@ -145,6 +145,8 @@ export function flipKlon(el, von, nach, { overlay, verberge = null, dauer, easin
   };
   if (!an) { aufraeumen(); return null; }
   an.aufraeumen = aufraeumen;
+  // das Ziel hat sich während des Flugs bewegt: neues Ende der Bahn (die laufende Zeit bleibt)
+  an.neuesZiel = (n, rad = rn) => { try { an.effect.setKeyframes([stufe(von, rv), stufe(n, rad)]); } catch { /* alte Bahn bleibt */ } };
   if (auto) { if (an.finished && typeof an.finished.then === 'function') an.finished.then(aufraeumen, aufraeumen); else { an.onfinish = aufraeumen; an.oncancel = aufraeumen; } }
   return an;
 }

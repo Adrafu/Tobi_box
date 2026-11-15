@@ -181,6 +181,7 @@ export class CoverLader {
     this.holeHass = holeHass;
     this.bilder = new Map(); // `${id}:${stand}` -> Promise<blob-URL oder null>
     this.staende = new Map(); // id -> cover_stand (string oder null)
+    this.urls = new Map(); // `${id}:${stand}` -> blob-URL des kleinen Bildes, sobald es da ist (AM7: sofort als Platzhalter im großen Cover)
     this.io = null;
   }
 
@@ -201,12 +202,17 @@ export class CoverLader {
           const pfad = `/api/tobibox/cover/${encodeURIComponent(id)}?groesse=klein${stand && stand !== '?' ? `&v=${encodeURIComponent(stand)}` : ''}`;
           const r = await hass.fetchWithAuth(pfad);
           if (!r || !r.ok) return null;
-          return URL.createObjectURL(await r.blob());
+          const url = URL.createObjectURL(await r.blob());
+          this.urls.set(key, url);
+          return url;
         } catch { return null; }
       })());
     }
     return this.bilder.get(key);
   }
+
+  /* Das kleine Bild, wenn es schon geladen ist (ohne zu warten), sonst null. Der Stand der Serienseite kann vom Stand der Liste abweichen ('?' = unbekannt). */
+  kleinSofort(id, stand) { return this.urls.get(`${id}:${stand}`) ?? this.urls.get(`${id}:?`) ?? null; }
 
   async _setze(el) {
     const key = el._coverKey;
@@ -426,7 +432,7 @@ export const bausteinStil = () => css`
 
   /* Listenzeilen (Bibliothek, Suche) */
   .lrow { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--divider); text-decoration: none; color: inherit; min-height: 84px;
-    content-visibility: auto; contain-intrinsic-size: auto 92px; }
+    content-visibility: auto; contain-intrinsic-size: auto 72px; } /* AM5: die Größe gilt für den Inhalt ohne Innenabstand (10 + 10 px); mit 92 px maß eine noch nicht gezeichnete Zeile 112 statt 92 px */
   .lrow:first-child { border-top: 0; }
   /* Zeilen und Kacheln, die zu einer anderen Seite führen, bekommen beim Drücken keine Hintergrundfarbe (sie blitzte im Bild vor dem Seitenwechsel auf,
      iOS lässt :active hängen); nur das leichte Einziehen (--druck-zeile) bleibt. */

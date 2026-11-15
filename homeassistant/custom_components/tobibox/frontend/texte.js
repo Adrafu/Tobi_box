@@ -522,7 +522,7 @@ export const SEITE = {
   hinzufuegen: 'Hinzufügen',
   schliessen: 'Schließen',
   ok: 'OK',
-  zurueck: { bibliothek: '‹ Bibliothek', geraete: '‹ Geräte', tobies: '‹ Tobies', technik: '‹ Technik' }, // Design 3.2
+  zurueck: { bibliothek: '‹ Bibliothek', geraete: '‹ Geräte', tobies: '‹ Tobies', technik: '‹ Technik', start: '‹ Start', suche: '‹ Suche', gehoert: '‹ Gehört', serie: '‹ Zurück' }, // Design 3.2; Start, Suche, Gehört und Serie: Rückweg der Serienseite zu ihrer Herkunft (AM6)
   seiten: { // Überschriften der Unterseiten (Design 3.2, 5.4, 5.9, 7.1)
     suche: 'Suche', serie: 'Serie', hinzufuegen: 'Hinzufügen', anlernen: 'Tobie anlernen', tobie: 'Tobie', neu: 'Neuer Tobie',
     neu_warten: 'Neuer Tobie', neu_ziel: 'Neuer Tobie erkannt', neu_queue: 'Später auflegen', geben: 'Welcher Tobie soll das spielen?',

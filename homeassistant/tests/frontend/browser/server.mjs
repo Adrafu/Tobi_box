@@ -357,6 +357,8 @@ const server = http.createServer(async (req, res) => {
     return;
   }
   if (p.startsWith('/api/tobibox/cover/')) {
+    // AM7: das große Cover kommt 400 ms später (wie im Heimnetz mit großem Bild); so zeigt die Prüfung, ob im großen Platz schon das kleine Bild steht
+    if (u.searchParams.get('groesse') === 'gross') await new Promise((ok) => setTimeout(ok, 400));
     const h = [...p.split('/').pop(), ...(u.searchParams.get('v') || '')].reduce((a, c) => a + c.charCodeAt(0), 0);
     res.setHeader('content-type', 'image/svg+xml');
     res.end(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="${FARBEN[h % 4]}"/><circle cx="${30 + h % 40}" cy="55" r="${15 + h % 20}" fill="#ffffffaa"/></svg>`);

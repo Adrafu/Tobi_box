@@ -13,6 +13,7 @@
 import { html, nothing, css, repeat, ic, cover, coverKlasse, coverGrossUrl, ladeMitGrenze, untertitel, uhr, dauerText, norm, eq, abspiel, laeuftAn } from '../bausteine.js';
 import { SERIE, ZEILE, GRUENDE, TOBIE, SEITE, PLAYER, fuellen } from '../texte.js';
 import { knopfText, globalPos } from '../player.js';
+import { animiere, kannAnimieren, reduziert } from '../bewegung.js';
 import { coverBlatt, coverFehlerText, coverStil } from './cover.js';
 import { gespieltVonKarte, folgenChips, gebenLink } from './tobies.js';
 import { dateienInEintrag } from './hinzufuegen.js';
@@ -553,6 +554,22 @@ class SerieSeite {
     });
   }
 
+  /* Das große Bild an die Stelle des kleinen: mit Platzhalter kurz überblenden (eine Schicht darüber, dann wird sie zum Hintergrund), sonst gleich setzen. */
+  _grossSetzen(el, url, ueberblenden) {
+    const fertig = () => { el.style.backgroundImage = `url("${url}")`; el.dataset.bild = '1'; delete el.dataset.platzhalter; };
+    if (!ueberblenden || reduziert() || !kannAnimieren(el)) { fertig(); return; }
+    const o = el.ownerDocument.createElement('i');
+    o.setAttribute('aria-hidden', 'true');
+    o.setAttribute('data-gross-schicht', '1');
+    Object.assign(o.style, { position: 'absolute', inset: '0', borderRadius: 'inherit', backgroundImage: `url("${url}")`, backgroundSize: 'cover', backgroundPosition: 'center', pointerEvents: 'none', opacity: '0' });
+    if (getComputedStyle(el).position === 'static') el.style.position = 'relative';
+    el.appendChild(o);
+    const an = animiere(o, [{ opacity: 0 }, { opacity: 1 }], { duration: 220, easing: 'ease-out', fill: 'forwards' });
+    const ende = () => { fertig(); o.remove(); };
+    if (!an) { ende(); return; }
+    if (an.finished && typeof an.finished.then === 'function') an.finished.then(ende, ende); else { an.onfinish = ende; an.oncancel = ende; }
+  }
+
   /* ---- Darstellung */
   nachRender(wurzel) {
     for (const el of wurzel.querySelectorAll('[data-cover-gross]')) {
@@ -562,8 +579,16 @@ class SerieSeite {
       el.style.backgroundImage = '';
       delete el.dataset.bild;
       if (!el.dataset.stand) continue; // kein Cover vorhanden
-      coverGrossUrl(this.ctx.covers, el.dataset.coverGross, el.dataset.stand).then((url) => {
-        if (url && el._grossKey === key && el.isConnected) { el.style.backgroundImage = `url("${url}")`; el.dataset.bild = '1'; }
+      // AM7: das kleine Bild aus der Liste steht sofort im großen Platz (und fliegt als Klon mit); das große blendet über, sobald es dekodiert ist
+      const klein = this.ctx.covers?.kleinSofort?.(el.dataset.coverGross, el.dataset.stand) ?? null;
+      if (klein) { el.style.backgroundImage = `url("${klein}")`; el.dataset.bild = '1'; el.dataset.platzhalter = 'klein'; }
+      coverGrossUrl(this.ctx.covers, el.dataset.coverGross, el.dataset.stand).then(async (url) => {
+        if (!url || el._grossKey !== key || !el.isConnected) return;
+        if (klein && typeof Image === 'function') { // erst dekodieren, dann überblenden: kein Sprung, kein Aufblitzen
+          try { const img = new Image(); img.src = url; if (typeof img.decode === 'function') await img.decode(); } catch { /* ohne Dekodieren weiter */ }
+          if (el._grossKey !== key || !el.isConnected) return;
+        }
+        this._grossSetzen(el, url, !!klein);
       });
     }
     const f = this._fokus;
@@ -581,7 +606,8 @@ class SerieSeite {
   /* Am Computer sitzt das Menü des Eintrags im großen Kopf (neben dem Titel), sonst oben rechts neben „‹ Bibliothek“. */
   _leiste(s) {
     const gross = this.ctx.layout === 'seite';
-    return html`<div class="se-leiste"><a class="back" href="#bibliothek" data-zurueck>${SERIE.zurueck}</a>
+    const h = this.ctx.herkunft?.(); // woher man kam (AM6); ohne Herkunft (Seite direkt geöffnet) bleibt es die Bibliothek
+    return html`<div class="se-leiste"><a class="back" href=${h?.hash ?? '#bibliothek'} data-zurueck>${h?.label ?? SERIE.zurueck}</a>
       ${s && !gross ? html`<button type="button" class="iconbtn se-mehr-knopf" data-menue-serie aria-haspopup="dialog" aria-label=${fuellen(SERIE.mehr_zu, { titel: s.name })}
         @click=${(e) => this.serieMenue(e.currentTarget)}>${ic('more', 24)}</button>` : nothing}</div>`;
   }

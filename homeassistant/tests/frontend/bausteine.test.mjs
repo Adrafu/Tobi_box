@@ -119,6 +119,19 @@ test('CoverLader: klein, mit Stand in der Adresse, als blob: zwischengespeichert
   assert.equal(l.stand('c'), undefined);
 });
 
+test('CoverLader (AM7): kleinSofort gibt das kleine Bild erst, wenn es geladen ist; der unbekannte Stand \u201e?\u201c gilt als Rückfall', MIT_DOM, async () => {
+  await domBereit();
+  const l = new CoverLader(() => fakeHass());
+  assert.equal(l.kleinSofort('s1', 'abcd1234'), null, 'noch nicht geladen');
+  const p = l.blobUrl('s1', 'abcd1234');
+  assert.equal(l.kleinSofort('s1', 'abcd1234'), null, 'unterwegs');
+  const u = await p;
+  assert.equal(l.kleinSofort('s1', 'abcd1234'), u);
+  assert.equal(l.kleinSofort('s1', 'anderer'), null, 'anderer Stand, kein Bild');
+  const q = await l.blobUrl('s2', '?');
+  assert.equal(l.kleinSofort('s2', 'xyz'), q, 'die Liste kannte den Stand noch nicht: das Bild gilt trotzdem');
+});
+
 test('CoverLader: beobachtet nur Cover mit Bild, lädt erst bei Sichtbarkeit und setzt das Bild; ohne Beobachter sofort', MIT_DOM, async () => {
   await domBereit();
   const wurzel = document.createElement('div');

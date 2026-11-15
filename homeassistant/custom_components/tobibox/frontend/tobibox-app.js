@@ -19,7 +19,7 @@ import { eingangAbleiten, bandZustand, naechsteAenderung } from './eingang.js';
 import { SEITEN } from './seiten/index.js';
 import { folgenAktion } from './seiten/tobies.js';
 import { reduziert, kannAnimieren, tokenMs, kurve, animiere, nachEnde, flipKlon, rechteck } from './bewegung.js';
-import { initLit, bausteinStil, CoverLader, leererZustand, kopfAktion, korbNeueFremde, korbNeuesteMs, ic as symbol } from './bausteine.js';
+import { initLit, bausteinStil, CoverLader, coverGrossUrl, leererZustand, kopfAktion, korbNeueFremde, korbNeuesteMs, ic as symbol } from './bausteine.js';
 import { Spieler, spielerStil } from './player.js';
 
 export const VERTRAG_V = 1;
@@ -532,14 +532,18 @@ if (lit) {
         const vorher = this._route;
         const kopf = vorher.name === 'serie' ? this.renderRoot.querySelector('.cover.se-xl[data-cover-gross]') : null;
         const kopfFlaeche = kopf ? { rect: rechteck(kopf.getBoundingClientRect()), radius: this._radius(kopf) } : null;
+        const stand = this._scrollStand(); // Scrollstand der Seite, die wir gerade verlassen (AM6)
         this._leseHash();
         this._flugNachHash(vorher, kopfFlaeche);
         if (this._hash === this._behandelt) return;
+        const vorherHash = this._behandelt;
         this._behandelt = this._hash;
-        this._schliesseBlattBeiRoute(); this._fokusMain = true; this._scrollOben = true; this.requestUpdate();
+        const scrollWieder = this._herkunftNachHash(vorherHash, stand);
+        this._schliesseBlattBeiRoute(); this._fokusMain = true; this._scrollOben = scrollWieder === null; this._scrollWieder = scrollWieder; this.requestUpdate();
       };
       this._onResize = () => this._messeBreite();
       this._coverKlick = (e) => this._coverMerken(e);
+      this._coverZeiger = (e) => this._grossVorladen(e.target?.closest?.('a[data-serie]')?.querySelector('.cover[data-cover]'));
     }
 
     /* ---- Lebenslauf */
@@ -565,6 +569,7 @@ if (lit) {
       this.renderRoot.addEventListener('focusin', this._fokusEin);
       this.renderRoot.addEventListener('focusout', this._fokusAus);
       this.renderRoot.addEventListener('click', this._coverKlick, true);
+      this.renderRoot.addEventListener('pointerdown', this._coverZeiger, true);
       this._vv = window.visualViewport;
       this._vvFn = () => this._tastatur(this.renderRoot.activeElement);
       this._vv?.addEventListener?.('resize', this._vvFn);
@@ -584,6 +589,7 @@ if (lit) {
       this.renderRoot.removeEventListener('focusin', this._fokusEin);
       this.renderRoot.removeEventListener('focusout', this._fokusAus);
       this.renderRoot.removeEventListener('click', this._coverKlick, true);
+      this.renderRoot.removeEventListener('pointerdown', this._coverZeiger, true);
       clearTimeout(this._hintenTimer);
       this._vv?.removeEventListener?.('resize', this._vvFn);
       this.spieler.abmelden();
@@ -604,6 +610,7 @@ if (lit) {
       this._seitenWechsel();
       this._doppelteUeberschrift();
       if (this._blatt && !this._blatt.offen) this._blattEinrichten();
+      if (this._scrollWieder != null) this._scrollHalten();
       if (this._scrollOben) { this._scrollOben = false; const r = this.renderRoot.querySelector('.rahmen'); const sp = this.renderRoot.querySelector('.spalte'); if (r) r.scrollTop = 0; if (sp) sp.scrollTop = 0; }
       if (this._fokusMain) { this._fokusMain = false; this.renderRoot.querySelector('main')?.focus({ preventScroll: true }); }
       if (ch.has('hass')) this._wendeTokens();
@@ -706,7 +713,14 @@ if (lit) {
       const a = e.target?.closest?.('a[data-serie]');
       const c = a?.querySelector('.cover[data-cover]');
       if (!c) return;
+      this._grossVorladen(c);
       this._flug = { art: 'hin', id: a.dataset.serie, rect: rechteck(c.getBoundingClientRect()), radius: this._radius(c), zeit: Date.now() };
+    }
+
+    /* AM7: das große Cover schon beim Antippen holen (Zeiger runter, bevor die Adresse wechselt); die Serienseite nimmt dasselbe Versprechen aus dem Speicher. */
+    _grossVorladen(c) {
+      const id = c?.dataset?.cover; const stand = c?.dataset?.stand;
+      if (id && stand && stand !== '?') coverGrossUrl(this._covers, id, stand);
     }
 
     /* Die Adresse hat gewechselt: ein Flug „hin“ gilt nur für seine Serienseite; wer die Serienseite verlässt, merkt sich den großen Kopf für den Rückflug. */
@@ -715,6 +729,71 @@ if (lit) {
       if (this._flug?.art === 'hin' && !(r.name === 'serie' && r.id === this._flug.id)) this._flug = null;
       if (this._hash === this._behandelt) return;
       if (vorher.name === 'serie' && r.name !== 'serie' && kopfFlaeche) this._flug = { art: 'zurueck', id: vorher.id, ...kopfFlaeche, zeit: Date.now() };
+    }
+
+    /* ---- Herkunft der Serienseite (AM6): „‹ Start“, „‹ Bibliothek“ … führt dorthin zurück, woher man kam, mit dem alten Scrollstand. */
+    _scrollStand() {
+      const w = this.renderRoot;
+      if (!w?.querySelector) return 0;
+      return Math.max(w.querySelector('.rahmen')?.scrollTop ?? 0, w.querySelector('.spalte')?.scrollTop ?? 0);
+    }
+
+    /* Die Adresse hat gewechselt (einmal je Wechsel). Nach einer Serienseite hin: Herkunft merken (Stapel, damit Serie → Serie → zurück → zurück stimmt). Zurück auf die
+     * Herkunft (Knopf, Zurück-Taste, Wischen): Eintrag vom Stapel nehmen und den Scrollstand zurückgeben. Jede andere Seite räumt den Stapel. */
+    _herkunftNachHash(vorherHash, stand) {
+      const st = this._herkunftStapel ?? (this._herkunftStapel = []);
+      const nach = parseRoute(this._hash);
+      const von = parseRoute(vorherHash);
+      const oben = st[st.length - 1];
+      const gleich = (a, b) => String(a || '').replace(/^#/, '') === String(b || '').replace(/^#/, '') || (!String(a || '').replace(/^#/, '') && String(b).replace(/^#/, '') === 'start') || (!String(b || '').replace(/^#/, '') && String(a).replace(/^#/, '') === 'start');
+      if (oben && gleich(oben.hash, this._hash)) { st.pop(); return nach.name === 'serie' ? null : oben.scroll; }
+      if (nach.name === 'serie') {
+        if (von.name !== 'serie' || vorherHash !== this._hash) {
+          if (SEITE.zurueck[von.name]) st.push({ hash: vorherHash || '#start', name: von.name, scroll: von.name === 'serie' ? 0 : stand });
+          else st.length = 0;
+        }
+        if (st.length > 12) st.shift();
+        return null;
+      }
+      st.length = 0;
+      return null;
+    }
+
+    /* Rückweg zur Herkunft: den alten Scrollstand setzen und ein halbe Sekunde lang halten, bis die Liste ihre echte Höhe hat (Zeilen, die noch nicht gezeichnet waren,
+     * wachsen oder schrumpfen und der Browser schiebt sonst den Stand mit). Eine Eingabe des Fingers oder Rads beendet das Halten sofort. */
+    _scrollHalten() {
+      const setze = () => {
+        const v = this._scrollWieder;
+        if (v == null) return false;
+        const r = this.renderRoot.querySelector('.rahmen'); const sp = this.renderRoot.querySelector('.spalte');
+        if (r && Math.abs(r.scrollTop - v) > 0.5) r.scrollTop = v;
+        if (sp && Math.abs(sp.scrollTop - v) > 0.5) sp.scrollTop = v;
+        return true;
+      };
+      setze();
+      if (this._scrollSchleife) return;
+      this._scrollSchleife = true;
+      const bis = Date.now() + 600;
+      const stopp = () => { this._scrollWieder = null; };
+      this.renderRoot.addEventListener('touchstart', stopp, { once: true, passive: true });
+      this.renderRoot.addEventListener('wheel', stopp, { once: true, passive: true });
+      const schritt = () => {
+        if (this._scrollWieder == null || Date.now() > bis || !this.isConnected || typeof requestAnimationFrame !== 'function') {
+          this._scrollWieder = null; this._scrollSchleife = false;
+          this.renderRoot.removeEventListener('touchstart', stopp); this.renderRoot.removeEventListener('wheel', stopp);
+          return;
+        }
+        setze();
+        requestAnimationFrame(schritt);
+      };
+      if (typeof requestAnimationFrame === 'function') requestAnimationFrame(schritt); else this._scrollSchleife = false;
+    }
+
+    get _herkunft() {
+      const o = this._herkunftStapel?.[this._herkunftStapel.length - 1];
+      const nach = parseRoute(this._hash);
+      if (!o || nach.name !== 'serie') return null;
+      return { hash: o.hash, label: SEITE.zurueck[o.name] };
     }
 
     /* Nach jedem Zeichnen: wartet ein Flug und steht das Cover jetzt da, fliegt es (FLIP mit `element.animate`, nie View Transitions). */
@@ -731,20 +810,52 @@ if (lit) {
         if (!el || el.dataset.coverGross !== f.id) return; // die Serie lädt noch
       } else {
         if (r.name === 'serie') { this._flug = null; return; }
-        el = [...wurzel.querySelectorAll('a[data-serie] .cover[data-cover]')].find((c) => c.dataset.cover === f.id) ?? null;
+        const alle = [...wurzel.querySelectorAll('a[data-serie] .cover[data-cover]')].filter((c) => c.dataset.cover === f.id);
+        const vp = wurzel.querySelector(this._layout === 'seite' ? '.spalte' : '.rahmen')?.getBoundingClientRect();
+        // mehrere Kacheln derselben Serie (Start): die erste, die im sichtbaren Teil liegt
+        el = (vp && alle.find((c) => { const b = c.getBoundingClientRect(); return b.bottom > vp.top && b.top < vp.bottom && b.right > vp.left && b.left < vp.right; })) ?? alle[0] ?? null;
         if (!el) return; // die neue Seite lädt noch
         const sicht = wurzel.querySelector(this._layout === 'seite' ? '.spalte' : '.rahmen')?.getBoundingClientRect();
         const b = el.getBoundingClientRect();
         if (sicht && (b.bottom <= sicht.top || b.top >= sicht.bottom || b.right <= sicht.left || b.left >= sicht.right)) { this._flug = null; return; } // nicht im sichtbaren Teil: nur Überblenden
       }
+      // AM5: Ziel erst messen, wenn es ruhig steht. Zeilen mit `content-visibility: auto` messen im ersten Bild mit der geschätzten Höhe (112 statt 92 px) und rücken im
+      // nächsten Bild an ihren Platz; auch Bilder, die Platz bekommen, schieben nach. Darum (Rückflug): gleiches Rechteck in drei Bildern hintereinander, höchstens 8 Bilder. Das große Cover der Serienseite hat das Problem nicht.
+      if (f.warte) return; // ein Bild abwarten (mehrere `updated` im selben Bild zählen nicht als zwei Messungen)
+      const gemessen = rechteck(el.getBoundingClientRect());
+      const gleich = f.letztes && ['left', 'top', 'width', 'height'].every((k) => Math.abs(gemessen[k] - f.letztes[k]) < 0.5);
+      f.versuche = (f.versuche ?? 0) + 1;
+      f.gleiche = gleich ? (f.gleiche ?? 0) + 1 : 0;
+      // Chromium nimmt die Zeilen erst im Bild nach der ersten Messung in die Anzeige und legt sie erst im übernächsten neu aus: zweimal gleich (drei Bilder) zählt als ruhig
+      if (f.art === 'zurueck' && f.gleiche < 2 && f.versuche < 8 && typeof requestAnimationFrame === 'function') {
+        f.letztes = gemessen;
+        f.warte = true;
+        requestAnimationFrame(() => { f.warte = false; if (this._flug === f && this.isConnected) this._coverFlug(); });
+        return;
+      }
       this._flug = null;
       if (reduziert() || !kannAnimieren(el)) return; // kein Flug: die Seite schaltet direkt um
-      const nach = rechteck(el.getBoundingClientRect());
+      const nach = gemessen;
       // der Flug läuft mit einem Klon in der obersten Schicht (Befund Tobias 14.11.: in der Liste malten die Nachbarzeilen über das fliegende Cover)
       const dauer = tokenMs(this, '--dauer-feder');
       const an = flipKlon(el, f.rect, nach, { overlay: wurzel.querySelector('.app'), dauer, easing: kurve(this, '--feder'), radiusVon: f.radius, radiusNach: this._radius(el) });
       if (an) nachEnde(an, dauer + 300, () => an.aufraeumen());
+      if (an) this._zielFolgen(an, el, nach);
       if (an && f.art === 'hin') this._restBlenden(wurzel.querySelector('main'), el);
+    }
+
+    /* Das Ziel kann sich während des Flugs noch bewegen (Zeilen werden gezeichnet, Bilder bekommen Platz): jedes Bild neu messen und das Ende des Flugs nachführen,
+     * damit der Klon genau auf dem echten Cover landet (AM5). */
+    _zielFolgen(an, el, nach) {
+      if (typeof requestAnimationFrame !== 'function' || typeof an.neuesZiel !== 'function') return;
+      let aktuell = nach;
+      const schritt = () => {
+        if (!el.isConnected || an.playState === 'finished' || an.playState === 'idle') return;
+        const n = rechteck(el.getBoundingClientRect());
+        if (['left', 'top', 'width', 'height'].some((k) => Math.abs(n[k] - aktuell[k]) > 0.5)) { aktuell = n; an.neuesZiel(n, this._radius(el)); }
+        requestAnimationFrame(schritt);
+      };
+      requestAnimationFrame(schritt);
     }
 
     /* Der Rest der Serienseite blendet über (`--dauer-mittel`); das fliegende Cover bleibt dabei unberührt. */
@@ -1252,6 +1363,7 @@ if (lit) {
         fehlerText: (code) => fehlerText(code, { admin: app._admin }),
         begruessung: () => begruessung(),
         covers: app._covers,
+        herkunft: () => app._herkunft, // { hash, label } der Seite, von der man auf die Serienseite kam, oder null (AM6)
         uploadBand: () => app._eingangBand(), // Band über der Zeile „Bibliothek“ (Design 5.2 Punkt 2a, A11b)
         eingang: () => app.store.eingangAbl(), // Ableitung nach eingang.js: { liste, laeuft, pruefen, fehler, fertig }
         eingangNeuLaden: () => app.store.ladeEingang(), // nach „Das ist richtig“ und nach jedem Upload
