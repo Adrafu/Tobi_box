@@ -10,7 +10,7 @@
  * „Cover ändern“ (A8f, Design 5.5) steht in seiten/cover.js. „Reinhören / Hier weiterhören“, der Abspielknopf der Folgenzeilen und die Abspiel-Anzeige
  * (A8b, A7c, A8m) rufen den Player (`ctx.spieler`, player.js). Noch nicht hier: Kapitelzeile (A8d), „Anders einsortieren“ (A-3), Playlists (Stufe C), Cover-Flug (A6m/A8m). Schnittstelle zur App: bausteine.js.
  */
-import { html, nothing, css, repeat, ic, cover, coverKlasse, coverGrossUrl, ladeMitGrenze, untertitel, uhr, dauerText, norm, eq, abspiel, laeuftAn } from '../bausteine.js';
+import { html, nothing, css, repeat, ic, cover, coverKlasse, coverGrossUrl, ladeMitGrenze, untertitel, uhr, norm, eq, abspiel, laeuftAn } from '../bausteine.js';
 import { SERIE, ZEILE, GRUENDE, TOBIE, SEITE, PLAYER, fuellen } from '../texte.js';
 import { knopfText, globalPos } from '../player.js';
 import { animiere, kannAnimieren, reduziert } from '../bewegung.js';
@@ -69,14 +69,6 @@ export function folgenMetaTeile(x) {
 export function folgenMeta(x) {
   const t = folgenMetaTeile(x);
   return [t.dauer, t.kapitel].filter(Boolean).join(' · ');
-}
-
-/* „Schon 18 % gehört · noch 21 Min.“ aus `hoerstelle` der Serie, sonst null. */
-export function serienFortschritt(s) {
-  const h = s?.hoerstelle;
-  if (!h || typeof h.anteil !== 'number' || h.anteil <= 0) return null;
-  if (h.anteil >= 0.999) return ZEILE.fertig;
-  return fuellen(SERIE.schon_gehoert, { prozent: Math.round(h.anteil * 100), dauer: dauerText(h.rest_s ?? 0) });
 }
 
 const anfang = (name) => String(name ?? '').trim().charAt(0).toUpperCase() || '?';
@@ -314,7 +306,7 @@ class SerieSeite {
       { id: 'name', label: SERIE.menue.name, fn: () => this.serieUmbenennen(ausloeser) },
       ...(admin && s.typ === 'normal' && this.ctx.faehig('korrektur') ? [{ id: 'zusammen', label: SERIE.menue.zusammen, fn: () => this.zusammenfuehren(ausloeser) }] : []),
     ];
-    const davor = html`<p class="muted">${fuellen(SERIE.stimmt_nicht.satz, { name: s.name })}</p>${!s.einzeln && s.folgen.length ? html`<p class="muted">${SERIE.stimmt_nicht.folge}</p>` : nothing}`;
+    const davor = html`<p class="muted">${fuellen(SERIE.stimmt_nicht.satz, { name: s.name })}</p>`;
     this._menue(SERIE.stimmt_nicht.titel, punkte, this._papierkorbPunkt(ausloeser), ausloeser, davor);
   }
 
@@ -363,8 +355,7 @@ class SerieSeite {
     const aktuell = ARTEN.includes(s.art) ? s.art : 'hoerspiel';
     let wahl = aktuell;
     let laeuft = false;
-    const inhalt = () => html`<p class="muted">${SERIE.art.satz}</p>
-      <div class="se-stack" role="radiogroup" aria-label=${SERIE.art.label}>${ARTEN.map((a) => html`
+    const inhalt = () => html`<div class="se-stack" role="radiogroup" aria-label=${SERIE.art.label}>${ARTEN.map((a) => html`
         <button type="button" class="se-opt" role="radio" data-art=${a} aria-checked=${wahl === a ? 'true' : 'false'} @click=${() => { wahl = a; this.ctx.neuZeichnen(); }}><span>${ZEILE.art[a]}</span>${wahl === a ? ic('check', 22) : nothing}</button>`)}</div>`;
     const speichern = async () => {
       if (laeuft) return false;
@@ -622,27 +613,25 @@ class SerieSeite {
   }
 
   _kopf(s) {
-    const fort = serienFortschritt(s);
     const gross = this.ctx.layout === 'seite';
     return html`<div class="se-hero">
       <div class=${`cover se-xl ${coverKlasse(s.id)}`} data-cover-gross=${s.id} data-stand=${s.cover_stand ?? ''} aria-hidden="true"><span class="bst">${anfang(s.name)}</span></div>
       <div class="se-htxt"><h2 tabindex="-1">${s.name}${laeuftAn(s.id) ? eq(abspiel.spielt) : nothing}</h2><div class="muted" data-untertitel>${untertitel(s)}</div>
-        ${fort ? html`<div class="muted" data-fortschritt>${fort}</div>` : nothing}
         ${gross ? html`<div class="btns se-aktionen"><button type="button" class="btn se-mehr-knopf" data-menue-serie aria-haspopup="dialog" aria-label=${fuellen(SERIE.mehr_zu, { titel: s.name })}
           @click=${(e) => this.serieMenue(e.currentTarget)}>${ic('more', 24)}${SERIE.mehr}</button></div>` : nothing}</div></div>`;
   }
 
   /* Großer Knopf „Reinhören / Hier weiterhören / Noch einmal hören / Pause“ (Design 5.3, 56 px): startet den Player; der Zusatz nennt Folge und Stelle.
-   * Beim ersten Mal der Satz „Das spielt hier am Handy oder Computer, nicht auf der Box.“ (G17). Ohne Fähigkeit `reinhoeren` oder ohne Folgen fehlt er. */
+   * Ohne Fähigkeit `reinhoeren` oder ohne Folgen fehlt er. */
   _rein(s) {
     const { ctx } = this;
     if (!ctx.faehig('reinhoeren') || !(s.folgen || []).length) return nothing;
     const sp = ctx.spieler;
-    const t = knopfText(s, { spielt: sp.laeuft(s.id) });
+    const spielt = sp.laeuft(s.id);
+    const t = knopfText(s, { spielt, aktuell: spielt ? s.folgen[sp.s?.i] ?? null : null });
     return html`<div class="se-rein" data-rein>
       <button type="button" class="btn primary xl" data-reinhoeren data-art=${t.art} @click=${() => sp.schalte({ serie: s })}>${ic(t.art === 'pause' ? 'pause' : 'play', 24)}${t.label}</button>
-      ${t.zusatz ? html`<div class="muted" data-rein-zusatz>${t.zusatz}</div>` : nothing}
-      ${t.art === 'rein' && !sp.hinweisGesehen() ? html`<div class="muted" data-rein-hinweis>${PLAYER.knopf.hinweis}</div>` : nothing}</div>`;
+      <div class="muted" data-rein-zusatz>${t.zusatz}</div></div>`;
   }
 
   _ansehen(s) {
@@ -658,8 +647,7 @@ class SerieSeite {
   }
 
   _einzeln(s) {
-    const art = SERIE.einzeln[s.art] ? s.art : 'hoerspiel';
-    return html`<p class="se-einzeln" data-einzeln>${SERIE.einzeln[art]} ${SERIE.einzeln.schluss}</p>`;
+    return nothing; // AM17: der Satz „Das ist ein einzelnes Lied …“ entfällt; die Seite zeigt Kopf und Knopf
   }
 
   _folgen(s) {
@@ -734,6 +722,7 @@ export const stil = () => css`
   .se-num { display: grid; place-items: center; }
   .se-rein { display: grid; justify-items: center; gap: 6px; margin: 4px 0 12px; text-align: center; }
   .se-rein .btn { width: 100%; max-width: 420px; }
+  .se-rein [data-rein-zusatz] { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } /* AM15: immer genau eine Zeile, egal ob „ab 0:24“ oder „läuft“ */
   .app:not([data-layout="unten"]) .se-rein { justify-items: start; text-align: left; }
   .se-hero { display: grid; justify-items: center; text-align: center; gap: 8px; margin: 4px 0 16px; }
   .se-htxt { display: grid; gap: 2px; justify-items: center; min-width: 0; max-width: 100%; }
@@ -774,7 +763,6 @@ export const stil = () => css`
   .app[data-layout="seite"] .se-zeile:hover .se-more { background: var(--card); }
   .se-grund { display: block; margin-top: 2px; }
   .note .se-grund:first-of-type { margin-top: 4px; }
-  .se-einzeln { background: var(--card); border-radius: var(--r-card); box-shadow: 0 1px 3px var(--shadow); padding: 16px; margin: 8px 0 16px; }
   .se-kopfzeile { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 8px 0 4px; }
   .se-abschnitt { font-size: 20px; font-weight: 500; margin: 8px 0; }
   .se-karte { background: var(--card); border-radius: var(--r-card); box-shadow: 0 1px 3px var(--shadow); padding: 4px 16px; margin: 4px 0 8px; min-width: 0; }

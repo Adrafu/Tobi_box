@@ -307,11 +307,11 @@ class TechnikSeite {
     const { ctx } = this;
     const T = TECHNIK.aufraeumen;
     const zu = !!this.beschaeftigt;
-    const aktion = (name, label, text, fn) => html`<div class="taktion"><button type="button" class="btn" data-aktion=${name} ?disabled=${zu} @click=${fn}>${label}</button><p class="muted">${text}</p></div>`;
+    const aktion = (name, label, fn) => html`<div class="taktion"><button type="button" class="btn" data-aktion=${name} ?disabled=${zu} @click=${fn}>${label}</button></div>`;
     return html`<section class="tkarte" data-karte="aufraeumen" aria-labelledby="t-aufraeumen"><h3 id="t-aufraeumen">${T.titel}</h3>
-      ${aktion('einlesen', T.einlesen, T.einlesen_text, () => this.einlesen())}
-      ${ctx.faehig('cover') ? aktion('cover', T.cover, T.cover_text, () => this.coverNeuSuchen()) : nothing}
-      ${ctx.faehig('hoerkopie') ? aktion('hoerkopien', T.hoerkopien, T.hoerkopien_text, () => this.hoerkopienNeu()) : nothing}
+      ${aktion('einlesen', T.einlesen, () => this.einlesen())}
+      ${ctx.faehig('cover') ? aktion('cover', T.cover, () => this.coverNeuSuchen()) : nothing}
+      ${ctx.faehig('hoerkopie') ? aktion('hoerkopien', T.hoerkopien, () => this.hoerkopienNeu()) : nothing}
       ${this._panel('aufraeumen')}</section>`;
   }
 
@@ -338,7 +338,7 @@ class TechnikSeite {
     const mehr = neu.length - zeilen.length;
     return html`<div class="note" role="status" data-korb-neu><strong>${N.titel}</strong>
       <ul class="korb-neu">${zeilen.map((z) => html`<li>${z}</li>`)}</ul>
-      ${mehr > 0 ? html`<p>${zaehle(N.weitere, mehr)}</p>` : nothing}<p>${N.hilfe}</p></div>`;
+      ${mehr > 0 ? html`<p>${zaehle(N.weitere, mehr)}</p>` : nothing}</div>`;
   }
 
   _papierkorb() {
@@ -358,7 +358,7 @@ class TechnikSeite {
       ${inhalt}
       <div class="btns tknoepfe"><button type="button" class="btn" data-aktion="letzte_stunde" ?disabled=${zu} @click=${() => this.korbLetzteStunde()}>${T.letzte_stunde}</button>
         <button type="button" class="btn danger" data-aktion="leeren" ?disabled=${zu || !k.gesamt} @click=${() => this.korbLeeren()}>${T.leeren}</button></div>
-      <p class="muted">${T.satz}</p></section>`;
+      </section>`;
   }
 
   _staende() {
@@ -377,7 +377,7 @@ class TechnikSeite {
           <span class="tz-t"><strong>${text}</strong></span>${ic('chev', 24)}</button>`;
       })}</div>`;
     }
-    return html`<section class="tkarte" data-karte="staende" aria-labelledby="t-staende"><h3 id="t-staende">${T.titel}</h3><p class="muted">${T.text}</p>${inhalt}</section>`;
+    return html`<section class="tkarte" data-karte="staende" aria-labelledby="t-staende"><h3 id="t-staende">${T.titel}</h3>${inhalt}</section>`;
   }
 
   render(route) {

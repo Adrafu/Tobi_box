@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import { seite, geheZu, weg, warte, tippe, taste, MIT_DOM } from './dom-helfer.mjs';
 import { FAEHIGKEITEN } from './mock-hass.mjs';
 
-const { tobiesDerSerie, tobiesSatz, gruendeTexte, brauchtPruefung, folgenMeta, folgenMetaTeile, serienFortschritt, SICHTBAR } = await import('../../custom_components/tobibox/frontend/seiten/serie.js');
+const { tobiesDerSerie, tobiesSatz, gruendeTexte, brauchtPruefung, folgenMeta, folgenMetaTeile, SICHTBAR } = await import('../../custom_components/tobibox/frontend/seiten/serie.js');
 const { SERIE, GRUENDE, FEHLER } = await import('../../custom_components/tobibox/frontend/texte.js');
 
 const folge = (name, anzeige, extra = {}) => ({ name, anzeige, nummer: null, datum: null, art: 'datei', tracks: 1, groesse_bytes: 5 * 1048576, pruefung: 'ok', hinweis: null, pruefen: false, pruefen_gruende: [], tobies: [], ...extra });
@@ -71,16 +71,12 @@ test('gruendeTexte und brauchtPruefung: Gründe aus Serie und Folgen, ohne Doppe
   assert.equal(brauchtPruefung({ pruefen: false, folgen: [{ pruefen: false }] }), false);
 });
 
-test('folgenMeta und serienFortschritt: nur, was das Backend kennt', () => {
+test('folgenMeta: nur, was das Backend kennt', () => {
   assert.equal(folgenMeta({}), '');
   assert.equal(folgenMeta({ dauer_s: 139 }), '2:19');
   assert.equal(folgenMeta({ dauer_s: 34800, art: 'ordner', tracks: 14 }), '9:40:00 · 14 Kapitel');
   assert.equal(folgenMeta({ art: 'ordner', tracks: 1 }), '', 'ein Track sind keine Kapitel');
   assert.equal(folgenMeta({ dauer_s: 60, kapitel: [{}, {}, {}] }), '1:00 · 3 Kapitel', 'die Kapitelliste geht vor');
-  assert.equal(serienFortschritt({}), null);
-  assert.equal(serienFortschritt({ hoerstelle: { anteil: 0, rest_s: 100 } }), null);
-  assert.equal(serienFortschritt({ hoerstelle: { anteil: 0.18, rest_s: 1260 } }), 'Schon 18 % gehört · noch 21 Min.');
-  assert.equal(serienFortschritt({ hoerstelle: { anteil: 1, rest_s: 0 } }), 'Fertig gehört');
   assert.equal(SICHTBAR, 20);
 });
 
@@ -121,7 +117,6 @@ test('Kopf: „‹ Start“ (Herkunft), Menü, großes Cover, Titel und Untertit
   assert.equal(mehr.getAttribute('aria-label'), 'Mehr zu Die drei ???');
   assert.equal(mehr.getAttribute('aria-haspopup'), 'dialog');
   assert.ok(s.q('.cover.se-xl'), 'großes Cover');
-  assert.equal(s.q('[data-fortschritt]'), null, 'ohne Hörstelle kein „Schon … gehört“');
   assert.equal(s.q('main button[data-reinhoeren], main [data-karte="gespielt"]'), null, 'Player und „Gespielt von“ kommen mit A8b und A9');
   assert.ok(!/\{[a-z_]+\}/.test(s.q('main').textContent), 'kein Platzhalter bleibt stehen');
   weg();
@@ -148,7 +143,7 @@ test('Kopf: „Schon 18 % gehört · noch 21 Min.“ nur mit Hörstelle; Gesamtd
   s.m.backend.serien.s1.dauer_s = 3900;
   await geheZu(s, '#serie-s1');
   await s.flush(8);
-  assert.equal(s.q('[data-fortschritt]').textContent, 'Schon 18 % gehört · noch 21 Min.');
+  assert.equal(s.q('[data-fortschritt]'), null, 'AM16: die Zeile „Schon … gehört“ entfällt bei allen Arten');
   assert.equal(s.q('[data-untertitel]').textContent, 'Hörspiel · 3 Folgen · 1 Std. 5 Min.');
   weg();
 });
@@ -260,14 +255,14 @@ test('Leere Folgenliste: ein Satz und der Weg zum Hinzufügen, keine Zeilen', MI
 
 /* ------------------------------------------------------------------ Einzeltitel */
 
-test('Einzeltitel: Kopf mit „Lied · einzeln“, ein Satz statt der Folgenliste; Menü ohne Verschieben und Reihenfolge', MIT_DOM, async () => {
+test('Einzeltitel: Kopf mit „Lied · einzeln“, keine Folgenliste; Menü ohne Verschieben und Reihenfolge', MIT_DOM, async () => {
   const s = await oeffne('lied');
   assert.equal(s.q('main h2').textContent, 'Wiegenlied');
   assert.equal(s.q('[data-untertitel]').textContent, 'Lied · einzeln · 1:06');
   assert.equal(s.qa('[data-folge]').length, 0, 'keine Folgenliste');
   assert.equal(s.q('[data-liste]'), null);
   assert.equal(s.q('.se-abschnitt'), null);
-  assert.equal(s.q('[data-einzeln]').textContent, 'Das ist ein einzelnes Lied. Es steht für sich und gehört zu keinem Album. Du kannst einem Tobie das zu spielen geben.');
+  assert.equal(s.q('[data-einzeln]'), null, 'AM17: der Satz „Das ist ein einzelnes Lied …“ entfällt');
   await menue(s);
   assert.deepEqual(punkte(s), ['name', 'cover', 'art', 'zusammen', 'papierkorb'], 'Administrator: Name, Art, Zusammenführen (als Quelle erlaubt), Papierkorb');
   weg();
@@ -327,6 +322,34 @@ test('Serie umbenennen: Menü → „Name ändern“ → Speichern; serie/rename
   assert.equal(blatt(s), null, 'das Blatt ist zu');
   assert.equal(s.q('main h2').textContent, 'Die drei Fragezeichen');
   assert.deepEqual(toasts(s), ['Gespeichert.']);
+  weg();
+});
+
+test('AM18: bei offener Tastatur schließt der Tipp neben das Blatt nur die Tastatur; ein Knopf im Blatt nimmt dem Feld den Fokus nicht', MIT_DOM, async () => {
+  const s = await oeffne('s1');
+  await menue(s);
+  await klick(s, punkt(s, 'name'));
+  const d = s.q('dialog.blatt[open]');
+  const feld = s.q('dialog.blatt[open] input#se-name');
+  feld.focus();
+  assert.equal(s.el.shadowRoot.activeElement, feld);
+  // (1) mousedown auf „Speichern“ bei offener Tastatur: kein Fokuswechsel (preventDefault); ohne Tastatur bleibt alles beim Alten
+  const knopf = leisteKnopf(s, 'Speichern');
+  const md = () => { const e = new window.MouseEvent('mousedown', { bubbles: true, cancelable: true }); knopf.dispatchEvent(e); return e.defaultPrevented; };
+  assert.equal(md(), false, 'ohne Tastatur: normal');
+  d.setAttribute('data-kbd', '');
+  assert.equal(md(), true, 'mit Tastatur: der Knopf nimmt den Fokus nicht');
+  d.removeAttribute('data-kbd');
+  // (2) Tipp auf die Fläche hinter dem Blatt (Ziel ist der Dialog selbst)
+  s.el._kbd = true;
+  d.click();
+  await s.flush(10);
+  assert.ok(blatt(s), 'bei offener Tastatur bleibt das Blatt');
+  assert.notEqual(s.el.shadowRoot.activeElement, feld, 'die Tastatur geht zu (Fokus weg)');
+  s.el._kbd = false;
+  d.click();
+  await s.flush(15);
+  assert.equal(blatt(s), null, 'ohne Tastatur schließt der Tipp daneben das Blatt wie bisher');
   weg();
 });
 
@@ -865,7 +888,7 @@ test('„Das stimmt nicht“ öffnet das passende Menü (Art, Name, Papierkorb),
   assert.match(blattText(s), /Das Einsortieren hat „Bibi Blocksberg“ nicht richtig erkannt\./);
   assert.ok(!blattText(s).includes('Anders einsortieren'), 'kommt erst mit A-3');
   assert.deepEqual(punkte(s), ['art', 'name', 'papierkorb']);
-  assert.match(blattText(s), /Tippe bei der Folge auf „⋯“ und wähle „In anderes verschieben …“\./);
+  assert.doesNotMatch(blattText(s), /Tippe bei der Folge/, 'AM17: der Satz zur einzelnen Folge entfällt');
   await klick(s, punkt(s, 'name'));
   assert.equal(titelBlatt(s), 'Umbenennen');
   tippe(s.q('dialog.blatt[open] input#se-name'), 'Bibi und Tina');

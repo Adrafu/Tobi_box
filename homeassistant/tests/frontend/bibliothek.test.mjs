@@ -339,7 +339,7 @@ test('Bibliothek ganz leer: Bild, ein Satz, Knopf „Hinzufügen“; keine Zähl
   const l = s.q('[data-leer="bibliothek"]');
   assert.ok(l);
   assert.equal(l.querySelector('.et').textContent, fuellen(LEER.bibliothek.satz));
-  assert.equal(l.querySelector('.et').textContent, 'Noch nichts da. Tippe auf „Hinzufügen“.');
+  assert.equal(l.querySelector('.et').textContent, 'Noch nichts da.');
   assert.equal(l.querySelector('.bild svg').getAttribute('aria-hidden'), 'true');
   assert.equal(l.querySelector('.btn').textContent, 'Hinzufügen');
   assert.equal(l.querySelector('.btn').getAttribute('href'), '#hinzufuegen');
@@ -348,7 +348,7 @@ test('Bibliothek ganz leer: Bild, ein Satz, Knopf „Hinzufügen“; keine Zähl
   weg();
 });
 
-test('Filter ohne Treffer: „Nichts gefunden. Nimm einen Filter weg.“ mit „Filter zurücksetzen“, das auch die Art zurückstellt', MIT_DOM, async () => {
+test('Filter ohne Treffer: „Nichts gefunden.“ mit „Filter zurücksetzen“, das auch die Art zurückstellt', MIT_DOM, async () => {
   const s = await bibliothek();
   s.qa('.artrow button')[2].click(); // Hörbücher
   await s.flush(10);
@@ -360,7 +360,7 @@ test('Filter ohne Treffer: „Nichts gefunden. Nimm einen Filter weg.“ mit „
   await s.flush();
   const l = s.q('[data-leer="filter"]');
   assert.ok(l, 'leerer Zustand „Filter“');
-  assert.equal(l.querySelector('.et').textContent, 'Nichts gefunden. Nimm einen Filter weg.');
+  assert.equal(l.querySelector('.et').textContent, 'Nichts gefunden.');
   assert.equal(l.querySelector('.btn').textContent, 'Filter zurücksetzen');
   assert.equal(s.q('.count').textContent, '0 Einträge');
   assert.ok(s.q('button[data-sortieren]'), 'der Knopf bleibt, damit man den Filter ändern kann');
@@ -492,7 +492,7 @@ test('Suche: Tobies zuerst, dann Hörspiele/Bücher/Alben, dann Folgen und Liede
   assert.equal(s.qa('[data-gruppe="sammlungen"] .lrow').length, 8, 'höchstens 8 Sammlungen');
   assert.equal(s.qa('[data-gruppe="folgen"] .frow').length, 10, 'höchstens 10 Folgen');
   assert.deepEqual(s.qa('.qres .muted').map((m) => m.textContent).filter((t) => t.startsWith('…')),
-    ['… und 4 weitere. Genauer suchen hilft.', '… und 2 weitere. Genauer suchen hilft.'], 'Sammlungen (12 − 8) und Folgen (12 − 10)');
+    ['… und 4 weitere.', '… und 2 weitere.'], 'Sammlungen (12 − 8) und Folgen (12 − 10)');
   weg();
 });
 

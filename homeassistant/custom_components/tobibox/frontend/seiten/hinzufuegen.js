@@ -620,7 +620,6 @@ class HinzModell {
     const n = w.dateien.length;
     const { zeilen, weitere } = vorschauZeilen(w);
     const liste = zeilen.length ? html`<div class="hz-vorliste" role="group" aria-label=${HINZU.blatt.was_wird} data-vorschau-liste>${zeilen.map((z) => html`<div>${z}</div>`)}${weitere ? html`<div class="muted">${fuellen(HINZU.blatt.weitere, { anzahl: weitere })}</div>` : nothing}</div>` : nothing;
-    const zusammen = n > 1 && (w.ziel === 'neu' || w.ziel === 'ergaenzen') ? html`<p class="muted" data-zusammen>${fuellen(HINZU.blatt.zusammen, { anzahl: n })}</p>` : nothing;
     let eingaben = nothing;
     if (w.ziel === 'neu') {
       eingaben = html`<div class="hz-feld"><label class="hz-label" for="hz-name">${HINZU.blatt.name}</label>
@@ -642,9 +641,9 @@ class HinzModell {
             @input=${(e) => { w.titel[i] = e.target.value; (w.titelGeaendert ??= {})[i] = true; this.ctx.neuZeichnen(); }}></div>`)}
         ${n > 3 ? html`<p class="muted" data-uebrige>${fuellen(HINZU.blatt.uebrige, { anzahl: n - 3 })}</p>` : nothing}`;
     } else if (w.ziel === 'auto') {
-      eingaben = html`<p data-sortier-du>${HINZU.blatt.sortier_du}</p>`;
+      eingaben = nothing; // AM17: der Erklärsatz „Ich lese die Angaben …“ entfällt
     }
-    return html`<div class="hz-satz" role="status" aria-live="polite" data-satz>${satzFuer(w)}</div>${this._zuGross(w)}${zusammen}${eingaben}`;
+    return html`<div class="hz-satz" role="status" aria-live="polite" data-satz>${satzFuer(w)}</div>${this._zuGross(w)}${eingaben}`;
   }
 
   /* ---- Drag and drop auf der Seite */
@@ -725,7 +724,7 @@ class HinzSeite {
     const T = HINZU.erledigte;
     return html`<div class="hz-aus" data-erledigte>
       <button type="button" class="btn" data-erledigte-aus aria-pressed=${m.erledigteAus ? 'true' : 'false'} @click=${() => m.setzeErledigteAus(!m.erledigteAus)}>${m.erledigteAus ? T.zeigen : T.aus}</button>
-      <span class="muted" data-erledigte-hinweis>${m.erledigteAus && erledigt ? `${fuellen(erledigt === 1 ? T.versteckt.eins : T.versteckt.mehr, { anzahl: erledigt })} ` : ''}${T.geraet}</span></div>`;
+      ${m.erledigteAus && erledigt ? html`<span class="muted" data-erledigte-hinweis>${fuellen(erledigt === 1 ? T.versteckt.eins : T.versteckt.mehr, { anzahl: erledigt })}</span>` : nothing}</div>`;
   }
 
   /* Die Zeilen von „Zuletzt hinzugefügt“, neueste zuerst: die Aufträge dieses Geräts und die Einträge der letzten 24 Stunden aus `eingang/list`, die zu

@@ -396,7 +396,7 @@ class GeraeteSeite {
       <input class="zeitfeld" type="time" id=${id} step="300" data-feld=${feld} .value=${b[feld]}
         @input=${(e) => { if (e.target.value) this._aendere({ [feld]: e.target.value }); }} @change=${(e) => { if (e.target.value) this._aendere({ [feld]: e.target.value }); }}></div>`;
     return html`
-      ${b.tage.length ? html`<p class="gilt" data-gilt>${fuellen(LEISE.gilt_fuer, { tage: tageListe(b.tage) })}</p>` : html`<p class="gilt warnl" data-gilt>${T.kein_tag_hinweis}</p>`}
+      ${b.tage.length ? nothing : html`<p class="gilt warnl" data-gilt>${T.kein_tag_hinweis}</p>`}
       <div class="gfeld"><span class="lbl" id="lz-tage">${T.tage}</span>
         <div class="gchips" role="group" aria-labelledby="lz-tage">${TAGE.map((d) => html`<button type="button" class="gchip" data-tag=${d} aria-pressed=${b.tage.includes(d) ? 'true' : 'false'} @click=${() => this._schalteTag(d)}>${ABENDS.leise.tage[d]}</button>`)}</div>
         <div class="gchips" role="group" aria-label=${T.schnell_label}>${schnell.map((q) => html`<button type="button" class="gchip" data-schnell=${q.id} aria-pressed=${gleich(q.tage) ? 'true' : 'false'} @click=${() => this._aendere({ tage: [...q.tage] })}>${q.label}</button>`)}</div></div>
@@ -481,7 +481,7 @@ class GeraeteSeite {
     const { gn } = this;
     const optionen = SCHNELLWAHL_MIN.map((m) => ({ label: html`${m}<span class="einheit"> Min.</span>`, aria: fuellen(T.minuten, { minuten: m }), wert: m }));
     const fremd = SCHNELLWAHL_MIN.includes(gn.timer) ? null : gn.timer; // kein Vorgabewert (z. B. aus Technik): kein Segment gewählt
-    return html`<div class="gkarte gn" data-karte="gute-nacht"><h3>${T.titel}</h3><div class="muted">${T.text}</div>
+    return html`<div class="gkarte gn" data-karte="gute-nacht"><h3>${T.titel}</h3>
       <div class="gfeld"><span class="lbl" id="gn-timer">${T.timer}</span>
         ${segment({ label: T.timer, optionen, wert: gn.timer, aus: this.gesperrt || this._speichert, onWahl: (m) => this.waehleTimer(m) })}
         ${fremd === null ? nothing : html`<div class="muted" data-gn-eingestellt>${fuellen(fremd === 1 ? T.eingestellt_minute : T.eingestellt, { minuten: fremd })}</div>`}</div>

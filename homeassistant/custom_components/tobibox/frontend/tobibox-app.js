@@ -693,7 +693,15 @@ if (lit) {
       if (this.style.getPropertyValue('--sab') !== sab) this.style.setProperty('--sab', sab);
     }
 
-    _tastatur(ziel) {
+    _tastatur(ziel, spaet = false) {
+      // AM18: Wandert der Fokus vom Textfeld auf einen Knopf im Blatt (Tipp auf „Speichern“), geht die Tastatur nicht sofort als „zu“ durch: sonst rutscht das Blatt
+      // mitten im Tipp nach unten, und der Tipp trifft die Fläche dahinter. Kurz darauf wird neu entschieden.
+      const offen = this.renderRoot?.querySelector?.('dialog.blatt[data-kbd]');
+      if (!spaet && offen && ziel && ziel.tagName === 'BUTTON' && offen.contains(ziel)) {
+        clearTimeout(this._kbdWarte);
+        this._kbdWarte = setTimeout(() => { this._kbdWarte = null; this._tastatur(this.renderRoot.activeElement, true); }, 700);
+        return;
+      }
       const feld = ziel && ziel.matches?.('input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]):not([type=button]):not([type=submit]), textarea');
       const vv = this._vv;
       this._kbd = !!(feld && vv && vv.height < (window.innerHeight || 0) * 0.8);
@@ -1187,8 +1195,30 @@ if (lit) {
       if (!reduziert() && dy > 0) animiere(d, [{ transform: `translateY(${dy}px)` }, { transform: 'none' }], { duration: tokenMs(this, '--dauer-feder'), easing: kurve(this, '--feder') });
     }
 
+    /* AM18: Ein Knopf im Blatt nimmt dem Textfeld den Fokus nicht, solange die Tastatur offen ist (sonst geht sie zu, das Blatt rutscht, der Tipp geht daneben). */
+    _blattMaus(e) {
+      const d = e.currentTarget;
+      if (!d.hasAttribute('data-kbd') || !e.target?.closest?.('button')) return;
+      e.preventDefault();
+    }
+
+    /* AM18: Eingabetaste in einem Textfeld eines Blatts: weiter zum nächsten Textfeld, im letzten der primäre Knopf (Blätter mit eigener Behandlung rufen `preventDefault`). */
+    _blattTaste(e) {
+      if (e.key !== 'Enter' || e.defaultPrevented || e.isComposing) return;
+      const f = e.target;
+      if (!f?.matches?.('input[type="text"]')) return;
+      const d = e.currentTarget;
+      const felder = [...d.querySelectorAll('input[type="text"]')];
+      const nach = felder[felder.indexOf(f) + 1];
+      e.preventDefault();
+      if (nach) { nach.focus(); return; }
+      const knopf = d.querySelector('.knoepfe .btn.primary:not([disabled])');
+      knopf?.click();
+    }
+
     _blattKlick(e) {
       const d = e.currentTarget;
+      if (e.target === d && this._kbd) { this.renderRoot.activeElement?.blur?.(); return; } // AM18: bei offener Tastatur schließt der Tipp daneben nur die Tastatur
       if (e.target === d && Date.now() - (this._gewischtAm || 0) > 250) this.schliesseBlatt('hintergrund');
     }
 
@@ -1201,7 +1231,7 @@ if (lit) {
       const b = this._blatt;
       if (!b) return nothing;
       return html`<dialog class="blatt" aria-labelledby="blatt-t" role=${b.rolle ?? nothing} ?data-nachfolger=${b.nachfolger}
-          @cancel=${(e) => { e.preventDefault(); this.schliesseBlatt('esc'); }} @click=${(e) => this._blattKlick(e)}>
+          @cancel=${(e) => { e.preventDefault(); this.schliesseBlatt('esc'); }} @click=${(e) => this._blattKlick(e)} @mousedown=${(e) => this._blattMaus(e)} @keydown=${(e) => this._blattTaste(e)}>
         <div class="blatt-in">
           <div class="griff" aria-hidden="true"></div>
           ${b.kopfKnopf
@@ -1370,7 +1400,7 @@ if (lit) {
       const out = [];
       if (s.verbindungWeg) {
         const t = SEITE.verbindung_weg;
-        out.push(html`<div class="note err band" role="alert" data-band="verbindung"><strong>${t.titel}</strong> ${t.text}
+        out.push(html`<div class="note err band" role="alert" data-band="verbindung"><strong>${t.titel}</strong>
           <div class="btns"><button type="button" class="btn" @click=${() => window.location.reload()}>${t.knopf}</button></div></div>`);
       }
       if (s.phase === 'bereit' && s.konfigZustand !== 'ok' && !this._admin) {

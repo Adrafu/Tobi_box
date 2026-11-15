@@ -112,9 +112,8 @@ export const FEHLER = {
 // Hörproben (Design 6.1, Zustände ohne Fehlercode).
 export const HOERPROBE = {
   vorbereitung: 'Die Hörprobe wird vorbereitet. Bei einem Lied dauert das etwa eine Minute, bei einem langen Hörbuch bis zu einer halben Stunde. Du kannst die Seite offen lassen, sie sagt Bescheid. Auf der Box spielt es schon.',
-  fertig: 'Die Hörprobe ist fertig. Tippe auf Reinhören.',
+  fertig: 'Die Hörprobe ist fertig.',
   keine_datei: 'Für diese Datei gibt es keine Hörprobe. Auf der Box spielt sie trotzdem.',
-  keine_datei_admin: 'Administratoren sehen den Grund in „Technik“. Dort gibt es auch „Hörkopien neu erzeugen“.', // neu, nicht im Design (sinngemäß aus 6.1)
 };
 
 // Gründe „bitte kurz ansehen“ (Design 7.3, Punkt 6, plus art_geraten und serie_name_doppelt aus 6.1 und 7.3).
@@ -209,14 +208,14 @@ export const STATUS = {
 
 // Leere Zustände (Design 6.2): Bildbeschreibung, Satz, Knopf.
 export const LEER = {
-  bibliothek: { bild: 'leeres Regal mit Lücke und Note', satz: 'Noch nichts da. Tippe auf „Hinzufügen“.', knopf: 'Hinzufügen' },
-  filter: { bild: 'Lupe mit Fragezeichen', satz: 'Nichts gefunden. Nimm einen Filter weg.', knopf: 'Filter zurücksetzen' },
-  start: { bild: 'leeres Regal mit Lücke und Note', satz: 'Noch nichts da. Tippe in der Bibliothek auf „+“.', knopf: 'Zur Bibliothek' }, // Design 5.1 Punkt 5
-  tobies: { bild: 'lächelnder Tobie über der Box', satz: 'Noch keine Tobies. Lege einen Tobie auf eine Box, dann erscheint er unter „Geräte“.', knopf: 'Zu den Geräten' }, // Design 6.2
+  bibliothek: { bild: 'leeres Regal mit Lücke und Note', satz: 'Noch nichts da.', knopf: 'Hinzufügen' },
+  filter: { bild: 'Lupe mit Fragezeichen', satz: 'Nichts gefunden.', knopf: 'Filter zurücksetzen' },
+  start: { bild: 'leeres Regal mit Lücke und Note', satz: 'Noch nichts da.', knopf: 'Zur Bibliothek' }, // Design 5.1 Punkt 5
+  tobies: { bild: 'lächelnder Tobie über der Box', satz: 'Noch keine Tobies. Leg einen auf eine Box.', knopf: 'Zu den Geräten' }, // Design 6.2
   keine_box: { bild: 'schlafende Box mit Zzz und gezogenem Stecker', satz: 'Noch keine Box eingerichtet. Bitte {verwalter_dat} Bescheid sagen.', knopf: 'Jetzt neu laden' },
   suche: { bild: 'Lupe mit Fragezeichen', satz: 'Nichts gefunden zu „{suchwort}“.', knopf: 'Suche löschen' },
   papierkorb: { bild: 'Papierkorb mit Haken', satz: 'Der Papierkorb ist leer.', knopf: 'Zur Bibliothek' },
-  gehoert: { bild: 'Kopfhörer mit leerem Diagramm', satz: 'Noch nichts gehört. Sobald eine Box spielt oder jemand reinhört, steht es hier.', knopf: 'Zur Bibliothek' },
+  gehoert: { bild: 'Kopfhörer mit leerem Diagramm', satz: 'Noch nichts gehört.', knopf: 'Zur Bibliothek' },
 };
 
 // Seite „Geräte“ (Design 3.4, ersetzt „Mehr“, Runde 15). Boxen, Karten für neue Tobies, Abends, Zeile „Gehört“.
@@ -263,7 +262,6 @@ export const TOBIE = {
   aufgelegt_zugeordnet: '{box}: Der neue Tobie spielt jetzt „{ziel}“.', // Design 5.13, Auflegen
   name_geben: 'Name geben',
   name_frage: 'Wie soll er heißen?', // Design 7.1 (Weg 1) und 5.13 (Weg 2, R17-5)
-  name_hinweis: 'Du kannst das überspringen.',
   name_platzhalter: 'Name, zum Beispiel Farbe oder Tier', // Design 7.1
   plus_tobie: '+ Tobie', // Design 5.3 (N27)
   weiteren_tobie: 'Weiteren Tobie geben', // Design 5.3 (aria-label, X20f)
@@ -375,7 +373,6 @@ export const TOBIES = {
     box_label: 'Box', // neu, nicht im Design (Name der Auswahl)
     egal: 'Egal welche', // Design 5.13
     warte_titel: 'Nächster neuer Tobie auf {box} spielt „{ziel}“', // Design 5.13
-    warte_satz: 'Kein Zeitlimit. Du musst die Seite nicht offen lassen.', // Design 5.13
     abbrechen: 'Abbrechen', // Design 5.13
     fertig: 'Fertig', // Design 5.13
   },
@@ -396,7 +393,6 @@ export const TOBIES = {
 
 // Satz im Blatt „Leise-Zeit ändern“ (Design 5.8, N24).
 export const LEISE = {
-  gilt_fuer: 'Gilt für {tage}. Tage abwählen, wenn es nur für einzelne gelten soll.',
 };
 
 // Hochladen: echte Zustände während des Uploads (Design 5.6a, 7.3; R17-4).
@@ -421,7 +417,6 @@ export const HINZU = {
     wohin_titel: 'Wohin soll es?', // Design 5.6 (G26c)
     wohin_suchen: 'Hörspiel, Buch oder Album suchen', // neu, nicht im Design (Beschriftung des Suchfelds)
     wohin_waehlen: 'Hörspiel, Buch oder Album wählen …', // Prototyp
-    wohin_nichts: 'Noch nichts gewählt. Wähle ein Hörspiel, Buch oder Album.', // neu, nicht im Design (Zielwahl ohne Treffer)
     abbrechen: 'Abbrechen', // Design 5.6 (oben rechts im Blatt)
     aendern: 'Ändern', // Design 7.3
     zurueck: 'Zurück', // neu, nicht im Design (aus der Wahl „Wohin soll es?“ zu den Kacheln)
@@ -430,10 +425,8 @@ export const HINZU = {
     name: 'Name', // Prototyp
     name_von: 'Name von Datei {nr}', // Prototyp
     uebrige: 'Die übrigen {anzahl} Dateien heißen wie in ihren Angaben.', // Design 5.6 (G26d)
-    zusammen: 'Die Dateien bleiben zusammen. Einsortiert wird, wenn alle {anzahl} da sind.', // Design 5.6
     was_wird: 'Was aus den Dateien wird', // Prototyp (Name der Liste „Kapitel 1 · Der Hafen“)
     weitere: '… und {anzahl} weitere', // Design 7.3
-    sortier_du: 'Ich lese die Angaben in den Dateien (Album, Interpret, Titel). Dateien, die zum selben Album gehören, bleiben zusammen. Passt etwas zu einem Hörspiel, das schon da ist, kommt es dort dazu. Wenn ich unsicher bin, steht danach „Bitte ansehen“ da, und du kannst es ändern.', // Design 7.3 Karte e)
     zu_viele: 'Das sind zu viele Dateien auf einmal. Wähle höchstens {max} Dateien.', // neu, nicht im Design (`gruppe_anzahl` höchstens 200)
     nicht_hochgeladen: '„{datei}“ wird nicht hochgeladen.', // neu, nicht im Design (Überschrift der Warnung vor dem Hochladen)
     kein_name: 'Bitte einen Namen eingeben.', // Design 7.3
@@ -492,7 +485,7 @@ export const HINZU = {
   },
   quelle: { nas: 'vom NAS', upload: 'vom Handy' }, // Design 7.3 Punkt 5 (`quelle` des Eintrags im Eingang, V-5)
   erledigte: { // Design 7.3 Punkt 5: „Erledigte ausblenden“ merkt nur das Gerät (ehrlich gesagt: „auf diesem Gerät“)
-    aus: 'Erledigte ausblenden', zeigen: 'Erledigte zeigen', geraet: 'Das gilt nur auf diesem Gerät.',
+    aus: 'Erledigte ausblenden', zeigen: 'Erledigte zeigen',
     versteckt: { eins: '1 erledigter Eintrag ist ausgeblendet.', mehr: '{anzahl} erledigte Einträge sind ausgeblendet.' }, // neu, nicht im Design
   },
   geht_nicht_sonst: 'Das hat nicht geklappt. Versuche es später noch einmal, sonst frag {verwalter_akk}.', // neu, nicht im Design (Eintrag „geht nicht“ ohne bekannten Grund)
@@ -538,7 +531,6 @@ export const SEITE = {
   }, // Design 6
   verbindung_weg: {
     titel: 'Keine Verbindung zu Home Assistant.',
-    text: 'Die Ansicht wird von selbst aktuell, sobald die Verbindung wieder da ist.',
     knopf: 'Jetzt neu laden',
   }, // Design 6
   liste_gesperrt: 'Änderungen sind gerade gesperrt. Bitte {verwalter_dat} Bescheid sagen.', // Design 6, für Nicht-Administratoren
@@ -566,7 +558,6 @@ export const KACHELN = {
   playlist: {
     titel: 'Playlist',
     zeile: 'Stufe C – Idee',
-    satz: 'Die Dateien werden Einzeltitel und gehören der Playlist.', // neu, nicht im Design
   },
   sortier_du: {
     titel: 'Sortier du',
@@ -642,7 +633,7 @@ export const SUCHE = {
   sammlungen: { eins: '{anzahl} Sammlung', mehr: '{anzahl} Sammlungen' },
   folgen: { eins: '{anzahl} Folge oder Lied', mehr: '{anzahl} Folgen und Lieder' },
   gruppen: { tobies: 'Tobies', sammlungen: 'Hörspiele, Bücher, Alben', folgen: 'Folgen und Lieder' },
-  weitere: '… und {anzahl} weitere. Genauer suchen hilft.',
+  weitere: '… und {anzahl} weitere.',
   spielt: 'spielt „{ziel}“',
   spielt_aus: 'spielt „{ziel}“ aus „{serie}“',
   einzeltitel: 'Einzeltitel',
@@ -771,7 +762,7 @@ export const TECHNIK = {
     neu_ja: 'Ja, neu ausrollen',
     erledigt: 'Die Liste ist neu verteilt.',
     staende: {
-      titel: 'Frühere Stände ansehen', text: 'Die letzten Stände der Liste. Einen Stand kannst du ansehen und zurückspielen.',
+      titel: 'Frühere Stände ansehen',
       leer: 'Es gibt noch keine früheren Stände.', zeile: 'Stand {nr} · {zeit} · {zuordnungen}', zeile_ohne_zeit: 'Stand {nr} · {zuordnungen}',
       blatt: 'Stand {nr} ansehen', fenster: { eins: '1 Leise-Zeit', mehr: '{anzahl} Leise-Zeiten' }, zurueck: 'Diesen Stand zurückspielen', zurueck_titel: 'Stand {nr} zurückspielen?',
       zurueck_text: 'Die Liste wird durch diesen Stand ersetzt und an alle Boxen verteilt. Der jetzige Stand bleibt als früherer Stand erhalten.',
@@ -781,19 +772,17 @@ export const TECHNIK = {
   zuordnungen: { eins: '1 Zuordnung', mehr: '{anzahl} Zuordnungen' },
   aufraeumen: { // Karte „Bibliothek aufräumen“ (Design 5.9)
     titel: 'Bibliothek aufräumen',
-    einlesen: 'Medien neu einlesen', einlesen_text: 'Schaut nach, ob auf dem NAS neue Ordner oder Dateien liegen.', einlesen_gemacht: 'Das NAS wird gerade eingelesen.', einlesen_laeuft: 'Das Einlesen läuft schon.',
-    cover: 'Cover neu suchen', cover_text: 'Sucht die Bilder aller Einträge noch einmal. Eigene Cover bleiben, wie sie sind.',
+    einlesen: 'Medien neu einlesen', einlesen_gemacht: 'Das NAS wird gerade eingelesen.', einlesen_laeuft: 'Das Einlesen läuft schon.',
+    cover: 'Cover neu suchen', cover_text: 'Sucht die Bilder aller Einträge noch einmal. Eigene Cover bleiben, wie sie sind.', // nur im Bestätigungsblatt (vor der Aktion), nicht mehr auf der Karte
     cover_titel: 'Cover neu suchen?', cover_ja: 'Ja, neu suchen', cover_gemacht: 'Die Cover-Suche läuft. Das dauert ein paar Minuten.',
-    hoerkopien: 'Hörkopien neu erzeugen', hoerkopien_text: 'Versucht es noch einmal bei allen Folgen, deren Hörkopie nicht geklappt hat.', hoerkopien_gemacht: { eins: '1 Folge wartet auf eine neue Hörkopie.', mehr: '{anzahl} Folgen warten auf eine neue Hörkopie.' },
+    hoerkopien: 'Hörkopien neu erzeugen', hoerkopien_gemacht: { eins: '1 Folge wartet auf eine neue Hörkopie.', mehr: '{anzahl} Folgen warten auf eine neue Hörkopie.' },
   },
   korb: {
     titel: 'Papierkorb', anzahl: { eins: '1 Eintrag', mehr: '{anzahl} Einträge' }, summe: '{anzahl} · {groesse}',
-    satz: 'Legt jemand anderes etwas in den Papierkorb, sehen Administratoren einen Punkt am Technik-Symbol und oben auf „Speicher“ einen Hinweis.', // AC3: keine Mitteilung in Home Assistant
     punkt: 'Neu im Papierkorb', // Screenreader am Punkt des Technik-Symbols (AC3)
     neu: { // Hinweis oben in „Technik › Speicher“ (AC3)
       titel: 'Neu im Papierkorb:', zeile: '{name} hat „{anzeige}“ am {zeit} hineingelegt.', zeile_ohne_name: '„{anzeige}“ am {zeit}.',
       weitere: { eins: 'Dazu 1 weiterer Eintrag.', mehr: 'Dazu {anzahl} weitere Einträge.' },
-      hilfe: 'Antippen holt einen Eintrag zurück. „Letzte Stunde zurückholen“ steht unten.',
     },
     typ: { folge: 'Folge', serie: 'Eintrag', eingang: 'Eingang' },
     aus: 'aus „{serie}“', dateien: { eins: '1 Datei', mehr: '{anzahl} Dateien' },
@@ -840,7 +829,6 @@ export const ABENDS = {
   titel: 'Abends',
   gute_nacht: {
     titel: 'Gute Nacht',
-    text: 'Lege den Gute-Nacht-Tobie auf. Dann läuft ein Timer. Danach wird es leise und die Box hört auf.',
     timer: 'Die Box spielt noch',
     minuten: '{minuten} Min.',
     eingestellt: 'Eingestellt: {minuten} Min.', // gespeicherter Wert ist keine Schnellwahl (AB7)
@@ -862,7 +850,7 @@ export const ABENDS = {
     leiser: 'Leiser',
     marke_jetzt: 'jetzt',
     heute: ' (heute)', // nur für Screenreader
-    leer: 'Keine Leise-Zeiten. Die Box spielt immer in normaler Lautstärke.',
+    leer: 'Keine Leise-Zeiten.',
     wochenansicht: 'Leise-Zeiten der Woche', // neu, nicht im Design (aria-label)
     tage: { 1: 'Mo', 2: 'Di', 3: 'Mi', 4: 'Do', 5: 'Fr', 6: 'Sa', 7: 'So' },
     abschnitt: '{tag}, {von} bis {bis}, {wirkung}, bearbeiten', // Design 5.8
@@ -893,7 +881,7 @@ export const ABENDS = {
     loeschen_knopf: 'Löschen',
   },
   meldung: {
-    gespeichert: 'Gespeichert. Die Boxen bekommen es gleich.', // Design 5.8
+    gespeichert: 'Gespeichert.', // Design 5.8
     geloescht: 'Gelöscht.',
     kein_tag: 'Bitte mindestens einen Tag wählen.',
     von_gleich: '„Von“ und „Bis“ dürfen nicht gleich sein.',
@@ -911,19 +899,11 @@ export const SERIE = {
   weg: { satz: 'Das gibt es nicht mehr.', link: 'Zurück zur Bibliothek' }, // Prototyp (serie/get: serie_nicht_gefunden)
   tobies_unklar: 'Das geht gerade nicht. Bitte die Seite neu laden.', // neu, nicht im Design (Backend meldet Tobies, die Seite sieht keine)
   abschnitt: { hoerspiel: 'Folgen', hoerbuch: 'Hörbuch', musik: 'Lieder', geschichte: 'Geschichten' }, // Design 5.3
-  schon_gehoert: 'Schon {prozent} % gehört · noch {dauer}', // Design 5.3
   kapitel: '{anzahl} Kapitel', // Ordner-Folgen: „2:19 · 14 Kapitel“
   suchen: { label: 'In diesem Eintrag suchen', platzhalter: 'Hier suchen' }, // Design 5.3 (ab 20 Folgen)
   keine_treffer: 'Nichts gefunden zu „{suchwort}“.', // neu, nicht im Design
   suche_loeschen: 'Suche löschen', // neu, nicht im Design
   leer: { satz: 'In „{name}“ ist nichts mehr drin.', knopf: 'Hinzufügen' }, // neu, nicht im Design (leere Folgenliste)
-  einzeln: { // Design 5.3 „Einzeltitel“
-    musik: 'Das ist ein einzelnes Lied. Es steht für sich und gehört zu keinem Album.',
-    hoerspiel: 'Das ist eine einzelne Folge. Sie steht für sich und gehört zu keiner Sammlung.',
-    hoerbuch: 'Das ist ein einzelnes Hörbuch. Es steht für sich und gehört zu keiner Sammlung.',
-    geschichte: 'Das ist eine einzelne Geschichte. Sie steht für sich und gehört zu keiner Sammlung.',
-    schluss: 'Du kannst einem Tobie das zu spielen geben.',
-  },
   ansehen: { // Design 5.3 „Falls zu prüfen“
     titel: 'Bitte kurz ansehen.',
     grund_sonst: 'Beim Einsortieren war etwas unsicher. Schau kurz, ob Name und Art stimmen.', // neu, nicht im Design
@@ -934,7 +914,6 @@ export const SERIE = {
   stimmt_nicht: { // Prototyp (Blatt „Was soll passieren?“); „Anders einsortieren …“ kommt mit A-3
     titel: 'Was soll passieren?',
     satz: 'Das Einsortieren hat „{name}“ nicht richtig erkannt. Du kannst es korrigieren. Nichts geht endgültig verloren.',
-    folge: 'Gehört nur eine einzelne Folge woandershin? Tippe bei der Folge auf „⋯“ und wähle „In anderes verschieben …“.', // neu, nicht im Design
   },
   menue: { // Design 5.3 (Menü des Eintrags und der Folge)
     name: 'Name ändern',
@@ -951,7 +930,6 @@ export const SERIE = {
   name: { titel: 'Umbenennen', label: 'Name', leer: 'Bitte einen Namen eingeben.', speichern: 'Speichern', gespeichert: 'Gespeichert.' }, // Prototyp
   art: { // Prototyp (Blatt „Was ist das?“)
     titel: 'Was ist das?',
-    satz: 'Die Art wurde aus den Tags vorgeschlagen. Hier kannst du sie ändern.',
     label: 'Art',
     gespeichert: 'Gespeichert: {art}.',
   },
@@ -996,8 +974,6 @@ export const COVER = {
   titel: 'Cover für „{name}“', // Design 5.5
   foto_waehlen: 'Foto wählen', // Design 5.5
   anderes_foto: 'Anderes Foto wählen', // neu, nicht im Design
-  satz: 'Wähle ein Foto. Am Handy kannst du ein neues aufnehmen oder eines aus der Galerie nehmen.', // neu, nicht im Design
-  satz_schneiden: 'Verschiebe das Foto mit dem Finger oder mit den Pfeilen. Mit dem Regler wählst du den Ausschnitt.', // neu, nicht im Design
   vorschau: 'Vorschau des Covers. Mit den Pfeiltasten verschiebst du das Foto.', // neu, nicht im Design
   pfeile: 'Foto verschieben', // neu, nicht im Design
   pfeil: { hoch: 'Foto nach oben', runter: 'Foto nach unten', links: 'Foto nach links', rechts: 'Foto nach rechts' }, // neu, nicht im Design
@@ -1043,7 +1019,6 @@ export const PLAYER = {
     entsperren_hinweis: 'Zum Entsperren zwei Sekunden gedrückt halten.', // Meldung beim kurzen Tippen
     ansage_gesperrt: 'Gesperrt. Zum Entsperren zwei Sekunden gedrückt halten.',
     ansage_entsperrt: 'Entsperrt.',
-    stelle_gemerkt: 'Die Stelle wird gemerkt, auch für das andere Gerät.', // Hinweis unter den Knöpfen (Prototyp ohne den Zusatz „Vorschau“)
     folge_von: '{eintrag} · {nr} von {anzahl}', // „Eintrag · 2 von 20“
     zeit_von: '{zeit} von {gesamt}', // aria-valuetext der Zeitleiste
     vorbereitet: 'Die Hörprobe wird vorbereitet …', // nur Anzeige in der Vollansicht, Satz in HOERPROBE.vorbereitung
@@ -1055,7 +1030,7 @@ export const PLAYER = {
     nochmal: 'Noch einmal hören',
     pause: 'Pause',
     zusatz: '{ziel} · ab {zeit}', // „Folge 3: Die alte Mühle · ab 0:47“
-    hinweis: 'Das spielt hier am Handy oder Computer, nicht auf der Box.', // beim ersten Mal (G17)
+    laeuft: '{ziel} · läuft', // AM15: dieselbe Zeile beim Abspielen
   },
   folge: { abspielen: '{titel} abspielen', pausieren: '{titel} pausieren', oeffnen: '{titel} im Player öffnen' }, // aria-label der Abspielknöpfe der Zeilen; `oeffnen` (AM13) für die geladene Folge der Serienseite
   reihe: { weiterhoeren: '{name} weiterhören' }, // aria-label des Knopfs auf der Kachel der Reihe „Am Handy weiterhören“ (Start)

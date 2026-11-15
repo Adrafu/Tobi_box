@@ -181,7 +181,7 @@ test('Status: Hinweis zu neuen Zuordnungen nur bei Offline oder Abweichung über
 /* ------------------------------------------------------------------ Leere Zustände, Geräte, Kacheln */
 
 test('Leere Zustände, „Geräte“ und Kacheln: Design-Texte stehen wörtlich drin', () => {
-  assert.equal(fuellen(LEER.bibliothek.satz), 'Noch nichts da. Tippe auf „Hinzufügen“.');
+  assert.equal(fuellen(LEER.bibliothek.satz), 'Noch nichts da.');
   assert.equal(fuellen(LEER.keine_box.satz), 'Noch keine Box eingerichtet. Bitte dem Administrator Bescheid sagen.');
   assert.equal(fuellen(GERAETE.abends.erklaerung), 'Gute Nacht und Leise-Zeiten');
   assert.equal(Object.keys(KACHELN).length, 5);
@@ -204,9 +204,9 @@ test('A5b: „Mehr“ gibt es nicht mehr, „Geräte“ trägt die Texte aus Abs
   assert.equal(GERAETE.gehoert.titel, 'Wer hat was gehört?');
   for (const [pfad, text] of alleTexte({ GERAETE, LEER })) assert.doesNotMatch(text, /\bMehr\b/, pfad);
   // 6.2 und 5.7: „Geräte“ statt Startseite
-  assert.equal(fuellen(LEER.tobies.satz), 'Noch keine Tobies. Lege einen Tobie auf eine Box, dann erscheint er unter „Geräte“.'); // A9: Design 6.2
+  assert.equal(fuellen(LEER.tobies.satz), 'Noch keine Tobies. Leg einen auf eine Box.'); // A9: Design 6.2, AM17 gekürzt
   assert.equal(LEER.tobies.knopf, 'Zu den Geräten');
-  assert.equal(fuellen(LEER.start.satz), 'Noch nichts da. Tippe in der Bibliothek auf „+“.');
+  assert.equal(fuellen(LEER.start.satz), 'Noch nichts da.');
   assert.equal(LEER.start.knopf, 'Zur Bibliothek');
 });
 
@@ -229,8 +229,7 @@ test('A5b: Zeile „Vorher“ auf der Tobie-Seite', () => {
 
 test('A5b: Namensfeld, auch bei „Später auflegen“ (R17-5)', () => {
   assert.equal(TOBIE.name_frage, 'Wie soll er heißen?');
-  assert.equal(TOBIE.name_hinweis, 'Du kannst das überspringen.');
-  imDesign('Wie soll er heißen?** Du kannst das überspringen.');
+  assert.equal(TOBIE.name_hinweis, undefined, 'AM17: entfällt');
   imDesign('Name, zum Beispiel Farbe oder Tier');
   assert.equal(TOBIE.name_geben, 'Name geben');
 });
@@ -267,8 +266,7 @@ test('A5b: Satz „Bildschirm anlassen“ nur als Upload-Zustand, „+ Tobie“,
   imDesign('„**Bildschirm anlassen, bis es fertig ist.**“');
   assert.equal(TOBIE.plus_tobie, '+ Tobie');
   assert.equal(TOBIE.weiteren_tobie, 'Weiteren Tobie geben');
-  assert.equal(fuellen(LEISE.gilt_fuer), 'Gilt für Mo, Di, Mi, Do, So. Tage abwählen, wenn es nur für einzelne gelten soll.');
-  assert.equal(fuellen(LEISE.gilt_fuer, { tage: 'Fr, Sa' }), 'Gilt für Fr, Sa. Tage abwählen, wenn es nur für einzelne gelten soll.');
+  assert.equal(LEISE.gilt_fuer, undefined, 'AM17: entfällt');
   imDesign('Gilt für Mo, Di, Mi, Do, So.** Tage abwählen, wenn es nur für einzelne gelten soll.');
   assert.equal(TOBIE.neue_tobies_punkt, '1 neuer Tobie');
 });
@@ -306,4 +304,26 @@ test('Status: heißt die Folge schon „Folge 1: Der Schatz“, steht die Nummer
   assert.equal(satz('Folge 12: Das Rätsel', 1), 'Box 1 spielt „Drachen“ · Folge 1: Folge 12: Das Rätsel.', 'Folge 12 ist nicht Folge 1');
   assert.equal(satz('1 Mann im Wald', 1), 'Box 1 spielt „Drachen“ · Folge 1: 1 Mann im Wald.', 'eine Zahl am Titelanfang ohne Trenner ist keine Nummer');
   assert.equal(satz('Folge 4 Das Rätsel', 4), 'Box 1 spielt „Drachen“ · Folge 4 Das Rätsel.');
+});
+
+test('AM17/AM16: keiner der erklärenden „weg“-Sätze steht noch in texte.js (Liste: docs/egm/ha-ui/erklaersaetze.md)', () => {
+  const quelle = readFileSync(new URL('../../custom_components/tobibox/frontend/texte.js', import.meta.url), 'utf8');
+  const weg = [
+    'Das spielt hier am Handy oder Computer', 'Schon {prozent} % gehört', 'Das ist ein einzelnes Lied', 'Die Art wurde aus den Tags vorgeschlagen',
+    'Gehört nur eine einzelne Folge woandershin', 'Wähle ein Foto. Am Handy', 'Verschiebe das Foto mit dem Finger', 'Die Stelle wird gemerkt',
+    'Tippe auf Reinhören', 'Du kannst das überspringen', 'Kein Zeitlimit', 'Lege den Gute-Nacht-Tobie auf. Dann läuft', 'Gilt für {tage}',
+    'Die Dateien bleiben zusammen. Einsortiert', 'Das gilt nur auf diesem Gerät',
+    'Legt jemand anderes etwas in den Papierkorb', 'Antippen holt einen Eintrag zurück', 'Die letzten Stände der Liste', 'Schaut nach, ob auf dem NAS',
+    'Versucht es noch einmal bei allen Folgen', 'Genauer suchen hilft', 'Nimm einen Filter weg', 'Tippe in der Bibliothek auf',
+    'Die Ansicht wird von selbst aktuell', 'Die Box spielt immer in normaler Lautstärke', 'Die Boxen bekommen es gleich', 'dann erscheint er unter „Geräte“',
+    'Sobald eine Box spielt oder jemand reinhört',
+  ];
+  // `TECHNIK.aufraeumen.cover_text` bleibt: Es steht nur noch im Bestätigungsblatt vor der Aktion, nicht mehr auf der Karte.
+  for (const satz of weg) assert.ok(!quelle.includes(satz), `„${satz}“ steht noch in texte.js`);
+  assert.equal(HOERPROBE.fertig, 'Die Hörprobe ist fertig.');
+  for (const k of ['hoerkopie_wartet']) assert.ok(Object.hasOwn(FEHLER, k), 'der Vertrag-Code braucht seinen Text');
+  assert.equal(HOERPROBE.keine_datei_admin, undefined);
+  assert.equal(texte.HINZU.blatt.wohin_nichts, undefined);
+  assert.equal(texte.HINZU.blatt.sortier_du, undefined, 'der Satz im Blatt entfällt (die Kachel behält ihre Beschriftung für Screenreader)');
+  assert.equal(KACHELN.playlist.satz, undefined);
 });

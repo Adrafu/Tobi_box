@@ -452,7 +452,7 @@ test('Leere Zustände: Bild aria-hidden, ein Satz, ein Knopf; Geräte nur ohne B
   await geheZu(s, '#bibliothek');
   assert.equal(s.q('[data-leer="bibliothek"] .btn').textContent, 'Hinzufügen');
   await geheZu(s, '#tobies');
-  assert.equal(s.q('[data-leer="tobies"] .et').textContent, 'Noch keine Tobies. Lege einen Tobie auf eine Box, dann erscheint er unter „Geräte“.', 'A9: Design 6.2');
+  assert.equal(s.q('[data-leer="tobies"] .et').textContent, 'Noch keine Tobies. Leg einen auf eine Box.', 'A9: Design 6.2, AM17 gekürzt');
   assert.equal(s.q('[data-leer="tobies"] .btn').getAttribute('href'), '#geraete');
   assert.ok(s.q('[data-regal] a[data-neu]'), 'das Regal zeigt auch ohne Tobies die Kachel „+ Neuer Tobie“');
   await geheZu(s, '#geraete');

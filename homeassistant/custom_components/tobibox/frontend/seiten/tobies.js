@@ -511,7 +511,7 @@ function zielKarte({ bild, label, titel, art, klasse = '' }) {
 
 /* Name „Wie soll er heißen?“: überspringbar, auf Touch-Geräten kein Autofokus (Design 7.1). */
 function namenKarte(wert, onEingabe, id = 'tb-neuname') {
-  return html`<div class="tb-karte tb-name" data-karte="name"><h3>${TOBIE.name_frage}</h3><div class="muted">${TOBIE.name_hinweis}</div>
+  return html`<div class="tb-karte tb-name" data-karte="name"><h3>${TOBIE.name_frage}</h3>
     <div class="tb-namefeld"><label class="sr" for=${id}>${TOBIES.name.label}</label>
       <input id=${id} type="text" maxlength="60" autocomplete="off" placeholder=${TOBIE.name_platzhalter} .value=${wert} @input=${(e) => onEingabe(e.target.value)}></div></div>`;
 }
@@ -955,7 +955,7 @@ class NeuQueueSeite {
     const e = this.queued ? ctx.warteschlange().find((x) => x.id === this.queued) : null;
     if (e) {
       return html`${zurueck}<div class="tb-warte" data-zustand="wartet"><div class="ring" aria-hidden="true">${ic('clock', 48)}</div>
-        <h2 class="tb-titel" tabindex="-1">${fuellen(T.warte_titel, { box: m.boxText(e.box), ziel: zielTitel(e) })}</h2><div class="muted">${T.warte_satz}</div>
+        <h2 class="tb-titel" tabindex="-1">${fuellen(T.warte_titel, { box: m.boxText(e.box), ziel: zielTitel(e) })}</h2>
         <div class="btns"><button type="button" class="btn" data-abbrechen @click=${() => this.abbrechen(e)}>${T.abbrechen}</button>
           <a class="btn primary" href=${k.zurueck} data-fertig>${T.fertig}</a></div></div>`;
     }

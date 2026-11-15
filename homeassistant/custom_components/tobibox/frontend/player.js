@@ -30,7 +30,6 @@ export const VORBEREITET_NEU_MS = 15000; // `wird_vorbereitet`: nach 15 s fragt 
 export const VORAB_S = 45; // so viele Sekunden vor dem Ende wird die nächste Datei signiert (Messung 2: Lücke 822 ms)
 export const NEU_VERSUCHE = 2; // so oft fragt die Seite nach einem Fehler des `<audio>`-Elements neu, bevor sie aufgibt
 const TEMPO_KEY = 'tobibox.tempo';
-const HINWEIS_KEY = 'tobibox.rein_hinweis';
 
 /* ------------------------------------------------------------------ reine Funktionen */
 
@@ -94,14 +93,15 @@ export function hoerziel(serie) {
   return { art: 'weiter', index: i, folge: folgen[i], zeit: h && !h.fertig && zahl(h.position_s) ? h.position_s : 0 };
 }
 
-/* Beschriftung des Hauptknopfs der Serienseite: { art, label, zusatz }. `spielt`: diese Serie läuft gerade. */
-export function knopfText(serie, { spielt = false } = {}) {
+/* Beschriftung des Hauptknopfs der Serienseite: { art, label, zusatz }. `spielt`: diese Serie läuft gerade; `aktuell`: die Folge, die läuft (sonst die, an der man steht).
+ * AM15: die Zeile darunter steht immer (Play und Pause ändern keine Höhe): beim Abspielen „{Folge} · läuft“, sonst „{Folge} · ab 0:24“, bei „Reinhören“ und „Noch einmal hören“ nur der Name. */
+export function knopfText(serie, { spielt = false, aktuell = null } = {}) {
   const z = hoerziel(serie);
   if (!z) return null;
-  if (spielt) return { art: 'pause', label: PLAYER.knopf.pause, zusatz: null };
+  const ziel = (f) => (serie.folgen.length > 1 ? folgeName(f) : serie.name);
+  if (spielt) return { art: 'pause', label: PLAYER.knopf.pause, zusatz: fuellen(PLAYER.knopf.laeuft, { ziel: ziel(aktuell || z.folge) }) };
   const label = PLAYER.knopf[z.art];
-  let zusatz = null;
-  if (z.art === 'weiter') zusatz = fuellen(PLAYER.knopf.zusatz, { ziel: serie.folgen.length > 1 ? folgeName(z.folge) : serie.name, zeit: uhr(z.zeit) });
+  const zusatz = z.art === 'weiter' ? fuellen(PLAYER.knopf.zusatz, { ziel: ziel(z.folge), zeit: uhr(z.zeit) }) : ziel(z.folge);
   return { art: z.art, label, zusatz };
 }
 
@@ -129,8 +129,6 @@ export function formatErlaubt(audio, dateiname) {
 function ladeTempo() {
   try { const v = Number(window.localStorage?.getItem(TEMPO_KEY)); return TEMPOS.includes(v) ? v : 1; } catch { return 1; }
 }
-function hinweisGesehen() { try { return window.localStorage?.getItem(HINWEIS_KEY) === '1'; } catch { return false; } }
-function hinweisMerken() { try { window.localStorage?.setItem(HINWEIS_KEY, '1'); } catch { /* ohne Speicher: der Satz kommt noch einmal */ } }
 
 const radiusVon = (el) => { try { return parseFloat(getComputedStyle(el).borderTopLeftRadius) || 0; } catch { return 0; } };
 
@@ -244,7 +242,6 @@ export class Spieler {
   async starte({ serie, folge = null } = {}) {
     const folgen = serie?.folgen || [];
     if (!folgen.length) return;
-    hinweisMerken();
     let stand = null;
     if (this.ctx.faehig('reinhoeren')) {
       try { stand = await this.ctx.api('tobibox/hoerstelle/get', { serie_id: serie.id }); } catch { /* ohne gemerkte Stelle weiter */ }
@@ -275,9 +272,6 @@ export class Spieler {
     if (this.ist(serie.id, folge) && this._quelle) { this.toggle(); return; }
     return this.starte({ serie, folge });
   }
-
-  /* Hat dieser Browser den Satz „Das spielt hier am Handy …“ schon einmal gezeigt, nachdem etwas gestartet wurde? (Design 5.3, G17: nur beim ersten Mal.) */
-  hinweisGesehen() { return hinweisGesehen(); }
 
   /* Wie `schalte`, aber nur mit der Kennung (Suche, Start): holt die Serie bei Bedarf selbst. */
   async spieleId(serieId, folge = null) {
@@ -765,7 +759,6 @@ export class Spieler {
             @click=${() => { if (Date.now() - this._gewischtAm >= 250) this.ctx.melde(PLAYER.voll.entsperren_hinweis); }}><span class="ring"></span>${ic('lock', 24)}${PLAYER.voll.gedrueckt_halten}</button>`
     : html`<button type="button" class="btn" data-p="lock" @click=${() => this.sperren()}>${ic('lock', 20)}${PLAYER.voll.sperren}</button>`}</div>
         ${this.zustand === 'vorbereitet' ? html`<p class="muted pnote" data-vorbereitet role="status">${PLAYER.voll.vorbereitet}</p>` : nothing}
-        ${L ? nothing : html`<p class="muted pnote">${PLAYER.voll.stelle_gemerkt}</p>`}
       </div></div></dialog>`;
   }
 

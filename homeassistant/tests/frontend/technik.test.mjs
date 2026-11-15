@@ -396,7 +396,7 @@ test('Papierkorb: jede Zeile ganz antippbar, mit „gelöscht von“ (nur wenn b
   assert.ok(z[0].querySelector('svg'), 'Pfeil');
   assert.doesNotMatch(z[1].textContent, / von /, 'ohne geloescht_von kein „von“');
   assert.match(z[1].textContent, /12 Dateien/);
-  assert.match(s.q('[data-karte="papierkorb"]').textContent, /sehen Administratoren einen Punkt am Technik-Symbol und oben auf „Speicher“ einen Hinweis/);
+  assert.doesNotMatch(s.q('[data-karte="papierkorb"]').textContent, /Administratoren einen Punkt/, 'AM17: der Satz entfällt');
   assert.match(s.q('[data-korb-summe]').textContent, /2 Einträge/);
   weg();
 });

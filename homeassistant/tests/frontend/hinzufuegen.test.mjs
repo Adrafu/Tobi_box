@@ -397,8 +397,25 @@ test('Vorschau a): Name und „Welche Art?“, Satz mit role=status, ändert sic
     await klick(s, s.q('[data-art-wahl="musik"]'));
     assert.equal(st.textContent, '3 Dateien → neues Album „Kapitän Knopf“, Lied 1–3.');
     assert.deepEqual(s.qa('[data-vorschau-liste] div').map((d) => d.textContent), ['Lied 1 · Der Hafen', 'Lied 2 · Die Karte', 'Lied 3 · Der Sturm']);
-    assert.equal(s.q('[data-zusammen]').textContent.trim(), 'Die Dateien bleiben zusammen. Einsortiert wird, wenn alle 3 da sind.');
+    assert.equal(s.q('dialog.blatt[open] [data-zusammen]'), null, 'AM17: der Satz „Die Dateien bleiben zusammen …“ entfällt');
     assert.deepEqual(s.qa('dialog.blatt[open] .knoepfe button').map((b) => b.textContent.trim()), ['Abbrechen', 'Ändern', 'Hochladen']);
+  } finally { weg(); }
+});
+
+test('AM18: Enter im Namensfeld des Blatts löst den primären Knopf („Hochladen“) aus; ein anderer Tastendruck nicht', { ...MIT_DOM }, async () => {
+  const s = await start();
+  try {
+    await dateienWaehlen(s, HAFEN());
+    await klick(s, kachel(s, 'neu'));
+    const primaer = s.q('dialog.blatt[open] .knoepfe .btn.primary');
+    let n = 0;
+    primaer.addEventListener('click', (e) => { n += 1; e.stopImmediatePropagation(); }, true);
+    const feld = s.q('#hz-name');
+    dh.taste(feld, 'a');
+    assert.equal(n, 0);
+    const e = dh.taste(feld, 'Enter');
+    assert.equal(n, 1, 'Enter löst „Hochladen“ aus');
+    assert.equal(e.defaultPrevented, true);
   } finally { weg(); }
 });
 
@@ -496,7 +513,7 @@ test('Vorschau e): ein Absatz erklärt das Einsortieren, der Satz nennt die Verm
   try {
     await dateienWaehlen(s, [datei('Der Mond und der Fuchs.m4b')]);
     await klick(s, kachel(s, 'auto'));
-    assert.equal(s.q('[data-sortier-du]').textContent.trim(), HINZU.blatt.sortier_du);
+    assert.equal(s.q('[data-sortier-du]'), null, 'AM17: der Erklärsatz „Ich lese die Angaben …“ entfällt');
     assert.match(satz(s), /^1 Datei → ich sortiere nach den Angaben in den Dateien ein\. Meine Vermutung: ein einzelnes Hörbuch „Der Mond und der Fuchs“\.$/);
     assert.equal(s.qa('dialog.blatt[open] input').length, 0);
   } finally { weg(); }
@@ -1563,20 +1580,20 @@ test('Ohne Speicher (localStorage wirft) läuft die Seite weiter, nur ohne Merke
 
 /* ---- „Erledigte ausblenden“ */
 
-test('„Erledigte ausblenden“ blendet fertige Einträge aus und sagt ehrlich, dass das nur dieses Gerät betrifft; es bleibt nach dem Neuladen', { ...MIT_DOM }, async () => {
+test('„Erledigte ausblenden“ blendet fertige Einträge aus und sagt, wie viele ausgeblendet sind; es bleibt nach dem Neuladen', { ...MIT_DOM }, async () => {
   const s = await start({ eingang: [nasLaeuft()], eingangErledigt: [nasFertig(), nasFertig({ name: 'Zweiter', fertig_am: minuten(9), zuerst_gesehen: minuten(10) }), nasFertig({ name: 'Dritter', pruefen: true, fertig_am: minuten(11), ergebnis: [erg({ pruefen: true })] })] });
   try {
     assert.equal(karten(s).length, 4);
     const knopfAus = s.q('[data-erledigte-aus]');
     assert.equal(knopfAus.textContent.trim(), 'Erledigte ausblenden');
     assert.equal(knopfAus.getAttribute('aria-pressed'), 'false');
-    assert.equal(s.q('[data-erledigte-hinweis]').textContent.trim(), 'Das gilt nur auf diesem Gerät.');
+    assert.equal(s.q('[data-erledigte-hinweis]'), null, 'AM17: ohne Ausgeblendete steht kein Satz da');
     await klick(s, knopfAus);
     assert.equal(karten(s).length, 2, 'es bleiben „wird einsortiert“ und „bitte ansehen“');
     assert.ok(karteMit(s, 'Neuer-Ordner') && karteMit(s, 'Dritter'));
     assert.equal(s.q('[data-erledigte-aus]').textContent.trim(), 'Erledigte zeigen');
     assert.equal(s.q('[data-erledigte-aus]').getAttribute('aria-pressed'), 'true');
-    assert.equal(s.q('[data-erledigte-hinweis]').textContent.trim(), '2 erledigte Einträge sind ausgeblendet. Das gilt nur auf diesem Gerät.');
+    assert.equal(s.q('[data-erledigte-hinweis]').textContent.trim(), '2 erledigte Einträge sind ausgeblendet.');
     assert.equal(window.localStorage.getItem('tobibox.hinzufuegen.erledigte_aus'), '1');
     assert.equal(s.m.aufrufe('tobibox/einstellungen/set').length, 0, 'nichts geht an den Server');
     const t = await neuLaden(s);
@@ -1597,7 +1614,7 @@ test('„Erledigte ausblenden“ gibt es nur, wenn es etwas Erledigtes gibt; sin
     await klick(t, t.q('[data-erledigte-aus]'));
     assert.equal(karten(t).length, 0);
     assert.equal(t.q('[data-liste="zuletzt"]'), null);
-    assert.equal(t.q('[data-erledigte-hinweis]').textContent.trim(), '1 erledigter Eintrag ist ausgeblendet. Das gilt nur auf diesem Gerät.');
+    assert.equal(t.q('[data-erledigte-hinweis]').textContent.trim(), '1 erledigter Eintrag ist ausgeblendet.');
     await klick(t, t.q('[data-erledigte-aus]'));
     assert.equal(karten(t).length, 1);
   } finally { weg(); }

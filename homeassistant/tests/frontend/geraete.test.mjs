@@ -269,7 +269,7 @@ test('Gute Nacht: Schnellwahl 15 · 30 · 45 · 60 · 90 als Segment, kein „Sp
   const s = await geraete();
   const k = s.q('[data-karte="gute-nacht"]');
   assert.equal(k.querySelector('h3').textContent, 'Gute Nacht');
-  assert.ok(k.textContent.includes(ABENDS.gute_nacht.text));
+  assert.ok(!k.textContent.includes('Lege den Gute-Nacht-Tobie auf'), 'AM17: kein Erklärsatz mehr');
   assert.deepEqual([...k.querySelectorAll('.seg2 [data-wert]')].map((b) => b.textContent), ['15 Min.', '30 Min.', '45 Min.', '60 Min.', '90 Min.']);
   assert.deepEqual([...k.querySelectorAll('.seg2 [data-wert]')].map((b) => b.getAttribute('aria-pressed')), ['false', 'true', 'false', 'false', 'false']);
   assert.equal(k.querySelector('select'), null, 'kein Auswahlfeld');
@@ -282,7 +282,7 @@ test('Gute Nacht: Schnellwahl 15 · 30 · 45 · 60 · 90 als Segment, kein „Sp
   weg();
 });
 
-test('Gute Nacht: ein Tipp speichert sofort (gute_nacht mit erwartet_revision, nichts sonst) und meldet „Gespeichert“', MIT_DOM, async () => {
+test('Gute Nacht: ein Tipp speichert sofort (gute_nacht mit erwartet_revision, nichts sonst) und meldet „Gespeichert.“', MIT_DOM, async () => {
   const s = await geraete();
   s.m.reset();
   await klick(s, s.q('.seg2 [data-wert="45"]'));
@@ -291,7 +291,7 @@ test('Gute Nacht: ein Tipp speichert sofort (gute_nacht mit erwartet_revision, n
   const { id, ...felder } = c[0]; // eslint-disable-line no-unused-vars
   assert.deepEqual(felder, { type: 'tobibox/einstellungen/set', gute_nacht: { timer_min: 45, ausblenden_s: 60 }, erwartet_revision: 7 });
   assert.equal(s.m.backend.einstellungen.gute_nacht.timer_min, 45);
-  assert.equal(s.q('.toast[role="status"]').textContent.replace(/OK$/, ''), 'Gespeichert. Die Boxen bekommen es gleich.');
+  assert.equal(s.q('.toast[role="status"]').textContent.replace(/OK$/, ''), 'Gespeichert.');
   assert.equal(s.q('.seg2 [data-wert="45"]').getAttribute('aria-pressed'), 'true');
   assert.equal(s.q('.seg2 [data-wert="30"]').getAttribute('aria-pressed'), 'false');
   assert.ok(!s.q('.seg2 [data-wert="45"]').disabled, 'danach wieder bedienbar');
@@ -420,9 +420,9 @@ test('Wochenansicht: die Zeitzone der Einstellungen bestimmt „jetzt“', MIT_D
   weg();
 });
 
-test('Wochenansicht leer: Satz „Keine Leise-Zeiten …“, keine Abschnitte, „+ Leise-Zeit“ bleibt', MIT_DOM, async () => {
+test('Wochenansicht leer: Satz „Keine Leise-Zeiten.“, keine Abschnitte, „+ Leise-Zeit“ bleibt', MIT_DOM, async () => {
   const s = await geraete();
-  assert.equal(s.q('[data-leer="leise-zeiten"]').textContent, 'Keine Leise-Zeiten. Die Box spielt immer in normaler Lautstärke.');
+  assert.equal(s.q('[data-leer="leise-zeiten"]').textContent, 'Keine Leise-Zeiten.');
   assert.equal(s.qa('.wk .hit').length, 0);
   assert.equal(s.qa('.wk .dr').length, 7);
   assert.ok(s.q('[data-jetzt]').textContent.startsWith('Jetzt: normale Lautstärke'));
@@ -433,14 +433,13 @@ test('Wochenansicht leer: Satz „Keine Leise-Zeiten …“, keine Abschnitte, �
 
 /* ------------------------------------------------------------------ Blatt: ändern, anlegen, löschen */
 
-test('Blatt „Leise-Zeit ändern“: Satz „Gilt für …“, Tage, Zeitfelder mit 5-Minuten-Schritt, Still | Leiser, Löschen abgesetzt', MIT_DOM, async () => {
+test('Blatt „Leise-Zeit ändern“: Tage, Zeitfelder mit 5-Minuten-Schritt, Still | Leiser, Löschen abgesetzt', MIT_DOM, async () => {
   const s = await geraete({ fenster: [W_NACHT] });
   await klick(s, s.q('.dr[data-tag="1"] .hit[data-fenster="nacht"]'));
   const b = blatt(s);
   assert.ok(b.hasAttribute('open'));
   assert.equal(b.querySelector('h2').textContent, 'Leise-Zeit ändern');
-  assert.equal(b.querySelector('[data-gilt]').textContent, fuellen(LEISE.gilt_fuer, { tage: 'Mo, Di, Mi, Do, So' }));
-  assert.equal(b.querySelector('[data-gilt]').textContent, 'Gilt für Mo, Di, Mi, Do, So. Tage abwählen, wenn es nur für einzelne gelten soll.');
+  assert.equal(b.querySelector('[data-gilt]'), null, 'AM17: der Satz „Gilt für …“ entfällt (bei gewählten Tagen)');
   assert.deepEqual([...b.querySelectorAll('[data-tag]')].map((x) => [x.textContent, x.getAttribute('aria-pressed')]),
     [['Mo', 'true'], ['Di', 'true'], ['Mi', 'true'], ['Do', 'true'], ['Fr', 'false'], ['Sa', 'false'], ['So', 'true']]);
   assert.deepEqual([...b.querySelectorAll('[data-schnell]')].map((x) => [x.textContent, x.getAttribute('aria-pressed')]), [['Jeden Tag', 'false'], ['So–Do', 'true'], ['Fr, Sa', 'false']]);
@@ -455,11 +454,11 @@ test('Blatt „Leise-Zeit ändern“: Satz „Gilt für …“, Tage, Zeitfelder
   assert.ok(b.textContent.includes(ABENDS.blatt.still_hinweis));
   assert.ok(b.querySelector('.apart [data-loeschen]'), 'Löschen abgesetzt');
   assert.deepEqual([...b.querySelectorAll('.knoepfe button')].map((x) => x.textContent), ['Abbrechen', 'Speichern']);
-  // Der Satz folgt den Tagen
+  // der Satz „Gilt für …“ entfällt (AM17)
   await klick(s, b.querySelector('[data-tag="7"]'));
-  assert.equal(blatt(s).querySelector('[data-gilt]').textContent, 'Gilt für Mo, Di, Mi, Do. Tage abwählen, wenn es nur für einzelne gelten soll.');
+  assert.equal(blatt(s).querySelector('[data-gilt]'), null);
   await klick(s, blatt(s).querySelector('[data-schnell="fr-sa"]'));
-  assert.equal(blatt(s).querySelector('[data-gilt]').textContent, 'Gilt für Fr, Sa. Tage abwählen, wenn es nur für einzelne gelten soll.');
+  assert.equal(blatt(s).querySelector('[data-gilt]'), null);
   setZeit(blatt(s).querySelector('[data-feld="bis"]'), '22:00');
   await s.flush();
   assert.equal(blatt(s).querySelector('[data-mitternacht]').textContent, '', 'nicht mehr über Mitternacht');
@@ -483,7 +482,7 @@ test('Leise-Zeit ändern: Zeit und Tage geändert, gespeichert; ganzes Fenster e
     { id: 'mittag', tage: [1, 2, 3, 4, 5], von: '13:00', bis: '14:00', wirkung: 'leiser', grenze: 25 }]);
   assert.equal(s.m.backend.einstellungen.leise_zeiten.zeitzone, 'Europe/Berlin', 'der gespeicherte Wert bleibt');
   assert.ok(!blatt(s), 'das Blatt ist zu');
-  assert.equal(s.q('.toast[role="status"]').textContent.replace(/OK$/, ''), 'Gespeichert. Die Boxen bekommen es gleich.');
+  assert.equal(s.q('.toast[role="status"]').textContent.replace(/OK$/, ''), 'Gespeichert.');
   assert.equal(s.qa('.dr[data-tag="7"] .hit[data-fenster="nacht"]').length, 0, 'Sonntag hat keine Leiste mehr');
   assert.deepEqual(s.qa('.dr[data-tag="1"] .hit[data-fenster="nacht"]').map((h) => h.getAttribute('aria-label')), ['Mo, 20:00 bis 7:00, still, bearbeiten']);
   weg();
@@ -505,7 +504,7 @@ test('Leise-Zeit anlegen: „+ Leise-Zeit“, Vorgabe So–Do 19:30 bis 6:30 sti
   const b = blatt(s);
   assert.equal(b.querySelector('h2').textContent, 'Neue Leise-Zeit');
   assert.ok(!b.querySelector('[data-loeschen]'), 'neu: nichts zu löschen');
-  assert.equal(b.querySelector('[data-gilt]').textContent, 'Gilt für Mo, Di, Mi, Do, So. Tage abwählen, wenn es nur für einzelne gelten soll.');
+  assert.equal(b.querySelector('[data-gilt]'), null);
   assert.deepEqual([b.querySelector('[data-feld="von"]').value, b.querySelector('[data-feld="bis"]').value], ['19:30', '06:30']);
   setZeit(b.querySelector('[data-feld="von"]'), '20:15');
   await klick(s, blatt(s).querySelector('[data-schnell="fr-sa"]'));

@@ -178,7 +178,7 @@ test('Regal: Suche ab 9 Tobies (Name oder Ziel), „Kein Tobie gefunden“ mit �
 test('Regal ohne Tobies: die Kachel „+ Neuer Tobie“ und der leere Zustand mit „Zu den Geräten“', MIT_DOM, async () => {
   const s = await offen('#tobies', { davor: (x) => { x.m.backend.zuordnungen = {}; } });
   assert.deepEqual(s.qa('[data-regal] a').map((a) => a.getAttribute('href')), ['#neu']);
-  assert.equal(text(s.q('[data-leer="tobies"] .et')), 'Noch keine Tobies. Lege einen Tobie auf eine Box, dann erscheint er unter „Geräte“.');
+  assert.equal(text(s.q('[data-leer="tobies"] .et')), 'Noch keine Tobies. Leg einen auf eine Box.');
   assert.equal(s.q('[data-leer="tobies"] .btn').getAttribute('href'), '#geraete');
   weg();
 });
@@ -601,7 +601,7 @@ test('Weg 2: Box (Vorgabe „Egal welche“), optionaler Name, Ziel wählen; war
   await klick(s, wahl(s, 'serie:buch'));
   assert.deepEqual(aufrufe(s, 'warteschlange/set').map(ohneId), [{ box: 'kueche', ziel: { typ: 'serie', serie: 'buch' }, name: 'Bär' }]);
   assert.equal(text(s.q('[data-zustand="wartet"] .tb-titel')), 'Nächster neuer Tobie auf Küche spielt „Das große Buch“');
-  assert.equal(text(s.q('[data-zustand="wartet"] .muted')), 'Kein Zeitlimit. Du musst die Seite nicht offen lassen.');
+  assert.equal(s.q('[data-zustand="wartet"] .muted'), null, 'AM17: der Satz „Kein Zeitlimit …“ entfällt');
   assert.deepEqual(s.qa('[data-zustand="wartet"] .btns > *').map((b) => text(b)), ['Abbrechen', 'Fertig']);
   weg();
 });

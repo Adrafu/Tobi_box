@@ -1583,12 +1583,12 @@ def ablauf_eingang_liste(L: Lauf):
         L.pg.wait_for_function("() => !window.__el.shadowRoot.querySelector('[data-eingang-band=pruefen]')", timeout=6000)
         L.gehe("#hinzufuegen")
     with L.schritt("liste-ausblenden"):
-        L.pruefe(L.js("return sr.querySelector('[data-erledigte-hinweis]')?.textContent.trim()") == "Das gilt nur auf diesem Gerät.", "liste-ausblenden", "Der Hinweis „auf diesem Gerät“ fehlt")
+        L.pruefe(L.js("return sr.querySelector('[data-erledigte-hinweis]')") is None, "liste-ausblenden", "Ein Hinweissatz steht da, obwohl nichts ausgeblendet ist (AM17)")
         voll = L.js("return sr.querySelectorAll(x).length", karten)
         erledigte = L.js("return sr.querySelectorAll(x + \"[data-phase='fertig']\").length", karten)
         L.klick("[data-erledigte-aus]")
         L.pruefe(L.js("return sr.querySelectorAll(x).length", karten) == voll - erledigte and L.js("return sr.querySelectorAll(x + \"[data-phase='fertig']\").length", karten) == 0, "liste-ausblenden", "Erledigte sind nicht ausgeblendet")
-        L.pruefe(f"{erledigte} erledigte Einträge sind ausgeblendet. Das gilt nur auf diesem Gerät." in L.js("return sr.querySelector('[data-erledigte-hinweis]').textContent"), "liste-ausblenden", "Hinweis zu den ausgeblendeten")
+        L.pruefe(f"{erledigte} erledigte Einträge sind ausgeblendet." in L.js("return sr.querySelector('[data-erledigte-hinweis]').textContent"), "liste-ausblenden", "Hinweis zu den ausgeblendeten")
         L.messe("liste-ausgeblendet")
         L.klick("[data-erledigte-aus]")
         L.pruefe(L.js("return sr.querySelectorAll(x).length", karten) == voll, "liste-ausblenden", "„Erledigte zeigen“ bringt sie nicht zurück")
@@ -2528,12 +2528,101 @@ def ablauf_blatt_tastatur(L: Lauf):
         L.js("el.schliesseBlatt('code')")
         L.pg.wait_for_timeout(500)
         L.ruhe()
+    # AM18 (Tobias, iPhone): Tipp auf „Speichern“ bei offener Tastatur. Das Blatt sitzt über der (nachgestellten) Tastatur. Der Tipp ist Drücken, Warten, Loslassen: nimmt der Knopf dem Feld den
+    # Fokus, geht die Tastatur zu, das Blatt rutscht nach unten, und das Loslassen trifft die Fläche hinter dem Blatt (das Blatt wäre weg, der Name bliebe). Erwartet: gespeichert, Meldung „Gespeichert.“.
+    with L.schritt("blatt-tastatur-speichern"):
+        L.gehe("#serie-lang")
+        L.warte_da("[data-menue-serie]")
+        L.klick("[data-menue-serie]")
+        L.klick('dialog [data-menue="name"]')
+        L.warte_da("#se-name")
+        L.pg.wait_for_timeout(700)
+        alt = L.js("return sr.querySelector('#se-name').value")
+        neu = (alt + " x")[:60]
+        L.js("el._vvEcht ??= el._vv; el._vv = { height: innerHeight - 336, offsetTop: 0, addEventListener() {}, removeEventListener() {} }; const f = sr.querySelector('#se-name'); f.blur(); f.focus(); f.value = x; f.dispatchEvent(new Event('input', { bubbles: true }));", neu)
+        L.pg.wait_for_timeout(500)
+        z = "blatt-tastatur-speichern"
+        L.pruefe(L.js("return sr.querySelector('dialog.blatt[open]').hasAttribute('data-kbd')"), z, "Das Blatt weiss nichts von der Tastatur")
+        box = L.pg.locator("dialog.blatt[open] .knoepfe .btn.primary").first.bounding_box()
+        mx, my = box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
+        L.pg.mouse.move(mx, my)
+        L.pg.mouse.down()
+        L.pg.wait_for_timeout(250)  # in dieser Zeit verliert das Feld sonst den Fokus und das Blatt rutscht
+        L.pg.mouse.up()
+        L.pg.wait_for_timeout(600)
+        L.pruefe(L.js("return !sr.querySelector('dialog.blatt[open]')"), z, "Das Blatt ist nach dem Tipp auf Speichern nicht zu")
+        L.pruefe(L.toast() == "Gespeichert.", z, f"Keine Meldung „Gespeichert.“ (Meldung: {L.toast()!r})")
+        L.pruefe(L.js("return sr.querySelector('main h2')?.textContent.trim()") == neu, z, "Der neue Name steht nicht in der Überschrift")
+        L.js("el._vv = el._vvEcht;")
+        L.ruhe()
+
+
+# AM15: Lage und Größe aller sichtbaren Elemente (Pfad im Baum → Rechteck), dazu der Scrollstand. Der Aufzeichner der Bewegung und die Balken der Abspiel-Anzeige (`.eq`) zählen nicht.
+BEW_LAGE = """
+const w = (x.aus ? sr.querySelector(x.aus) : sr);
+const aus = {}; let n = 0;
+const lauf = (e, pfad) => {
+  [...e.children].forEach((c, i) => {
+    if (c.closest('dialog.player') || c.tagName === 'STYLE' || c.tagName === 'AUDIO' || c.classList.contains('eq') || c.closest('.eq') || c.closest('svg') || c.hasAttribute('data-flugklon')) return;
+    const k = pfad + '/' + c.tagName.toLowerCase() + '.' + [...c.classList].slice(0, 2).join('.') + '[' + i + ']';
+    const r = c.getBoundingClientRect();
+    if (r.width > 0 || r.height > 0) aus[k] = { blatt: c.children.length === 0 && c.tagName !== 'SVG', l: Math.round(r.left * 10) / 10, t: Math.round(r.top * 10) / 10, w: Math.round(r.width * 10) / 10, h: Math.round(r.height * 10) / 10 };
+    lauf(c, k);
+  });
+};
+lauf(w, '');
+const sc = (q) => sr.querySelector(q)?.scrollTop ?? 0;
+return { el: aus, scroll: Math.max(sc('.rahmen'), sc('.spalte')) };
+"""
+
+
+def lage_vergleich(L: Lauf, z, vorher, nachher, was):
+    """Gleiche Elemente an gleicher Stelle in gleicher Größe (höchstens 1 px), gleicher Scrollstand."""
+    a, b = vorher["el"], nachher["el"]
+    fehlt = sorted(set(a) ^ set(b))
+    L.pruefe(not fehlt, z, f"{was}: Elemente erscheinen oder verschwinden: {fehlt[:4]}")
+    # Texte ohne Unterelemente sind so breit wie ihr Text (und mittig oder links): dort zählen nur Oberkante und Höhe
+    abw = sorted(((max(abs(a[k][f] - b[k][f]) for f in ("th" if a[k]["blatt"] else "ltwh")), k) for k in set(a) & set(b)), reverse=True)
+    L.pruefe(not abw or abw[0][0] <= 1, z, f"{was}: Lage oder Größe ändert sich um {abw[0][0]:.1f} px bei {abw[0][1]}" if abw else "")
+    L.pruefe(abs(vorher["scroll"] - nachher["scroll"]) <= 1, z, f"{was}: scrollTop {vorher['scroll']} -> {nachher['scroll']}")
+
+
+def ablauf_play_pause_lage(L: Lauf):
+    """AM15: Play und Pause ändern keine Höhe und keine Lage: Serienseite, Start und Bibliothek (jeweils Pause, dann wieder Play)."""
+    L.gehe("#bibliothek")
+    if not L.da("a.lrow[data-serie], a.rcard[data-serie]"):
+        return
+    with L.schritt("play-pause-lage"):
+        player_start(L)
+        sid = L.js("return el.spieler.s.serie.id")
+        orte = (("serie", f"#serie-{sid}", "[data-reinhoeren]"), ("serie-weiter", f"#serie-{sid}", "[data-reinhoeren]"), ("start", "#start", ".mini .mplay"), ("bibliothek", "#bibliothek", ".mini .mplay"))
+        for name, hash_, knopf in orte:
+            L.gehe(hash_)
+            L.warte_da(knopf)
+            if name == "serie-weiter":  # eine gemerkte Stelle (wie nach dem Neuladen der Seite): die Zeile unter dem Knopf nennt „ab 0:24“
+                L.js("const z = el._seiteObj.z.serie; const f = z.folgen[0]; z.hoerstelle = { folge: f.name }; f.hoerstelle = { position_s: 24, fertig: false }; el.requestUpdate();")
+                L.pg.wait_for_timeout(300)
+            L.pg.wait_for_timeout(600)
+            z = f"play-pause-lage-{name}"
+            spielt = L.js("return el.spieler.zustand === 'spielt'")
+            if not spielt:
+                L.klick(knopf)
+                L.pg.wait_for_timeout(500)
+            lauf = L.js(BEW_LAGE, {})
+            for schritt in ("pause", "play"):
+                L.klick(knopf)
+                L.pg.wait_for_timeout(500)
+                jetzt = L.js(BEW_LAGE, {})
+                lage_vergleich(L, z, lauf, jetzt, f"nach {schritt}")
+                L.pruefe(L.js("return el.spieler.zustand === 'spielt'") == (schritt == "play"), z, f"Der Knopf hat nicht auf {schritt} geschaltet")
+                lauf = jetzt
+    player_aus(L)
 
 
 ABLAEUFE = [ablauf_unterkante, ablauf_reiter, ablauf_klicks, ablauf_reihen, ablauf_suche, ablauf_bibliothek, ablauf_serie, ablauf_cover, ablauf_leise, ablauf_box, ablauf_technik, ablauf_blaetter,
             ablauf_tobies_weg1, ablauf_tobies_weg2, ablauf_tobies_meldung, ablauf_tobies_umhaengen, ablauf_tobies_geben, ablauf_tobies_lernmodus,
             ablauf_tobies_name_geben_weit_unten, ablauf_hinzufuegen, ablauf_eingang_liste, ablauf_eingang, ablauf_papierkorb, ablauf_papierkorb_punkt, ablauf_bewegung,
-            ablauf_druck, ablauf_seitenwechsel, ablauf_player_bewegung, ablauf_flug_ruhe, ablauf_blatt_tastatur, ablauf_serie_zeile, ablauf_player]
+            ablauf_druck, ablauf_seitenwechsel, ablauf_player_bewegung, ablauf_play_pause_lage, ablauf_flug_ruhe, ablauf_blatt_tastatur, ablauf_serie_zeile, ablauf_player]
 
 
 # ------------------------------------------------------------------ Browser und Läufe

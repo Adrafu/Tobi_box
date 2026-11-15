@@ -254,11 +254,9 @@ export function coverBlatt({ ctx, serie, oeffne, geaendert, fehler }) {
     const eigen = s.cover_quelle === 'eigen';
     const sperre = !!Z.laeuft;
     return html`<input type="file" accept="image/*" class="sr" tabindex="-1" data-cover-datei aria-hidden="true" @change=${foto}>
-      ${Z.phase === 'wahl' ? html`<p class="muted">${COVER.satz}</p>
-        <div class="btns"><button type="button" class="btn primary" data-cover-waehlen autofocus ?disabled=${sperre} @click=${waehlen}>${COVER.foto_waehlen}</button></div>
+      ${Z.phase === 'wahl' ? html`<div class="btns"><button type="button" class="btn primary" data-cover-waehlen autofocus ?disabled=${sperre} @click=${waehlen}>${COVER.foto_waehlen}</button></div>
         ${eigen ? html`<div class="se-apart"><button type="button" class="btn link cv-zurueck" data-cover-zurueck ?disabled=${sperre} @click=${zurueck}>${COVER.zurueck}</button></div>` : nothing}`
-        : html`<p class="muted">${COVER.satz_schneiden}</p>
-        <div class="cv-mitte">${canvas}</div>
+        : html`<div class="cv-mitte">${canvas}</div>
         <div class="cv-pfeile" role="group" aria-label=${COVER.pfeile}>${['links', 'hoch', 'runter', 'rechts'].map(pfeilKnopf)}</div>
         <div class="se-feld cv-regler"><label for="cv-regler">${COVER.regler}</label>
           <div class="cv-reglerzeile"><span aria-hidden="true">${COVER.groesser}</span>

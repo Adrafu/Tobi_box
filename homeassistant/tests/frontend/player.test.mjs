@@ -50,7 +50,7 @@ test('Ordner-Folgen: Tracks, Spuren, Zeitleiste über die ganze Folge, Sprung in
 
 test('Beschriftung des Knopfs je Hörstelle: Reinhören, Hier weiterhören mit Zusatz, Noch einmal hören, Pause', () => {
   const folgen = [{ name: 'a', anzeige: 'Folge 1: Der Schatz', hoerstelle: { position_s: 100, fertig: true } }, { name: 'b', anzeige: 'Folge 2: Die alte Mühle' }, { name: 'c', anzeige: 'Folge 3: Das Fest' }];
-  assert.deepEqual(P.knopfText({ name: 'S', folgen: folgen.map((f) => ({ name: f.name, anzeige: f.anzeige })) }), { art: 'rein', label: 'Reinhören', zusatz: null });
+  assert.deepEqual(P.knopfText({ name: 'S', folgen: folgen.map((f) => ({ name: f.name, anzeige: f.anzeige })) }), { art: 'rein', label: 'Reinhören', zusatz: 'Folge 1: Der Schatz' }); // AM15: die Zeile steht immer
   const weiter = P.knopfText({ name: 'S', hoerstelle: { folge: 'b' }, folgen: [folgen[0], { ...folgen[1], hoerstelle: { position_s: 47, fertig: false } }, folgen[2]] });
   assert.deepEqual(weiter, { art: 'weiter', label: 'Hier weiterhören', zusatz: 'Folge 2: Die alte Mühle · ab 0:47' });
   const naechste = P.hoerziel({ name: 'S', hoerstelle: { folge: 'a' }, folgen });
@@ -58,8 +58,10 @@ test('Beschriftung des Knopfs je Hörstelle: Reinhören, Hier weiterhören mit Z
   assert.equal(naechste.folge.name, 'b', 'die zuletzt gehörte ist fertig: die nächste ungehörte');
   assert.equal(naechste.zeit, 0);
   const alles = P.knopfText({ name: 'S', hoerstelle: { folge: 'c' }, folgen: folgen.map((f) => ({ ...f, hoerstelle: { position_s: 1, fertig: true } })) });
-  assert.deepEqual(alles, { art: 'nochmal', label: 'Noch einmal hören', zusatz: null });
-  assert.deepEqual(P.knopfText({ name: 'S', folgen }, { spielt: true }), { art: 'pause', label: 'Pause', zusatz: null });
+  assert.deepEqual(alles, { art: 'nochmal', label: 'Noch einmal hören', zusatz: 'Folge 1: Der Schatz' });
+  assert.deepEqual(P.knopfText({ name: 'S', folgen }, { spielt: true }), { art: 'pause', label: 'Pause', zusatz: 'Folge 2: Die alte Mühle · läuft' });
+  assert.equal(P.knopfText({ name: 'S', folgen }, { spielt: true, aktuell: folgen[2] }).zusatz, 'Folge 3: Das Fest · läuft', 'die laufende Folge, nicht die der Hörstelle');
+  assert.equal(P.knopfText({ name: 'Wiegenlied', folgen: [{ name: 'w', anzeige: 'Wiegenlied' }] }, { spielt: true }).zusatz, 'Wiegenlied · läuft', 'bei einer einzigen Folge der Name des Eintrags');
   const einzeln = P.knopfText({ name: 'Wiegenlied', hoerstelle: { folge: 'w' }, folgen: [{ name: 'w', anzeige: 'Wiegenlied', hoerstelle: { position_s: 61, fertig: false } }] });
   assert.equal(einzeln.zusatz, 'Wiegenlied · ab 1:01', 'bei einer einzigen Folge steht der Name des Eintrags');
   assert.equal(P.knopfText({ name: 'S', folgen: [] }), null);
@@ -679,23 +681,22 @@ mit('Sperre: mit der Tastatur (Leertaste 2 Sekunden halten) entsperrt auch; Kont
 
 /* ------------------------------------------------------------------ A7c: Reihe „Am Handy weiterhören“, Knopf, Fortschritt */
 
-mit('Knopf „Reinhören“: Beschriftung je Hörstelle (Reinhören, Hier weiterhören mit Zusatz, Noch einmal hören) und der Satz zum ersten Mal', async () => {
+mit('Knopf „Reinhören“: Beschriftung je Hörstelle (Reinhören, Hier weiterhören mit Zusatz, Noch einmal hören) und die Zeile darunter (AM15: immer da, kein Hinweissatz mehr)', async () => {
   const s = await spielSeite({ hash: '#serie-s1' });
   const text = () => s.q('[data-reinhoeren]').textContent.trim();
   assert.equal(text(), 'Reinhören');
-  assert.equal(s.q('[data-rein-hinweis]').textContent, 'Das spielt hier am Handy oder Computer, nicht auf der Box.');
-  assert.equal(s.q('[data-rein-zusatz]'), null);
+  assert.equal(s.q('[data-rein-hinweis]'), null, 'AM16: der Satz „Das spielt hier am Handy …“ entfällt');
+  assert.equal(s.q('[data-rein-zusatz]').textContent, 'Der Rabe', 'AM15: auch bei „Reinhören“ steht die Zeile');
   // Hörstelle: zweite Folge angefangen
   s.m.backend.hoerstellen.s1 = { zeit: '2026-11-14T10:00:00Z', folge: 'folge-02.mp3', folgen: { 'folge-01.mp3': { p: 120, d: 120, t: '2026-11-14T09:00:00Z', fertig: true, track: 0 }, 'folge-02.mp3': { p: 47, d: 130, t: '2026-11-14T10:00:00Z', fertig: false, track: 0 } } };
   await geheZu(s, '#bibliothek'); await geheZu(s, '#serie-s1'); await s.flush(10);
   assert.equal(text(), 'Hier weiterhören');
   assert.equal(s.q('[data-rein-zusatz]').textContent, 'Das Gespensterschloss · ab 0:47');
-  assert.equal(s.q('[data-rein-hinweis]'), null, 'der Satz nur beim ersten Mal');
   s.m.backend.hoerstellen.s1.folgen['folge-02.mp3'].fertig = true;
   s.m.backend.hoerstellen.s1.folgen['folge-03.mp3'] = { p: 140, d: 140, t: '2026-11-14T11:00:00Z', fertig: true, track: 0 };
   await geheZu(s, '#bibliothek'); await geheZu(s, '#serie-s1'); await s.flush(10);
   assert.equal(text(), 'Noch einmal hören');
-  assert.equal(s.q('[data-rein-zusatz]'), null);
+  assert.equal(s.q('[data-rein-zusatz]').textContent, 'Der Rabe');
 });
 
 mit('„Hier weiterhören“ spielt die Folge an der gemerkten Stelle (hoerstelle/get), nicht die erste', async () => {
@@ -901,7 +902,8 @@ mit('Texte: der Player hat alle Beschriftungen aus dem Design, ohne Platzhalter-
   geh(PLAYER, 'PLAYER');
   assert.ok(alle.length > 40);
   for (const [pfad, t] of alle) { assert.ok(t.trim().length, `${pfad} ist leer`); assert.ok(!/UID|Revision|Listen-ID/.test(t), pfad); }
-  assert.equal(PLAYER.knopf.hinweis, 'Das spielt hier am Handy oder Computer, nicht auf der Box.');
+  assert.equal(PLAYER.knopf.hinweis, undefined, 'AM16: der Hinweissatz ist weg');
+  assert.equal(PLAYER.knopf.laeuft, '{ziel} · läuft');
   assert.equal(PLAYER.voll.entsperren_hinweis, 'Zum Entsperren zwei Sekunden gedrückt halten.');
   assert.equal(PLAYER.mini.tipp, 'Antippen oder nach oben wischen: Player öffnen');
 });
