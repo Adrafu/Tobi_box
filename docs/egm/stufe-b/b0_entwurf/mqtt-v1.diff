@@ -1,0 +1,298 @@
+--- docs/protocol/mqtt-v1.md	2026-11-12 08:09:10
++++ docs/egm/stufe-b/b0_entwurf/mqtt-v1.md	2026-11-16 22:46:11
+@@ -6,6 +6,15 @@
+ *   **Gilt für:** Modul `ha` des Box-Dienstes und `mqtt.py` der
+     HA-Integration `tobibox`. Schemas der Inhalte: `data-model.md`. Ereignisse
+     und Befehle im Kern: `core-interface.md`.
++*   **Änderung 16.11. (Stufe B „Gehört“, Paket B0; Entwurf, wartet auf die Freigabe durch Tobias; alles additiv, `v` bleibt 1):**
++    Grundlage `docs/egm/stufe-b/design_draft.md` (Rev. 3.1, Abschnitte 3.3 bis 3.7, 4 bis 6, 8, 11) und `docs/egm/stufe-b/resolve.md`.
++    Neu sind: die optionalen `status`-Felder `box_faehig`, `gehoert_wartet` und `gehoert_verworfen` und das Neumelden des `status` alle 60 s, solange
++    die Box wartet (3.3); die `art` `gespielt` im `event` (3.4); der `befehl` `gehoert_quittung` mit Sonderregel (3.7); der Ablauf Handshake, Senden und
++    Quittung (neuer Abschnitt 4.5, ein Schritt mehr in 4.4); die Zusicherung in Abschnitt 8, dass Empfänger eine unbekannte `art` und unbekannte Werte in
++    `box_faehig` **ignorieren**. Es entsteht kein neues Thema und keine neue ACL-Regel (Abschnitt 7). Version 1 bleibt: neue `art`, neue Felder und ein neuer
++    `befehl` brauchen nach Abschnitt 8 keine Erhöhung. **Nicht rückwärtskompatibel im strengen Sinn ist nur eines:** Eine Integration vor Stufe B legt
++    eine unbekannte `art` heute in `box_ereignisse` ab, statt sie zu ignorieren (Abschnitt 8 sicherte das bisher nicht zu). Darum sendet die Box `gespielt`
++    erst, wenn eine Integration den Handshake (4.5) beantwortet hat; eine alte Integration antwortet nie und bekommt nichts.
+ *   **Änderung 11.11. (Anzeige „Freier Speicher“):** Die Discovery des Sensors `speicher_frei` (6.2) trägt zusätzlich
+     `suggested_unit_of_measurement` `GB` und `suggested_display_precision` `0` (Kurzformen `sug_unit_of_meas`, `sug_dsp_prc`; beide Schlüssel kennt
+     der MQTT-Sensor von Home Assistant, auch in 2026.10/11). Reine Anzeige: Statusfeld `speicher_frei_mb`, Einheit `MB` und `v` bleiben. Die Versionsregel
+@@ -74,10 +83,10 @@
+ | `tobibox/config` | HA → Boxen | HA-Integration | alle Boxen | 1 | **ja** | ganze Konfiguration mit Revision und Listen-ID |
+ | `tobibox/<box>/online` | Box → HA | Box (Birth) und Broker (Will) | HA | 1 | **ja** | Erreichbarkeit der Box |
+ | `tobibox/<box>/status` | Box → HA | Box | HA | 1 | **ja** | Zustand für Sensoren |
+-| `tobibox/<box>/event` | Box → HA | Box | HA | 1 | nein | Ereignisse ohne Bestätigung: abgelehnte Liste, Fehler, abgelehnter Befehl |
++| `tobibox/<box>/event` | Box → HA | Box | HA | 1 | nein | Ereignisse ohne Bestätigung: abgelehnte Liste, Fehler, abgelehnter Befehl; seit 16.11. die gespielten Sitzungen (`gespielt`, 3.4) |
+ | `tobibox/<box>/unknown/<uid>` | Box → HA | Box | HA | 1 | **ja** | unbekannte oder gelernte Kennung, bis HA bestätigt |
+ | `tobibox/<box>/unknown/<uid>/ack` | HA → Box | HA-Integration | diese Box | 1 | **nein** | Bestätigung einer Kennung (mit Grund, `zuletzt` und `art` der bestätigten Meldung) |
+-| `tobibox/<box>/cmd` | HA → Box | HA-Integration | diese Box | 1 | **nein** | Befehle mit Ablaufzeit (Lernmodus, Sync, Update) |
++| `tobibox/<box>/cmd` | HA → Box | HA-Integration | diese Box | 1 | **nein** | Befehle mit Ablaufzeit (Lernmodus, Sync, Update); seit 16.11. die Quittung für gespielte Sitzungen (`gehoert_quittung`, 3.7) |
+ | `tobibox/<box>/ui/<objekt>` | HA → HA-Integration | Home-Assistant-Entität (Knopf, Auswahl) | HA-Integration | 1 | nein | Eingaben der Entitäten, die die Integration in `cmd` umsetzt oder sich merkt (3.8) |
+ | `homeassistant/<komponente>/tobibox_<box>/<objekt>/config` | Box → HA | Box | HA | 1 | **ja** | MQTT-Discovery (Abschnitt 6) |
+ | `homeassistant/status` | HA → alle | Home Assistant | Box | – | – | HA meldet `online` nach dem Start; die Box veröffentlicht daraufhin die Discovery erneut |
+@@ -149,7 +158,8 @@
+ 
+ Gesamtzustand der Box. Die Box veröffentlicht, wenn sich ein Feld außer `ts`
+ ändert, zusammengefasst auf höchstens **eine Nachricht je 5 s**, und
+-unabhängig davon alle 300 s sowie nach jedem Verbinden. Wer den Status zusammenbaut
++unabhängig davon alle 300 s sowie nach jedem Verbinden. **Seit 16.11.:** Solange `gehoert_wartet` `true` ist, veröffentlicht die Box den `status`
++zusätzlich alle **60 s** neu, auch ohne Änderung (eine verlorene oder zu früh gekommene Antwort von HA hält den Handshake so nicht auf; 4.5). Wer den Status zusammenbaut
+ und woher jedes Feld stammt (einschließlich der Abbildung von `leser`), steht in
+ `core-interface.md`, Abschnitt 12.
+ 
+@@ -175,6 +185,9 @@
+ | `zeit_ok` | bool | Uhrzeit vertrauenswürdig (sonst gelten Leise-Zeiten vorsichtig, siehe Design) |
+ | `konfig` | object | die gespeicherte Konfiguration `{"revision": <int>, "liste_id": <string>}`; `{"revision": 0, "liste_id": ""}`, wenn keine |
+ | `update` | object | `{"zustand": "ok"\|"testing"\|"failed", "version": <string>, "grund": <Text oder null>}` |
++| `box_faehig` (optional, seit 16.11.) | Liste von string | Fähigkeiten der Box-Software für diesen Vertrag; ab Stufe B `["gehoert"]`. Fehlt bei einer Box ohne Stufe B. **Nicht zu verwechseln** mit `hello.faehigkeiten` (die sagt das HA-Backend der Seite zu, `ha-websocket-v1.md`). Empfänger ignorieren unbekannte Werte (8) |
++| `gehoert_wartet` (optional, seit 16.11.) | bool | `true` ab jedem Verbinden und bei jedem `homeassistant/status` `online`, bis eine Quittung von HA (3.7) eingetroffen ist; solange sendet die Box kein `gespielt` (4.5). Fehlt bei einer Box ohne Stufe B |
++| `gehoert_verworfen` (optional, seit 16.11.) | int ≥ 0 | Gesamtzahl der gespielten Sitzungen, die die Box beim Überlauf ihres Puffers (500 Zeilen) verworfen hat (`data-model.md`, 1.6); wächst nur, geht mit dem Verlust der Puffer-Datei auf 0 zurück |
+ 
+ Beispiel:
+ 
+@@ -205,7 +218,10 @@
+   "zeitquelle": "ntp",
+   "zeit_ok": true,
+   "konfig": { "revision": 17, "liste_id": "a3f9c1e07b2d4856" },
+-  "update": { "zustand": "ok", "version": "1.2.0", "grund": null }
++  "update": { "zustand": "ok", "version": "1.2.0", "grund": null },
++  "box_faehig": ["gehoert"],
++  "gehoert_wartet": false,
++  "gehoert_verworfen": 0
+ }
+ ```
+ 
+@@ -218,7 +234,7 @@
+ | `v` | int | `1` |
+ | `id` | string | zufällige Kennung der Meldung (UUID); HA wertet doppelte `id` einmal aus |
+ | `ts` | string | Zeitpunkt |
+-| `art` | string | `liste_abgelehnt`, `fehler` oder `befehl_abgelehnt` |
++| `art` | string | `liste_abgelehnt`, `fehler`, `befehl_abgelehnt` oder (seit 16.11.) `gespielt` |
+ | `daten` | object | je nach `art` |
+ 
+ `daten` je Art:
+@@ -228,6 +244,7 @@
+ | `liste_abgelehnt` | `liste_id`, `revision` (der abgelehnten Liste), `gespeichert_liste_id`, `gespeichert_revision` (was die Box hat), `grund` ∈ `revision_zu_niedrig`, `schema_ungueltig`, `schema_zu_neu` |
+ | `fehler` | `baustein` (string), `code` (string), `text` (string). Beispiel: der Update-Rückfall nach `failed` meldet `baustein="update"`, `code="rueckfall"`, `text=<Grund>`. Codes der Box (09.11., Rev. 3.17): `baustein="kopfhoerer"`, `code="kopfhoerer_unlesbar"` (der Schaltkontakt der Buchse ist nicht lesbar; bis er es wieder ist, gilt die Kopfhörer-Grenze; einmal je Störung) und `baustein="power"`, `code="herunterfahren_fehlgeschlagen"` (das Abschalt-Kommando hat nicht gewirkt; die Box läuft weiter, `text` nennt den Grund). Weitere Codes: `v_unbekannt`, `befehl_unbekannt` (`ha`). |
+ | `befehl_abgelehnt` | `befehl` ∈ `lernen`, `sync`, `update`, `befehl_id`, `grund` ∈ `bedingung`, `zeit_unsicher`, optional `detail` (Texte für `detail` im Abschnitt darunter; 09.11., AP 4.8) |
++| `gespielt` (seit 16.11.) | `boot_id`, `gesendet_boot_s`, `sitzungen` (Liste, 1 bis 20; Aufbau und Grenzen in der Tabelle unter „`gespielt`“ weiter unten) |
+ 
+ Beispiel:
+ 
+@@ -243,6 +260,64 @@
+     "gespeichert_liste_id": "a3f9c1e07b2d4856",
+     "gespeichert_revision": 17,
+     "grund": "revision_zu_niedrig"
++  }
++}
++```
++
++**`gespielt` (seit 16.11., Stufe B).** Die Box meldet, was sie gespielt hat: eine **Sitzung** ist das zusammenhängende Hören **einer Folge**
++(Pausen bis 30 Minuten gehören dazu; die Grenzen stehen im Abschnitt 4.5, Tabelle „`ende`“). Eine Nachricht trägt 1 bis 20 Sitzungen. Die Kennung des
++Tobies steht nie darin (Frage 9). Je Nachricht ist `id` neu; eindeutig ist die **Sitzung** (`sitzung`, UUID), nicht die `id` der Hülle: HA dedupliziert über
++(Quelle, `sitzung`), nicht über `id` (der Empfänger darf dieselbe Sitzung in mehreren Nachrichten sehen: Wiederholung, Zwischenstand und Abschluss).
++`daten`:
++
++| Feld | Pflicht | Typ, Grenze | Bedeutung |
++|---|---|---|---|
++| `boot_id` | ja | string, 1 bis 64 Zeichen | Gerätestart **beim Senden** (`data-model.md`, 1.6, `lauf.json`); Ist die Kennung des Geräts nicht lesbar, erzeugt die Box eine zufällige je Dienststart |
++| `gesendet_boot_s` | ja | int ≥ 0 | Monotonsekunden beim Senden (Uhr der Box seit dem Start des Geräts) |
++| `sitzungen` | ja | Liste, 1 bis 20 Einträge | die Sitzungen; je Eintrag die Felder unten |
++| ↳ `sitzung` | ja | string, UUID | eindeutig; gleich für Zwischenstände und Abschluss derselben Sitzung |
++| ↳ `serie` | ja | string, 1 bis 64 Zeichen | Serien-ID |
++| ↳ `folge` | ja | string, 1 bis 255 Bytes (UTF-8) | Name der Folge (wie in `resume.json`, `data-model.md`, 1.1) |
++| ↳ `folge_dauer_s` | nein | int > 0 oder `null` | Länge der Folge, wenn der Box bekannt; HA nimmt bei Bedarf den Wert aus der Medieninfo (`data-model.md`, 12) |
++| ↳ `beginn` | ja | Zeitstempel (UTC, `Z`) | Wanduhr der Box beim Beginn der Sitzung |
++| ↳ `zeit_ok` | ja | bool | die Wanduhr war beim Beginn vertrauenswürdig (3.3) |
++| ↳ `boot_id` | ja | string, 1 bis 64 Zeichen | Gerätestart **der Sitzung** (kann von der `boot_id` der Nachricht abweichen: Zeilen aus früheren Starts) |
++| ↳ `beginn_boot_s` | ja | int ≥ 0 | Monotonsekunden beim Beginn |
++| ↳ `ende_boot_s` | ja | int ≥ `beginn_boot_s` | Monotonsekunden der **letzten gespielten Sekunde** |
++| ↳ `gehoert_s` | ja | int ≥ 1, ≤ `ende_boot_s` − `beginn_boot_s` + 2 | Hörzeit: Summe der Inhaltszeit aus dem Fortschritt der Position (Zählregel, `ha-websocket-v1.md`, 15.1). Eine Sitzung mit Hörzeit 0 wird nie gemeldet |
++| ↳ `ende` | ja | `ende_der_folge`, `wechsel`, `pause`, `herunterfahren`, `dienst_ende`, `abbruch`, `teilweise` | wie die Sitzung endete (Tabelle in 4.5); `teilweise` = Zwischenstand einer laufenden Sitzung |
++| ↳ `grund` | nein | string, höchstens 32 Zeichen | nur bei `pause`: der letzte Pausegrund der Box. Übliche Werte sind die Pausegründe der Box (`abgehoben`, `knopf`, `folgenende`, `stumm`, `gute_nacht`, `leser_unbekannt`, `fehler`); unbekannte Werte sind erlaubt, HA nimmt sie als Text |
++
++HA prüft jede Sitzung einzeln: ein Pflichtfeld fehlt, ein Typ oder eine Grenze passt nicht oder `ende` ist unbekannt → die Sitzung gilt als **ungültig**
++(Eintrag im HA-Protokoll, nicht gespeichert, **trotzdem quittiert**, damit die Box sie nicht ewig wiederholt). Ein zu großes `gehoert_s` ist nicht
++ungültig, sondern wird auf die Schranke (`ende_boot_s − beginn_boot_s + 2`) gekappt (Eintrag im HA-Protokoll). Doppelte Sitzungen in einer Nachricht zählen einmal.
++
++Beispiel (eine Sitzung, am Ende der Folge beendet):
++
++```json
++{
++  "v": 1,
++  "id": "9b2f4a77-3c1e-4d90-8e65-a4f7c20b1d38",
++  "ts": "2026-11-16T18:36:02Z",
++  "art": "gespielt",
++  "daten": {
++    "boot_id": "7c1f9a52-0d3e-4b86-a1c4-5e92d0b8f317",
++    "gesendet_boot_s": 51915,
++    "sitzungen": [
++      {
++        "sitzung": "e3a8b1c4-52d7-4f09-b6a1-0c9d84e7f215",
++        "serie": "3f9a1c07b2d4",
++        "folge": "folge-02.mp3",
++        "folge_dauer_s": 1520,
++        "beginn": "2026-11-16T18:10:57Z",
++        "zeit_ok": true,
++        "boot_id": "7c1f9a52-0d3e-4b86-a1c4-5e92d0b8f317",
++        "beginn_boot_s": 50400,
++        "ende_boot_s": 51910,
++        "gehoert_s": 1500,
++        "ende": "ende_der_folge"
++      }
++    ]
+   }
+ }
+ ```
+@@ -250,7 +325,8 @@
+ Abgelaufene Befehle (`jetzt > erzeugt + ttl_s`) erzeugen **keine** Meldung, nur
+ einen Protokolleintrag auf der Box (Design: „ignorieren, protokollieren“).
+ 
+-Die Meldungen `liste_abgelehnt`, `fehler` mit `code` `v_unbekannt` oder
++**HA nimmt `gespielt` vor der Liste der Meldungen ab** (`box_ereignisse`, `ha-websocket-v1.md`, Befehl 21): Eine gespielte Sitzung erscheint nie in
++`boxen/list.ereignisse`. Die Meldungen `liste_abgelehnt`, `fehler` mit `code` `v_unbekannt` oder
+ `befehl_unbekannt` und `befehl_abgelehnt` veröffentlicht das Modul `ha` der Box;
+ die ersten drei entstehen dort selbst (Revisionsregel, Nachrichtenversion und
+ Befehlsname liegen außerhalb des Kerns), `befehl_abgelehnt` kommt als Befehl
+@@ -345,10 +421,10 @@
+ |---|---|---|
+ | `v` | int | `1` |
+ | `id` | string | zufällige Kennung des Befehls (UUID) |
+-| `befehl` | string | `lernen`, `lernen_abbrechen`, `sync`, `update` |
++| `befehl` | string | `lernen`, `lernen_abbrechen`, `sync`, `update`, (seit 16.11.) `gehoert_quittung` |
+ | `erzeugt` | string | Zeitpunkt, an dem HA den Befehl erzeugt hat (Wanduhr von HA) |
+ | `ttl_s` | int 1–3600 | Lebensdauer in Sekunden |
+-| `daten` | object | `{}`; bei `update` `{"version": "<MAJOR.MINOR.PATCH>"}` |
++| `daten` | object | `{}`; bei `update` `{"version": "<MAJOR.MINOR.PATCH>"}`; bei `gehoert_quittung` `{"sitzungen": [<UUID>…]}` |
+ 
+ Gültigkeit: Das Modul `ha` der Box berechnet `gueltig_bis = erzeugt + ttl_s` und
+ gibt es mit dem Ereignis an den Kern; **der Kern** (`learn`, `idle`) prüft mit
+@@ -361,7 +437,7 @@
+ wird dann nicht geprüft), wird nie mit `befehl_abgelehnt` beantwortet und ist im
+ Zustand „Lernmodus aus“ wirkungslos.
+ Voreinstellungen der Integration: `lernen` 60 s, `lernen_abbrechen` 30 s,
+-`sync` 300 s, `update` 300 s.
++`sync` 300 s, `update` 300 s, `gehoert_quittung` 3600 s.
+ 
+ Hat ein Befehl bei Ankunft die Ablaufzeit nicht erreicht, aber die Box war
+ offline (dauerhafte Sitzung stellt Nachrichten später zu), sorgt die
+@@ -374,6 +450,7 @@
+ | `lernen_abbrechen` | Ereignis `HaLernmodusAbbruch` |
+ | `sync` | Ereignis `HaSyncAnstossen` |
+ | `update` | Ereignis `HaUpdateAnstossen` mit `daten.version` |
++| `gehoert_quittung` (seit 16.11.) | **Sonderregel:** Das Modul `ha` der Box behandelt ihn **selbst**, der Kern bekommt ihn nicht. Er ist ein Befehl wie die anderen (Hülle `v`, `id`, `befehl`, `erzeugt`, `ttl_s` 3600), aber `ha` prüft dafür **weder die Ablaufzeit noch `zeit_ok`** (die Quittung muss auch bei unsicherer Uhr und nach langer Offline-Zeit wirken), führt ihn **idempotent** aus und nimmt ihn **nicht** in die 50 gemerkten `id` auf. `daten.sitzungen`: Liste von UUIDs, 0 bis 100. Die Box löscht aus ihrem Puffer **genau** die Zeilen mit diesen `sitzung`s (`data-model.md`, 1.6), unbekannte UUIDs ignoriert sie. Eine Liste mit 0 Einträgen ist der Handshake (4.5). Kein `befehl_abgelehnt`, nie |
+ 
+ Beispiel:
+ 
+@@ -388,6 +465,19 @@
+ }
+ ```
+ 
++Beispiel `gehoert_quittung`:
++
++```json
++{
++  "v": 1,
++  "id": "0e5d3b9a-7f14-4c62-9a08-6d1b2c4e8f73",
++  "befehl": "gehoert_quittung",
++  "erzeugt": "2026-11-16T18:36:03Z",
++  "ttl_s": 3600,
++  "daten": { "sitzungen": ["e3a8b1c4-52d7-4f09-b6a1-0c9d84e7f215"] }
++}
++```
++
+ Das Ziel für das Lernen hält HA selbst (Box, Ziel, Beginn). Das Ziel ist eine
+ **Serie** oder eine **einzelne Folge** (Entscheidung F, 05.11.): `typ` (`serie` oder `folge`), `serie_id`,
+ bei `folge` zusätzlich `folge` (Name der Folge). Die Box bekommt das Ziel nicht;
+@@ -515,10 +605,54 @@
+ 2.  Abonnieren: `tobibox/config`, `tobibox/<box>/cmd`,
+     `tobibox/<box>/unknown/+/ack`, `homeassistant/status`.
+ 3.  `online` (retained) veröffentlichen.
+-4.  Discovery veröffentlichen (Abschnitt 6) und `status`.
++4.  Discovery veröffentlichen (Abschnitt 6) und `status` (seit 16.11. mit `gehoert_wartet` `true`, wenn die Box Stufe B kann; 4.5).
+ 5.  Offene Einträge aus `unknown.json` veröffentlichen.
+ 6.  Die retained `tobibox/config` trifft ein und wird nach 5.2 behandelt.
++
++### 4.5 Gehört melden: Handshake, Senden, Quittung (seit 16.11., Stufe B)
++
++Die Box meldet gespielte Sitzungen (`gespielt`, 3.4) und löscht sie erst, wenn HA sie quittiert hat (`gehoert_quittung`, 3.7). Die Box ist oft offline;
++die Zeilen warten im Puffer `gehoert.json` (`data-model.md`, 1.6). Es gilt:
++
++1.  **Handshake über den Zustand.** Bei jedem Verbinden und bei jedem `homeassistant/status` `online` setzt die Box `status.gehoert_wartet = true`
++    und sendet **nichts**. HA antwortet auf **jeden** `status` mit `gehoert_wartet = true` und `box_faehig` ∋ `gehoert` mit einer Quittung mit **leerer
++    Liste** (nur, wenn HA die Fähigkeit hat, also die Datenbank für „Gehört“ offen ist; sonst antwortet HA nicht). Sobald die Quittung eingetroffen ist
++    (**jede** Quittung beendet den Handshake, auch eine nicht leere), meldet die Box
++    `gehoert_wartet = false` und sendet. Eine alte Integration antwortet nie: Die Box sendet ihr nichts. Ein alter retained `status` löst höchstens eine
++    überflüssige, harmlose Quittung aus. Solange die Box wartet, meldet sie den `status` alle 60 s neu (3.3). Die Reihenfolge, in der HA und Box
++    eingespielt werden, ist durch den Handshake gleichgültig.
++2.  **Senden.** Nach dem Handshake alle Zeilen des Puffers, danach bei **jedem Sitzungsende** alle Zeilen, danach alle **10 Minuten**, solange Zeilen
++    da sind. Je Nachricht höchstens 20 Sitzungen, höchstens 20 Nachrichten je Sekunde. Jede Nachricht trägt `boot_id` und `gesendet_boot_s` (3.4).
++3.  **Zwischenstand.** Läuft eine Sitzung länger als 15 Minuten und ist die Box verbunden, sendet sie alle 15 Minuten `gespielt` mit `ende` =
++    `teilweise` (nur über MQTT, nicht im Puffer, **kein** Zwischenstand, solange `gehoert_wartet` `true` ist). Zwischenstände werden **nicht quittiert**.
++    Der Abschluss derselben `sitzung` ersetzt den Zwischenstand in HA.
++4.  **Quittung (HA → Box).** HA quittiert die `sitzung`s, die es **gespeichert** hat oder **schon kannte**, auch **ungültige** (Protokoll). Erst **nach**
++    dem `COMMIT` der Datenbank. Die Quittung läuft nachlaufend: höchstens 2 s nach der letzten empfangenen Zeile, höchstens 100 UUIDs je Nachricht. Die Box
++    löscht genau diese Zeilen. Eine geklonte Karte oder ein zurückgespielter Stand kann so nichts Fremdes löschen (es gibt keine laufenden Nummern).
++5.  **Ohne Fähigkeit in HA.** Antwortet HA nicht (alte Integration, Datenbank nicht zu öffnen), puffert die Box bis zur Grenze von 500 Zeilen und verwirft
++    dann die **ältesten**; `status.gehoert_verworfen` zählt sie (Gesamtzahl, 3.3).
++6.  **Beginn der Sitzung bestimmt HA** (die Uhr der Box kann falsch sein, `zeit_ok`). Alle Dauern der Box rechnen auf Monotonzeit. In dieser Reihenfolge:
++    (a) `zeit_ok = true` → `beginn` der Zeile (Datum **sicher**); (b) sonst, wenn die Nachricht dieselbe `boot_id` trägt wie die Zeile → Empfangszeit −
++    (`gesendet_boot_s` − `beginn_boot_s`) (sicher); (c) sonst, wenn `beginn` nach dem 1.1.2026 und vor dem Empfang liegt → `beginn`, **ungefähr**;
++    (d) sonst Datum **unbekannt**. `ende_um` = Beginn + (`ende_boot_s` − `beginn_boot_s`). Wird die Uhr der Box im selben Gerätestart gut, korrigiert sie
++    alle Zeilen dieses Starts im Puffer.
++7.  **Dauer und Folge.** `folge_dauer_s` nimmt HA, wenn es die Dauer der Folge selbst kennt (Medieninfo), sonst den Wert der Box.
++
++`ende` (Vorrang von oben nach unten, wenn mehrere Anlässe zusammenfallen):
++
++| `ende` | Anlass |
++|---|---|
++| `herunterfahren` | das Gerät fährt herunter |
++| `dienst_ende` | der Dienst endet (Neustart der Box-Software) |
++| `abbruch` | beim Start liegt in `gehoert.json` eine offene Sitzung (Strom weg, Absturz); die Box macht daraus die Zeile |
++| `ende_der_folge` | das Ereignis „Folge zu Ende“ für die laufende Folge |
++| `wechsel` | die erste gespielte Sekunde einer **anderen** Folge (anderer Tobie, Weiter oder Zurück in eine andere Folge) |
++| `pause` | seit 30 Minuten keine gespielte Sekunde, jede Pause (auch `fehler`, `leser_unbekannt`, `gute_nacht`); `grund` = letzter Pausegrund |
++| `teilweise` | Zwischenstand (3) |
+ 
++Ein Wechsel des Tracks in einer Ordner-Folge und Springen innerhalb der Folge beenden die Sitzung nicht. Der Wert `verwaist` gehört nur zu HA
++(`data-model.md`, 12.1) und wird von der Box nie gesendet.
++
+ ## 5. Konfiguration: Revision und Listen-ID
+ 
+ ### 5.1 Begriffe
+@@ -724,6 +858,8 @@
+     richtig.
+ *   Passwörter der Box-Konten stehen nur auf der Box (`tobibox.toml`,
+     gitignored) und im Add-on, nie im Repo.
++*   Stufe B (16.11.) braucht **keine** neue Regel: `gespielt` geht auf `tobibox/<box>/event`, die Quittung auf `tobibox/<box>/cmd` (beide stehen schon
++    in der Liste).
+ 
+ ## 8. Versionierung
+ 
+@@ -735,7 +871,10 @@
+     `event`, neue Entitäten, neue `befehl`-Werte. Empfänger ignorieren
+     Unbekanntes: unbekannte Felder werden ignoriert, ein unbekannter `befehl`
+     wird mit `event` `art="fehler"` (`code="befehl_unbekannt"`) beantwortet und
+-    sonst verworfen.
++    sonst verworfen. **Neu zugesichert (16.11.):** Ein Empfänger **ignoriert** auch eine unbekannte `art` in `event`
++    (HA legt sie nicht ab, die Box hat keine) und unbekannte Werte in `status.box_faehig`. Das galt vor Stufe B für die Integration nicht (sie
++    legte jede `art` in die Liste der Meldungen); darum schützt der Handshake (4.5): Eine Box sendet `gespielt` nur an eine Integration, die ihn
++    beantwortet hat.
+ *   **Erhöhung** von `v` bei: Feld entfernt oder umbenannt, Bedeutung oder
+     Wertebereich geändert, neues Pflichtfeld. Ein Empfänger, der ein größeres `v`
+     sieht als er kennt, verwirft die Nachricht und protokolliert sie; die Box
+@@ -764,7 +903,7 @@
+     Bestätigung (`art="gelernt"`). Das Design nennt im Themenbaum „gelernt“ unter
+     `…/event`, führt aber im Abschnitt „Ereignis-Ausgang mit Bestätigung“ beide
+     Meldungen über den Ausgang mit Bestätigung; dieser Vertrag folgt dem
+-    zweiten. `…/event` trägt nur `liste_abgelehnt`, `fehler`, `befehl_abgelehnt`.
++    zweiten. `…/event` trägt nur `liste_abgelehnt`, `fehler`, `befehl_abgelehnt` (seit 16.11. auch `gespielt`, 3.4).
+ 4.  **Knöpfe und Auswahl** der Box senden an `tobibox/<box>/ui/…` und die
+     Integration macht daraus `cmd` mit Ablaufzeit. Grund: Eine Discovery-
+     Entität sendet eine feste Nutzlast ohne frische Zeit. Das Design legt die
+@@ -816,3 +955,6 @@
+ 17. **Bestätigt (09.11., P, Vorgabe 10 des Vertrags W): Tobie-Name.** `tobibox/config` darf je
+     Zuordnung ein optionales Feld `name` tragen; die Box ignoriert es (3.1). Additiv,
+     `schema_version` bleibt 2. Das Beispiel in 3.1 zeigt es.
++18. **Stufe B „Gehört“ (16.11., Entwurf B0; Entscheidungen R1 bis R4 Tobias, Rest Projektleitung, `docs/egm/stufe-b/resolve.md`):** `gespielt` auf
++    `…/event`, Quittung als `befehl` auf `…/cmd`, Handshake über `status.gehoert_wartet`, Puffer auf der Box (`data-model.md`, 1.6), Quittung über die
++    Sitzungs-UUIDs statt über Nummern. Additiv, `v` bleibt 1; Abschnitt 8 sichert das Ignorieren unbekannter `art` neu zu.
