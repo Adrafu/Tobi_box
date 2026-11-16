@@ -125,43 +125,80 @@ def _ohne_fuehrende_nummer(t: str) -> str:
     return t
 
 
-def _gemeinsames_ende(titel: list[str]) -> str:
-    s = titel[0]
-    for t in titel[1:]:
-        n = 0
-        while n < min(len(s), len(t)) and s[-1 - n] == t[-1 - n]:
-            n += 1
-        s = s[len(s) - n :]
-        if not s:
-            break
-    return s
+# Wörter, die vor einer Nummer stehen und mit ihr zusammen „nur eine Nummer“ ergeben („Track #02“, „Kapitel 01“, „Teil 03“).
+_NUMMERNWORT = r"(?:kapitel|track|titel|teil|lied|spur|folge|nr\.?|nummer|part|chapter)"
+_NUR_NUMMER = re.compile(rf"(?:{_NUMMERNWORT}\s*#?\s*)?(\d{{1,3}})", re.I)
+_NUMMERNWORT_ENDE = re.compile(rf"(?:^|(?<=\s[-–—|]\s)|(?<=:\s)){_NUMMERNWORT}\s*#?\s*", re.I)
+_ZIFFERN_VORN = re.compile(r"\d{1,3}")
+
+
+def _toleranz(n: int) -> int:
+    """Wie viele Ausreißer (Intro, Titelsong, Lied …) ein gemeinsamer Anfang oder ein gemeinsames Ende vertragen (AM23): ein Fünftel der Titel,
+    mindestens einer, höchstens fünf. Zusätzlich müssen **mindestens zwei** Titel den gemeinsamen Teil haben (``_mindestens``)."""
+    return min(5, max(1, n // 5))
+
+
+def _mindestens(n: int) -> int:
+    return max(2, n - _toleranz(n))
+
+
+def _ende_kandidaten(t: str) -> list[tuple[str, str]]:
+    """Mögliche Enden eines Titels als ``(Ende, Art)``: ``"t"`` ab einem Trenner („ - Serie“, „: Serie“), ``"n"`` direkt nach einer führenden Nummer
+    („1Trim-… .mp3“, „01 Ela“; das Ende muss mindestens drei Zeichen haben)."""
+    aus = [(t[m.start() :], "t") for m in _TRENNER.finditer(t)]
+    m = _ZIFFERN_VORN.match(t)
+    if m and len(t) > m.end() and not t[m.end()].isdigit() and len(t[m.end() :].strip()) >= 3:
+        aus.append((t[m.end() :], "n"))
+    return aus
 
 
 def _ende_weg(titel: list[str]) -> list[str]:
-    """Ein Ende, das alle Titel gemeinsam haben und das an einem Trenner beginnt („ - Serie“, „: Serie“), fällt weg. Ein Leerzeichen allein trennt nur,
-    wenn davor in jedem Titel nur eine Nummer steht („01 Ela“, „02 Ela“). Es muss in jedem Titel etwas übrig bleiben."""
-    if any(not t for t in titel):
+    """Ein Ende, das (fast) alle Titel gemeinsam haben, fällt weg. Es beginnt an einem Trenner („ - Serie“, „: Serie“) oder direkt hinter einer führenden
+    Nummer (dann bleibt von jedem Titel nur diese Nummer). Es muss in jedem betroffenen Titel etwas übrig bleiben.
+
+    Ausreißer (AM23): Haben es nur die meisten Titel (siehe ``_mindestens``), fällt es bei diesen weg; die anderen bleiben unverändert. Gewählt wird
+    das Ende mit den meisten Titeln, bei Gleichstand das längste. Haben es alle, ist das Ergebnis wie in AM22."""
+    n = len(titel)
+    kand: dict[tuple[str, str], None] = {}
+    for t in titel:
+        for k in _ende_kandidaten(t):
+            kand[k] = None
+    beste: tuple[int, int, list[tuple[int, str]]] | None = None
+    for ende, art in kand:
+        treffer: list[tuple[int, str]] = []
+        for i, t in enumerate(titel):
+            if not t.endswith(ende) or len(t) == len(ende):
+                continue
+            kopf = t[: len(t) - len(ende)]
+            if art == "t":
+                kopf = kopf.rstrip()
+                if kopf:
+                    treffer.append((i, kopf))
+            elif _GANZ_NUMMER.fullmatch(kopf):
+                treffer.append((i, kopf))
+        if len(treffer) >= _mindestens(n) and (beste is None or (len(treffer), len(ende)) > beste[:2]):
+            beste = (len(treffer), len(ende), treffer)
+    if beste is None:
         return titel
-    s = _gemeinsames_ende(titel)
-    if not s:
-        return titel
-    m = _TRENNER.search(s)
-    if m:
-        rest = [t[: len(t) - len(s) + m.start()].rstrip() for t in titel]
-        if all(rest):
-            return rest
-        return titel
-    m = re.search(r"\s", s)
-    if m:
-        rest = [t[: len(t) - len(s) + m.start()] for t in titel]
-        if all(_GANZ_NUMMER.fullmatch(r) for r in rest):
-            return rest
-    return titel
+    aus = list(titel)
+    for i, kopf in beste[2]:
+        aus[i] = kopf
+    return aus
+
+
+def _rest_nach_anfang(rest: str) -> str | None:
+    """Was nach einem gemeinsamen Anfang bleiben darf: nur eine Nummer (bleibt als Nummer stehen) oder „Nummer Trenner Text“ (der Text); sonst ``None``."""
+    rest = rest.strip()
+    if _GANZ_NUMMER.fullmatch(rest):
+        return rest
+    m = _NUMMER_TRENNER_TEXT.match(rest)
+    return m.group(2).strip() if m else None
 
 
 def _anfang_weg(titel: list[str]) -> list[str]:
     """Ein Anfang, den alle Titel gemeinsam haben (an einer Wortgrenze), fällt nur weg, wenn danach in jedem Titel entweder nur eine Nummer („Kapitel 01“
-    -> ``""``) oder „Nummer Trenner Text“ („Kapitel 01: Einführung“ -> „Einführung“) bleibt."""
+    -> ``"01"``) oder „Nummer Trenner Text“ („Kapitel 01: Einführung“ -> „Einführung“) bleibt. Die Nummer bleibt stehen, damit ``bereinige_titel`` sie
+    als „Kapitel n“ ausgeben kann."""
     if any(not t for t in titel):
         return titel
     p = titel[0]
@@ -178,36 +215,87 @@ def _anfang_weg(titel: list[str]) -> list[str]:
         return titel
     aus: list[str] = []
     for t in titel:
-        rest = t[len(p) :].strip()
-        if _GANZ_NUMMER.fullmatch(rest):
-            aus.append("")
-            continue
-        m = _NUMMER_TRENNER_TEXT.match(rest)
-        if not m:
+        r = _rest_nach_anfang(t[len(p) :])
+        if r is None:
             return titel
-        aus.append(m.group(2).strip())
+        aus.append(r)
     return aus
 
 
-def bereinige_titel(titel: list[str]) -> list[str]:
-    """Kapiteltitel einer Folge für die Ausgabe (AM22). Gleiche Länge und Reihenfolge; ``""`` heißt „die Seite zeigt Kapitel n“.
+def _anfang_weg_ausreisser(titel: list[str]) -> list[str]:
+    """Wie ``_anfang_weg``, aber mit Ausreißern (AM23). Weil ein Anfang wie „Alles vermurkst “ vor „1“ ein sprechender Titel sein kann, gilt das
+    nur für Anfänge, die auf ein Nummernwort enden, das am Titelanfang oder hinter einem Trenner steht („Kapitel “, „Track #“, „… - Track #“, nicht „…, Teil “). Mindestens ``_mindestens`` Titel müssen den Anfang
+    haben, und bei **allen** diesen muss danach nur eine Nummer oder „Nummer Trenner Text“ bleiben. Die Ausreißer bleiben unverändert."""
+    n = len(titel)
+    kand: set[str] = set()
+    for t in titel:
+        for m in _NUMMERNWORT_ENDE.finditer(t):
+            if m.end() < len(t) and t[m.end()].isdigit():
+                kand.add(t[: m.end()])
+    geordnet = sorted(kand, key=lambda p: (sum(t.startswith(p) for t in titel), len(p)), reverse=True)
+    for p in geordnet:
+        mitglieder = [i for i, t in enumerate(titel) if t.startswith(p)]
+        if len(mitglieder) < _mindestens(n):
+            continue
+        reste = [_rest_nach_anfang(titel[i][len(p) :]) for i in mitglieder]
+        if any(r is None for r in reste):
+            continue
+        aus = list(titel)
+        for i, r in zip(mitglieder, reste):
+            aus[i] = r or ""
+        return aus
+    return titel
 
-    1. Ein gemeinsames Ende an einem Trenner fällt weg, dann ein gemeinsamer Anfang (nur wenn danach eine Nummer bzw. Nummer, Trenner, Text bleibt).
-    2. Eine führende Nummer fällt weg (``_ohne_fuehrende_nummer``); bleibt nur eine Nummer, ist der Titel ``""``.
-    3. Ein Titel, der in der Folge mehrfach vorkommt, ist ``""``."""
+
+def _nummer(t: str) -> int | None:
+    """Die Nummer, wenn der Titel nur eine Nummer ist („3“, „03“, „Track #02“, „Kapitel 01“, „Teil 03“), sonst ``None``."""
+    m = _NUR_NUMMER.fullmatch(t)
+    return int(m.group(1)) if m else None
+
+
+def bereinige_titel(titel: list[str]) -> list[str]:
+    """Kapiteltitel einer Folge für die Ausgabe (AM22, AM23). Gleiche Länge und Reihenfolge; ``""`` heißt „die Seite zeigt Kapitel <Position>“.
+
+    1. Ein gemeinsames Ende fällt weg, dann ein gemeinsamer Anfang (nur wenn danach eine Nummer bzw. Nummer, Trenner, Text bleibt). Beides auch,
+       wenn einzelne Ausreißer (Intro, Titelsong) es nicht haben: Schwelle ``_toleranz``/``_mindestens`` (höchstens ein Fünftel, mindestens
+       einer, höchstens fünf Ausreißer; mindestens zwei Titel mit dem gemeinsamen Teil). Beim Anfang gilt das nur für Nummernwörter („Kapitel “,
+       „Track #“), sonst wären „Alles vermurkst 1“, „Alles vermurkst 2“ in Gefahr. Lieber ein Fall zu wenig bereinigt als ein sprechender Titel kaputt.
+    2. Eine führende Nummer fällt weg (``_ohne_fuehrende_nummer``).
+    3. Ist ein Titel nur eine Nummer („Track #02“, „Kapitel 01“, „03“), zeigt er „Kapitel n“ mit der Nummer aus dem Titel ohne führende Null.
+       Ist die Nummer gleich der Position (1-basiert), bleibt es ``""`` (gleiche Anzeige). Kommt dieselbe Nummer in der Folge mehrfach vor (zwei
+       Alben im Ordner), ist **jede** reine Nummer ``""`` (Position); so gibt es nie zwei gleiche „Kapitel n“.
+    4. Ein sprechender Titel, der in der Folge mehrfach vorkommt, ist ``""``."""
     roh = [anzeigename(t, KAPITEL_ROH_MAX) for t in titel]
     if len(roh) < 2:
         neu = list(roh)
     else:
-        neu = _anfang_weg(_ende_weg(roh))
-    aus: list[str] = []
-    for t in neu:
-        t = _ohne_fuehrende_nummer(t.strip()).strip()
-        aus.append("" if _GANZ_NUMMER.fullmatch(t) else t)
+        mitte = _ende_weg(roh)
+        neu = _anfang_weg(mitte)
+        if neu == mitte:
+            neu = _anfang_weg_ausreisser(mitte)
+        # Was ein Anfang als Text übrig ließ („Teil 3“ aus „Kapitel 03: Teil 3“), ist ein sprechender Titel, keine reine Nummer.
+        text_aus_anfang = [a != b and not _GANZ_NUMMER.fullmatch(a) for a, b in zip(neu, mitte)]
+    text: list[str | int] = []
+    for t, geschuetzt in zip(neu, text_aus_anfang):
+        t = t.strip()
+        z = None if geschuetzt else _nummer(t)
+        if z is None:
+            t = _ohne_fuehrende_nummer(t).strip()
+            z = _nummer(t) if not geschuetzt or _GANZ_NUMMER.fullmatch(t) else None
+        text.append(t if z is None else z)
+    nummern = [x for x in text if isinstance(x, int)]
+    eindeutig = len(nummern) == len(set(nummern))
     zaehler: dict[str, int] = {}
-    for t in aus:
-        zaehler[t.casefold()] = zaehler.get(t.casefold(), 0) + 1
-    return [anzeigename(t, KAPITEL_TITEL_MAX) if t and zaehler[t.casefold()] == 1 else "" for t in aus]
+    for x in text:
+        if isinstance(x, str) and x:
+            zaehler[x.casefold()] = zaehler.get(x.casefold(), 0) + 1
+    aus: list[str] = []
+    for pos, x in enumerate(text, 1):
+        if isinstance(x, int):
+            aus.append(f"Kapitel {x}" if eindeutig and x != pos else "")
+        else:
+            aus.append(anzeigename(x, KAPITEL_TITEL_MAX) if x and zaehler[x.casefold()] == 1 else "")
+    return aus
 
 
 def bereinige_kapitel(kapitel: list[dict[str, Any]]) -> list[dict[str, Any]]:

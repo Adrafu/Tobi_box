@@ -240,3 +240,112 @@ def test_bereinigen_einzelne_titel_gegenproben():
 def test_bereinigen_kuerzt_erst_nach_dem_bereinigen():
     s = " - " + "Serie " * 30
     assert bereinige_titel([f"Anfang{s}", f"Ende{s}"]) == ["Anfang", "Ende"]
+
+
+# --------------------------------------------------------------------------
+# AM23: Ausreißer, „nur eine Nummer“, gemeinsames Ende ohne Trenner
+# --------------------------------------------------------------------------
+
+
+def _sicht(aus):
+    """Wie die Seite es zeigt: ``""`` wird zu „Kapitel <Position>“."""
+    return [t or f"Kapitel {i}" for i, t in enumerate(aus, 1)]
+
+
+def test_am23_ausreisser_lied_am_anfang_baggerfahrer():
+    s = " - als Baggerfahrer (Folge 109)"
+    roh = ["Benjamin Blümchen Lied"] + [f"Kapitel {i:02d}{s}" for i in range(1, 38)]
+    aus = bereinige_titel(roh)
+    assert aus[0] == "Benjamin Blümchen Lied"
+    assert aus[1:4] == ["Kapitel 1", "Kapitel 2", "Kapitel 3"]  # Nummer aus dem Titel, nicht die Position (2, 3, 4)
+
+
+def test_am23_ausreisser_schlafliedchen():
+    s = ": Der kleine Hirsch und die Prinzessin (GNG Folge 15)"
+    roh = ["Schlafliedchen"] + [f"Kapitel {i:02d}{s}" for i in range(1, 33)]
+    aus = bereinige_titel(roh)
+    assert aus[:2] == ["Schlafliedchen", "Kapitel 1"]
+    assert aus[2] == "Kapitel 2"  # Nummer 2 steht an Position 3
+
+
+def test_am23_ausreisser_spidey_titellied():
+    roh = ["Marvels Spidey und seine Super-Freunde - Titellied"] + [f"Kapitel {i:02d}: Das Spidey-Team" for i in range(1, 13)]
+    aus = bereinige_titel(roh)
+    assert aus[0] == "Marvels Spidey und seine Super-Freunde - Titellied"
+    assert aus[1:3] == ["Kapitel 1", "Kapitel 2"]
+
+
+def test_am23_ausreisser_intro_perle():
+    roh = ["Intro"] + [f"Kapitel {i:02d} - Die magische Perle (Folge 001)" for i in range(1, 15)]
+    aus = bereinige_titel(roh)
+    assert aus[:3] == ["Intro", "Kapitel 1", "Kapitel 2"]
+
+
+def test_am23_ausreisser_am_ende():
+    roh = [f"Kapitel {i:02d} - Der Wald (Folge 7)" for i in range(1, 11)] + ["Abspann"]
+    aus = bereinige_titel(roh)
+    assert aus[-1] == "Abspann"
+    assert _sicht(aus)[:2] == ["Kapitel 1", "Kapitel 2"]
+
+
+def test_am23_nummer_titelsong_dann_kapitel():
+    assert bereinige_titel(["Titelsong", "Kapitel 01", "Kapitel 02"]) == ["Titelsong", "Kapitel 1", "Kapitel 2"]
+
+
+def test_am23_princess_adventure():
+    roh = ["20 Princess Adventure"] + [f"Track #{i:02d}" for i in range(2, 21)]
+    aus = bereinige_titel(roh)
+    assert aus[0] == "20 Princess Adventure"
+    assert _sicht(aus)[1:4] == ["Kapitel 2", "Kapitel 3", "Kapitel 4"]
+
+
+def test_am23_yakari_track_ab_zwei():
+    roh = [f"Yakari - Best of Kleiner Donner - Track #{i:02d}" for i in range(2, 12)]
+    assert bereinige_titel(roh) == [f"Kapitel {i}" for i in range(2, 12)]
+
+
+def test_am23_raeuber_ratte():
+    roh = [f"Räuber Ratte - Räuber Ratte - Track #{i:02d}" for i in range(1, 9)]
+    assert _sicht(bereinige_titel(roh)) == [f"Kapitel {i}" for i in range(1, 9)]
+
+
+def test_am23_conni_zwei_alben_nie_doppeltes_kapitel_1():
+    roh = [f"Conni auf dem Bauernhof - Track #{i:02d}" for i in range(1, 4)] + [f"Conni und das neue Baby - Track #{i:02d}" for i in range(1, 4)]
+    aus = bereinige_titel(roh)
+    assert len(aus) == 6
+    assert aus.count("Kapitel 1") <= 1
+    assert aus == roh or aus == [""] * 6
+
+
+def test_am23_gleiche_nummer_mehrfach_wird_position():
+    roh = [f"Track #{i:02d}" for i in range(1, 4)] * 2
+    assert bereinige_titel(roh) == [""] * 6
+
+
+def test_am23_gemeinsames_ende_ohne_trenner():
+    roh = [f"{i}Trim-It´s gettin´ HARD in here #063.mp3" for i in range(1, 4)]
+    assert _sicht(bereinige_titel(roh)) == ["Kapitel 1", "Kapitel 2", "Kapitel 3"]
+
+
+def test_am23_nur_nummer_formen():
+    assert bereinige_titel(["Track 02", "Teil 03", "Kapitel 05"]) == ["Kapitel 2", "Kapitel 3", "Kapitel 5"]
+    assert bereinige_titel(["Intro", "01", "02"]) == ["Intro", "Kapitel 1", "Kapitel 2"]
+
+
+def test_am23_gegenproben_sprechende_titel_bleiben():
+    schule = ["Schulschluss", "Benny fährt Fahrrad", "Schein! Schein! Schein!", "Der Brief", "Das Gespräch"]
+    assert bereinige_titel(schule) == schule
+    for roh in (
+        ["Alles vermurkst 1", "Alles vermurkst 2", "Alles vermurkst 3", "Zum Schluss"],
+        ["Aller Anfang ist schwer, Teil 1", "Aller Anfang ist schwer, Teil 2", "Das Ende"],
+        ["01-02 Die Unbesiegbaren", "03-04 Ich bin der Beste", "05-06 Die Speckröllchen"],
+        ["7 Zwerge", "Schneewittchen", "Der Wolf"],
+    ):
+        assert bereinige_titel(roh) == roh
+
+
+def test_am23_zippel_und_conni_kapitelangaben_bleiben_mit_ausreisser():
+    s = " - Zippel, das wirklich wahre Schlossgespenst"
+    roh = ["Titellied"] + [f"Kapitel 1.1{s}", f"Kapitel 1.2 & Kapitel 2.1{s}", f"Kapitel 2.2{s}", f"Kapitel 3.1{s}"] + [f"Kapitel {i}.1{s}" for i in range(4, 12)]
+    aus = bereinige_titel(roh)
+    assert aus[:4] == ["Titellied", "Kapitel 1.1", "Kapitel 1.2 & Kapitel 2.1", "Kapitel 2.2"]
