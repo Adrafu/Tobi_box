@@ -683,6 +683,24 @@ async def ws_eingang_sortieren(hub: Hub, connection: Any, msg: dict[str, Any]) -
     return await hub.eingang.starte_durchlauf(msg.get("eintrag_ids"), msg.get("sofort", False))
 
 
+@befehl(
+    "einsortierung/neu",
+    {
+        vol.Required("eintrag_id"): _text,
+        vol.Required("ziel"): _text,
+        vol.Optional("art"): _text,
+        vol.Optional("name"): _text,
+        vol.Optional("serie_id"): _text,
+    },
+    recht="alltag",
+)
+async def ws_einsortierung_neu(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
+    """Nr. 43, „Anders einsortieren“: Fehler in den Feldern des Wunsches sind ``wunsch_ungueltig`` (nicht ``invalid_format``)."""
+    return await hub.eingang.neu_einsortieren(
+        msg["eintrag_id"], msg["ziel"], msg.get("art"), msg.get("name"), msg.get("serie_id"), _nutzer(connection)
+    )
+
+
 @befehl("eingang/entfernen", {vol.Required("eintrag_id"): _text, vol.Required("bestaetigt"): _wahr}, recht="admin")
 async def ws_eingang_entfernen(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
     return await hub.eingang.entferne_eintrag(msg["eintrag_id"])

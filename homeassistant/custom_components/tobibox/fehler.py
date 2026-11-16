@@ -49,6 +49,7 @@ HTTP_STATUS: Final = {
     "hoerkopie_warteschlange_voll": 429,
     "hoerkopie_wartet": 503,
     "wunsch_ungueltig": 400,
+    "neu_einsortieren_nicht_moeglich": 409,
     "cover_ungueltig": 400,
     "cover_nicht_gefunden": 404,
     "warteschlange_voll": 409,

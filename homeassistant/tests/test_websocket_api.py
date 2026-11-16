@@ -90,7 +90,7 @@ async def test_hello(api, api_lesend, integration):
         "einstellungen", "eingang_entfernen", "zuordnung_uid", "konfig_lesen", "upload_fertig_details",  # AP 4.7, Erweiterungen v1.1
         "konfig_staende",  # 12.11., Paket A1: frühere Stände der Liste
         "bibliothek",  # 12.11., Paket A3: Art, Suche, Filter, Blättern
-        "einsortier_wunsch",  # 12.11., Paket A3d: Upload mit Wunsch (ohne Befehl 43)
+        "einsortier_wunsch",  # 12.11., Paket A3d: Upload mit Wunsch; seit A3e auch Befehl 43 („Anders einsortieren“)
         "cover",  # 12.11., Paket A4: Foto-Upload, Cover-Ansicht, Befehl 44
         "warteschlange",  # 13.11., Paket A9c: Befehle 47 bis 49, Thema ``warteschlange``
         "zuordnung_rueckgaengig",  # 13.11., Paket A9c: ``als_neu`` bei ``zuordnung/remove``

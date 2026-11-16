@@ -16,7 +16,7 @@ import { knopfText, globalPos, kapitelVon, kapitelIndex, kapitelZeilen, kapitelA
 import { animiere, kannAnimieren, reduziert } from '../bewegung.js';
 import { coverBlatt, coverFehlerText, coverStil } from './cover.js';
 import { gespieltVonKarte, folgenChips, gebenLink } from './tobies.js';
-import { dateienInEintrag } from './hinzufuegen.js';
+import { dateienInEintrag, andersEinsortieren, kannAnders } from './hinzufuegen.js';
 import { gruendeSaetze, eintragFuerSerie, daraus as eingangDaraus } from '../eingang.js';
 
 export const SICHTBAR = 20; // Folgen, die zuerst gezeigt werden; ab mehr als 20 gibt es das Suchfeld (Design 5.3)
@@ -325,13 +325,15 @@ class SerieSeite {
     } catch (err) { this._fehler(err); } finally { this._busy = false; }
   }
 
-  /* „Das stimmt nicht“ öffnet nur das passende Menü: Name, Art, (Administrator) Zusammenführen, abgesetzt Papierkorb.
-   * „Anders einsortieren …“ kommt mit A-3. */
+  /* „Das stimmt nicht“ öffnet nur das passende Menü: als erstes „Anders einsortieren …“ (A11c, wenn der Eintrag im Eingang es erlaubt: Fähigkeit
+   * `einsortier_wunsch`, „bitte ansehen“ oder höchstens 24 Stunden), dann Name, Art, (Administrator) Zusammenführen, abgesetzt Papierkorb. */
   stimmtNicht(ausloeser) {
     const s = this.z.serie;
     const admin = this.ctx.admin;
     const art = this.ctx.faehig('bibliothek') && s.typ !== 'ueberraschung';
+    const eintrag = eintragFuerSerie(this.ctx.eingang?.(), s.id);
     const punkte = [
+      ...(eintrag && kannAnders(this.ctx, eintrag) ? [{ id: 'anders', label: SERIE.menue.anders, fn: () => andersEinsortieren(this.ctx, eintrag) }] : []),
       ...(art ? [{ id: 'art', label: SERIE.menue.art, fn: () => this.artAendern(ausloeser) }] : []),
       { id: 'name', label: SERIE.menue.name, fn: () => this.serieUmbenennen(ausloeser) },
       ...(admin && s.typ === 'normal' && this.ctx.faehig('korrektur') ? [{ id: 'zusammen', label: SERIE.menue.zusammen, fn: () => this.zusammenfuehren(ausloeser) }] : []),

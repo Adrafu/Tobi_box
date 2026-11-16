@@ -18,6 +18,7 @@
  *   dateiName(pfad), hinweisGruppen(hinweise, opt)   Dateiname aus dem Pfad; Hinweise nach Grund gruppiert: [{ satz, namen, weitere }] (höchstens 3 Namen, der Rest als Zahl)
  *   ergebnisGruende(e)                 nur die Sätze der einsortierten Teile (`ergebnis[].pruefen_gruende`)
  *   daraus(e, opt)                     „Daraus ist geworden: …“ als Satz, oder '' ohne Ergebnis
+ *   kannNeuEinsortieren(e, opt)        darf „Anders einsortieren …“ erscheinen? (`pruefen` oder höchstens 24 Stunden seit `fertig_am`, A11c)
  *   naechsteAenderung(eintraege, opt)  ms bis sich Band oder Liste durch bloßen Zeitablauf ändern (für einen Zeitgeber), oder null
  */
 import { EINGANG, GRUENDE, HINWEISE, fuellen } from './texte.js';
@@ -41,6 +42,17 @@ export function eintragZustand(e) {
   if (st === 'blockiert') return 'fehler';
   if (st === 'teilweise') return 'pruefen';
   return e?.pruefen ? 'pruefen' : 'fertig';
+}
+
+/* „Anders einsortieren …“ (Design 7.3 Punkt 3b und 10, G9; Vertrag 2.4, Befehl 43): nur bei einem Eintrag, der fertig einsortiert ist (nicht läuft, nicht
+ * „geht nicht“, nicht „teilweise“, mit Ergebnis) und entweder „bitte ansehen“ (`pruefen`) oder höchstens 24 Stunden seit `fertig_am`. Ob an den Folgen schon etwas
+ * geändert wurde, prüft nur das Backend (`neu_einsortieren_nicht_moeglich`). Die Fähigkeit `einsortier_wunsch` prüft der Aufrufer. */
+export function kannNeuEinsortieren(e, { jetzt = Date.now() } = {}) {
+  if (!e || !e.id || eintragZustand(e) === 'laeuft' || e.status === 'blockiert' || e.status === 'teilweise') return false;
+  if (!(e.ergebnis || []).some((r) => r && r.serie_id)) return false;
+  if (e.pruefen) return true;
+  const t = alsMs(e.fertig_am);
+  return t !== null && jetzt - t <= FENSTER_MS;
 }
 
 /* Die Einträge der letzten 24 Stunden (neueste zuerst, ohne Doppelte), je Zustand eine Liste.

@@ -5,7 +5,8 @@
   Beim Beenden der Integration schreibt ``Hub.async_stop`` zuletzt.
 * Form: ``{ "<user_id>": { "<serie_id>": { "zeit", "folge", "folgen": { "<Name>": { "p", "d", "t", "fertig", "track" } } } } }``.
 * **Kein Zugriff auf fremde Hörstellen:** jede Funktion hier bekommt die Benutzerkennung **von außen** (der Befehl nimmt sie aus der Verbindung,
-  nie aus der Eingabe). Es gibt keine Funktion, die über Benutzer hinweg liest.
+  nie aus der Eingabe). Es gibt keine Funktion, die Hörstellen über Benutzer hinweg **ausgibt**. Die einzige Ausnahme ist ``hat_gehoert``
+  (Vertrag W, 2.4, Befehl 43, Prüfung 6): Sie liest intern alle Benutzer und antwortet nur mit ja oder nein, nie mit Inhalt oder Benutzer.
 * Die Hörstelle der Box (``resume.json``) ist ein anderes System und wird hier nie berührt.
 """
 
@@ -288,6 +289,12 @@ class Hoerstellen:
         if e is None:
             return {}
         return {n: {"position_s": f["p"], "fertig": f["fertig"], **self._track_feld(serie_id, n, f)} for n, f in self._vorhandene(serie_id, e).items()}
+
+    def hat_gehoert(self, serie_id: str, folgen: set[str]) -> bool:
+        """Hat **irgendein** Benutzer eine dieser Folgen der Serie angehört (Vertrag W, 2.4, Befehl 43, Prüfung 6)?
+
+        Nur für „Anders einsortieren“. Die Antwort ist ein einziges ja/nein: kein Benutzer, keine Stelle, keine Zeit verlassen diese Funktion."""
+        return any(folge in folgen for serien in self.daten.values() for folge in (serien.get(serie_id) or {}).get("folgen", {}))
 
     def zeiten(self, nutzer_id: str | None) -> dict[str, str]:
         """Serien-ID -> Zeit der letzten Wiedergabe des Anfragenden (für die Sortierung ``angehoert``)."""

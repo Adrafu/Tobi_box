@@ -476,6 +476,13 @@ export const HINZU = {
   oeffnen: 'Öffnen', // Design 7.3 (3a)
   ansehen: 'Ansehen', // Design 7.3 (3b)
   richtig: 'Das ist richtig', // Design 7.3 (3b)
+  anders: 'Anders einsortieren …', // Design 7.3 (3b, Punkt 10), Fähigkeit `einsortier_wunsch` (A11c)
+  neu: { // A11c: dasselbe Blatt wie „Was lädst du hoch?“, nur für Dateien, die schon im Eingang liegen (Design 7.3 Punkt 10)
+    titel: 'Was ist das?', // Design 7.3 Punkt 10
+    zeile_nas: '{dateien} im Eingang vom NAS. Was ist das?', // Design 7.3 Punkt 10
+    zeile: '{dateien} aus dem Eingang. Was ist das?', // neu, nicht im Design (Eintrag vom Handy)
+    knopf: 'Neu einsortieren', // Design 7.3 Punkt 10
+  },
   geht_nicht: 'Geht leider nicht.', // Design 7.3 (3c)
   liegt_noch: 'Liegt noch im Eingang:', // neu, nicht im Design (Status „teilweise“: ein Teil ist einsortiert, der Rest bleibt liegen; darunter Grund und Dateien)
   fehlt: {
@@ -912,11 +919,12 @@ export const SERIE = {
     stimmt_nicht: 'Das stimmt nicht',
     danke: 'Danke, ist erledigt.', // Prototyp
   },
-  stimmt_nicht: { // Prototyp (Blatt „Was soll passieren?“); „Anders einsortieren …“ kommt mit A-3
+  stimmt_nicht: { // Prototyp (Blatt „Was soll passieren?“); erster Punkt „Anders einsortieren …“ (A11c)
     titel: 'Was soll passieren?',
     satz: 'Das Einsortieren hat „{name}“ nicht richtig erkannt. Du kannst es korrigieren. Nichts geht endgültig verloren.',
   },
   menue: { // Design 5.3 (Menü des Eintrags und der Folge)
+    anders: 'Anders einsortieren …', // Design 5.3 („Das stimmt nicht“, erster Punkt; A11c)
     name: 'Name ändern',
     cover: 'Cover ändern', // Design 5.3, 5.5
     art: 'Art ändern',

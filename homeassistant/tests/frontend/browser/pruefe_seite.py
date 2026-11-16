@@ -1569,8 +1569,8 @@ def ablauf_eingang_liste(L: Lauf):
         L.pruefe("Diese Datei ist kopiergeschützt" in t.get("fehler", "") and "Nimm eine Datei ohne Kopierschutz." in t.get("fehler", ""), "liste-nas", f"Grund und nächste Handlung fehlen: {t.get('fehler')!r}")
         L.pruefe("In der Datei steht kein Albumname" in t.get("pruefen", "") and "Daraus ist geworden: Neuer Eintrag „Bibi Blocksberg“" in t.get("pruefen", ""), "liste-nas", f"Gründe und „Daraus ist geworden“ fehlen: {t.get('pruefen')!r}")
         L.pruefe("Daraus ist geworden: „Kleine Reise“ · 1 neue Folge" in t.get("fertig", ""), "liste-nas", f"Daraus bei „fertig“: {t.get('fertig')!r}")
-        L.pruefe(all("Anders einsortieren" not in x["text"] for x in k), "liste-nas", "„Anders einsortieren“ gehört nicht in diese Liste")
-        L.pruefe(L.js("return [...sr.querySelectorAll(\"[data-phase='pruefen'] .btns .btn\")].map((b) => b.textContent.trim()).join('|')") == "Ansehen|Das ist richtig|Das stimmt nicht", "liste-nas", "Knöpfe der Karte „bitte ansehen“")
+        L.pruefe(all(("Anders einsortieren" in x["text"]) == (x["phase"] in ("pruefen", "fertig")) for x in k), "liste-nas", "„Anders einsortieren …“ gehört nur zu „bitte ansehen“ und „fertig“ (A11c)")
+        L.pruefe(L.js("return [...sr.querySelectorAll(\"[data-phase='pruefen'] .btns .btn\")].map((b) => b.textContent.trim()).join('|')") == "Ansehen|Das ist richtig|Anders einsortieren …", "liste-nas", "Knöpfe der Karte „bitte ansehen“")
         L.messe("liste-nas")
     with L.schritt("liste-richtig"):
         L.klick("[data-phase='pruefen'] [data-richtig]")
@@ -1643,6 +1643,86 @@ def ablauf_eingang_liste(L: Lauf):
             L.pruefe(L.js("return el.store.s.lokaleUploads") == 0, "liste-neuladen", "Das Band zählt noch einen Upload, obwohl alles einsortiert ist")
             ups = L.mock("/zustand")["uploads"]
             L.pruefe(len({u["gruppe"] for u in ups if u["name"] == "Sturmgeschichten"}) == 1, "liste-neuladen", "Dieselbe Gruppe nach dem Neuladen")
+
+
+def ablauf_anders_einsortieren(L: Lauf):
+    """A11c „Anders einsortieren …“ nur über echte Klicks. Karte „bitte ansehen“ vom NAS: Knopf, Blatt „Was ist das?“ (dieselben vier Kacheln wie beim Hochladen, Zeile zum NAS,
+    „Neu einsortieren“), danach „Wird einsortiert …“ und das Ergebnis über das Ereignis `eingang`. Ein Eintrag, an dem schon etwas geändert wurde: der Text aus 6.1, Blatt zu.
+    Auf der Serienseite steht der Punkt als erster im Menü „Das stimmt nicht“."""
+    karten = "[data-liste='zuletzt'] [data-eintrag]"
+
+    def phase(name):
+        return L.js("return [...sr.querySelectorAll(x[0])].find((k) => k.textContent.includes(x[1]))?.dataset.phase ?? null", [karten, name])
+
+    with L.schritt("anders-knopf"):
+        L.gehe("#hinzufuegen")
+        L.mock("/eingang", {"zustand": "anders"})
+        L.pg.wait_for_function("() => window.__el.shadowRoot.querySelectorAll(\"[data-liste='zuletzt'] [data-quelle='nas']\").length >= 3", timeout=8000)
+        L.ruhe()
+        knoepfe = L.js("const k = [...sr.querySelectorAll(x)].find((k) => k.textContent.includes('Bibi-Ordner')); return [...k.querySelectorAll('.btns .btn')].map((b) => b.textContent.trim())", karten)
+        L.pruefe(knoepfe == ["Ansehen", "Das ist richtig", "Anders einsortieren …"], "anders-knopf", f"Knöpfe der Karte „bitte ansehen“: {knoepfe}")
+        fertig = L.js("const k = [...sr.querySelectorAll(x)].find((k) => k.textContent.includes('Sommerlieder')); return [...k.querySelectorAll('.btns .btn')].map((b) => b.textContent.trim())", karten)
+        L.pruefe(fertig == ["Öffnen", "Anders einsortieren …"], "anders-knopf", f"Knöpfe der Karte „fertig“: {fertig}")
+        groesse = L.js("const b = sr.querySelector('[data-anders]').getBoundingClientRect(); return [b.width, b.height]")
+        L.pruefe(groesse[1] >= 44, "anders-knopf", f"Knopf kleiner als 44 px: {groesse}")
+        L.messe("anders-karten")
+    with L.schritt("anders-blatt"):
+        L.pg.locator("[data-liste='zuletzt'] [data-eintrag]", has_text="Bibi-Ordner").locator("[data-anders]").click(timeout=4000)
+        L.warte_da("dialog.blatt[open] [data-kacheln]")
+        L.ruhe()
+        titel = L.js("return sr.querySelector('dialog.blatt[open] #blatt-t')?.textContent.trim()")
+        zeile = L.js("return sr.querySelector('dialog.blatt[open] [data-gewaehlt]')?.textContent.trim()")
+        L.pruefe(titel == "Was ist das?", "anders-blatt", f"Titel: {titel!r}")
+        L.pruefe(zeile == "3 Dateien im Eingang vom NAS. Was ist das?", "anders-blatt", f"Zeile: {zeile!r}")
+        L.pruefe(L.js("return sr.querySelectorAll('dialog.blatt[open] [data-kachel]').length") == 3 and not L.da('dialog[open] [data-ziel="auto"]'), "anders-blatt", "Es sollen drei Kacheln sein, ohne „Sortier du“")
+        L.messe("anders-blatt")
+        L.klick('dialog[open] [data-ziel="neu"]')
+        L.pruefe(L.js("return sr.querySelector('dialog.blatt[open] #hz-name')?.value") == "Bibi Blocksberg", "anders-blatt", "Der Name ist nicht vorbelegt")
+        knoepfe = L.js("return [...sr.querySelectorAll('dialog.blatt[open] .knoepfe button')].map((b) => b.textContent.trim())")
+        L.pruefe(knoepfe == ["Abbrechen", "Ändern", "Neu einsortieren"], "anders-blatt", f"Knöpfe der Vorschau: {knoepfe}")
+        L.messe("anders-vorschau")
+    with L.schritt("anders-senden"):
+        L.pg.locator("dialog[open] #hz-name").fill("Bibi und Tina")
+        L.klick("dialog[open] .knoepfe button.primary")
+        L.pg.wait_for_function("() => !window.__el.shadowRoot.querySelector('dialog.blatt[open]')", timeout=6000)
+        L.pg.wait_for_function("() => [...window.__el.shadowRoot.querySelectorAll(\"[data-liste='zuletzt'] [data-eintrag]\")].some((k) => k.textContent.includes('Bibi-Ordner') && k.dataset.phase === 'sortieren')", timeout=6000)
+        L.ruhe()
+        t = L.js("return [...sr.querySelectorAll(x)].find((k) => k.textContent.includes('Bibi-Ordner'))?.textContent.replace(/\\s+/g, ' ').trim()", karten)
+        L.pruefe(t is not None and "Wird einsortiert …" in t and "Anders einsortieren" not in t, "anders-senden", f"Karte nach dem Senden: {t!r}")
+        L.messe("anders-laeuft")
+        L.pg.wait_for_function("() => [...window.__el.shadowRoot.querySelectorAll(\"[data-liste='zuletzt'] [data-eintrag]\")].some((k) => k.textContent.includes('Bibi-Ordner') && k.dataset.phase === 'fertig')", timeout=8000)
+        L.ruhe()
+        t = L.js("return [...sr.querySelectorAll(x)].find((k) => k.textContent.includes('Bibi-Ordner'))?.textContent.replace(/\\s+/g, ' ').trim()", karten)
+        L.pruefe(t is not None and "Daraus ist geworden: Hörspiel „Bibi und Tina“" in t, "anders-senden", f"Ergebnis: {t!r}")
+        L.messe("anders-fertig")
+    with L.schritt("anders-nicht-moeglich"):
+        L.pg.locator("[data-liste='zuletzt'] [data-eintrag]", has_text="Geändertes Hörspiel").locator("[data-anders]").click(timeout=4000)
+        L.warte_da("dialog.blatt[open] [data-kacheln]")
+        L.klick('dialog[open] [data-ziel="einzeln"]')
+        L.klick("dialog[open] .knoepfe button.primary")
+        L.pg.wait_for_function("() => !window.__el.shadowRoot.querySelector('dialog.blatt[open]')", timeout=6000)
+        L.pg.wait_for_function("() => /anders einsortieren/.test(window.__el.shadowRoot.querySelector('.toast.err .tmsg')?.textContent ?? '')", timeout=6000)
+        L.ruhe()
+        fehler = L.js("return sr.querySelector('.toast.err .tmsg')?.textContent ?? ''")
+        L.pruefe(fehler.startswith("Das lässt sich nicht mehr anders einsortieren"), "anders-nicht-moeglich", f"Fehlertext: {fehler!r}")
+        L.pruefe(phase("Geändertes Hörspiel") == "pruefen", "anders-nicht-moeglich", f"Die Karte soll bleiben, wie sie war: {phase('Geändertes Hörspiel')!r}")
+        L.messe("anders-nicht-moeglich")
+    with L.schritt("anders-serie"):
+        L.mock("/eingang", {"zustand": "anders"})
+        L.pg.wait_for_function("() => window.__el.shadowRoot.querySelectorAll(\"[data-liste='zuletzt'] [data-quelle='nas']\").length >= 3", timeout=8000)
+        L.gehe("#serie-pruef")
+        L.warte_da("[data-stimmt-nicht]")
+        L.klick("[data-stimmt-nicht]")
+        L.warte_da("dialog.blatt[open] [data-menue]")
+        punkte = L.js("return [...sr.querySelectorAll('dialog.blatt[open] [data-menue]')].map((b) => b.dataset.menue)")
+        L.pruefe(punkte and punkte[0] == "anders", "anders-serie", f"„Anders einsortieren …“ soll der erste Punkt sein: {punkte}")
+        L.messe("anders-menue")
+        L.klick('dialog[open] [data-menue="anders"]')
+        L.warte_da("dialog.blatt[open] [data-kacheln]")
+        L.pruefe(L.js("return sr.querySelector('dialog.blatt[open] #blatt-t')?.textContent.trim()") == "Was ist das?", "anders-serie", "Das Blatt „Was ist das?“ öffnet sich nicht")
+        L.klick("dialog[open] [data-blatt-oben]")
+        L.pg.wait_for_function("() => !window.__el.shadowRoot.querySelector('dialog.blatt[open]')", timeout=6000)
+    L.mock("/eingang", {"zustand": "leer"})
 
 
 def ablauf_papierkorb(L: Lauf):
@@ -2926,7 +3006,7 @@ def ablauf_kapitel(L: Lauf):
 
 ABLAEUFE = [ablauf_unterkante, ablauf_reiter, ablauf_klicks, ablauf_reihen, ablauf_suche, ablauf_bibliothek, ablauf_serie, ablauf_cover, ablauf_leise, ablauf_box, ablauf_technik, ablauf_blaetter,
             ablauf_tobies_weg1, ablauf_tobies_weg2, ablauf_tobies_meldung, ablauf_tobies_umhaengen, ablauf_tobies_geben, ablauf_tobies_lernmodus,
-            ablauf_tobies_name_geben_weit_unten, ablauf_hinzufuegen, ablauf_eingang_liste, ablauf_eingang, ablauf_papierkorb, ablauf_papierkorb_punkt, ablauf_bewegung,
+            ablauf_tobies_name_geben_weit_unten, ablauf_hinzufuegen, ablauf_eingang_liste, ablauf_anders_einsortieren, ablauf_eingang, ablauf_papierkorb, ablauf_papierkorb_punkt, ablauf_bewegung,
             ablauf_druck, ablauf_seitenwechsel, ablauf_player_bewegung, ablauf_play_pause_lage, ablauf_wechsel_serie, ablauf_flug_ruhe, ablauf_blatt_tastatur, ablauf_serie_zeile, ablauf_kapitel, ablauf_player]
 
 

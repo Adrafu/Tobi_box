@@ -91,6 +91,8 @@ PRUEF_INTERVALL_S: Final = 600
 # --- Schutz für Nicht-Administratoren (Vertrag W, 2.4 und 14.10) -----------------
 AENDERUNGEN_JE_MINUTE: Final = 30
 PAPIERKORB_AKTIONEN_JE_10_MIN: Final = 20
+#: „Anders einsortieren“ (Befehl 43, Vertrag W, 2.4): nur Einträge „bitte ansehen“ oder höchstens so alt (seit ``fertig_am``)
+EINSORTIERUNG_NEU_ALTER_MAX_S: Final = 24 * 3600
 UPLOAD_BYTES_JE_STUNDE: Final = 16 * 1024**3
 KONFIG_STAENDE_ANZAHL: Final = 10
 
@@ -204,7 +206,7 @@ FAEHIGKEITEN: Final = (
     "konfig_staende",
     # A3: Art, Suche, Filter, Blättern, Befehle 37 und 38, ``text``/``neu`` bei ``zuordnung/list``, ``erwartet_revision`` (A1)
     "bibliothek",
-    # A3d: Upload-Felder ``ziel``, ``art``, ``name``, ``gruppe_anzahl`` (Befehl 43 ``einsortierung/neu`` gehört zu A-3 und fehlt noch)
+    # A3d: Upload-Felder ``ziel``, ``art``, ``name``, ``gruppe_anzahl``; A3e: dazu Befehl 43 ``einsortierung/neu`` („Anders einsortieren“)
     "einsortier_wunsch",
     # A4: Foto-Upload, Cover-Ansicht, Befehl 44; das Lesen aus den Tags nur mit ``ffmpeg`` (Skalieren macht Pillow)
     "cover",

@@ -18,11 +18,16 @@
  * Das Ergebnis des eigenen Hochladens kommt aus `eingang/list` (Abfrage alle paar Sekunden, nur solange etwas einsortiert wird): `a.eingang` =
  * `{ art: 'fertig' | 'pruefen' | 'fehler' | 'fehlt' | 'lange', eintraege, ergebnis, hinweise }`; die Texte dazu baut `ergebnisText`, die Gründe
  * `gruende`. Ohne Fähigkeit `einsortier_wunsch` gibt es keine Wahl: die Dateien gehen gleich hoch (alte Felder `serie_id`, `gruppe`).
+ *
+ * A11c („Anders einsortieren …“, Design 7.3 Punkt 3b und 10, Vertrag Befehl 43): Dieselbe Wahl wie beim Hochladen, nur für Dateien, die schon im Eingang
+ * lagen. `modell.anders(eintrag)` öffnet das Blatt „Was ist das?“ (dieselben Kacheln, dieselbe Vorschau in Sätzen; `w.neuEintrag` statt Dateien), „Neu einsortieren“
+ * sendet `einsortierung/neu`. Danach steht der Eintrag bei „Wird einsortiert …“ (`neuMarken`, bis `eingang/list` etwas anderes sagt), das Ergebnis kommt wie
+ * sonst über `eingang/list` und die Ereignisse. Der Knopf erscheint nur mit der Fähigkeit und bei `kannNeuEinsortieren` (eingang.js); das Backend entscheidet am Ende.
  */
 import { html, nothing, css, ic, cover, untertitel } from '../bausteine.js';
 import { HINZU, KACHELN, SEITE, SERIE, TOBIES, GRUENDE, HINWEISE, FEHLER, ZEILE, EINGANG, fuellen, fehlerText } from '../texte.js';
 import { Zielwahl } from './tobies.js';
-import { FENSTER_MS, eintragGruende, ergebnisGruende, hinweisGruppen, daraus as eingangDaraus } from '../eingang.js';
+import { FENSTER_MS, eintragGruende, ergebnisGruende, hinweisGruppen, kannNeuEinsortieren, daraus as eingangDaraus } from '../eingang.js';
 import {
   Hochlader, GRUPPE_MAX, ZUSTAENDE_NEU_WAEHLEN, neueId, pruefeDateien, sortiereNatuerlich, nameVorschlag, artVorschlag, liesAngaben, titelAusDateiname,
   dateienAusDrop, gesamtProzent, dateiProzent, aktuelleDatei, phaseVon, dateiFehlerText, grenzeText,
@@ -91,7 +96,7 @@ export function satzFuer(w) {
   }
   if (w.ziel === 'einzeln') {
     const wort = T.einzeln_wort[artOk(w.artEinzeln)];
-    const namen = n <= 3 ? `: ${w.titel.slice(0, n).map((x) => `„${(x || '').trim() || '…'}“`).join(', ')}` : '';
+    const namen = n <= 3 && !w.neuEintrag ? `: ${w.titel.slice(0, n).map((x) => `„${(x || '').trim() || '…'}“`).join(', ')}` : '';
     return fuellen(T.einzeln, { dateien: d, anzahl: n, wort: n === 1 ? wort.eins : wort.mehr, namen });
   }
   if (w.ziel === 'auto') return fuellen(T.sortieren, { dateien: d, vermutung: vermutung(w) });
@@ -109,6 +114,26 @@ export function vorschauZeilen(w) {
 }
 
 const eindeutig = (liste) => [...new Set(liste)];
+
+const ARTEN_NEU = ['hoerspiel', 'hoerbuch', 'musik', 'geschichte'];
+const NEU_MAX_MS = 10 * 60 * 1000; // so lange gilt „Wird einsortiert …“ nach „Neu einsortieren“, auch wenn `eingang/list` noch nichts Neues sagt
+/* Der Ordner, den die Seite für eine Gruppe anlegt, heißt nur „Upload ab12cd34“: das ist kein Name für Eltern. */
+const generischerName = (name) => !name || /^Upload [0-9a-f]{6,}$/i.test(name);
+const neuStand = (e) => [e.status, e.fertig_am, e.geaendert_am, e.pruefen ? 1 : 0, (e.ergebnis || []).length].join('|');
+
+/* Die Auswahl für das Blatt „Was ist das?“: wie beim Hochladen, aber statt Dateien ein Eintrag aus dem Eingang (`neuEintrag`). Die Zahl der Dateien
+ * kennt der Eintrag; die Namen der Dateien kennt die Seite nicht, die Vorschau nimmt die Titel aus dem Ergebnis. */
+export function neuAuswahl(e) {
+  const n = Math.max(1, Number(e.dateien) || 1);
+  const erg = (e.ergebnis || []).filter((r) => r && r.serie_id);
+  const art = ARTEN_NEU.includes(e.wunsch?.art) ? e.wunsch.art : 'hoerspiel';
+  const name = erg[0]?.serie_name || (generischerName(e.name) ? '' : String(e.name));
+  return {
+    schritt: 'kacheln', neuEintrag: e, ziel: null, dateien: Array.from({ length: n }, () => ({ name: '' })), abgelehnt: [], angaben: [],
+    titelRoh: erg.map((r) => r.anzeige).filter(Boolean).slice(0, 4), artNeu: art, artEinzeln: ['musik', 'geschichte'].includes(art) ? art : 'musik', artVorschlag: art, hatAlbum: false,
+    nameVorschlag: name, name, nameManuell: true, artNeuManuell: true, artEinzelnManuell: true, titel: [], serie: null, vonSerie: false, wahl: null, sendet: false,
+  };
+}
 
 /* Die Marke einer Karte („fertig“, „bitte ansehen“, „geht nicht“ …): Farbe und Wort, nie nur die Farbe. */
 const marke = (art, text) => html`<span class=${`hz-marke ${art}`} data-marke=${art}>${art === 'ok' ? sym('haken', 18) : nothing}${text}</span>`;
@@ -271,6 +296,7 @@ class HinzModell {
     this.erledigteAus = speicherLies(SPEICHER_AUS) === '1'; // „Erledigte ausblenden“ gilt nur auf diesem Gerät
     this.bestaetigt = new Set(); // Einträge, bei denen jemand hier „Das ist richtig“ getippt hat (für Backends ohne Bibliothek, die `pruefen` nicht löschen)
     this.fokusId = null; // Eintrag, dessen Karte nach dem nächsten Zeichnen den Fokus bekommt
+    this.neuMarken = new Map(); // Eintrag-ID → { t, stand }: „Neu einsortieren“ ist gesendet, die Karte steht bei „Wird einsortiert …“, bis `eingang/list` etwas anderes sagt (A11c)
     this.lader = new Hochlader(ctx, {
       aenderung: () => { this._lokale(); ctx.neuZeichnen(); },
       fertig: (a) => this._nachUpload(a),
@@ -404,7 +430,7 @@ class HinzModell {
     const ctx = this.ctx;
     const w = this.w;
     const p = ctx.oeffneBlatt({
-      titel: () => (w.schritt === 'kacheln' ? HINZU.blatt.titel : w.schritt === 'wohin' ? HINZU.blatt.wohin_titel : HINZU.blatt.vorschau_titel),
+      titel: () => (w.schritt === 'kacheln' ? (w.neuEintrag ? HINZU.neu.titel : HINZU.blatt.titel) : w.schritt === 'wohin' ? HINZU.blatt.wohin_titel : HINZU.blatt.vorschau_titel),
       inhalt: () => this._blattInhalt(w),
       knoepfe: () => this._blattKnoepfe(w),
       kopfKnopf: { label: HINZU.blatt.abbrechen },
@@ -461,6 +487,52 @@ class HinzModell {
     const wunsch = wunschFuer(w);
     const namen = w.ziel === 'einzeln' ? w.dateien.map((_, i) => (i < 3 ? (w.titel[i] || '').trim() || null : null)) : [];
     this.starte({ dateien: w.dateien, abgelehnt: w.abgelehnt, wunsch, namen });
+    return undefined;
+  }
+
+  /* „Anders einsortieren …“: das Blatt „Was ist das?“ für einen Eintrag aus dem Eingang. Liefert `false`, wenn es den Knopf nicht geben dürfte. */
+  anders(e) {
+    if (!this.wunschFaehig || !kannNeuEinsortieren(e)) return false;
+    this.w = neuAuswahl(e);
+    this._zeigeBlatt();
+    return true;
+  }
+
+  /* Ist der Eintrag gerade „neu einsortieren“ gesendet worden und die Liste hat noch nichts Neues? */
+  neuLaeuft(e) {
+    const mk = this.neuMarken.get(e.id);
+    if (!mk) return false;
+    if (Date.now() - mk.t > NEU_MAX_MS || mk.stand !== neuStand(e)) { this.neuMarken.delete(e.id); return false; }
+    return true;
+  }
+
+  /* „Neu einsortieren“ (Befehl 43): dieselben Prüfungen wie beim Hochladen. Liefert `false`, wenn das Blatt offen bleiben soll (Eingabe ändern, noch einmal versuchen). */
+  async neuEinsortieren() {
+    const w = this.w;
+    if (!w || !w.neuEintrag || w.schritt !== 'vorschau' || w.sendet || w.ziel === 'auto') return false; // nie `auto` an `einsortierung/neu`
+    if (w.ziel === 'ergaenzen' && !w.serie) { this.ctx.meldeFehler(HINZU.blatt.kein_ziel); return false; }
+    if (w.ziel === 'neu' && !(w.name || '').trim()) { this.ctx.meldeFehler(HINZU.blatt.kein_name); return false; }
+    const e = w.neuEintrag;
+    const { gruppe, gruppe_anzahl: _n, ...wunsch } = wunschFuer(w, null); // eine Gruppe gibt es hier nicht: die Dateien liegen schon da
+    w.sendet = true;
+    this.ctx.neuZeichnen();
+    try {
+      await this.ctx.api('tobibox/einsortierung/neu', { eintrag_id: e.id, ...wunsch });
+    } catch (err) {
+      w.sendet = false;
+      const code = err?.code || 'unknown_error';
+      this.ctx.meldeFehler(this.ctx.fehlerText(code));
+      if (code === 'neu_einsortieren_nicht_moeglich' || code === 'eintrag_nicht_gefunden') { this.ctx.eingangNeuLaden?.(); this.ctx.neuZeichnen(); return undefined; } // so wird es nicht mehr gehen: Blatt zu, Liste frisch
+      this.ctx.neuZeichnen();
+      return false; // Eingabe ändern oder gleich noch einmal
+    }
+    this.neuMarken.set(e.id, { t: Date.now(), stand: neuStand(e) });
+    const auftrag = this.eintraege.find((a) => a.eingang?.eintraege?.some((x) => x.id === e.id)); // der Auftrag dieses Geräts, zu dem der Eintrag gehörte: ab jetzt zählt der Eintrag
+    if (auftrag) { this.eintraege = this.eintraege.filter((a) => a !== auftrag); this._lokale(); }
+    this.ctx.eingangNeuLaden?.();
+    this.ctx.schliesseBlatt?.('knopf');
+    if (!/^#hinzufuegen\b/.test(window.location.hash || '')) this.ctx.navigiere('#hinzufuegen');
+    this.ctx.neuZeichnen();
     return undefined;
   }
 
@@ -581,7 +653,9 @@ class HinzModell {
       return [
         { label: HINZU.blatt.abbrechen, kind: 'link' },
         { label: HINZU.blatt.aendern, fn: () => { this.aendern(); return false; } },
-        { label: HINZU.blatt.hochladen, kind: 'primary', fn: () => this.hochladen() },
+        w.neuEintrag
+          ? { label: HINZU.neu.knopf, kind: 'primary', aus: !!w.sendet, fn: () => this.neuEinsortieren() }
+          : { label: HINZU.blatt.hochladen, kind: 'primary', fn: () => this.hochladen() },
       ];
     }
     if (w.schritt === 'wohin') return [{ label: HINZU.blatt.zurueck, fn: () => { this.schritt(w, 'kacheln'); return false; } }];
@@ -602,8 +676,9 @@ class HinzModell {
 
   _kacheln(w) {
     const n = w.dateien.length;
-    const zeile = fuellen(n === 1 ? HINZU.blatt.gewaehlt_eins : HINZU.blatt.gewaehlt_mehr, { anzahl: n, name: w.dateien[0].name });
-    const karten = [['neu', 'neu'], ['zu_vorhandenem', 'ergaenzen'], ['einzeln', 'einzeln'], ['sortier_du', 'auto']];
+    const zeile = w.neuEintrag ? fuellen(w.neuEintrag.quelle === 'nas' ? HINZU.neu.zeile_nas : HINZU.neu.zeile, { dateien: dateienText(n) })
+      : fuellen(n === 1 ? HINZU.blatt.gewaehlt_eins : HINZU.blatt.gewaehlt_mehr, { anzahl: n, name: w.dateien[0].name });
+    const karten = [['neu', 'neu'], ['zu_vorhandenem', 'ergaenzen'], ['einzeln', 'einzeln'], ['sortier_du', 'auto']].filter(([, ziel]) => !(w.neuEintrag && ziel === 'auto')); // Vertrag Nr. 43 kennt kein `auto`: wer anders einsortiert, weiß, was es ist
     return html`<p class="hz-zeile muted" data-gewaehlt>${zeile}</p>${this._zuGross(w)}
       <div class="hz-kacheln" role="group" aria-label=${HINZU.blatt.titel} data-kacheln>
         ${karten.map(([k, ziel]) => html`<button type="button" class="hz-kachel" data-ziel=${ziel} data-kachel=${k} aria-pressed=${w.ziel === ziel ? 'true' : nothing} @click=${() => this.waehleZiel(ziel)}>
@@ -636,10 +711,10 @@ class HinzModell {
         ${s ? liste : nothing}`;
     } else if (w.ziel === 'einzeln') {
       eingaben = html`${this._artWahl(['musik', 'geschichte', 'hoerspiel', 'hoerbuch'].map((a) => [a, HINZU.art_einzeln[a]]), w.artEinzeln, (a) => { w.artEinzeln = a; w.artEinzelnManuell = true; this.ctx.neuZeichnen(); }, 'hz-l-art')}
-        ${w.dateien.slice(0, 3).map((_, i) => html`<div class="hz-feld"><label class="hz-label" for=${`hz-t${i}`}>${n > 1 ? fuellen(HINZU.blatt.name_von, { nr: i + 1 }) : HINZU.blatt.name}</label>
+        ${w.neuEintrag ? nothing : w.dateien.slice(0, 3).map((_, i) => html`<div class="hz-feld"><label class="hz-label" for=${`hz-t${i}`}>${n > 1 ? fuellen(HINZU.blatt.name_von, { nr: i + 1 }) : HINZU.blatt.name}</label>
           <input id=${`hz-t${i}`} type="text" maxlength="100" autocomplete="off" data-titel=${i} .value=${w.titel[i] ?? ''}
             @input=${(e) => { w.titel[i] = e.target.value; (w.titelGeaendert ??= {})[i] = true; this.ctx.neuZeichnen(); }}></div>`)}
-        ${n > 3 ? html`<p class="muted" data-uebrige>${fuellen(HINZU.blatt.uebrige, { anzahl: n - 3 })}</p>` : nothing}`;
+        ${n > 3 && !w.neuEintrag ? html`<p class="muted" data-uebrige>${fuellen(HINZU.blatt.uebrige, { anzahl: n - 3 })}</p>` : nothing}`;
     } else if (w.ziel === 'auto') {
       eingaben = nothing; // AM17: der Erklärsatz „Ich lese die Angaben …“ entfällt
     }
@@ -670,6 +745,12 @@ export function plusKlick(ctx, ereignis) {
 export function dateienInEintrag(ctx, serie) {
   modell(ctx).waehle({ serie: { id: serie.id, name: serie.name, art: serie.art ?? 'hoerspiel', anzahl_folgen: serie.anzahl_folgen ?? serie.folgen?.length ?? 0, cover_stand: serie.cover_stand ?? null, einzeln: false } });
 }
+
+/* „Anders einsortieren …“ auf der Serienseite (Menü „Das stimmt nicht“): dasselbe Blatt „Was ist das?“ für den Eintrag im Eingang. */
+export function andersEinsortieren(ctx, eintrag) { return modell(ctx).anders(eintrag); }
+
+/* Gibt es den Knopf „Anders einsortieren …“ für diesen Eintrag? (Fähigkeit und `kannNeuEinsortieren`.) */
+export function kannAnders(ctx, eintrag) { return !!ctx.faehig?.('einsortier_wunsch') && kannNeuEinsortieren(eintrag); }
 
 /* ------------------------------------------------------------------ Seite */
 
@@ -740,7 +821,8 @@ class HinzSeite {
       return !e.some(fertigEintrag); // der Eingang hat die Gruppe inzwischen selbst einsortiert (30 Minuten Ruhe): dann steht dort der Eintrag
     }).map((z) => ({ ...z, zeit: z.auftrag.angelegt }));
     const frei = liste.filter((x) => !lokal.some((z) => gehoertZu(z.auftrag, x.eintrag)))
-      .map((x) => ({ art: 'eingang', id: x.eintrag.id, eintrag: x.eintrag, zustand: x.zustand === 'pruefen' && m.bestaetigt.has(x.eintrag.id) && x.eintrag.status !== 'teilweise' ? 'fertig' : x.zustand, zeit: x.zeit }));
+      .map((x) => ({ art: 'eingang', id: x.eintrag.id, eintrag: x.eintrag, zeit: x.zeit,
+        zustand: m.neuLaeuft(x.eintrag) ? 'laeuft' : x.zustand === 'pruefen' && m.bestaetigt.has(x.eintrag.id) && x.eintrag.status !== 'teilweise' ? 'fertig' : x.zustand }));
     return [...lokal, ...frei].sort((x, y) => y.zeit - x.zeit);
   }
 
@@ -784,7 +866,7 @@ class HinzSeite {
       return rahmen('fertig', html`<div class="hz-zeile2">${marke('ok', HINZU.marke.fertig)}</div>
         ${erg ? html`<div class="hz-text" data-ergebnis>${erg}</div>` : e.ohne ? html`<div class="hz-text" data-ergebnis>${HINZU.hochgeladen_ohne_eingang}</div>` : nothing}
         ${hinweis ? html`<div class="muted" data-art-hinweis>${hinweis}</div>` : nothing}
-        ${ids.length || e.ohne ? html`<div class="btns"><a class="btn" href=${e.ohne ? '#bibliothek?sortierung=neu' : ziel} data-oeffnen>${HINZU.oeffnen}</a></div>` : nothing}`);
+        ${ids.length || e.ohne ? html`<div class="btns"><a class="btn" href=${e.ohne ? '#bibliothek?sortierung=neu' : ziel} data-oeffnen>${HINZU.oeffnen}</a>${this._anders(e.eintraege?.length === 1 ? e.eintraege[0] : null)}</div>` : nothing}`);
     }
     if (p === 'pruefen') {
       const e = a.eingang;
@@ -796,14 +878,21 @@ class HinzSeite {
         <div><strong>${HINZU.ansehen_titel}</strong>${gr.length ? html` ${gr.map((t) => html`<span class="hz-grund" data-grund>${t}</span>`)}` : html` <span class="hz-grund" data-grund>${SERIE.ansehen.grund_sonst}</span>`}</div>
         ${erg ? html`<div data-ergebnis><strong>${fuellen(HINZU.daraus, { was: '' }).trim()}</strong> ${erg}</div>` : nothing}
         <div class="btns">${ids.length ? html`<a class="btn" href=${ids.length === 1 ? `#serie-${encodeURIComponent(ids[0])}` : '#bibliothek?sortierung=neu'} data-ansehen>${HINZU.ansehen}</a>` : nothing}
-          <button type="button" class="btn" data-richtig @click=${() => this.m.richtig(a)}>${HINZU.richtig}</button></div></div>`;
+          <button type="button" class="btn" data-richtig @click=${() => this.m.richtig(a)}>${HINZU.richtig}</button>${e.art === 'pruefen' && e.eintraege?.length === 1 ? this._anders(e.eintraege[0]) : nothing}</div></div>`;
     }
     if (p === 'fehlt') return this._fehlt(a, kopf, marke);
     return this._fehler(a, kopf, marke);
   }
 
+  /* Der Knopf „Anders einsortieren …“ (A11c): nur mit der Fähigkeit `einsortier_wunsch` und nur, wo `kannNeuEinsortieren` es erlaubt. */
+  _anders(e) {
+    if (!e || !kannAnders(this.ctx, e)) return nothing;
+    return html`<button type="button" class="btn" data-anders aria-haspopup="dialog" @click=${() => this.m.anders(e)}>${HINZU.anders}</button>`;
+  }
+
   /* ---- Einträge aus dem Eingang (NAS: ohne die Leiste „Hochladen“ davor, Design 7.3 Punkt 10; anderes Gerät, nach dem Neuladen): wird einsortiert, fertig, bitte kurz ansehen, geht nicht, es fehlt noch eine Datei.
-   * „Anders einsortieren“ gibt es hier nicht (Design 15, A11b: kommt mit A-3); „Das stimmt nicht“ führt zur Serienseite, dort steht die Auswahl (Design 5.3). */
+   * „Anders einsortieren …“ (A11c) bei „bitte ansehen“ (statt „Das stimmt nicht“, Design 7.3 Punkt 3b) und bei „fertig“; ohne die Fähigkeit oder wo es nicht erlaubt ist,
+   * führt „Das stimmt nicht“ zur Serienseite, dort steht die Auswahl (Design 5.3). */
   _eingangKarte(z) {
     const e = z.eintrag;
     const T = HINZU;
@@ -833,6 +922,7 @@ class HinzSeite {
       const rest = teilweise ? this._gruppen(e.hinweise) : [];
       const richtig = e.status !== 'teilweise' && offene.length > 0;
       const wohin = offene.length ? offene : ids;
+      const anders = fehlt || teilweise ? nothing : this._anders(e);
       return rahmen('note warn', fehlt ? 'fehlt' : 'pruefen', html`${zeile('warn', fehlt ? T.marke.fehlt : T.marke.ansehen)}
         <div><strong>${T.ansehen_titel}</strong> ${(saetze.length || teilweise ? saetze : [EINGANG.grund_sonst]).map((t) => html` <span class="hz-grund" data-grund>${t}</span>`)}</div>
         <div data-daraus>${wasDaraus}</div>
@@ -840,11 +930,11 @@ class HinzSeite {
         ${wohin.length || richtig ? html`<div class="btns">
           ${wohin.length ? html`<a class="btn" href=${ziel(wohin)} data-ansehen>${T.ansehen}</a>` : nothing}
           ${richtig ? html`<button type="button" class="btn" data-richtig @click=${() => this.m.richtigEintrag(e)}>${T.richtig}</button>` : nothing}
-          ${wohin.length ? html`<a class="btn" href=${ziel(wohin)} data-stimmt-nicht>${SERIE.ansehen.stimmt_nicht}</a>` : nothing}</div>` : nothing}`);
+          ${anders !== nothing ? anders : wohin.length ? html`<a class="btn" href=${ziel(wohin)} data-stimmt-nicht>${SERIE.ansehen.stimmt_nicht}</a>` : nothing}</div>` : nothing}`);
     }
     return rahmen('fertig', 'fertig', html`${zeile('ok', T.marke.fertig)}
       <div class="hz-text" data-daraus>${wasDaraus}</div>
-      ${ids.length ? html`<div class="btns"><a class="btn" href=${ziel(ids)} data-oeffnen>${T.oeffnen}</a></div>` : nothing}`);
+      ${ids.length ? html`<div class="btns"><a class="btn" href=${ziel(ids)} data-oeffnen>${T.oeffnen}</a>${this._anders(e)}</div>` : nothing}`);
   }
 
   /* Dateien, die nicht hochgeladen werden (zu groß, falsches Format), neben denen, die hochgeladen werden: die Warnung steht an der Karte (Design 5.6). */

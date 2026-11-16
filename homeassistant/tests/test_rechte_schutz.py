@@ -135,7 +135,7 @@ TABELLE = [
     (40, "hoerstelle/get", "lesen", {"serie_id": "rabe"}, None, True),
     (41, "hoerstelle/set", "alltag", {"serie_id": "rabe", "folge": "a.mp3", "position_s": 0.5, "dauer_s": 1.0}, None, True),
     (42, "hoerstelle/liste", "lesen", {}, None, True),
-    (43, "einsortierung/neu", "alltag", {}, None, False),
+    (43, "einsortierung/neu", "alltag", {"eintrag_id": "0123456789ab", "ziel": "neu", "art": "hoerbuch", "name": "X"}, "eintrag_nicht_gefunden", True),
     (44, "cover/neu_suchen", "admin", {}, None, True),
     (45, "hoerkopie/neu_erzeugen", "admin", {}, None, True),
     (46, "papierkorb/restore_letzte_stunde", "admin", {"bestaetigt": True}, None, True),

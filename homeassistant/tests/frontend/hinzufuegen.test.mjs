@@ -1232,7 +1232,7 @@ test('Liste: ohne Einträge in den letzten 24 Stunden steht keine Liste da', { .
   } finally { weg(); }
 });
 
-test('Liste: „bitte kurz ansehen“ mit Gründen (jeder Code ein Satz, ohne Doppelte), „Daraus ist geworden“, „Ansehen“, „Das ist richtig“ und „Das stimmt nicht“; kein „Anders einsortieren“', { ...MIT_DOM }, async () => {
+test('Liste: „bitte kurz ansehen“ mit Gründen (jeder Code ein Satz, ohne Doppelte), „Daraus ist geworden“, „Ansehen“, „Das ist richtig“ und „Anders einsortieren …“ (A11c; ohne die Fähigkeit `einsortier_wunsch` bleibt „Das stimmt nicht“)', { ...MIT_DOM }, async () => {
   const e = nasFertig({ pruefen: true, ergebnis: [erg({ pruefen: true, pruefen_gruende: ['tags_fehlen', 'nummer_doppelt', 'track_doppelt', 'track_teils_leer'] })] });
   const s = await start({ eingangErledigt: [e] });
   try {
@@ -1244,10 +1244,9 @@ test('Liste: „bitte kurz ansehen“ mit Gründen (jeder Code ein Satz, ohne Do
     assert.deepEqual([...k.querySelectorAll('[data-grund]')].map((x) => x.textContent), [GRUENDE.tags_fehlen, GRUENDE.nummer_doppelt, GRUENDE.track_doppelt]);
     assert.match(kText(k), /Bitte kurz ansehen\. In der Datei steht kein Albumname/);
     assert.equal(k.querySelector('[data-daraus]').textContent.trim(), 'Daraus ist geworden: Neuer Eintrag „Bibi Blocksberg“ · 1 Folge');
-    assert.deepEqual([...k.querySelectorAll('.btns .btn')].map((b) => b.textContent.trim()), ['Ansehen', 'Das ist richtig', 'Das stimmt nicht']);
+    assert.deepEqual([...k.querySelectorAll('.btns .btn')].map((b) => b.textContent.trim()), ['Ansehen', 'Das ist richtig', 'Anders einsortieren …']);
     assert.equal(k.querySelector('[data-ansehen]').getAttribute('href'), '#serie-s2');
-    assert.equal(k.querySelector('[data-stimmt-nicht]').getAttribute('href'), '#serie-s2');
-    assert.ok(!/Anders einsortieren/.test(kText(k)));
+    assert.equal(k.querySelector('[data-stimmt-nicht]'), null, 'der Knopf „Anders einsortieren …“ steht an dessen Stelle');
     assert.equal(bandText(s) ?? null, null, 'das Band gibt es nur in der Bibliothek');
   } finally { weg(); }
 });

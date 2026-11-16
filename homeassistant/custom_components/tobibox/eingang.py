@@ -26,7 +26,7 @@ from typing import TYPE_CHECKING, Any
 from homeassistant.core import callback
 from homeassistant.helpers.storage import Store
 
-from . import dateien, ffprobe
+from . import dateien, ffprobe, neu_einsortieren
 from .bibliothek import ArtDatei, art_vorschlag
 from .const import (
     EINGANG_NACHPLAN_S,
@@ -575,6 +575,8 @@ class Eingang:
         #: über blockierte Durchläufe und Neustarts erhalten (persistent)
         self.upload_quelle: set[str] = set()
         self._benachrichtigt: set[str] = set()
+        #: Name des Eintrags -> was das Einsortieren in dieser Runde getan hat (für „Anders einsortieren“, ``neu_einsortieren.py``)
+        self._rueckweg: dict[str, dict[str, Any]] = {}
         self._nachholen: set[str] | None = None
         self._nachplan_abbruch = None
         self._upload_abbruch = None
@@ -687,8 +689,9 @@ class Eingang:
 
     @staticmethod
     def _protokoll_zeile(p: dict[str, Any]) -> dict[str, Any]:
-        """Eine Zeile aus dem Protokoll; ältere Zeilen ohne ``quelle`` und ``pruefen`` (vor dem 12.11.) bekommen sie ergänzt."""
-        zeile = dict(p)
+        """Eine Zeile aus dem Protokoll; ältere Zeilen ohne ``quelle`` und ``pruefen`` (vor dem 12.11.) bekommen sie ergänzt.
+        ``rueckweg`` (was „Anders einsortieren“ braucht) ist intern und geht nie hinaus."""
+        zeile = {k: v for k, v in p.items() if k != "rueckweg"}
         zeile.setdefault("quelle", "nas")
         zeile.setdefault("pruefen", any(bool(r.get("pruefen")) for r in zeile.get("ergebnis") or []))
         return zeile
@@ -1212,6 +1215,7 @@ class Eingang:
             serie.ordner = ordner
             await medien._aktualisiere_cache(serie, ordner)
             self._dauer_merken(serie.id, neue_folgen)
+            await neu_einsortieren.rueckweg_merken(self, serie, pfad, bool(neu), neue_folgen, self._rueckweg)
             if doppelter_name:
                 medien.merke_hinweis(serie, "serie_name_doppelt", name=serie.name)
             for g, endname in neue_folgen:
@@ -1338,6 +1342,9 @@ class Eingang:
     ) -> None:
         hass = self.hub.hass
         z = self.eintraege[e.name]
+        rueckweg = self._rueckweg.pop(e.name, None)
+        if z.ergebnis:  # ein früherer Lauf hat schon einsortiert: der Rückweg kennt nur den letzten, also gilt er nicht
+            rueckweg = None
         z.ergebnis = ergebnis
         z.hinweise = hinweise
         z.wunsch = self._wunsch_von_eintrag(e.name)
@@ -1359,7 +1366,10 @@ class Eingang:
         if z.status == "erledigt":
             await hass.async_add_executor_job(self._raeume_rest, e)
             z.fertig_am = jetzt_iso()
-            self.protokoll.append(z.zu_json())
+            zeile = z.zu_json()
+            if rueckweg:
+                zeile["rueckweg"] = rueckweg
+            self.protokoll.append(zeile)
             del self.protokoll[:-EINGANG_PROTOKOLL_MAX]
             self.eintraege.pop(e.name, None)
             self._benachrichtigt.discard(e.name)
@@ -1482,6 +1492,14 @@ class Eingang:
         self.upload_quelle.discard(z.name)
         self._benachrichtigt.discard(z.name)
         self.hub.benachrichtigung_entfernen(f"tobibox_eingang_{z.id}")
+
+    # --- „Anders einsortieren“ (Befehl 43) ------------------------------------------------------------------------
+
+    async def neu_einsortieren(
+        self, eintrag_id: str, ziel: str, art: str | None, name: str | None, serie_id: str | None, nutzer: Any = None
+    ) -> dict[str, Any]:
+        """``tobibox/einsortierung/neu``: siehe ``neu_einsortieren.py`` (Ablauf, Prüfungen, was bei einem Abbruch bleibt)."""
+        return await neu_einsortieren.neu_einsortieren(self.hub, eintrag_id, ziel, art, name, serie_id, nutzer)
 
     # --- Upload (http.py) ----------------------------------------------------------------------------------------
 

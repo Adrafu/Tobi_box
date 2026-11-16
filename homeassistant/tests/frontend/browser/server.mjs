@@ -105,6 +105,8 @@ function bauen(schluessel) {
   // A11a: `eingang/list` mit Filter „alle“ (offen und erledigt), Uploads merken
   m.uploads = [];
   m.gruppen = new Map();
+  // A11c: `einsortierung/neu` (Vertrag 43) prüft der Mock in mock-hass.mjs; nach einer angenommenen Anfrage kommt das Ergebnis eine gute Sekunde später (Ereignis `eingang`)
+  m.backend.neuNach = (e, w) => setTimeout(() => neuFertig(m, e, w), 1200);
   m.on('tobibox/eingang/list', (msg, bk) => {
     const l = msg.filter === 'erledigt' ? bk.eingangErledigt : msg.filter === 'alle' ? [...bk.eingang, ...bk.eingangErledigt] : bk.eingang;
     return { eintraege: l, gesamt: l.length, sortierung_laeuft: false, geprueft_am: '2026-11-13T12:00:00Z' };
@@ -126,6 +128,12 @@ const ZUSTAENDE_EINGANG = (() => {
     laeuft1: (j) => [[lauf(j)], []],
     laeuft2: (j) => [[lauf(j), lauf(j, { status: 'wartet' })], []],
     pruefen1: (j) => [[], [ansehen(j)]],
+    /* A11c „Anders einsortieren“: bitte ansehen (NAS), fertig und jung (NAS), und ein Eintrag, an dem schon etwas geändert wurde („Geändert …“: `neu_einsortieren_nicht_moeglich`) */
+    anders: (j) => [[], [
+      ansehen(j, { name: 'Bibi-Ordner', quelle: 'nas', art: 'ordner', dateien: 3, wunsch: null }),
+      eingangEintrag({ name: 'Sommerlieder', quelle: 'nas', art: 'ordner', dateien: 4, fertig_am: vor(j, 3), ergebnis: [{ serie_id: 'kurz', serie_name: 'Kleine Reise', serie_neu: false, folge: 'x.mp3', anzeige: 'x', tracks: 1, pruefen: false, pruefen_gruende: [] }] }),
+      ansehen(j, { name: 'Geändertes Hörspiel', quelle: 'nas', art: 'ordner', dateien: 2, fertig_am: vor(j, 50), wunsch: null }),
+    ]],
     pruefen2: (j) => [[], [ansehen(j), ansehen(j, { fertig_am: vor(j, 40), quelle: 'nas', wunsch: null })]],
     fehler: (j) => [[eingangEintrag({ status: 'blockiert', fertig_am: null, zuerst_gesehen: vor(j, 30), hinweise: [{ code: 'kopierschutz', datei: 'a.m4b', text: 'x' }] })], []],
     fertig: (j) => [[], [eingangEintrag({ fertig_am: vor(j, 2) })]],
@@ -255,6 +263,21 @@ function einsortieren(m, gr) {
   b.eingangErledigt.unshift(eintrag);
 }
 
+/* A11c: „Anders einsortieren“ ist fertig: der Eintrag steht mit dem neuen Wunsch wieder im Protokoll (gleiche Quelle, gleicher Name), Ereignisse `neu_einsortiert` und `geaendert`. */
+function neuFertig(m, e, w) {
+  const b = m.backend;
+  b.eingang = b.eingang.filter((x) => x.id !== e.id);
+  const n = Math.max(1, Number(e.dateien) || 1);
+  einsortieren(m, {
+    wunsch: { ziel: w.ziel, art: w.art, name: w.name, serie_id: w.serie_id }, ordner: e.art === 'ordner', eingangName: e.name,
+    dateien: Array.from({ length: n }, (_, i) => ({ id: `${e.id}-${i}`, name: `${String(i + 1).padStart(2, '0')} Teil ${i + 1}.mp3`, groesse: 5242880 })),
+  });
+  const neu = b.eingangErledigt[0];
+  neu.quelle = e.quelle;
+  m.emit('eingang', 'neu_einsortiert', { eintrag_id: neu.id, eintrag_name: neu.name, ergebnis: neu.ergebnis, hinweise: [], zaehler: { folgen: neu.ergebnis.length, serien_neu: 1, pruefen: neu.pruefen ? 1 : 0, doppelt: 0, blockiert: 0 } });
+  m.emit('eingang', 'geaendert', {});
+}
+
 /* A11a: ein Upload. Antwort wie das Backend (Vertrag 5.5) nach kurzer Verzögerung, damit die Seite „Datei 2 von 3“ zeigt. */
 async function upload(req, res) {
   const m = holeMock(req.headers['x-tb-k'] || 'admin');
@@ -356,7 +379,8 @@ const server = http.createServer(async (req, res) => {
     const f = ZUSTAENDE_EINGANG[zustand];
     if (!f) { res.statusCode = 400; res.end(JSON.stringify({ fehler: 'unbekannter Zustand' })); return; }
     [m.backend.eingang, m.backend.eingangErledigt] = f(Date.now());
-    if ((zustand.startsWith('pruefen') || zustand === 'nas' || zustand === 'dateien') && m.backend.serien.pruef) { // frühere Abläufe haben die Serie vielleicht schon bestätigt: wieder „bitte prüfen“
+    m.backend.neuGesperrt = new Set([...m.backend.eingang, ...m.backend.eingangErledigt].filter((x) => /^Geändert/.test(x.name)).map((x) => x.id)); // A11c
+    if ((zustand.startsWith('pruefen') || zustand === 'nas' || zustand === 'dateien' || zustand === 'anders') && m.backend.serien.pruef) { // frühere Abläufe haben die Serie vielleicht schon bestätigt: wieder „bitte prüfen“
       const sr = m.backend.serien.pruef;
       sr.pruefen = true; sr.folgen[0].pruefen = true; sr.folgen[0].pruefen_gruende = ['tags_fehlen', 'nummer_doppelt'];
     }

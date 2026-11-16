@@ -58,6 +58,10 @@ export const SCHEMA_BIB = {
   'tobibox/folgen/list': { opt: ['art', 'text', 'filter', 'sortierung', 'limit', 'offset'], braucht: 'bibliothek' },
   'tobibox/serie/art_setzen': { req: ['serie_id', 'art'], braucht: 'bibliothek' }, // A8, Vertrag W Nr. 38
 };
+/* A11c (Vertrag W Nr. 43): „Anders einsortieren“. Eigener Satz, damit die Abdeckungsprüfung der alten Seite unverändert bleibt. */
+export const SCHEMA_NEU = {
+  'tobibox/einsortierung/neu': { req: ['eintrag_id', 'ziel'], opt: ['art', 'name', 'serie_id'], braucht: 'einsortier_wunsch' },
+};
 /* A9/A10 (Vertrag W 3.13, Nr. 47 bis 49): Warteschlange „Nächster neuer Tobie“. Eigener Satz, damit die Abdeckungsprüfung der alten Seite unverändert bleibt. */
 export const SCHEMA_WS = {
   'tobibox/warteschlange/set': { req: ['box', 'ziel'], opt: ['name', 'anfrage_id'], braucht: 'warteschlange' },
@@ -211,7 +215,7 @@ export function beispielBibliothek(n = 130) {
 
 /* `faehigkeiten`: was das (simulierte) Backend zusagt. Ohne Angabe wird nur die Form geprüft (alles ist erlaubt). */
 export function pruefeEingabe(msg, faehigkeiten = null) {
-  const sch = SCHEMA[msg.type] || SCHEMA_V11[msg.type] || SCHEMA_BIB[msg.type] || SCHEMA_TECHNIK[msg.type] || SCHEMA_WS[msg.type] || SCHEMA_REIN[msg.type];
+  const sch = SCHEMA[msg.type] || SCHEMA_V11[msg.type] || SCHEMA_BIB[msg.type] || SCHEMA_TECHNIK[msg.type] || SCHEMA_WS[msg.type] || SCHEMA_REIN[msg.type] || SCHEMA_NEU[msg.type];
   if (!sch) throw fehler('unknown_command', `Unbekannter Befehl ${msg.type}`);
   if (faehigkeiten && sch.braucht && !faehigkeiten.includes(sch.braucht)) throw fehler('unknown_command', `Unbekannter Befehl ${msg.type}`);
   const { type, id, ...felder } = msg; // eslint-disable-line no-unused-vars
@@ -265,6 +269,8 @@ export function createMockHass(opts = {}) {
     ],
     eingang: [{ id: '111111111111', name: 'Hoerbuch Neu', art: 'ordner', dateien: 3, ignoriert: 1, groesse_bytes: 90000000, zuerst_gesehen: '2026-11-09T07:30:00Z', geaendert_am: '2026-11-09T07:29:00Z', status: 'blockiert', hinweise: [{ code: 'kopierschutz', datei: 'a.m4b', text: 'Die Datei ist kopiergeschützt.' }], ergebnis: [], fertig_am: null }],
     eingangErledigt: [],
+    neuGesperrt: new Set(), // A11c: Einträge, an deren Folgen schon etwas geändert wurde (`einsortierung/neu` → `neu_einsortieren_nicht_moeglich`)
+    neuNach: null, // A11c: optional `(eintrag, wunsch) => …`, ruft der Mock nach einem angenommenen `einsortierung/neu` (der Browser-Mock lässt damit das Ergebnis kommen)
     warteschlange: [], // A9: Vormerkungen in der Reihenfolge der Anlage
     wsNr: 0,
     sigZaehler: 0,
@@ -538,6 +544,23 @@ export function createMockHass(opts = {}) {
       (m.folgen || s.folgen.map((f) => f.name)).forEach((n) => { holeFolge(s, n).pruefen = false; });
       if (!m.folgen) s.pruefen = false;
       return { serie: kurzform(s) };
+    },
+    /* A11c: „Anders einsortieren“ (Vertrag 43). Prüfreihenfolge: Eintrag, Wunsch, Bedingungen (`pruefen` oder höchstens 24 Stunden seit `fertig_am`; `b.neuGesperrt`
+     * ist die Menge der Einträge, an deren Folgen schon etwas geändert wurde), Ziel. Der Eintrag geht auf „läuft“; das Ergebnis lässt der Test kommen. */
+    'tobibox/einsortierung/neu': (m) => {
+      const e = [...b.eingang, ...b.eingangErledigt].find((x) => x.id === m.eintrag_id);
+      if (!e) throw fehler('eintrag_nicht_gefunden');
+      const ok = ['neu', 'ergaenzen', 'einzeln'].includes(m.ziel) && (!('art' in m) || ['hoerspiel', 'hoerbuch', 'musik', 'geschichte'].includes(m.art))
+        && (m.ziel !== 'neu' || (typeof m.name === 'string' && m.name.trim().length >= 1 && m.name.length <= 100 && 'art' in m)) && (m.ziel !== 'ergaenzen' || !!m.serie_id) && (m.ziel !== 'einzeln' || 'art' in m);
+      if (!ok) throw fehler('wunsch_ungueltig');
+      const jung = e.fertig_am && Date.now() - Date.parse(e.fertig_am) <= 24 * 3600 * 1000;
+      if ((!e.pruefen && !jung) || (b.neuGesperrt && b.neuGesperrt.has(e.id))) throw fehler('neu_einsortieren_nicht_moeglich');
+      if (m.ziel === 'ergaenzen' && !b.serien[m.serie_id]) throw fehler('serie_nicht_gefunden');
+      b.eingangErledigt = b.eingangErledigt.filter((x) => x !== e);
+      b.eingang = [...b.eingang.filter((x) => x !== e), { ...e, status: 'laeuft', fertig_am: null, pruefen: false, ergebnis: [], hinweise: [], geaendert_am: new Date().toISOString(), wunsch: { ziel: m.ziel, art: m.art ?? null } }];
+      emit('eingang', 'geaendert', {});
+      b.neuNach?.(e, m);
+      return { gestartet: true };
     },
     'tobibox/medien/pruefen': () => ({ gestartet: true, laeuft_bereits: false }),
     'tobibox/papierkorb/list': (m) => ({ eintraege: b.papierkorb.slice(m.offset || 0, (m.offset || 0) + (m.limit || 100)), gesamt: b.papierkorb.length, gesamt_bytes: b.papierkorb.reduce((a, e) => a + e.groesse_bytes, 0) }),
