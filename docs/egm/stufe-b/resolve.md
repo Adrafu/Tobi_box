@@ -71,3 +71,16 @@ Stand 16.11. · Grundlage: `design_draft.md` Rev. 1, `review_goldfisch_box.md` (
 | G2-18 | mittel | **(PL)** Reste aus A in B3 (Backend) und B4 (Seite); Hinweis in `docs/betrieb/` in B6 |
 | G2-20 | niedrig | **(PL)** `technik` ohne Aufräumregel; Index `(quelle, beginn)` |
 | G2-21 | niedrig | **(PL)** In Runde 1 gelten die Befehlsnummern von Rev. 3 (50 bis 56); die Fähigkeit `gehoert_reinhoeren` entfällt auch im Vertragstext |
+
+## Runde 3: Kurzprüfung von Rev. 3 (`review_goldfisch_rev3.md`): baureif mit Auflagen, alles (PL), eingearbeitet als Rev. 3.1 (Abschnitt 11 des Entwurfs)
+
+| Befund | Festlegung |
+|---|---|
+| G3-1 | **(PL)** Schlüssel `(quelle, sitzung)`; ein Zwischenstand ersetzt nur Zeilen derselben Quelle |
+| G3-2 | **(PL)** Löschmarke je Quelle: Nach `gehoert/loeschen` verwirft HA nachgelieferte Zeilen dieser Quelle, deren `ende_um` vor der Löschung liegt, und quittiert sie trotzdem |
+| G3-3 | **(PL)** `neues_mal` trägt die erste Sitzung eines Mals; sie trägt auch `mal_zaehlt` (Summe des Mals ≥ 10 s), beim Einfügen neu gerechnet. Unbekanntes Datum: eigenes Mal; `fertig` rechnet die Hörzeit seit dem letzten fertig in Eingangsreihenfolge |
+| G3-4 | **(PL)** Ersetzen: eine Endzeile (`ende` nicht `teilweise`, `abbruch`, `verwaist`) gewinnt immer; sonst gewinnt die Zeile mit der größeren Hörzeit. `verwaist` übernimmt `ende_um` des letzten Zwischenstands |
+| G3-5 | **(PL)** Kein Zwischenstand, solange `gehoert_wartet = true`. Solange die Box wartet, meldet sie `status` alle 60 s neu. Ohne Fähigkeit `gehoert` in HA puffert die Box bis zur Grenze (500) und verwirft dann die ältesten (steht so im Vertrag) |
+| G3-6 | **(PL)** Mehr als 400 Zeilen oder verbotene Kombination in `nach` → `invalid_format` |
+| G3-7 | **(PL)** Reinhören mit `dt > 30`: Kappung `1,5 × dt + 2` (höchstes Tempo der Seite) |
+| G3-8, G3-9 | **(PL)** so lassen: Etikett `abbruch` statt `dienst_ende` bei Neustart in der Pause ist ohne Folge für die Zahlen; ungefähres Datum ohne RTC steht so in „Was wird gezählt?“ nicht, ist aber im Vertrag als „ungefähr“ benannt |

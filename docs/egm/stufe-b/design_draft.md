@@ -1,6 +1,6 @@
 # Stufe B „Gehört“: Design-Entwurf (EGM Schritt 2)
 
-Stand 16.11., **Rev. 3** (Runde 2 der Goldfische eingearbeitet, `resolve.md`). Rev. 2: Entscheidungen R1 bis R4.
+Stand 16.11., **Rev. 3.1** (Auflagen der Kurzprüfung in Abschnitt 11; Rev. 3: Runde 2 der Goldfische eingearbeitet, `resolve.md`). Rev. 2: Entscheidungen R1 bis R4.
 Grundlage: `concepts_brief.md`, Faktenbericht zum Code vom 16.11., alter Entwurf in `docs/designs/ha-oberflaeche.md`
 Abschnitte 5.1, 5.10, 12 und 15.2. Dieser Entwurf **ersetzt** Abschnitt 12 und 15.2 der HA-Oberfläche; 5.10 (Seite
 „Gehört“) gilt weiter, wo hier nichts anderes steht. Verträge: `docs/protocol/mqtt-v1.md`,
@@ -294,3 +294,18 @@ Handshake nicht nötig.
 ## 10. Offene Fragen für Tobias
 
 Keine. R1 bis R4 sind entschieden; „Alle Boxen“ (B-F1) ist mit G-M12 erledigt.
+
+## 11. Auflagen aus der Kurzprüfung (Rev. 3.1, `resolve.md` Runde 3)
+
+- Schlüssel in `sitzungen` ist **`(quelle, sitzung)`**; ein Zwischenstand ersetzt nur Zeilen derselben Quelle.
+- **Ersetzen:** Eine Endzeile (`ende` nicht `teilweise`, `abbruch`, `verwaist`) gewinnt immer; sonst die Zeile mit der
+  größeren Hörzeit. `verwaist` übernimmt `ende_um` des letzten Zwischenstands.
+- **Mal:** `neues_mal` trägt die erste Sitzung eines Mals, zusammen mit `mal_zaehlt` (Summe des Mals ≥ 10 s); beides
+  wird beim Einfügen für die Gruppe neu gerechnet. Unbekanntes Datum: eigenes Mal; `fertig` rechnet dann in
+  Eingangsreihenfolge.
+- **Löschmarke:** Nach `gehoert/loeschen` verwirft HA nachgelieferte Zeilen dieser Quelle, deren `ende_um` vor der
+  Löschung liegt, und quittiert sie trotzdem.
+- **Handshake:** kein Zwischenstand, solange `gehoert_wartet = true`; solange die Box wartet, meldet sie `status` alle
+  60 s neu. Ohne Fähigkeit `gehoert` in HA puffert die Box bis 500 Zeilen und verwirft dann die ältesten.
+- **Befehl 50:** mehr als 400 Zeilen oder eine verbotene Kombination in `nach` → `invalid_format`.
+- **Reinhören:** bei `dt > 30` Kappung `1,5 × dt + 2`.
