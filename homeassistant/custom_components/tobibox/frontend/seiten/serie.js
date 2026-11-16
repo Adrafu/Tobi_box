@@ -8,11 +8,11 @@
  *
  * „Gespielt von“ mit Chips, „+ Tobie“ und „Einem Tobie geben …“ (Karte und „⋯“ der Folge) kommen aus seiten/tobies.js (A9).
  * „Cover ändern“ (A8f, Design 5.5) steht in seiten/cover.js. „Reinhören / Hier weiterhören“, der Abspielknopf der Folgenzeilen und die Abspiel-Anzeige
- * (A8b, A7c, A8m) rufen den Player (`ctx.spieler`, player.js). Noch nicht hier: Kapitelzeile (A8d), „Anders einsortieren“ (A-3), Playlists (Stufe C), Cover-Flug (A6m/A8m). Schnittstelle zur App: bausteine.js.
+ * (A8b, A7c, A8m) rufen den Player (`ctx.spieler`, player.js). Kapitel (A8d): der Abschnitt „Kapitel“ statt der Folgenliste nur bei einem Hörbuch aus **einer** Folge mit Kapiteln (AM12), Zeilen ganz antippbar (AM11, AM13); die Karte „Die Hörprobe wird vorbereitet“. Noch nicht hier: „Anders einsortieren“ (A-3), Playlists (Stufe C), Cover-Flug (A6m/A8m). Schnittstelle zur App: bausteine.js.
  */
-import { html, nothing, css, repeat, ic, cover, coverKlasse, coverGrossUrl, ladeMitGrenze, untertitel, uhr, norm, eq, abspiel, laeuftAn } from '../bausteine.js';
-import { SERIE, ZEILE, GRUENDE, TOBIE, SEITE, PLAYER, fuellen } from '../texte.js';
-import { knopfText, globalPos } from '../player.js';
+import { html, nothing, css, repeat, ic, cover, coverKlasse, coverGrossUrl, ladeMitGrenze, untertitel, uhr, norm, eq, abspiel, laeuftAn, zaehle } from '../bausteine.js';
+import { SERIE, ZEILE, GRUENDE, TOBIE, SEITE, PLAYER, KAPITEL, fuellen } from '../texte.js';
+import { knopfText, globalPos, kapitelVon, kapitelIndex, kapitelZeilen, kapitelAb, kapitelZustandText, kapitelAria } from '../player.js';
 import { animiere, kannAnimieren, reduziert } from '../bewegung.js';
 import { coverBlatt, coverFehlerText, coverStil } from './cover.js';
 import { gespieltVonKarte, folgenChips, gebenLink } from './tobies.js';
@@ -71,6 +71,9 @@ export function folgenMeta(x) {
   const t = folgenMetaTeile(x);
   return [t.dauer, t.kapitel].filter(Boolean).join(' · ');
 }
+
+/* A8d, AM12: Der Abschnitt „Kapitel“ ersetzt die Folgenliste nur bei einem Hörbuch aus **einer** Folge mit Kapiteln. Mehrere Folgen: Kapitel nur im Player. */
+export const hatKapitelAbschnitt = (s) => s?.art === 'hoerbuch' && (s.folgen || []).length === 1 && kapitelVon(s.folgen[0]).length > 0;
 
 const anfang = (name) => String(name ?? '').trim().charAt(0).toUpperCase() || '?';
 
@@ -268,6 +271,7 @@ class SerieSeite {
       ...(art ? [{ id: 'art', label: SERIE.menue.art, fn: () => this.artAendern(ausloeser) }] : []),
       ...(admin && !s.einzeln && s.folgen.length > 1 ? [{ id: 'reihenfolge', label: SERIE.menue.reihenfolge, fn: () => this.reihenfolgeStart(ausloeser) }] : []),
       ...(admin && s.typ === 'normal' && this.ctx.faehig('korrektur') ? [{ id: 'zusammen', label: SERIE.menue.zusammen, fn: () => this.zusammenfuehren(ausloeser) }] : []),
+      ...(admin && this.ctx.faehig('hoerkopie') && (s.folgen || []).some((f) => f.hoerkopie?.zustand === 'fehler') ? [{ id: 'hoerkopie', label: SERIE.menue.hoerkopie, fn: () => this.hoerkopieNeu() }] : []),
     ];
     this._menue(s.name, punkte, this._papierkorbPunkt(ausloeser), ausloeser);
   }
@@ -295,6 +299,18 @@ class SerieSeite {
         ${abgesetzt ? html`<div class="se-apart">${knopf(abgesetzt, 'link danger')}</div>` : nothing}`,
       knoepfe: [{ label: SERIE.schliessen }],
     }, ausloeser);
+  }
+
+  /* „Hörkopie neu erzeugen“ (Befehl 45, nur Administratoren): stellt die Folgen dieser Serie mit Fehler neu in die Warteschlange. */
+  async hoerkopieNeu() {
+    if (this._busy) return;
+    this._busy = true;
+    this.ctx.schliesseBlatt('knopf');
+    try {
+      const r = await this.ctx.api('tobibox/hoerkopie/neu_erzeugen', { serie_id: this.id });
+      this.ctx.melde(zaehle(SERIE.menue.hoerkopie_gemacht, r?.eingereiht ?? 0));
+      await this.laden(true);
+    } catch (err) { this._fehler(err); } finally { this._busy = false; }
   }
 
   /* ---- „Das ist richtig“ und „Das stimmt nicht“ (Design 5.3, U11) */
@@ -623,7 +639,7 @@ class SerieSeite {
     if (z.phase === 'fehler') return html`${this._leiste(null)}${ctx.fehlerKarte(z.fehlerCode, () => this.laden())}`;
     if (z.phase === 'weg') return html`${this._leiste(null)}<div class="note err" role="alert" data-zustand="weg">${SERIE.weg.satz} <a href="#bibliothek">${SERIE.weg.link}</a></div>`;
     const s = z.serie;
-    return html`${this._leiste(s)}${this._kopf(s)}${this._rein(s)}${gespieltVonKarte(s)}${this._ansehen(s)}${s.einzeln ? this._einzeln(s) : this._folgen(s)}`;
+    return html`${this._leiste(s)}${this._kopf(s)}${this._rein(s)}${gespieltVonKarte(s)}${this._ansehen(s)}${hatKapitelAbschnitt(s) ? this._kapitel(s) : s.einzeln ? this._einzeln(s) : this._folgen(s)}`;
   }
 
   _kopf(s) {
@@ -643,9 +659,40 @@ class SerieSeite {
     const sp = ctx.spieler;
     const spielt = sp.laeuft(s.id);
     const t = knopfText(s, { spielt, aktuell: spielt ? s.folgen[sp.s?.i] ?? null : null });
+    // AM20: wartet der Player auf die Hörkopie dieser Serie, steht „Die Hörprobe wird vorbereitet …“ in der Zeile unter dem Knopf (eine Zeile, nichts springt)
+    const wartet = sp.zustand === 'vorbereitet' && sp.s?.serie?.id === s.id;
     return html`<div class="se-rein" data-rein>
       <button type="button" class="btn primary xl" data-reinhoeren data-art=${t.art} @click=${() => sp.schalte({ serie: s })}>${ic(t.art === 'pause' ? 'pause' : 'play', 24)}${t.label}</button>
-      <div class="muted" data-rein-zusatz>${t.zusatz}</div></div>`;
+      <div class="muted" data-rein-zusatz>${wartet ? PLAYER.voll.vorbereitet : t.zusatz}</div></div>`;
+  }
+
+  /* Abschnitt „Kapitel“ (Hörbuch aus einer Folge, Design 5.3): eine Zeile je Kapitel, ganz antippbar (AM11), ohne eigenen Play-Knopf. Zeile: Nummer (gehört: Häkchen, läuft: Balken),
+   * Titel, „ab 2:49 · 0:19“; das Kapitel der Hörstelle (oder das laufende) ist markiert. AM13: das geladene Kapitel öffnet nur den Player, ein anderes springt und spielt. */
+  _kapitel(s) {
+    const { ctx } = this;
+    const f = s.folgen[0];
+    const kap = kapitelVon(f);
+    const sp = ctx.spieler;
+    const geladen = sp.ist(s.id, f.name) && !!sp._quelle;
+    const spielt = sp.laeuft(s.id, f.name);
+    const h = f.hoerstelle;
+    let index = -1;
+    if (geladen) index = sp.kapitelNr;
+    else if (h && !h.fertig && typeof h.position_s === 'number') index = kapitelIndex(kap, f, typeof h.track === 'number' ? h.track : 0, h.position_s);
+    const fertig = !geladen && !!h?.fertig;
+    const zeilen = kapitelZeilen(kap, { index, fertig });
+    const abspielbar = ctx.faehig('reinhoeren');
+    return html`<div class="se-kopfzeile"><h3 class="se-abschnitt">${KAPITEL.abschnitt}</h3></div>
+      <div class="se-karte" data-liste="kapitel">${zeilen.map((z) => {
+    const dran = z.aktuell && geladen; // dieses Kapitel ist im Player geladen (läuft oder pausiert)
+    const zu = kapitelZustandText(z, spielt && dran);
+    return html`<div class="frow se-zeile se-kzeile" data-kapitel=${z.i} ?data-play=${abspielbar} aria-current=${z.aktuell ? 'true' : nothing}>
+      ${abspielbar ? html`<button type="button" class="se-zeilenknopf" data-abspielen aria-label=${kapitelAria(z, spielt && dran, dran ? KAPITEL.aria_oeffnen : KAPITEL.aria_abspielen)}
+        @click=${() => ctx.spieler.spieleKapitel({ serie: s, folge: f.name, index: z.i })}></button>` : nothing}
+      <span class="se-num">${dran ? eq(spielt) : z.gehoert ? html`<span class="se-ok" title=${KAPITEL.gehoert}>${ic('check', 20)}</span>` : html`<span aria-hidden="true">${z.nr}</span>`}</span>
+      <div class="grow"><span class="nm">${z.titel}</span><span class="muted se-kinfo"><span>${kapitelAb(z)}</span>${zu ? html`<span class="se-kzu">${zu}</span>` : nothing}</span></div>
+      <span class="se-dauer" aria-hidden="true"></span></div>`;
+  })}</div>`;
   }
 
   _ansehen(s) {
@@ -734,6 +781,11 @@ export const stil = () => css`
   .se-zeile[data-play] > .se-num, .se-zeile[data-play] > .grow, .se-zeile[data-play] > .se-dauer { pointer-events: none; }
   .se-zeile[data-play] .tb-chips, .se-zeile .se-more, .se-zeile .se-ord { pointer-events: auto; }
   .se-num { display: grid; place-items: center; }
+  /* A8d: Karte „Hörprobe wird vorbereitet“ (der Platz steht schon, AM15) und Kapitelzeilen */
+  .se-kzeile[aria-current="true"] { background: var(--primary-soft); border-radius: 12px; }
+  .se-kinfo { display: flex; flex-wrap: wrap; gap: 4px 10px; font-variant-numeric: tabular-nums; }
+  .se-kzu { font-weight: 500; }
+  .se-kzeile[aria-current="true"] .se-kzu { color: var(--primary-ink); }
   .se-rein { display: grid; justify-items: center; gap: 6px; margin: 4px 0 12px; text-align: center; }
   .se-rein .btn { width: 100%; max-width: 420px; }
   .se-rein [data-rein-zusatz] { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } /* AM15: immer genau eine Zeile, egal ob „ab 0:24“ oder „läuft“ */

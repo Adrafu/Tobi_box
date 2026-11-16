@@ -40,6 +40,7 @@ class TechnikSeite {
     this.b = { phase: 'laedt', fehlerCode: null, konfig: null, boxen: [] };
     this.korb = { phase: 'laedt', fehlerCode: null, eintraege: [], gesamt: 0, bytes: 0, ladeMehr: false };
     this.staende = { phase: 'laedt', fehlerCode: null, liste: [] };
+    this.kopien = null; // Zähler der Warteschlange der Hörkopien (A8d): { dateien, dateien_max, bytes, bytes_max } oder null
     this.beschaeftigt = null; // Name der laufenden Aktion; sperrt ihren Knopf
     this._lauf = 0;
     this.korbVon = null; // Papierkorb (AC3): Stand „gesehen“ beim Betreten von „Speicher“ (ms); was danach von anderen kam, steht im Hinweis oben
@@ -55,6 +56,7 @@ class TechnikSeite {
       if (this._vorSub !== 'speicher') this.korbVon = this.ctx.korbGesehenStand(); // nur beim Hereinkommen, nicht beim Neuladen nach einem Verbindungsabbruch
       this._korbBeobachten();
       this.ladeKorb();
+      if (this.ctx.faehig('hoerkopie')) this.ladeKopien();
     } else this._korbBeobachtenEnde();
     this._vorSub = sub;
     if (sub === 'liste' && this.ctx.faehig('konfig_staende')) this.ladeStaende();
@@ -96,6 +98,24 @@ class TechnikSeite {
     } catch (e) {
       if (lauf !== this._lauf) return;
       this.korb = { ...this.korb, phase: 'fehler', fehlerCode: e?.code || 'unknown_error', ladeMehr: false };
+    }
+    ctx.neuZeichnen();
+  }
+
+  /* Zähler der Hörkopie-Warteschlange (Design 5.9, 14.8). Der Vertrag nennt das Feld nicht; die Seite liest `hello.grenzen.hoerkopie_schlange` (`dateien`, `dateien_max`, `bytes`, `bytes_max`)
+   * und zeigt nichts, wenn es fehlt oder nicht stimmt. */
+  async ladeKopien() {
+    const { ctx } = this;
+    const lauf = this._lauf;
+    try {
+      const r = await ladeMitGrenze(ctx.api('tobibox/hello', { v: 1 }), ctx.grenzeMs);
+      if (lauf !== this._lauf) return;
+      const z = r?.grenzen?.hoerkopie_schlange;
+      const zahlOk = (x) => typeof x === 'number' && Number.isFinite(x) && x >= 0;
+      this.kopien = z && zahlOk(z.dateien) && zahlOk(z.dateien_max) && zahlOk(z.bytes) && zahlOk(z.bytes_max) ? z : null;
+    } catch {
+      if (lauf !== this._lauf) return;
+      this.kopien = null;
     }
     ctx.neuZeichnen();
   }
@@ -202,7 +222,7 @@ class TechnikSeite {
     const { ctx } = this;
     const T = TECHNIK.aufraeumen;
     let r;
-    if (await this.tu('hoerkopien', async () => { r = await ctx.api('tobibox/hoerkopie/neu_erzeugen'); })) ctx.melde(zaehle(T.hoerkopien_gemacht, r?.eingereiht ?? 0));
+    if (await this.tu('hoerkopien', async () => { r = await ctx.api('tobibox/hoerkopie/neu_erzeugen'); })) { ctx.melde(zaehle(T.hoerkopien_gemacht, r?.eingereiht ?? 0)); this.ladeKopien(); }
   }
 
   async korbStelleHer(e, serieId = null) {
@@ -303,6 +323,11 @@ class TechnikSeite {
     return this._zeile(`#technik-box-${encodeURIComponent(x.box)}`, boxName(x), `${wo} · ${T.stand[x.konfig_stand] || T.stand.unbekannt}`);
   }
 
+  _schlangeSatz(z) {
+    const gb = (b) => (b / 1e9).toLocaleString('de-DE', { maximumFractionDigits: 1 });
+    return fuellen(TECHNIK.aufraeumen.hoerkopien_schlange, { dateien: z.dateien, dateien_max: z.dateien_max, gb: gb(z.bytes), gb_max: gb(z.bytes_max) });
+  }
+
   _aufraeumen() {
     const { ctx } = this;
     const T = TECHNIK.aufraeumen;
@@ -311,6 +336,7 @@ class TechnikSeite {
     return html`<section class="tkarte" data-karte="aufraeumen" aria-labelledby="t-aufraeumen"><h3 id="t-aufraeumen">${T.titel}</h3>
       ${aktion('einlesen', T.einlesen, () => this.einlesen())}
       ${ctx.faehig('cover') ? aktion('cover', T.cover, () => this.coverNeuSuchen()) : nothing}
+      ${ctx.faehig('hoerkopie') && this.kopien ? html`<p class="muted" data-hoerkopien-schlange>${this._schlangeSatz(this.kopien)}</p>` : nothing}
       ${ctx.faehig('hoerkopie') ? aktion('hoerkopien', T.hoerkopien, () => this.hoerkopienNeu()) : nothing}
       ${this._panel('aufraeumen')}</section>`;
   }

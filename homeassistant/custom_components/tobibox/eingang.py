@@ -1237,13 +1237,14 @@ class Eingang:
         self.hub.emit("medien", "serien_geaendert", {"serie_ids": [serie.id]})
 
     def _dauer_merken(self, serie_id: str, neue_folgen: list[tuple[Gruppe, str]]) -> None:
-        """Dauer und Spuren der neuen Folgen aus den Proben, die ohnehin gelaufen sind (Vertrag W, 14.7: „beim Einsortieren gespeichert“);
+        """Dauer, Spuren, Kapitel und Codecs der neuen Folgen aus den Proben, die ohnehin gelaufen sind (Vertrag W, 14.7: „beim Einsortieren gespeichert“);
         was fehlt, holt der Hintergrundlauf nach. Ein Fehler hier hält das Einsortieren nie auf."""
         try:
             for g, endname in neue_folgen:
-                proben = [(g.zielnamen.get(d.rel, d.rel), d.pruefung.probe.dauer_s if d.pruefung else None) for d in g.dateien]
+                proben = [(g.zielnamen.get(d.rel, d.rel), d.pruefung.probe if d.pruefung else None) for d in g.dateien]
                 self.hub.dauer.merke_aus_proben(serie_id, endname, proben)
             self.hub.dauer.anstossen([serie_id])
+            self.hub.hoerkopie.neu_einsortiert(serie_id, [endname for _, endname in neue_folgen])  # Hörkopien für Neues sofort, im Hintergrund (14.8 a)
         except Exception:
             _LOGGER.exception("Dauer beim Einsortieren nicht gemerkt")
 

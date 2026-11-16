@@ -1,5 +1,5 @@
-"""Audio-Ansicht und ``audio/bereit`` (Paket A4c; Vertrag W, Befehl 39 und 14.5; Design 11.4.1 und 11.4.2). Nur der Zweig **Original**;
-die Hörkopie (Zweig Kopie, ``wird_vorbereitet``) kommt mit Paket A4c3 (A-3).
+"""Audio-Ansicht und ``audio/bereit`` (Pakete A4c und A4c3; Vertrag W, Befehl 39 und 14.5; Design 11.4.1 und 11.4.2). Zwei getrennte Zweige:
+**Original** (unter ``medien/``) und **Kopie** (die Hörkopie unter ``hoerkopien/``, ``hoerkopie.py``).
 
 * ``GET /api/tobibox/audio/{serie_id}/{folge_id}`` (optional ``?track=<n>``): Anmeldung **oder** gültige Signatur
   (``?authSig=``). Es kommt **kein Pfad von außen**: ``serie_id`` muss eine bekannte Serie sein, ``folge_id`` genau
@@ -7,8 +7,14 @@ die Hörkopie (Zweig Kopie, ``wird_vorbereitet``) kommt mit Paket A4c3 (A-3).
   Pfad wird aufgelöst (``resolve()``) und muss unter dem aufgelösten Medien-Pfad (und unter dem Ordner der Serie) liegen.
 * Antwort: Unterklasse von ``web.FileResponse`` (Range, ETag), die offenen Verbindungen je Benutzer zählt
   (hoch in ``prepare()``, frei im ``finally``). Fehler: 401 (macht HA), 404 ``folge_nicht_gefunden``, 429 ``zu_viele_streams``,
-  503 ``medien_nicht_erreichbar``.
-* ``tobibox/audio/bereit`` (``bereit()``): Zustand und signierter Pfad (24 Stunden). Der WebSocket-Befehl selbst steht in ``websocket_api.py``.
+  503 ``medien_nicht_erreichbar``, 503 ``hoerkopie_wartet`` mit ``Retry-After: 60`` (nur Rückfall für Aufrufer ohne ``audio/bereit``).
+* **Zweig Kopie (G6):** Braucht der Track nach seinem Codec eine Hörkopie (``hoerkopie.braucht_hoerkopie``) und gibt es ``ffmpeg``, kommt die Datei aus
+  ``hoerkopien/<serie_id>/<kennung>.m4a``. Der Pfad entsteht **nur** aus der eigenen ``serie_id`` und der Kennung (nie aus der Anfrage), wird aufgelöst und
+  muss unter ``hoerkopien/`` liegen; eine Kopie ist über keine andere ``serie_id`` erreichbar. Antwortkopf ``X-Tobibox-Quelle: kopie``, ``audio/mp4``.
+* ``tobibox/audio/bereit`` (``bereit()``): Zustand (``bereit``, ``wird_vorbereitet``, ``fehlt``) und signierter Pfad (24 Stunden). Der WebSocket-Befehl selbst
+  steht in ``websocket_api.py``.
+* Bricht der Client eine Übertragung ab (Spulen, Folgenwechsel), endet das still: ``AudioAntwort.prepare`` macht aus dem Folgefehler von asyncio
+  (``AttributeError`` im ``sslproto`` beim Aufräumen der geschlossenen Verbindung) ein ``ConnectionResetError``, das aiohttp leise ignoriert.
 """
 
 from __future__ import annotations
@@ -56,6 +62,10 @@ CONTENT_TYPES = {
     "opus": "audio/ogg",
     "wav": "audio/wav",
 }
+
+
+#: Content-Type der Hörkopie (AAC in M4A, Vertrag W, 14.5)
+KOPIE_CONTENT_TYPE = "audio/mp4"
 
 
 def _fehler(hub: Hub | None, code: str, status: int) -> web.Response:
@@ -122,17 +132,23 @@ def audio_pfad(serie_id: str, folge_id: str, track: int | None = None) -> str:
     return pfad if track is None else f"{pfad}?track={track}"
 
 
+def _verbindung_weg(request: web.BaseRequest) -> bool:
+    """Ist die Verbindung des Clients weg oder wird sie geschlossen? (aiohttp setzt ``transport`` auf ``None``, sobald sie verloren ist.)"""
+    transport = request.transport
+    return transport is None or transport.is_closing()
+
+
 class AudioAntwort(web.FileResponse):
     """``FileResponse`` mit Zähler: hoch in ``prepare()``, frei im ``finally`` (der Handler gibt zu früh zurück, ``FileResponse`` sendet erst danach)."""
 
-    def __init__(self, pfad: Path, zaehler: dict[str, int], nutzer_id: str) -> None:
+    def __init__(self, pfad: Path, zaehler: dict[str, int], nutzer_id: str, quelle: str = "original") -> None:
         super().__init__(
             pfad,
             headers={
-                "Content-Type": CONTENT_TYPES[pfad.suffix.lstrip(".").lower()],
+                "Content-Type": KOPIE_CONTENT_TYPE if quelle == "kopie" else CONTENT_TYPES[pfad.suffix.lstrip(".").lower()],
                 "X-Content-Type-Options": "nosniff",
                 "Cache-Control": "private, max-age=3600",
-                "X-Tobibox-Quelle": "original",
+                "X-Tobibox-Quelle": quelle,
             },
         )
         self._zaehler = zaehler
@@ -142,6 +158,13 @@ class AudioAntwort(web.FileResponse):
         self._zaehler[self._nutzer_id] = self._zaehler.get(self._nutzer_id, 0) + 1
         try:
             return await super().prepare(request)
+        except AttributeError as err:
+            # Der Client hat abgebrochen (Spulen, Folgenwechsel): ``loop.sendfile`` räumt über ``set_protocol`` auf, die SSL-Verbindung ist schon zu
+            # (``'NoneType' object has no attribute '_set_app_protocol'``). Nur dieser Fall, erkannt am toten Transport, endet still; jeder andere
+            # ``AttributeError`` (Fehler im Code) bleibt sichtbar.
+            if _verbindung_weg(request):
+                raise ConnectionResetError("Der Client hat den Abruf abgebrochen") from err
+            raise
         finally:
             rest = self._zaehler.get(self._nutzer_id, 1) - 1
             if rest > 0:
@@ -178,11 +201,21 @@ class TobiboxAudioView(HomeAssistantView):
             return _fehler(hub, "medien_nicht_erreichbar", 503)
         if pfad is None:
             return _fehler(hub, "folge_nicht_gefunden", 404)
+        quelle = "original"
+        if hub.hoerkopie.verfuegbar:
+            nr = track or 0
+            if await hub.hoerkopie.braucht_kopie(serie_id, folge_id, nr, pfad):
+                kopie = await hub.hoerkopie.kopie_datei(serie_id, folge_id, nr, pfad)  # Zweig Kopie: nur aus ``serie_id`` und Kennung
+                if kopie is None:
+                    antwort = _fehler(hub, "hoerkopie_wartet", 503)
+                    antwort.headers["Retry-After"] = "60"
+                    return antwort
+                pfad, quelle = kopie, "kopie"
         nutzer_id = request["hass_user"].id
         zaehler: dict[str, int] = hass.data.setdefault(_ZAEHLER, {})
         if zaehler.get(nutzer_id, 0) >= AUDIO_VERBINDUNGEN_JE_BENUTZER:
             return _fehler(hub, "zu_viele_streams", 429)
-        return AudioAntwort(pfad, zaehler, nutzer_id)
+        return AudioAntwort(pfad, zaehler, nutzer_id, quelle)
 
     async def head(self, request: web.Request, serie_id: str, folge_id: str) -> web.StreamResponse:
         return await self.get(request, serie_id, folge_id)
@@ -195,11 +228,16 @@ async def bereit(
     serie_id: str,
     folge: str,
     track: int | None = None,
-    vorbereiten: bool = True,  # noqa: ARG001 - Hörkopie: Paket A4c3; im Zweig Original gibt es nichts anzustoßen
+    vorbereiten: bool = True,
 ) -> dict[str, Any]:
-    """``tobibox/audio/bereit`` (Vertrag W, Nr. 39), Zweig Original: ``bereit`` mit signiertem Pfad (24 Stunden) und ``quelle="original"``;
-    ``fehlt`` mit ``grund="medien_nicht_erreichbar"``, wenn die Freigabe fehlt. Fehler: ``serie_nicht_gefunden``, ``folge_nicht_gefunden``,
-    ``zu_viele_aenderungen`` (6 Aufrufe je Minute und Benutzer, nicht für Administratoren).
+    """``tobibox/audio/bereit`` (Vertrag W, Nr. 39): ``bereit`` mit signiertem Pfad (24 Stunden) und ``quelle`` ``original`` oder ``kopie``;
+    ``wird_vorbereitet`` (``warte_s``, ``position``), solange die Hörkopie in der Schlange steht; ``fehlt`` mit ``grund``. Fehler:
+    ``serie_nicht_gefunden``, ``folge_nicht_gefunden``, ``hoerkopie_warteschlange_voll``, ``zu_viele_aenderungen`` (6 Aufrufe je Minute und
+    Benutzer, nicht für Administratoren).
+
+    Braucht der Track eine Hörkopie (nach seinem Codec, ``hoerkopie.braucht_hoerkopie``) und gibt es ``ffmpeg``, stößt ``vorbereiten=True`` sie an (der Bestand
+    erst jetzt, auf Anforderung); mit ``vorbereiten=False`` wird nur der Zustand gelesen. Ohne ``ffmpeg`` (keine Fähigkeit ``hoerkopie``) bleibt es beim
+    Original: die Seite prüft dann mit ``canPlayType``.
 
     Jeder Aufruf zählt (auch ein Fehlschlag): die Grenze schützt vor einer Seite, die in einer Schleife fragt."""
     hub.schutz.mengen.pruefe("audio_bereit", nutzer, AUDIO_BEREIT_JE_MINUTE, MINUTE_S)
@@ -214,6 +252,14 @@ async def bereit(
         return {"zustand": "fehlt", "grund": "medien_nicht_erreichbar"}
     if pfad is None:
         raise TobiboxFehler("folge_nicht_gefunden")
+    quelle = "original"
+    if hub.hoerkopie.verfuegbar:
+        nr = track or 0
+        if await hub.hoerkopie.braucht_kopie(serie_id, folge, nr, pfad):
+            erg = await hub.hoerkopie.anfordern(nutzer.id, serie_id, folge, nr, pfad, vorbereiten)
+            if erg["zustand"] != "fertig":
+                return erg
+            quelle = "kopie"
     signiert = async_sign_path(
         hub.hass,
         audio_pfad(serie_id, folge, track),
@@ -223,7 +269,7 @@ async def bereit(
     # ``async_sign_path`` gibt den Pfad entschlüsselt zurück (ein ``?`` im Namen steht darin als ``?``): der Pfad wird hier je Segment neu
     # kodiert (Namen mit ``#``, ``?`` oder ``%`` bleiben so heil). Die Abfrage (``track``, ``authSig``) steht nach dem **letzten** ``?``;
     # sie enthält selbst nie eines (Zahl und JWT aus ``[A-Za-z0-9._-]``).
-    return {"zustand": "bereit", "pfad": f"{audio_pfad(serie_id, folge)}?{signiert.rpartition('?')[2]}", "quelle": "original"}
+    return {"zustand": "bereit", "pfad": f"{audio_pfad(serie_id, folge)}?{signiert.rpartition('?')[2]}", "quelle": quelle}
 
 
 def async_register_views(hass: Any) -> None:

@@ -84,6 +84,7 @@ async def test_content_type_je_endung_aus_eigener_tabelle(hass, client, bestand)
     erwartet = {"mp3": "audio/mpeg", "m4a": "audio/mp4", "m4b": "audio/mp4", "aac": "audio/aac", "flac": "audio/flac", "ogg": "audio/ogg",
                 "opus": "audio/ogg", "wav": "audio/wav"}
     assert set(erwartet) == set(ENDUNGEN) == set(audio.CONTENT_TYPES)
+    hass.data["tobibox"].hoerkopie.programm = None  # ohne ``ffmpeg`` gibt es keine Kopie: nur die Tabelle des Originals (die Dateien sind Attrappen)
     folgen = []
     for endung in erwartet:
         (bestand.medien / "Zwei" / f"t.{endung}").write_bytes(b"x" * 64)  # die Ansicht liest den Inhalt nie
@@ -477,7 +478,7 @@ async def test_bereit_fuer_alle_benutzer_und_hello_sagt_reinhoeren_zu(hass, best
     antwort = await senden(normal, "audio/bereit", serie_id="s1", folge="Folge 1.mp3")
     assert antwort["success"] is True
     h = await ok(normal, "hello", v=1)
-    assert "reinhoeren" in h["faehigkeiten"] and "hoerkopie" not in h["faehigkeiten"]
+    assert "reinhoeren" in h["faehigkeiten"] and h["faehigkeiten"][-1] == "hoerkopie"  # A3c: ``ffmpeg`` ist da (``pytestmark``)
     assert h["grenzen"]["audio_verbindungen_je_benutzer"] == AUDIO_VERBINDUNGEN_JE_BENUTZER
 
 
@@ -491,3 +492,68 @@ async def test_bereit_signiert_fuer_die_anmeldung_der_verbindung(hass, bestand, 
     hass.data[_ZAEHLER] = {u.id: AUDIO_VERBINDUNGEN_JE_BENUTZER for u in hass.auth._store._users.values() if u.name != "Normal"}
     assert (await c.get(r["pfad"])).status == 200  # der „Normal“ hat noch Platz, die anderen Benutzer sind voll
     await asyncio.sleep(0)
+
+
+# --------------------------------------------------------------------------
+# Abbruch durch den Client (Spulen, Folgenwechsel): kein ERROR im Protokoll
+# --------------------------------------------------------------------------
+
+_SSL_FOLGEFEHLER = "'NoneType' object has no attribute '_set_app_protocol'"
+
+
+class _Anfrage:
+    def __init__(self, transport):
+        self.transport = transport
+
+
+class _Transport:
+    def __init__(self, schliesst):
+        self._schliesst = schliesst
+
+    def is_closing(self):
+        return self._schliesst
+
+
+@pytest.mark.parametrize(("transport", "erwartet"), [(None, ConnectionResetError), (_Transport(True), ConnectionResetError),
+                                                      (_Transport(False), AttributeError)])
+async def test_abbruch_wird_leise_und_der_zaehler_frei(tmp_path, transport, erwartet):
+    from unittest.mock import patch
+
+    datei = tmp_path / "a.mp3"
+    datei.write_bytes(b"x")
+    zaehler: dict[str, int] = {}
+    antwort = audio.AudioAntwort(datei, zaehler, "u1")
+
+    async def kaputt(self, request):
+        assert zaehler == {"u1": 1}  # während der Übertragung gezählt
+        raise AttributeError(_SSL_FOLGEFEHLER)
+
+    with patch.object(audio.web.FileResponse, "prepare", kaputt), pytest.raises(erwartet):
+        await antwort.prepare(_Anfrage(transport))
+    assert zaehler == {}  # in beiden Fällen frei
+
+
+async def test_abbruch_im_echten_server_ist_kein_error(client, bestand, caplog):
+    """Der Transport ist zu, als ``sendfile`` aufräumt: aiohttp meldet nichts als ERROR; ein anderer Fehler bei lebender Verbindung schon."""
+    import logging
+    from unittest.mock import patch
+
+    async def abbruch(self, request):
+        request.transport.close()
+        raise AttributeError(_SSL_FOLGEFEHLER)
+
+    async def echter_fehler(self, request):
+        raise AttributeError("etwas ganz anderes")
+
+    caplog.set_level(logging.DEBUG)
+    with patch.object(audio.web.FileResponse, "prepare", abbruch):
+        with pytest.raises(Exception):  # noqa: B017 - der Client sieht die abgebrochene Verbindung
+            await client.get(url("s1", "Folge 1.mp3"))
+    await asyncio.sleep(0.05)
+    assert not [r for r in caplog.records if r.name == "aiohttp.server" and r.levelno >= logging.ERROR]
+
+    caplog.clear()
+    with patch.object(audio.web.FileResponse, "prepare", echter_fehler):
+        with pytest.raises(Exception):  # noqa: B017 - auch hier bricht die Verbindung (kein Kopf ist gesendet)
+            await client.get(url("s1", "Folge 1.mp3"))
+    assert [r for r in caplog.records if r.name == "aiohttp.server" and r.levelno >= logging.ERROR]  # bleibt sichtbar

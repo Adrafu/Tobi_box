@@ -27,6 +27,8 @@ UPLOAD_MAX_MIB_ALT: Final = 500
 ORDNER_EINGANG: Final = "eingang"
 ORDNER_EXPORT: Final = "export"
 ORDNER_RELEASES: Final = "releases"
+#: Ordner der Hörkopien auf der Freigabe, **neben** ``medien/`` (Vertrag W, 14.8)
+ORDNER_HOERKOPIEN: Final = "hoerkopien"
 ORDNER_PAPIERKORB: Final = "_papierkorb"
 ORDNER_UPLOAD: Final = "_upload"
 EXPORT_DATEI: Final = "config.json"
@@ -263,6 +265,38 @@ HOERSTELLE_LISTE_LIMIT_VORGABE: Final = 8
 DAUER_DECKEL_S: Final = 172800
 #: feste Zeitgrenze je Datei beim Nachholen im Hintergrund (zusätzlich ``FFPROBE_ZEITLIMIT_S``)
 MEDIENINFO_ZEITGRENZE_S: Final = 20
+#: Stand der abgeleiteten Werte je Folge im Store ``tobibox.medieninfo`` (Feld ``info_v``): 1 = Dauer (A-2), 2 = dazu Kapitel und Codecs (A-3).
+#: Ein Eintrag mit kleinerem Stand wird im Hintergrund noch einmal gemessen (Vertrag W, 14.7).
+MEDIENINFO_VERSION: Final = 2
+#: Kapitel einer Folge (Vertrag W, 14.7 und 14.10)
+KAPITEL_MAX: Final = 500
+KAPITEL_TITEL_MAX: Final = 120
+
+# --- Hörkopie (Vertrag W, 14.8 und 14.10; Werte vorläufig bis zur Messung A0b) ---------------------------------
+HOERKOPIE_KBIT: Final = 96
+#: feste Zeitgrenze je Datei (nicht aus der Dauer im Dateikopf gerechnet)
+HOERKOPIE_ZEITGRENZE_S: Final = 5400
+#: ``-t``: Ausgabe höchstens Dauer + Zugabe
+HOERKOPIE_T_ZUGABE_S: Final = 5
+#: ``-fs``: Ausgabe höchstens Dauer × 12 KB/s × 1,2 (96 kbit/s = 12 000 Byte/s) plus ein fester Sockel für den Behälter (``moov``, ``ftyp``)
+HOERKOPIE_BYTES_JE_S: Final = HOERKOPIE_KBIT * 125
+HOERKOPIE_FS_FAKTOR: Final = 1.2
+HOERKOPIE_FS_SOCKEL_BYTES: Final = 64 * 1024
+#: Plausibilität: würde die Kopie (Dauer × 12 KB/s) mehr als so viel mal größer als die Quelle, ist die Dauer verdächtig (Stille in FLAC)
+HOERKOPIE_PLAUSIBEL_FAKTOR: Final = 50
+HOERKOPIE_SCHLANGE_DATEIEN: Final = 20
+HOERKOPIE_SCHLANGE_BYTES: Final = 50 * 1000**3
+HOERKOPIE_KONTINGENT_BYTES: Final = 100 * 1000**3
+HOERKOPIE_VORZIEHEN_JE_BENUTZER: Final = 1
+HOERKOPIE_PARALLEL: Final = 1
+#: Speichergrenze (``RLIMIT_AS``) für ``ffmpeg`` (Kodieren braucht mehr als ``ffprobe``; wie das Testpanel)
+HOERKOPIE_SPEICHER_BYTES: Final = 2 * 1024**3
+#: ``nice`` für ``ffmpeg``
+HOERKOPIE_NICE: Final = 10
+#: Schätzung der Wartezeit: so viel mal schneller als Echtzeit kodiert ``ffmpeg`` höchstens (Vertrag W, 14.10: 15 bis 30 mal; hier der vorsichtige Wert)
+HOERKOPIE_SCHAETZ_FAKTOR: Final = 15
+#: Länge einer Datei in der Schätzung, solange ihre Dauer unbekannt ist
+HOERKOPIE_SCHAETZ_UNBEKANNT_S: Final = 600
 #: Mess-Endpunkt: z\u00e4hlt Bytes und verwirft sie (Grenze wie die k\u00fcnftige Dateigr\u00f6\u00dfe, 2 GiB)
 MESS_UPLOAD_MAX_BYTES: Final = 2 * 1024**3
 #: ffmpeg-Messung: L\u00e4nge des umgewandelten St\u00fccks und feste Zeitgrenzen

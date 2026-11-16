@@ -342,6 +342,12 @@
     },
     "zu_viele_streams": {
       "message": "Es laufen schon zu viele Wiedergaben. Bitte eine beenden und noch einmal versuchen."
+    },
+    "hoerkopie_warteschlange_voll": {
+      "message": "Gerade sind viele Hörproben in Arbeit. Bitte in einer Viertelstunde noch einmal versuchen. Auf der Box spielt es schon."
+    },
+    "hoerkopie_wartet": {
+      "message": "Die Hörprobe wird noch vorbereitet. Bitte in einer Minute noch einmal versuchen. Auf der Box spielt es schon."
     }
   },
   "services": {

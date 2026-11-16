@@ -2737,10 +2737,197 @@ def ablauf_wechsel_serie(L: Lauf):
         L.js("if (el.hass.connection.__verz) el.hass.connection.__verz.ms = 0;")
 
 
+# A8d: Lage der Teile der Vollansicht (Cover, Zeitleiste, Knöpfe, Zeile „Kapitel“): ändert die Zeile ihren Text, darf nichts wandern (AM15)
+KAP_LAGE = """
+const d = sr.querySelector('dialog.player'); if (!d) return null;
+const r = (s) => { const e = d.querySelector(s); if (!e) return null; const b = e.getBoundingClientRect(); return [b.left, b.top, b.width, b.height].map((v) => Math.round(v * 10) / 10); };
+return { cover: r('.pin > .cover'), titel: r('.ptitle h2'), kap: r('[data-pkap]'), slider: r('.pslider'), play: r('[data-p=play]'), prev: r('[data-p=prev]'), kapitelKnopf: r('[data-p=kapitel]'), sperre: r('[data-p=lock], [data-p=unlock]'), note: r('[data-pnote]') };
+"""
+# Lage auf der Serienseite: großer Knopf, Zeile darunter, Kopf, erste Zeile der Liste
+KAP_SEITE_LAGE = """
+const r = (s) => { const e = sr.querySelector(s); if (!e) return null; const b = e.getBoundingClientRect(); return [b.left, b.top, b.width, b.height].map((v) => Math.round(v * 10) / 10); };
+return { hero: r('.se-hero'), rein: r('[data-reinhoeren]'), liste: r('[data-liste]'), zeile: r('[data-liste] > :first-child') };
+"""
+
+
+def kap_gleich(L: Lauf, name, a, b, was):
+    """Beide Lagen (aus KAP_LAGE oder KAP_SEITE_LAGE) müssen bis auf 1 px gleich sein."""
+    for k, v in (a or {}).items():
+        w = (b or {}).get(k)
+        if v is None or w is None:
+            continue
+        L.pruefe(all(abs(x - y) <= 1.01 for x, y in zip(v, w)), name, f"{k} wandert {was}: {v} → {w}")
+
+
+def kap_ton(L: Lauf, ab, zeit=7000):
+    """Warten, bis der Ton läuft und mindestens `ab` Sekunden erreicht hat."""
+    L.pg.wait_for_function("ab => { const a = window.__el.shadowRoot.querySelector('audio'); return a && !a.paused && a.currentTime >= ab; }", arg=ab, timeout=zeit)
+
+
+def kap_bereit_zahl(L: Lauf):
+    k = f"{L.job['profil']}~{L.job['kennung']}"
+    return L.pg.evaluate("async (k) => (await (await fetch(`/aufrufe?k=${encodeURIComponent(k)}&typ=tobibox/audio/bereit`)).json())", k)
+
+
+def ablauf_kapitel(L: Lauf):
+    """A8d (AM11 bis AM17): Abschnitt „Kapitel“ nur beim Hörbuch aus einer Folge, Kapitelsprung mit echtem Ton (eingebettet: Zeit; Ordner-Folge: neuer Link mit `track`), AM13 (das geladene
+    Kapitel öffnet nur den Player), Zeile und Knopf „Kapitel“ im Player mit Blatt und Sperre, nichts wandert (AM15), Gegenprobe ohne Kapitel; „Die Hörprobe wird vorbereitet“
+    (AM20: in der Zeile unter dem großen Knopf, keine Karte, kein Platz; nach der Wartezeit fragt die Seite neu und lädt); Zähler der Hörkopie-Warteschlange in Technik."""
+    L.gehe("#bibliothek")
+    if not L.da("a.lrow[data-serie], a.rcard[data-serie]"):
+        return
+    with L.schritt("kapitel-abschnitt"):
+        L.gehe("#serie-hbk")
+        L.warte_da('[data-liste="kapitel"] [data-kapitel]')
+        L.pruefe(not L.da('[data-liste="folgen"]'), "kapitel-abschnitt", "Hörbuch aus einer Folge zeigt noch die Folgenliste")
+        L.pruefe(L.js("return sr.querySelector('.se-abschnitt')?.textContent") == "Kapitel", "kapitel-abschnitt", "Überschrift „Kapitel“ fehlt")
+        z = L.js("return [...sr.querySelectorAll('[data-liste=kapitel] [data-kapitel]')].map((e) => ({ t: e.textContent.replace(/\\s+/g, ' ').trim(), knoepfe: e.querySelectorAll('button').length, h: e.getBoundingClientRect().height }))")
+        L.pruefe(len(z) == 3, "kapitel-abschnitt", f"{len(z)} Zeilen statt 3")
+        L.pruefe("Kapitel 1" in z[0]["t"] and "ab 0:00" in z[0]["t"], "kapitel-abschnitt", f"Zeile 1: {z[0]['t']}")
+        L.pruefe("Der Hafen" in z[1]["t"] and "ab 0:12 · 0:14" in z[1]["t"], "kapitel-abschnitt", f"Zeile 2: {z[1]['t']}")
+        L.pruefe(all(x["knoepfe"] == 1 for x in z), "kapitel-abschnitt", "Eine Kapitelzeile hat mehr als einen Knopf (kein eigener Play-Knopf, AM11)")
+        L.pruefe(all(x["h"] >= 56 for x in z), "kapitel-abschnitt", f"Zeilen zu niedrig: {[x['h'] for x in z]}")
+        L.pruefe(not L.da('[data-liste="kapitel"] [aria-current="true"]'), "kapitel-abschnitt", "ohne gemerkte Stelle ist ein Kapitel markiert")
+        L.messe("kapitel-seite")
+    with L.schritt("kapitel-mehrere-folgen"):
+        L.gehe("#serie-reise")
+        L.warte_da('[data-liste="folgen"] [data-folge]')
+        L.pruefe(not L.da('[data-liste="kapitel"]'), "kapitel-mehrere-folgen", "Eine Serie mit mehreren Folgen zeigt den Abschnitt „Kapitel“ (AM12)")
+    with L.schritt("kapitel-sprung-eingebettet"):
+        L.gehe("#serie-hbk")
+        L.warte_da('[data-liste="kapitel"] [data-kapitel]')
+        n0 = len(kap_bereit_zahl(L))
+        L.klick('[data-liste="kapitel"] [data-kapitel="1"] [data-abspielen]')
+        kap_ton(L, 12)
+        t = audio_stand(L)["t"]
+        L.pruefe(12 <= t < 30, "kapitel-sprung", f"Start nicht am Kapitel 2 (12 s): {t:.1f}")
+        L.pruefe(L.js("return sr.querySelector('[data-liste=kapitel] [aria-current=true]')?.dataset.kapitel") == "1", "kapitel-sprung", "Das laufende Kapitel ist nicht markiert")
+        L.pruefe(L.da('[data-liste="kapitel"] [data-kapitel="1"] .eq'), "kapitel-sprung", "Keine Abspiel-Anzeige am laufenden Kapitel")
+        L.klick('[data-liste="kapitel"] [data-kapitel="2"] [data-abspielen]')
+        kap_ton(L, 26)
+        L.pruefe(len(kap_bereit_zahl(L)) == n0 + 1, "kapitel-sprung", "Der Sprung in ein anderes Kapitel derselben Datei fragt neu (audio/bereit)")
+        L.pruefe(L.js("return sr.querySelector('[data-liste=kapitel] [aria-current=true]')?.dataset.kapitel") == "2", "kapitel-sprung", "Markierung folgt dem Sprung nicht")
+        L.pruefe(L.js("return !!sr.querySelector('[data-liste=kapitel] [data-kapitel=\"0\"] .se-ok')") and L.js("return !!sr.querySelector('[data-liste=kapitel] [data-kapitel=\"1\"] .se-ok')"), "kapitel-sprung", "Die Kapitel davor tragen kein Häkchen")
+    with L.schritt("kapitel-am13"):
+        t0 = audio_stand(L)["t"]
+        L.klick('[data-liste="kapitel"] [data-kapitel="2"] [data-abspielen]')  # das geladene Kapitel: nur der Player geht auf
+        L.warte_da("dialog.player[open]")
+        L.pg.wait_for_timeout(700)
+        a = audio_stand(L)
+        L.pruefe(not a["pausiert"] and a["t"] >= t0, "kapitel-am13", f"Der Ton hat sich geändert (vorher {t0:.1f}, pausiert={a['pausiert']}, jetzt {a['t']:.1f})")
+        L.pruefe(L.js("return sr.querySelector('[data-pkap]')?.textContent") .startswith("Kapitel 3: Der Sturm"), "kapitel-am13", f"Zeile im Player: {L.js('return sr.querySelector(\"[data-pkap]\")?.textContent')}")
+        L.pruefe(L.js("return [...sr.querySelectorAll('dialog.player .speed button')].map((b) => b.textContent.trim())") == ["Kapitel", "Sperren"], "kapitel-am13", "Knopf „Kapitel“ steht nicht neben „Sperren“")
+        L.pruefe(L.js("const e = sr.querySelector('[data-pkap]'); return e.scrollWidth <= e.clientWidth + 1 || getComputedStyle(e).textOverflow === 'ellipsis'"), "kapitel-am13", "Die Zeile „Kapitel“ bricht um")
+        L.messe("kapitel-player")
+    with L.schritt("kapitel-blatt"):
+        voll0 = L.js(KAP_LAGE)
+        L.klick('dialog.player [data-p="kapitel"]')
+        L.pg.wait_for_selector("dialog.blatt[open] [data-kapitel]")
+        L.pg.wait_for_timeout(500)
+        L.pruefe(L.js("return sr.querySelectorAll('dialog.blatt [data-kapitel]').length") == 3, "kapitel-blatt", "Das Blatt zeigt nicht alle Kapitel")
+        sicht = L.js("""
+          const b = sr.querySelector('dialog.blatt[open]'); const z = b.querySelector('[aria-current="true"]'); if (!z) return null;
+          const r = z.getBoundingClientRect(), f = b.getBoundingClientRect(); return { oben: r.top >= f.top - 1, unten: r.bottom <= f.bottom + 1, aktuell: z.dataset.kapitel, fokus: sr.activeElement === z };""")
+        L.pruefe(sicht and sicht["oben"] and sicht["unten"] and sicht["aktuell"] == "2", "kapitel-blatt", f"Das aktuelle Kapitel ist nicht markiert und sichtbar: {sicht}")
+        L.pruefe(sicht and sicht["fokus"], "kapitel-blatt", "Der Fokus liegt nicht auf dem aktuellen Kapitel")
+        L.pruefe("läuft" in L.js("return sr.querySelector('dialog.blatt [aria-current=true]').textContent"), "kapitel-blatt", "Das aktuelle Kapitel nennt „läuft“ nicht")
+        L.messe("kapitel-blatt")
+        L.klick('dialog.blatt [data-kapitel="0"]')
+        L.pg.wait_for_function("() => !window.__el.shadowRoot.querySelector('dialog.blatt[open]')", timeout=4000)
+        kap_ton(L, 0.1)
+        L.pg.wait_for_timeout(500)
+        a = audio_stand(L)
+        L.pruefe(a["t"] < 12 and not a["pausiert"], "kapitel-blatt", f"Nach dem Tipp auf Kapitel 1: t={a['t']:.1f}, pausiert={a['pausiert']}")
+        L.pruefe(L.js("return sr.querySelector('[data-pkap]').textContent") == "Kapitel 1 (1 von 3)", "kapitel-blatt", f"Zeile: {L.js('return sr.querySelector(\"[data-pkap]\").textContent')}")
+        voll1 = L.js(KAP_LAGE)
+        kap_gleich(L, "kapitel-lage", voll0, voll1, "beim Wechsel des Kapitels")
+    with L.schritt("kapitel-sperre"):
+        L.klick('dialog.player [data-p="lock"]')
+        L.pg.wait_for_selector('dialog.player [data-p="unlock"]')
+        L.pruefe(L.js("return sr.querySelector('dialog.player [data-p=kapitel]').disabled"), "kapitel-sperre", "Der Knopf „Kapitel“ ist trotz Sperre bedienbar")
+        L.pruefe(L.js("const k = sr.querySelector('dialog.player [data-p=kapitel]').getBoundingClientRect(), u = sr.querySelector('dialog.player [data-p=unlock]').getBoundingClientRect(); return k.right <= u.left + 1 || k.bottom <= u.top + 1"), "kapitel-sperre", "Knopf „Kapitel“ und Entsperren überlappen")
+        L.pruefe(L.js("const u = sr.querySelector('dialog.player [data-p=unlock]').getBoundingClientRect(); return u.left >= 0 && u.right <= innerWidth"), "kapitel-sperre", "Der Entsperr-Knopf ragt über den Rand")
+        L.messe("kapitel-gesperrt")
+        L.js("el.spieler.gesperrt = false; el.requestUpdate();")
+        L.pg.wait_for_selector('dialog.player [data-p="lock"]')
+    with L.schritt("kapitel-ordner"):
+        player_aus(L)
+        L.gehe("#serie-reise")
+        L.warte_da('[data-folge="teil1"] [data-abspielen]')
+        L.klick('[data-folge="teil1"] [data-abspielen]')
+        kap_ton(L, 0.3)
+        L.klick(".mini .mopen")
+        L.warte_da("dialog.player[open] [data-pkap]")
+        L.pg.wait_for_timeout(600)
+        L.pruefe(L.js("return sr.querySelector('[data-pkap]').textContent") == "Kapitel 1: Eins (1 von 3)", "kapitel-ordner", f"Zeile: {L.js('return sr.querySelector(\"[data-pkap]\").textContent')}")
+        vor = L.js(KAP_LAGE)
+        L.klick('dialog.player [data-p="kapitel"]')
+        L.pg.wait_for_selector("dialog.blatt[open] [data-kapitel]")
+        L.pg.wait_for_timeout(400)
+        n0 = len([x for x in kap_bereit_zahl(L) if x.get("folge") == "teil1"])
+        L.klick('dialog.blatt [data-kapitel="2"]')
+        L.pg.wait_for_function("() => { const a = window.__el.shadowRoot.querySelector('audio'); return a && /track=2&authSig=/.test(a.getAttribute('src') || '') && !a.paused && a.currentTime > 0.1; }", timeout=8000)
+        b = [x for x in kap_bereit_zahl(L) if x.get("folge") == "teil1"]  # (die nächste Folge wird im Voraus gefragt, die zählt hier nicht)
+        L.pruefe(len(b) == n0 + 1 and b[-1].get("track") == 2, "kapitel-ordner", f"Kein neues audio/bereit mit track=2: {b[-1:]}")
+        z = L.pg.evaluate("async () => (await (await fetch('/audio-zaehler')).json())")
+        L.pruefe(any("teil1" in x["pfad"] and "track=2" in x["pfad"] for x in z), "kapitel-ordner", "Der Server hat Track 3 nie ausgeliefert")
+        L.pg.wait_for_timeout(300)
+        L.pruefe(L.js("return sr.querySelector('[data-pkap]').textContent") == "Kapitel 3: Drei (3 von 3)", "kapitel-ordner", f"Zeile nach dem Sprung: {L.js('return sr.querySelector(\"[data-pkap]\").textContent')}")
+        kap_gleich(L, "kapitel-lage-ordner", vor, L.js(KAP_LAGE), "beim Trackwechsel")
+        # die andere Folge hat keine Kapitel: Zeile und Knopf bleiben stehen (leer, gesperrt), nichts wandert
+        vor = L.js(KAP_LAGE)
+        L.klick('dialog.player [data-p="next"]')
+        L.pg.wait_for_function("() => { const sp = window.__el.spieler; return sp.s && sp.s.i === 1 && sp._geladen; }", timeout=8000)
+        L.pg.wait_for_timeout(300)
+        L.pruefe(L.da("dialog.player [data-pkap]") and L.js("return sr.querySelector('[data-pkap]').textContent") == "", "kapitel-ordner", "Bei der Folge ohne Kapitel fehlt die (leere) Zeile oder sie hat Text")
+        L.pruefe(L.js("return sr.querySelector('dialog.player [data-p=kapitel]').disabled"), "kapitel-ordner", "Der Knopf „Kapitel“ ist bei einer Folge ohne Kapitel nicht gesperrt")
+        kap_gleich(L, "kapitel-lage-folge", vor, L.js(KAP_LAGE), "beim Wechsel zur Folge ohne Kapitel")
+    with L.schritt("kapitel-gegenprobe"):
+        player_aus(L)
+        player_start(L)  # die erste Serie der Bibliothek hat keine Kapitel
+        L.klick(".mini .mopen")
+        L.warte_da("dialog.player[open] .pslider")
+        L.pg.wait_for_timeout(600)
+        L.pruefe(not L.da('dialog.player [data-p="kapitel"]') and not L.da("dialog.player [data-pkap]"), "kapitel-gegenprobe", "Ohne Kapitel zeigt der Player Knopf oder Zeile „Kapitel“")
+        L.pruefe(L.js("return [...sr.querySelectorAll('dialog.player .speed button')].map((b) => b.textContent.trim())") == ["Sperren"], "kapitel-gegenprobe", "Nur „Sperren“ gehört in die Reihe")
+        player_aus(L)
+    with L.schritt("kapitel-hoerprobe"):
+        L.gehe("#serie-ogg")
+        L.warte_da("[data-reinhoeren]")
+        L.pruefe(not L.da("[data-hoerprobe-platz]") and not L.da('[data-karte="hoerprobe"]'), "kapitel-hoerprobe", "Platz oder Karte für die Hörprobe steht vor dem Tipp (AM20)")
+        normal = L.js("return sr.querySelector('[data-rein-zusatz]').textContent")
+        L.pruefe("vorbereitet" not in normal, "kapitel-hoerprobe", f"Vor dem Tipp steht schon der Wartesatz: {normal!r}")
+        vor = L.js(KAP_SEITE_LAGE)
+        L.js("el.spieler.vorbereitetNeuMs = 1000")
+        L.klick("[data-reinhoeren]")
+        L.pg.wait_for_function("() => (window.__el.shadowRoot.querySelector('[data-rein-zusatz]')?.textContent || '').includes('Die Hörprobe wird vorbereitet')", timeout=5000)
+        L.pruefe(not L.da('[data-karte="hoerprobe"]') and not L.da("[data-hoerprobe-platz]"), "kapitel-hoerprobe", "Es steht eine Karte oder ein Platz für die Hörprobe (AM20)")
+        zl = L.js("const e = sr.querySelector('[data-rein-zusatz]'); const b = e.getBoundingClientRect(); const cs = getComputedStyle(e); return { h: b.height, zeilen: Math.round(b.height / parseFloat(cs.lineHeight || '20')), eins: e.scrollWidth <= e.clientWidth + 1 }")
+        L.pruefe(zl["zeilen"] <= 1 and zl["h"] < 30, "kapitel-hoerprobe", f"Die Zeile unter dem Knopf ist mehr als eine Zeile hoch: {zl}")
+        kap_gleich(L, "kapitel-hoerprobe-lage", vor, L.js(KAP_SEITE_LAGE), "als die Karte erschien (AM15)")
+        L.messe("kapitel-hoerprobe")
+        L.pg.wait_for_function("() => !(window.__el.shadowRoot.querySelector('[data-rein-zusatz]')?.textContent || '').includes('wird vorbereitet')", timeout=9000)
+        b = [x for x in kap_bereit_zahl(L) if x.get("folge") == "wald.ogg"]
+        L.pruefe(len(b) >= 3 and b[0].get("vorbereiten") in (None, True) and all(x.get("vorbereiten") is False for x in b[1:]), "kapitel-hoerprobe", f"Nach 15 s (hier 1 s) fragt die Seite nicht neu, ohne anzustoßen: {b}")
+        src = L.js("return sr.querySelector('audio')?.getAttribute('src') ?? ''")
+        L.pruefe("authSig=" in src and "wald.ogg" in src, "kapitel-hoerprobe", f"Bei „bereit“ ist keine Quelle gesetzt: {src!r}")
+        kap_gleich(L, "kapitel-hoerprobe-lage", vor, L.js(KAP_SEITE_LAGE), "als die Karte ging (AM15)")
+        player_aus(L)
+    if L.job["rolle"] == "admin":
+        with L.schritt("kapitel-technik"):
+            L.gehe("#technik-speicher")
+            L.warte_da("[data-hoerkopien-schlange]")
+            txt = L.js("return sr.querySelector('[data-hoerkopien-schlange]').textContent")
+            L.pruefe(txt == "3 von höchstens 20 Dateien · 1,4 von höchstens 50 GB", "kapitel-technik", f"Zähler: {txt!r}")
+            L.pruefe(L.da('[data-aktion="hoerkopien"]'), "kapitel-technik", "Knopf „Hörkopien neu erzeugen“ fehlt")
+            L.messe("kapitel-technik")
+
+
+
 ABLAEUFE = [ablauf_unterkante, ablauf_reiter, ablauf_klicks, ablauf_reihen, ablauf_suche, ablauf_bibliothek, ablauf_serie, ablauf_cover, ablauf_leise, ablauf_box, ablauf_technik, ablauf_blaetter,
             ablauf_tobies_weg1, ablauf_tobies_weg2, ablauf_tobies_meldung, ablauf_tobies_umhaengen, ablauf_tobies_geben, ablauf_tobies_lernmodus,
             ablauf_tobies_name_geben_weit_unten, ablauf_hinzufuegen, ablauf_eingang_liste, ablauf_eingang, ablauf_papierkorb, ablauf_papierkorb_punkt, ablauf_bewegung,
-            ablauf_druck, ablauf_seitenwechsel, ablauf_player_bewegung, ablauf_play_pause_lage, ablauf_wechsel_serie, ablauf_flug_ruhe, ablauf_blatt_tastatur, ablauf_serie_zeile, ablauf_player]
+            ablauf_druck, ablauf_seitenwechsel, ablauf_player_bewegung, ablauf_play_pause_lage, ablauf_wechsel_serie, ablauf_flug_ruhe, ablauf_blatt_tastatur, ablauf_serie_zeile, ablauf_kapitel, ablauf_player]
 
 
 # ------------------------------------------------------------------ Browser und Läufe

@@ -34,14 +34,17 @@ from .const import (
     CONF_BOXEN,
     CONF_MEDIEN_PFAD,
     CONF_UPLOAD_MAX_MIB,
+    DAUER_DECKEL_S,
     EREIGNIS_BUENDEL_S,
     EXPORT_WIEDERHOLUNG_DANACH_S,
     EXPORT_WIEDERHOLUNG_S,
     FAEHIGKEITEN,
     FOLGE_ANZEIGE_MAX,
+    HOERKOPIE_KBIT,
     LIMIT_MAX,
     ORDNER_EINGANG,
     ORDNER_EXPORT,
+    ORDNER_HOERKOPIEN,
     ORDNER_PAPIERKORB,
     ORDNER_RELEASES,
     ORDNER_UPLOAD,
@@ -63,6 +66,7 @@ from .cover import CoverDienst
 from .dauer import DauerDienst
 from .eingang import Eingang
 from .fehler import TobiboxFehler
+from .hoerkopie import HoerkopieDienst
 from .hoerstelle import Hoerstellen
 from .lernmodus import Lernmodus
 from .medieninfo import MedienInfo
@@ -124,6 +128,11 @@ class Pfade:
         return self.basis / ORDNER_RELEASES
 
     @property
+    def hoerkopien(self) -> Path:
+        """Ordner der Hörkopien: **neben** ``medien/``, nicht darin (Vertrag W, 14.8)."""
+        return self.basis / ORDNER_HOERKOPIEN
+
+    @property
     def papierkorb(self) -> Path:
         return self.medien / ORDNER_PAPIERKORB
 
@@ -173,6 +182,7 @@ class Hub:
         self.medieninfo = MedienInfo(hass)
         self.cover = CoverDienst(self)
         self.dauer = DauerDienst(self)
+        self.hoerkopie = HoerkopieDienst(self)
         self.hoerstellen = Hoerstellen(self)
         self.medien = Medien(self)
         self.eingang = Eingang(self)
@@ -208,6 +218,7 @@ class Hub:
         await self.eingang.async_laden()
         await self.medieninfo.async_laden()
         await self.hoerstellen.async_laden()
+        await self.hoerkopie.async_start()  # sucht ``ffmpeg``: entscheidet über die Fähigkeit ``hoerkopie``
         await self.mqtt.async_start()
         self._start_task = self.hass.async_create_background_task(self._start_pruefung(), "tobibox_start")
         self._abmelden.append(
@@ -238,6 +249,7 @@ class Hub:
         self.eingang.abbrechen()
         self.cover.abbrechen()
         self.dauer.abbrechen()
+        self.hoerkopie.abbrechen()
         for t in (self._start_task, self._export_task):
             if t is not None and not t.done():
                 t.cancel()
@@ -261,6 +273,7 @@ class Hub:
         except Exception:
             _LOGGER.exception("Prüfung der Freigabe fehlgeschlagen")
             return
+        self.hoerkopie.fortsetzen()  # die Freigabe ist da: eine pausierte Schlange der Hörkopien läuft weiter
         with contextlib.suppress(TobiboxFehler):
             await self.eingang.starte_durchlauf()
 
@@ -549,7 +562,8 @@ class Hub:
         with contextlib.suppress(Exception):
             await self._timer_pruefung(None)
         self.cover.nachholen_beim_start()  # einmal, im Hintergrund, nur Einträge ohne Marke (Vertrag W, 14.3)
-        self.dauer.nachholen_beim_start()  # einmal, im Hintergrund, nur Folgen ohne Dauer (Vertrag W, 14.7)
+        self.dauer.nachholen_beim_start()  # einmal, im Hintergrund, nur Folgen mit unvollständigem Eintrag (Dauer, Kapitel, Codecs; Vertrag W, 14.7)
+        self.hoerkopie.beim_start()  # ``*.part`` löschen, Verwaistes wegräumen (nur nach gelungener Prüfung; Vertrag W, 14.8)
         with contextlib.suppress(Exception):
             await self.hoerstellen.bereinige_beim_start()  # unbekannte Benutzer, gelöschte Serien und Folgen (Vertrag W, 14.6)
 
@@ -976,12 +990,25 @@ class Hub:
 
     # --- hello -------------------------------------------------------------------------------------------------------
 
+    def faehigkeiten(self) -> list[str]:
+        """``hello.faehigkeiten``; ``hoerkopie`` nur, wenn ``ffmpeg`` da ist (Vertrag W, 14.1)."""
+        return [*FAEHIGKEITEN, *(["hoerkopie"] if self.hoerkopie.verfuegbar else [])]
+
     def hello(self, v: int, ist_admin: bool) -> dict[str, Any]:
+        grenzen_kopie: dict[str, Any] = (
+            {
+                "hoerkopie_kbit": HOERKOPIE_KBIT,
+                "hoerkopie_dauer_max_s": DAUER_DECKEL_S,
+                "hoerkopie_schlange": self.hoerkopie.schlange_zaehler(),  # der Zähler für „Technik“ (Design 5.9)
+            }
+            if self.hoerkopie.verfuegbar
+            else {}
+        )
         return {
             "v": VERTRAG_V,
             "version": self.version,
             "darf_schreiben": ist_admin,
-            "faehigkeiten": list(FAEHIGKEITEN),
+            "faehigkeiten": self.faehigkeiten(),
             "boxen": list(self.boxen),
             "box_anzeigen": {b: self.box_anzeige(b) for b in self.boxen},
             "konfig": self.konfig_stand(),
@@ -997,6 +1024,7 @@ class Hub:
                 "limit_max": LIMIT_MAX,
                 "warteschlange_max": WARTESCHLANGE_MAX,
                 "audio_verbindungen_je_benutzer": AUDIO_VERBINDUNGEN_JE_BENUTZER,  # Fähigkeit ``reinhoeren`` (Vertrag W, 14.10)
+                **grenzen_kopie,  # Fähigkeit ``hoerkopie``
             },
         }
 

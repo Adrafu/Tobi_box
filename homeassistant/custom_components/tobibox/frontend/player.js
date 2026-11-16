@@ -16,7 +16,7 @@
  * Fehler des `<audio>`-Elements (der meldet 401, 429, 503 und 404 gleich), sondern aus `audio/bereit`.
  */
 import { html, nothing, css, ic, ic30, cover, uhr, coverGrossUrl, abspiel } from './bausteine.js';
-import { PLAYER, FEHLER, HOERPROBE, ZEILE, fuellen } from './texte.js';
+import { PLAYER, FEHLER, HOERPROBE, ZEILE, KAPITEL, fuellen } from './texte.js';
 import { reduziert, kannAnimieren, tokenMs, kurve, animiere, nachEnde, flipKlon, rechteck } from './bewegung.js';
 
 export const TEMPOS = [1, 1.25, 1.5];
@@ -74,6 +74,75 @@ export function ortVon(f, pos) {
   }
   return { track: 0, offset: p };
 }
+
+/* ------------------------------------------------------------------ Kapitel (A8d, Design 5.3, 5.12, 11.4.8) */
+
+/* Titel eines Kapitels: nur aus Zahlen („1“) wird „Kapitel 1“, ohne Titel „Kapitel {nr}“. */
+export function kapitelTitel(roh, nr) {
+  const t = String(roh ?? '').trim();
+  if (!t) return fuellen(KAPITEL.nummer, { nr });
+  return /^\d+$/.test(t) ? fuellen(KAPITEL.nummer, { nr: Number(t) }) : t;
+}
+
+/* Kapitelliste einer Folge (Folge-Objekt von `serie/get`): [{ nr, titel, start_s, track, laenge_s }]. Weniger als zwei, oder Unbrauchbares: leer (keine Liste). */
+export function kapitelVon(f) {
+  const roh = Array.isArray(f?.kapitel) ? f.kapitel.filter((k) => k && zahl(k.start_s) && k.start_s >= 0) : [];
+  if (roh.length < 2) return [];
+  const gesamt = gesamtVon(f);
+  return roh.map((k, i) => {
+    const bis = i + 1 < roh.length ? roh[i + 1].start_s : gesamt;
+    const laenge = zahl(bis) && bis > k.start_s ? bis - k.start_s : null;
+    return { nr: i + 1, titel: kapitelTitel(k.titel, i + 1), start_s: k.start_s, track: Number.isInteger(k.track) && k.track >= 0 ? k.track : null, laenge_s: laenge };
+  });
+}
+
+/* Welches Kapitel gilt an dieser Stelle (Track, Sekunden im Track)? Index oder -1. Ohne bekannte Track-Längen entscheidet bei Ordner-Folgen der Track. */
+export function kapitelIndex(kap, f, track, t) {
+  if (!kap.length) return -1;
+  const nachTrack = trackAnzahl(f) > 1 && !spurenVon(f);
+  const g = globalPos(f, track, t);
+  let idx = 0;
+  kap.forEach((k, i) => { if (nachTrack ? (k.track ?? 0) <= track : k.start_s <= g + 0.01) idx = i; });
+  return idx;
+}
+
+/* Wohin der Sprung auf ein Kapitel führt: { track, offset (Sekunden im Track) }. Ordner-Folgen: der Track des Kapitels, die Zeit im Track. */
+export function kapitelZiel(f, k) {
+  if (trackAnzahl(f) <= 1) return { track: 0, offset: k.start_s };
+  const sp = spurenVon(f);
+  if (k.track === null) return ortVon(f, k.start_s);
+  const davor = sp ? sp.slice(0, k.track).reduce((a, b) => a + b, 0) : 0;
+  return { track: k.track, offset: Math.max(0, k.start_s - davor) };
+}
+
+/* Stelle der gemerkten Hörstelle einer Folge in der ganzen Folge (Sekunden), oder null. */
+export function hoerstelleGlobal(f) {
+  const h = f?.hoerstelle;
+  if (!h || !zahl(h.position_s)) return null;
+  return typeof h.track === 'number' ? globalPos(f, h.track, h.position_s) : h.position_s;
+}
+
+/* Zeilen für Serienseite und Blatt: die Kapitel mit Zustand. `index`: das markierte Kapitel (oder -1), `fertig`: alles gehört.
+ * Gehört sind die Kapitel vor dem markierten (bei „fertig“ alle). */
+export function kapitelZeilen(kap, { index = -1, fertig = false } = {}) {
+  return kap.map((k, i) => ({ ...k, i, aktuell: i === index, gehoert: fertig || (index >= 0 && i < index) }));
+}
+
+/* „ab 2:49 · 0:19“ (ohne bekannte Länge nur „ab 2:49“). */
+export const kapitelAb = (z) => (z.laenge_s ? fuellen(KAPITEL.ab, { start: uhr(z.start_s), laenge: uhr(z.laenge_s) }) : fuellen(KAPITEL.ab_start, { start: uhr(z.start_s) }));
+
+/* Wort zum Zustand einer Zeile (Farbe nie allein): „läuft“ / „hier weiter“ am markierten, „gehört“ an den schon gehörten. */
+export const kapitelZustandText = (z, spielt) => (z.aktuell ? (spielt ? KAPITEL.laeuft : KAPITEL.hier_weiter) : (z.gehoert ? KAPITEL.gehoert : ''));
+export const kapitelZustandHtml = (z, spielt) => { const t = kapitelZustandText(z, spielt); return t ? html`<span class="kap-zu">${t}</span>` : nothing; };
+
+/* Name der Zeile für Screenreader: „Kapitel 4: Der Sturm, ab 1:12, aktuelles Kapitel, abspielen“ (`zusatz` ersetzt „abspielen“, zum Beispiel „Player öffnen“). */
+export const kapitelAria = (z, spielt, zusatz = KAPITEL.aria_abspielen) => `${fuellen(KAPITEL.aria, { nr: z.nr, titel: z.titel, start: uhr(z.start_s) })}${z.aktuell ? KAPITEL.aria_aktuell : ''}${z.gehoert && !z.aktuell ? `, ${KAPITEL.gehoert}` : ''}${zusatz}`;
+
+/* Hat irgendeine Folge der Serie eine Kapitelliste? Dann reserviert der Player den Platz für Zeile und Knopf (AM15: nichts springt). */
+export const serieHatKapitel = (serie) => (serie?.folgen || []).some((f) => kapitelVon(f).length > 0);
+
+/* Braucht diese Folge noch eine Hörkopie, bevor sie spielt? Dann reservieren Serienseite und Player den Platz für die Karte (AM15). */
+export const wartetAufKopie = (f) => ['nicht_angelegt', 'wartet'].includes(f?.hoerkopie?.zustand);
 
 /* Wohin „Reinhören“ führt (Design 5.3): { art: 'rein' | 'weiter' | 'nochmal', index, folge, zeit } oder null (keine Folgen).
  * Grundlage sind `hoerstelle` je Folge (`position_s`, `fertig`) und `hoerstelle.folge` der Serie (zuletzt gehörte Folge). */
@@ -214,6 +283,9 @@ export class Spieler {
     return (f && gesamtVon(f)) || (this.s?.dauer > 0 ? this.s.dauer : 0);
   }
   get gpos() { return this.s ? globalPos(this.folge, this.s.track, this.s.pos) : 0; }
+  get kapitel() { return this.folge ? kapitelVon(this.folge) : []; }
+  /* Index des Kapitels an der aktuellen Stelle (-1 ohne Kapitel). */
+  get kapitelNr() { return this.s && this.folge ? kapitelIndex(this.kapitel, this.folge, this.s.track, this.s.pos) : -1; }
 
   /* Läuft genau diese Serie (und Folge) gerade? Für Knöpfe und Anzeigen der Seiten. */
   laeuft(serieId, name = null) { return !!this.s && this.s.serie.id === serieId && (name === null || this.folge?.name === name) && this.spielt; }
@@ -237,9 +309,9 @@ export class Spieler {
 
   /* ================================================================== Starten, Wechseln */
 
-  /* Startet eine Folge einer Serie (`serie` = Antwort von `serie/get`). Ohne `folge`: dort, wo die eigene Hörstelle steht („Hier weiterhören“),
+  /* Startet eine Folge einer Serie (`serie` = Antwort von `serie/get`). `ziel` ({ track, offset }) überstimmt die gemerkte Stelle (Kapitelsprung). Ohne `folge`: dort, wo die eigene Hörstelle steht („Hier weiterhören“),
    * bei einer neuen Serie die erste Folge. Mit `folge` (Name): diese Folge, bei der gemerkten Stelle. Fragt zuerst `hoerstelle/get`. */
-  async starte({ serie, folge = null } = {}) {
+  async starte({ serie, folge = null, ziel = null } = {}) {
     const folgen = serie?.folgen || [];
     if (!folgen.length) return;
     let stand = null;
@@ -263,6 +335,7 @@ export class Spieler {
       if (e && !e.fertig && e.position_s > 1 && (trackAnzahl(folgen[i]) === 1 || stand?.weiter?.folge === folge)) pos = e.position_s;
     }
     if (trackAnzahl(folgen[i]) > 1 && pos > 0) track = this._stellen[folgen[i].name]?.track ?? 0;
+    if (ziel) { track = ziel.track; pos = ziel.offset; } // A8d: Sprung auf ein Kapitel
     this._versuche = 0;
     return this._laden(serie, i, track, pos, { auto: true });
   }
@@ -418,6 +491,8 @@ export class Spieler {
     this.s.pos = a.currentTime;
     if (this.spielt) { this._speichere(false); this._vorabHolen(); }
     this._tick();
+    const kn = this.kapitelNr; // ein anderes Kapitel: Zeile im Player und Markierung auf der Seite nachziehen
+    if (kn !== this._kapNr) { this._kapNr = kn; this.ctx.neuZeichnen(); }
   }
 
   _aufEnde() {
@@ -519,6 +594,41 @@ export class Spieler {
   }
 
   sprung(delta) { this.seek(this.gpos + delta); }
+
+  /* ---- Kapitel (A8d, Design 11.4.8): eingebettete Kapitel setzen die Zeit, bei Ordner-Folgen wechselt der Track (neuer Link, `?track=n`) und dann die Zeit im Track.
+   * Die Hörstelle speichert wie bisher `track` und `position_s`. Nach dem Sprung läuft der Ton weiter (auch aus der Pause). */
+  springeKapitel(index) {
+    const k = this.kapitel[index];
+    if (!this.s || !k) return;
+    const { track, offset } = kapitelZiel(this.folge, k);
+    const a = this._audio;
+    const frisch = Date.now() - this._linkZeit <= LINK_ERNEUERN_MS;
+    if (track !== this.s.track || !this._quelle || !this._geladen || !a || !frisch) {
+      this._laden(this.s.serie, this.s.i, track, offset, { auto: true });
+      return;
+    }
+    this.s.pos = offset;
+    try { a.currentTime = offset; } catch { /* nicht suchbar */ }
+    this._speichere(true);
+    this._tick();
+    this._session(true);
+    if (!this.spielt) this._spielen();
+    this.ctx.neuZeichnen();
+  }
+
+  /* Tipp auf eine Kapitelzeile der Serienseite (AM13): ist es das geladene Kapitel (läuft oder pausiert), öffnet die Vollansicht und der Ton bleibt;
+   * sonst springt der Player dorthin und spielt (aus einer anderen Folge oder ohne Player: Start an dieser Stelle). */
+  async spieleKapitel({ serie, folge, index }) {
+    const f = (serie?.folgen || []).find((x) => x.name === folge);
+    const k = f && kapitelVon(f)[index];
+    if (!k) return;
+    if (this.ist(serie.id, folge) && this._quelle) {
+      if (this.kapitelNr === index) { this.oeffnen(); return; }
+      this.springeKapitel(index);
+      return;
+    }
+    return this.starte({ serie, folge, ziel: kapitelZiel(f, k) });
+  }
 
   /* „Vorige Folge“ springt bei mehr als 5 Sekunden zuerst an den Anfang der Folge. */
   vorige() {
@@ -729,6 +839,12 @@ export class Spieler {
     const n = serie.folgen.length;
     const g = this.gesamt;
     const sub = n > 1 ? fuellen(PLAYER.voll.folge_von, { eintrag: this._untertitel(), nr: i + 1, anzahl: n }) : this._untertitel();
+    // A8d, AM15: Zeile „Kapitel …“ und Knopf stehen, sobald irgendeine Folge der Serie Kapitel hat (feste Höhe); ohne Kapitel in der Serie gibt es beides nicht
+    const kap = this.kapitel;
+    const hatKap = serieHatKapitel(serie);
+    const kn = kap.length ? this.kapitelNr : -1;
+    const kapZeile = kn >= 0 ? this._kapitelZeile(kap[kn], kap.length) : '';
+    const wartet = this.zustand === 'vorbereitet';
     const knopf = (was, label, symbol, aus = false, klasse = '') => html`<button type="button" class=${`pbtn ${klasse}`.trim()} data-p=${was} aria-label=${label} ?disabled=${aus || L} @click=${() => this._klick(was)}>${symbol}</button>`;
     return html`<dialog class="player" aria-labelledby="p-ansicht pt-t" ?data-gesperrt=${L}
         @cancel=${(e) => { e.preventDefault(); if (!L) this.schliessen('esc'); }} @close=${() => this._dialogClose()}
@@ -743,7 +859,7 @@ export class Spieler {
           <button type="button" class="iconbtn plain" data-p="more" aria-haspopup="dialog" aria-label=${PLAYER.voll.mehr} ?disabled=${L} @click=${() => this._klick('more')}>${ic('more', 28)}</button>
         </div>
         ${cover(serie, 'pxl')}
-        <div class="ptitle"><h2 id="pt-t" tabindex="-1">${folgeName(f)}</h2><div class="muted" data-psub>${sub}</div></div>
+        <div class="ptitle"><h2 id="pt-t" tabindex="-1">${folgeName(f)}</h2><div class="muted" data-psub>${sub}</div>${hatKap ? html`<div class="muted pkap" data-pkap aria-live="off">${kapZeile}</div>` : nothing}</div>
         <input class="pslider" type="range" min="0" max=${Math.max(1, Math.round(g))} step="1" aria-label=${PLAYER.voll.position} ?disabled=${L}
           @input=${() => { this._zieht = true; this._tick(); }} @change=${(e) => { this._zieht = false; this.seek(Number(e.target.value)); }}>
         <div class="ptimes"><span data-ptime>0:00</span><span data-prest>−0:00</span></div>
@@ -752,13 +868,13 @@ export class Spieler {
           ${knopf('play', this.spielt ? PLAYER.mini.pause : PLAYER.mini.abspielen, ic(this.spielt ? 'pause' : 'play', 40), false, 'main')}
           ${knopf('fwd', PLAYER.voll.vor30, ic30(true))}${knopf('next', PLAYER.voll.naechste, ic('next', 32), i >= n - 1)}
         </div>
-        <div class="speed">${L
+        <div class=${hatKap ? 'speed mitkap' : 'speed'}>${hatKap ? html`<button type="button" class="btn" data-p="kapitel" aria-haspopup="dialog" ?disabled=${L || !kap.length} @click=${() => this._klick('kapitel')}>${ic('list', 20)}${PLAYER.voll.kapitel}</button>` : nothing}${L
     ? html`<button type="button" class="btn primary unlock" data-p="unlock" aria-label=${PLAYER.voll.entsperren_aria}
             @pointerdown=${(e) => { if ((e.button ?? 0) === 0) this.holeStart(e.currentTarget); }} @pointerup=${() => this.holeStopp()} @pointercancel=${() => this.holeStopp()} @pointerleave=${() => this.holeStopp()}
             @keydown=${(e) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); if (!e.repeat) this.holeStart(e.currentTarget); } }} @keyup=${() => this.holeStopp()}
             @click=${() => { if (Date.now() - this._gewischtAm >= 250) this.ctx.melde(PLAYER.voll.entsperren_hinweis); }}><span class="ring"></span>${ic('lock', 24)}${PLAYER.voll.gedrueckt_halten}</button>`
     : html`<button type="button" class="btn" data-p="lock" @click=${() => this.sperren()}>${ic('lock', 20)}${PLAYER.voll.sperren}</button>`}</div>
-        ${this.zustand === 'vorbereitet' ? html`<p class="muted pnote" data-vorbereitet role="status">${PLAYER.voll.vorbereitet}</p>` : nothing}
+        ${wartet || wartetAufKopie(f) ? html`<p class="muted pnote" data-pnote ?data-vorbereitet=${wartet} role="status">${wartet ? PLAYER.voll.vorbereitet : ''}</p>` : nothing}
       </div></div></dialog>`;
   }
 
@@ -771,6 +887,34 @@ export class Spieler {
     else if (was === 'prev') this.vorige();
     else if (was === 'next') this.naechste();
     else if (was === 'more') this.tempoBlatt();
+    else if (was === 'kapitel') this.kapitelBlatt();
+  }
+
+  /* Zeile unter dem Titel: „Kapitel 8: Das Echo (8 von 12)“ (ein Titel „Kapitel 8“ steht nicht doppelt). */
+  _kapitelZeile(k, anzahl) {
+    const titel = /^Kapitel \d+$/.test(k.titel) ? k.titel : fuellen(KAPITEL.nummer_titel, { nr: k.nr, titel: k.titel });
+    return fuellen(PLAYER.voll.kapitel_zeile, { titel, nr: k.nr, anzahl });
+  }
+
+  /* Blatt „Kapitel“ (Design 5.12): Titel, „ab 2:49 · 0:19“, schon gehörte mit Häkchen, das aktuelle markiert und beim Öffnen sichtbar. Tipp = dorthin springen und weiterspielen, das Blatt schließt. */
+  kapitelBlatt() {
+    if (!this.s || !this.kapitel.length) return;
+    const zeile = (z) => html`<button type="button" class="kap-zeile" data-kapitel=${z.i} aria-current=${z.aktuell ? 'true' : nothing} aria-label=${kapitelAria(z, this.spielt)}
+        @click=${() => { this.springeKapitel(z.i); this.ctx.schliesseBlatt('knopf'); }}>
+        <span class="kap-nr">${z.gehoert ? ic('check', 20) : html`<span aria-hidden="true">${z.nr}</span>`}</span>
+        <span class="kap-txt"><span class="kap-t">${z.titel}</span><span class="muted kap-ab">${kapitelAb(z)}</span></span>
+        ${kapitelZustandHtml(z, this.spielt)}</button>`;
+    this.ctx.oeffneBlatt({
+      titel: KAPITEL.abschnitt,
+      inhalt: () => html`<div class="kap-liste" data-kapitel-liste>${kapitelZeilen(this.kapitel, { index: this.kapitelNr }).map(zeile)}</div>`,
+      knoepfe: [{ label: KAPITEL.schliessen }],
+    });
+    Promise.resolve(this.ctx.nachZeichnen?.()).then(() => setTimeout(() => {
+      const el = this.ctx.wurzel?.querySelector?.('dialog.blatt [aria-current="true"]');
+      if (!el) return;
+      try { el.scrollIntoView?.({ block: 'center' }); } catch { /* ohne */ }
+      el.focus?.({ preventScroll: true });
+    }, 0));
   }
 
   /* Blatt „Wiedergabe“ mit der Geschwindigkeit (gilt für alle Folgen, wird gemerkt; X14). */
@@ -1086,7 +1230,7 @@ export const spielerStil = () => css`
   .p-wrap { position: relative; border-radius: inherit; }
   .p-flaeche { position: absolute; inset: 0; background: var(--card); border-radius: inherit; box-shadow: 0 8px 32px var(--shadow); transform: translateY(var(--dy, 0px)); }
   @media (max-width: 699px) { .p-flaeche { box-shadow: 0 8px 32px var(--shadow), 0 96px 0 0 var(--card); } }
-  .pin { position: relative; padding: 8px max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); display: grid; gap: 8px; justify-items: center; touch-action: pan-x; }
+  .pin { position: relative; padding: 8px max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; justify-items: center; touch-action: pan-x; }
   @media (max-width: 699px) { .pin { min-height: 100dvh; align-content: center; } }
   @media (max-height: 560px) { .pin { touch-action: auto; } }
   .pin > :not(.cover) { transform: translateY(var(--dy, 0px)); }
@@ -1106,7 +1250,23 @@ export const spielerStil = () => css`
   .pbtn.main svg { width: 40px; height: 40px; }
   .pbtn:disabled { opacity: 0.35; }
   .speed { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; width: 100%; }
-  .pnote { margin: 0; font-size: 13px; text-align: center; }
+  .pnote { margin: 0; font-size: 13px; text-align: center; min-height: 18px; line-height: 18px; } /* AM15: der Platz steht, auch wenn der Satz noch fehlt */
+  .pkap { height: 20px; line-height: 20px; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } /* A8d, AM15: immer eine Zeile fester Höhe */
+  .speed.mitkap { flex-wrap: nowrap; }
+  .speed.mitkap .btn { flex: 0 0 auto; }
+  .speed.mitkap .unlock { flex: 1 1 0; min-width: 0; }
+  /* Blatt „Kapitel“ (A8d): Zeilen als Knöpfe, mindestens 56 px; die markierte ist getönt */
+  .kap-liste { display: grid; gap: 0; }
+  .kap-zeile { width: 100%; min-height: 56px; display: flex; align-items: center; gap: 12px; padding: 8px 4px; border: 0; border-top: 1px solid var(--divider); background: none; color: inherit; text-align: left; font: inherit; }
+  .kap-zeile:first-child { border-top: 0; }
+  .kap-zeile[aria-current="true"] { background: var(--primary-soft); border-radius: 12px; }
+  .kap-nr { width: 28px; flex: none; display: grid; place-items: center; color: var(--text2); font-weight: 500; }
+  .kap-nr svg { fill: var(--ok); }
+  .kap-txt { flex: 1; min-width: 0; display: grid; gap: 1px; }
+  .kap-t { overflow-wrap: anywhere; }
+  .kap-ab { font-size: 14px; font-variant-numeric: tabular-nums; }
+  .kap-zu { flex: none; font-size: 14px; color: var(--text2); }
+  .kap-zeile[aria-current="true"] .kap-zu { color: var(--primary-ink); font-weight: 500; }
   .grip { width: 44px; height: 5px; border-radius: 3px; background: var(--line); margin: 0 auto 4px; }
   /* Sperre (X14): Entsperren nur durch Halten, der Füllbalken zeigt den Fortschritt */
   .unlock { position: relative; overflow: hidden; min-height: 64px; flex: 1 1 100%; max-width: 360px; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; touch-action: none; }

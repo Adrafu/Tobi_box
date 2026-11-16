@@ -619,6 +619,7 @@ class Medien:
             "cover_stand": info.cover_stand,
             "cover_quelle": info.cover_quelle,
             "dauer_s": self.hub.medieninfo.serie_dauer(s.id, s.folgen),
+            "kapitel_anzahl": self.hub.medieninfo.kapitel_anzahl(s.id, s.folgen),  # A3b3: Summe der Kapitel aller Folgen; 0 = keine Liste
         }
         hoerstelle = self.hub.hoerstellen.kurz(nutzer_id, s.id)
         if hoerstelle is not None:
@@ -1017,8 +1018,9 @@ class Medien:
         serie, pfad = await self._frisch(serie_id)
         info = await self._aktualisiere_cache(serie, pfad.name)
         aus = self.kurzform(info, nutzer_id=nutzer_id)
-        # ``dauer_s`` und ``spuren_s`` fehlen, solange unbekannt; ``hoerstelle`` nur, wenn der Anfragende angefangen hat (Vertrag W, 14.2).
-        # Beides kommt zur Antwortzeit dazu (nicht in den Zwischenspeicher: der Hintergrundlauf füllt die Dauer nach, die Hörstelle ist je Benutzer).
+        # ``dauer_s``, ``spuren_s`` und ``kapitel`` fehlen, solange unbekannt; ``hoerkopie`` fehlt, solange die Codecs unbekannt sind; ``hoerstelle`` nur,
+        # wenn der Anfragende angefangen hat (Vertrag W, 14.2). Alles kommt zur Antwortzeit dazu (nicht in den Zwischenspeicher: der Hintergrundlauf
+        # füllt die Werte nach, die Hörstelle ist je Benutzer, die Hörkopie wechselt ihren Zustand).
         medieninfo = self.hub.medieninfo
         hoerstellen = self.hub.hoerstellen.je_folge(nutzer_id, serie_id)
         folgen = []
@@ -1031,6 +1033,12 @@ class Medien:
             spuren = medieninfo.spuren_s(serie_id, name)
             if spuren is not None:
                 f["spuren_s"] = spuren
+            kapitel = medieninfo.kapitel(serie_id, name)
+            if kapitel is not None:
+                f["kapitel"] = kapitel
+            kopie = self.hub.hoerkopie.folge_zustand(serie_id, name)
+            if kopie is not None:
+                f["hoerkopie"] = kopie
             if name in hoerstellen:
                 f["hoerstelle"] = hoerstellen[name]
             folgen.append(f)

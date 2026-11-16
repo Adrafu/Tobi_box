@@ -137,7 +137,7 @@ TABELLE = [
     (42, "hoerstelle/liste", "lesen", {}, None, True),
     (43, "einsortierung/neu", "alltag", {}, None, False),
     (44, "cover/neu_suchen", "admin", {}, None, True),
-    (45, "hoerkopie/neu_erzeugen", "admin", {}, None, False),
+    (45, "hoerkopie/neu_erzeugen", "admin", {}, None, True),
     (46, "papierkorb/restore_letzte_stunde", "admin", {"bestaetigt": True}, None, True),
     (47, "warteschlange/set", "alltag", {"box": "box1", "ziel": SERIE}, None, True),
     (48, "warteschlange/list", "alltag", {}, None, True),
@@ -192,8 +192,7 @@ async def test_tabelle_2_1_normal_benutzer(normal, nr, befehl, recht, felder, ad
 async def test_hello_sagt_nur_zu_was_gebaut_ist(admin, normal):
     for client in (admin, normal):
         f = (await ok(client, "hello", v=1))["faehigkeiten"]
-        assert f[-7:] == ["konfig_staende", "bibliothek", "einsortier_wunsch", "cover", "warteschlange", "zuordnung_rueckgaengig", "reinhoeren"]  # A1, A3, A3d, A4, A9c, A4c
-        assert "hoerkopie" not in f  # A-3
+        assert f[-8:] == ["konfig_staende", "bibliothek", "einsortier_wunsch", "cover", "warteschlange", "zuordnung_rueckgaengig", "reinhoeren", "hoerkopie"]  # A1, A3, A3d, A4, A9c, A4c, A3c (``hoerkopie`` nur mit ``ffmpeg``)
     assert (await ok(admin, "hello", v=1))["darf_schreiben"] is True
     assert (await ok(normal, "hello", v=1))["darf_schreiben"] is False
 

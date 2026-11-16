@@ -775,6 +775,7 @@ export const TECHNIK = {
     einlesen: 'Medien neu einlesen', einlesen_gemacht: 'Das NAS wird gerade eingelesen.', einlesen_laeuft: 'Das Einlesen läuft schon.',
     cover: 'Cover neu suchen', cover_text: 'Sucht die Bilder aller Einträge noch einmal. Eigene Cover bleiben, wie sie sind.', // nur im Bestätigungsblatt (vor der Aktion), nicht mehr auf der Karte
     cover_titel: 'Cover neu suchen?', cover_ja: 'Ja, neu suchen', cover_gemacht: 'Die Cover-Suche läuft. Das dauert ein paar Minuten.',
+    hoerkopien_schlange: '{dateien} von höchstens {dateien_max} Dateien · {gb} von höchstens {gb_max} GB', // Zähler der Warteschlange (Design 5.9, 14.8)
     hoerkopien: 'Hörkopien neu erzeugen', hoerkopien_gemacht: { eins: '1 Folge wartet auf eine neue Hörkopie.', mehr: '{anzahl} Folgen warten auf eine neue Hörkopie.' },
   },
   korb: {
@@ -898,7 +899,7 @@ export const SERIE = {
   spalten: { nr: 'Nr.', titel: 'Titel', dauer: 'Dauer' }, // Kopfzeile der Folgenliste am Computer (AB3)
   weg: { satz: 'Das gibt es nicht mehr.', link: 'Zurück zur Bibliothek' }, // Prototyp (serie/get: serie_nicht_gefunden)
   tobies_unklar: 'Das geht gerade nicht. Bitte die Seite neu laden.', // neu, nicht im Design (Backend meldet Tobies, die Seite sieht keine)
-  abschnitt: { hoerspiel: 'Folgen', hoerbuch: 'Hörbuch', musik: 'Lieder', geschichte: 'Geschichten' }, // Design 5.3
+  abschnitt: { hoerspiel: 'Folgen', hoerbuch: 'Hörbuch', musik: 'Lieder', geschichte: 'Geschichten' }, // Design 5.3 (ein Hörbuch aus einer Folge mit Kapiteln: KAPITEL.abschnitt)
   kapitel: '{anzahl} Kapitel', // Ordner-Folgen: „2:19 · 14 Kapitel“
   suchen: { label: 'In diesem Eintrag suchen', platzhalter: 'Hier suchen' }, // Design 5.3 (ab 20 Folgen)
   keine_treffer: 'Nichts gefunden zu „{suchwort}“.', // neu, nicht im Design
@@ -925,6 +926,8 @@ export const SERIE = {
     verschieben: 'In anderes verschieben …',
     folge_papierkorb: 'Papierkorb …',
     dateien: 'Dateien in diesen Eintrag', // Design 5.6 / 7.3 (Menü des Eintrags; öffnet gleich die Vorschau „Zu Vorhandenem“)
+    hoerkopie: 'Hörkopie neu erzeugen', // A8d, nur Administratoren, wenn eine Folge `hoerkopie.zustand = fehler` hat (Design 5.9, 10.2)
+    hoerkopie_gemacht: { eins: '1 Folge wartet auf eine neue Hörkopie.', mehr: '{anzahl} Folgen warten auf eine neue Hörkopie.' },
   },
   reihenfolge: { fertig: 'Fertig mit Reihenfolge', hoch: '{titel} nach oben', runter: '{titel} nach unten' }, // Prototyp
   name: { titel: 'Umbenennen', label: 'Name', leer: 'Bitte einen Namen eingeben.', speichern: 'Speichern', gespeichert: 'Gespeichert.' }, // Prototyp
@@ -996,6 +999,21 @@ export const COVER = {
 
 // Player und Reinhören (Design 5.12, 5.3, 5.2; Pakete A8b, A8e, A7c). Wörtlich aus dem Prototyp (docs/egm/ha-ui/prototyp.html) und Design 5.12.
 // Platzhalter: titel, serie, name, zeit, eintrag.
+/* Kapitel (A8d; Design 5.3, 5.12, 11.4.8; AM12, AM16: keine erklärenden Sätze). */
+export const KAPITEL = {
+  abschnitt: 'Kapitel', // Überschrift auf der Serienseite (Hörbuch aus einer Folge) und Titel des Blatts im Player
+  nummer: 'Kapitel {nr}', // Titel, der nur aus einer Zahl besteht, und Rückfall ohne Titel
+  nummer_titel: 'Kapitel {nr}: {titel}', // Zeile im Player
+  ab: 'ab {start} · {laenge}', // „ab 2:49 · 0:19“ (Start und Länge)
+  ab_start: 'ab {start}', // letzte Zeile ohne bekannte Länge
+  gehoert: 'gehört', hier_weiter: 'hier weiter', laeuft: 'läuft', // Zustandswörter (Farbe nie allein)
+  aria: 'Kapitel {nr}: {titel}, ab {start}', // Zeile als Knopf
+  aria_aktuell: ', aktuelles Kapitel',
+  aria_abspielen: ', abspielen',
+  aria_oeffnen: ', Player öffnen',
+  schliessen: 'Schließen',
+};
+
 export const PLAYER = {
   mini: {
     oeffnen: 'Player öffnen: {titel}, {serie}', // aria-label der Leiste
@@ -1021,7 +1039,9 @@ export const PLAYER = {
     ansage_entsperrt: 'Entsperrt.',
     folge_von: '{eintrag} · {nr} von {anzahl}', // „Eintrag · 2 von 20“
     zeit_von: '{zeit} von {gesamt}', // aria-valuetext der Zeitleiste
-    vorbereitet: 'Die Hörprobe wird vorbereitet …', // nur Anzeige in der Vollansicht, Satz in HOERPROBE.vorbereitung
+    vorbereitet: 'Die Hörprobe wird vorbereitet …', // Anzeige in der Vollansicht und Karte der Serienseite, Satz in HOERPROBE.vorbereitung
+    kapitel: 'Kapitel', // Knopf neben „Sperren“ (A8d, Design 5.12)
+    kapitel_zeile: '{titel} ({nr} von {anzahl})', // Zeile unter dem Titel: „Kapitel 8: Das Echo (8 von 12)“
   },
   tempo: { titel: 'Wiedergabe', abschnitt: 'Geschwindigkeit', label: 'Geschwindigkeit', werte: { 1: '1×', 1.25: '1,25×', 1.5: '1,5×' }, schliessen: 'Schließen' }, // Design 5.12, X14
   knopf: { // „Reinhören“ auf der Serienseite (Design 5.3)

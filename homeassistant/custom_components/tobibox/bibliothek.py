@@ -348,7 +348,7 @@ class Bibliothek:
                     "folge": f.name,
                     "anzeige": f.anzeige,
                     "nummer": f.objekt.get("nummer"),
-                    "kapitel": 0,  # die Kapitelliste kommt mit Paket A3b3; bis dahin „keine Liste“
+                    "kapitel": len(self.medien.hub.medieninfo.kapitel(s.id, f.name) or ()),  # A3b3: Anzahl der Kapitel, 0 = keine Liste
                     "groesse_mb": round(f.objekt.get("groesse_bytes", 0) / (1024 * 1024), 1),
                     "tobies": list(je_folge.get((s.id, f.name), [])),
                     "serie_hat_tobie": ganze.get(s.id, False),

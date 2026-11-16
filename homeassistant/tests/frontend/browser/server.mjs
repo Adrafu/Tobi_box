@@ -52,8 +52,38 @@ function bauen(schluessel) {
       folgen: [folge('buch', 'Das große Buch', { art: 'ordner', tracks: 14, dauer_s: 34800 })] };
     b.serien.kurz = { id: 'kurz', name: 'Kleine Reise', typ: 'normal', ordner: 'Kurz', pruefen: false, hinweise: [], art: 'hoerspiel', cover_stand: null,
       folgen: [folge('k1.mp3', 'Aufbruch', { nummer: 1 }), folge('k2.mp3', 'Unterwegs', { nummer: 2 }), folge('k3.mp3', 'Die Rast', { nummer: 3 }), folge('k4.mp3', 'Heimkehr', { nummer: 4 })] };
+    // A8d: Kapitel. `hbk` = Hörbuch aus **einer** Datei mit eingebetteten Kapiteln (40 s wie die Testdatei), `reise` = Serie mit mehreren Folgen, die erste eine Ordner-Folge mit drei Tracks
+    // (je 40 s) und Kapiteln je Track, `ogg` = eine Folge, die erst eine Hörkopie braucht (`audio/bereit` meldet zuerst `wird_vorbereitet`, siehe unten).
+    b.serien.hbk = { id: 'hbk', name: 'Kapitän Knopf', typ: 'normal', ordner: 'Hbk', pruefen: false, hinweise: [], art: 'hoerbuch', dauer_s: 40, kapitel_anzahl: 3, cover_stand: null,
+      folgen: [folge('hbk.m4b', 'Kapitän Knopf', { dauer_s: 40, kapitel: [{ titel: '1', start_s: 0 }, { titel: 'Der Hafen', start_s: 12 }, { titel: 'Der Sturm mit einem recht langen Titel, der in eine Zeile passen muss', start_s: 26 }] })] };
+    b.serien.reise = { id: 'reise', name: 'Die lange Reise', typ: 'normal', ordner: 'Reise', pruefen: false, hinweise: [], art: 'hoerspiel', dauer_s: 160, kapitel_anzahl: 3, cover_stand: null,
+      folgen: [folge('teil1', 'Teil 1', { nummer: 1, art: 'ordner', tracks: 3, dauer_s: 120, spuren_s: [40, 40, 40], kapitel: [{ titel: 'Eins', start_s: 0, track: 0 }, { titel: 'Zwei', start_s: 40, track: 1 }, { titel: 'Drei', start_s: 80, track: 2 }] }),
+        folge('teil2.mp3', 'Teil 2', { nummer: 2, dauer_s: 40 })] };
+    b.serien.ogg = { id: 'ogg', name: 'Das Lied vom Wald', typ: 'normal', ordner: 'Ogg', pruefen: false, hinweise: [], art: 'musik', dauer_s: 40, cover_stand: null,
+      folgen: [folge('wald.ogg', 'Das Lied vom Wald', { nummer: 1, dauer_s: 40, hoerkopie: { zustand: 'nicht_angelegt' } }), folge('mond.mp3', 'Der Mond', { nummer: 2, dauer_s: 40 })] };
     b.serien.leersammlung = { id: 'leersammlung', name: 'Leere Sammlung', typ: 'normal', ordner: 'Leer', pruefen: false, hinweise: [], art: 'hoerspiel', folgen: [] };
   }
+  /* A8d: `audio/bereit` für die OGG-Folge: das erste Mal (und 1,5 s lang danach) `wird_vorbereitet`, dann `bereit` mit der Kopie; alle anderen Folgen wie im Mock. Der Zähler der Warteschlange
+   * der Hörkopien kommt in `hello.grenzen.hoerkopie_schlange` (Technik, Karte „Bibliothek aufräumen“). */
+  let oggStart = 0;
+  m.on('tobibox/audio/bereit', (msg, bk) => {
+    const sr = bk.serien[msg.serie_id];
+    const fo = sr?.folgen.find((x) => x.name === msg.folge);
+    if (!sr || !fo) throw { code: 'folge_nicht_gefunden', message: 'folge_nicht_gefunden' }; // eslint-disable-line no-throw-literal
+    const kopie = fo.name.endsWith('.ogg');
+    if (kopie) {
+      if (!oggStart) oggStart = Date.now();
+      if (Date.now() - oggStart < 1500) { ++bk.sigZaehler; return { zustand: 'wird_vorbereitet', warte_s: 2, position: 1 }; } // zählt mit: die Prüfung „player-fehler“ rechnet Signaturnummer = Zahl der Aufrufe
+      fo.hoerkopie = { zustand: 'fertig' };
+    }
+    return { zustand: 'bereit', pfad: `/api/tobibox/audio/${encodeURIComponent(sr.id)}/${encodeURIComponent(fo.name)}?${msg.track === undefined ? '' : `track=${msg.track}&`}authSig=${m.opts.sigPraefix ?? 'mock'}-${++bk.sigZaehler}`, quelle: kopie ? 'kopie' : 'original' };
+  });
+  const helloAlt = m.hass.connection.sendMessagePromise;
+  m.hass.connection.sendMessagePromise = async (msg) => {
+    const r = await helloAlt(msg);
+    if (msg?.type === 'tobibox/hello') r.grenzen = { ...r.grenzen, hoerkopie_schlange: { dateien: 3, dateien_max: 20, bytes: 1.4e9, bytes_max: 50e9 } };
+    return r;
+  };
   // Geräte: zwei Boxen, eine spielt, eine ist aus; drei Leise-Zeiten (still, leiser, kurz)
   const ids = Object.keys(b.serien);
   const s0 = b.serien[ids[0]];

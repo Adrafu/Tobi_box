@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import os
 import shutil
 import subprocess
@@ -54,6 +55,8 @@ class Probe:
     dauer_s: float | None = None
     #: Tags mit kleingeschriebenen Schlüsseln; ``format.tags`` gewinnt gegen die Tags des ersten Audio-Stroms
     tags: dict[str, str] = field(default_factory=dict)
+    #: eingebettete Kapitel in der Reihenfolge der Datei: ``(start_s, titel)`` (``-show_chapters``; Titel ``""``, wenn keiner da ist)
+    kapitel: list[tuple[float, str]] = field(default_factory=list)
 
 
 @dataclass
@@ -92,6 +95,7 @@ def baue_ffprobe_befehl(pfad: str | os.PathLike[str], endung: str, programm: str
         "json",
         "-show_format",
         "-show_streams",
+        "-show_chapters",
         f"file:{absolut}",
     ]
 
@@ -158,6 +162,31 @@ def _tags_zusammen(daten: dict[str, Any]) -> dict[str, str]:
     return tags
 
 
+#: so viele Kapitel liest ``ffprobe`` höchstens aus der Antwort (Schutz vor einer Datei mit Millionen Marken; ``KAPITEL_MAX`` kürzt später)
+_KAPITEL_ROH_MAX = 5000
+
+
+def _kapitel_aus(daten: dict[str, Any]) -> list[tuple[float, str]]:
+    """Eingebettete Kapitel (``chapters[]``): ``(start_s, titel)`` in der Reihenfolge der Datei. Ungültige Startzeiten werden übergangen."""
+    roh = daten.get("chapters")
+    aus: list[tuple[float, str]] = []
+    if not isinstance(roh, list):
+        return aus
+    for k in roh[:_KAPITEL_ROH_MAX]:
+        if not isinstance(k, dict):
+            continue
+        try:
+            start = float(k.get("start_time"))
+        except (TypeError, ValueError):
+            continue
+        if not math.isfinite(start):
+            continue
+        tags = k.get("tags") if isinstance(k.get("tags"), dict) else {}
+        titel = next((str(v) for key, v in tags.items() if str(key).lower() == "title" and v is not None), "")
+        aus.append((start, titel))
+    return aus
+
+
 def sieht_aus_wie_text(pfad: str | os.PathLike[str]) -> bool:
     """Grobe Prüfung: Textdatei (kein NUL-Byte, fast nur druckbare Zeichen) und kein Audio."""
     try:
@@ -201,6 +230,7 @@ def probe_datei(pfad: str | os.PathLike[str], endung: str | None = None, zeitlim
         codec=(audio or {}).get("codec_name"),
         hat_audio=audio is not None,
         tags=_tags_zusammen(daten),
+        kapitel=_kapitel_aus(daten),
     )
     try:
         probe.dauer_s = float(fmt["duration"]) if fmt.get("duration") not in (None, "N/A") else None

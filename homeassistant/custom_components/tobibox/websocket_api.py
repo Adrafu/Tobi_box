@@ -411,6 +411,13 @@ async def ws_cover_neu_suchen(hub: Hub, connection: Any, msg: dict[str, Any]) ->
     return await hub.cover.neu_suchen(msg.get("serie_id"))
 
 
+@befehl("hoerkopie/neu_erzeugen", {vol.Optional("serie_id"): _text}, recht="admin")
+async def ws_hoerkopie_neu_erzeugen(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
+    """Befehl 45: Kopie und Zustand löschen, die Folge neu in die Schlange stellen (Vertrag W, 14.8). ``eingereiht`` zählt Folgen."""
+    await hub.medien._stelle_geprueft_sicher()
+    return {"eingereiht": await hub.hoerkopie.neu_erzeugen(msg.get("serie_id"))}
+
+
 # --------------------------------------------------------------------------
 # 10 bis 12 und 46: Papierkorb
 # --------------------------------------------------------------------------

@@ -46,6 +46,8 @@ HTTP_STATUS: Final = {
     "sortierung_laeuft": 409,
     "zu_viele_aenderungen": 429,
     "zu_viele_streams": 429,
+    "hoerkopie_warteschlange_voll": 429,
+    "hoerkopie_wartet": 503,
     "wunsch_ungueltig": 400,
     "cover_ungueltig": 400,
     "cover_nicht_gefunden": 404,

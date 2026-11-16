@@ -14,7 +14,7 @@ import pytest
 
 from custom_components.tobibox import dauer as dauer_modul
 from custom_components.tobibox import ffprobe
-from custom_components.tobibox.const import DAUER_DECKEL_S
+from custom_components.tobibox.const import DAUER_DECKEL_S, MEDIENINFO_VERSION
 from custom_components.tobibox.dauer import DauerDienst
 from custom_components.tobibox.medieninfo import MedienInfo
 
@@ -205,10 +205,10 @@ async def test_hintergrundlauf_meldet_serien_geaendert(hass, integration, nas, l
     assert any(e["art"] == "serien_geaendert" and "s1" in e["daten"]["serie_ids"] for e in ereignisse)
 
 
-async def test_nachholen_beim_start_misst_nur_folgen_ohne_dauer(hass, start_ohne_nachholen, nas, lege_mp3):
+async def test_nachholen_beim_start_misst_nur_unvollstaendige_folgen(hass, start_ohne_nachholen, nas, lege_mp3):
     serie_mit(nas, lege_mp3)
     hub = await start_ohne_nachholen()
-    hub.medieninfo.setze_dauer("s1", "a.mp3", 77)
+    hub.medieninfo.setze_info("s1", "a.mp3", 77, None, [], ["mp3"])  # vollständig (Dauer, Kapitel, Codecs)
     with patch.object(dauer_modul, "messe_folge", wraps=dauer_modul.messe_folge) as messe:
         hub.dauer.nachholen_beim_start()
         await hub.dauer.warte_auf_ende()
@@ -332,7 +332,7 @@ async def test_dauer_wandert_mit_beim_verschieben_und_faellt_beim_loeschen_weg(h
 async def test_bereinigen_nur_nach_gelungener_pruefung(hass, start_ohne_nachholen, nas, lege_mp3):
     serie_mit(nas, lege_mp3)
     hub = await start_ohne_nachholen()
-    hub.medieninfo.setze_dauer("s1", "a.mp3", 10)
+    hub.medieninfo.setze_info("s1", "a.mp3", 10, None, [], ["mp3"])
     hub.medieninfo.setze_dauer("s1", "weg.mp3", 20)  # die Folge gibt es nicht mehr
     hub.medieninfo.setze_dauer("verschwunden", "x.mp3", 30)  # die Serie auch nicht
     hub.medieninfo.setze_cover_suche("verschwunden", "keine")  # die Marke gehört nicht hierher: bleibt
@@ -362,5 +362,6 @@ async def test_store_ueberlebt_den_neustart(hass, hass_storage, start_ohne_nachh
     assert neu.dauer_s("s1", "a.mp3") == hub.medieninfo.dauer_s("s1", "a.mp3")
     # Form nach data-model.md 5a: Serie -> folgen -> Name -> dauer_s / spuren_s
     roh = hass_storage["tobibox.medieninfo"]["data"]["s1"]["folgen"]["Hörbuch"]
-    assert roh == {"dauer_s": sum(spuren), "spuren_s": spuren}
+    assert roh == {"dauer_s": sum(spuren), "spuren_s": spuren, "codecs": ["mp3", "mp3"], "kapitel": roh["kapitel"], "info_v": MEDIENINFO_VERSION}
+    assert [k["track"] for k in roh["kapitel"]] == [0, 1]  # Ordner-Folge: jeder Track ein Kapitel
     await warte_auf(hass, lambda: True)
