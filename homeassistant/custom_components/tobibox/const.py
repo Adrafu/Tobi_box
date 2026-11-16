@@ -265,12 +265,15 @@ HOERSTELLE_LISTE_LIMIT_VORGABE: Final = 8
 DAUER_DECKEL_S: Final = 172800
 #: feste Zeitgrenze je Datei beim Nachholen im Hintergrund (zusätzlich ``FFPROBE_ZEITLIMIT_S``)
 MEDIENINFO_ZEITGRENZE_S: Final = 20
-#: Stand der abgeleiteten Werte je Folge im Store ``tobibox.medieninfo`` (Feld ``info_v``): 1 = Dauer (A-2), 2 = dazu Kapitel und Codecs (A-3).
+#: Stand der abgeleiteten Werte je Folge im Store ``tobibox.medieninfo`` (Feld ``info_v``): 1 = Dauer (A-2), 2 = dazu Kapitel und Codecs (A-3), 3 = Kapiteltitel roh
+#: gespeichert, bereinigt wird erst beim Ausgeben (AM22).
 #: Ein Eintrag mit kleinerem Stand wird im Hintergrund noch einmal gemessen (Vertrag W, 14.7).
-MEDIENINFO_VERSION: Final = 2
+MEDIENINFO_VERSION: Final = 3
 #: Kapitel einer Folge (Vertrag W, 14.7 und 14.10)
 KAPITEL_MAX: Final = 500
 KAPITEL_TITEL_MAX: Final = 120
+#: Rohtitel im Store (vor dem Bereinigen beim Ausgeben, AM22); die Ausgabe kürzt auf ``KAPITEL_TITEL_MAX``
+KAPITEL_ROH_MAX: Final = 400
 
 # --- Hörkopie (Vertrag W, 14.8 und 14.10; Werte vorläufig bis zur Messung A0b) ---------------------------------
 HOERKOPIE_KBIT: Final = 96

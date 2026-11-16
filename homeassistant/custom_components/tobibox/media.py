@@ -27,6 +27,7 @@ from typing import TYPE_CHECKING, Any
 from . import dateien, ffprobe
 from .bibliothek import Bibliothek
 from .cover import cover_zustand, uebernimm_cover
+from .kapitel import bereinige_kapitel
 from .const import (
     ART_QUELLEN,
     ART_VORGABE,
@@ -1035,7 +1036,7 @@ class Medien:
                 f["spuren_s"] = spuren
             kapitel = medieninfo.kapitel(serie_id, name)
             if kapitel is not None:
-                f["kapitel"] = kapitel
+                f["kapitel"] = bereinige_kapitel(kapitel)  # Rohtitel im Store, bereinigt beim Ausgeben (AM22)
             kopie = self.hub.hoerkopie.folge_zustand(serie_id, name)
             if kopie is not None:
                 f["hoerkopie"] = kopie

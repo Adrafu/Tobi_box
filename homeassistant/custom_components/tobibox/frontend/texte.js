@@ -1008,6 +1008,7 @@ export const KAPITEL = {
   ab_start: 'ab {start}', // letzte Zeile ohne bekannte Länge
   gehoert: 'gehört', hier_weiter: 'hier weiter', laeuft: 'läuft', // Zustandswörter (Farbe nie allein)
   aria: 'Kapitel {nr}: {titel}, ab {start}', // Zeile als Knopf
+  aria_eigen: '{titel}, ab {start}', // der Titel beginnt selbst mit „Kapitel“ (AM22): kein zweites „Kapitel {nr}:“
   aria_aktuell: ', aktuelles Kapitel',
   aria_abspielen: ', abspielen',
   aria_oeffnen: ', Player öffnen',

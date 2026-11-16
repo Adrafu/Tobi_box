@@ -77,6 +77,9 @@ export function ortVon(f, pos) {
 
 /* ------------------------------------------------------------------ Kapitel (A8d, Design 5.3, 5.12, 11.4.8) */
 
+/* Beginnt der Titel selbst mit „Kapitel“ („Kapitel 2.2“, „Kapitel 1 & Kapitel 2.1“), setzt die Seite kein zweites „Kapitel n:“ davor (AM22). */
+export const beginntMitKapitel = (titel) => /^\s*kapitel(?![\p{L}])/iu.test(String(titel ?? ''));
+
 /* Titel eines Kapitels: nur aus Zahlen („1“) wird „Kapitel 1“, ohne Titel „Kapitel {nr}“. */
 export function kapitelTitel(roh, nr) {
   const t = String(roh ?? '').trim();
@@ -136,7 +139,7 @@ export const kapitelZustandText = (z, spielt) => (z.aktuell ? (spielt ? KAPITEL.
 export const kapitelZustandHtml = (z, spielt) => { const t = kapitelZustandText(z, spielt); return t ? html`<span class="kap-zu">${t}</span>` : nothing; };
 
 /* Name der Zeile für Screenreader: „Kapitel 4: Der Sturm, ab 1:12, aktuelles Kapitel, abspielen“ (`zusatz` ersetzt „abspielen“, zum Beispiel „Player öffnen“). */
-export const kapitelAria = (z, spielt, zusatz = KAPITEL.aria_abspielen) => `${fuellen(KAPITEL.aria, { nr: z.nr, titel: z.titel, start: uhr(z.start_s) })}${z.aktuell ? KAPITEL.aria_aktuell : ''}${z.gehoert && !z.aktuell ? `, ${KAPITEL.gehoert}` : ''}${zusatz}`;
+export const kapitelAria = (z, spielt, zusatz = KAPITEL.aria_abspielen) => `${beginntMitKapitel(z.titel) ? fuellen(KAPITEL.aria_eigen, { titel: z.titel, start: uhr(z.start_s) }) : fuellen(KAPITEL.aria, { nr: z.nr, titel: z.titel, start: uhr(z.start_s) })}${z.aktuell ? KAPITEL.aria_aktuell : ''}${z.gehoert && !z.aktuell ? `, ${KAPITEL.gehoert}` : ''}${zusatz}`;
 
 /* Hat irgendeine Folge der Serie eine Kapitelliste? Dann reserviert der Player den Platz für Zeile und Knopf (AM15: nichts springt). */
 export const serieHatKapitel = (serie) => (serie?.folgen || []).some((f) => kapitelVon(f).length > 0);
@@ -892,7 +895,7 @@ export class Spieler {
 
   /* Zeile unter dem Titel: „Kapitel 8: Das Echo (8 von 12)“ (ein Titel „Kapitel 8“ steht nicht doppelt). */
   _kapitelZeile(k, anzahl) {
-    const titel = /^Kapitel \d+$/.test(k.titel) ? k.titel : fuellen(KAPITEL.nummer_titel, { nr: k.nr, titel: k.titel });
+    const titel = beginntMitKapitel(k.titel) ? k.titel : fuellen(KAPITEL.nummer_titel, { nr: k.nr, titel: k.titel });
     return fuellen(PLAYER.voll.kapitel_zeile, { titel, nr: k.nr, anzahl });
   }
 

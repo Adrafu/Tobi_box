@@ -9,9 +9,9 @@ import pytest
 
 from custom_components.tobibox import dauer as dauer_modul
 from custom_components.tobibox import ffprobe
-from custom_components.tobibox.const import KAPITEL_MAX, KAPITEL_TITEL_MAX
+from custom_components.tobibox.const import KAPITEL_MAX, KAPITEL_ROH_MAX, KAPITEL_TITEL_MAX
 from custom_components.tobibox.dauer import DauerDienst
-from custom_components.tobibox.kapitel import TrackInfo, baue_kapitel, titel_aus_dateiname
+from custom_components.tobibox.kapitel import TrackInfo, baue_kapitel, bereinige_titel, titel_aus_dateiname
 
 from .conftest import braucht_ffmpeg, erzeuge_audio
 from .test_websocket_api import ok
@@ -27,10 +27,11 @@ def t(name="a.mp3", dauer=60.0, titel="", kapitel=None, codec="mp3"):
 
 
 def test_titel_aus_dateiname():
-    assert titel_aus_dateiname("03 - Der Wald.mp3") == "Der Wald"
-    assert titel_aus_dateiname("1. Anfang.flac") == "Anfang"
+    # roh: die Nummer fällt erst beim Ausgeben weg (AM22)
+    assert titel_aus_dateiname("03 - Der Wald.mp3") == "03 - Der Wald"
+    assert titel_aus_dateiname("100% Wolf - Track #01.mp3") == "100% Wolf - Track #01"
     assert titel_aus_dateiname("Der Wald.mp3") == "Der Wald"
-    assert titel_aus_dateiname("01.mp3") == ""
+    assert titel_aus_dateiname("01.mp3") == "01"
 
 
 def test_ordner_folge_jeder_track_ein_kapitel():
@@ -38,8 +39,8 @@ def test_ordner_folge_jeder_track_ein_kapitel():
     k = baue_kapitel(tracks, True)
     assert k == [
         {"titel": "Der Anfang", "start_s": 0, "track": 0},
-        {"titel": "Zwei", "start_s": 10, "track": 1},
-        {"titel": "3", "start_s": 30, "track": 2},  # ohne Titel: die Nummer, die Seite zeigt „Kapitel 3“
+        {"titel": "02 Zwei", "start_s": 10, "track": 1},  # roh, bereinigt wird beim Ausgeben
+        {"titel": "03", "start_s": 30, "track": 2},
     ]
 
 
@@ -63,10 +64,10 @@ def test_doppelte_startzeiten_und_rueckspruenge_fallen_weg():
 
 
 def test_hoechstens_500_kapitel_und_titel_gekuerzt():
-    roh = [(float(i), "x" * 300) for i in range(800)]
+    roh = [(float(i), "x" * 600) for i in range(800)]
     k = baue_kapitel([t(dauer=1000, kapitel=roh)], False)
     assert len(k) == KAPITEL_MAX
-    assert len(k[0]["titel"]) <= KAPITEL_TITEL_MAX
+    assert len(k[0]["titel"]) == KAPITEL_ROH_MAX  # roh gespeichert, die Ausgabe kürzt auf KAPITEL_TITEL_MAX
 
 
 # --------------------------------------------------------------------------
@@ -163,3 +164,79 @@ async def test_beim_einsortieren_kommen_kapitel_und_codecs_aus_den_proben(hass, 
     name = next(n for n in integration.medien.serien[sid].serie.folgen if n.startswith("Kapitelbuch"))
     assert [k["titel"] for k in integration.medieninfo.kapitel(sid, name)] == ["A", "B", "C"]
     assert integration.medieninfo.codecs(sid, name) == ["aac"]
+
+
+# --------------------------------------------------------------------------
+# AM22: Titel bereinigen (echte Fälle aus dem Bestand)
+# --------------------------------------------------------------------------
+
+
+def _folge(vorn, n, hinten="", breite=2):
+    return [f"{vorn}{i:0{breite}d}{hinten}" for i in range(1, n + 1)]
+
+
+@pytest.mark.parametrize(
+    "roh",
+    [
+        _folge("100% Wolf - Track #", 12),
+        _folge("Affenzahn Utopia - Die Abenteuer von Affenzahn - Track #", 25),
+        _folge("Alea Aquarius - Die Magie der Nixen - Track #", 10),
+        [f"{i:02d} Ela das All eroberte" for i in range(1, 11)],
+        [f"Kapitel {i:02d}: Aristocats" for i in range(1, 5)],
+        ["Trim-It´s gettin´ HARD in here #063.mp3"] * 3,
+        ["1", "2", "3"],
+        ["01", "02", "03"],
+    ],
+)
+def test_bereinigen_nur_nummern_wird_kapitel_n(roh):
+    assert bereinige_titel(roh) == [""] * len(roh)  # "" = die Seite zeigt „Kapitel n“
+
+
+def test_bereinigen_wundervolle_welt_der_tiere():
+    roh = [
+        "Kapitel 01: Der Wal, der Elefant und das Krokodil - Wundervolle Welt der Tiere",
+        "Kapitel 02: Der Hai, die Giraffe und das Nashorn - Wundervolle Welt der Tiere",
+        "Kapitel 03: Der Wolf - Wundervolle Welt der Tiere",
+    ]
+    assert bereinige_titel(roh) == ["Der Wal, der Elefant und das Krokodil", "Der Hai, die Giraffe und das Nashorn", "Der Wolf"]
+
+
+def test_bereinigen_dinosaurier():
+    s = " - Wundervolle Welt der Dinosaurier und der Urzeit"
+    roh = [f"Kapitel 01: Einführung, Erdaltertum{s}", f"Kapitel 02: Erdaltertum{s}"] + [f"Kapitel {i:02d}: Teil {i}{s}" for i in range(3, 39)]
+    aus = bereinige_titel(roh)
+    assert aus[:3] == ["Einführung, Erdaltertum", "Erdaltertum", "Teil 3"]
+    assert aus[-1] == "Teil 38"
+
+
+def test_bereinigen_conni_behaelt_kapitelangaben():
+    s = " - Conni & Co 1: Conni & Co"
+    roh = [f"Kapitel 1 & Kapitel 2.1{s}", f"Kapitel 2.2{s}", f"Kapitel 2.3 & Kapitel 3.1{s}", f"Kapitel 3.2{s}"]
+    assert bereinige_titel(roh) == ["Kapitel 1 & Kapitel 2.1", "Kapitel 2.2", "Kapitel 2.3 & Kapitel 3.1", "Kapitel 3.2"]
+
+
+def test_bereinigen_zippel():
+    s = " - Zippel, das wirklich wahre Schlossgespenst"
+    roh = [f"Kapitel 1.1{s}", f"Kapitel 1.2 & Kapitel 2.1{s}", f"Kapitel 2.2{s}", f"Kapitel 3.1{s}"] + [f"Kapitel {i}.1{s}" for i in range(4, 12)]
+    assert bereinige_titel(roh)[:3] == ["Kapitel 1.1", "Kapitel 1.2 & Kapitel 2.1", "Kapitel 2.2"]
+
+
+def test_bereinigen_sprechende_titel_bleiben():
+    lieder = ["Fredrik Vahle - Lied vom Wecken (Anne Kaffeekanne)", "Fredrik Vahle - Vom Laufenlernen (Anne Kaffeekanne)", "Das Katzentatzentanzspiel"]
+    assert bereinige_titel(lieder) == lieder
+    schule = ["Schulschluss", "Benny fährt Fahrrad", "Schein! Schein! Schein!"]
+    assert bereinige_titel(schule) == schule
+
+
+def test_bereinigen_einzelne_titel_gegenproben():
+    assert bereinige_titel(["100% Wolf", "Der Fuchs"]) == ["100% Wolf", "Der Fuchs"]
+    assert bereinige_titel(["01 - Intro", "02 - Ende"]) == ["Intro", "Ende"]
+    assert bereinige_titel(["1. Teil", "Der Rest"]) == ["Teil", "Der Rest"]
+    assert bereinige_titel(["2019 Live", "Zugabe"]) == ["2019 Live", "Zugabe"]
+    assert bereinige_titel(["7 Zwerge", "Schneewittchen"]) == ["7 Zwerge", "Schneewittchen"]
+    assert bereinige_titel(["Eins", "Zwei", "Eins"]) == ["", "Zwei", ""]  # mehrfach: Kapitel n
+
+
+def test_bereinigen_kuerzt_erst_nach_dem_bereinigen():
+    s = " - " + "Serie " * 30
+    assert bereinige_titel([f"Anfang{s}", f"Ende{s}"]) == ["Anfang", "Ende"]

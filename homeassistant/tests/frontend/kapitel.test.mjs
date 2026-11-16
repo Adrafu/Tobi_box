@@ -280,6 +280,33 @@ mit('Player: Zeile „Kapitel 2: Der Hafen (2 von 3)“ unter dem Titel und Knop
   assert.equal(d.querySelector('[data-pkap]').textContent, 'Kapitel 1 (1 von 3)', 'ein Titel „Kapitel 1“ steht nicht doppelt');
 });
 
+test('AM22: beginnt der Titel selbst mit „Kapitel“, steht kein zweites „Kapitel n:“ davor (Aria-Text); Gegenprobe: sprechender Titel behält es', () => {
+  const k = P.kapitelVon({ name: 'x', dauer_s: 600, kapitel: [{ titel: 'Kapitel 1 & Kapitel 2.1', start_s: 0 }, { titel: 'kapitel 2.2', start_s: 100 }, { titel: 'Der Hafen', start_s: 200 }, { titel: '', start_s: 300 }] });
+  assert.equal(P.kapitelAria(k[0], false), 'Kapitel 1 & Kapitel 2.1, ab 0:00, abspielen');
+  assert.equal(P.kapitelAria(k[1], false), 'kapitel 2.2, ab 1:40, abspielen');
+  assert.equal(P.kapitelAria(k[2], false), 'Kapitel 3: Der Hafen, ab 3:20, abspielen');
+  assert.equal(P.kapitelAria(k[3], false), 'Kapitel 4, ab 5:00, abspielen', 'Rückfall „Kapitel n“ steht nicht doppelt');
+  assert.equal(P.beginntMitKapitel('Kapitelweise'), false);
+  assert.equal(P.beginntMitKapitel('Kapitel'), true);
+});
+
+mit('AM22: Zeile im Player zeigt „Kapitel 2.2 (2 von 3)“ ohne zweites „Kapitel 2:“', async () => {
+  const s = await spielSeite({});
+  s.m.backend.serien.hb = { id: 'hb', name: 'Das Buch', typ: 'normal', ordner: 'Hb', pruefen: false, hinweise: [], art: 'hoerbuch', dauer_s: 600, cover_stand: null,
+    folgen: [folge('hb.m4b', 'Das Buch', { dauer_s: 600, kapitel: [{ titel: 'Kapitel 1.1', start_s: 0 }, { titel: 'Kapitel 2.2', start_s: 169 }, { titel: 'Der Sturm', start_s: 400 }] })] };
+  await geheZu(s, '#serie-hb');
+  await s.flush(10);
+  knopfDerZeile(s, 1).click();
+  await s.flush(12);
+  const a = s.audio();
+  lade(a, 600); await s.flush(8);
+  const d = await oeffneVoll(s);
+  assert.equal(d.querySelector('[data-pkap]').textContent, 'Kapitel 2.2 (2 von 3)');
+  zeit(a, 405); await s.flush(6);
+  assert.equal(d.querySelector('[data-pkap]').textContent, 'Kapitel 3: Der Sturm (3 von 3)', 'Gegenprobe: sprechender Titel behält das Präfix');
+  assert.match(knopfDerZeile(s, 1).getAttribute('aria-label'), /^Kapitel 2\.2, ab 2:49/);
+});
+
 mit('Player: das Blatt „Kapitel“ listet alle, markiert das aktuelle; Tipp springt, spielt weiter und schließt das Blatt', async () => {
   const s = await seiteMit('#serie-hb');
   knopfDerZeile(s, 1).click();

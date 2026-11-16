@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, Any
 
 from homeassistant.helpers.storage import Store
 
-from .const import DAUER_DECKEL_S, KAPITEL_MAX, KAPITEL_TITEL_MAX, MEDIENINFO_VERSION
+from .const import DAUER_DECKEL_S, KAPITEL_MAX, KAPITEL_ROH_MAX, MEDIENINFO_VERSION
 from .util import jetzt_iso
 
 if TYPE_CHECKING:
@@ -292,7 +292,7 @@ def _kapitel_pruefen(roh: Any) -> list[dict[str, Any]]:
         start = k.get("start_s")
         if not isinstance(start, (int, float)) or isinstance(start, bool) or not 0 <= start <= DAUER_DECKEL_S or start <= letzter:
             continue
-        neu: dict[str, Any] = {"titel": k["titel"][:KAPITEL_TITEL_MAX], "start_s": start}
+        neu: dict[str, Any] = {"titel": k["titel"][:KAPITEL_ROH_MAX], "start_s": start}
         track = k.get("track")
         if isinstance(track, int) and not isinstance(track, bool) and track >= 0:
             neu["track"] = track
