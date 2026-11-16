@@ -173,7 +173,7 @@ export function knopfText(serie, { spielt = false, aktuell = null } = {}) {
   const ziel = (f) => (serie.folgen.length > 1 ? folgeName(f) : serie.name);
   if (spielt) return { art: 'pause', label: PLAYER.knopf.pause, zusatz: fuellen(PLAYER.knopf.laeuft, { ziel: ziel(aktuell || z.folge) }) };
   const label = PLAYER.knopf[z.art];
-  const zusatz = z.art === 'weiter' ? fuellen(PLAYER.knopf.zusatz, { ziel: ziel(z.folge), zeit: uhr(z.zeit) }) : ziel(z.folge);
+  const zusatz = z.art === 'weiter' && z.zeit >= 5 ? fuellen(PLAYER.knopf.zusatz, { ziel: ziel(z.folge), zeit: uhr(z.zeit) }) : ziel(z.folge);
   return { art: z.art, label, zusatz };
 }
 

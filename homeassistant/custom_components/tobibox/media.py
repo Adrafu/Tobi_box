@@ -356,6 +356,10 @@ def pruefe_folge_pfad(pfad: Path) -> tuple[str, str | None]:
 # Papierkorb (data-model.md, Abschnitt 9)
 # --------------------------------------------------------------------------
 
+#: Arbeitsname eines Eintrags, der gerade zurückgeholt wird (``_papierkorb/.zurueck-<id>/``). ``RE_ID12`` passt
+#: nicht darauf: ``lese_papierkorb`` und ``_raeume_papierkorb_reste`` überspringen ihn.
+ARBEIT_PRAEFIX = ".zurueck-"
+
 
 def papierkorb_anlegen(
     papierkorb: Path,
@@ -448,6 +452,48 @@ def lese_papierkorb(papierkorb: Path) -> list[dict[str, Any]]:
     return aus
 
 
+def raeume_arbeitsnamen(papierkorb: Path, laufend: set[str] | frozenset[str] = frozenset()) -> int:
+    """Führt liegen gebliebene Arbeitsnamen (``.zurueck-<id>``) sauber zurück. Gibt die Zahl der Reste zurück.
+
+    Beim Zurückholen wird ein Eintrag erst auf den Arbeitsnamen umbenannt (ein Schritt, damit ``lese_papierkorb``
+    nie einen halben Eintrag sieht), dann wird der Inhalt zurückgelegt und der Rest gelöscht. Bricht HA dazwischen ab
+    (Absturz, Stromausfall), bleibt Folgendes übrig, und diese Funktion räumt es beim nächsten Start
+    (``Medien.pruefen``) und beim nächsten Listen auf:
+
+    * ``inhalt/`` enthält noch etwas: Das Zurücklegen hat nicht stattgefunden. Der Eintrag bekommt seinen Namen ``<id>``
+      zurück und ist wieder ganz im Papierkorb (nichts geht verloren).
+    * ``inhalt/`` ist leer oder fehlt: Der Inhalt liegt schon an seinem Platz (Serie, Medienordner, Eingang). Übrig
+      sind nur ``meta.json`` und leere Ordner; sie werden gelöscht. Eine Folge, deren Eintrag in ``serie.json`` noch
+      fehlte, nimmt die nächste Prüfung als neue Datei auf.
+
+    ``laufend`` nennt Arbeitsnamen, die gerade bearbeitet werden; sie bleiben unberührt."""
+    try:
+        eintraege = list(os.scandir(papierkorb))
+    except OSError:
+        return 0
+    anzahl = 0
+    for e in eintraege:
+        if not e.is_dir() or not e.name.startswith(ARBEIT_PRAEFIX) or e.name in laufend:
+            continue
+        eid = e.name[len(ARBEIT_PRAEFIX) :]
+        if not RE_ID12.match(eid):
+            continue
+        pfad = Path(e.path)
+        anzahl += 1
+        try:
+            inhalt = pfad / "inhalt"
+            hat_inhalt = inhalt.is_dir() and any(inhalt.iterdir())
+            if hat_inhalt and (pfad / "meta.json").exists() and not (papierkorb / eid).exists():
+                os.rename(pfad, papierkorb / eid)
+                _LOGGER.warning("papierkorb: Eintrag %s nach abgebrochenem Zurückholen wieder eingeordnet", eid)
+            elif not hat_inhalt:
+                shutil.rmtree(pfad, ignore_errors=True)
+                _LOGGER.info("papierkorb: Rest von %s nach Zurückholen aufgeräumt", eid)
+        except OSError as err:
+            _LOGGER.warning("papierkorb: Arbeitsname %s nicht aufgeräumt: %s", e.name, err)
+    return anzahl
+
+
 def eintrag_fuer_seite(meta: dict[str, Any]) -> dict[str, Any]:
     """Papierkorb-Eintrag in der Form des Vertrags W (3.3)."""
     typ = meta.get("typ")
@@ -534,6 +580,8 @@ class Medien:
         self.pruefung_laeuft = False
         self._pruefung_task: asyncio.Task | None = None
         self._sperren: dict[str, asyncio.Lock] = {}
+        #: Arbeitsnamen von Einträgen, die gerade zurückgeholt werden (Namen nur ``.zurueck-<id>``); die Aufräumfunktion lässt sie in Ruhe
+        self._zurueck_laufend: set[str] = set()
         #: Suchindex über Einträge und Folgen (``bibliothek.py``)
         self.bibliothek = Bibliothek(self)
         #: (ordner, name) -> {"sig": …, "ergebnis": …, "hinweis": …}
@@ -720,6 +768,7 @@ class Medien:
             await self._medien_erreichbar()
             ordner, reserviert = await self._executor(self._liste_ordner)
             await self._executor(self._raeume_part_dateien)
+            await self._executor(raeume_arbeitsnamen, self.pfade.papierkorb, self._zurueck_laufend)
             stand_beginn = dict(self.serien)
             alt = {sid: i.serie.stand for sid, i in stand_beginn.items()}
             gesehen: dict[str, tuple[Serie, list[dict[str, Any]]]] = {}
@@ -1471,6 +1520,7 @@ class Medien:
 
     async def papierkorb_liste(self, limit: int, offset: int) -> dict[str, Any]:
         await self._medien_erreichbar()
+        await self._executor(raeume_arbeitsnamen, self.pfade.papierkorb, self._zurueck_laufend)
         alle = await self._executor(lese_papierkorb, self.pfade.papierkorb)
         return {
             "eintraege": [eintrag_fuer_seite(m) for m in alle[offset : offset + limit]],
@@ -1487,18 +1537,59 @@ class Medien:
                 return m
         raise TobiboxFehler("eintrag_nicht_gefunden")
 
+    async def _raeume_eintrag_weg(self, eintrag_pfad: Path) -> Path:
+        """Benennt den Eintrag in einem Schritt in seinen Arbeitsnamen um und gibt dessen Pfad zurück.
+
+        Danach sieht ``lese_papierkorb`` den Eintrag nicht mehr, auch nicht halb. Das Umbenennen innerhalb desselben
+        Ordners ist atomar: Der Eintrag ist entweder ganz unter ``<id>`` oder ganz unter ``.zurueck-<id>``."""
+        arbeit = eintrag_pfad.with_name(ARBEIT_PRAEFIX + eintrag_pfad.name)
+        self._zurueck_laufend.add(arbeit.name)
+        try:
+            await self._executor(os.rename, eintrag_pfad, arbeit)
+        except FileNotFoundError as err:  # ein gleichzeitiger Aufruf war schneller
+            self._zurueck_laufend.discard(arbeit.name)
+            raise TobiboxFehler("eintrag_nicht_gefunden") from err
+        except OSError as err:
+            self._zurueck_laufend.discard(arbeit.name)
+            raise self._fehler_schreiben(err) from err
+        return arbeit
+
+    async def _fertig_zurueckgeholt(self, arbeit: Path) -> None:
+        self._zurueck_laufend.discard(arbeit.name)
+
+    async def _eintrag_zurueckstellen(self, arbeit: Path, eintrag_pfad: Path) -> None:
+        """Rückweg bei einem Fehler vor dem Löschen: Der Eintrag bekommt seinen Namen zurück (bleibt ganz im Papierkorb).
+
+        Gelingt auch das nicht, bleibt der Arbeitsname liegen; ``raeume_arbeitsnamen`` ordnet ihn später ein."""
+        try:
+            await self._executor(os.rename, arbeit, eintrag_pfad)
+        except OSError as err:
+            _LOGGER.error("papierkorb: %s nicht zurückbenannt: %s", arbeit.name, err)
+        finally:
+            self._zurueck_laufend.discard(arbeit.name)
+
     async def papierkorb_wiederherstellen(self, eintrag_id: str, serie_id: str | None) -> dict[str, Any]:
+        """Stellt einen Eintrag wieder her (Vertrag W, Nr. 11).
+
+        Reihenfolge, damit ein gleichzeitiges ``papierkorb/list`` nie einen halben Eintrag sieht (AC6): Erst alle
+        Prüfungen, die ablehnen können, dann ``_papierkorb/<id>/`` -> ``_papierkorb/.zurueck-<id>/`` (ein atomarer
+        Schritt), dann Inhalt zurücklegen, zuletzt den Arbeitsordner löschen. Scheitert etwas vor dem Löschen, wird der
+        Arbeitsname zurückbenannt (und eine schon verschobene Folge zurückgelegt): nichts geht verloren. Bricht HA
+        mitten drin ab, bleibt höchstens ein Arbeitsordner liegen, den ``raeume_arbeitsnamen`` aufräumt (siehe dort)."""
         await self._medien_erreichbar()
         meta = await self._meta(eintrag_id)
         typ = meta.get("typ")
         eintrag_pfad = self.pfade.papierkorb / eintrag_id
-        inhalt = eintrag_pfad / "inhalt" / str(meta.get("name"))
         if typ == "eingang":
             async with self.hub.eingang.sperre:
+                arbeit = await self._raeume_eintrag_weg(eintrag_pfad)
+                inhalt = arbeit / "inhalt" / str(meta.get("name"))
                 try:
-                    await self._executor(self._stelle_in_eingang_wieder_her, inhalt, eintrag_pfad)
+                    await self._executor(self._stelle_in_eingang_wieder_her, inhalt, arbeit)
                 except (OSError, NamenErschoepft) as err:
+                    await self._eintrag_zurueckstellen(arbeit, eintrag_pfad)
                     raise self._fehler_schreiben(err) from err
+                await self._fertig_zurueckgeholt(arbeit)
             self.hub.emit("eingang", "geaendert", {})
             self.hub.emit("medien", "papierkorb_geaendert", {})
             return {"serie": None, "folge": None}
@@ -1514,20 +1605,33 @@ class Medien:
                 belegt |= {vergleichsschluessel(n) for n in serie.folgen}
                 if vergleichsschluessel(name) in belegt:
                     raise TobiboxFehler("datei_existiert")
+                arbeit = await self._raeume_eintrag_weg(eintrag_pfad)
+                inhalt = arbeit / "inhalt" / name
                 try:
                     await self._executor(dateien.verschiebe_ohne_ueberschreiben, inhalt, pfad / name)
                 except dateien.ZielExistiert as err:
+                    await self._eintrag_zurueckstellen(arbeit, eintrag_pfad)
                     raise TobiboxFehler("datei_existiert") from err
                 except OSError as err:
+                    await self._eintrag_zurueckstellen(arbeit, eintrag_pfad)
                     raise self._fehler_schreiben(err) from err
                 serie.folgen.append(name)  # hinten, die alte Position wird nicht gemerkt
                 if isinstance(meta.get("folge_info"), dict):
                     serie.folgen_info[name] = _bereinige_info(meta["folge_info"])
                 try:
                     await self._executor(schreibe_serie, pfad, serie)
-                    await self._executor(shutil.rmtree, eintrag_pfad, True)
                 except OSError as err:
+                    # serie.json nicht geschrieben: Folge zurück in den Eintrag, Eintrag zurück in den Papierkorb
+                    serie.folgen.remove(name)
+                    serie.folgen_info.pop(name, None)
+                    try:
+                        await self._executor(dateien.verschiebe_ohne_ueberschreiben, pfad / name, inhalt)
+                    except OSError as err2:
+                        _LOGGER.error("papierkorb: %s nicht zurückgelegt: %s", name, err2)
+                    await self._eintrag_zurueckstellen(arbeit, eintrag_pfad)
                     raise self._fehler_schreiben(err) from err
+                await self._executor(shutil.rmtree, arbeit, True)  # Reste (meta.json) räumt sonst raeume_arbeitsnamen auf
+                await self._fertig_zurueckgeholt(arbeit)
                 self.hub.eingang.index_wiederherstellen(meta.get("index_pruefsummen") or [], f"{pfad.name}/{name}")
                 info = await self._aktualisiere_cache(serie, pfad.name)
             self.hub.dauer.anstossen([ziel_id])  # die Dauer der zurückgeholten Folge fehlt (Hintergrund)
@@ -1541,16 +1645,22 @@ class Medien:
                 raise TobiboxFehler("serie_existiert")
             wunsch = str(meta.get("serie_ordner") or meta.get("name"))
             async with self.sperren(str(sid)):
+                arbeit = await self._raeume_eintrag_weg(eintrag_pfad)
+                inhalt = arbeit / "inhalt" / str(meta.get("name"))
                 try:
                     ordner = await self._executor(self._stelle_serie_wieder_her, inhalt, wunsch)
                 except (OSError, NamenErschoepft) as err:
+                    await self._eintrag_zurueckstellen(arbeit, eintrag_pfad)
                     raise self._fehler_schreiben(err) from err
                 pfad = self.pfad_serie(ordner)
                 serie, _ = await self._executor(lese_serie, pfad)
                 if serie is None:
+                    # Ordner liegt schon im Medienordner; die nächste Prüfung nimmt ihn auf, der Arbeitsrest wird gelöscht
+                    await self._fertig_zurueckgeholt(arbeit)
                     raise TobiboxFehler("medien_schreibfehler")
                 serie.ordner = ordner
-                await self._executor(shutil.rmtree, eintrag_pfad, True)
+                await self._executor(shutil.rmtree, arbeit, True)
+                await self._fertig_zurueckgeholt(arbeit)
                 self.hub.eingang.index_wiederherstellen(meta.get("index_pruefsummen") or [], f"{ordner}/")
                 info = await self._aktualisiere_cache(serie, ordner, [])
             self.hub.dauer.anstossen([serie.id])  # die Dauern der zurückgeholten Serie fehlen (Hintergrund)

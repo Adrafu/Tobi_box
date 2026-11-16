@@ -64,6 +64,9 @@ test('Beschriftung des Knopfs je Hörstelle: Reinhören, Hier weiterhören mit Z
   assert.equal(P.knopfText({ name: 'Wiegenlied', folgen: [{ name: 'w', anzeige: 'Wiegenlied' }] }, { spielt: true }).zusatz, 'Wiegenlied · läuft', 'bei einer einzigen Folge der Name des Eintrags');
   const einzeln = P.knopfText({ name: 'Wiegenlied', hoerstelle: { folge: 'w' }, folgen: [{ name: 'w', anzeige: 'Wiegenlied', hoerstelle: { position_s: 61, fertig: false } }] });
   assert.equal(einzeln.zusatz, 'Wiegenlied · ab 1:01', 'bei einer einzigen Folge steht der Name des Eintrags');
+  const fast0 = P.knopfText({ name: 'Wiegenlied', hoerstelle: { folge: 'w' }, folgen: [{ name: 'w', anzeige: 'Wiegenlied', hoerstelle: { position_s: 3, fertig: false } }] });
+  assert.equal(fast0.zusatz, 'Wiegenlied', 'unter 5 s kein „ab …“');
+  assert.equal(P.knopfText({ name: 'Wiegenlied', hoerstelle: { folge: 'w' }, folgen: [{ name: 'w', anzeige: 'Wiegenlied', hoerstelle: { position_s: 5, fertig: false } }] }).zusatz, 'Wiegenlied · ab 0:05');
   assert.equal(P.knopfText({ name: 'S', folgen: [] }), null);
 });
 

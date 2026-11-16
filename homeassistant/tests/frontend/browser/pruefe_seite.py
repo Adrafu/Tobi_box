@@ -3021,6 +3021,24 @@ ABLAEUFE = [ablauf_unterkante, ablauf_reiter, ablauf_klicks, ablauf_reihen, abla
 
 
 # ------------------------------------------------------------------ Browser und Läufe
+# Abläufe, in denen die Seite Audio bewusst wechselt (Spulen, Folgenwechsel, Kapitelsprung, Neuladen, Fehlerwiederholung): dort sind abgebrochene Abrufe erlaubt
+AUDIO_ABBRUCH_ERLAUBT = ("ablauf_player", "ablauf_kapitel", "ablauf_wechsel_serie", "ablauf_play_pause_lage", "ablauf_serie_zeile")
+
+
+def audio_pruefen(L: Lauf, abrufe: list[dict]):
+    """Je Signatur (signierter Pfad) höchstens ein nicht abgebrochener Abruf von vorn (Spulen holt per Range von der Mitte, das zählt nicht);
+    abgebrochene Abrufe sind nur in den Abläufen erlaubt, die bewusst wechseln. Ein doppeltes Laden derselben Datei fällt so auf."""
+    je: dict[str, list] = defaultdict(list)
+    for a in abrufe:
+        if not a["abgebrochen"] and a["von"] == 0:
+            je[(a["ablauf"], a["url"])].append(a)
+        elif a["abgebrochen"] and not (a["ablauf"] or "").startswith(AUDIO_ABBRUCH_ERLAUBT) and a["ablauf"] is not None:
+            L.befund("extra", "audio-abbruch", f"Abgebrochener Audio-Abruf außerhalb eines Wechsels ({a['ablauf']}): {a['url'][-60:]}")
+    for (_, url), liste in je.items():  # je Ablauf: jeder Ablauf beginnt mit einem frischen Player, der Mock vergibt dieselbe Signatur im Lauf wieder
+        if len(liste) > 1:
+            L.befund("extra", "audio-doppelt", f"{len(liste)} Abrufe derselben Signatur nicht abgebrochen (Ablauf {liste[0]['ablauf']}, Range {[(a['req'].headers or {}).get('range') for a in liste]}): …{url[-70:]}")
+
+
 def finde_browser(p):
     """Rückgabe: Argumente für chromium.launch. Reihenfolge: TOBIBOX_BROWSER, /usr/bin/google-chrome, Playwright-Chromium."""
     pfad = os.environ.get("TOBIBOX_BROWSER")
@@ -3180,7 +3198,28 @@ def lauf_job(job):
                 pg.on("pageerror", lambda e: konsole.append(f"pageerror: {e}"))
                 pg.on("response", lambda r: konsole.append(f"HTTP {r.status} {r.url}") if r.status >= 400 and not (r.status in (413, 507) and r.url.endswith("/api/tobibox/upload")) and not (r.status == 503 and "/api/tobibox/audio/" in r.url) else None)
                 # Das Neuladen mitten im Hochladen (Ablauf „liste-neuladen“) bricht die laufende Anfrage ab: gewollt
-                pg.on("requestfailed", lambda r: konsole.append(f"requestfailed {r.url} {r.failure}") if not ((r.url.endswith("/api/tobibox/upload") or "/ev?" in r.url or "/api/tobibox/audio/" in r.url.split("?")[0]) and "ERR_ABORTED" in str(r.failure)) else None)  # Neuladen (Abläufe „liste-neuladen“, „player-neuladen“) bricht die laufende Anfrage, die Abfrage der Ereignisse und das noch ladende Audio ab (nur Audio-Pfad, nur ERR_ABORTED): gewollt
+                # Audio-Abrufe werden einzeln gezählt (AC-Rest 6): je Signatur höchstens ein Abruf von vorn, der nicht abgebrochen wird; Abbrüche nur in Abläufen, die bewusst wechseln
+                audio_abrufe: list[dict] = []
+                aktuell = {"ablauf": None}
+
+                def _audio_start(r):
+                    pfad = r.url.split("?")[0]
+                    if "/api/tobibox/audio/" in pfad:
+                        rng = (r.headers or {}).get("range", "")
+                        audio_abrufe.append({"req": r, "url": r.url, "von": (int(m.group(1)) if (m := re.match(r"bytes=(\d+)-", rng)) else 0), "ablauf": aktuell["ablauf"], "abgebrochen": False})
+
+                def _fehlgeschlagen(r):
+                    abgebrochen = "ERR_ABORTED" in str(r.failure)
+                    for a in audio_abrufe:
+                        if a["req"] is r:
+                            a["abgebrochen"] = abgebrochen
+                            if abgebrochen:
+                                return
+                    if abgebrochen and (r.url.endswith("/api/tobibox/upload") or "/ev?" in r.url):  # Neuladen mitten im Hochladen und die Abfrage der Ereignisse: gewollt
+                        return
+                    konsole.append(f"requestfailed {r.url} {r.failure}")
+                pg.on("request", _audio_start)
+                pg.on("requestfailed", _fehlgeschlagen)
                 q = f"theme={job['thema']}&k={job['profil']}~{job['kennung']}" + (f"&pw={job['breite']}" if job["art"] == "panel" else "") + ("&hs=256" if job["art"] == "ha" else "")
                 pg.goto(f"{job['basis']}/seite.html?{q}")
                 pg.wait_for_function("() => window.__el && window.__el.shadowRoot && window.__el.shadowRoot.querySelector('main') && window.__mess", timeout=15000)
@@ -3194,9 +3233,12 @@ def lauf_job(job):
                     for f in ABLAEUFE:
                         if job.get("nur") and not any(n in f.__name__ for n in job["nur"]):
                             continue
+                        aktuell["ablauf"] = f.__name__
                         with L.schritt(f.__name__):
                             L.aufraeumen()
                             f(L)
+                aktuell["ablauf"] = None
+                audio_pruefen(L, audio_abrufe)
                 ergebnis.update(befunde=L.befunde, hinweise=L.hinweise, zustaende=L.zustaende, schritte=L.schritte)
                 ergebnis["layout"] = job["layout"]
             finally:

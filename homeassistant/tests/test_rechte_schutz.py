@@ -532,6 +532,96 @@ async def test_letzte_stunde_nennt_uebersprungenes_und_holt_den_rest(admin, norm
     assert e2["id"] not in [e["id"] for e in (await ok(admin, "papierkorb/list"))["eintraege"]]
 
 
+# --- AC6: Zurückholen räumt den Eintrag erst unter einem Arbeitsnamen weg ---
+
+
+def _mitten_im_zurueckholen(monkeypatch, nas, beobachtet: list, vorher=None):
+    """Ruft in jedem Verschieben (mitten im Zurückholen) ``lese_papierkorb`` auf, wie ein gleichzeitiges ``papierkorb/list``."""
+    from custom_components.tobibox import dateien, media
+
+    echt = dateien.verschiebe_ohne_ueberschreiben
+
+    def spion(quelle, ziel):
+        beobachtet.append(sorted(m["id"] for m in media.lese_papierkorb(nas.papierkorb)))
+        beobachtet.append(sorted(p.name for p in nas.papierkorb.iterdir()))
+        if vorher:
+            vorher()
+        return echt(quelle, ziel)
+
+    monkeypatch.setattr(dateien, "verschiebe_ohne_ueberschreiben", spion)
+
+
+async def test_letzte_stunde_liste_sieht_keinen_halben_eintrag(admin, normal, nas, lege_mp3, integration, monkeypatch, caplog):
+    for n in ("a", "b", "c"):
+        lege_mp3(nas.medien / "rabe" / f"{n}.mp3")
+    await integration.medien.pruefen()
+    ids = [(await ok(normal, "folge/delete", serie_id="rabe", folge=f"{n}.mp3"))["eintrag"]["id"] for n in ("a", "b", "c")]
+    beobachtet: list = []
+    _mitten_im_zurueckholen(monkeypatch, nas, beobachtet)
+    caplog.clear()
+    r = await ok(admin, "papierkorb/restore_letzte_stunde", bestaetigt=True)
+    assert r == {"wiederhergestellt": 3, "uebersprungen": []}
+    assert len(beobachtet) == 6
+    listen, ordner = beobachtet[0::2], beobachtet[1::2]
+    for gelistet, auf_platte in zip(listen, ordner):
+        assert gelistet == sorted(n for n in auf_platte if len(n) == 12)  # jeder Eintrag unter seiner ID ist ganz und gelistet
+        assert any(n.startswith(".zurueck-") for n in auf_platte)  # der laufende Eintrag steht unter dem Arbeitsnamen
+    assert "papierkorb_unvollstaendig" not in caplog.text
+    assert sorted(ids) == sorted(i for i in ids)
+    assert [p.name for p in nas.papierkorb.iterdir()] == []  # nichts liegen geblieben
+
+
+async def test_restore_einzeln_liste_sieht_keinen_halben_eintrag(admin, normal, nas, lege_mp3, integration, monkeypatch, caplog):
+    lege_mp3(nas.medien / "rabe" / "a.mp3")
+    await integration.medien.pruefen()
+    eid = (await ok(normal, "folge/delete", serie_id="rabe", folge="a.mp3"))["eintrag"]["id"]
+    beobachtet: list = []
+    _mitten_im_zurueckholen(monkeypatch, nas, beobachtet)
+    caplog.clear()
+    await ok(admin, "papierkorb/restore", eintrag_id=eid)
+    assert beobachtet[0] == []  # die Liste kennt den Eintrag in dem Moment nicht mehr
+    assert "papierkorb_unvollstaendig" not in caplog.text
+    assert (nas.medien / "rabe" / "a.mp3").exists()
+    assert list(nas.papierkorb.iterdir()) == []
+
+
+async def test_restore_abbruch_vor_dem_zuruecklegen_verliert_nichts(admin, normal, nas, lege_mp3, integration, monkeypatch):
+    from custom_components.tobibox import dateien
+
+    lege_mp3(nas.medien / "rabe" / "a.mp3")
+    await integration.medien.pruefen()
+    eid = (await ok(normal, "folge/delete", serie_id="rabe", folge="a.mp3"))["eintrag"]["id"]
+
+    def kaputt(quelle, ziel):
+        raise OSError("Platte voll")
+
+    monkeypatch.setattr(dateien, "verschiebe_ohne_ueberschreiben", kaputt)
+    assert await fehler(admin, "papierkorb/restore", eintrag_id=eid) == "medien_schreibfehler"
+    monkeypatch.undo()
+    assert [p.name for p in nas.papierkorb.iterdir()] == [eid]  # unter dem alten Namen wieder da
+    assert [e["id"] for e in (await ok(admin, "papierkorb/list"))["eintraege"]] == [eid]
+    await ok(admin, "papierkorb/restore", eintrag_id=eid)  # und lässt sich danach zurückholen
+    assert (nas.medien / "rabe" / "a.mp3").exists()
+
+
+async def test_liegen_gebliebener_arbeitsname_wird_aufgeraeumt(admin, normal, nas, lege_mp3, integration):
+    """Absturz mitten im Zurückholen: Arbeitsname mit Inhalt kommt zurück, leerer Rest wird gelöscht."""
+    for n in ("a", "b"):
+        lege_mp3(nas.medien / "rabe" / f"{n}.mp3")
+    await integration.medien.pruefen()
+    e1 = (await ok(normal, "folge/delete", serie_id="rabe", folge="a.mp3"))["eintrag"]["id"]
+    e2 = (await ok(normal, "folge/delete", serie_id="rabe", folge="b.mp3"))["eintrag"]["id"]
+    # e1: abgebrochen vor dem Zurücklegen (Inhalt noch da); e2: abgebrochen nach dem Zurücklegen (nur meta.json übrig)
+    (nas.papierkorb / e1).rename(nas.papierkorb / f".zurueck-{e1}")
+    (nas.papierkorb / e2).rename(nas.papierkorb / f".zurueck-{e2}")
+    (nas.papierkorb / f".zurueck-{e2}" / "inhalt" / "b.mp3").unlink()
+    r = await ok(admin, "papierkorb/list")  # das Listen räumt auf
+    assert [e["id"] for e in r["eintraege"]] == [e1]
+    assert [p.name for p in nas.papierkorb.iterdir()] == [e1]
+    await ok(admin, "papierkorb/restore", eintrag_id=e1)
+    assert (nas.medien / "rabe" / "a.mp3").exists()
+
+
 # --------------------------------------------------------------------------
 # 10 frühere Stände der Liste
 # --------------------------------------------------------------------------

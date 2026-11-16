@@ -949,13 +949,30 @@ test('AM19: serie/get kommt schon beim Antippen (Zeiger runter) und wird beim Se
   const id = zeile.dataset.serie;
   const vorher = aufrufe(s, 'serie/get').length;
   zeile.dispatchEvent(new window.Event('pointerdown', { bubbles: true, composed: true }));
-  await s.flush(4);
+  await warte(150); await s.flush(4);
   assert.equal(aufrufe(s, 'serie/get').length, vorher + 1, 'beim Antippen geholt');
   assert.equal(aufrufe(s, 'serie/get').at(-1).serie_id, id);
   await geheZu(s, zeile.getAttribute('href'));
   await s.flush(8);
   assert.equal(aufrufe(s, 'serie/get').length, vorher + 1, 'die Serienseite nimmt die Antwort und fragt nicht noch einmal');
   assert.ok(s.q('main h2'), 'die Seite steht');
+  weg();
+});
+
+test('AM19: beim Scrollen über Zeilen wird nichts vorgeladen (Bewegung oder Abbruch des Zeigers)', MIT_DOM, async () => {
+  const s = await seite({ viele: true, hash: '#bibliothek' });
+  await s.flush(10);
+  const zeile = s.q('.lrow');
+  const vorher = aufrufe(s, 'serie/get').length;
+  const ev = (typ, x, y) => { const e = new window.Event(typ, { bubbles: true, composed: true }); e.clientX = x; e.clientY = y; e.pointerType = 'touch'; zeile.dispatchEvent(e); };
+  ev('pointerdown', 100, 100); ev('pointermove', 100, 130); // Finger wandert: Scrollen
+  await warte(200); await s.flush(4);
+  ev('pointerdown', 100, 100); ev('pointercancel', 100, 100); // der Browser übernimmt das Scrollen
+  await warte(200); await s.flush(4);
+  assert.equal(aufrufe(s, 'serie/get').length, vorher, 'nichts geholt');
+  ev('pointerdown', 100, 100); ev('pointermove', 101, 102); // kleines Zittern ist noch Antippen
+  await warte(200); await s.flush(4);
+  assert.equal(aufrufe(s, 'serie/get').length, vorher + 1, 'ruhiges Antippen holt');
   weg();
 });
 

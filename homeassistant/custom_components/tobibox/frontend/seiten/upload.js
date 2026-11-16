@@ -39,6 +39,13 @@ export function neueId() {
 
 export const endung = (name) => { const m = /\.([^./\\]+)$/.exec(String(name ?? '')); return m ? m[1].toLowerCase() : ''; };
 export const ohneEndung = (name) => String(name ?? '').replace(/\.[^./\\]+$/, '');
+const AUDIO_ENDUNGEN = new Set(['mp3', 'm4a', 'm4b', 'aac', 'flac', 'ogg', 'oga', 'opus', 'wav', 'wma', 'aif', 'aiff', 'mp4']);
+/* AC8: schneidet alle Audio-Endungen am Ende ab („x.mp3.mp3“ → „x“, „y.m4a.mp3“ → „y“); eine andere Endung bleibt bis auf die letzte stehen. */
+export function ohneAudioEndungen(name) {
+  let n = ohneEndung(name);
+  while (AUDIO_ENDUNGEN.has(endung(n)) && n.replace(/\.[^./\\]+$/, '') !== '') n = ohneEndung(n);
+  return n;
+}
 
 /* „2 GB“, „500 MB“, „1,5 GB“: die Zahl für den Text von `datei_zu_gross` (aus `hello.grenzen.upload_max_bytes`; das Design sagt GB für 2 GiB). */
 export function grenzeText(bytes) {
@@ -76,7 +83,7 @@ export function pruefeDateien(dateien, grenzen = {}, { ordner = false } = {}) {
 
 /* Name einer Datei ohne Endung, ohne führende Nummer: „01 Der Hafen.mp3“ → „Der Hafen“ (nie leer). */
 export function titelAusDateiname(name) {
-  const roh = ohneEndung(name).replace(/_/g, ' ').trim();
+  const roh = ohneAudioEndungen(name).replace(/_/g, ' ').trim();
   const t = roh.replace(/^\s*(?:(?:track|titel|kapitel|folge|teil|lied)\s*)?\d+\s*(?:[-–.)\]:]\s*|\s+)/i, '').trim();
   return t || roh || String(name ?? '');
 }
@@ -86,7 +93,7 @@ export function titelAusDateiname(name) {
 export function nameVorschlag(dateien, angaben = []) {
   const album = (angaben[0]?.album || '').trim();
   if (album) return album;
-  const namen = dateien.map((d) => ohneEndung(d.name).replace(/_/g, ' ').trim());
+  const namen = dateien.map((d) => ohneAudioEndungen(d.name).replace(/_/g, ' ').trim());
   if (namen.length > 1) {
     let p = namen[0];
     for (const n of namen.slice(1)) { let i = 0; while (i < p.length && i < n.length && p[i].toLowerCase() === n[i].toLowerCase()) i += 1; p = p.slice(0, i); }

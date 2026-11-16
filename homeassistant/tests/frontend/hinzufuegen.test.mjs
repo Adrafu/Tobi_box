@@ -131,6 +131,9 @@ test('Vorschläge: Titel ohne Nummer, Name aus Album oder gemeinsamem Anfang, Ar
   assert.equal(U.nameVorschlag(HAFEN(), [{ album: 'Kapitän Knopf' }]), 'Kapitän Knopf');
   assert.equal(U.nameVorschlag([datei('Kapitän Knopf 01.mp3'), datei('Kapitän Knopf 02.mp3')]), 'Kapitän Knopf');
   assert.equal(U.nameVorschlag([datei('Der Mond und der Fuchs.mp3')]), 'Der Mond und der Fuchs');
+  assert.equal(U.nameVorschlag([datei('x.mp3.mp3')]), 'x', 'AC8: doppelte Endung');
+  assert.equal(U.nameVorschlag([datei('y.m4a.MP3')]), 'y', 'AC8: gemischte Audio-Endungen, groß/klein egal');
+  assert.equal(U.nameVorschlag([datei('Die Reise.teil.mp3')]), 'Die Reise.teil', 'AC8: andere Endungen bleiben');
   assert.equal(U.artVorschlag([datei('a.m4b')]), 'hoerbuch');
   assert.equal(U.artVorschlag([datei('a.mp3')], [{ genre: 'Hörspiel' }]), 'hoerspiel');
   assert.equal(U.artVorschlag([datei('a.mp3')], [{ genre: 'Pop' }]), 'musik');
@@ -1182,6 +1185,13 @@ const nasFertig = (teil = {}) => eingangEintrag({ name: 'Bibi-Ordner', art: 'ord
 const nasLaeuft = (teil = {}) => eingangEintrag({ name: 'Neuer-Ordner', art: 'ordner', dateien: 6, quelle: 'nas', status: 'laeuft', fertig_am: null, zuerst_gesehen: minuten(1), ...teil });
 const karteMit = (s, teil) => karten(s).find((k) => kText(k).includes(teil));
 const bandText = (s) => s.q('[data-eingang-band]')?.textContent.replace(/\s+/g, ' ').trim();
+
+test('AC11: Ordner ohne Audiodatei zeigt nur den Namen, ohne „1 Datei:“', { ...MIT_DOM }, async () => {
+  const s = await start({ eingangErledigt: [nasFertig({ name: 'Nur-Bilder', dateien: 0, ergebnis: [] })] });
+  try {
+    assert.equal(karteMit(s, 'Nur-Bilder').querySelector('[data-titel-eintrag]').textContent.trim(), 'Nur-Bilder');
+  } finally { weg(); }
+});
 
 test('Liste: Einträge vom NAS erscheinen ohne Upload-Schritt, mit „vom NAS“, „Wird einsortiert …“ und „Daraus ist geworden“', { ...MIT_DOM }, async () => {
   const s = await start({ eingang: [nasLaeuft()], eingangErledigt: [nasFertig()] });

@@ -544,7 +544,17 @@ if (lit) {
       };
       this._onResize = () => this._messeBreite();
       this._coverKlick = (e) => this._coverMerken(e);
-      this._coverZeiger = (e) => { const a = e.target?.closest?.('a[data-serie]'); this._grossVorladen(a?.querySelector('.cover[data-cover]')); this._serieVorladen(a?.dataset?.serie); };
+      /* Vorladen nur bei echter Absicht (nicht beim Scrollen): Zeiger runter, dann kurz warten; bewegt sich der Finger mehr als ein paar Pixel (Scrollen) oder bricht der Zeiger ab, wird nichts geholt. Maus-Hover: ab 100 ms. */
+      this._coverZeiger = (e) => {
+        const a = e.target?.closest?.('a[data-serie]'); if (!a) return;
+        const los = () => { clearTimeout(this._vorTimer); this._vorTimer = null; this._vorStart = null; };
+        los();
+        this._vorStart = { x: e.clientX ?? 0, y: e.clientY ?? 0, a };
+        this._vorTimer = setTimeout(() => { const s = this._vorStart; los(); if (s) this._vorladenVon(s.a); }, e.pointerType === 'mouse' ? 100 : 80);
+      };
+      this._coverBewegt = (e) => { const s = this._vorStart; if (s && Math.hypot((e.clientX ?? 0) - s.x, (e.clientY ?? 0) - s.y) > 6) { clearTimeout(this._vorTimer); this._vorTimer = null; this._vorStart = null; } };
+      this._coverEnde = (e) => { const s = this._vorStart; if (!s) return; clearTimeout(this._vorTimer); this._vorTimer = null; this._vorStart = null; if (e.type === 'pointerup') this._vorladenVon(s.a); }; // Loslassen ohne Bewegung zählt als Absicht
+
     }
 
     /* ---- Lebenslauf */
@@ -571,6 +581,9 @@ if (lit) {
       this.renderRoot.addEventListener('focusout', this._fokusAus);
       this.renderRoot.addEventListener('click', this._coverKlick, true);
       this.renderRoot.addEventListener('pointerdown', this._coverZeiger, true);
+      this.renderRoot.addEventListener('pointermove', this._coverBewegt, true);
+      this.renderRoot.addEventListener('pointerup', this._coverEnde, true);
+      this.renderRoot.addEventListener('pointercancel', this._coverEnde, true);
       this._vv = window.visualViewport;
       this._vvFn = () => this._tastatur(this.renderRoot.activeElement);
       this._vv?.addEventListener?.('resize', this._vvFn);
@@ -592,6 +605,10 @@ if (lit) {
       this.renderRoot.removeEventListener('focusout', this._fokusAus);
       this.renderRoot.removeEventListener('click', this._coverKlick, true);
       this.renderRoot.removeEventListener('pointerdown', this._coverZeiger, true);
+      this.renderRoot.removeEventListener('pointermove', this._coverBewegt, true);
+      this.renderRoot.removeEventListener('pointerup', this._coverEnde, true);
+      this.renderRoot.removeEventListener('pointercancel', this._coverEnde, true);
+      clearTimeout(this._vorTimer);
       clearTimeout(this._hintenTimer);
       this._vv?.removeEventListener?.('resize', this._vvFn);
       this.spieler.abmelden();
@@ -775,6 +792,8 @@ if (lit) {
     }
 
     /* AM7: das große Cover schon beim Antippen holen (Zeiger runter, bevor die Adresse wechselt); die Serienseite nimmt dasselbe Versprechen aus dem Speicher. */
+    _vorladenVon(a) { this._grossVorladen(a?.querySelector('.cover[data-cover]')); this._serieVorladen(a?.dataset?.serie); }
+
     _grossVorladen(c) {
       const id = c?.dataset?.cover; const stand = c?.dataset?.stand;
       if (id && stand && stand !== '?') coverGrossUrl(this._covers, id, stand);
@@ -1730,6 +1749,8 @@ if (lit) {
       nav.tabs a[aria-current="page"] { color: var(--primary-ink); }
       nav.tabs .ti { display: grid; place-items: center; width: 56px; height: 32px; border-radius: 16px; }
       nav.tabs a[aria-current="page"] .ti { background: var(--primary-soft); }
+      .dot.ruhig[data-punkt="papierkorb"] { width: 8px; height: 8px; border-radius: 4px; border: 1px solid var(--card); } /* AC10: kleiner und dezenter als der Punkt der Bibliothek */
+      .rund .dot.ruhig[data-punkt="papierkorb"] { top: 8px; right: 8px; }
       nav.tabs .dot.ruhig { display: inline-block; min-width: 0; width: 12px; height: 12px; padding: 0; top: 8px; left: calc(50% + 14px); background: var(--primary-ink); border: 2px solid var(--card); box-sizing: content-box; }
       nav.tabs .dot { position: absolute; top: 4px; left: calc(50% + 6px); min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--danger); color: var(--card); font-size: 12px; line-height: 18px; text-align: center; font-weight: 700; }
       nav.tabs.unten { flex: none; box-shadow: 0 -2px 12px var(--shadow); padding: 0 max(8px, env(safe-area-inset-left, 0px)) var(--sab) max(8px, env(safe-area-inset-right, 0px)); }
