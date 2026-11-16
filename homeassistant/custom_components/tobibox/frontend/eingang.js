@@ -199,7 +199,9 @@ function gruppenSatz(g) {
   const n = g.posten.length;
   if (g.neu) {
     // Hörbuch: eine Folge mit den Dateien als Kapitel; sonst je Datei eine Folge
-    const zahl = art === 'hoerbuch' && n === 1 ? Math.max(1, Number(g.posten[0].tracks) || 1) : n;
+    const hoerbuchEins = art === 'hoerbuch' && n === 1;
+    const zahl = hoerbuchEins ? Math.max(1, Number(g.posten[0].tracks) || 1) : n;
+    if (hoerbuchEins && zahl === 1) return fuellen(EINGANG.daraus_neu_ohne_zahl, { ...werte, art: EINGANG.art[art] }); // AM26: unbekannt, keine Zahl
     const einheit = einheitWort(EINGANG.einheit, art || 'hoerspiel', zahl);
     return art ? fuellen(EINGANG.daraus_neu, { ...werte, art: EINGANG.art[art], einheit }) : fuellen(EINGANG.daraus_neu_ohne_art, { ...werte, einheit });
   }

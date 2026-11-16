@@ -19,14 +19,14 @@ gelöscht):
 2. ``serie.json`` der betroffenen Serien ohne diese Folgen schreiben; die vom Eintrag **neu angelegten** Serien (jetzt ohne Folgen)
    gehen in den Papierkorb (``grund="manuell"``, ``geloescht_von``).
 3. Den Wunsch (14.4) je Datei in den Vorgaben des Eingangs festhalten, Prüfsummen aus dem Index nehmen, alte Protokollzeile entfernen,
-   sofort speichern. Dann sortiert der Eingang nach seiner Ruhezeit ein und meldet ``neu_einsortiert``.
+   sofort speichern. Dann sortiert der Eingang sofort ein (ohne Ruhezeit, AM25) und meldet ``neu_einsortiert``.
 
 **Was bei einem Abbruch übrig bleibt** (Neustart von HA oder Fehler mitten drin): keine Datei geht verloren, schlimmstenfalls steht eine
 Folge doppelt da.
 
 * vor Schritt 1 zu Ende: nichts geändert.
 * mitten in Schritt 1 (Neustart): die schon verschobenen Folgen liegen im Eingang unter dem neuen Ordner, ohne Wunsch; der Eingang sortiert
-  sie nach der Ruhezeit nach den Tags ein (wie jede neue Datei). Die alte Serie führt sie noch in ``serie.json`` auf, bis ``medien/pruefen`` läuft.
+  sie nach seiner Ruhezeit nach den Tags ein (wie jede neue Datei). Die alte Serie führt sie noch in ``serie.json`` auf, bis ``medien/pruefen`` läuft.
 * zwischen Schritt 1 und 3: wie oben, nur ist ``serie.json`` schon bereinigt.
 * Schreibfehler in Schritt 2: der Ablauf macht trotzdem mit Schritt 3 weiter (die Dateien liegen ja schon im Eingang und sollen nach dem
   Wunsch einsortiert werden) und meldet danach ``medien_schreibfehler``; eine Serie kann dann noch Folgen aufführen, deren Datei fehlt
@@ -446,7 +446,9 @@ async def neu_einsortieren(
             if zeile.get("quelle") == "upload":
                 eingang.upload_quelle.add(neuer_ordner)
             eingang.protokoll = [p for p in eingang.protokoll if p is not zeile]
-            # Der neue Eintrag ist **kein** ``upload_eintraege``: die Ruhezeit des Eingangs gilt wie beim Einsortieren (2.4)
+            # AM25: Zurückgeholte Dateien sind vollständig, also keine Ruhezeit: der Eintrag zählt für die Bereitschaft wie ein Upload
+            # (``upload_eintraege``, nur im Speicher; nach einem Neustart gilt die Ruhezeit wieder). ``upload_quelle`` (Herkunft) bleibt wie oben.
+            eingang.upload_eintraege.add(neuer_ordner)
             await eingang.speichern_sofort()
     # --- danach (ohne Sperre) ---
     nummer = {"typ": "einsortierung", "id": eintrag_id, "anzeige": zeile.get("name"), "geloescht_am": jetzt_iso()}
@@ -461,7 +463,7 @@ async def neu_einsortieren(
     try:
         from .eingang import eintrag_id as id_von_name
 
-        await eingang.starte_durchlauf([id_von_name(neuer_ordner)])  # erfasst den neuen Eintrag; sortiert wird nach der Ruhezeit
+        await eingang.starte_durchlauf([id_von_name(neuer_ordner)])  # erfasst den neuen Eintrag und sortiert ihn gleich ein (AM25)
     except TobiboxFehler:
         _LOGGER.debug("Durchlauf nach „Anders einsortieren“ nicht gestartet", exc_info=True)
     return {"gestartet": True}

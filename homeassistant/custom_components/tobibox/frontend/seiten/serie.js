@@ -749,6 +749,8 @@ class SerieSeite {
       fort = html`<span class="pbar" role="progressbar" aria-label=${ZEILE.fortschritt} aria-valuemin="0" aria-valuemax="100" aria-valuenow=${p}><i style=${`width:${p}%`}></i></span>
         <span class="ls">${fuellen(ZEILE.rest, { dauer: uhr(Math.max(0, x.dauer_s - stelle)) })}</span>`;
     }
+    // AM27: Administratoren sehen bei fehlgeschlagener Hörkopie den Grund in einer kurzen Zeile
+    const keineProbe = this.ctx.admin && x.hoerkopie?.zustand === 'fehler' ? (SERIE.keine_probe.grund[x.hoerkopie.grund] || SERIE.keine_probe.sonst) : '';
     const laeuft = laeuftAn(this.id, x.name);
     const sp = this.ctx.faehig('reinhoeren') && !ordnen;
     // AM11: die ganze Zeile spielt. Ein durchsichtiger Knopf über der Zeilenfläche (Name wie der frühere Knopf) trägt die Bedienung; „⋯“ und die Tobie-Chips liegen darüber und bleiben eigene Ziele.
@@ -758,7 +760,7 @@ class SerieSeite {
     return html`<div class="frow se-zeile" data-folge=${x.name} ?data-play=${sp}>
       ${sp ? html`<button type="button" class="se-zeilenknopf" data-abspielen aria-label=${fuellen(geladen ? PLAYER.folge.oeffnen : PLAYER.folge.abspielen, { titel })}
         @click=${tippe}></button>` : nothing}<span class="se-num">${laeuft ? eq(abspiel.spielt) : html`<span aria-hidden="true">${x.nummer ?? i + 1}</span>`}</span>
-      <div class="grow"><span class="nm">${titel}</span>${meta ? html`<span class="muted se-meta-voll">${meta}</span>` : nothing}${teile.kapitel ? html`<span class="muted se-meta-kap">${teile.kapitel}</span>` : nothing}${fort}${folgenChips(this.id, x)}</div>
+      <div class="grow"><span class="nm">${titel}</span>${meta ? html`<span class="muted se-meta-voll">${meta}</span>` : nothing}${teile.kapitel ? html`<span class="muted se-meta-kap">${teile.kapitel}</span>` : nothing}${fort}${keineProbe ? html`<span class="ls se-keine-probe" data-keine-probe>${keineProbe}</span>` : nothing}${folgenChips(this.id, x)}</div>
       <span class="se-dauer" aria-hidden="true">${teile.dauer}</span>
       ${ordnen
         ? html`<button type="button" class="iconbtn se-ord" data-auf ?disabled=${i === 0} aria-label=${fuellen(SERIE.reihenfolge.hoch, { titel })} @click=${() => this.bewege(i, -1)}>▲</button>

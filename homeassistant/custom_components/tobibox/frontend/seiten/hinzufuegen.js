@@ -66,7 +66,7 @@ const dateienText = (n) => fuellen(n === 1 ? HINZU.dateien.eins : HINZU.dateien.
 const bereich = (wort, ab, n) => (n === 1 ? `${wort} ${ab}` : `${wort} ${ab}–${ab + n - 1}`);
 const artOk = (art) => (HINZU.satz.nummer[art] ? art : 'hoerspiel');
 
-/* „neues Hörbuch „Kapitän Knopf“, Kapitel 1–3“ (ein Kapitel: „… (ein Kapitel)“). */
+/* „neues Hörbuch „Kapitän Knopf“, Kapitel 1–3“ (eine Datei: „neues Hörbuch „…““, ohne Zahl, AM26). */
 export function neuTeil(art, name, n) {
   const a = artOk(art);
   const T = HINZU.satz;
@@ -225,6 +225,7 @@ export function ergebnisText(a) {
     if (s.einzeln) return fuellen(E.einzeln, { name, wort: T.einzeln_wort[art].eins });
     if (erg.some((x) => x.serie_neu)) {
       const tracks = erg.reduce((sum, x) => sum + Math.max(1, x.tracks || 1), 0);
+      if (art === 'hoerbuch' && erg.length === 1 && tracks === 1) return fuellen(E.hoerbuch_ohne_zahl, { name }); // AM26: eine Datei, Kapitelzahl unbekannt
       const zahl = art === 'hoerbuch' ? tracks : erg.length;
       const paar = { hoerbuch: E.kapitel, musik: E.lieder, hoerspiel: E.folgen, geschichte: E.geschichten }[art];
       return fuellen(E[art], { name, anzahl: fuellen(zahl === 1 ? paar.eins : paar.mehr, { anzahl: zahl }) });

@@ -253,6 +253,9 @@ def _nummer(t: str) -> int | None:
     return int(m.group(1)) if m else None
 
 
+_ANFANG_ZEICHEN = ".-_–— \t\u00a0"
+
+
 def bereinige_titel(titel: list[str]) -> list[str]:
     """Kapiteltitel einer Folge für die Ausgabe (AM22, AM23). Gleiche Länge und Reihenfolge; ``""`` heißt „die Seite zeigt Kapitel <Position>“.
 
@@ -264,10 +267,12 @@ def bereinige_titel(titel: list[str]) -> list[str]:
     3. Ist ein Titel nur eine Nummer („Track #02“, „Kapitel 01“, „03“), zeigt er „Kapitel n“ mit der Nummer aus dem Titel ohne führende Null.
        Ist die Nummer gleich der Position (1-basiert), bleibt es ``""`` (gleiche Anzeige). Kommt dieselbe Nummer in der Folge mehrfach vor (zwei
        Alben im Ordner), ist **jede** reine Nummer ``""`` (Position); so gibt es nie zwei gleiche „Kapitel n“.
-    4. Ein sprechender Titel, der in der Folge mehrfach vorkommt, ist ``""``."""
+    4. Ein sprechender Titel, der in der Folge mehrfach vorkommt, ist ``""``.
+    5. Führende ``.``, ``-``, ``_``, ``–``, ``—`` und Leerraum fallen am Ende weg (AM28), wenn danach noch Text bleibt."""
     roh = [anzeigename(t, KAPITEL_ROH_MAX) for t in titel]
     if len(roh) < 2:
         neu = list(roh)
+        text_aus_anfang = [False] * len(neu)
     else:
         mitte = _ende_weg(roh)
         neu = _anfang_weg(mitte)
@@ -282,6 +287,9 @@ def bereinige_titel(titel: list[str]) -> list[str]:
         if z is None:
             t = _ohne_fuehrende_nummer(t).strip()
             z = _nummer(t) if not geschuetzt or _GANZ_NUMMER.fullmatch(t) else None
+        if z is None:
+            # AM28: Satzzeichen und Leerraum am Anfang fallen weg („.Titelsong“, „- Intro“), solange noch Text bleibt
+            t = t.lstrip(_ANFANG_ZEICHEN) or t
         text.append(t if z is None else z)
     nummern = [x for x in text if isinstance(x, int)]
     eindeutig = len(nummern) == len(set(nummern))

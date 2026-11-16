@@ -83,19 +83,18 @@ async def test_neu_hoerbuch_serie_kommt_in_den_papierkorb_und_der_eingang_sortie
     ereignisse.clear()
     assert await neu(integration, zeile) == {"gestartet": True}
     await warte_ende(integration)
-    # die Dateien sind im Eingang, die alte Serie im Papierkorb (typ serie, grund manuell, geloescht_von), die alte Zeile ist weg
-    assert audio_anzahl(nas.eingang) == 2 and audio_anzahl(nas.medien) == 0  # die leere Hülle der Serie liegt im Papierkorb
+    # die alte Serie liegt im Papierkorb (typ serie, grund manuell, geloescht_von), die alte Zeile ist weg
     assert "Künstler" not in alle_serien(nas)
     (eintrag,) = lese_papierkorb(nas.papierkorb)
     assert (eintrag["typ"], eintrag["grund"], eintrag["serie_name"], eintrag["geloescht_von"]) == ("serie", "manuell", "Künstler", {"id": "admin-1", "name": "Admin"})
-    assert not integration.eingang.protokoll
-    # die Ruhezeit gilt: ohne ``sofort`` wird noch nichts einsortiert
-    erg = await integration.eingang.durchlauf_und_warten()
-    assert erg["eintraege"] == 0
-    erg = await sortiere(integration)
-    assert erg["eintraege"] == 1
+    assert [p["id"] for p in integration.eingang.protokoll] == [zeile["id"]]  # nur die neue Zeile (gleicher Name)
+    # AM25: ohne Warten auf ``EINGANG_RUHE_S`` einsortiert (wie ein Upload), ohne ``sofort``
+    assert not integration.eingang.upload_quelle  # die Herkunft bleibt: der alte Eintrag kam nicht per Upload
+    assert not integration.eingang.upload_eintraege  # nach dem Einsortieren ist die Ruhefreiheit wieder weg
+    assert integration.eingang.protokoll[-1]["id"] == zeile["id"]
     serie = alle_serien(nas)["Mein Hörbuch"]
     assert (serie["art"], serie["art_quelle"]) == ("hoerbuch", "manuell")
+    assert audio_anzahl(nas.eingang) == 0 and audio_anzahl(nas.medien) == 2
     assert len(serie["folgen"]) == 1  # hoerbuch: alle Dateien eine Folge
     assert audio_anzahl(nas.eingang) == 0
     neu_ereignisse = [e for e in ereignisse if e["thema"] == "eingang" and e["art"] == "neu_einsortiert"]
@@ -426,9 +425,8 @@ async def test_zweiter_aufruf(hass, integration, nas):
     await neu(integration, zeile)
     with pytest.raises(TobiboxFehler) as err:
         await neu(integration, zeile)
-    assert err.value.code == "neu_einsortieren_nicht_moeglich"  # der Eintrag ist wieder offen
+    assert err.value.code in ("neu_einsortieren_nicht_moeglich", "sortierung_laeuft")  # die alte Zeile ist weg (oder der Eingang gerade am Sortieren)
     await warte_ende(integration)
-    await sortiere(integration)
     # nach dem neuen Einsortieren gibt es eine neue Zeile mit eigenem Rückweg: wieder möglich, solange nichts geändert wurde
     neue_zeile = integration.eingang.protokoll[-1]
     assert neue_zeile["id"] == zeile["id"] and neue_zeile is not zeile
@@ -450,8 +448,12 @@ async def test_sortierung_laeuft(hass, integration, nas):
 async def test_name_im_eingang_belegt_der_neue_ordner_heisst_anders(hass, integration, nas):
     zeile = await einsortiert(integration, nas)
     erzeuge_audio(nas.eingang / "Quelle" / "n.mp3", frequenz=900, album="Fremd", album_artist="Wer")  # inzwischen wieder ein Eintrag „Quelle“
-    await neu(integration, zeile)
-    assert (nas.eingang / "Quelle (2)").is_dir() and (nas.eingang / "Quelle" / "n.mp3").exists()
+    with patch.object(integration.eingang, "_plane_nachlauf"):  # die fremde Datei wartet auf ihre Ruhezeit: kein Nachlauf-Timer im Test
+        await neu(integration, zeile)
+        await warte_ende(integration)
+    # der zurückgeholte Eintrag hieß „Quelle (2)“ und ist (ohne Ruhezeit) schon einsortiert; die fremde Datei blieb unberührt
+    assert integration.eingang.protokoll[-1]["name"] == "Quelle (2)"
+    assert (nas.eingang / "Quelle" / "n.mp3").exists() and not (nas.eingang / "Quelle (2)").exists()
 
 
 # --------------------------------------------------------------------------
@@ -465,6 +467,7 @@ async def test_zaehlt_als_papierkorb_aktion(hass, integration, nas, monkeypatch,
     z2 = await einsortiert(integration, nas, name="Zwei", interpret="B", start=411)
     with caplog.at_level("INFO"):
         await neu(integration, z1, nutzer=ALLTAG)
+    await warte_ende(integration)
     assert "Papierkorb: Alltag" in caplog.text  # Protokollzeile wie bei anderen Papierkorb-Aktionen
     with pytest.raises(TobiboxFehler) as err:
         await neu(integration, z2, nutzer=ALLTAG)
@@ -477,9 +480,9 @@ async def test_befehl_recht_alltag_und_ausgabe(hass, integration, nas, api, norm
     zeile = await einsortiert(integration, nas)
     antwort = await ok(normal, "einsortierung/neu", eintrag_id=zeile["id"], ziel="neu", art="hoerbuch", name="Mein Hörbuch")
     assert antwort == {"gestartet": True}
+    await warte_ende(integration)
     (eintrag,) = lese_papierkorb(nas.papierkorb)
     assert eintrag["geloescht_von"]["name"] == "Normal"
-    assert await fehler(api, "einsortierung/neu", eintrag_id=zeile["id"], ziel="neu", art="hoerbuch", name="Mein Hörbuch") == "neu_einsortieren_nicht_moeglich"
     assert await fehler(api, "einsortierung/neu", eintrag_id="0123456789ab", ziel="neu", art="hoerbuch", name="X") == "eintrag_nicht_gefunden"
     antwort = await senden(api, "einsortierung/neu", eintrag_id=zeile["id"], ziel="auto")
     assert antwort["error"]["code"] in ("wunsch_ungueltig", "neu_einsortieren_nicht_moeglich")

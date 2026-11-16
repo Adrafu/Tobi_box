@@ -497,6 +497,33 @@ mit('Menü der Serie (Administrator): „Hörkopie neu erzeugen“ nur bei einer
   assert.equal(t3.q('dialog[open] [data-menue="hoerkopie"]'), null);
 });
 
+mit('Serienseite (AM27): Administratoren sehen bei fehlgeschlagener Hörkopie den Grund kurz in der Folgenzeile, andere nichts', async () => {
+  const mitFae = [...REIN, 'hoerkopie'];
+  const erwartet = { unplausibel: 'Keine Hörprobe: Datei wirkt beschädigt', zu_lang: 'Keine Hörprobe: zu lang', zeitgrenze: 'Keine Hörprobe: Umwandeln dauerte zu lange', kein_speicher: 'Keine Hörprobe: kein Platz', ffmpeg_fehlt: 'Keine Hörprobe: Umwandler fehlt', unbekannt_xyz: 'Keine Hörprobe' };
+  for (const [grund, text] of Object.entries(erwartet)) {
+    const s = await spielSeite({ faehigkeiten: mitFae });
+    s.m.backend.serien.s1.folgen[0].hoerkopie = { zustand: 'fehler', grund };
+    await geheZu(s, '#serie-s1'); await s.flush(10);
+    const z = s.q('[data-folge] [data-keine-probe]');
+    assert.ok(z, grund);
+    assert.equal(z.textContent.trim(), text, grund);
+    assert.equal(s.qa('[data-keine-probe]').length, 1, 'nur die Folge mit Fehler');
+  }
+  const ohneGrund = await spielSeite({ faehigkeiten: mitFae });
+  ohneGrund.m.backend.serien.s1.folgen[0].hoerkopie = { zustand: 'fehler' };
+  await geheZu(ohneGrund, '#serie-s1'); await ohneGrund.flush(10);
+  assert.equal(ohneGrund.q('[data-keine-probe]').textContent.trim(), 'Keine Hörprobe');
+  const alltag = await spielSeite({ faehigkeiten: mitFae, darf: true, istAdmin: false });
+  alltag.m.backend.serien.s1.folgen[0].hoerkopie = { zustand: 'fehler', grund: 'unplausibel' };
+  await geheZu(alltag, '#serie-s1'); await alltag.flush(10);
+  assert.ok(alltag.q('[data-folge]'));
+  assert.equal(alltag.q('[data-keine-probe]'), null, 'Nicht-Administratoren sehen nichts Neues');
+  const fertig = await spielSeite({ faehigkeiten: mitFae });
+  fertig.m.backend.serien.s1.folgen[0].hoerkopie = { zustand: 'wartet' };
+  await geheZu(fertig, '#serie-s1'); await fertig.flush(10);
+  assert.equal(fertig.q('[data-keine-probe]'), null);
+});
+
 const ALLE = [...FAEHIGKEITEN, 'konfig_lesen', 'konfig_staende', 'hoerkopie', 'einstellungen', 'eingang_entfernen', 'zuordnung_uid'];
 async function technik(opts = {}, schlange) {
   const s = await seite({ hash: '', faehigkeiten: ALLE, ...opts });

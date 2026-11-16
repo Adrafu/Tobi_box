@@ -159,7 +159,7 @@ test('Sätze der Vorschau (a): neues Hörbuch, Album, Hörspiel, Geschichten, ei
   assert.equal(H.satzFuer(wahl({ ziel: 'neu', artNeu: 'hoerbuch', name: 'Kapitän Knopf' })), '3 Dateien → neues Hörbuch „Kapitän Knopf“, Kapitel 1–3.');
   assert.equal(H.satzFuer(wahl({ ziel: 'neu', artNeu: 'musik', name: 'Sommerlieder' }, 4)), '4 Dateien → neues Album „Sommerlieder“, Lied 1–4.');
   assert.equal(H.satzFuer(wahl({ ziel: 'neu', artNeu: 'hoerspiel', name: 'Die Wolkenreise' }, 8)), '8 Dateien → neues Hörspiel „Die Wolkenreise“, Folge 1–8.');
-  assert.equal(H.satzFuer(wahl({ ziel: 'neu', artNeu: 'hoerbuch', name: 'Das Buch' }, 1)), '1 Datei → neues Hörbuch „Das Buch“ (ein Kapitel).');
+  assert.equal(H.satzFuer(wahl({ ziel: 'neu', artNeu: 'hoerbuch', name: 'Das Buch' }, 1)), '1 Datei → neues Hörbuch „Das Buch“.'); // AM26: keine Zahl bei einer Datei
   assert.equal(H.satzFuer(wahl({ ziel: 'neu', artNeu: 'geschichte', name: 'Märchen' })), '3 Dateien → neue Geschichten „Märchen“, Geschichte 1–3.');
   assert.equal(H.satzFuer(wahl({ ziel: 'neu', artNeu: 'hoerspiel', name: '  ' })), '3 Dateien → neues Hörspiel „…“, Folge 1–3.');
 });
@@ -241,7 +241,8 @@ test('ergebnisText: Hörbuch mit Kapiteln, ergänzte Folgen, einzelnes Lied, meh
   const erg = (x) => ({ serie_id: 'x', serie_name: 'Kapitän Knopf', serie_neu: true, folge: 'f', tracks: 1, pruefen: false, ...x });
   const a = (ergebnis, details, wunsch = {}) => ({ wunsch, eingang: { ergebnis }, details });
   assert.equal(H.ergebnisText(a([erg({ tracks: 3 })], { x: { art: 'hoerbuch', folgen: [] } })), 'Hörbuch „Kapitän Knopf“ · 3 Kapitel');
-  assert.equal(H.ergebnisText(a([erg({ tracks: 1 })], { x: { art: 'hoerbuch', folgen: [] } })), 'Hörbuch „Kapitän Knopf“ · ein Kapitel');
+  assert.equal(H.ergebnisText(a([erg({ tracks: 1 })], { x: { art: 'hoerbuch', folgen: [] } })), 'Hörbuch „Kapitän Knopf“', 'AM26: eine Datei, Kapitelzahl unbekannt: keine Zahl');
+  assert.equal(H.ergebnisText(a([erg({ tracks: 1 }), erg({ folge: 'g', tracks: 1 })], { x: { art: 'hoerbuch', folgen: [] } })), 'Hörbuch „Kapitän Knopf“ · 2 Kapitel', 'AM26: mehrere Dateien behalten die Zahl');
   assert.equal(H.ergebnisText(a([erg({}), erg({ folge: 'g' })], { x: { art: 'musik', folgen: [] } })), 'Album „Kapitän Knopf“ · 2 Lieder');
   const folgen = Array.from({ length: 15 }, (_, i) => ({ name: `f${i + 1}`, nummer: i + 1 }));
   assert.equal(H.ergebnisText(a([erg({ serie_neu: false, serie_name: 'Lange Serie', folge: 'f13' }), erg({ serie_neu: false, serie_name: 'Lange Serie', folge: 'f14' }), erg({ serie_neu: false, serie_name: 'Lange Serie', folge: 'f15' })], { x: { art: 'hoerspiel', folgen } })),

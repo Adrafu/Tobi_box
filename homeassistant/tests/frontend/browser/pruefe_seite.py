@@ -2993,6 +2993,16 @@ def ablauf_kapitel(L: Lauf):
         L.pruefe("authSig=" in src and "wald.ogg" in src, "kapitel-hoerprobe", f"Bei „bereit“ ist keine Quelle gesetzt: {src!r}")
         kap_gleich(L, "kapitel-hoerprobe-lage", vor, L.js(KAP_SEITE_LAGE), "als die Karte ging (AM15)")
         player_aus(L)
+    with L.schritt("kapitel-keine-probe"):
+        # AM27: Administratoren sehen bei `hoerkopie.zustand = fehler` den Grund kurz in der Folgenzeile, Benutzer nichts
+        L.gehe("#serie-ogg")
+        L.warte_da('[data-folge="mond.mp3"]')
+        z = L.js("return [...sr.querySelectorAll('[data-keine-probe]')].map((e) => ({ t: e.textContent.trim(), in: !!e.closest('[data-folge=\"mond.mp3\"]'), breite: e.scrollWidth <= e.clientWidth + 1 }))")
+        if L.job["rolle"] == "admin":
+            L.pruefe(len(z) == 1 and z[0]["t"] == "Keine Hörprobe: Datei wirkt beschädigt" and z[0]["in"], "kapitel-keine-probe", f"Grund in der Folgenzeile fehlt oder falsch: {z}")
+            L.messe("kapitel-keine-probe")
+        else:
+            L.pruefe(not z, "kapitel-keine-probe", f"Nicht-Administratoren sehen den Grund: {z}")
     if L.job["rolle"] == "admin":
         with L.schritt("kapitel-technik"):
             L.gehe("#technik-speicher")

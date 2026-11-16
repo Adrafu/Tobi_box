@@ -349,3 +349,18 @@ def test_am23_zippel_und_conni_kapitelangaben_bleiben_mit_ausreisser():
     roh = ["Titellied"] + [f"Kapitel 1.1{s}", f"Kapitel 1.2 & Kapitel 2.1{s}", f"Kapitel 2.2{s}", f"Kapitel 3.1{s}"] + [f"Kapitel {i}.1{s}" for i in range(4, 12)]
     aus = bereinige_titel(roh)
     assert aus[:4] == ["Titellied", "Kapitel 1.1", "Kapitel 1.2 & Kapitel 2.1", "Kapitel 2.2"]
+
+
+def test_satzzeichen_am_anfang_fallen_weg_am28():
+    assert bereinige_titel([".Titelsong", "Wald", "Fluss"]) == ["Titelsong", "Wald", "Fluss"]
+    assert bereinige_titel(["- Intro", "_Wald", "– Fluss", "— Berg"]) == ["Intro", "Wald", "Fluss", "Berg"]
+    # nur Satzzeichen: bleibt, wie es ist
+    assert bereinige_titel(["...", "Wald"]) == ["...", "Wald"]
+    # ein einzelner Titel
+    assert bereinige_titel([".Titelsong"]) == ["Titelsong"]
+
+
+def test_satzzeichen_am_anfang_aendern_die_anderen_regeln_nicht():
+    assert bereinige_titel(["– 27 - Das kleine Gespenst", "Wald"]) == bereinige_titel(["– 27 - Das kleine Gespenst", "Wald"])
+    assert bereinige_titel(["100% Wolf", "Wald"]) == ["100% Wolf", "Wald"]
+    assert bereinige_titel(["01 - Intro", "02 - Wald"]) == ["Intro", "Wald"]

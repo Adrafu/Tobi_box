@@ -166,6 +166,7 @@ export const EINGANG = {
   gruppe_ohne_zahl: 'Es fehlt noch eine Datei. Wähle die fehlende Datei noch einmal. Kommt sie nicht, wird mit den vorhandenen einsortiert und mit „Bitte ansehen“ markiert.', // neu: Satz aus 6.1 ohne Zahlen (der Eingang nennt sie nicht)
   daraus: 'Daraus ist geworden: {text}', // Design 7.3 Punkt 3b
   daraus_neu: '{art} „{name}“ · {einheit}', // Design 7.3 3a: „Hörbuch „Kapitän Knopf“ · 3 Kapitel“
+  daraus_neu_ohne_zahl: '{art} „{name}“', // AM26: Hörbuch aus einer Datei, Kapitelzahl unbekannt
   daraus_neu_ohne_art: 'Neuer Eintrag „{name}“ · {einheit}', // neu, nicht im Design (Art unbekannt)
   daraus_dazu: '„{name}“ · {einheit}', // Design 7.3 3a: „„Lange Serie“ · Folge 13–15“ (ohne Nummern: „3 neue Folgen“)
   daraus_einzeln: '„{name}“ · {einheit}', // Design 7.3 3a: „„Der Mond und der Fuchs“ · einzelnes Lied“
@@ -438,7 +439,7 @@ export const HINZU = {
   satz: {
     neu: {
       hoerspiel: 'neues Hörspiel „{name}“, {nummern}', hoerbuch: 'neues Hörbuch „{name}“, {nummern}', musik: 'neues Album „{name}“, {nummern}', geschichte: 'neue Geschichten „{name}“, {nummern}',
-      hoerbuch_eins: 'neues Hörbuch „{name}“ (ein Kapitel)',
+      hoerbuch_eins: 'neues Hörbuch „{name}“' // AM26: eine Datei, die Kapitel kennt die Seite vorher nicht,
     },
     nummer: { hoerspiel: 'Folge', hoerbuch: 'Kapitel', musik: 'Lied', geschichte: 'Geschichte' }, // Wort vor der Nummer (Design 7.3)
     dazu_wort: { // „3 neue Folgen“, bei Hörbuch „neue Teile“, bei Album „neue Lieder“ (Design 7.3 Karte b)
@@ -504,6 +505,7 @@ export const HINZU = {
   abbrechen: 'Abbrechen', // Design 7.3 Punkt 7
   ergebnis: { // Design 7.3 (3a): was daraus geworden ist
     hoerbuch: 'Hörbuch „{name}“ · {anzahl}', musik: 'Album „{name}“ · {anzahl}', hoerspiel: 'Hörspiel „{name}“ · {anzahl}', geschichte: 'Geschichten „{name}“ · {anzahl}',
+    hoerbuch_ohne_zahl: 'Hörbuch „{name}“', // AM26
     kapitel: { eins: 'ein Kapitel', mehr: '{anzahl} Kapitel' }, lieder: { eins: '1 Lied', mehr: '{anzahl} Lieder' }, folgen: { eins: '1 Folge', mehr: '{anzahl} Folgen' }, geschichten: { eins: '1 Geschichte', mehr: '{anzahl} Geschichten' },
     dazu: '„{name}“ · {nummern}', einzeln: '„{name}“ · {wort}', einzeln_mehr: '{anzahl} {wort} (jedes steht für sich)', nur_name: '„{name}“', mehrere: '{anzahl} Einträge, zum Beispiel „{name}“', // Teile neu, nicht im Design
   },
@@ -936,6 +938,18 @@ export const SERIE = {
     dateien: 'Dateien in diesen Eintrag', // Design 5.6 / 7.3 (Menü des Eintrags; öffnet gleich die Vorschau „Zu Vorhandenem“)
     hoerkopie: 'Hörkopie neu erzeugen', // A8d, nur Administratoren, wenn eine Folge `hoerkopie.zustand = fehler` hat (Design 5.9, 10.2)
     hoerkopie_gemacht: { eins: '1 Folge wartet auf eine neue Hörkopie.', mehr: '{anzahl} Folgen warten auf eine neue Hörkopie.' },
+  },
+  keine_probe: { // AM27: nur Administratoren, Folgenzeile bei `hoerkopie.zustand = fehler`; kurz, ohne Erklärsatz (AM16). Gründe: Vertrag 11.4.7
+    sonst: 'Keine Hörprobe',
+    grund: {
+      unplausibel: 'Keine Hörprobe: Datei wirkt beschädigt',
+      kodieren_fehlgeschlagen: 'Keine Hörprobe: Datei wirkt beschädigt',
+      zu_lang: 'Keine Hörprobe: zu lang',
+      zeitgrenze: 'Keine Hörprobe: Umwandeln dauerte zu lange',
+      kein_speicher: 'Keine Hörprobe: kein Platz',
+      medien_nicht_erreichbar: 'Keine Hörprobe: NAS nicht erreichbar',
+      ffmpeg_fehlt: 'Keine Hörprobe: Umwandler fehlt',
+    },
   },
   reihenfolge: { fertig: 'Fertig mit Reihenfolge', hoch: '{titel} nach oben', runter: '{titel} nach unten' }, // Prototyp
   name: { titel: 'Umbenennen', label: 'Name', leer: 'Bitte einen Namen eingeben.', speichern: 'Speichern', gespeichert: 'Gespeichert.' }, // Prototyp

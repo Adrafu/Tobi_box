@@ -60,7 +60,7 @@ function bauen(schluessel) {
       folgen: [folge('teil1', 'Teil 1', { nummer: 1, art: 'ordner', tracks: 3, dauer_s: 120, spuren_s: [40, 40, 40], kapitel: [{ titel: 'Eins', start_s: 0, track: 0 }, { titel: 'Zwei', start_s: 40, track: 1 }, { titel: 'Drei', start_s: 80, track: 2 }] }),
         folge('teil2.mp3', 'Teil 2', { nummer: 2, dauer_s: 40 })] };
     b.serien.ogg = { id: 'ogg', name: 'Das Lied vom Wald', typ: 'normal', ordner: 'Ogg', pruefen: false, hinweise: [], art: 'musik', dauer_s: 40, cover_stand: null,
-      folgen: [folge('wald.ogg', 'Das Lied vom Wald', { nummer: 1, dauer_s: 40, hoerkopie: { zustand: 'nicht_angelegt' } }), folge('mond.mp3', 'Der Mond', { nummer: 2, dauer_s: 40 })] };
+      folgen: [folge('wald.ogg', 'Das Lied vom Wald', { nummer: 1, dauer_s: 40, hoerkopie: { zustand: 'nicht_angelegt' } }), folge('mond.mp3', 'Der Mond', { nummer: 2, dauer_s: 40, hoerkopie: { zustand: 'fehler', grund: 'unplausibel' } })] }; // AM27: Grund nur für Administratoren
     b.serien.leersammlung = { id: 'leersammlung', name: 'Leere Sammlung', typ: 'normal', ordner: 'Leer', pruefen: false, hinweise: [], art: 'hoerspiel', folgen: [] };
   }
   /* A8d: `audio/bereit` für die OGG-Folge: das erste Mal (und 1,5 s lang danach) `wird_vorbereitet`, dann `bereit` mit der Kopie; alle anderen Folgen wie im Mock. Der Zähler der Warteschlange

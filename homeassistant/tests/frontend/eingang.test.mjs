@@ -187,6 +187,13 @@ test('daraus: neu angelegt (Hörbuch mit Kapiteln, Hörspiel mit Folgen, Album),
   assert.equal(E.daraus(lied), 'Daraus ist geworden: „Der Mond und der Fuchs“ · einzelnes Lied');
 });
 
+test('daraus: Hörbuch aus einer Datei ohne bekannte Kapitelzahl nennt keine Zahl (AM26), mit mehreren Dateien bleibt sie', () => {
+  const buch = (n, tracks) => eingangEintrag({ wunsch: { art: 'hoerbuch', ziel: 'neu' }, ergebnis: Array.from({ length: n }, (_, i) => ergebnis({ serie_name: 'Kapitän Knopf', folge: `f${i}`, tracks })) });
+  assert.equal(E.daraus(buch(1, 1)), 'Daraus ist geworden: Hörbuch „Kapitän Knopf“');
+  assert.equal(E.daraus(buch(1, 3)), 'Daraus ist geworden: Hörbuch „Kapitän Knopf“ · 3 Kapitel');
+  assert.equal(E.daraus(buch(2, 1)), 'Daraus ist geworden: Hörbuch „Kapitän Knopf“ · 2 Kapitel');
+});
+
 test('daraus: NAS-Eintrag ohne Wunsch nimmt die Art der Serie; ohne Art „Neuer Eintrag“; mehrere Serien mit „und 2 weitere“; ohne Ergebnis leer', () => {
   const nas = eingangEintrag({ quelle: 'nas', wunsch: null, ergebnis: [ergebnis({ serie_name: 'Wolken', tracks: 2 }), ergebnis({ serie_name: 'Wolken', folge: 'b.mp3' })] });
   assert.equal(E.daraus(nas), 'Daraus ist geworden: Neuer Eintrag „Wolken“ · 2 Folgen');
