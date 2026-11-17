@@ -84,3 +84,9 @@ Stand 16.11. · Grundlage: `design_draft.md` Rev. 1, `review_goldfisch_box.md` (
 | G3-6 | **(PL)** Mehr als 400 Zeilen oder verbotene Kombination in `nach` → `invalid_format` |
 | G3-7 | **(PL)** Reinhören mit `dt > 30`: Kappung `1,5 × dt + 2` (höchstes Tempo der Seite) |
 | G3-8, G3-9 | **(PL)** so lassen: Etikett `abbruch` statt `dienst_ende` bei Neustart in der Pause ist ohne Folge für die Zahlen; ungefähres Datum ohne RTC steht so in „Was wird gezählt?“ nicht, ist aber im Vertrag als „ungefähr“ benannt |
+
+## Freigabe (17.11.)
+
+Tobias: „Geb ich frei“. Die Verträge aus `b0_entwurf/` gelten jetzt (`docs/protocol/mqtt-v1.md`,
+`docs/protocol/ha-websocket-v1.md`, `docs/data-model.md`, Version bleibt 1); das Design Rev. 3.1 ist angenommen und
+liegt als `docs/designs/gehoert.md`. Weiter mit B2a (Messung am iPhone mit Tobias), dann B1 ‖ B2.

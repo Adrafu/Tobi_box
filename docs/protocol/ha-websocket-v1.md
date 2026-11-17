@@ -5,7 +5,21 @@
     „Auflösung“ am Ende des Reports), mit Entscheidung M (Einsortieren nach Metadaten)
     und den Vorgaben der Projektleitung vom 09.11. (Abschnitt „Vorgaben der
     Projektleitung“ am Ende). Wartet auf die Freigabe durch Tobias. **Stand der Rechte, des Uploads und der
-    neuen Befehle: Änderungen 12.11. und 13.11. unten.**
+    neuen Befehle: Änderungen 12.11., 13.11. und 16.11. unten.**
+*   **Änderung 16.11. (Stufe B „Gehört“, Paket B0; Entwurf, wartet auf die Freigabe durch Tobias):** Grundlage `docs/egm/stufe-b/design_draft.md` (Rev. 3.1,
+    Abschnitte 3.3 bis 3.7, 4, 5, 6, 8, 11), `resolve.md` (Entscheidungen R1 bis R4 von Tobias, Rest Projektleitung) und `concepts_brief.md` Abschnitt 6 (Reste aus Stufe A).
+    Die Version bleibt 1; alles ist additiv (Abschnitt 9), mit den Ausnahmen unten. **Neu:** 7 Befehle (Nr. 50 bis 56, Abschnitt 3.14: `gehoert/zusammenfassung`, `gehoert/zuletzt`,
+    `technik/verlauf`, `gehoert/exportieren`, `gehoert/loeschen`, `favorit/set`, `favoriten/list`), 2 Fähigkeiten (`gehoert`, `favoriten`, 14.1), 2 Ereignisthemen (`gehoert`, `favoriten`,
+    4.9 und 4.10), 2 Fehlercodes (`wer_ungueltig`, `zu_viele_favoriten`, Abschnitt 7), der neue Abschnitt 15 (Zählregel, Quellen, Reinhören als Sitzungen, Konstanten), die Felder
+    `favorit` und `zuletzt_gehoert_am`, die Sortierungen `zuletzt_gehoert` und `meist_gehoert` und der Filter `favorit` (`serien/list`, `folgen/list`, `serie/get`, 14.2), das Feld
+    `akku_entitaet` in `boxen/list` (3.7), die optionalen Eingabefelder `spieler` und `spielt` bei `hoerstelle/set` (Nr. 41) und die Speicher in `data-model.md` (Abschnitt 12:
+    `gehoert.sqlite`, Store `tobibox.favoriten`; die Box-Seite in `mqtt-v1.md`, 3.3, 3.4, 3.7, 4.5). **Reste aus Stufe A (in derselben Revision):** `hello.grenzen.hoerkopie_schlange` (3.1),
+    AM24 und AM25 für „Anders einsortieren“ (2.4 und Nr. 43), `eingang/list` nennt die Dateinamen und die Zahl einer Gruppe (3.9), `einsortierung/bestaetigen` setzt `pruefen` im Protokoll des
+    Eingangs zurück (Nr. 28); die Klarstellungen zu `serien/list` ohne `limit` (Abschnitt 8) und zur Hörstelle je Folge mit `track` (14.2) stehen schon seit 12.11. bzw. 15.11. im Vertrag und sind
+    nur nachgezogen. **Nicht rückwärtskompatibel bzw. in der Zusicherung geändert:** (1) Nr. 41 `hoerstelle/set` war „Idempotent: ja“ und ist jetzt „nein“ (eine Wiederholung zählt keine Hörzeit doppelt,
+    der Endzustand der Hörstelle bleibt gleich), die Grenze steigt von 30 auf 60 Aufrufe je Minute und Benutzer (Lockerung); (2) die Fähigkeit `gehoert_reinhoeren`, die 14.1 nur als „geplant“ nannte,
+    **entfällt** (nie ausgeliefert); (3) der Fehlertext von `neu_einsortieren_nicht_moeglich` war falsch („oder jünger als 24 Stunden“) und ist berichtigt (Abschnitt 7); (4) die Prüfungen 3 bis 5
+    von `einsortierung/neu` heißen jetzt „seit dem Einsortieren“ (AM24, 2.4), das Verhalten entspricht dem gebauten Stand.
 *   **Änderung 14.11. (AC1, Tobias freigegeben; `docs/egm/ha-ui/vorschlag_sammelordner.md`): Sammelordner – Teil = Unterordner der ersten Ebene, CD/Disc-Ausnahme.**
     Neuer Begriff **Teil** (11.3): In einem Ordner-Eintrag ist jeder Unterordner der ersten Ebene ein Teil; Dateien direkt im Eintrag gehören zum Teil „Eintrag selbst“.
     Ein Unterordner, dessen Name nur eine CD- oder Disc-Angabe ist (`CD1`, `CD 2`, `Disc 1`, `Disk 2`, Groß/klein egal), ist kein eigener Teil, sondern gehört zum übergeordneten
@@ -63,7 +77,7 @@
     `papierkorb/list` und `hello`, 6 Fähigkeiten, 8 Fehlercodes (Abschnitt 7), 16 neue optionale Eingabefelder bei
     6 bestehenden Befehlen bzw. dem Upload, die Datenmodell-Ergänzungen in `data-model.md` (Store `tobibox.medieninfo`, Cover,
     `hoerkopien/`) und die Konstanten in 14.10 (Hörkopie-Grenzen **vorläufig, nach Messung A0b**).
-    Stufe B (Gehört) und Stufe C (Playlists): geplant, siehe Design Abschnitte 12 und 13; nicht Teil dieses Vertrags.
+    Stufe B (Gehört): seit der Änderung 16.11. Teil dieses Vertrags (Entwurf). Stufe C (Playlists): geplant, siehe Design Abschnitt 13; nicht Teil dieses Vertrags.
     *   **Klarstellungen K1–K5 (12.11., Freigabe Tobias):**
         *   K1: `serien/list` ohne `limit` liefert alle Einträge (bisheriges Verhalten); der Zusatz „höchstens 200“ entfällt (14.2).
         *   K2: Eine Funktion `cover_pruefen_und_skalieren` mit zwei Modi, `streng` (Foto-Upload) und `nachsichtig` (Tag-Bilder, mitgelieferte Dateien) (14.3, 14.10).
@@ -191,13 +205,13 @@ HA prüft bei einem WebSocket-Befehl nur, dass der Nutzer **angemeldet** ist. We
 | **alltag** | jeder angemeldete HA-Nutzer | kein Dekorator; für Nicht-Administratoren gelten zusätzlich die Schutzregeln in 2.4 (Zusatzprüfungen im Befehl, Fehler `unauthorized` oder der Code der Prüfung) |
 | **admin** | nur Administratoren | `@websocket_api.require_admin`; Fehler `unauthorized` |
 
-**Befehle nach Stufe** (Nr. wie in der Übersicht in Abschnitt 3; Nr. 37 bis 46 sind seit dem 12.11., Nr. 47 bis 49 seit dem 13.11. neu; Nr. 18 bis 20 stehen seit dem 13.11. wieder bei `admin`):
+**Befehle nach Stufe** (Nr. wie in der Übersicht in Abschnitt 3; Nr. 37 bis 46 sind seit dem 12.11., Nr. 47 bis 49 seit dem 13.11., Nr. 50 bis 56 seit dem 16.11. neu; Nr. 18 bis 20 stehen seit dem 13.11. wieder bei `admin`):
 
 | Stufe | Befehle |
 |---|---|
-| **lesen** | 1 `hello`, 2 `subscribe`, 3 `serien/list`, 4 `serie/get`, 10 `papierkorb/list`, 13 `neue_tobies/list`, 15 `zuordnung/list`, 21 `boxen/list` (ohne das Feld `ereignisse`), 29 `eingang/list`, 34 `konfig/get`, 35 `einstellungen/get`, 37 `folgen/list`, 40 `hoerstelle/get`, 42 `hoerstelle/liste`; HTTP: Cover (GET), Audio (GET, Anmeldung oder gültige Signatur) |
-| **alltag** | 6 `serie/rename`, 8 `folge/delete`, 9 `medien/pruefen`, 14 `neue_tobies/verwerfen`, 16 `zuordnung/set` (mit Name), 17 `zuordnung/remove`, 24 `serie/delete`, 25 `folge/rename`, 26 `folge/verschieben` (Ziel „Überraschungs-Serie“ nur Administratoren), 28 `einsortierung/bestaetigen`, 30 `eingang/sortieren` (ohne `sofort`), 36 `einstellungen/set` (ohne `lesezeichen_tage`; `leise_zeiten.zeitzone` wird ignoriert), 38 `serie/art_setzen`, 39 `audio/bereit`, 41 `hoerstelle/set` (nur die eigene Hörstelle), 43 `einsortierung/neu`, 47 `warteschlange/set`, 48 `warteschlange/list`, 49 `warteschlange/abbrechen`; HTTP: Upload, Cover (POST, DELETE `quelle=eigen`) |
-| **admin** | 5 `serie/create`, 7 `folgen/order`, 18 `lernmodus/start`, 19 `lernmodus/antwort`, 20 `lernmodus/abbrechen` (seit 13.11. wieder admin, X13a), 11 `papierkorb/restore`, 12 `papierkorb/empty`, 22 `box/sync`, 23 `liste/neu_ausrollen`, 27 `serien/zusammenfuehren`, 31 `konfig/export_lesen`, 32 `konfig/aus_export`, 33 `eingang/entfernen`, 44 `cover/neu_suchen`, 45 `hoerkopie/neu_erzeugen`, 46 `papierkorb/restore_letzte_stunde`; das Feld `ereignisse` von `boxen/list`; `eingang/sortieren` mit `sofort`; `einstellungen/set` mit `lesezeichen_tage` |
+| **lesen** | 1 `hello`, 2 `subscribe`, 3 `serien/list`, 4 `serie/get`, 10 `papierkorb/list`, 13 `neue_tobies/list`, 15 `zuordnung/list`, 21 `boxen/list` (ohne das Feld `ereignisse`), 29 `eingang/list`, 34 `konfig/get`, 35 `einstellungen/get`, 37 `folgen/list`, 40 `hoerstelle/get`, 42 `hoerstelle/liste`, 50 `gehoert/zusammenfassung`, 51 `gehoert/zuletzt`, 56 `favoriten/list`; HTTP: Cover (GET), Audio (GET, Anmeldung oder gültige Signatur) |
+| **alltag** | 6 `serie/rename`, 8 `folge/delete`, 9 `medien/pruefen`, 14 `neue_tobies/verwerfen`, 16 `zuordnung/set` (mit Name), 17 `zuordnung/remove`, 24 `serie/delete`, 25 `folge/rename`, 26 `folge/verschieben` (Ziel „Überraschungs-Serie“ nur Administratoren), 28 `einsortierung/bestaetigen`, 30 `eingang/sortieren` (ohne `sofort`), 36 `einstellungen/set` (ohne `lesezeichen_tage`; `leise_zeiten.zeitzone` wird ignoriert), 38 `serie/art_setzen`, 39 `audio/bereit`, 41 `hoerstelle/set` (nur die eigene Hörstelle), 43 `einsortierung/neu`, 47 `warteschlange/set`, 48 `warteschlange/list`, 49 `warteschlange/abbrechen`, 55 `favorit/set`; HTTP: Upload, Cover (POST, DELETE `quelle=eigen`) |
+| **admin** | 5 `serie/create`, 7 `folgen/order`, 18 `lernmodus/start`, 19 `lernmodus/antwort`, 20 `lernmodus/abbrechen` (seit 13.11. wieder admin, X13a), 11 `papierkorb/restore`, 12 `papierkorb/empty`, 22 `box/sync`, 23 `liste/neu_ausrollen`, 27 `serien/zusammenfuehren`, 31 `konfig/export_lesen`, 32 `konfig/aus_export`, 33 `eingang/entfernen`, 44 `cover/neu_suchen`, 45 `hoerkopie/neu_erzeugen`, 46 `papierkorb/restore_letzte_stunde`, 52 `technik/verlauf`, 53 `gehoert/exportieren`, 54 `gehoert/loeschen`; das Feld `ereignisse` von `boxen/list`; `eingang/sortieren` mit `sofort`; `einstellungen/set` mit `lesezeichen_tage` |
 
 **Lernmodus (seit 13.11.):** `lernmodus/start`, `lernmodus/antwort` und `lernmodus/abbrechen` sind ein Vorgang und wieder nur für Administratoren (X13a). Der Alltag legt neue Tobies über die Warteschlange an (3.13, Recht alltag). Das Ereignisthema `lernmodus` und das Feld `lernmodus` von `boxen/list` bleiben für jeden lesbar (nur Anzeige). *(Lücke im Design: Es sagt nichts zum Lesen des Zustands; unverändert gelassen, weil es nichts auslöst.)*
 
@@ -205,7 +219,9 @@ HA prüft bei einem WebSocket-Befehl nur, dass der Nutzer **angemeldet** ist. We
 
 **HA-Aktionen** (`services.py`, kein WebSocket-Befehl) ändern etwas und bleiben **nur für Administratoren** (`async_register_admin_service`; Sicherheitsbefund U1, 12.11.). Eine Aktion läuft also nie mit den Schutzregeln aus 2.4 für Nicht-Administratoren.
 
-**Hörstelle:** `hoerstelle/*` arbeitet nur mit der **eigenen** Hörstelle; die Benutzerkennung kommt aus der Verbindung (`connection.user.id`), nie aus der Eingabe. Auch Administratoren sehen keine fremden (Ausnahme: das Backend liest sie intern für die Prüfung in 2.4, zeigt sie aber nirgends). Reinhör-Daten und ihre Rechte (Stufe B): geplant, siehe Design `docs/designs/ha-oberflaeche.md`, Abschnitt 12.
+**Hörstelle:** `hoerstelle/*` arbeitet nur mit der **eigenen** Hörstelle; die Benutzerkennung kommt aus der Verbindung (`connection.user.id`), nie aus der Eingabe. Auch Administratoren sehen keine fremden (Ausnahme: das Backend liest sie intern für die Prüfung in 2.4, zeigt sie aber nirgends).
+
+**Gehört (seit 16.11., Stufe B):** Die **Stelle** zum Weiterhören bleibt privat (siehe oben). **Dass** jemand etwas gehört hat und wie lange, sehen alle angemeldeten Benutzer, auch Konten für Gäste (Befehle 50 und 51, Frage 23 des Designs; Entscheidung R1 bis R3). Löschen, Export und Technik-Verlauf (52 bis 54) sind nur für Administratoren. Favoriten gelten für die **ganze Familie**: alle lesen, alle setzen (55, 56). Die Kennung eines Tobies kommt in keinem dieser Daten vor (Frage 9).
 
 **Die Seite in der Seitenleiste** (`panel_custom`): bleibt `require_admin=True`, **bis Tobias die Abnahme von Teil A-1 gemacht hat**; erst dann öffnet der eigene kleine Schritt „Seite für alle öffnen“ sie (`require_admin=False`). Das blendet die Seite nur aus oder ein und **ersetzt keine Prüfung**: Das Backend prüft bei jedem Aufruf selbst. `hello.darf_schreiben` bleibt „Nutzer ist Administrator“ (der Name bleibt aus Gründen der Verträglichkeit); die Seite blendet „Technik“ danach aus. Das ist Komfort, keine Sicherheit. Die Rechte der Befehle gelten **ab Einführung im Backend**, auch ohne die Seite: Wer per WebSocket aufruft, darf die Alltagsbefehle als Nicht-Administrator benutzen.
 
@@ -239,7 +255,7 @@ Jeder Befehl nennt in „MQTT“, was er auslöst. Zusammengefasst:
 | veröffentlicht `tobibox/config` mit **neuer Listen-ID** | `liste/neu_ausrollen`, `konfig/aus_export` |
 | sendet `tobibox/<box>/cmd` (mit `id`, `erzeugt`, `ttl_s`) | `lernmodus/start` (`lernen`, 60 s), `lernmodus/abbrechen` (`lernen_abbrechen`, 30 s), `box/sync` (`sync`, 300 s), später `box/update` (`update`, 300 s) |
 | sendet `tobibox/<box>/unknown/<uid>/ack` | der Lernmodus (6.2: `zugeordnet`, `abgelehnt`). Die Bestätigung beim ersten Eintreffen einer Kennung (`neu`, `bekannt`) ist **Sache des Backends allein**, kein Befehl der Seite (`mqtt-v1.md`, 3.6). |
-| nichts | alle übrigen (Medien, Eingang, Papierkorb, Lesen, Verwerfen, `warteschlange/set`, `warteschlange/list`, `warteschlange/abbrechen`) |
+| nichts | alle übrigen (Medien, Eingang, Papierkorb, Lesen, Verwerfen, `warteschlange/set`, `warteschlange/list`, `warteschlange/abbrechen`, Gehört und Favoriten Nr. 50 bis 56). Die Quittung `gehoert_quittung` an die Box sendet das Backend selbst beim Eintreffen von `gespielt` und beim Handshake, **nicht** auf einen Befehl der Seite (`mqtt-v1.md`, 4.5) |
 
 Die **Reihenfolge** „erst Konfiguration, dann `ack`“ (Entscheidung H, 07.11.;
 `mqtt-v1.md`, 4.2) gilt für jeden Weg, der eine Zuordnung schreibt und danach
@@ -254,10 +270,10 @@ Weil „alltag“ alle HA-Benutzer meint, gilt für **Nicht-Administratoren** zu
 *   **`eingang/sortieren` ohne `sofort`:** `sofort=true` von einem Nicht-Administrator: `unauthorized`. Die Ruhezeit schützt halb kopierte Dateien.
 *   **`einstellungen/set`:** Das Backend **ignoriert** `leise_zeiten.zeitzone` im Objekt und behält den gespeicherten Wert (kein `unauthorized`); `lesezeichen_tage` von einem Nicht-Administrator: `unauthorized`. Neue optionale Eingabe `erwartet_revision` (3.11): stimmt sie nicht mit `konfig.revision` überein, Fehler `stand_veraltet`.
 *   **`folge/verschieben` mit der Überraschungs-Serie als Ziel:** Nicht-Administratoren bekommen `ziel_ungueltig` (die Serie bestimmt, was die Box beim unbekannten Tobie spielt).
-*   **Mengen** (je Benutzer, darüber `zu_viele_aenderungen`, HTTP 429; Zähler getrennt je Art): höchstens `AENDERUNGEN_JE_MINUTE` Änderungen der Liste (`zuordnung/set`, `zuordnung/remove`, `einstellungen/set`), höchstens `PAPIERKORB_AKTIONEN_JE_10_MIN` Papierkorb-Aktionen (`folge/delete`, `serie/delete`, `einsortierung/neu`), höchstens `UPLOAD_BYTES_JE_STUNDE` Upload, höchstens `COVER_JE_STUNDE` Cover-Uploads, höchstens `HOERSTELLE_SCHREIBEN_JE_MINUTE` Aufrufe von `hoerstelle/set`, höchstens `AUDIO_BEREIT_JE_MINUTE` Aufrufe von `audio/bereit`, höchstens `WARTESCHLANGE_AENDERUNGEN_JE_MINUTE` Aufrufe von `warteschlange/set` und `warteschlange/abbrechen` zusammen (seit 13.11.; ein Treffer beim Auflegen zählt nicht, er ist keine Handlung eines Benutzers). Die Liste bleibt unter `KONFIG_MAX_BYTES`, weil Kennungen nur bekannt oder gemeldet sein dürfen.
+*   **Mengen** (je Benutzer, darüber `zu_viele_aenderungen`, HTTP 429; Zähler getrennt je Art): höchstens `AENDERUNGEN_JE_MINUTE` Änderungen der Liste (`zuordnung/set`, `zuordnung/remove`, `einstellungen/set`), höchstens `PAPIERKORB_AKTIONEN_JE_10_MIN` Papierkorb-Aktionen (`folge/delete`, `serie/delete`, `einsortierung/neu`), höchstens `UPLOAD_BYTES_JE_STUNDE` Upload, höchstens `COVER_JE_STUNDE` Cover-Uploads, höchstens `HOERSTELLE_SCHREIBEN_JE_MINUTE` Aufrufe von `hoerstelle/set` (seit 16.11. 60 statt 30, weil `spielt` die Seite öfter rufen lässt; 15.3), höchstens `FAVORITEN_JE_MINUTE` Aufrufe von `favorit/set` (seit 16.11., eigener Zähler), höchstens `AUDIO_BEREIT_JE_MINUTE` Aufrufe von `audio/bereit`, höchstens `WARTESCHLANGE_AENDERUNGEN_JE_MINUTE` Aufrufe von `warteschlange/set` und `warteschlange/abbrechen` zusammen (seit 13.11.; ein Treffer beim Auflegen zählt nicht, er ist keine Handlung eines Benutzers). Die Liste bleibt unter `KONFIG_MAX_BYTES`, weil Kennungen nur bekannt oder gemeldet sein dürfen.
 *   **Frühere Stände der Liste:** Die Integration behält die letzten `KONFIG_STAENDE_ANZAHL` Stände als `export/config.<n>.json` (`<n>` = 1 der jüngste frühere Stand) zusätzlich zu `export/config.json`. Lesen und Zurückspielen (beides admin): `konfig/export_lesen` und `konfig/aus_export` bekommen die optionale Eingabe `stand` (ganze Zahl 1 bis `KONFIG_STAENDE_ANZAHL`; fehlt sie, gilt der aktuelle Export wie bisher); `konfig/export_lesen` gibt zusätzlich `staende` aus (Liste aus `stand`, `exportiert_am`, `anzahl_zuordnungen`). Fähigkeit `konfig_staende`. Fehler wie bisher, dazu `export_nicht_gefunden` für einen Stand, den es nicht gibt. *(Ergänzung zum Design: Das Design nennt „Frühere Stände ansehen“ und „Aus Stand wiederherstellen“, legt die Schnittstelle aber nicht fest.)*
 *   **Papierkorb für Alltag:** Löschen mit Tobies verlangt wie bisher `tobies_bestaetigt`. (a) **Keine HA-Mitteilung** (Änderung 14.11., AC3, Tobias: HA-Mitteilungen sehen alle Benutzer): Die Seite zeigt Administratoren einen Punkt am Technik-Symbol, wenn andere Benutzer seit dem letzten Besuch etwas in den Papierkorb gelegt haben (aus `papierkorb/list`, `geloescht_von`, `geloescht_am`). (b) Jede Papierkorb-Aktion schreibt eine Protokollzeile (Benutzer, Zeit, Eintrag) und merkt `geloescht_von` im Papierkorb-Eintrag (3.3). (c) `papierkorb/restore_letzte_stunde` (Nr. 46) holt zurück, was in der letzten Stunde hineinkam. Es gibt **kein Tageslimit**.
-*   **`einsortierung/neu` (Nr. 43):** nimmt nur Einträge aus `eingang/list`, die `pruefen=true` sind **oder** höchstens `EINSORTIERUNG_NEU_ALTER_MAX_S` alt (seit `fertig_am`); sonst `neu_einsortieren_nicht_moeglich`. Es zählt als Papierkorb-Aktion, die Ruhezeit gilt wie beim Einsortieren. **Liste der „etwas geändert“-Prüfungen** (jede einzelne genügt für `neu_einsortieren_nicht_moeglich`): (1) eine der betroffenen Serien oder Folgen wurde umbenannt; (2) eine Folge wurde in eine andere Serie verschoben oder die Reihenfolge der Folgen wurde geändert (der `stand` der Serie weicht von dem ab, den das Protokoll nach dem Einsortieren gemerkt hat); (3) ein Tobie zeigt auf eine betroffene Serie oder Folge; (4) `art_quelle` einer betroffenen Serie ist `manuell`; (5) eine betroffene Serie hat ein eigenes Cover (`cover-eigen.jpg`); (6) irgendein Benutzer hat eine betroffene Folge angehört (das Backend liest dafür **intern** auch fremde Hörstellen und zeigt sie nirgends); (7) in einer Serie, die der Eintrag neu angelegt hatte, liegen Folgen, die nicht von diesem Eintrag stammen.
+*   **`einsortierung/neu` (Nr. 43):** nimmt nur Einträge aus `eingang/list`, die `pruefen=true` sind **oder** höchstens `EINSORTIERUNG_NEU_ALTER_MAX_S` alt (seit `fertig_am`); sonst `neu_einsortieren_nicht_moeglich`. Es zählt als Papierkorb-Aktion. **Keine Ruhezeit (AM25, 16.11., Tobias):** Die zurückgeholten Dateien sortiert der Eingang **sofort** ein, wie einen Upload; die Ruhezeit schützt Dateien, die noch auf das NAS kopiert werden, und zurückgeholte Dateien sind immer vollständig. **Nur Einträge, die ab Paket A3e einsortiert wurden** (mit gemerktem Rückweg), lassen sich anders einsortieren; ältere bekommen `neu_einsortieren_nicht_moeglich`. Im Blatt „Was ist das?“ gibt es kein „Sortier du“ (Nr. 43 kennt kein `auto`). **Liste der „etwas geändert“-Prüfungen** (jede einzelne genügt für `neu_einsortieren_nicht_moeglich`): (1) eine der betroffenen Serien oder Folgen wurde umbenannt; (2) eine Folge wurde in eine andere Serie verschoben oder die Reihenfolge der Folgen wurde geändert (der `stand` der Serie weicht von dem ab, den das Protokoll nach dem Einsortieren gemerkt hat); (3) ein Tobie zeigt auf eine betroffene **Folge** oder auf eine Serie, die der Eintrag **neu angelegt** hat (diese verschwindet mit ihm); Tobies auf schon vorher vorhandene Serien zählen nicht (AM24, 16.11.); (4) `art_quelle` einer betroffenen Serie ist **seit dem Einsortieren** auf `manuell` gesetzt oder die Art wurde geändert (ein Upload mit Wunsch legt seine Serie von Anfang an mit `manuell` an: das zählt nicht); (5) eine betroffene Serie hat **seit dem Einsortieren** ein eigenes Cover (`cover-eigen.jpg`); (6) irgendein Benutzer hat eine betroffene Folge angehört (das Backend liest dafür **intern** auch fremde Hörstellen und zeigt sie nirgends); (7) in einer Serie, die der Eintrag neu angelegt hatte, liegen Folgen, die nicht von diesem Eintrag stammen. **Zusätzlich** (vor allem anderen geprüft, nichts wird angefasst): Sind die Dateien einer Folge nicht mehr genau die einsortierten (Namen und Größen), geht es nicht.
 *   **Warteschlange (seit 13.11., 3.13):** Anlegen und Abbrechen für alle Benutzer (Recht alltag) unter der Menge oben und der Höchstzahl `WARTESCHLANGE_MAX`. Die Zuordnung beim Auflegen läuft als System (kein Benutzer, keine Mengen) und **hängt nie einen bekannten Tobie um**; sie nimmt nur Kennungen, die eine Box gerade gemeldet hat und die noch kein Ziel haben. Jede Anlage, jedes Abbrechen und jeder Treffer schreibt eine Protokollzeile; eine Mitteilung an Administratoren gibt es nicht (3.13, Regel 13).
 *   **Vorziehen von Hörkopien:** je Benutzer höchstens `HOERKOPIE_VORZIEHEN_JE_BENUTZER` Datei zugleich (14.8).
 *   **Audio:** höchstens `AUDIO_VERBINDUNGEN_JE_BENUTZER` offene Audio-Verbindungen je Benutzer (14.5). Der HA-eigene Befehl `auth/sign_path` darf jeder angemeldete Benutzer aufrufen; die Signatur trägt seine Identität und gibt ihm keine Rechte, die er nicht ohnehin hat.
@@ -314,7 +330,7 @@ Pflichtfelder sind fett. Fehlercodes: Tabelle in Abschnitt 7.
 | 38 | `tobibox/serie/art_setzen` | alltag | ja | – |
 | 39 | `tobibox/audio/bereit` | alltag | ja | – |
 | 40 | `tobibox/hoerstelle/get` | lesen | ja | – |
-| 41 | `tobibox/hoerstelle/set` | alltag | ja | – |
+| 41 | `tobibox/hoerstelle/set` | alltag | nein (seit 16.11.; Wiederholung zählt keine Hörzeit doppelt) | – |
 | 42 | `tobibox/hoerstelle/liste` | lesen | ja | – |
 | 43 | `tobibox/einsortierung/neu` | alltag | nein | – |
 | 44 | `tobibox/cover/neu_suchen` | admin | ja | – |
@@ -323,10 +339,17 @@ Pflichtfelder sind fett. Fehlercodes: Tabelle in Abschnitt 7.
 | 47 | `tobibox/warteschlange/set` | alltag | mit `anfrage_id` | – |
 | 48 | `tobibox/warteschlange/list` | alltag | ja | – |
 | 49 | `tobibox/warteschlange/abbrechen` | alltag | ja | – |
+| 50 | `tobibox/gehoert/zusammenfassung` | lesen | ja | – |
+| 51 | `tobibox/gehoert/zuletzt` | lesen | ja | – |
+| 52 | `tobibox/technik/verlauf` | admin | ja | – |
+| 53 | `tobibox/gehoert/exportieren` | admin | ja (jeder Aufruf liefert einen neuen Pfad) | – |
+| 54 | `tobibox/gehoert/loeschen` | admin | ja (Endzustand) | – |
+| 55 | `tobibox/favorit/set` | alltag | ja | – |
+| 56 | `tobibox/favoriten/list` | lesen | ja | – |
 
 Dazu der HA-eigene Befehl `unsubscribe_events` zum Beenden eines Abos (Abschnitt 4).
 Die Befehle 33 bis 36 sind seit dem 09.11. (AP 4.7) gültig; ihre Fähigkeiten stehen in `hello`.
-Die Befehle 37 bis 46 und die Stufen `lesen`, `alltag`, `admin` sind seit dem 12.11. festgelegt (Abschnitt 2.1, 3.12, 14); an den Befehlen 1 bis 36 steht „Recht“ statt „Rechte“. Die Befehle 47 bis 49 (Abschnitt 3.13) sind seit dem 13.11. festgelegt; seit dem 13.11. sind 18 bis 20 wieder `admin`.
+Die Befehle 37 bis 46 und die Stufen `lesen`, `alltag`, `admin` sind seit dem 12.11. festgelegt (Abschnitt 2.1, 3.12, 14); an den Befehlen 1 bis 36 steht „Recht“ statt „Rechte“. Die Befehle 47 bis 49 (Abschnitt 3.13) sind seit dem 13.11. festgelegt; seit dem 13.11. sind 18 bis 20 wieder `admin`. Die Befehle 50 bis 56 (Abschnitt 3.14) sind seit dem 16.11. festgelegt (Entwurf B0).
 **Reserviert** für später (Namen sind vergeben, der Inhalt kommt in der jeweiligen
 Stufe): Abschnitt 10.
 
@@ -373,6 +396,7 @@ Zuordnung, `data-model.md`, Abschnitt 2).
 | `anzahl_pruefen` | int | Folgen dieser Serie mit „bitte prüfen“ |
 | `hinweise` | array | Hinweise zu dieser Serie, siehe unten |
 | *(seit 12.11.)* | | weitere Ausgabefelder `art`, `art_quelle`, `einzeln`, `kapitel_anzahl`, `dauer_s`, `cover_stand`, `cover_quelle`, `hoerstelle`: 14.2 |
+| *(seit 16.11.)* | | weitere Ausgabefelder `favorit` (Fähigkeit `favoriten`) und `zuletzt_gehoert_am` (Fähigkeit `gehoert`): 14.2 |
 
 **Hinweis** (`hinweise[]`): `{"code": <string>, "folge": <string oder null>, "text": <string>}`.
 Codes in Version 1: `datei_fehlt` (Name steht in `folgen`, Datei fehlt; die Integration
@@ -404,10 +428,10 @@ Ausgabe:
 | `v` | int | Vertragsversion des Backends |
 | `version` | string | Version der Integration (`manifest.json`) |
 | `darf_schreiben` | bool | der angemeldete Nutzer ist Administrator |
-| `faehigkeiten` | array von string | was das Backend kann; Version 1 (Stufe 3a): `medien`, `upload`, `zuordnung`, `tobie_namen`, `neue_tobies`, `lernmodus`, `boxen`, `papierkorb`, `liste_ausrollen`, `konfig_export`, `sync`, `eingang`, `korrektur`, `serie_loeschen`. **(09.11., AP 4.7)** Dazu `einstellungen` (Befehle 35 und 36), `eingang_entfernen` (Nr. 33), `zuordnung_uid` (Eingabe `uid` bei Nr. 15), `konfig_lesen` (Nr. 34) und `upload_fertig_details` (`datei` und `pruefung` im Ereignis „Upload fertig“, 4.7). **(12.11., Stufe A der HA-Oberfläche)** Dazu, nach Teil gebaut: `cover`, `bibliothek`, `einsortier_wunsch`, `konfig_staende`, `reinhoeren`, `hoerkopie` (Regel und Bedeutung: 14.1). **(13.11., A0-Q)** Dazu `warteschlange` und `zuordnung_rueckgaengig` (14.1). Spätere Stufen ergänzen `update` (3b). Die Reihenfolge der Liste hat keine Bedeutung (K4, 12.11.). Die Seite zeigt und sendet nur, was hier steht. |
+| `faehigkeiten` | array von string | was das Backend kann; Version 1 (Stufe 3a): `medien`, `upload`, `zuordnung`, `tobie_namen`, `neue_tobies`, `lernmodus`, `boxen`, `papierkorb`, `liste_ausrollen`, `konfig_export`, `sync`, `eingang`, `korrektur`, `serie_loeschen`. **(09.11., AP 4.7)** Dazu `einstellungen` (Befehle 35 und 36), `eingang_entfernen` (Nr. 33), `zuordnung_uid` (Eingabe `uid` bei Nr. 15), `konfig_lesen` (Nr. 34) und `upload_fertig_details` (`datei` und `pruefung` im Ereignis „Upload fertig“, 4.7). **(12.11., Stufe A der HA-Oberfläche)** Dazu, nach Teil gebaut: `cover`, `bibliothek`, `einsortier_wunsch`, `konfig_staende`, `reinhoeren`, `hoerkopie` (Regel und Bedeutung: 14.1). **(13.11., A0-Q)** Dazu `warteschlange` und `zuordnung_rueckgaengig` (14.1). **(16.11., Stufe B)** Dazu `gehoert` und `favoriten` (14.1). Spätere Stufen ergänzen `update` (3b). Die Reihenfolge der Liste hat keine Bedeutung (K4, 12.11.). Die Seite zeigt und sendet nur, was hier steht. |
 | `boxen` | array von string | die eingerichteten Box-Namen (aus der Einrichtung der Integration) |
 | `konfig` | object | Konfig-Stand mit `zustand`. Ist `zustand` nicht `ok`, zeigt die Seite zuerst die Warnung aus Abschnitt 13 und sperrt Änderungen der Konfiguration. |
-| `grenzen` | object | `upload_max_bytes` (Vorgabe seit 12.11. 2147483648 = 2 GiB, einstellbar; vorher 500 MiB), `upload_block_bytes`, `upload_parallel` (2), `endungen` (array), `serie_name_max` (100), `folge_anzeige_max` (200), `tobie_name_max` (60), `name_max_bytes` (255), `limit_max` (100 bzw. 200, je Befehl); **(12.11.)** bei zugesagter Fähigkeit dazu `audio_verbindungen_je_benutzer` (6), `hoerkopie_kbit` (96), `hoerkopie_dauer_max_s` (14.10); **(13.11.)** bei Fähigkeit `warteschlange` dazu `warteschlange_max` (5). Außerdem `box_anzeigen` (object: Box-Name → Anzeigename, 14.9) im Ergebnis von `hello` |
+| `grenzen` | object | `upload_max_bytes` (Vorgabe seit 12.11. 2147483648 = 2 GiB, einstellbar; vorher 500 MiB), `upload_block_bytes`, `upload_parallel` (2), `endungen` (array), `serie_name_max` (100), `folge_anzeige_max` (200), `tobie_name_max` (60), `name_max_bytes` (255), `limit_max` (100 bzw. 200, je Befehl); **(12.11.)** bei zugesagter Fähigkeit dazu `audio_verbindungen_je_benutzer` (6), `hoerkopie_kbit` (96), `hoerkopie_dauer_max_s` (14.10); **(13.11.)** bei Fähigkeit `warteschlange` dazu `warteschlange_max` (5); **(16.11., Rest aus A-3)** bei Fähigkeit `hoerkopie` dazu `hoerkopie_schlange` (object `{"dateien": <int>, "dateien_max": <int>, "bytes": <int>, "bytes_max": <int>}`: Aufträge in der Warteschlange der Hörkopien einschließlich des laufenden, Summe der Größen ihrer Quellen und die Grenzen `HOERKOPIE_SCHLANGE_DATEIEN` und `HOERKOPIE_SCHLANGE_BYTES`; der Stand beim Aufruf von `hello`, für „Technik“, 14.8). Außerdem `box_anzeigen` (object: Box-Name → Anzeigename, 14.9) im Ergebnis von `hello` |
 
 Fehler: keine außer den allgemeinen. Ist `v` der Seite **größer** als das Backend
 kennt, antwortet das Backend trotzdem mit seinem `v`; die Seite entscheidet
@@ -419,7 +443,7 @@ Abonniert Ereignisse (Abschnitt 4). Ein Abo je Seite genügt.
 
 | Eingabe | Typ | Pflicht | Bedeutung |
 |---|---|---|---|
-| `themen` | array von string | nein | Teilmenge von `boxen`, `neue_tobies`, `lernmodus`, `medien`, `eingang`, `konfig`, `upload`; **(13.11.)** dazu `warteschlange` (nur senden, wenn `hello.faehigkeiten` `warteschlange` zusagt); Vorgabe: alle |
+| `themen` | array von string | nein | Teilmenge von `boxen`, `neue_tobies`, `lernmodus`, `medien`, `eingang`, `konfig`, `upload`; **(13.11.)** dazu `warteschlange` (nur senden, wenn `hello.faehigkeiten` `warteschlange` zusagt); **(16.11.)** dazu `gehoert` (nur mit Fähigkeit `gehoert`) und `favoriten` (nur mit Fähigkeit `favoriten`); Vorgabe: alle, die das Backend zusagt |
 
 Ausgabe: `null` (HA-Muster). Danach kommen die Ereignisse als `{"id": <id des Abos>,
 "type": "event", "event": {…}}`. Direkt nach der Antwort sendet das Backend je
@@ -712,6 +736,10 @@ Ausgabe: `{"serie": <Serie-Kurzform>}`. Fehler: `serie_nicht_gefunden`,
 `folge_nicht_gefunden`, `medien_schreibfehler`. Recht: alltag. Idempotent: ja.
 MQTT: –. Auch `serie/rename`, `folge/rename` und `folge/verschieben` löschen das
 Kennzeichen des Objekts, das sie ändern; `folgen/order` tut es nicht.
+
+**(16.11., Rest aus A-1c)** Der Befehl setzt zugleich `pruefen` (und `pruefen_gruende`) im **Protokoll des Eingangs** zurück, aus dem `eingang/list` (3.9) liest: Ohne `folgen` bei **allen** Elementen von `ergebnis`
+des Protokolls, die zu dieser Serie gehören (`serie_id`), mit `folgen` nur bei den Elementen mit passendem `folge`. Danach zeigt `eingang/list` `pruefen=false`, ohne dass die Seite
+über `serien/list` abgleichen muss. Das Ereignis `eingang` `geaendert` kommt, wenn sich ein Eintrag geändert hat. Nur `einsortierung/bestaetigen` setzt das Protokoll zurück, nicht `serie/rename`, `folge/rename` und `folge/verschieben`.
 
 ### 3.3 Papierkorb
 
@@ -1054,6 +1082,7 @@ Keine Eingabe. Ausgabe: `{"boxen": [<Box>…]}`, in der Reihenfolge der Einricht
 | `status_empfangen_am` | string oder `null` | wann HA ihn empfangen hat |
 | `konfig_stand` | `aktuell`, `veraltet`, `voraus`, `unbekannt` | `status.konfig` gegen den Stand in HA (W-02): `aktuell` = gleiche `liste_id` und `revision`; `veraltet` = andere `liste_id` oder niedrigere `revision` als in HA; **`voraus` = gleiche `liste_id` und `revision` der Box höher als in HA** (typisch nach dem Zurückspielen einer Sicherung, Abschnitt 13); `unbekannt` ohne Status |
 | `anzeige` | string | **(12.11.)** Anzeigename der Box für die Seite (nie `null`; 14.9) |
+| `akku_entitaet` | string oder `null` | **(16.11.)** Entitäts-ID des Akku-Sensors dieser Box aus der Registry von HA (der Sensor „Akku“ der MQTT-Discovery, `mqtt-v1.md`, 6.2); `null`, wenn es keinen gibt. Die Seite liest damit die Kurve „Akku“ über `recorder/statistics_during_period` (Befehl 52). Schließt der Recorder die Entität aus, hat sie keine Werte: dann zeigt die Seite keine Kurve (das Backend prüft das nicht) |
 | `lernmodus` | object oder `null` | der offene Vorgang dieser Box (Felder wie im Ereignis `lernmodus`, 4.3), sonst `null` |
 | `ereignisse` | array | **(seit 12.11. nur für Administratoren; für andere fehlt das Feld)** die letzten **20** Meldungen von `tobibox/<box>/event` (neueste zuerst), **im HA-Speicher** und damit über einen Neustart hinaus (Vorgabe der Projektleitung 09.11.): `{"id", "ts", "art", "daten", "text"}`; `art` und `daten` unverändert (`liste_abgelehnt`, `fehler`, `befehl_abgelehnt`), `text` ist der Klartext des Backends (`mqtt-v1.md`, 3.4: „Die Box … hat … abgelehnt“). So sieht Tobias abgelehnte Listen. |
 
@@ -1127,7 +1156,8 @@ und 28.
 | `ergebnis` | array | was einsortiert wurde: `{"serie_id", "serie_name", "serie_neu" (bool), "folge" (Name), "anzeige", "tracks", "pruefen" (bool), "pruefen_gruende" (array)}` |
 | `fertig_am` | string oder `null` | wann der Eintrag (ganz oder teilweise) einsortiert wurde |
 | `quelle` | `upload` oder `nas` | **(12.11.)** woher der Eintrag kam; fest, die Integration weiß es |
-| `wunsch` | object oder `null` | **(12.11.)** `{"ziel", "art"}` des Upload-Wunsches (14.4); `null` ohne Wunsch |
+| `wunsch` | object oder `null` | **(12.11.)** `{"ziel", "art"}` des Upload-Wunsches (14.4); `null` ohne Wunsch. **(16.11., Rest aus A-1c)** Bei einem Wunsch mit Gruppe zusätzlich `gruppe_anzahl` (int, die erwartete Zahl der Dateien der Gruppe; fehlt ohne Gruppe) |
+| `dateinamen` | array von string | **(16.11., Rest aus A-1c)** die Namen der Audiodateien im Eintrag, wie `datei` in `hinweise` (Pfad im Eintrag, ohne den Eintragsnamen); höchstens 50 Einträge, die Gesamtzahl steht in `dateien`. Bei einer Upload-Gruppe („Upload ab12cd34“) kann die Seite so die Dateien zeigen, nicht den erzeugten Ordnernamen. Sind es mehr als 50 Dateien, steht `dateinamen` mit den ersten 50 und `dateien_weitere` (int) nennt die übrigen (der gebaute Stand hat beides noch nicht) |
 | `pruefen` | bool | **(12.11.)** mindestens ein Element von `ergebnis` hat `pruefen=true` |
 
 #### 29. `tobibox/eingang/list`
@@ -1328,12 +1358,12 @@ Sucht und blättert über **Folgen und Einzeltitel** aller Einträge (Suchansich
 |---|---|---|---|
 | `art` | `hoerspiel`, `hoerbuch`, `musik`, `geschichte` | nein | nur Folgen von Einträgen dieser Art |
 | `text` | string, 2–100 Zeichen | nein | Suche (normalisiert, ohne Groß-/Kleinschreibung) im Titel der Folge |
-| `filter` | array aus `ohne_tobie`, `neu`, `pruefen` | nein | wie bei `serien/list` (14.2) |
+| `filter` | array aus `ohne_tobie`, `neu`, `pruefen`, `favorit` | nein | wie bei `serien/list` (14.2); **(16.11.)** `favorit` = nur Folgen mit Stern an der Folge (nur mit Fähigkeit `favoriten`) |
 | `sortierung` | `titel` (Vorgabe), `neu` | nein | |
 | `limit` | int 1–100 | nein | Vorgabe 60 |
 | `offset` | int ≥ 0 | nein | Vorgabe 0 |
 
-Ausgabe: `folgen` (array) und `gesamt`, `weitere`. Je Zeile: `serie_id`, `serie_name`, `serie_einzeln` (bool), `art`, `folge` (Name), `anzeige`, `nummer`, `kapitel` (int, Anzahl, 0 wenn keine Liste), `groesse_mb`, `tobies` (array von Tobie-Kurzform, direkt auf die Folge), `serie_hat_tobie` (bool), **(13.11., K8)** `cover_stand` (string oder `null`, wie in der Serie-Kurzform) und `dauer_s` (number oder `null`; bis Stufe A-2 immer `null`). Fehler: `medien_nicht_erreichbar` (nur wenn noch nie geprüft). Recht: lesen. Idempotent: ja. MQTT: –.
+Ausgabe: `folgen` (array) und `gesamt`, `weitere`. Je Zeile: `serie_id`, `serie_name`, `serie_einzeln` (bool), `art`, `folge` (Name), `anzeige`, `nummer`, `kapitel` (int, Anzahl, 0 wenn keine Liste), `groesse_mb`, `tobies` (array von Tobie-Kurzform, direkt auf die Folge), `serie_hat_tobie` (bool), **(13.11., K8)** `cover_stand` (string oder `null`, wie in der Serie-Kurzform) und `dauer_s` (number oder `null`; bis Stufe A-2 immer `null`), **(16.11.)** `favorit` (bool, Stern an der Folge; Fähigkeit `favoriten`). Fehler: `medien_nicht_erreichbar` (nur wenn noch nie geprüft). Recht: lesen. Idempotent: ja. MQTT: –.
 
 #### 38. `tobibox/serie/art_setzen` (Fähigkeit `bibliothek`)
 
@@ -1377,8 +1407,12 @@ Ausgabe: `weiter` (object `{folge, position_s, track, anteil, rest_s, zeit}` ode
 | `dauer_s` | Zahl > 0 | **ja** | Länge laut Browser |
 | `track` | int ≥ 0 | nein | bei Ordner-Folgen |
 | `fertig` | bool | nein | |
+| `spieler` | string, 8 bis 64 Zeichen `[A-Za-z0-9_-]` | nein | **(16.11., Stufe B)** zufällige Kennung **je Player-Instanz der Seite** (einmal erzeugt, nicht der Benutzer); HA führt je (Benutzer, `spieler`) eine offene Reinhör-Sitzung (15.3) |
+| `spielt` | bool | nein | **(16.11., Stufe B)** der Ton lief beim Aufruf (nicht pausiert, nicht eingefroren); 15.3 |
 
-Prüfung: Serie und Folge gibt es; `0 ≤ position_s ≤ dauer_s + 2`. **Ist `dauer_s` der Folge im Store `tobibox.medieninfo` bekannt, nimmt das Backend diesen Wert und ignoriert den gesendeten** (der Aufrufer bestimmt die Prüfung nie selbst); nur bei unbekannter Dauer gilt der gesendete Wert bis höchstens `HOERSTELLE_DAUER_UNBEKANNT_MAX_S`. `fertig` wird auch gesetzt, wenn `position_s ≥ dauer_s − 2`. Antwortet **sofort** (`{}`), geschrieben wird gesammelt (14.6). Fehler: `serie_nicht_gefunden`, `folge_nicht_gefunden`, `invalid_format` (Werte außerhalb), `zu_viele_aenderungen`. Recht: alltag (nur die eigene Hörstelle). Idempotent: ja. MQTT: –.
+Prüfung: Serie und Folge gibt es; `0 ≤ position_s ≤ dauer_s + 2`. **Ist `dauer_s` der Folge im Store `tobibox.medieninfo` bekannt, nimmt das Backend diesen Wert und ignoriert den gesendeten** (der Aufrufer bestimmt die Prüfung nie selbst); nur bei unbekannter Dauer gilt der gesendete Wert bis höchstens `HOERSTELLE_DAUER_UNBEKANNT_MAX_S`. `fertig` wird auch gesetzt, wenn `position_s ≥ dauer_s − 2`. Antwortet **sofort** (`{}`), geschrieben wird gesammelt (14.6). Fehler: `serie_nicht_gefunden`, `folge_nicht_gefunden`, `invalid_format` (Werte außerhalb), `zu_viele_aenderungen`. Recht: alltag (nur die eigene Hörstelle). **Idempotent: nein (seit 16.11.: eine Wiederholung zählt keine Hörzeit doppelt; der Endzustand der Hörstelle ist wie bisher gleich).** MQTT: –.
+
+**Reinhören zählt als Sitzung (seit 16.11., Stufe B; Regeln 15.3):** Mit `spieler` und `spielt` führt HA aus den Aufrufen die Hördaten (Hörzeit, „Mal“, „fertig“) in der Datenbank `gehoert.sqlite` (`data-model.md`, 12.1) unter dem **Benutzer** (`benutzer:<id>`, nie unter einer Box). Die Grenze steigt auf `HOERSTELLE_SCHREIBEN_JE_MINUTE` = **60** je Minute und Benutzer. Die Eingabefelder `spieler` und `spielt` sendet die Seite nur, wenn `hello.faehigkeiten` `gehoert` zusagt. Die Felder gehören zur Fähigkeit `gehoert`. Hat das Backend die Datenbank nicht (Fähigkeit nicht zugesagt), nimmt das Schema die Felder trotzdem an und ignoriert sie; die Hörstelle arbeitet dann wie bisher.
 
 #### 42. `tobibox/hoerstelle/liste` (Fähigkeit `reinhoeren`)
 
@@ -1400,7 +1434,7 @@ Ausgabe: `eintraege` (array): angefangene, nicht fertige Einträge des Anfragend
 | `name` | string, 1–100 Zeichen | je nach `ziel` | |
 | `serie_id` | string | bei `ergaenzen` | |
 
-Nur möglich, solange die Bedingungen aus 2.4 erfüllt sind (`pruefen=true` oder höchstens 24 Stunden alt; nichts geändert). Die Serien, die der Eintrag neu angelegt hatte, verschwinden mit ihm in den Papierkorb (`grund="manuell"`, `geloescht_von` gesetzt). Ausgabe: `{"gestartet": true}`; das Ergebnis kommt als Ereignis `eingang` (`neu_einsortiert`). Fehler: `eintrag_nicht_gefunden`, `neu_einsortieren_nicht_moeglich`, `wunsch_ungueltig`, `serie_nicht_gefunden`, `sortierung_laeuft`, `zu_viele_aenderungen`, `medien_schreibfehler`. Recht: alltag. Idempotent: nein (der zweite Aufruf liefert `eintrag_nicht_gefunden` oder `neu_einsortieren_nicht_moeglich`). MQTT: –. **Machbarkeit offen:** Vertrag W kennt heute keinen Weg Medien → Eingang. Zeigt Paket A3e, dass er zu teuer ist, entfällt dieser Befehl samt Fähigkeitsteil (Entscheidung Tobias, Frage 25: Rückfall „Papierkorb und neu hochladen“).
+Nur möglich, solange die Bedingungen aus 2.4 erfüllt sind (`pruefen=true` oder höchstens 24 Stunden alt; nichts seit dem Einsortieren geändert, Auslegung AM24; nur Einträge ab A3e). Die Serien, die der Eintrag neu angelegt hatte, verschwinden mit ihm in den Papierkorb (`grund="manuell"`, `geloescht_von` gesetzt). Ausgabe: `{"gestartet": true}`; das Ergebnis kommt als Ereignis `eingang` (`neu_einsortiert`); der Eingang sortiert **sofort** ein, ohne Ruhezeit (AM25, 2.4). Fehler: `eintrag_nicht_gefunden`, `neu_einsortieren_nicht_moeglich`, `wunsch_ungueltig`, `serie_nicht_gefunden`, `sortierung_laeuft`, `zu_viele_aenderungen`, `medien_schreibfehler`. Recht: alltag. Idempotent: nein (der zweite Aufruf liefert `eintrag_nicht_gefunden` oder `neu_einsortieren_nicht_moeglich`). MQTT: –. **Gebaut (Paket A3e):** Das Einsortieren merkt sich beim Einsortieren den Rückweg (je Serie, ob der Eintrag sie neu angelegt hat, Name, `stand`, Art, eigenes Cover; je Folge Serie, Name, Dateien); Einträge von vor A3e haben ihn nicht und bekommen `neu_einsortieren_nicht_moeglich`. Die Dateien werden **verschoben**, nie kopiert und gelöscht. (Der frühere Vorbehalt „Machbarkeit offen, sonst Rückfall Papierkorb und neu hochladen“, Entscheidung Tobias, Frage 25, ist damit erledigt.)
 
 #### 44. `tobibox/cover/neu_suchen` (Fähigkeit `cover`)
 
@@ -1495,6 +1529,101 @@ Nimmt eine Vormerkung zurück („Nicht mehr warten“).
 
 Ausgabe: `{"abgebrochen": <bool>}` (`false`: gab es nicht mehr, weil schon abgearbeitet oder abgebrochen; **kein Fehler**, wie bei `neue_tobies/verwerfen`). Fehler: `zu_viele_aenderungen`. Recht: alltag. Idempotent: ja. MQTT: –. Ereignis `warteschlange` `abgebrochen` (`grund="nutzer"`). Die Positionen der übrigen Einträge rücken nach.
 
+### 3.14 Gehört und Favoriten (ab 16.11., Stufe B)
+
+Befehle 50 bis 56. Rechte: 2.1; Zählregeln, Quellen und Reinhör-Sitzungen: Abschnitt 15; Speicher: `data-model.md`, Abschnitt 12; Meldungen der Boxen: `mqtt-v1.md`, 3.4 und 4.5. Die Befehle 50 bis 54 stehen nur im Backend,
+wenn `hello.faehigkeiten` `gehoert` zusagt, die Befehle 55 und 56, wenn sie `favoriten` zusagt (14.1). Hörzeit, „Mal“ und „fertig“ heißen in allen Texten für Eltern gleich (15.1).
+
+#### 50. `tobibox/gehoert/zusammenfassung` (Fähigkeit `gehoert`)
+
+Fasst die Hördaten zusammen: Rangliste, Aufteilung einer Serie nach Folgen, Zeitreihen. **Eine** Abfrage trägt alle Anzeigen der Unterseite „Gehört“.
+
+| Eingabe | Typ | Pflicht | Bedeutung |
+|---|---|---|---|
+| `wer` | string | nein | `alle` (Vorgabe: alle Quellen, Boxen **und** Reinhören), `alle_boxen` (alle Boxen zusammen, die Kinder), `box:<Name der Box>`, `benutzer:<HA-Benutzer-ID>` |
+| `zeitraum` | `woche`, `monat`, `jahr`, `alles` | eins von beiden | Zeitraum nach 15.1 (Zeitzone von HA) |
+| `von`, `bis` | string `JJJJ-MM-TT` | eins von beiden | freier Zeitraum in der Zeitzone von HA, `bis` **einschließlich**, höchstens 3 Jahre. Entweder `zeitraum` oder **beide** `von` und `bis`; beides, keins oder nur eines von `von`/`bis`: `invalid_format` |
+| `nach` | array von string, 1 oder 2 Einträge | **ja** | Schlüssel der Zusammenfassung aus `wer`, `serie`, `folge`, `tag`, `woche` (ISO-Woche, Montag), `monat` (Kalendermonat), `stunde` (Stunde des Tages 0 bis 23). **Höchstens ein Zeitschlüssel** (`tag`, `woche`, `monat`, `stunde`); keiner doppelt; `serie` und `folge` **nie zusammen**; `folge` nur zusammen mit `serie_id`. Alles andere ist `invalid_format` |
+| `serie_id` | string | nein | schränkt auf einen Eintrag ein |
+| `sortierung` | `sekunden` (Vorgabe), `mal` | nein | Reihenfolge der Zeilen **ohne** Zeitschlüssel, absteigend, Gleichstand nach Name; mit einem Zeitschlüssel in `nach`: `invalid_format` |
+| `limit` | int 1 bis 200 | nein | Vorgabe 50; nur **ohne** Zeitschlüssel in `nach` (sonst `invalid_format`) |
+
+Ausgabe:
+
+| Feld | Typ | Bedeutung |
+|---|---|---|
+| `zeilen` | array | je Zeile die **Schlüssel aus `nach` in dieser Reihenfolge** (`wer`: string wie in der Eingabe, `box:<Name>` oder `benutzer:<id>`; `serie`: Serien-ID; `folge`: Name der Folge; `tag`: `JJJJ-MM-TT`; `woche`: `JJJJ-Www` (ISO-Woche, zum Beispiel `2026-W46`); `monat`: `JJJJ-MM`; `stunde`: int), dazu `sekunden` (int, Hörzeit), `mal` (int, Zahl der „Mal“), `fertig` (int, Zahl der als fertig gezählten Sitzungen); bei `serie` in `nach` zusätzlich `name` (Anzeigename) und `geloescht` (bool). **Alle gelöschten Serien** (es gibt sie heute nicht mehr) stehen in **einer** Zeile mit `serie` = `null`, `geloescht` = `true`, `name` = „Gelöscht“, damit die Summe stimmt. **Nur wenn `serie` in `nach` steht oder `serie_id` gesetzt ist** (und `folge` nicht in `nach`) zusätzlich `folgen_fertig` (verschiedene, heute vorhandene Folgen der Zeile, die im Zeitraum mindestens einmal fertig gehört wurden) und `folgen_gesamt` (heutige Zahl der Folgen der Serie), also „17/20“ |
+| `summe` | object | `{"sekunden", "mal", "fertig"}`, über den ganzen Filter (nicht nur über die gelieferten Zeilen, auch bei `limit`) |
+| `weitere` | bool | `true`, wenn `limit` Zeilen abgeschnitten hat (nur ohne Zeitschlüssel) |
+| `wer_auswahl` | array | die möglichen Werte für „Wer?“ (alle Quellen, die es je gab, unabhängig vom Filter): je Eintrag `{"wer": <string wie in der Eingabe>, "name": <string>, "art": "box" oder "person"}`; Box: Anzeigename (14.9), Person: Name aus HA, ein gelöschter Benutzer erscheint als „Früherer Benutzer“ |
+| `zeitzone` | string | Zeitzone von HA (IANA-Name), nach der die Tage, Wochen, Monate und Stunden gerechnet sind |
+| `von`, `bis` | string | der ausgewertete Zeitraum (`JJJJ-MM-TT`, einschließlich); bei `alles`: `von` = Tag der ersten Sitzung, `bis` = heute |
+
+*   **Zeitreihen** (ein Zeitschlüssel in `nach`) sind **lückenlos und aufsteigend** vom ersten bis zum letzten Raster des Zeitraums (Lücken mit 0; `stunde` immer 24 Zeilen; bei `alles` ab dem Monat der ersten Sitzung), **höchstens 400 Zeilen**: mehr als 400 Zeilen ist `invalid_format` (zum Beispiel `tag` über einen längeren Zeitraum als 400 Tage). **Mit zweitem Schlüssel `wer`** steht das volle Raster Zeit × Quellen aus `wer_auswahl` (mit Nullen), das zählt in die 400; mit zweitem Schlüssel `serie` oder `folge` (zusammen mit einem Zeitschlüssel) stehen nur die vorhandenen Kombinationen. Ohne Zeitschlüssel stehen die Zeilen nach `sortierung`, Gleichstand nach Name.
+*   **Beispiele der Seite:** Rangliste `nach = ["serie"]`; Aufteilung einer Serie `serie_id` mit `nach = ["folge"]`; Hörzeit je Tag `nach = ["tag"]` (bei `wer = alle` die Tabelle `nach = ["tag", "wer"]`); Tageszeiten `nach = ["stunde"]`; Jahr `nach = ["woche"]`; Alles `nach = ["monat"]`.
+
+Fehler: `invalid_format`, `wer_ungueltig`, `serie_nicht_gefunden`. Recht: lesen. Idempotent: ja. MQTT: –. Messziel: Gesamtzeit des Befehls unter 300 ms bei 30 000 Zeilen, auch während einer Aufnahme (B3, auf der echten HA gemessen).
+
+#### 51. `tobibox/gehoert/zuletzt` (Fähigkeit `gehoert`)
+
+Die Reihe „Zuletzt auf den Boxen gehört“ (Start).
+
+| Eingabe | Typ | Pflicht | Bedeutung |
+|---|---|---|---|
+| `wer` | string | nein | Vorgabe `alle_boxen`; Werte wie bei Nr. 50 |
+| `limit` | int 1 bis 20 | nein | Vorgabe 10 |
+
+Ausgabe: `eintraege` (array, neueste zuerst): je Eintrag die **Felder der Serie-Kurzform** (wie `serien/list`, 3) und dazu `wer` und `zeit` (`ende_um` der letzten Sitzung). Es ist **ein** Eintrag je Serie (die letzte Wiedergabe); `wer` ist ein String (`box:<Name>`). Fehler: `invalid_format`, `wer_ungueltig`. Recht: lesen. Idempotent: ja. MQTT: –.
+
+#### 52. `tobibox/technik/verlauf` (Fähigkeit `gehoert`)
+
+Der Verlauf einer Box für „Technik“: Laden, Laufzeit, Verbindung, Syncs, Fehler, verworfene Hördaten. Die **Kurve des Akkus** liefert dieser Befehl **nicht**: Die Seite liest sie über den HA-Befehl `recorder/statistics_during_period` mit `akku_entitaet` aus `boxen/list` (3.7); ist `akku_entitaet` `null`, zeigt die Seite keine Kurve.
+
+| Eingabe | Typ | Pflicht | Bedeutung |
+|---|---|---|---|
+| `box` | string | **ja** | Box-Name |
+| `von`, `bis` | string `JJJJ-MM-TT` | **ja** | Zeitraum in der Zeitzone von HA, `bis` einschließlich |
+
+Ausgabe, jede Liste aufsteigend nach Zeit (Zeitstempel in UTC wie sonst): `ladevorgaenge` (`[{"beginn", "ende", "dauer_s"}]`, `ende` und `dauer_s` `null`, solange Strom anliegt), `laufzeiten` (`[{"von", "bis", "dauer_s"}]`: Zeit auf dem Akku, `von` = Ende des Ladens, `bis` = nächstes Laden oder `offline`), `verbindung` (`[{"zeit", "online"}]`, `online` bool), `syncs` (`[{"zeit", "ok", "code"}]`), `fehler` (`[{"zeit", "code"}]`), `verworfen` (`[{"zeit", "gesamt"}]`, Anstiege von `gehoert_verworfen`); dazu `weitere` (bool, `true`, wenn eine Liste bei 2 000 Einträgen gekürzt wurde). Die Spanne von `von` bis `bis` ist höchstens 400 Tage, sonst `invalid_format`. Alles aus der Tabelle `technik` (`data-model.md`, 12.1); die Zeiten sind `ts` der Box bei `zeit_ok`, sonst die Empfangszeit. Wechsel, die kürzer sind als der Mindestabstand des Status (5 s), fehlen. Fehler: `invalid_format`, `box_unbekannt`. Recht: admin. Idempotent: ja. MQTT: –.
+
+#### 53. `tobibox/gehoert/exportieren` (Fähigkeit `gehoert`)
+
+Erzeugt eine Tabelle der Hördaten („Als Tabelle sichern“).
+
+| Eingabe | Typ | Pflicht | Bedeutung |
+|---|---|---|---|
+| `quelle` | string | **ja** | `boxen`, `reinhoeren`, `alle`, `box:<Name>`, `benutzer:<HA-Benutzer-ID>` |
+
+Ausgabe: `{"pfad": <string>}`: ein **signierter Pfad**, **10 Minuten** gültig, **nur für den Anfragenden** (die Signatur trägt seine Identität); die Ansicht prüft das **auch beim Abruf** (ein anderer Benutzer bekommt 401/404, eine abgelaufene Signatur 401). Die Datei ist **CSV, UTF-8 mit BOM, Trenner `;`**, erste Zeile mit den Spaltennamen `Beginn;Ende;Quelle;Serie;Folge;Hörzeit (s);Ende der Sitzung;Mal neu;fertig;Datum`, Zeiten in der Zeitzone von HA. **Zellen, die mit `=`, `+`, `-` oder `@` beginnen, werden mit einem vorangestellten `'` entschärft** (Schutz vor Tabellenformeln). Dateiname `gehoert-<quelle>-<datum>.csv` (`<quelle>` mit `:` zu `-`, `<datum>` = heute). **Abruf:** über eine neue Ansicht `GET /api/tobibox/export/<pfad>` mit HAs signiertem Pfad (wie die Audio-Ansicht, 14.5); beim Abruf prüft sie, dass der Benutzer **Administrator** und **derselbe** Benutzer wie beim Befehl ist. Die Datei wird **beim Abruf** erzeugt. Die Zellen `Mal neu` und `fertig` sind `ja` oder `nein`, `Datum` ist `sicher`, `ungefähr` oder `unbekannt`. Fehler: `invalid_format`, `wer_ungueltig`. Recht: admin. Idempotent: ja (jeder Aufruf liefert einen neuen Pfad). MQTT: –.
+
+#### 54. `tobibox/gehoert/loeschen` (Fähigkeit `gehoert`)
+
+Löscht Hördaten unwiderruflich (Karte „Hördaten“ in „Technik“).
+
+| Eingabe | Typ | Pflicht | Bedeutung |
+|---|---|---|---|
+| `quelle` | string | **ja** | wie bei Nr. 53 |
+| `trocken` | bool | nein | `true`: nur zählen, nichts löschen (die Seite zeigt zuerst „123 Einträge, nicht rückgängig“) |
+| `bestaetigung` | string | bei `trocken` = `false` | das Wort `LÖSCHEN` (auch `LOESCHEN`); fehlt es oder ist es falsch: `invalid_format`. Bei `trocken` = `true` nicht nötig |
+
+Ausgabe: `{"anzahl": <int>}` (Zahl der gelöschten bzw. bei `trocken` der zu löschenden Zeilen). Zeilen, die **nach** dem Probelauf ankommen und noch vor der Löschung liegen, werden mitgelöscht (die Zahl kann deshalb größer sein). **Löschmarke:** Danach nachgelieferte Zeilen dieser Quelle, deren `ende_um` vor der Löschung liegt, verwirft HA und quittiert sie trotzdem (`data-model.md`, 12.1). Ereignis `gehoert` `geaendert` (4.9). Der Befehl löscht nur Hördaten (`sitzungen`), nicht die Tabelle `technik`. Fehler: `invalid_format`, `wer_ungueltig`. Recht: admin. Idempotent: ja (Endzustand; der zweite Aufruf liefert `anzahl` 0). MQTT: –.
+
+#### 55. `tobibox/favorit/set` (Fähigkeit `favoriten`)
+
+Setzt oder nimmt den Stern einer Serie oder einer Folge (für die ganze Familie).
+
+| Eingabe | Typ | Pflicht | Bedeutung |
+|---|---|---|---|
+| `serie_id` | string | **ja** | |
+| `folge` | string | nein | Name der Folge; fehlt es, gilt der Stern der Serie als Ganzes |
+| `an` | bool | **ja** | `true` Stern setzen, `false` Stern wegnehmen |
+
+Ausgabe: `{"an": <bool>}` (der Stand nach dem Aufruf). Höchstens `FAVORITEN_MAX` (1 000) Einträge; darüber `zu_viele_favoriten`. Wiederholung (Stern ist schon so) ohne Fehler und ohne Wirkung. Ein Stern auf eine Serie oder Folge, die es nicht gibt: `serie_nicht_gefunden`, `folge_nicht_gefunden`. Mengen: 2.4. Fehler: `serie_nicht_gefunden`, `folge_nicht_gefunden`, `zu_viele_favoriten`, `zu_viele_aenderungen`, `invalid_format`. Recht: alltag. Idempotent: ja. MQTT: –. Ereignis `favoriten` `geaendert` (4.10).
+
+#### 56. `tobibox/favoriten/list` (Fähigkeit `favoriten`)
+
+Keine Eingabe. Ausgabe: `eintraege` (array): je Eintrag `serie_id`, `folge` (string oder `null`, wenn der Stern an der Serie hängt), `gesetzt_von` (object `{"id", "name"}`; für einen gelöschten Benutzer „unbekannt“) und `gesetzt_am` (Zeitstempel). Einträge, deren Serie oder Folge es nicht mehr gibt, fehlen. Reihenfolge: neueste zuerst (`gesetzt_am`). Fehler: keine außer den allgemeinen. Recht: lesen. Idempotent: ja. MQTT: –.
+
 ## 4. Ereignisse (Abo `tobibox/subscribe`)
 
 Alle Ereignisse haben dieselbe Hülle (Inhalt des Feldes `event` der HA-Nachricht):
@@ -1516,9 +1645,9 @@ Alle Ereignisse haben dieselbe Hülle (Inhalt des Feldes `event` der HA-Nachrich
     abonniert dabei erneut.
 *   **Bündeln (W-23):** Das Backend fasst nur die Ereignisse `geaendert` (Themen
     `boxen`, `konfig`, `eingang`) und `serien_geaendert` zusammen: höchstens **eines je
-    Thema und Box (bzw. Serie) und Sekunde**. Ereignisse mit eigenem Inhalt
+    Thema und Box (bzw. Serie) und Sekunde**; **seit 16.11.** kommt `gehoert`/`geaendert` höchstens alle 5 s (4.9). Ereignisse mit eigenem Inhalt
     (`boxen`/`ereignis`, `lernmodus`-Zustände, `neu_einsortiert`, `abweichung`,
-    `fortschritt`) werden **nie** zusammengefasst oder verschluckt. Die HA-Warteschlange
+    `fortschritt`, seit 16.11. `favoriten`/`geaendert`) werden **nie** zusammengefasst oder verschluckt. Die HA-Warteschlange
     je Verbindung ist begrenzt (4096 Nachrichten, Abschnitt 8); Ereignisse sind darum
     selten und klein.
 
@@ -1627,6 +1756,24 @@ Die Ereignisse sind Hinweise (Abschnitt 4); die Quelle der Wahrheit ist `wartesc
 | `angelegt` | `{"eintrag": <Vormerkung>}` |
 | `abgebrochen` | `{"id": <string>, "grund": "nutzer" \| "ziel_fehlt" \| "box_unbekannt"}`: `nutzer` = `warteschlange/abbrechen`; `ziel_fehlt` = beim Auflegen fehlte das Ziel (3.13, Regel 7a; danach kommt die Karte „Neuer Tobie“, wenn kein weiterer Eintrag passt); `box_unbekannt` = beim Start verworfen (Regel 10) |
 | `abgearbeitet` | `{"id": <string>, "uid": <string>, "box": <string>, "ziel": <Ziel>, "serie_name": <string oder null>, "folge_anzeige": <string oder null>, "angelegt_von": <object oder null>, "name": <string oder null>}`: ein Tobie hat die Vormerkung genommen; `name` (13.11., K7) ist der Name, den der neue Tobie bekommen hat (`null`: keiner, dann zeigt die Seite „Name geben“); `box` ist die **meldende** Box, `uid` die Kennung des neuen Tobies (für „Name geben“). Das Ereignis kommt nach dem Speichern der Zuordnung (3.13, Regel 7). |
+
+### 4.9 Thema `gehoert` (ab 16.11., Fähigkeit `gehoert`)
+
+| `art` | `daten` |
+|---|---|
+| `snapshot` | `{}` |
+| `geaendert` | `{}`: Die Hördaten haben sich geändert (eine Sitzung aufgenommen, ein Zwischenstand, eine Reinhör-Sitzung beendet, `gehoert/loeschen`); die Seite lädt die Anzeigen neu |
+
+`geaendert` ist **gebündelt: höchstens alle 5 s** (nicht je Sekunde wie 4). Der Zwischenspeicher für `zuletzt_gehoert_am` und `meist_gehoert` (`data-model.md`, 12.1) verfällt bei diesem Ereignis. Das Ereignis kommt nach **jedem** `COMMIT`, der `sitzungen` ändert (Aufnahme einer Box, Reinhören, Löschen, Mitschreiben beim Verschieben oder Zusammenführen), gebündelt höchstens alle 5 s, ohne Inhalt.
+
+### 4.10 Thema `favoriten` (ab 16.11., Fähigkeit `favoriten`)
+
+| `art` | `daten` |
+|---|---|
+| `snapshot` | `{}` |
+| `geaendert` | `{"serie_id": <string>, "folge": <string oder `null`>, "an": <bool>}`: ein Stern wurde gesetzt oder genommen (auch von einem anderen Fenster oder Benutzer); `folge` ist `null` bei einem Stern an der Serie |
+
+`geaendert` trägt eigenen Inhalt und wird **nie** gebündelt (4). Die Seite lädt bei Bedarf `favoriten/list`.
 
 ## 5. Hochladen (HTTP)
 
@@ -1971,7 +2118,7 @@ Die Seite liest bei Bedarf den Zustand neu (z. B. `zuordnung/list` nach
 
 | Code | HTTP | Bedeutung | Befehle |
 |---|---|---|---|
-| `invalid_format` | 400 | Eingabe passt nicht zum Schema (fehlendes Pflichtfeld, falscher Typ, unbekanntes Feld, `bestaetigt` nicht `true`) | alle |
+| `invalid_format` | 400 | Eingabe passt nicht zum Schema (fehlendes Pflichtfeld, falscher Typ, unbekanntes Feld, `bestaetigt` nicht `true`); seit 16.11. auch bei Nr. 50 eine verbotene Kombination in `nach` oder mehr als 400 Zeilen, bei Nr. 54 eine falsche `bestaetigung` | alle |
 | `unauthorized` | 401 oder 403 | Nutzer ist kein Administrator (seit 13.11. auch bei `lernmodus/start`, `lernmodus/antwort`, `lernmodus/abbrechen`), oder (seit 12.11.) eine Schutzregel für Nicht-Administratoren greift (2.4: fehlendes `erwartet_ziel`, `sofort`, `lesezeichen_tage`). Bei WebSocket gilt der Code; die Seite wertet `code` aus. Der Upload prüft keine Administratorrolle mehr (W-19 entfällt). | alle mit Recht `admin` und die Schutzregeln in 2.4 |
 | `unknown_command` | – | Befehl dem Backend unbekannt (Seite neuer als Backend) | alle |
 | `unknown_error` | 500 | Fehler im Backend (Fehler im Protokoll von HA); die Seite zeigt „Das hat nicht geklappt“ | alle |
@@ -1980,12 +2127,12 @@ Die Seite liest bei Bedarf den Zustand neu (z. B. `zuordnung/list` nach
 | `medien_schreibfehler` | 500 | Schreiben auf die Freigabe schlug fehl (Rechte, Platz, Verbindung, Namen, die die Freigabe nicht annimmt) | Medien, Eingang, Papierkorb |
 | `kein_speicher` | 507 | Auf der Freigabe ist kein Platz mehr (vorab geprüft, 5.1; seit 12.11. auch Kontingent von `hoerkopien/`, 14.8) | Upload, Hörkopie |
 | `mqtt_nicht_verbunden` | 503 | Der Broker ist nicht erreichbar; der Befehl wurde **nicht** gesendet. (Konfigurationsänderungen scheitern daran nicht: Sie sind gespeichert, `veroeffentlicht=false`.) | Befehle an Boxen |
-| `serie_nicht_gefunden` | 404 | Serien-ID unbekannt | Serie, Folgen, Upload, Zuordnung, Lernmodus, Papierkorb, Warteschlange |
-| `folge_nicht_gefunden` | 404 | Folge steht nicht in `folgen` der Serie | Folgen, Zuordnung, Lernmodus, Warteschlange |
+| `serie_nicht_gefunden` | 404 | Serien-ID unbekannt | Serie, Folgen, Upload, Zuordnung, Lernmodus, Papierkorb, Warteschlange, Gehört (Nr. 50), Favoriten (Nr. 55) |
+| `folge_nicht_gefunden` | 404 | Folge steht nicht in `folgen` der Serie | Folgen, Zuordnung, Lernmodus, Warteschlange, Favoriten (Nr. 55) |
 | `eintrag_nicht_gefunden` | 404 | Papierkorb-Eintrag oder Eingangs-Eintrag unbekannt | Papierkorb, Eingang |
 | `export_nicht_gefunden` | 404 | Es gibt keine Exportdatei | `konfig/aus_export` |
 | `export_ungueltig` | 422 | Die Exportdatei ist nicht lesbar oder nach `data-model.md` ungültig; nichts wurde übernommen | `konfig/export_lesen`, `konfig/aus_export` |
-| `box_unbekannt` | 404 | Box-Name ist nicht eingerichtet | Boxen, Lernmodus, Warteschlange, `zuordnung/remove` (mit `als_neu`) |
+| `box_unbekannt` | 404 | Box-Name ist nicht eingerichtet | Boxen, Lernmodus, Warteschlange, `zuordnung/remove` (mit `als_neu`), `technik/verlauf` |
 | `box_offline` | 409 | Die Box ist nach `…/online` nicht erreichbar oder HA kennt noch keine Nachricht (`online=null`, W-25) | `lernmodus/start`, `box/sync` |
 | `kennung_ungueltig` | 400 | `uid` ist nicht kanonisch (`reader-v1.md`, Abschnitt 4) | Zuordnung, Neue Tobies |
 | `ziel_ungueltig` | 400 | `ziel` ist unvollständig oder widersprüchlich (z. B. `folge` ohne `serie`, unbekannte `aktion`, `aktion` im Lernmodus), **zeigt auf die Überraschungs-Serie**, oder Quelle und Ziel sind dieselbe Serie / eine Überraschungs-Serie beim Zusammenführen | Zuordnung, Lernmodus, Warteschlange, `folge/verschieben`, `serien/zusammenfuehren` |
@@ -2009,15 +2156,17 @@ Die Seite liest bei Bedarf den Zustand neu (z. B. `zuordnung/list` nach
 | `format_nicht_erlaubt` | 415 | Endung oder erkanntes Format nicht nach D5 | Upload |
 | `einstellung_ungueltig` | 400 | Eine Einstellung ist nach `data-model.md`, Abschnitt 2, ungültig (Wertebereich, Typ, doppelte `id` …); nichts wurde geändert. Die Stelle steht in `message` (3.11) | `einstellungen/set` |
 | `sortierung_laeuft` | 409 | Ein Durchlauf des Einsortierens läuft; der Eintrag lässt sich jetzt nicht entfernen. Später noch einmal versuchen. | `eingang/entfernen` |
-| `zu_viele_aenderungen` | 429 | **(12.11.)** Eine Menge aus 2.4 ist überschritten (Änderungen der Liste, Papierkorb-Aktionen, Upload-Bytes je Stunde, Cover je Stunde, `hoerstelle/set`, `audio/bereit`, seit 13.11. `warteschlange/set` und `warteschlange/abbrechen`). Kurz warten. | Befehle mit Menge, Upload, Cover |
+| `zu_viele_aenderungen` | 429 | **(12.11.)** Eine Menge aus 2.4 ist überschritten (Änderungen der Liste, Papierkorb-Aktionen, Upload-Bytes je Stunde, Cover je Stunde, `hoerstelle/set`, `audio/bereit`, seit 13.11. `warteschlange/set` und `warteschlange/abbrechen`, seit 16.11. `favorit/set`). Kurz warten. | Befehle mit Menge, Upload, Cover |
 | `cover_ungueltig` | 400 | **(12.11.)** Das Bild ist kein gültiges JPEG, nicht quadratisch genug oder zu groß in Pixeln (14.3) | Cover (POST) |
 | `cover_nicht_gefunden` | 404 | **(12.11.)** Der Eintrag hat kein Cover | Cover (GET) |
 | `wunsch_ungueltig` | 400 | **(12.11.)** Pflichtfelder des Upload-Wunsches fehlen oder passen nicht zusammen (14.4), `name` über 400 Bytes | Upload, `einsortierung/neu` |
-| `neu_einsortieren_nicht_moeglich` | 409 | **(12.11.)** Der Eintrag ist nicht mehr „bitte ansehen“ oder jünger als 24 Stunden, oder an seinen Folgen wurde schon etwas geändert (2.4) | `einsortierung/neu` |
+| `neu_einsortieren_nicht_moeglich` | 409 | **(12.11., berichtigt 16.11.)** Der Eintrag ist nicht mehr „bitte ansehen“ **und** älter als 24 Stunden, oder an seinen Folgen wurde seit dem Einsortieren schon etwas geändert (2.4), oder er wurde vor A3e einsortiert (kein gemerkter Rückweg) | `einsortierung/neu` |
 | `hoerkopie_warteschlange_voll` | 429 | **(12.11.)** Die Warteschlange der Hörkopien hat ihre Grenze (14.8) | `audio/bereit`, `hoerkopie/neu_erzeugen` |
 | `zu_viele_streams` | 429 | **(12.11.)** Der Benutzer hat schon `AUDIO_VERBINDUNGEN_JE_BENUTZER` offene Audio-Verbindungen | Audio (HTTP) |
 | `warteschlange_voll` | 409 | **(13.11.)** Es warten schon `WARTESCHLANGE_MAX` (5) Vormerkungen; die Seite sagt: „Es warten schon 5 Tobies. Warte, bis einer aufgelegt ist, oder nimm einen aus der Liste.“ | `warteschlange/set` |
 | `warteschlange_doppelt` | 409 | **(13.11.)** Genau diese Vormerkung (gleiche Box, gleiches Ziel) wartet schon; die Seite sagt: „Das wartet schon.“ | `warteschlange/set` |
+| `wer_ungueltig` | 400 | **(16.11.)** `wer` oder `quelle` ist keine der erlaubten Formen (`alle`, `alle_boxen`, `box:<Name>`, `benutzer:<id>`; bei Nr. 53 und 54 `boxen`, `reinhoeren`, `alle`, `box:<Name>`, `benutzer:<id>`). Der Code gilt auch für `box:<Name>` einer Box, die nicht eingerichtet ist, und für `benutzer:<id>` eines Benutzers, den es in HA nicht gibt und der keine Daten hat; bei Nr. 50, 53 und 54 gleich | Gehört (Nr. 50, 51, 53, 54) |
+| `zu_viele_favoriten` | 409 | **(16.11.)** Es gibt schon `FAVORITEN_MAX` (1 000) Favoriten; ein Stern wird nicht gesetzt | `favorit/set` |
 | `hoerkopie_wartet` | 503 | **(12.11.)** Die Hörkopie wird noch erzeugt (nur HTTP, mit `Retry-After: 60`; Rückfall für Aufrufer ohne `audio/bereit`) | Audio (HTTP) |
 
 Der Körper einer HTTP-Fehlerantwort des Uploads ist in 5.5 beschrieben. Eine
@@ -2033,7 +2182,7 @@ Start von AP 3.1) und aus dem Design:
 | Grenze | Wert | Quelle und Folge |
 |---|---|---|
 | Größe einer **eingehenden** WebSocket-Nachricht | 4 MiB (Vorgabe von aiohttp; HA setzt `WebSocketResponse(heartbeat=55, …)` ohne eigenen Wert) | Darum **keine** Dateien über WebSocket, sondern HTTP (Abschnitt 5). Eingaben dieses Vertrags sind klein (wenige KiB). |
-| Größe einer Nachricht, die dieser Vertrag **sendet** | höchstens 64 KiB (wie `mqtt-v1.md`) | In HA gibt es keine feste Grenze für ausgehende Nachrichten (nur die Warteschlange); 64 KiB ist die eigene Wahl dieses Vertrags. Alle Listen blättern deshalb mit `limit`/`offset`: `neue_tobies/list`, `papierkorb/list` (höchstens 200 Einträge ≈ 50 KiB), `zuordnung/list` (höchstens 100 Einträge ≈ 35 KiB, W-13), `eingang/list` (höchstens 100). `serien/list` und `boxen/list` sind durch die Anzahl der Serien bzw. Boxen klein. |
+| Größe einer Nachricht, die dieser Vertrag **sendet** | höchstens 64 KiB (wie `mqtt-v1.md`) | In HA gibt es keine feste Grenze für ausgehende Nachrichten (nur die Warteschlange); 64 KiB ist die eigene Wahl dieses Vertrags. Alle Listen blättern deshalb mit `limit`/`offset`: `neue_tobies/list`, `papierkorb/list` (höchstens 200 Einträge ≈ 50 KiB), `zuordnung/list` (höchstens 100 Einträge ≈ 35 KiB, W-13), `eingang/list` (höchstens 100). `serien/list` und `boxen/list` sind durch die Anzahl der Serien bzw. Boxen klein. **Klarstellung (16.11., Rest aus A):** `serien/list` ohne `limit` liefert **alle** Einträge (K1, 14.2) und kann deshalb die 64 KiB bei einigen 100 Serien überschreiten; die Seite sendet immer `limit` und blättert, der Satz „höchstens 200“ gilt nur für den Wert von `limit`. |
 | Nachrichten je Verbindung, bis HA sie trennt | 4096 wartende Nachrichten (`MAX_PENDING_MSG`) | Ereignisse sind gebündelt (4). |
 | Lebenszeichen der WebSocket-Verbindung | 55 s (`heartbeat`) | von HA, nichts zu tun |
 | Anmeldung | Die Verbindung muss die Authentifizierung (`auth`) innerhalb weniger Sekunden schicken | macht `hass.connection` der Oberfläche |
@@ -2602,9 +2751,11 @@ Eine Fähigkeit gibt es **nur** (1) für etwas, das von der Umgebung abhängt (`
 | `hoerkopie` | A-3 | hängt von `ffmpeg` ab: Audio-Ansicht liefert Kopien, Zustand in `audio/bereit`, Befehl 45. Ohne sie bleibt es bei der Prüfung mit `canPlayType` |
 | `konfig_staende` | A-1 | optionale Eingabe `stand` bei `konfig/export_lesen` und `konfig/aus_export` (2.4) |
 | `warteschlange` | A0-Q (13.11.) | Befehle 47 bis 49, Ereignisthema `warteschlange` in `subscribe.themen`, Feld `hello.grenzen.warteschlange_max`, Abgleich beim Auflegen (3.13) |
+| `gehoert` | B (16.11.) | Befehle 50 bis 54; die Eingabefelder `spieler` und `spielt` bei Befehl 41; die Sortierungen `zuletzt_gehoert` und `meist_gehoert` bei `serien/list`; die Ausgabefelder `zuletzt_gehoert_am`; Ereignisthema `gehoert`; Unterseite `#gehoert`, Reihe „Zuletzt auf den Boxen gehört“. **Nur zugesagt, wenn die Datenbank `gehoert.sqlite` offen ist** (`data-model.md`, 12.1). Die im Stand A genannte Fähigkeit `gehoert_reinhoeren` **entfällt** |
+| `favoriten` | B (16.11.) | Befehle 55 und 56; der Filter `favorit` bei `serien/list` und `folgen/list`; die Ausgabefelder `favorit`; Ereignisthema `favoriten`; Stern, Reihe „Favoriten“ |
 | `zuordnung_rueckgaengig` | A0-Q (13.11.) | optionale Eingabe `als_neu` bei `zuordnung/remove` (3.5). Eigene Fähigkeit, weil „Rückgängig“ (X20d) vor der Warteschlange gebaut werden kann |
 
-**Entfallen** (in Rev. 5 des Designs gestrichen): `kapitel` (das Feld `kapitel` ist ein Ausgabefeld; fehlt es, zeigt die Seite keine Liste), `box_anzeigenamen` und `rechte_stufen` (Feld da bzw. Seite und Backend liegen im selben Paket). Fehlt eine Fähigkeit, die die Seite braucht, zeigt sie **eine** Antwort („Die Seite ist veraltet. Bitte lade sie neu.“). Eine **alte Seite** im Zwischenspeicher kennt die neuen Befehle nicht, schickt sie nicht und blendet nach `darf_schreiben` aus: harmlos. Stufe B (`gehoert`, `gehoert_reinhoeren`) und Stufe C (`playlists`): geplant, siehe Design Abschnitt 12 und 13; sie gehören **nicht** zu diesem Vertragsstand.
+**Entfallen** (in Rev. 5 des Designs gestrichen): `kapitel` (das Feld `kapitel` ist ein Ausgabefeld; fehlt es, zeigt die Seite keine Liste), `box_anzeigenamen` und `rechte_stufen` (Feld da bzw. Seite und Backend liegen im selben Paket). Fehlt eine Fähigkeit, die die Seite braucht, zeigt sie **eine** Antwort („Die Seite ist veraltet. Bitte lade sie neu.“). Eine **alte Seite** im Zwischenspeicher kennt die neuen Befehle nicht, schickt sie nicht und blendet nach `darf_schreiben` aus: harmlos. Stufe B (`gehoert`, `favoriten`) steht seit 16.11. in diesem Vertrag (Abschnitt 15; `gehoert_reinhoeren` entfällt); Stufe C (`playlists`): geplant, siehe Design Abschnitt 13; sie gehört **nicht** zu diesem Vertragsstand.
 
 ### 14.2 Bibliothek: Art, Einzeltitel, Suche, Felder (V-2, V-8)
 
@@ -2620,6 +2771,8 @@ Eine Fähigkeit gibt es **nur** (1) für etwas, das von der Umgebung abhängt (`
 | `cover_stand` | string (8 Zeichen `[0-9a-f]`) oder `null` | Fingerabdruck der angezeigten Bilddatei; `null` = kein Cover |
 | `cover_quelle` | `eigen`, `auto` oder `null` | |
 | `hoerstelle` | object | nur wenn der Anfragende angefangen hat: `anteil` (Zahl 0 bis 1), `rest_s`, `zeit`, `folge`; **nur seine eigene** (A-2) |
+| `favorit` | bool | **(16.11., Fähigkeit `favoriten`)** der Eintrag als Ganzes hat einen Stern (nur der Stern der Serie, nicht die Sterne einzelner Folgen; eine Serie, von der nur eine Folge einen Stern hat, ist nicht `favorit`) |
+| `zuletzt_gehoert_am` | Zeitstempel oder `null` | **(16.11., Fähigkeit `gehoert`)** `ende_um` der letzten Sitzung an einer **Box**; `null`, wenn noch nie eine Box den Eintrag gespielt hat (Reinhören zählt hier nicht, wie die Reihe „Zuletzt auf den Boxen gehört“) |
 
 Schon vorhanden und unverändert benutzt: `anzahl_folgen`, `anzahl_tobies` (zählt `serie` **und** `folge`), `angelegt_am`. Bei einem Einzeltitel ist `anzahl_folgen` 1. Ereignisse (`medien`, `snapshot`) tragen kein Cover, nur Antworten auf Befehle. Die Adresse des Covers ist fest (`/api/tobibox/cover/<serie_id>`, 14.3), es gibt kein signiertes `cover_url`.
 
@@ -2630,8 +2783,8 @@ Schon vorhanden und unverändert benutzt: `anzahl_folgen`, `anzahl_tobies` (zäh
 | `art` | siehe oben | nur Einträge dieser Art |
 | `text` | string, 2–100 Zeichen | sucht im Namen des Eintrags (normalisiert); mit `auch_folgen=true` auch in Folgentiteln |
 | `auch_folgen` | bool | Vorgabe `false` |
-| `filter` | array aus `ohne_tobie`, `neu`, `pruefen`, `sammlung`, `einzeln` | `sammlung` = nur Einträge, die kein Einzeltitel sind; `einzeln` = nur Einzeltitel; mehrere Werte gelten als „und“ |
-| `sortierung` | `name` (Vorgabe), `neu`, `angehoert` | `angehoert` = zuletzt angehört vom Anfragenden, nur mit Fähigkeit `reinhoeren` |
+| `filter` | array aus `ohne_tobie`, `neu`, `pruefen`, `sammlung`, `einzeln`, `favorit` | `sammlung` = nur Einträge, die kein Einzeltitel sind; `einzeln` = nur Einzeltitel; **(16.11.)** `favorit` = nur Einträge mit Stern (nur mit Fähigkeit `favoriten`); mehrere Werte gelten als „und“ |
+| `sortierung` | `name` (Vorgabe), `neu`, `angehoert`, `zuletzt_gehoert`, `meist_gehoert` | `angehoert` = zuletzt angehört vom Anfragenden, nur mit Fähigkeit `reinhoeren` (**privat**, die eigenen Hörstellen). **(16.11., nur mit Fähigkeit `gehoert`)** `zuletzt_gehoert` = zuletzt an einer **Box** gespielt, neueste zuerst (Quelle: `zuletzt_gehoert_am`); `meist_gehoert` = größte Hörzeit im letzten Jahr (365 Kalendertage), **alle Quellen** (Boxen und Reinhören). Gleichstand nach Name. Einträge ohne Hörzeit bzw. ohne Box-Sitzung stehen am Ende, nach Name |
 | `limit` | int 1–200 | |
 | `offset` | int ≥ 0 | |
 
@@ -2643,7 +2796,7 @@ Die Ausgabe bekommt `gesamt` (nach Filter) und `weitere` (bool). **Fehlt `limit`
 
 **Einzeltitel** sind eine **normale Serie** mit genau einer Folge und `einzeln: true` (eigene ID, Ordner, `serie.json`, Cover, Papierkorb, Umbenennen, Befehl 38). Neue Folgen kommen nicht hinein: `ergaenzen` (14.4) antwortet `wunsch_ungueltig`, `folge/verschieben` mit einem Einzeltitel als Ziel `ziel_ungueltig`; `serien/zusammenfuehren` darf ihn als Quelle, nicht als Ziel benutzen. Ein Tobie auf einen Einzeltitel zeigt auf die **Folge** (`ziel.typ="folge"`), nicht auf die Serie.
 
-**Folge-Objekt von `serie/get` bekommt** (Ausgabefelder): `dauer_s` (Zahl oder fehlt), `spuren_s` (bei Ordner-Folgen: Liste der Track-Längen), `kapitel` (Liste aus `titel`, `start_s` und bei Ordner-Folgen `track` (0-basiert), nur wenn mindestens zwei, Regeln 14.7), `hoerstelle` (`position_s`, `fertig`, bei Ordner-Folgen zusätzlich `track` (0-basiert, seit 15.11., Entscheidung AM4); nur des Anfragenden, nur wenn angefangen) und `hoerkopie` (`original`, `nicht_angelegt`, `wartet`, `fertig`, `fehler`; bei `fehler` zusätzlich `grund`). **`stand`** der Serie rechnet künftig **nur** über `name`, `folgen` und die von Menschen gesetzten Felder von `folgen_info` (`anzeige`, `nummer`, `datum`, `pruefen`); Werte aus dem Store `tobibox.medieninfo` und Hintergrundläufe ändern ihn nie (Abschnitt 3, Serie-Kurzform).
+**Folge-Objekt von `serie/get` bekommt** (Ausgabefelder): `dauer_s` (Zahl oder fehlt), `spuren_s` (bei Ordner-Folgen: Liste der Track-Längen), `kapitel` (Liste aus `titel`, `start_s` und bei Ordner-Folgen `track` (0-basiert), nur wenn mindestens zwei, Regeln 14.7), `hoerstelle` (`position_s`, `fertig`, bei Ordner-Folgen zusätzlich `track` (0-basiert, seit 15.11., Entscheidung AM4); nur des Anfragenden, nur wenn angefangen) und `hoerkopie` (`original`, `nicht_angelegt`, `wartet`, `fertig`, `fehler`; bei `fehler` zusätzlich `grund`) und **(16.11., Fähigkeit `favoriten`)** `favorit` (bool; Stern an dieser Folge). **Hörstelle je Folge mit `track`** (Rest aus Stufe A, im Vertrag seit 15.11., Entscheidung AM4; gebaut): `hoerstelle.track` (0-basiert) steht nur bei Ordner-Folgen (mehr als ein Track), bei einer Datei fehlt es. **`stand`** der Serie rechnet künftig **nur** über `name`, `folgen` und die von Menschen gesetzten Felder von `folgen_info` (`anzeige`, `nummer`, `datum`, `pruefen`); Werte aus dem Store `tobibox.medieninfo` und Hintergrundläufe ändern ihn nie (Abschnitt 3, Serie-Kurzform).
 
 ### 14.3 Cover (V-1, Fähigkeit `cover`)
 
@@ -2700,7 +2853,7 @@ Die Ausgabe bekommt `gesamt` (nach Filter) und `weitere` (bool). **Fehlt `limit`
 *   **Zeitpunkt (Entscheidung Tobias, Runde 10):** (a) **neu Einsortiertes sofort**, im Hintergrund, die Meldung „fertig“ wartet nicht darauf; (b) **der Bestand erst beim ersten Reinhören** (`audio/bereit` stellt die Datei in die Warteschlange und antwortet `wird_vorbereitet`); (c) Vorgezogenes geht an die Spitze, je Benutzer höchstens `HOERKOPIE_VORZIEHEN_JE_BENUTZER` Datei zugleich. Es gibt **keinen** Hintergrund-Lauf über den Bestand für Hörkopien. Zustand im Bestand bis dahin: `nicht_angelegt`.
 *   **Erzeugen:** `ffmpeg -nostdin -v error -protocol_whitelist file -f <Format der Endung> -i file:<Pfad> -map 0:a:0 -vn -ac 2 -map_metadata -1 -t <Dauer + HOERKOPIE_T_ZUGABE_S> -fs <Grenze> -c:a aac -b:a 96k -movflags +faststart -f mp4 file:<Ziel>.part`, danach umbenennen. Liste von Argumenten, nie Shell, `RLIMIT_AS`; Programm: Erstwahl `get_ffmpeg_manager(hass).binary`, wenn die Integration `ffmpeg` geladen ist, sonst `shutil.which("ffmpeg")`. Bei Ordner-Folgen eine Kopie je Track.
 *   **Ort:** auf der NAS-Freigabe im Ordner **`hoerkopien/<serie_id>/<kennung>.m4a`**, **neben** `medien/` (wie `export/`, `eingang/`, `releases/`), nicht in `medien/` und nicht in HAs Konfigurationsordner. Er liegt außerhalb des rsync-Moduls `medien`; die Box holt ihn nie, `sync.py` braucht dafür keine Ausnahme. `kennung` = die ersten 16 Zeichen von `sha1(folge|track|größe|Änderungszeit)`; ändert sich das Original, entsteht eine neue Kopie; verwaiste Kopien räumt ein Hintergrundlauf weg. `*.part` wird beim Start gelöscht.
-*   **Harte Grenzen** (gelten für `ffmpeg` und für `ffprobe`; Namen und Werte in 14.10, **vorläufig bis zur Messung A0b**): Dauerdeckel; **feste** Zeitgrenze je Datei (nicht aus der Dauer im Dateikopf gerechnet); Ausgabe höchstens Dauer + Zugabe (`-t`); Ausgabe höchstens Dauer × 12 KB/s × 1,2 (`-fs`); Plausibilität Größe zu Dauer (Faktor über der Grenze: keine Kopie, Grund `unplausibel`); Schlange mit Höchstzahl und Höchstgröße (darüber `hoerkopie_warteschlange_voll`; der Zähler steht in „Technik“); Kontingent für `hoerkopien/` (darüber `kein_speicher`, nichts wird gelöscht); eine Datei zugleich, mit `nice`.
+*   **Harte Grenzen** (gelten für `ffmpeg` und für `ffprobe`; Namen und Werte in 14.10, **vorläufig bis zur Messung A0b**): Dauerdeckel; **feste** Zeitgrenze je Datei (nicht aus der Dauer im Dateikopf gerechnet); Ausgabe höchstens Dauer + Zugabe (`-t`); Ausgabe höchstens Dauer × 12 KB/s × 1,2 (`-fs`); Plausibilität Größe zu Dauer (Faktor über der Grenze: keine Kopie, Grund `unplausibel`); Schlange mit Höchstzahl und Höchstgröße (darüber `hoerkopie_warteschlange_voll`; der Zähler steht in „Technik“ und kommt aus `hello.grenzen.hoerkopie_schlange`, 3.1); Kontingent für `hoerkopien/` (darüber `kein_speicher`, nichts wird gelöscht); eine Datei zugleich, mit `nice`.
 *   **Fehlerfall:** (1) `ffmpeg` fehlt: keine Fähigkeit, keine Kopien, kein Fehler. (2) Kodieren schlägt fehl (kaputte Datei, `zu_lang`, `zeitgrenze`, `unplausibel`, `kein_speicher`, NAS weg): `hoerkopie.zustand = "fehler"` mit `grund`; **ein Versuch je Datei und Start der Integration**, danach erst wieder auf `hoerkopie/neu_erzeugen`. NAS weg pausiert die Schlange. (3) Die Box ist nie betroffen. Papierkorb und Umbenennen berühren die Kopien nicht; Verschieben und Zusammenführen ändern die `serie_id`, die Kopie wird beim nächsten Lauf unter der neuen ID wiedergefunden oder neu gemacht; endgültiges Löschen räumt der Hintergrundlauf auf.
 
 ### 14.9 Anzeigenamen der Boxen (V-3)
@@ -2734,7 +2887,7 @@ Namen sind die der Konstanten im Code (`const.py`). **„vorläufig“** heißt:
 | `AUDIO_VERBINDUNGEN_JE_BENUTZER` | 6 | beschlossen (Review G5) |
 | `AUDIO_BEREIT_JE_MINUTE` | 6 je Benutzer | beschlossen |
 | `AUDIO_LINK_GUELTIG_S` | 86400 (24 Stunden) | beschlossen (Runde 10) |
-| `HOERSTELLE_SCHREIBEN_JE_MINUTE` | 30 je Benutzer | beschlossen |
+| `HOERSTELLE_SCHREIBEN_JE_MINUTE` | **60** je Benutzer (bis 15.11.: 30; angehoben mit Stufe B, `spielt` und mehrere Fenster, 15.3) | Entwurf B0 (16.11.) |
 | `HOERSTELLE_SPEICHER_VERZOEGERUNG_S` | 60 | beschlossen |
 | `HOERSTELLE_MAX_SERIEN`, `HOERSTELLE_MAX_FOLGEN` | 2000, 100 | beschlossen |
 | `HOERSTELLE_DAUER_UNBEKANNT_MAX_S` | 86400 | beschlossen |
@@ -2754,12 +2907,78 @@ Namen sind die der Konstanten im Code (`const.py`). **„vorläufig“** heißt:
 | `WARTESCHLANGE_AENDERUNGEN_JE_MINUTE` | 30 je Benutzer, für `warteschlange/set` und `warteschlange/abbrechen` zusammen (2.4) | Vorschlag A0-Q, gleicher Wert wie `AENDERUNGEN_JE_MINUTE`; ein Höchstalter gibt es bewusst nicht (3.13, Regel 5) |
 | Wartezeit-Schätzung in `audio/bereit.warte_s` | 15 bis 30 mal Echtzeit | **vorläufig, nach Messung A0b** |
 
-`hello.grenzen` bekommt die Felder `audio_verbindungen_je_benutzer`, `hoerkopie_kbit`, `hoerkopie_dauer_max_s` und (13.11.) `warteschlange_max` (nur wenn die jeweilige Fähigkeit zugesagt ist) und `upload_max_bytes` mit dem neuen Wert.
+`hello.grenzen` bekommt die Felder `audio_verbindungen_je_benutzer`, `hoerkopie_kbit`, `hoerkopie_dauer_max_s`, (16.11.) `hoerkopie_schlange` und (13.11.) `warteschlange_max` (nur wenn die jeweilige Fähigkeit zugesagt ist) und `upload_max_bytes` mit dem neuen Wert.
 
 ### 14.11 Stufe B und C
 
-*   **Stufe B** (Reiter „Gehört“, Favoriten, Technik-Verlauf, Reinhör-Daten): geplant, siehe Design Abschnitt 12. Noch nicht Teil dieses Vertrags.
+*   **Stufe B** (Unterseite „Gehört“, Favoriten, Technik-Verlauf, Reinhör-Sitzungen): seit 16.11. Teil dieses Vertrags (Entwurf B0): Befehle 50 bis 56 (3.14), Ereignisthemen (4.9, 4.10), Regeln in Abschnitt 15, Speicher in `data-model.md`, 12, Box-Seite in `mqtt-v1.md`.
 *   **Stufe C** (eigene Playlists): geplant, siehe Design Abschnitt 13. Noch nicht Teil dieses Vertrags.
+
+## 15. Erweiterungen Stufe B „Gehört“ (16.11., Entwurf B0)
+
+Grundlage: `docs/egm/stufe-b/design_draft.md` (Rev. 3.1) und `resolve.md`. Dieser Abschnitt legt die Regeln fest, auf die sich die Befehle 50 bis 56 (3.14) und die Änderungen an Nr. 41 stützen; die Nachrichten der Boxen stehen in `mqtt-v1.md` (3.3, 3.4, 3.7, 4.5), die Speicher in `data-model.md` (1.6, 12). **Alles ist additiv** (Abschnitt 9); die nicht additiven Stellen nennt der Änderungseintrag am Anfang.
+
+### 15.1 Begriffe und Zählregel (Boxen und Reinhören gleich)
+
+| Begriff | Regel |
+|---|---|
+| **Quelle** (`wer`) | `box:<Name>` oder `benutzer:<HA-Benutzer-ID>`. Auswahl: **Alle** (alle Quellen), **Alle Boxen** (die Kinder zusammen), je Box, je Person |
+| **Sitzung** | zusammenhängendes Hören **einer Folge** an **einer Quelle**. Pausen bis **30 Minuten** gehören dazu (R2). Grenzen: `mqtt-v1.md`, 4.5 (Box), 15.3 (Reinhören) |
+| **Hörzeit** (steht vorn, R1) | Summe der **Inhaltszeit** aus dem Fortschritt der Position. Der Zuwachs `dp` der Position zwischen zwei Meldungen zählt, wenn `0 < dp`; er wird auf `2 × dt + 2` gekappt (`dt` = Monotonzeit zwischen den Meldungen, in Sekunden). Die Basislinie der Position wird neu gesetzt bei Wechsel von Track, Folge und Wiedergabe (`gen`) und bei `dp ≤ 0` (Rücksprung, Zurückspringen); ein Sprung nach vorn über die Kappung zählt nur bis zur Kappung. Bei schnellerem Abspielen zählt die **Länge des Inhalts**. Jede Sitzung mit Hörzeit > 0 zählt |
+| **Mal** (Nebenspalte, R1) | Sitzungen **einer Quelle** an einer Folge bilden ein Mal, wenn die vorige höchstens 30 Minuten vor dem Beginn endete **und nicht am Ende der Folge** endete. Ein Mal zählt ab **10 s** Hörzeit (Summe seiner Sitzungen) und gehört zum **Tag seines Beginns**. Wiederholen nach dem Ende der Folge ist immer ein neues Mal. Sitzungen mit unbekanntem Datum sind je ein eigenes Mal |
+| **fertig** | eine Sitzung, die am **Ende der Folge** endet (`ende_der_folge`), wenn die Hörzeit **dieser Quelle an dieser Folge seit dem letzten „fertig“** mindestens **80 %** der Folgendauer ist; ohne bekannte Dauer mindestens 60 s. So zählt ein Hörbuch, das in Portionen über Tage gehört wird. Box: ihr Ereignis „Folge zu Ende“; Reinhören: nur `fertig: true` der Seite (nicht die Hörstellen-Regel „Position ≥ Ende − 2 s“) |
+| **Fertig je Hörspiel** | verschiedene, **heute vorhandene** Folgen, die im Zeitraum mindestens einmal fertig gehört wurden, von der heutigen Zahl („17/20“) |
+| **Zeitraum** | Zeitzone von HA: **Woche** = heute und die 6 Kalendertage davor, **Monat** = 30, **Jahr** = 365 Kalendertage (Mitternacht Ortszeit, gleich für Zahlen und Diagramme); **Alles** = seit Beginn. Eine Sitzung zählt zum **Tag und zur Stunde ihres Beginns** (eine Sitzung über Mitternacht zählt zum Tag ihres Beginns). Ein ungefähres Datum (`mqtt-v1.md`, 4.5, Punkt 6) zählt normal; ein unbekanntes Datum nur bei `zeitraum` = `alles` (auch in Ranglisten; nicht bei `von`/`bis`) |
+
+*   **Datenschutz** (Frage 23, präzisiert): Die **Stelle** zum Weiterhören ist privat; **dass** jemand etwas gehört hat und wie lange, sieht die Familie (alle angemeldeten Benutzer, auch Gäste-Konten). Die Kennung des Tobies wird nie übertragen und nie gespeichert (Frage 9).
+*   **Gelöschte Benutzer** bleiben in „Alle“, erscheinen in „Wer?“ als „Früherer Benutzer“ und lassen sich über `benutzer:<id>` löschen (Nr. 54).
+*   **Zwei Fenster** mit derselben Folge zählen beim Reinhören doppelt (die Seite sagt es unter „Was wird gezählt?“).
+
+### 15.2 Aufnahme der Boxen in HA
+
+*   **Annahme:** `gespielt` wird in der Integration **vor** der Liste der Meldungen (`box_ereignisse`) abgenommen, je Nachricht ein `COMMIT`, danach die Quittung (`mqtt-v1.md`, 4.5). Nur **bekannte** Boxen; die Quelle ist `box:<Name aus dem Thema>`.
+*   **Dauer:** `folge_dauer_s` ist der Wert aus der Medieninfo von HA (`data-model.md`, 5a), sonst der der Box. `gehoert_s` wird auf die Schranke `ende_boot_s − beginn_boot_s + 2` gekappt (Eintrag im Protokoll).
+*   **Technik-Zeilen** (`data-model.md`, 12.1): eine Zeile bei **echtem Wechsel** gegenüber der letzten gespeicherten Zeile je Box (`lader`, `online`, Ergebnis des Syncs über `status.sync.letzter_ende`, Ereignis `fehler`, Anstieg von `gehoert_verworfen`); der erste `status` nach einem Start von HA wird nur verglichen.
+*   **Bibliothek ändern:** Verschieben und Zusammenführen von Folgen und Serien (Nr. 26, 27) schreiben `serie` und `folge` der Hördaten und der Favoriten (Sterne an Folgen) mit und rechnen die betroffenen Gruppen neu; Umbenennen (Nr. 6, 25) ändert nichts. Gelöschte Serien bleiben in den Zahlen (eine Sammelzeile in Nr. 50).
+*   **Ohne Fähigkeit:** Ist die Datenbank nicht zu öffnen, fehlt die Fähigkeit `gehoert`, die Integration antwortet den Boxen nicht (Handshake) und nimmt nichts auf; die Boxen puffern bis zu ihrer Grenze (`mqtt-v1.md`, 4.5, Punkt 5).
+
+### 15.3 Reinhören als Sitzungen (Nr. 41)
+
+*   **Je (Benutzer, `spieler`) eine offene Sitzung** im Arbeitsspeicher von HA, höchstens **5 je Benutzer** (`REINHOEREN_SPIELER_MAX`; die älteste wird als `wechsel` geschlossen). Ohne `spieler` (alte Seite) gilt **eine** Sitzung je Benutzer. Die Quelle ist `benutzer:<id>`, das Datum immer `sicher` (Uhr von HA).
+*   **Hörzeit** nach 15.1 mit der **ungerundeten** `position_s` der Eingabe (bei Ordner-Folgen in Sekunden der **ganzen Folge** mit Hilfe von `spuren_s`, sonst innerhalb eines Tracks); `dt` ist die Zeit seit dem letzten Aufruf derselben Sitzung (Monotonzeit von HA). Ist `dt` größer als 30 s und war beim **letzten** Aufruf `spielt = true` (die Seite war eingefroren, der Ton lief), zählt der Zuwachs trotzdem, gekappt auf `1,5 × dt + 2` (höchstes Tempo der Seite); war `spielt` nicht `true`, zählt er nicht (neue Basislinie). Bei `dt` ≤ 30 s gilt die Kappung `2 × dt + 2` (15.1). Ist `spielt` `false`, zählt **kein** Fortschritt (Spulen in der Pause zählt nicht). Nach jedem Aufruf ist die Basislinie neu gesetzt.
+*   **Ende der Sitzung:** `fertig: true` der Eingabe → `ende_der_folge`; eine **andere Folge** im selben `spieler` → `wechsel`; **30 Minuten ohne Fortschritt** → `pause` (eine Aufräumschleife je Minute; `ende_um` ist die letzte Zeit mit Fortschritt); HA fährt herunter → `dienst_ende`. Die Hörstellen-Regel „Position ≥ Ende − 2 s“ (Nr. 41, `fertig`) zählt **nicht** als Ende der Sitzung.
+*   **Schreiben:** Offene Sitzungen schreibt HA alle **5 Minuten** als `teilweise` in die Datenbank; nach einem Neustart von HA werden sie nach 30 Minuten `verwaist`. Die Sitzung erhält eine neue UUID von HA.
+*   **Idempotenz:** Eine Wiederholung desselben Aufrufs (gleiche Position) zählt keine Hörzeit doppelt (`dp = 0`).
+*   **Messung vor dem Bau (B2a):** Am iPhone mit gesperrtem Bildschirm kann `hoerstelle/set` ausbleiben. Das Ergebnis ändert nur den Text „Was wird gezählt?“ der Seite, nicht diesen Vertrag.
+
+### 15.4 Konstanten (Stufe B)
+
+Die **Werte** stammen aus dem Entwurf (Rev. 3.1) und sind beschlossen, soweit dort nicht anders vermerkt; die **Namen** sind Vorschläge für `const.py` (der Code darf sie anders nennen).
+
+| Konstante | Wert | Stand |
+|---|---|---|
+| `GEHOERT_PAUSE_MAX_S` | 1800 (30 Minuten Pause innerhalb einer Sitzung und eines Mals) | beschlossen (R2) |
+| `GEHOERT_MAL_MIN_S` | 10 (Hörzeit eines Mals) | beschlossen (R1) |
+| `GEHOERT_FERTIG_PROZENT` | 80 (Anteil der Folgendauer für „fertig“) | beschlossen |
+| `GEHOERT_FERTIG_OHNE_DAUER_S` | 60 (ohne bekannte Dauer) | beschlossen |
+| Kappung des Zuwachses | `2 × dt + 2` (Box und Reinhören); Reinhören bei `dt` > 30 s und `spielt`: `1,5 × dt + 2` | beschlossen (G3-7) |
+| `REINHOEREN_SPIELER_MAX` | 5 offene Sitzungen je Benutzer | beschlossen |
+| `REINHOEREN_SCHREIBEN_S` | 300 (offene Reinhör-Sitzungen als `teilweise`) | beschlossen |
+| `REINHOEREN_VERWAIST_S` | 1800 (Reinhören ohne Fortschritt und nach HA-Neustart) | beschlossen |
+| `BOX_VERWAIST_S` | 86400 (`teilweise` einer Box ohne Abschluss) | beschlossen |
+| `HOERSTELLE_SCHREIBEN_JE_MINUTE` | 60 (siehe 14.10) | beschlossen |
+| `GEHOERT_PUFFER_ZEILEN_MAX` | 500 Zeilen in `gehoert.json` (Box) | beschlossen |
+| Senden der Box | 20 Sitzungen je Nachricht, 20 Nachrichten je Sekunde, Wiederholung alle 10 Minuten, Zwischenstand alle 15 Minuten; Quittung 0 bis 100 UUIDs | beschlossen (`mqtt-v1.md`, 3.4, 3.7, 4.5) |
+| `GEHOERT_DATUM_FRUEHESTENS` | 1.1.2026 (ungefähres Datum nur danach) | beschlossen |
+| `GEHOERT_ZEILEN_MAX` | 400 (Zeilen der Zeitreihen in Nr. 50) | beschlossen (G3-6) |
+| `GEHOERT_LIMIT_VORGABE`, `GEHOERT_LIMIT_MAX` | 50, 200 (Nr. 50, ohne Zeitschlüssel) | beschlossen |
+| `GEHOERT_SPANNE_MAX_JAHRE` | 3 (`von` bis `bis`) | beschlossen |
+| `GEHOERT_ZULETZT_LIMIT_MAX` | 20 (Nr. 51) | beschlossen |
+| `GEHOERT_EREIGNIS_BUENDEL_S` | 5 (Ereignis `gehoert`) | beschlossen |
+| `GEHOERT_EXPORT_LINK_S` | 600 (signierter Pfad, Nr. 53) | beschlossen |
+| `FAVORITEN_MAX` | 1000 | beschlossen (R3, G-M14) |
+| `FAVORITEN_JE_MINUTE` | 30 je Benutzer (nicht für Administratoren, 2.4), eigener Zähler für `favorit/set` | beschlossen |
+| Messziel Nr. 50 | unter 300 ms (Gesamtzeit des Befehls) bei 30 000 Zeilen, auch während einer Aufnahme | Ziel, in B3 gemessen |
 
 ## Festlegungen in diesem Vertrag (Stand 09.11.)
 
@@ -2834,6 +3053,9 @@ widerspricht.
     Ablauf der Lesezeichen als Zahl. HA prüft mit **derselben Prüfung wie die Box** (Abschnitt 3.11, 36); ungültig
     heißt: ganze Änderung abgelehnt, `einstellung_ungueltig` mit Pfad. Eine Änderung ist eine Änderung der
     Konfiguration (Revision + 1, `tobibox/config`). `hinweis_pegel` liest die Seite nicht und ändert sie nicht.
+28. **Stufe B „Gehört“ (16.11., Entwurf B0; Entscheidungen R1 bis R4 Tobias, Rest Projektleitung):** Die Hörzeit steht vorn (R1: in Minuten, nicht in Abspielungen; „Mal“ bleibt Nebenspalte), eine Pause bis
+    30 Minuten gehört zur Sitzung (R2), Favoriten gelten für die ganze Familie (R3), die Abnahme läuft mit echter Box-Software am Mac als Test-Box (R4). Reinhören und Boxen zählen nach derselben Regel
+    (15.1). Der Entwurf ändert die Version nicht (additiv).
 
 ## Vorgaben der Projektleitung (09.11.)
 
@@ -2892,6 +3114,7 @@ zu belegen.
 | Obergrenze „normale Anfragen 16 MiB“ | **geprüft**: `http/server.py` Zeile 69 und 278 (W-14), siehe Abschnitt 8 |
 | Grenze der WebSocket-Nachricht | geprüft: HA setzt keinen Wert, es gilt die Vorgabe von aiohttp (4 MiB, aus Wissen) |
 | `ffprobe`-Schlüsselnamen der Tags je Container | **offen** bis AP 3.1 (Beispieldateien von Tobias) |
+| Stufe B (16.11., Entwurf B0): `recorder/statistics_during_period` für die Akku-Kurve, ein signierter Pfad (`async_sign_path`) für den Export, SQLite aus dem Executor (`threading.Lock`), `PRAGMA user_version` | aus Wissen; in B3 gegen die feste HA-Version zu belegen, auf der echten HA zu messen (Ziel: Nr. 50 unter 300 ms bei 30 000 Zeilen) |
 
 ## Offene Punkte für Tobias
 

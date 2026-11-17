@@ -4,9 +4,16 @@
 *   **Grundlage:** `docs/designs/box-software.md` („Datenmodell und Dateien“,
     „Update“, „Fehlersuche“, Baustein 4 „Speicher und Medien“)
 *   **Gilt für:** Box-Dienst (`store`, `library`, `outbox`, `update`, `eventlog`,
-    `guard.py`) und die HA-Integration (`media.py`, `store.py`, `mqtt.py`).
+    `guard.py`, seit 16.11. der Beobachter `gehoert`) und die HA-Integration (`media.py`, `store.py`, `mqtt.py`, seit 16.11. der Speicher für „Gehört“).
 *   Ein AP, das ein Schema einführt oder ändert, ergänzt dieses Dokument
     (siehe Umsetzungsplan).
+*   **Änderung 16.11. (Stufe B „Gehört“, Paket B0; Entwurf, wartet auf die Freigabe durch Tobias; alles additiv, `schema_version` bleibt):**
+    Grundlage `docs/egm/stufe-b/design_draft.md` (Rev. 3.1, Abschnitte 3.3 bis 3.7, 4, 11) und `resolve.md`. **Box:** neue Zustandsdatei `gehoert.json`
+    (Puffer der gespielten Sitzungen, Abschnitt 1.6, neues `schema_version` 1, `schema_version` der anderen Dateien unberührt); Schreibbudget (1.7); sie gehört
+    **nicht** in die Rückfall-Sicherung des Updates (Abschnitt 7); neuer `baustein` `gehoert` im Ereignisprotokoll (Abschnitt 8). **HA:** neue Datei
+    `<config>/tobibox/gehoert.sqlite` (Tabellen `sitzungen` und `technik`, neuer Abschnitt 12.1) und neuer Store `tobibox.favoriten` (12.2); beide nur in HA, nie
+    auf dem NAS, Teil der HA-Sicherung. Kein Feld einer bestehenden Datei ändert sich. Das Verhalten der Box ändert sich nur durch die neue Datei und den neuen
+    Beobachter; die Nachrichten dazu stehen in `mqtt-v1.md` (3.3, 3.4, 3.7, 4.5).
 *   **Änderung 05.11. (Entscheidung F, 05.11.):** Tobies zeigen auf eine Serie, eine
     einzelne Folge oder eine Aktion (`ziel`); eine Folge ist eine Datei oder ein
     Ordner mit mehreren Tracks; der Zeiger hat einen Track. `config.json` und
@@ -99,7 +106,8 @@ Beim Start (und bei jedem Lesen) in dieser Reihenfolge:
     benutzt.
 3.  Sonst: Standardwerte (leer): `config.json` als Konfiguration ohne
     Zuordnungen (Revision 0, Listen-ID leer), `resume.json` ohne Zeiger,
-    `unknown.json` ohne Einträge, `update.json` mit Zustand `ok`.
+    `unknown.json` ohne Einträge, `update.json` mit Zustand `ok`, `gehoert.json` ohne Zeilen und ohne offene Sitzung (`verworfen` 0; die noch nicht gesendeten Sitzungen sind
+    dann verloren, Protokoll `datei_verloren`; Einzelheiten und Ausnahme für eine einzelne ungültige Zeile in 1.6).
     `Protokoll(ERROR, "datei_verloren")`; der Prüfpunkt „Speicher“ meldet
     einen Fehler.
 4.  Fehlt `<name>`, aber es gibt eine gültige `<name>.bak` (Abbruch zwischen
@@ -161,6 +169,9 @@ Beim Start (und bei jedem Lesen) in dieser Reihenfolge:
 | `tobibox.medieninfo`, `tobibox.hoerstellen` (12.11.) | HA, `.storage/` (HA-`Store`), nicht auf dem NAS | HA-Integration | HA-Integration | **nie**; bei Verlust neu berechenbar (`medieninfo`) bzw. Hörstellen weg (`hoerstellen`) |
 | `hoerkopien/<serie_id>/<kennung>.m4a` (12.11.) | NAS, `hoerkopien/` (neben `medien/`) | HA-Integration | HA-Integration (Audio-Ansicht) | **nie** (außerhalb des Moduls `medien`, Abschnitt 11) |
 | Eingang | NAS, `tobibox/eingang/` (neben `medien/`) | Tobias (PC, Dateimanager) und HA (Upload, Einsortieren) | HA-Integration (`eingang.py`) | **nie** (liegt außerhalb des Sync-Moduls und ist ausdrücklich ausgenommen) |
+| `gehoert.json` (16.11.) | Box, Zustandsverzeichnis | Box: Beobachter `gehoert` (über `store`, Hintergrund-Schreiber wie `outbox`; synchron bei `herunterfahren` und `dienst_ende`) | Box: `app` (beim Start), `ha` (Senden) | **nie**; **nicht** in der Rückfall-Sicherung des Updates (Abschnitt 7) |
+| `gehoert.sqlite` (16.11.) | HA, `<config>/tobibox/` (nicht `.storage/`, nicht auf dem NAS) | HA-Integration | HA-Integration | **nie**; Teil der HA-Sicherung (Abschnitt 12.1) |
+| `tobibox.favoriten` (16.11.) | HA, `.storage/` (HA-`Store`), nicht auf dem NAS | HA-Integration | HA-Integration | **nie**; Teil der HA-Sicherung (Abschnitt 12.2) |
 
 *   `update.json` schreiben zwei Programme, aber nie gleichzeitig: `guard.py`
     läuft als `ExecStartPre` vor dem Dienst, `update.py` im Dienst. Beide
@@ -188,6 +199,59 @@ startet nicht von selbst, `GeraeteEinstellungen.neustart_uid`); fehlende, unlesb
 Datei bedeutet Einschalten (CUJ 20). Kein `schema_version`, nicht im Sync, nicht im Schreibbudget
 (höchstens eine Schreibung je Tobie-Wechsel).
 
+**`gehoert.json` (Stufe B, 16.11.):** Puffer der gespielten Sitzungen, bis HA sie quittiert hat (`mqtt-v1.md`, 3.4, 3.7, 4.5). Aufbau:
+
+```json
+{
+  "schema_version": 1,
+  "verworfen": 0,
+  "offen": null,
+  "zeilen": [
+    {
+      "sitzung": "e3a8b1c4-52d7-4f09-b6a1-0c9d84e7f215",
+      "serie": "3f9a1c07b2d4",
+      "folge": "folge-02.mp3",
+      "folge_dauer_s": 1520,
+      "beginn": "2026-11-16T18:10:57Z",
+      "zeit_ok": true,
+      "boot_id": "7c1f9a52-0d3e-4b86-a1c4-5e92d0b8f317",
+      "beginn_boot_s": 50400,
+      "ende_boot_s": 51910,
+      "gehoert_s": 1500,
+      "ende": "ende_der_folge"
+    }
+  ]
+}
+```
+
+| Feld | Typ | Pflicht | Bedeutung |
+|---|---|---|---|
+| `schema_version` | int | ja | `1` (als erstes Feld, 1.1) |
+| `verworfen` | int ≥ 0 | ja | Gesamtzahl der Zeilen, die wegen Überlauf (mehr als 500 Zeilen) verworfen wurden; erscheint als `status.gehoert_verworfen` |
+| `offen` | object oder `null` | ja | die **offene Sitzung** (die gerade läuft oder bei einem Absturz lief), sonst `null`; höchstens eine |
+| `zeilen` | Liste, höchstens 500 | ja | abgeschlossene Sitzungen, die HA noch nicht quittiert hat; älteste zuerst |
+
+*   **Zeilenfelder** sind die Felder einer Sitzung in `gespielt` **ohne** die Felder der Hülle (`boot_id` und `gesendet_boot_s` der Nachricht): `sitzung`, `serie`,
+    `folge`, `folge_dauer_s` (optional), `beginn`, `zeit_ok`, `boot_id`, `beginn_boot_s`, `ende_boot_s`, `gehoert_s`, `ende` und `grund` (optional); Typen, Grenzen
+    und Pflicht wie in `mqtt-v1.md`, 3.4. In `zeilen` steht nie `teilweise` als `ende` (Zwischenstände gehen nur über MQTT); nur `offen` trägt `teilweise`.
+*   **Offene Sitzung:** `offen` hat dieselben Felder, `gehoert_s` und `ende_boot_s` stehen auf dem Stand des letzten Schreibens, `ende` ist `teilweise` (`grund` fehlt).
+    Beim Start wird sie zur abgeschlossenen Zeile mit `ende` = `abbruch` (und aus `offen` entfernt). Die Basislinie der Position und der letzte Pausegrund
+    sind Zustand im Arbeitsspeicher und stehen nicht in der Datei.
+*   **Schreiben (ein Vorgang):** Eine neue Zeile, das Löschen quittierter Zeilen und der Stand der offenen Sitzung gehen in **einem** atomaren Schreibvorgang
+    (1.2) in den Hintergrund-Schreiber. Bei `herunterfahren` und `dienst_ende` schreibt die Box **synchron** (mit `fsync`), bevor sie abschaltet bzw. der Dienst
+    endet. Die offene Sitzung wird höchstens alle **2 Minuten** während der Wiedergabe und beim Beginn einer Pause geschrieben (Verlust bei Stromausfall höchstens 2 Minuten).
+*   **Überlauf:** Mehr als 500 Zeilen: die ältesten fallen weg, `verworfen` zählt sie.
+*   **Ungültige Zeile beim Laden:** Ist die Datei lesbar und hat `schema_version` und Rahmen (`verworfen`, `offen`, `zeilen`) in Ordnung, wird eine einzelne ungültige
+    Zeile (Pflichtfeld fehlt, falscher Typ, Grenze überschritten) **verworfen** (`Protokoll(WARNING, "gehoert_zeile_ungueltig")`), nicht die ganze Datei. Das ist
+    eine **Ausnahme zu 1.3** (dort macht ein ungültiges Pflichtfeld die ganze Datei ungültig). Ist schon der Rahmen ungültig oder die Datei nicht lesbar, gilt 1.3.
+    Eine so verworfene Zeile zählt in `verworfen` mit (neben dem Überlauf).
+*   **Schlüssel der Zeile** ist `sitzung` (UUID). Die Box vergibt sie bei Beginn der Sitzung; Zwischenstand und Abschluss tragen dieselbe.
+*   **Uhr:** `beginn` ist die Wanduhr der Box, `zeit_ok` sagt, ob sie vertrauenswürdig war; alle Fristen und Dauern rechnen auf Monotonzeit (`beginn_boot_s`,
+    `ende_boot_s`). Wird die Uhr im selben Gerätestart gut, korrigiert die Box `beginn` **aller** Zeilen dieses Starts (`boot_id`) im Puffer und setzt `zeit_ok`
+    (ein Schreibvorgang). Wie HA den Beginn bestimmt: `mqtt-v1.md`, 4.5, Punkt 6.
+*   Die Datei steht **nicht** in der Rückfall-Sicherung des Updates (Abschnitt 7): Ein Rückfall spielt nur `config.json`, `resume.json`, `unknown.json` zurück; ein
+    alter Stand von `gehoert.json` würde bereits quittierte Zeilen noch einmal senden. Sie wird nie gesynct.
+
 ### 1.7 Schreibbudget
 
 *   `resume.json` (Entscheidung N, 09.11.): Der Zeitstempel `benutzt_am` verlangt keine zusätzlichen Schreibungen,
@@ -201,6 +265,10 @@ Datei bedeutet Einschalten (CUJ 20). Kein `schema_version`, nicht im Sync, nicht
     Track-Wechsel; mit angenommenen 40 Pausen oder Wechseln und 40 Track-Wechseln
     am Tag **höchstens 320 Schreibungen am Tag und Box** (jede Schreibung setzt die
     30-s-Frist zurück, die Zahl ist also eine Obergrenze).
+*   `gehoert.json` (16.11.): eine Schreibung je Sitzungsende (neue Zeile; zugleich der Stand der offenen Sitzung), je Beginn einer Pause und je Quittung; während der
+    Wiedergabe schreibt der Beobachter die offene Sitzung **höchstens alle 2 Minuten**, also höchstens **30 Schreibungen je Stunde** Wiedergabe. Quittungen werden mit dem
+    nächsten Schreibvorgang oder spätestens nach 10 Minuten gesammelt geschrieben (mehrere Quittungen, ein Schreibvorgang). Bei `herunterfahren` und `dienst_ende` kommt
+    je eine synchrone Schreibung dazu. Die Obergrenze von 320 Schreibungen am Tag für `resume.json` gilt daneben unverändert und zählt diese Datei nicht mit.
 *   `unknown.json`: eine Schreibung je neuer Meldung und je Bestätigung.
 *   `config.json`: eine Schreibung je angenommener Liste.
 *   `update.json`: je Start im Zustand `testing` eine Schreibung (Zähler).
@@ -688,7 +756,7 @@ Im Zustandsverzeichnis. Fehlt die Datei, gilt Zustand `ok` ohne Zähler.
 | `zaehler` | int ≥ 0 | ja | Starts im Zustand `testing`. `update.py` setzt ihn auf 0, `guard.py` zählt ihn bei jedem Start im Zustand `testing` um 1 hoch. Bei Zähler ≥ 3 greift der Rückfall. In den Zuständen `ok` und `failed` wird nicht gezählt. |
 | `gestartet_am` | string (Zeitstempel) oder `null` | ja | wann das Update umgeschaltet wurde |
 | `grund` | string oder `null` | ja | bei `failed` der Grund (z. B. `selftest_durchgefallen`, `start_fehler`, `signatur_ungueltig`); sonst `null` |
-| `sicherung` | string oder `null` | ja | Name des Unterordners `sicherung/` im Zustandsverzeichnis mit den gesicherten Zustandsdateien (`config.json`, `resume.json`, `unknown.json`, jeweils samt `.bak`); `null`, wenn keine Sicherung besteht |
+| `sicherung` | string oder `null` | ja | Name des Unterordners `sicherung/` im Zustandsverzeichnis mit den gesicherten Zustandsdateien (`config.json`, `resume.json`, `unknown.json`, jeweils samt `.bak`; **nicht** `gehoert.json`, 1.6); `null`, wenn keine Sicherung besteht |
 | `gemeldet` | bool | ja | hat der Dienst das Ergebnis schon an HA gemeldet? `guard.py` setzt bei `failed` `false`; der Dienst meldet beim nächsten Start und setzt `true`. |
 
 Beispiel (Update läuft, Selbsttest steht aus):
@@ -719,7 +787,7 @@ Keine Geheimnisse (kein Passwort, kein MQTT-Zugang, kein Schlüssel) im Protokol
 | `mono` | number | ja | monotone Uhr in Sekunden mit 3 Nachkommastellen (für Latenzmessungen; unabhängig von Zeitsprüngen) |
 | `zeitquelle` | `"system"`, `"rtc"`, `"ntp"` oder `"unbekannt"` | ja | woher `zeit` stammt (so erkennt man falsche Zeiten nach einem Stromausfall) |
 | `ebene` | `"DEBUG"`, `"INFO"`, `"WARNING"`, `"ERROR"` | ja | |
-| `baustein` | string | ja | Modul: `reader`, `session`, `learn`, `quiet`, `bedtime`, `idle`, `core`, `player`, `store`, `library`, `outbox`, `ha`, `sync`, `update`, `selftest`, `net`, `power`, `app`, … |
+| `baustein` | string | ja | Modul: `reader`, `session`, `learn`, `quiet`, `bedtime`, `idle`, `core`, `player`, `store`, `library`, `outbox`, `gehoert`, `ha`, `sync`, `update`, `selftest`, `net`, `power`, `app`, … |
 | `ereignis` | string | ja | kurzer Name in `snake_case`, z. B. `aufgelegt`, `entprellt`, `zugeordnet`, `spielt`, `abgehoben`, `zeiger_gespeichert`, `seq_gap` |
 | `ergebnis` | string | ja | z. B. `ok`, `fehler`, `ignoriert`, `abgelehnt` |
 | `vorgang` | string (8 Zeichen `[0-9a-f]`) | nein | Vorgangs-ID des Auflegens; steht in jeder Zeile dieses Auflegens |
@@ -797,6 +865,86 @@ nicht auf dem NAS.
 ## 11. Hörkopien `hoerkopien/` (12.11., Vertrag W, 14.8)
 
 Ordner `hoerkopien/` auf der NAS-Freigabe, **neben** `medien/` (wie `export/`, `eingang/`, `releases/`; gleiche Freigabe). Inhalt: `hoerkopien/<serie_id>/<kennung>.m4a`, eine kleine Kopie (AAC in M4A, 96 kbit/s, Stereo) für Formate, die nicht jeder Browser spielt. Schreiber und Leser ist allein die HA-Integration. Der Ordner liegt **außerhalb des rsync-Moduls `medien`**, die Boxen holen ihn nie, und `sync.py` braucht keine weitere Ausnahme; die Box bekommt immer das Original. `kennung` sind die ersten 16 Zeichen von `sha1(folge|track|größe|Änderungszeit)` (ändert sich das Original, entsteht eine neue Kopie). Zwischendateien heißen `*.part` und werden beim Start gelöscht. Kein JSON mit Schema auf dem NAS: der Zustand steht im Store `tobibox.medieninfo` (Abschnitt 5a). Das Kontingent für den Ordner ist eine Konstante (Vertrag W, 14.10, vorläufig).
+
+## 12. HA-Speicher für „Gehört“ (16.11., Stufe B)
+
+Zwei Speicher, beide **nur in HA**: die SQLite-Datei `gehoert.sqlite` für die Hör- und Technik-Zeilen und der Store `tobibox.favoriten`. Beide gehören zur HA-Sicherung
+(HA-Sicherungen enthalten also die Hördaten; Hinweis folgt in `docs/betrieb/`). Die Hörstellen zum Weiterhören (`tobibox.hoerstellen`, 5a) sind etwas anderes und
+bleiben privat; `gehoert.sqlite` enthält nur, **dass** jemand etwas gehört hat und wie lange, nie eine Stelle zum Weiterhören und nie eine Kennung eines Tobies (Frage 9).
+Die Zählregeln (Hörzeit, „Mal“, „fertig“, Zeitraum) stehen in `ha-websocket-v1.md`, 15.1.
+
+### 12.1 `<config>/tobibox/gehoert.sqlite`
+
+*   **Betrieb:** Eine Verbindung im Executor mit `threading.Lock`, `journal_mode=TRUNCATE`, `synchronous=FULL`. Schema-Version in `PRAGMA user_version` (Version 1), Migration
+    nur vorwärts. `PRAGMA integrity_check` beim Start, das Ergebnis geht ins Protokoll. Ist die Datei nicht zu öffnen (oder zu neu), startet die Integration **ohne** die
+    Fähigkeit `gehoert` (`ha-websocket-v1.md`, 14.1) und beantwortet den Handshake der Boxen nicht (`mqtt-v1.md`, 4.5). Die Datei wächst um einige 10 MB im Jahr; es gibt keine
+    Aufräumregel (Daten unbegrenzt).
+*   **Zeitzone:** `tag` und `stunde` werden beim Einfügen in der **Zeitzone von HA** gerechnet und gespeichert. Wechselt die Zeitzone von HA, bleibt das Raster alter Zeilen
+    (so dokumentiert).
+
+**Tabelle `sitzungen`** (eine Zeile je Sitzung; Boxen **und** Reinhören):
+
+| Spalte | Typ | Bedeutung |
+|---|---|---|
+| `quelle` | Text | `box:<box>` (Name der Box aus dem Thema) oder `benutzer:<HA-Benutzer-ID>` (Reinhören). Nur bekannte Boxen (die eingerichteten) werden aufgenommen |
+| `sitzung` | Text | UUID (Box: von der Box; Reinhören: von HA) |
+| `serie` | Text | Serien-ID zum Zeitpunkt des Hörens; Verschieben und Zusammenführen schreiben sie mit (unten) |
+| `folge` | Text | Name der Folge; wie `serie` |
+| `folge_dauer_s` | Ganzzahl oder `NULL` | Länge der Folge: der Wert aus der Medieninfo von HA (5a), sonst der der Box |
+| `beginn` | Ganzzahl | UTC-Sekunden, von HA bestimmt (`mqtt-v1.md`, 4.5, Punkt 6) |
+| `ende_um` | Ganzzahl | UTC-Sekunden der letzten gespielten Sekunde: Beginn + (`ende_boot_s` − `beginn_boot_s`) |
+| `datum` | Text | `sicher`, `ungefaehr` oder `unbekannt` |
+| `tag` | Text oder `NULL` | `JJJJ-MM-TT` des Beginns in der Zeitzone von HA; `NULL` bei `unbekannt` |
+| `stunde` | Ganzzahl 0–23 oder `NULL` | Stunde des Beginns in der Zeitzone von HA; `NULL` bei `unbekannt` |
+| `gehoert_s` | Ganzzahl ≥ 1 | Hörzeit, auf die Schranke gekappt (`mqtt-v1.md`, 3.4) |
+| `ende` | Text | die Werte der Box (`ende_der_folge`, `wechsel`, `pause`, `herunterfahren`, `dienst_ende`, `abbruch`, `teilweise`) und `verwaist` (nur HA) |
+| `grund` | Text oder `NULL` | Pausegrund |
+| `neues_mal` | bool | diese Sitzung ist die **erste eines Mals** (Zählregel); von HA gerechnet |
+| `mal_zaehlt` | bool | das Mal, dessen erste Sitzung diese ist, hat zusammen mindestens 10 s Hörzeit; nur bei `neues_mal` = wahr belegt |
+| `fertig` | bool | die Sitzung zählt als „fertig“ (Zählregel); von HA gerechnet |
+
+*   **Schlüssel: `(quelle, sitzung)`** (Hauptschlüssel). Ein Zwischenstand ersetzt nur Zeilen **derselben** Quelle; eine fremde Box kann so keine Zeile einer anderen überschreiben.
+    Indizes: `(quelle, serie, folge, beginn)`, `(serie, folge, beginn)`, `(tag)`, `(beginn)`, `(quelle, beginn)`.
+*   **Einfügen und Ersetzen:** nie `INSERT OR REPLACE`, sondern `ON CONFLICT(quelle, sitzung) DO UPDATE`, das nur ersetzt, wenn die vorhandene Zeile **keine Endzeile** ist oder die neue
+    **mehr Hörzeit** hat. Eine **Endzeile** (`ende` weder `teilweise`, `abbruch` noch `verwaist`) gewinnt immer; sonst gewinnt die Zeile mit der größeren `gehoert_s`. `verwaist` übernimmt
+    `ende_um` des letzten Zwischenstands. Je Nachricht ein `COMMIT`, die Quittung (`mqtt-v1.md`, 4.5) erst danach.
+*   **Neuberechnung:** Nach jedem Einfügen rechnet HA `neues_mal`, `mal_zaehlt` und `fertig` für die Gruppe (`quelle`, `serie`, `folge`) **neu**; nachgelieferte Zeilen betreffen nur ihre
+    Gruppe. Unbekanntes Datum: jede solche Sitzung ist ein eigenes Mal; `fertig` rechnet für sie die Hörzeit seit dem letzten „fertig“ in **Eingangsreihenfolge** (Reihenfolge des ersten
+    Einfügens, `rowid`).
+*   **Verwaist:** Eine Zeile mit `ende` = `teilweise`, zu der kein Abschluss mehr kommt, schließt HA als `verwaist`: bei einer Box nach 24 Stunden, bei Reinhören nach 30 Minuten (`ha-websocket-v1.md`, 15.3).
+    Eine spätere Endzeile derselben `sitzung` überschreibt `teilweise` **und** `verwaist`.
+*   **Löschmarke:** `gehoert/loeschen` (`ha-websocket-v1.md`, Befehl 54) merkt sich je betroffener Quelle die Zeit der Löschung. Danach nachgelieferte Zeilen dieser Quelle, deren `ende_um` **vor**
+    der Löschung liegt, verwirft HA und **quittiert sie trotzdem**. Die Marken stehen in der Tabelle **`loeschmarken`** (`quelle` Text, Hauptschlüssel; `zeit` Ganzzahl, UTC-Sekunden) je **konkreter** Quelle (`box:<Name>`, `benutzer:<id>`); eine Sammelquelle (`boxen`, `reinhoeren`, `alle`) setzt eine Marke für **jede betroffene** Quelle (bekannte Boxen bzw. alle Benutzer mit Daten).
+*   **Bibliothek ändern:** Verschieben und Zusammenführen von Folgen und Serien schreiben `serie` und `folge` der betroffenen Zeilen mit und rechnen die betroffenen Gruppen neu; **Umbenennen ändert nichts**
+    (die ID bzw. der Name der Folge bleibt). „Fertig je Hörspiel“ zählt nur Folgen, die es heute gibt; gelöschte Serien fasst die Abfrage in **einer** Zeile zusammen.
+*   **Aufbau der Zwischenspeicher:** `zuletzt_gehoert_am` je Serie und die Sortierung `meist_gehoert` kommen aus einem Zwischenspeicher im Arbeitsspeicher, der beim Ereignis `gehoert` verfällt.
+
+**Tabelle `technik`** (Ereignisse der Boxen für den Verlauf in „Technik“; nur Boxen):
+
+| Spalte | Typ | Bedeutung |
+|---|---|---|
+| `box` | Text | Box-Name |
+| `zeit` | Ganzzahl | UTC-Sekunden: `ts` der Box bei `zeit_ok`, sonst die Empfangszeit |
+| `art` | Text | `online`, `offline`, `lader_an`, `lader_aus`, `sync_ok`, `sync_fehler`, `fehler`, `verworfen` |
+| `wert` | Text, höchstens 64 Zeichen, oder `NULL` | bei `sync_fehler` und `fehler` der Code, bei `verworfen` die neue Gesamtzahl, sonst `NULL` |
+
+Index `(box, zeit)`. Eine Zeile entsteht nur bei einem **echten Wechsel** gegenüber der letzten gespeicherten Zeile dieser Box (`status.lader`, `online`, Ergebnis des Syncs über
+`sync.letzter_ende`, Ereignis `fehler`, Anstieg von `gehoert_verworfen`); der erste `status` nach einem Start von HA wird nur verglichen, nicht als Wechsel geschrieben. Wechsel, die
+kürzer sind als der Mindestabstand des `status` (5 s), fehlen. Keine Aufräumregel.
+
+### 12.2 Store `tobibox.favoriten`
+
+HA-`Store` (Version 1, `.storage/`), **für die ganze Familie** (Entscheidung R3, 16.11.; nicht je Benutzer). Je Eintrag ein Stern an einer Serie oder an einer Folge, als **Objekt** (kein zusammengesetzter String):
+
+| Feld | Typ | Bedeutung |
+|---|---|---|
+| `serie_id` | string | Serien-ID |
+| `folge` | string oder `null` | Name der Folge wie in `serie.json`; `null` = Stern an der Serie selbst |
+| `gesetzt_von` | string | HA-Benutzer-ID (HA zeigt den Namen; für einen gelöschten Benutzer „unbekannt“) |
+| `gesetzt_am` | Zeitstempel | wann der Stern gesetzt wurde |
+
+Höchstens **1 000** Einträge; ein Paar (`serie_id`, `folge`) kommt nur einmal vor. Einträge, deren Serie oder Folge es nicht mehr gibt, fallen **beim Lesen** weg (der Speicher wird nicht sofort bereinigt). Der Store wird, wie `tobibox.hoerstellen`,
+im Speicher sofort und auf der Platte gesammelt geschrieben. **Verschieben und Zusammenführen** von Folgen und Serien ziehen die Sterne mit (`serie_id` und `folge` werden umgeschrieben, wie bei den Sitzungen in 12.1; steht der Stern am Ziel schon, bleibt einer). Umbenennen ändert nichts.
 
 ## Festlegungen in diesem Vertrag (Stand 05.11.)
 
@@ -916,3 +1064,6 @@ Projektleitung (P) entschieden oder aus dem Goldfisch-Review übernommen
     (kurz, −18 LUFS wie die übrigen Töne, mit Eintrag in `box/lautheit.json`; erzeugt von `box/tools/make_sounds.py`). Der Ton `lader` hat den Pegel von
     `hinweis` (`hinweis_pegel`); der frühe Start-Ton `start.wav` des Frühdienstes den eines gewöhnlichen Tons (R10). Die flüchtige Marke
     `/run/tobibox/fruehton` ist in Abschnitt 1.6 beschrieben. Kein Schema ändert sich, `schema_version` bleibt.
+32. **Stufe B „Gehört“ (16.11., Entwurf B0; R1 bis R4 Tobias, Rest Projektleitung, `docs/egm/stufe-b/resolve.md`):** Die Box puffert gespielte Sitzungen in **einer** JSON-Datei `gehoert.json` (Rahmen
+    mit `verworfen`, `offen`, `zeilen`, höchstens 500 Zeilen), nicht in `resume.json`; sie liegt nicht in der Rückfall-Sicherung. HA speichert Sitzungen in `gehoert.sqlite`
+    (Schlüssel `(quelle, sitzung)`, nie `OR REPLACE`) und Favoriten in `tobibox.favoriten` (ganze Familie). Die Kennung eines Tobies wird nie übertragen und nie gespeichert (Frage 9 des Designs gilt weiter).

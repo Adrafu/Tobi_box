@@ -33,6 +33,8 @@ EGM artifact directory: docs/egm
   (Entstehung und Reviews: `docs/egm/software-prototyp/`).
 - Angenommenes Design der HA-Oberfläche: `docs/designs/ha-oberflaeche.md`
   (Entstehung, Prototyp und Reviews: `docs/egm/ha-ui/`). Bau ab Paket A0.
+- Angenommenes Design Stufe B „Gehört“: `docs/designs/gehoert.md` (Entstehung und Reviews:
+  `docs/egm/stufe-b/`). Bau ab B2a.
 - Verträge (Stufe 0): `docs/protocol/`, `docs/data-model.md`. Agents ändern
   sie nicht eigenmächtig.
 
