@@ -1,0 +1,51 @@
+# Test-Box "boxsim" für die Abnahme von „Gehört“ (Stufe B, B5/B6): die echte Box-Software am Mac, gegen das echte Home Assistant.
+# Anleitung: docs/betrieb/test-box-am-mac.md. Kopie anlegen: cp config/boxsim.example.toml config/boxsim.toml
+# (Die Kopie steht in box/.gitignore und wird nie committet.) Relative Pfade gelten ab dem Ordner dieser Datei (box/config/).
+#
+# Nur Platzhalter in dieser Datei: kein Passwort, keine Adresse, kein echter Name.
+
+[pfade]
+zustand = "../var/boxsim"          # eigener Datenordner (box/var/ ist ignoriert): nie der Ordner der echten Box oder des Prototyps
+medien = "../medien-sprache"       # gleiche Testserien wie im Prototyp, nur gelesen; Serien-IDs und Ordner sind die der Test-HA/NAS
+# Ohne Leser: die Box am Mac wird über "tobibox sim ..." und die Oberfläche "tobibox gui" bedient (siehe Anleitung).
+
+[leser]
+geraet = "sim"                     # kein Leser nötig; der Tobie wird mit "tobibox sim"/"tobibox gui" aufgelegt
+
+[toene]
+ordner = "../sounds/sprache"
+# Wie im Prototyp (sox): kommando = ["play", "-q", "{datei}", "pad", "0", "0.15"]. Ohne die Zeile: afplay.
+kommando = ["play", "-q", "{datei}", "pad", "0", "0.15"]
+
+[mpd]
+host = "localhost"
+port = 6600                        # derselbe MPD wie im Prototyp (mpd.mac.example.conf). Den Prototyp-Dienst vorher stoppen.
+
+[lautstaerke]
+max = 40
+start = 20
+kopfhoerer = 30
+
+[protokoll]
+ziel = "datei"
+datei = "../var/boxsim/log/tobibox.log"
+ebene = "INFO"
+max_bytes = 1000000
+anzahl = 5
+
+[mqtt]
+# Kontoname = Box-Name (mqtt-v1.md, Abschnitt 1). Das Konto "boxsim" legt Tobias im Mosquitto an (docs/betrieb/mqtt-konten.md),
+# Rechte wie für box1 mit boxsim statt box1.
+box_id = "boxsim"
+host = "<Name oder Tailscale-Adresse des Brokers>"   # PLATZHALTER: nur in der lokalen Kopie eintragen
+port = 1883
+anzeigename = "Test-Box"           # Name in Home Assistant: "Tobi Box Test-Box"
+# Das Passwort steht NIE in einer Datei im Repo. Genau einer dieser zwei Wege (nicht "passwort" in der Datei):
+passwort_umgebung = "TOBIBOXSIM_MQTT_PASSWORT"      # Name einer Umgebungsvariable: export TOBIBOXSIM_MQTT_PASSWORT=...
+# passwort_datei = "boxsim.pw"                      # oder eine Datei (eine Zeile, chmod 600, gitignoriert: box/config/boxsim.pw)
+
+[netz]
+quelle = "sim"                     # "tobibox sim net home|hotspot|offline"
+
+[strom]
+quelle = "sim"                     # "tobibox sim power ..."

@@ -460,3 +460,49 @@ def test_beispielkonfiguration_mac_laedt_mit_den_platzhaltern_und_bleibt_sim():
     assert k.kopfhoerer.simulation and k.tasten.simulation
     text = pfad.read_text(encoding="utf-8")
     assert "[kopfhoerer]" in text and "[tasten]" in text and "gpio_pin" in text and "pin_dreh_a" in text
+
+
+# --- [mqtt] Passwort aus Umgebung oder Datei (B5, Test-Box boxsim) ----------------------------------------
+
+
+def test_mqtt_passwort_aus_umgebungsvariable(tmp_path, monkeypatch):
+    monkeypatch.setenv("TOBIBOX_TEST_MQTT_PW", "nur-im-test")
+    k = config.lade(schreibe(tmp_path, MINIMAL + '\n[mqtt]\nbox_id = "boxsim"\nhost = "broker"\npasswort_umgebung = "TOBIBOX_TEST_MQTT_PW"\n'))
+    assert k.mqtt.passwort == "nur-im-test"
+
+
+def test_mqtt_passwort_umgebungsvariable_fehlt(tmp_path, monkeypatch):
+    monkeypatch.delenv("TOBIBOX_TEST_MQTT_PW", raising=False)
+    with pytest.raises(KonfigFehler, match="TOBIBOX_TEST_MQTT_PW"):
+        config.lade(schreibe(tmp_path, MINIMAL + '\n[mqtt]\nbox_id = "boxsim"\nhost = "broker"\npasswort_umgebung = "TOBIBOX_TEST_MQTT_PW"\n'))
+
+
+def test_mqtt_passwort_aus_datei_relativ_zur_konfiguration(tmp_path):
+    (tmp_path / "boxsim.pw").write_text("nur-im-test\n", encoding="utf-8")
+    k = config.lade(schreibe(tmp_path, MINIMAL + '\n[mqtt]\nbox_id = "boxsim"\nhost = "broker"\npasswort_datei = "boxsim.pw"\n'))
+    assert k.mqtt.passwort == "nur-im-test"
+
+
+def test_mqtt_passwort_datei_fehlt_oder_leer(tmp_path):
+    with pytest.raises(KonfigFehler):
+        config.lade(schreibe(tmp_path, MINIMAL + '\n[mqtt]\nbox_id = "boxsim"\nhost = "broker"\npasswort_datei = "gibt-es-nicht.pw"\n'))
+    (tmp_path / "leer.pw").write_text("\n", encoding="utf-8")
+    with pytest.raises(KonfigFehler):
+        config.lade(schreibe(tmp_path, MINIMAL + '\n[mqtt]\nbox_id = "boxsim"\nhost = "broker"\npasswort_datei = "leer.pw"\n'))
+
+
+def test_mqtt_nur_ein_weg_fuer_das_passwort(tmp_path):
+    with pytest.raises(KonfigFehler):
+        config.lade(schreibe(tmp_path, MINIMAL + '\n[mqtt]\nbox_id = "boxsim"\nhost = "broker"\npasswort = "a"\npasswort_umgebung = "X"\n'))
+
+
+def test_beispielkonfiguration_der_test_box_laedt(tmp_path, monkeypatch):
+    monkeypatch.setenv("TOBIBOXSIM_MQTT_PASSWORT", "nur-im-test")
+    vorlage = Path(__file__).resolve().parents[2] / "config" / "boxsim.example.toml"
+    text = vorlage.read_text(encoding="utf-8").replace("<Name oder Tailscale-Adresse des Brokers>", "broker.example.ts.net")
+    assert "passwort =" not in text.replace("passwort_umgebung =", "").replace("passwort_datei =", "")  # nie ein Passwort in der Vorlage
+    p = tmp_path / "boxsim.toml"
+    p.write_text(text, encoding="utf-8")
+    k = config.lade(p)
+    assert (k.mqtt.box_id, k.mqtt.benutzer, k.mqtt.passwort, k.leser.geraet) == ("boxsim", "boxsim", "nur-im-test", "sim")
+    assert k.pfade.zustand.name == "boxsim" and k.pfade.zustand.parent.name == "var"

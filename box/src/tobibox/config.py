@@ -7,6 +7,7 @@ Eine Konfigurationsdatei je Gerät (Design, „Mac und Pi“). Es gibt keine Abf
 
 from __future__ import annotations
 
+import os
 import re
 import tomllib
 from dataclasses import dataclass, field
@@ -254,7 +255,7 @@ class StromKonfig:
         return self.quelle == "sim"
 
 
-_MQTT_SCHLUESSEL = {"box_id", "host", "port", "benutzer", "passwort", "anzeigename"}
+_MQTT_SCHLUESSEL = {"box_id", "host", "port", "benutzer", "passwort", "passwort_umgebung", "passwort_datei", "anzeigename"}
 _NETZ_SCHLUESSEL = {"quelle", "heim_ssid", "hotspot_ssid", "nas_host", "nas_port", "intervall_s"}
 _STROM_SCHLUESSEL = {
     "quelle", "pisugar_host", "pisugar_port", "tiefstand_prozent", "warnung_prozent", "intervall_s", "abschalt_kommando",
@@ -262,7 +263,33 @@ _STROM_SCHLUESSEL = {
 }
 
 
-def _pruefe_mqtt(roh: dict[str, Any]) -> MqttKonfig | None:
+def _mqtt_passwort(a: dict[str, Any], basis: Path) -> str | None:
+    """Passwort des Broker-Kontos: ``passwort`` (lokale Datei), ``passwort_umgebung`` (Name einer Umgebungsvariable) oder
+    ``passwort_datei`` (Pfad, eine Zeile). Nur eines von den dreien (B5: die Test-Box ``boxsim`` hält es nie in der Datei)."""
+    wege = [k for k in ("passwort", "passwort_umgebung", "passwort_datei") if k in a]
+    if len(wege) > 1:
+        raise KonfigFehler("[mqtt] nur eines von 'passwort', 'passwort_umgebung' und 'passwort_datei'")
+    umgebung = _text(a, "mqtt", "passwort_umgebung", None)
+    if umgebung is not None:
+        if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", umgebung):
+            raise KonfigFehler("[mqtt] passwort_umgebung muss ein Name einer Umgebungsvariable sein")
+        wert = os.environ.get(umgebung)
+        if not wert:
+            raise KonfigFehler(f"[mqtt] die Umgebungsvariable {umgebung} (Passwort des Broker-Kontos) ist nicht gesetzt")
+        return wert
+    datei = _text(a, "mqtt", "passwort_datei", None)
+    if datei is not None:
+        try:
+            wert = _pfad(datei, basis).read_text(encoding="utf-8").strip()
+        except OSError as e:
+            raise KonfigFehler(f"[mqtt] passwort_datei nicht lesbar: {e.strerror or type(e).__name__}") from e
+        if not wert:
+            raise KonfigFehler("[mqtt] passwort_datei ist leer")
+        return wert
+    return _text(a, "mqtt", "passwort", None)
+
+
+def _pruefe_mqtt(roh: dict[str, Any], basis: Path) -> MqttKonfig | None:
     a = roh.get("mqtt")
     if a is None:
         return None
@@ -285,7 +312,7 @@ def _pruefe_mqtt(roh: dict[str, Any]) -> MqttKonfig | None:
         host=host,
         port=_ganz(a, "mqtt", "port", 1883, 1, 65535),
         benutzer=benutzer,
-        passwort=_text(a, "mqtt", "passwort", None),
+        passwort=_mqtt_passwort(a, basis),
         anzeigename=anzeige,
     )
 
@@ -632,7 +659,7 @@ def pruefe(roh: dict[str, Any], basis: Path | None = None) -> BoxKonfig:
             tuple(kommando), _pfad(ton_ordner, basis) if ton_ordner else None, kennlinie, float(bereich)
         ),
         sync=_pruefe_sync(roh, basis, _pfad(medien, basis)),
-        mqtt=_pruefe_mqtt(roh),
+        mqtt=_pruefe_mqtt(roh, basis),
         netz=_pruefe_netz(roh),
         strom=_pruefe_strom(roh),
         kopfhoerer=kopfhoerer,

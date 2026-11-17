@@ -1,0 +1,10 @@
+[
+  {"serie_id": "aaaa00000001", "name": "Serie Eins", "folgen": [
+    {"name": "folge-01.mp3", "dauer_s": 1500}, {"name": "folge-02.mp3", "dauer_s": 1620}, {"name": "folge-03.mp3", "dauer_s": 1380}]},
+  {"serie_id": "aaaa00000002", "name": "Serie Zwei", "folgen": [
+    {"name": "folge-01.mp3", "dauer_s": 900}, {"name": "folge-02.mp3", "dauer_s": 1080}]},
+  {"serie_id": "aaaa00000003", "name": "Serie Drei", "folgen": [
+    {"name": "teil-1", "dauer_s": 7200}, {"name": "teil-2", "dauer_s": 6900}]},
+  {"serie_id": "aaaa00000004", "name": "Serie Vier", "folgen": [
+    {"name": "folge-01.mp3", "dauer_s": 2100}, {"name": "folge-02.mp3", "dauer_s": 2250}]}
+]

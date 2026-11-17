@@ -1,0 +1,3 @@
+# Test-Box am Mac (B5, docs/betrieb/test-box-am-mac.md): lokale Kopie der Konfiguration und die Passwort-Datei nie committen
+config/boxsim.toml
+config/boxsim.pw
