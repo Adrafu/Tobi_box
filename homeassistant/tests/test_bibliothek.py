@@ -350,7 +350,7 @@ async def test_serien_list_ohne_eingaben_ist_wie_vorher(api, bibliothek):
     assert (r["gesamt"], r["weitere"]) == (7, False)
     kurz = r["serien"][0]
     assert kurz.keys() == {"id", "name", "typ", "ordner", "anzahl_folgen", "anzahl_tobies", "angelegt_am", "stand", "pruefen",
-                           "anzahl_pruefen", "hinweise", "art", "art_quelle", "einzeln", "cover_stand", "cover_quelle", "dauer_s", "kapitel_anzahl"}
+                           "anzahl_pruefen", "hinweise", "art", "art_quelle", "einzeln", "cover_stand", "cover_quelle", "dauer_s", "kapitel_anzahl", "favorit", "zuletzt_gehoert_am"}  # seit 17.11. (B3)
 
 
 async def test_serien_list_ohne_limit_liefert_alle_auch_ueber_200(api, nas, integration):
@@ -543,6 +543,7 @@ async def test_folgen_list_form_und_einzeltitel_als_folge(api, bibliothek, nas):
         "serie_id": "mond", "serie_name": "Der Mond und der Fuchs", "serie_einzeln": True, "art": "musik", "folge": "mond.mp3",
         "anzeige": "mond", "nummer": None, "kapitel": 0, "groesse_mb": 3.0, "tobies": [{"uid": UID, "name": "Fuchs"}], "serie_hat_tobie": False,
         "cover_stand": None, "dauer_s": None,  # K8 (13.11.): neue Felder, Schlüsselmenge bewusst erweitert
+        "favorit": False,  # B3 (17.11.): Stern an der Folge
     }
     # derselbe Einzeltitel steht auch als Eintrag in serien/list (Serie und Folge)
     assert namen(await ok(api, "serien/list", text="mond")) == ["Der Mond und der Fuchs"]
@@ -671,9 +672,9 @@ def test_pruefe_konfig_behaelt_angelegt_am_und_verwirft_ungueltiges():
 async def test_hello_sagt_bibliothek_zu(api, normal):
     for client in (api, normal):
         f = (await ok(client, "hello", v=1))["faehigkeiten"]
-        assert f[-8:-6] == ["konfig_staende", "bibliothek"]  # A1, A3; danach A3d (``einsortier_wunsch``) A4 (``cover``), A9c (``warteschlange``, ``zuordnung_rueckgaengig``), A4c (``reinhoeren``) und A3c (``hoerkopie``)
+        assert f[-10:-8] == ["konfig_staende", "bibliothek"]  # A1, A3; danach A3d (``einsortier_wunsch``) A4 (``cover``), A9c (``warteschlange``, ``zuordnung_rueckgaengig``), A4c (``reinhoeren``), B3 (``favoriten``, ``gehoert``) und A3c (``hoerkopie``)
         assert f[-1] == "hoerkopie"  # A-3: nur mit ``ffmpeg`` (die Tests brauchen es)
-    assert const.FAEHIGKEITEN[-7:-5] == ("konfig_staende", "bibliothek")
+    assert const.FAEHIGKEITEN[-8:-6] == ("konfig_staende", "bibliothek")
 
 
 # --------------------------------------------------------------------------

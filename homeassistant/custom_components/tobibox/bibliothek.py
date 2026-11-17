@@ -250,11 +250,18 @@ class Bibliothek:
         limit: int | None = None,
         offset: int = 0,
         hoerzeiten: dict[str, str] | None = None,
+        favoriten: set[tuple[str, str | None]] | None = None,
+        zuletzt_gehoert: dict[str, int] | None = None,
+        meist_gehoert: dict[str, int] | None = None,
     ) -> tuple[list[SerieInfo], int, bool, dict[str, int]]:
         """``(Einträge dieser Seite, gesamt nach Filter, weitere, Tobie-Zähler)``.
 
         Ohne ``limit`` kommt alles (``SERIEN_OHNE_LIMIT_MAX``), wie bis 11.11. ``hoerzeiten`` (Serien-ID -> Zeit der letzten Wiedergabe **des
-        Anfragenden**) gehört zur Sortierung ``angehoert``: zuletzt angehört zuerst, danach alles Ungehörte nach Name."""
+        Anfragenden**) gehört zur Sortierung ``angehoert``: zuletzt angehört zuerst, danach alles Ungehörte nach Name.
+
+        Stufe B: ``favoriten`` (``(serie_id, folge)`` der Sterne) gehört zum Filter ``favorit`` (nur Einträge mit Stern an der Serie als Ganzes);
+        ``zuletzt_gehoert`` (Serien-ID -> ``ende_um`` der letzten Sitzung an einer Box) und ``meist_gehoert`` (Serien-ID -> Hörzeit der letzten 365 Tage, alle
+        Quellen) gehören zu den gleichnamigen Sortierungen: absteigend, Gleichstand und alles ohne Wert nach Name am Ende."""
         filter_ = filter_ or []
         worte = suchworte(text) if text else []
         zaehler = self.tobie_zaehler()
@@ -273,6 +280,8 @@ class Bibliothek:
                 continue
             if "pruefen" in filter_ and not z.pruefen:
                 continue
+            if "favorit" in filter_ and (z.info.serie.id, None) not in (favoriten or ()):
+                continue
             if worte and not (passt(worte, z.heu) or (auch_folgen and any(passt(worte, f.heu) for f in z.folgen))):
                 continue
             treffer.append(z)
@@ -283,6 +292,14 @@ class Bibliothek:
             gehoert = hoerzeiten or {}
             treffer.sort(key=lambda z: z.sortier)
             treffer.sort(key=lambda z: gehoert.get(z.info.serie.id, ""), reverse=True)  # ``""`` (nie gehört) sortiert hinten; Gleichstand: Name
+        elif sortierung == "zuletzt_gehoert":
+            zeiten = zuletzt_gehoert or {}
+            treffer.sort(key=lambda z: z.sortier)
+            treffer.sort(key=lambda z: zeiten.get(z.info.serie.id, 0), reverse=True)  # 0 (nie an einer Box gespielt) sortiert hinten; Gleichstand: Name
+        elif sortierung == "meist_gehoert":
+            summen = meist_gehoert or {}
+            treffer.sort(key=lambda z: z.sortier)
+            treffer.sort(key=lambda z: summen.get(z.info.serie.id, 0), reverse=True)
         else:
             treffer.sort(key=lambda z: z.sortier)
         gesamt = len(treffer)
@@ -303,8 +320,10 @@ class Bibliothek:
         sortierung: str = "titel",
         limit: int = 60,
         offset: int = 0,
+        favoriten: set[tuple[str, str | None]] | None = None,
     ) -> tuple[list[dict[str, Any]], int, bool]:
-        """``(Zeilen dieser Seite, gesamt, weitere)``; Zeilenform: Vertrag W, Befehl 37."""
+        """``(Zeilen dieser Seite, gesamt, weitere)``; Zeilenform: Vertrag W, Befehl 37. ``favoriten`` (``(serie_id, folge)`` der Sterne): Feld ``favorit`` je Folge
+        (Stern an der Folge selbst) und Filter ``favorit``."""
         filter_ = filter_ or []
         worte = suchworte(text) if text else []
         ganze, je_folge = self.tobies_je_ziel()
@@ -327,6 +346,9 @@ class Bibliothek:
                 if "ohne_tobie" in filter_ and (hat_ganzen or je_folge.get((sid, f.name))):
                     continue
                 if "pruefen" in filter_ and not (z.info.serie.pruefen or f.objekt.get("pruefen")):
+                    continue
+                # B3-OFFEN: Filter und Feld ``favorit`` gelten für den Stern an der **Folge**; der Stern der Serie als Ganzes (auch bei einem Einzeltitel) zählt hier nicht
+                if "favorit" in filter_ and (sid, f.name) not in (favoriten or ()):
                     continue
                 treffer.append((z, f))
         if sortierung == "neu":
@@ -354,6 +376,7 @@ class Bibliothek:
                     "serie_hat_tobie": ganze.get(s.id, False),
                     "cover_stand": z.info.cover_stand,  # K8: wie in der Serie-Kurzform (A4)
                     "dauer_s": self.medien.hub.medieninfo.dauer_s(s.id, f.name),  # K8: aus dem Store ``tobibox.medieninfo`` (A3b); ``None``, solange unbekannt
+                    "favorit": (s.id, f.name) in (favoriten or ()),  # Stern an dieser Folge (Stufe B)
                 }
             )
         return zeilen, gesamt, offset + len(seite) < gesamt

@@ -55,6 +55,7 @@ HTTP_STATUS: Final = {
     "warteschlange_voll": 409,
     "warteschlange_doppelt": 409,
     "zu_viele_favoriten": 409,
+    "wer_ungueltig": 400,
 }
 
 

@@ -25,6 +25,7 @@ from homeassistant.components import websocket_api
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EVENT_HOMEASSISTANT_STOP
 from homeassistant.core import Event, HomeAssistant
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.event import async_call_later, async_track_time_interval
 
 from .const import (
@@ -41,6 +42,7 @@ from .const import (
     EXPORT_WIEDERHOLUNG_S,
     FAEHIGKEITEN,
     FOLGE_ANZEIGE_MAX,
+    GEHOERT_EREIGNIS_BUENDEL_S,
     HOERKOPIE_KBIT,
     LIMIT_MAX,
     ORDNER_EINGANG,
@@ -282,6 +284,11 @@ class Hub:
             await self.gehoert.async_stop()
         with contextlib.suppress(Exception):
             await self.favoriten.async_speichern()
+        # Das Schließen der Reinhör-Sitzungen hat das Ereignis ``gehoert`` ausgelöst (gebündelt: ein Zeitgeber): auch dieser darf nicht übrig bleiben
+        for fn in list(self._timer):
+            fn()
+        self._timer.clear()
+        self._buendel.clear()
         with contextlib.suppress(Exception):
             await self.store.async_speichern()
             await self.eingang.speichern_sofort()
@@ -347,8 +354,10 @@ class Hub:
             if thema in abo.themen and (nutzer_id is None or abo.nutzer_id == nutzer_id):
                 self._sende(abo, thema, art, daten or {})
 
-    def emit_gebuendelt(self, schluessel: tuple, thema: str, art: str, daten_fn: Callable[[], dict[str, Any]]) -> None:
-        """Höchstens ein Ereignis je Schlüssel und Sekunde: das erste sofort, weitere zusammengefasst (Abschnitt 4)."""
+    def emit_gebuendelt(
+        self, schluessel: tuple, thema: str, art: str, daten_fn: Callable[[], dict[str, Any]], fenster_s: float = EREIGNIS_BUENDEL_S
+    ) -> None:
+        """Höchstens ein Ereignis je Schlüssel und Fenster (Vorgabe: Sekunde): das erste sofort, weitere zusammengefasst (Abschnitt 4)."""
         z = self._buendel.get(schluessel)
         if z is None:
             self._buendel[schluessel] = {"wartet": False}
@@ -357,9 +366,9 @@ class Hub:
             async def frei(_now: Any) -> None:
                 z2 = self._buendel.pop(schluessel, None)
                 if z2 and z2["wartet"]:
-                    self.emit_gebuendelt(schluessel, thema, art, daten_fn)
+                    self.emit_gebuendelt(schluessel, thema, art, daten_fn, fenster_s)
 
-            self.plane(EREIGNIS_BUENDEL_S, frei)
+            self.plane(fenster_s, frei)
         else:
             z["wartet"] = True
 
@@ -383,6 +392,10 @@ class Hub:
     def box_geaendert(self, box: str) -> None:
         self.emit_gebuendelt(("boxen", box), "boxen", "geaendert", lambda: self.box_objekt(box, mit_ereignisse=False))
 
+    def gehoert_geaendert(self) -> None:
+        """Die Hördaten haben sich geändert (Vertrag W, 4.9): ``gehoert``/``geaendert``, ohne Inhalt, höchstens alle 5 Sekunden."""
+        self.emit_gebuendelt(("gehoert",), "gehoert", "geaendert", dict, GEHOERT_EREIGNIS_BUENDEL_S)
+
     def konfig_geaendert(self) -> None:
         self.emit_gebuendelt(("konfig",), "konfig", "geaendert", lambda: {"konfig": self.konfig_stand()})
 
@@ -400,6 +413,11 @@ class Hub:
             return z.anzeigename
         return box
 
+    def akku_entitaet(self, box: str) -> str | None:
+        """Die Entität des Akku-Sensors der Box (MQTT-Discovery, ``mqtt-v1.md``, Abschnitt 6: ``unique_id`` ``tobibox_<box>_akku``), sonst ``None``.
+        Die Seite liest die Kurve damit über ``recorder/statistics_during_period`` (Vertrag W, Nr. 52)."""
+        return er.async_get(self.hass).async_get_entity_id("sensor", "mqtt", f"tobibox_{box}_akku")
+
     def box_objekt(self, box: str, mit_ereignisse: bool = True) -> dict[str, Any]:
         z = self.mqtt.boxen[box]
         v = self.lernmodus.offener_vorgang(box)
@@ -412,6 +430,7 @@ class Hub:
             "status_empfangen_am": z.status_empfangen_am,
             "konfig_stand": self.mqtt.konfig_stand_von(z),
             "lernmodus": v.zu_daten() if v else None,
+            "akku_entitaet": self.akku_entitaet(box),
         }
         if mit_ereignisse:
             aus["ereignisse"] = list(self.store.box_ereignisse.get(box, []))
@@ -1016,8 +1035,8 @@ class Hub:
     # --- hello -------------------------------------------------------------------------------------------------------
 
     def faehigkeiten(self) -> list[str]:
-        """``hello.faehigkeiten``; ``hoerkopie`` nur, wenn ``ffmpeg`` da ist (Vertrag W, 14.1)."""
-        return [*FAEHIGKEITEN, *(["hoerkopie"] if self.hoerkopie.verfuegbar else [])]
+        """``hello.faehigkeiten``; ``hoerkopie`` nur, wenn ``ffmpeg`` da ist, ``gehoert`` nur, wenn ``gehoert.sqlite`` offen ist (Vertrag W, 14.1)."""
+        return [*FAEHIGKEITEN, *(["gehoert"] if self.gehoert.verfuegbar else []), *(["hoerkopie"] if self.hoerkopie.verfuegbar else [])]
 
     def hello(self, v: int, ist_admin: bool) -> dict[str, Any]:
         grenzen_kopie: dict[str, Any] = (

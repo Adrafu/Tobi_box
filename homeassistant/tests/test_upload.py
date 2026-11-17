@@ -517,7 +517,7 @@ async def test_wunsch_wird_mit_ankunftszeit_in_den_vorgaben_gespeichert(client, 
     assert v["wunsch"] == {"ziel": "neu", "art": "hoerbuch", "name": "Kapitän Knopf", "gruppe_anzahl": 3}
     assert v["gruppe"] == "abcdef1234567890" and v["serie_id"] is None and v["am"].endswith("Z")
     eintrag = (await integration.eingang.liste("offen", 50, 0))["eintraege"]
-    assert eintrag == [] or eintrag[0]["wunsch"] == {"ziel": "neu", "art": "hoerbuch"}  # (der Eintrag erscheint nach dem nächsten Scan)
+    assert eintrag == [] or eintrag[0]["wunsch"] == {"ziel": "neu", "art": "hoerbuch", "gruppe_anzahl": 3}  # (der Eintrag erscheint nach dem nächsten Scan)
     integration.eingang.abbrechen()
 
 

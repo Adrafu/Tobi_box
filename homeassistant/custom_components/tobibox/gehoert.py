@@ -18,7 +18,7 @@ import sqlite3
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, timedelta, tzinfo
+from datetime import UTC, date, datetime, timedelta, tzinfo
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -27,6 +27,7 @@ from homeassistant.util import dt as dt_util
 
 from .const import (
     BOX_VERWAIST_S,
+    GEHOERT_MEIST_TAGE,
     GEHOERT_AUFRAEUMEN_S,
     GEHOERT_DATUM_FRUEHESTENS,
     GEHOERT_FERTIG_OHNE_DAUER_S,
@@ -40,7 +41,7 @@ from .const import (
     REINHOEREN_VERWAIST_S,
 )
 from .fehler import TobiboxFehler
-from .util import parse_iso
+from .util import iso, jetzt, parse_iso
 
 if TYPE_CHECKING:
     from .hub import Hub
@@ -373,6 +374,115 @@ class GehoertDb:
         with self._lock:
             return {r["quelle"]: r["zeit"] for r in self._c().execute("SELECT quelle, zeit FROM loeschmarken")}
 
+    # --- Lesen für die Befehle 50 bis 54 (Paket B3) -----------------------------------------------------------
+    # Alle Abfragen bauen ``WHERE`` nur aus festen Bausteinen (Spaltennamen aus einer Liste im Code); Werte gehen als Parameter hinein.
+
+    def quellen(self) -> list[str]:
+        """Alle Quellen, zu denen es Zeilen gibt."""
+        with self._lock:
+            return [r[0] for r in self._c().execute("SELECT DISTINCT quelle FROM sitzungen ORDER BY quelle")]
+
+    def erster_tag(self, wo: str, params: tuple) -> str | None:
+        """Der früheste bekannte Tag (``JJJJ-MM-TT``) unter dem Filter; ``None``, wenn es keinen gibt."""
+        with self._lock:
+            r = self._c().execute(f"SELECT MIN(tag) FROM sitzungen WHERE {wo} AND tag IS NOT NULL", params).fetchone()
+            return r[0]
+
+    def fasse_zusammen(
+        self, wo: str, params: tuple, spalten: list[str], mit_folgen: bool
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], tuple[int, int, int]]:
+        """Befehl 50: ``(Gruppen, Folgen, Summe)`` unter dem Filter, in **einem** Zugriff.
+
+        * Gruppen: je Wert der ``spalten`` Hörzeit, Zahl der „Mal“ (``mal_zaehlt``) und der „fertig“-Sitzungen.
+        * Folgen: die verschiedenen (``spalten``, ``folge``), die im Filter mindestens einmal „fertig“ waren (nur mit ``mit_folgen``).
+        * Summe: ``(Hörzeit, Mal, fertig)`` über den ganzen Filter."""
+        with self._lock:
+            con = self._c()
+            cols = ", ".join(spalten)
+            gruppen = [
+                dict(r)
+                for r in con.execute(
+                    f"SELECT {cols}, SUM(gehoert_s) AS sekunden, SUM(mal_zaehlt) AS mal, SUM(fertig) AS fertig FROM sitzungen WHERE {wo} GROUP BY {cols}",
+                    params,
+                )
+            ]
+            folgen = (
+                [dict(r) for r in con.execute(f"SELECT DISTINCT {cols}, folge FROM sitzungen WHERE {wo} AND fertig = 1", params)] if mit_folgen else []
+            )
+            s = con.execute(
+                f"SELECT COALESCE(SUM(gehoert_s), 0), COALESCE(SUM(mal_zaehlt), 0), COALESCE(SUM(fertig), 0) FROM sitzungen WHERE {wo}", params
+            ).fetchone()
+            return gruppen, folgen, (s[0], s[1], s[2])
+
+    def zuletzt_je_serie(self, wo: str, params: tuple) -> list[tuple[str, int, str]]:
+        """Befehl 51: je Serie ``(serie, ende_um, quelle)`` der letzten Sitzung mit bekanntem Datum, neueste zuerst."""
+        with self._lock:
+            return [
+                (r[0], r[1], r[2])
+                for r in self._c().execute(
+                    f"SELECT serie, MAX(ende_um) AS zeit, quelle FROM sitzungen WHERE {wo} AND datum <> 'unbekannt' GROUP BY serie ORDER BY zeit DESC, serie",
+                    params,
+                )
+            ]
+
+    def hoerzeit_ab(self, tag_ab: str) -> dict[str, int]:
+        """Zwischenspeicher „meist gehört“: je Serie die Hörzeit (alle Quellen) seit dem Tag ``tag_ab`` (einschließlich)."""
+        with self._lock:
+            return {
+                r[0]: r[1]
+                for r in self._c().execute("SELECT serie, SUM(gehoert_s) FROM sitzungen WHERE tag >= ? GROUP BY serie", (tag_ab,))
+            }
+
+    def zuletzt_boxen(self) -> dict[str, int]:
+        """Zwischenspeicher „zuletzt gehört“: je Serie ``ende_um`` der letzten Sitzung an einer **Box** (bekanntes Datum)."""
+        with self._lock:
+            return {
+                r[0]: r[1]
+                for r in self._c().execute(
+                    "SELECT serie, MAX(ende_um) FROM sitzungen WHERE substr(quelle, 1, 4) = 'box:' AND datum <> 'unbekannt' GROUP BY serie"
+                )
+            }
+
+    def zeilen_fuer_export(self, wo: str, params: tuple) -> list[dict[str, Any]]:
+        """Befehl 53: alle Zeilen unter dem Filter, nach Beginn (unbekanntes Datum zuletzt, dann Eingang)."""
+        with self._lock:
+            return [
+                dict(r)
+                for r in self._c().execute(
+                    f"SELECT * FROM sitzungen WHERE {wo} ORDER BY (datum = 'unbekannt'), beginn, rowid", params
+                )
+            ]
+
+    def zaehle(self, quellen: list[str]) -> int:
+        """Zahl der Zeilen der konkreten Quellen (Probelauf von Befehl 54)."""
+        if not quellen:
+            return 0
+        with self._lock:
+            marken = ",".join("?" * len(quellen))
+            return self._c().execute(f"SELECT COUNT(*) FROM sitzungen WHERE quelle IN ({marken})", tuple(quellen)).fetchone()[0]
+
+    def technik_lies(self, box: str, von_s: int, bis_s: int) -> dict[str, Any]:
+        """Befehl 52: die Zeilen der Box mit ``von_s <= zeit < bis_s`` (aufsteigend), dazu den Stand des Ladens **vor** dem Zeitraum
+        (``vorher``: ``lader_an``, ``lader_aus`` oder ``None``, mit Zeit) und die erste Zeile ``lader_an``/``offline`` **ab** ``bis_s`` (``danach``)."""
+        with self._lock:
+            con = self._c()
+            zeilen = [
+                dict(r)
+                for r in con.execute(
+                    "SELECT zeit, art, wert FROM technik WHERE box = ? AND zeit >= ? AND zeit < ? ORDER BY zeit, rowid LIMIT ?",
+                    (box, von_s, bis_s, 1_000_000),
+                )
+            ]
+            vorher = con.execute(
+                "SELECT zeit, art FROM technik WHERE box = ? AND zeit < ? AND art IN ('lader_an', 'lader_aus') ORDER BY zeit DESC, rowid DESC LIMIT 1",
+                (box, von_s),
+            ).fetchone()
+            danach = con.execute(
+                "SELECT zeit, art FROM technik WHERE box = ? AND zeit >= ? AND art IN ('lader_an', 'offline') ORDER BY zeit, rowid LIMIT 1",
+                (box, bis_s),
+            ).fetchone()
+            return {"zeilen": zeilen, "vorher": dict(vorher) if vorher else None, "danach": dict(danach) if danach else None}
+
     # --- Technik -------------------------------------------------------------------------------------------
 
     def technik_schreibe(self, box: str, zeilen: list[tuple[int, str, str | None]]) -> None:
@@ -554,6 +664,17 @@ class TechnikBeobachter:
 # --- Die Hülle im Hub ---------------------------------------------------------------------------------------------
 
 
+@dataclass
+class Zwischenspeicher:
+    """Zwischenspeicher im Arbeitsspeicher (Vertrag W, 4.9; ``data-model.md``, 12.1): je Serie ``ende_um`` der letzten Sitzung an einer Box und die Hörzeit der
+    letzten 365 Kalendertage (alle Quellen)."""
+
+    stand: int
+    heute: date
+    zuletzt: dict[str, int]
+    meist: dict[str, int]
+
+
 class Gehoert:
     """``hub.gehoert``: öffnet die Datenbank, nimmt Sitzungen der Boxen auf, quittiert und beantwortet den Handshake."""
 
@@ -563,8 +684,15 @@ class Gehoert:
         #: ``True``, wenn die Datenbank offen ist: die Fähigkeit ``gehoert`` (B3 trägt sie in ``hello`` ein)
         self.verfuegbar = False
         self.technik = TechnikBeobachter()
-        #: zählt jede Änderung der Hördaten (B3: Zwischenspeicher verfällt, Ereignis ``gehoert``)
+        #: zählt jede Änderung der Hördaten: der Zwischenspeicher verfällt, das Ereignis ``gehoert`` kommt (B3)
         self.stand = 0
+        #: Zwischenspeicher für ``zuletzt_gehoert_am`` und ``meist_gehoert`` (Vertrag W, 4.9); verfällt, wenn sich ``stand`` oder der Tag ändert
+        self._zs: Zwischenspeicher | None = None
+        self._zs_sperre = asyncio.Lock()
+        #: die Abfragen der Befehle 50 bis 54 (``gehoert_abfrage.py``)
+        from .gehoert_abfrage import GehoertAbfragen
+
+        self.abfrage = GehoertAbfragen(self)
         self._sperre = asyncio.Lock()  # ein Zugriff nach dem anderen, in der Reihenfolge der Nachrichten
         self._quittung: dict[str, list[str]] = {}
         self._quittung_timer: dict[str, Callable[[], None]] = {}
@@ -610,8 +738,14 @@ class Gehoert:
         except (sqlite3.Error, OverflowError, ValueError):
             _LOGGER.exception("gehoert.sqlite: Schreiben fehlgeschlagen")
             return None
-        self.stand += 1
+        if erg["gespeichert"] or erg["geaendert"]:
+            self._geaendert()
         return erg
+
+    def _geaendert(self) -> None:
+        """Die Hördaten haben sich geändert: Zwischenspeicher verfällt (``stand``), Ereignis ``gehoert`` gebündelt (Vertrag W, 4.9)."""
+        self.stand += 1
+        self.hub.gehoert_geaendert()
 
     # --- Boxen: gespielt, Quittung, Handshake ------------------------------------------------------------
 
@@ -657,6 +791,46 @@ class Gehoert:
         if self.db is not None:
             await self._sende(box, [])
 
+    # --- Zwischenspeicher für ``zuletzt_gehoert_am`` und ``meist_gehoert`` -------------------------------------------
+
+    async def zwischenspeicher(self) -> Zwischenspeicher | None:
+        """Lädt den Zwischenspeicher neu, wenn er veraltet ist (``stand`` oder Tag geändert); ``None`` ohne Datenbank."""
+        if self.db is None:
+            return None
+        zone = dt_util.get_default_time_zone()
+        heute = jetzt().astimezone(zone).date()
+        async with self._zs_sperre:
+            zs = self._zs
+            if zs is not None and zs.stand == self.stand and zs.heute == heute:
+                return zs
+            stand = self.stand
+            tag_ab = (heute - timedelta(days=GEHOERT_MEIST_TAGE - 1)).isoformat()
+            try:
+                zuletzt = await self._lauf(self.db.zuletzt_boxen)
+                meist = await self._lauf(self.db.hoerzeit_ab, tag_ab)
+            except sqlite3.Error:
+                _LOGGER.exception("gehoert.sqlite: Zwischenspeicher nicht gelesen")
+                return self._zs
+            self._zs = Zwischenspeicher(stand, heute, zuletzt, meist)
+            return self._zs
+
+    def zuletzt_gehoert_am(self, serie_id: str) -> str | None:
+        """``ende_um`` der letzten Sitzung an einer Box als Zeitstempel (Vertrag W, 14.2); ``None``: noch nie. Liest den **zuletzt geladenen** Zwischenspeicher
+        (die Befehle, die Listen liefern, laden ihn vorher mit ``zwischenspeicher()``)."""
+        if self._zs is None:
+            return None
+        zeit = self._zs.zuletzt.get(serie_id)
+        return None if zeit is None else iso(datetime.fromtimestamp(zeit, UTC))
+
+    def hoerzeit_jahr(self, serie_id: str) -> int:
+        return 0 if self._zs is None else self._zs.meist.get(serie_id, 0)
+
+    def zuletzt_alle(self) -> dict[str, int]:
+        return {} if self._zs is None else self._zs.zuletzt
+
+    def meist_alle(self) -> dict[str, int]:
+        return {} if self._zs is None else self._zs.meist
+
     # --- Technik ---------------------------------------------------------------------------------------
 
     async def technik_schreibe(self, box: str, zeilen: list[tuple[int, str, str | None]]) -> None:
@@ -679,15 +853,15 @@ class Gehoert:
             _LOGGER.exception("gehoert.sqlite: Aufräumen fehlgeschlagen")
             return 0
         if anzahl:
-            self.stand += 1
+            self._geaendert()
         return anzahl
 
     async def loesche(self, quellen: list[str]) -> int:
-        """Löscht die Zeilen konkreter Quellen und setzt die Löschmarken (für Befehl 54 in B3)."""
+        """Löscht die Zeilen konkreter Quellen und setzt die Löschmarken (Befehl 54)."""
         if self.db is None:
             return 0
         anzahl = await self._lauf(self.db.loesche, quellen, int(dt_util.utcnow().timestamp()))
-        self.stand += 1
+        self._geaendert()
         return anzahl
 
     async def schreibe_um(self, zuordnung: dict[tuple[str, str], tuple[str, str]]) -> None:
@@ -701,7 +875,7 @@ class Gehoert:
             return
         try:
             if await self._lauf(self.db.schreibe_um, zuordnung):
-                self.stand += 1
+                self._geaendert()
         except sqlite3.Error:
             _LOGGER.exception("gehoert.sqlite: Umschreiben nach dem Verschieben fehlgeschlagen")
 

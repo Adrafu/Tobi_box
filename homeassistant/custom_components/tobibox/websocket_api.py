@@ -27,7 +27,11 @@ from .const import (
     FILTER_WERTE,
     FOLGEN_LIMIT_MAX,
     FOLGEN_LIMIT_VORGABE,
+    FAVORITEN_JE_MINUTE,
     FOLGEN_SORTIERUNGEN,
+    GEHOERT_LIMIT_MAX,
+    GEHOERT_ZULETZT_LIMIT_VORGABE,
+    GEHOERT_ZULETZT_LIMIT_MAX,
     HOERSTELLE_LISTE_LIMIT_MAX,
     HOERSTELLE_LISTE_LIMIT_VORGABE,
     HOERSTELLE_SCHREIBEN_JE_MINUTE,
@@ -39,6 +43,8 @@ from .const import (
     SUCHTEXT_MIN,
 )
 from .fehler import TobiboxFehler
+from .gehoert_abfrage import NACH_WERTE, SORTIERUNGEN, ZEITRAEUME
+from .gehoert_export import signierter_export_pfad
 from .hub import FEHLT, Hub
 from .schutz import MINUTE_S, Nutzer
 
@@ -207,7 +213,8 @@ def ws_subscribe(hass: HomeAssistant, connection: Any, msg: dict[str, Any]) -> N
     except TobiboxFehler:
         connection.send_error(msg["id"], "unknown_error", "Tobi Box ist nicht geladen")
         return
-    themen = set(msg.get("themen") or EREIGNIS_THEMEN)
+    # Vorgabe: alle Themen, die das Backend zusagt (``gehoert`` nur mit offener Datenbank, ``favoriten`` immer)
+    themen = set(msg.get("themen") or (t for t in EREIGNIS_THEMEN if t != "gehoert" or hub.gehoert.verfuegbar))
     abo = Abo(connection, msg["id"], themen, connection.user.id if connection.user else None)
     entfernen = hub.abo_hinzu(abo)
     connection.subscriptions[msg["id"]] = entfernen
@@ -772,6 +779,89 @@ async def ws_einstellungen_set(hub: Hub, connection: Any, msg: dict[str, Any]) -
         nutzer=_nutzer(connection),
         erwartet_revision=msg.get("erwartet_revision"),
     )
+
+
+# --------------------------------------------------------------------------
+# 50 bis 54: Gehört (Fähigkeit ``gehoert``, Vertrag W, 3.14 und 15); 55 und 56: Favoriten (Fähigkeit ``favoriten``)
+# --------------------------------------------------------------------------
+
+
+@befehl(
+    "gehoert/zusammenfassung",
+    {
+        vol.Optional("wer"): _text,
+        vol.Optional("zeitraum"): vol.In(ZEITRAEUME),
+        vol.Optional("von"): _text,
+        vol.Optional("bis"): _text,
+        vol.Required("nach"): vol.All([vol.In(NACH_WERTE)], vol.Length(min=1, max=2)),
+        vol.Optional("serie_id"): _text,
+        vol.Optional("sortierung"): vol.In(SORTIERUNGEN),
+        vol.Optional("limit"): _ganz(1, GEHOERT_LIMIT_MAX),
+    },
+    recht="lesen",
+)
+async def ws_gehoert_zusammenfassung(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
+    """Nr. 50: Rangliste, Aufteilung einer Serie, Zeitreihen (Vertrag W, 3.14). Jede verbotene Kombination ist ``invalid_format``."""
+    return await hub.gehoert.abfrage.zusammenfassung(
+        nach=msg["nach"],
+        wer=msg.get("wer", "alle"),
+        zeitraum=msg.get("zeitraum"),
+        von=msg.get("von"),
+        bis=msg.get("bis"),
+        serie_id=msg.get("serie_id"),
+        sortierung=msg.get("sortierung"),
+        limit=msg.get("limit"),
+    )
+
+
+@befehl("gehoert/zuletzt", {vol.Optional("wer"): _text, vol.Optional("limit"): _ganz(1, GEHOERT_ZULETZT_LIMIT_MAX)}, recht="lesen")
+async def ws_gehoert_zuletzt(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
+    """Nr. 51: die Reihe „Zuletzt auf den Boxen gehört“ (ein Eintrag je Serie)."""
+    return await hub.gehoert.abfrage.zuletzt(msg.get("wer", "alle_boxen"), msg.get("limit", GEHOERT_ZULETZT_LIMIT_VORGABE), _nutzer(connection).id)
+
+
+@befehl("technik/verlauf", {vol.Required("box"): _text, vol.Required("von"): _text, vol.Required("bis"): _text}, recht="admin")
+async def ws_technik_verlauf(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
+    """Nr. 52: Laden, Laufzeit, Verbindung, Syncs, Fehler und verworfene Hördaten einer Box."""
+    return await hub.gehoert.abfrage.technik_verlauf(msg["box"], msg["von"], msg["bis"])
+
+
+@befehl("gehoert/exportieren", {vol.Required("quelle"): _text}, recht="admin")
+async def ws_gehoert_exportieren(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
+    """Nr. 53: ein signierter Pfad (10 Minuten, nur für den Anfragenden) zur Tabelle; die Datei entsteht beim Abruf (``gehoert_export.py``)."""
+    hub.gehoert.abfrage._db()  # ohne Datenbank: ``unknown_command``
+    quelle = await hub.gehoert.abfrage.pruefe_export_quelle(msg["quelle"])
+    return {"pfad": signierter_export_pfad(hub.hass, _nutzer_id(connection), quelle, connection.refresh_token_id)}
+
+
+@befehl(
+    "gehoert/loeschen",
+    {vol.Required("quelle"): _text, vol.Optional("trocken"): _wahrheit, vol.Optional("bestaetigung"): _text},
+    recht="admin",
+)
+async def ws_gehoert_loeschen(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
+    """Nr. 54: löscht Hördaten unwiderruflich (mit Löschmarke); ``trocken`` zählt nur. Bestätigungswort ``LÖSCHEN`` oder ``LOESCHEN``."""
+    return await hub.gehoert.abfrage.loeschen(msg["quelle"], msg.get("trocken", False), msg.get("bestaetigung"))
+
+
+@befehl("favorit/set", {**SERIE_ID, vol.Optional("folge"): _text, vol.Required("an"): _wahrheit}, recht="alltag")
+async def ws_favorit_set(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
+    """Nr. 55: Stern setzen oder nehmen (für die ganze Familie). Höchstens 30 Aufrufe je Minute und Benutzer (nicht für Administratoren)."""
+    nutzer = _nutzer(connection)
+    hub.schutz.mengen.pruefe("favoriten", nutzer, FAVORITEN_JE_MINUTE, MINUTE_S)
+    await hub.medien._stelle_geprueft_sicher()
+    folge = msg.get("folge")
+    geaendert = hub.favoriten.setze(_nutzer_id(connection), msg["serie_id"], folge, msg["an"])
+    hub.schutz.mengen.buche_fuer("favoriten", nutzer)
+    if geaendert:  # eine Wiederholung ist kein Fehler und löst kein Ereignis aus
+        hub.emit("favoriten", "geaendert", {"serie_id": msg["serie_id"], "folge": folge, "an": msg["an"]})
+    return {"an": msg["an"]}
+
+
+@befehl("favoriten/list", recht="lesen")
+async def ws_favoriten_list(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
+    """Nr. 56: alle Sterne der Familie, neueste zuerst (Einträge ohne Serie oder Folge fehlen)."""
+    return {"eintraege": await hub.favoriten.liste_fuer_seite()}
 
 
 # --------------------------------------------------------------------------

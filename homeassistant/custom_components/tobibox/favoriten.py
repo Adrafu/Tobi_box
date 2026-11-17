@@ -57,13 +57,17 @@ class Favoriten:
         self._store: Store[dict[str, Any]] = Store(hub.hass, STORAGE_VERSION, STORAGE_KEY)
         self.eintraege: list[dict[str, Any]] = []
         self._geplant = False
+        #: ``(serie_id, folge)`` aller Einträge, für schnelle Abfragen in Listen (verfällt bei jeder Änderung)
+        self._schluessel: set[tuple[str, str | None]] | None = None
 
     # --- Laden und Speichern -----------------------------------------------------------------------------
 
     async def async_laden(self) -> None:
         self.eintraege = _bereinige_form(await self._store.async_load())
+        self._schluessel = None
 
     def _speichern(self) -> None:
+        self._schluessel = None
         if self._geplant:
             return
         self._geplant = True
@@ -117,6 +121,18 @@ class Favoriten:
         """Die Einträge, deren Serie und Folge es gibt (Befehl 56); älteste zuerst."""
         return [dict(e) for e in self.eintraege if self._existiert(e)]
 
+    async def liste_fuer_seite(self) -> list[dict[str, Any]]:
+        """Befehl 56: neueste zuerst; ``gesetzt_von`` als ``{"id", "name"}`` (für einen gelöschten Benutzer ``"unbekannt"``)."""
+        namen: dict[str, str] = {}
+        aus: list[dict[str, Any]] = []
+        for e in reversed(sorted(self.liste(), key=lambda x: x["gesetzt_am"])):  # stabil: bei gleicher Zeit zuletzt Gesetztes zuerst
+            nutzer_id = e["gesetzt_von"]
+            if nutzer_id not in namen:
+                nutzer = await self.hub.hass.auth.async_get_user(nutzer_id)
+                namen[nutzer_id] = nutzer.name if nutzer is not None and nutzer.name else "unbekannt"
+            aus.append({"serie_id": e["serie_id"], "folge": e["folge"], "gesetzt_von": {"id": nutzer_id, "name": namen[nutzer_id]}, "gesetzt_am": e["gesetzt_am"]})
+        return aus
+
     def menge(self) -> set[tuple[str, str | None]]:
         """``(serie_id, folge)`` aller sichtbaren Einträge (für das Feld ``favorit`` und den Filter)."""
         return {(e["serie_id"], e["folge"]) for e in self.eintraege if self._existiert(e)}
@@ -124,6 +140,16 @@ class Favoriten:
     def ist_favorit(self, serie_id: str, folge: str | None = None) -> bool:
         e = self._finde(serie_id, folge)
         return e is not None and self._existiert(e)
+
+    def schluessel(self) -> set[tuple[str, str | None]]:
+        """``(serie_id, folge)`` aller gesetzten Sterne **ohne** Prüfung, ob es Serie und Folge noch gibt (schnell, für die Felder ``favorit`` von Serie und
+        Folge, die es ohnehin gerade gibt)."""
+        if self._schluessel is None:
+            self._schluessel = {(e["serie_id"], e["folge"]) for e in self.eintraege}
+        return self._schluessel
+
+    def gesetzt(self, serie_id: str, folge: str | None = None) -> bool:
+        return (serie_id, folge) in self.schluessel()
 
     # --- Verschieben und Zusammenführen --------------------------------------------------------------------
 

@@ -673,6 +673,9 @@ class Medien:
         hoerstelle = self.hub.hoerstellen.kurz(nutzer_id, s.id)
         if hoerstelle is not None:
             aus["hoerstelle"] = hoerstelle
+        aus["favorit"] = self.hub.favoriten.gesetzt(s.id)  # nur der Stern der Serie als Ganzes (Vertrag W, 14.2; Fähigkeit ``favoriten``)
+        if self.hub.gehoert.verfuegbar:
+            aus["zuletzt_gehoert_am"] = self.hub.gehoert.zuletzt_gehoert_am(s.id)  # Fähigkeit ``gehoert``; aus dem Zwischenspeicher
         return aus
 
     def _folge_objekt(
@@ -970,9 +973,13 @@ class Medien:
 
         ``nutzer_id``: der Anfragende (aus der Verbindung): für ``hoerstelle`` und die Sortierung ``angehoert``."""
         await self._stelle_geprueft_sicher()
+        zs = await self.hub.gehoert.zwischenspeicher()  # Zwischenspeicher für ``zuletzt_gehoert_am`` und die Sortierungen (``None`` ohne Datenbank)
         infos, gesamt, weitere, zaehler = self.bibliothek.serien(
             art=art, text=text, auch_folgen=auch_folgen, filter_=filter_, sortierung=sortierung, limit=limit, offset=offset,
             hoerzeiten=self.hub.hoerstellen.zeiten(nutzer_id) if sortierung == "angehoert" else None,
+            favoriten=self.hub.favoriten.schluessel(),
+            zuletzt_gehoert=zs.zuletzt if zs is not None else None,
+            meist_gehoert=zs.meist if zs is not None else None,
         )
         return {
             "serien": [self.kurzform(i, zaehler, nutzer_id) for i in infos],
@@ -997,7 +1004,7 @@ class Medien:
         """``folgen/list`` (Vertrag W, Nr. 37): Folgen und Einzeltitel aller Einträge."""
         await self._stelle_geprueft_sicher()
         zeilen, gesamt, weitere = self.bibliothek.folgen(
-            art=art, text=text, filter_=filter_, sortierung=sortierung, limit=limit, offset=offset
+            art=art, text=text, filter_=filter_, sortierung=sortierung, limit=limit, offset=offset, favoriten=self.hub.favoriten.schluessel()
         )
         return {"folgen": zeilen, "gesamt": gesamt, "weitere": weitere}
 
@@ -1065,6 +1072,7 @@ class Medien:
         return info
 
     async def serie_holen(self, serie_id: str, nutzer_id: str | None = None) -> dict[str, Any]:
+        await self.hub.gehoert.zwischenspeicher()  # für ``zuletzt_gehoert_am`` in der Kurzform
         serie, pfad = await self._frisch(serie_id)
         info = await self._aktualisiere_cache(serie, pfad.name)
         aus = self.kurzform(info, nutzer_id=nutzer_id)
@@ -1091,6 +1099,7 @@ class Medien:
                 f["hoerkopie"] = kopie
             if name in hoerstellen:
                 f["hoerstelle"] = hoerstellen[name]
+            f["favorit"] = self.hub.favoriten.gesetzt(serie_id, name)  # Stern an dieser Folge (Fähigkeit ``favoriten``)
             folgen.append(f)
         aus["folgen"] = folgen
         aus["zuordnungen"] = self.tobies_der_ganzen_serie(serie_id)
@@ -1210,6 +1219,7 @@ class Medien:
                 except OSError as err:
                     raise self._fehler_schreiben(err) from err
             info = await self._aktualisiere_cache(serie, pfad.name)
+        self.hub.eingang.pruefen_zuruecksetzen(serie_id, folgen)  # auch im Protokoll des Eingangs (Vertrag W, Nr. 28, Rest aus A-1c)
         self.hub.emit("medien", "serien_geaendert", {"serie_ids": [serie_id]})
         return self.kurzform(info)
 

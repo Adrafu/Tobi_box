@@ -85,6 +85,8 @@ EINGANG_STILLE_S: Final = 30
 EINGANG_NACHPLAN_S: Final = 60
 EINGANG_TIEFE_MAX: Final = 5
 EINGANG_PROTOKOLL_MAX: Final = 100
+#: ``eingang/list``: so viele Dateinamen höchstens je Eintrag (Vertrag W, 3.9); die übrigen zählt ``dateien_weitere``
+DATEINAMEN_MAX: Final = 50
 INDEX_MAX: Final = 20000
 PRUEF_INTERVALL_S: Final = 600
 
@@ -106,8 +108,10 @@ WARTESCHLANGE_AENDERUNGEN_JE_MINUTE: Final = 30
 ARTEN: Final = ("hoerspiel", "hoerbuch", "musik", "geschichte")
 ART_QUELLEN: Final = ("tags", "geraten", "manuell")
 ART_VORGABE: Final = "hoerspiel"
-FILTER_WERTE: Final = ("ohne_tobie", "neu", "pruefen", "sammlung", "einzeln")
-SERIEN_SORTIERUNGEN: Final = ("name", "neu", "angehoert")
+#: ``favorit`` (Stufe B, Fähigkeit ``favoriten``): nur Einträge mit Stern
+FILTER_WERTE: Final = ("ohne_tobie", "neu", "pruefen", "sammlung", "einzeln", "favorit")
+#: ``zuletzt_gehoert`` und ``meist_gehoert`` (Stufe B, Fähigkeit ``gehoert``; ohne Hördaten gilt die Reihenfolge nach Name)
+SERIEN_SORTIERUNGEN: Final = ("name", "neu", "angehoert", "zuletzt_gehoert", "meist_gehoert")
 FOLGEN_SORTIERUNGEN: Final = ("titel", "neu")
 SUCHTEXT_MIN: Final = 2
 SUCHTEXT_MAX: Final = 100
@@ -215,6 +219,8 @@ FAEHIGKEITEN: Final = (
     "zuordnung_rueckgaengig",
     # A4c (A-2): Audio-Ansicht, Befehle 39 bis 42 (``audio/bereit``, ``hoerstelle/*``), Sortierung ``angehoert``. ``hoerkopie`` fehlt bis A-3
     "reinhoeren",
+    # B3 (Stufe B): Befehle 55 und 56, Filter und Feld ``favorit``, Thema ``favoriten``. ``gehoert`` kommt dynamisch dazu (``Hub.faehigkeiten``), nur mit offener Datenbank
+    "favoriten",
 )
 
 # --- MQTT-Themen (``mqtt-v1.md`` Abschnitt 2) ----------------------------------
@@ -231,6 +237,9 @@ EREIGNIS_THEMEN: Final = (
     "konfig",
     "upload",
     "warteschlange",
+    # B3 (Stufe B): ``gehoert`` nur mit Fähigkeit ``gehoert``, ``favoriten`` nur mit Fähigkeit ``favoriten`` (Vertrag W, 3.1, Nr. 2)
+    "gehoert",
+    "favoriten",
 )
 
 # --- Namen reserviert ----------------------------------------------------------
@@ -341,3 +350,25 @@ REINHOEREN_TAKT_S: Final = 60
 FAVORITEN_MAX: Final = 1000
 #: Favoriten im Speicher sofort, auf der Platte gesammelt (Sekunden)
 FAVORITEN_SPEICHER_VERZOEGERUNG_S: Final = 5
+
+# --- Stufe B, Paket B3: Befehle 50 bis 56 (Vertrag W, 15.4) ----------------------------------------------------
+#: Zeilen einer Zeitreihe in Befehl 50 (darüber ``invalid_format``)
+GEHOERT_ZEILEN_MAX: Final = 400
+GEHOERT_LIMIT_VORGABE: Final = 50
+GEHOERT_LIMIT_MAX: Final = 200
+#: ``von`` bis ``bis`` höchstens so viele Jahre (Befehl 50)
+GEHOERT_SPANNE_MAX_JAHRE: Final = 3
+#: Befehl 51: Vorgabe und Höchstzahl der Einträge
+GEHOERT_ZULETZT_LIMIT_VORGABE: Final = 10
+GEHOERT_ZULETZT_LIMIT_MAX: Final = 20
+#: ``gehoert``/``geaendert`` höchstens alle so viele Sekunden (Vertrag W, 4.9)
+GEHOERT_EREIGNIS_BUENDEL_S: Final = 5
+#: signierter Pfad des Exports (Befehl 53): Gültigkeit in Sekunden
+GEHOERT_EXPORT_LINK_S: Final = 600
+#: „Meist gehört“ und der Zwischenspeicher: so viele Kalendertage zurück (Vertrag W, 14.2)
+GEHOERT_MEIST_TAGE: Final = 365
+#: Befehl 52: Spanne von ``von`` bis ``bis`` in Tagen, Einträge je Liste
+TECHNIK_SPANNE_MAX_TAGE: Final = 400
+TECHNIK_LISTE_MAX: Final = 2000
+#: ``favorit/set`` je Minute und Benutzer (eigener Zähler; Administratoren ausgenommen, 2.4)
+FAVORITEN_JE_MINUTE: Final = 30

@@ -142,6 +142,13 @@ TABELLE = [
     (47, "warteschlange/set", "alltag", {"box": "box1", "ziel": SERIE}, None, True),
     (48, "warteschlange/list", "alltag", {}, None, True),
     (49, "warteschlange/abbrechen", "alltag", {"eintrag_id": "0123456789ab"}, None, True),
+    (50, "gehoert/zusammenfassung", "lesen", {"nach": ["serie"], "zeitraum": "woche"}, None, True),
+    (51, "gehoert/zuletzt", "lesen", {}, None, True),
+    (52, "technik/verlauf", "admin", {"box": "box1", "von": "2026-11-01", "bis": "2026-11-10"}, None, True),
+    (53, "gehoert/exportieren", "admin", {"quelle": "alle"}, None, True),
+    (54, "gehoert/loeschen", "admin", {"quelle": "boxen", "trocken": True}, None, True),
+    (55, "favorit/set", "alltag", {"serie_id": "rabe", "an": True}, None, True),
+    (56, "favoriten/list", "lesen", {}, None, True),
 ]
 IDS = [f"{z[0]:02d}-{z[1]}" for z in TABELLE]
 
@@ -155,7 +162,7 @@ def vertrags_uebersicht() -> dict[str, tuple[int, str]]:
 
 def test_tabelle_enthaelt_jeden_befehl_der_vertragsuebersicht_genau_einmal():
     uebersicht = vertrags_uebersicht()
-    assert len(uebersicht) == 49  # seit 13.11. (A0-Q) mit den Befehlen 47 bis 49
+    assert len(uebersicht) == 56  # seit 13.11. (A0-Q) mit den Befehlen 47 bis 49, seit 16.11. (Stufe B) mit 50 bis 56
     assert [z[1] for z in TABELLE] == [b for b, _ in sorted(uebersicht.items(), key=lambda kv: kv[1][0])]
     for nr, befehl, recht, *_ in TABELLE:
         assert uebersicht[befehl] == (nr, recht), befehl
@@ -192,7 +199,7 @@ async def test_tabelle_2_1_normal_benutzer(normal, nr, befehl, recht, felder, ad
 async def test_hello_sagt_nur_zu_was_gebaut_ist(admin, normal):
     for client in (admin, normal):
         f = (await ok(client, "hello", v=1))["faehigkeiten"]
-        assert f[-8:] == ["konfig_staende", "bibliothek", "einsortier_wunsch", "cover", "warteschlange", "zuordnung_rueckgaengig", "reinhoeren", "hoerkopie"]  # A1, A3, A3d, A4, A9c, A4c, A3c (``hoerkopie`` nur mit ``ffmpeg``)
+        assert f[-10:] == ["konfig_staende", "bibliothek", "einsortier_wunsch", "cover", "warteschlange", "zuordnung_rueckgaengig", "reinhoeren", "favoriten", "gehoert", "hoerkopie"]  # A1, A3, A3d, A4, A9c, A4c, B3 (``gehoert`` nur mit offener Datenbank), A3c (``hoerkopie`` nur mit ``ffmpeg``)
     assert (await ok(admin, "hello", v=1))["darf_schreiben"] is True
     assert (await ok(normal, "hello", v=1))["darf_schreiben"] is False
 

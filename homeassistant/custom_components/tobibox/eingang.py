@@ -29,6 +29,7 @@ from homeassistant.helpers.storage import Store
 from . import dateien, ffprobe, neu_einsortieren
 from .bibliothek import ArtDatei, art_vorschlag
 from .const import (
+    DATEINAMEN_MAX,
     EINGANG_NACHPLAN_S,
     EINGANG_PROTOKOLL_MAX,
     EINGANG_RUHE_S,
@@ -148,6 +149,9 @@ class EintragZustand:
     gruppe_unvollstaendig: bool = False
     #: woher der Eintrag kam: ``upload`` oder ``nas`` (Vertrag W, 3.9 und 14.4); fest, die Integration weiß es
     quelle: str = "nas"
+    #: Namen der Audiodateien (Pfad im Eintrag), höchstens ``DATEINAMEN_MAX``; ``dateien_weitere`` zählt die übrigen (Vertrag W, 3.9, Rest aus A-1c)
+    dateinamen: list[str] = field(default_factory=list)
+    dateien_weitere: int = 0
 
     def zu_json(self) -> dict[str, Any]:
         return {
@@ -165,6 +169,8 @@ class EintragZustand:
             "fertig_am": self.fertig_am,
             "wunsch": dict(self.wunsch) if self.wunsch else None,
             "quelle": self.quelle,
+            "dateinamen": list(self.dateinamen),
+            **({"dateien_weitere": self.dateien_weitere} if self.dateien_weitere else {}),
             "pruefen": any(bool(r.get("pruefen")) for r in self.ergebnis),
         }
 
@@ -664,6 +670,33 @@ class Eingang:
                 pass
         return treffer
 
+    # --- „bitte prüfen“ zurücksetzen (Befehl 28, Rest aus A-1c) -----------------------------------------
+
+    def pruefen_zuruecksetzen(self, serie_id: str, folgen: list[str] | None) -> bool:
+        """``einsortierung/bestaetigen`` nimmt auch im Protokoll (und bei Einträgen mit Teilergebnis) das Kennzeichen weg: bei **allen** Elementen von ``ergebnis``
+        der Serie, mit ``folgen`` nur bei denen mit passendem ``folge``. Gibt ``True`` zurück, wenn sich etwas geändert hat (dann Ereignis ``geaendert``)."""
+        geaendert = False
+
+        def setze(ergebnis: list[dict[str, Any]]) -> bool:
+            hier = False
+            for r in ergebnis:
+                if r.get("serie_id") == serie_id and (folgen is None or r.get("folge") in folgen) and (r.get("pruefen") or r.get("pruefen_gruende")):
+                    r["pruefen"], r["pruefen_gruende"] = False, []
+                    hier = True
+            return hier
+
+        for p in self.protokoll:
+            if setze(p.get("ergebnis") or []):
+                p["pruefen"] = any(bool(r.get("pruefen")) for r in p["ergebnis"])
+                geaendert = True
+        # B3-OFFEN: Der Vertrag nennt nur das Protokoll; Einträge mit Teilergebnis (``teilweise``) lesen ``eingang/list`` aus demselben ``ergebnis`` und werden mit zurückgesetzt
+        for z in self.eintraege.values():
+            geaendert = setze(z.ergebnis) or geaendert
+        if geaendert:
+            self.speichern()
+            self.hub.emit("eingang", "geaendert", {})
+        return geaendert
+
     # --- Liste ------------------------------------------------------------------------
 
     async def liste(self, filter_: str, limit: int, offset: int) -> dict[str, Any]:
@@ -693,6 +726,7 @@ class Eingang:
         ``rueckweg`` (was „Anders einsortieren“ braucht) ist intern und geht nie hinaus."""
         zeile = {k: v for k, v in p.items() if k != "rueckweg"}
         zeile.setdefault("quelle", "nas")
+        zeile.setdefault("dateinamen", [])  # Zeilen aus der Zeit vor B3 kennen die Namen nicht
         zeile.setdefault("pruefen", any(bool(r.get("pruefen")) for r in zeile.get("ergebnis") or []))
         return zeile
 
@@ -734,6 +768,8 @@ class Eingang:
                 self.eintraege[e.name] = z
             z.art = e.art
             z.dateien = len(e.dateien)
+            namen = sorted((d.rel for d in e.dateien), key=natuerlicher_schluessel)
+            z.dateinamen, z.dateien_weitere = namen[:DATEINAMEN_MAX], max(len(namen) - DATEINAMEN_MAX, 0)
             z.ignoriert = e.ignoriert
             z.groesse_bytes = e.groesse
             z.geaendert_am = iso(datetime.fromtimestamp(e.neueste_mtime, tz=UTC))
@@ -773,7 +809,10 @@ class Eingang:
         """``{"ziel", "art"}`` des Wunsches, mit dem die Dateien dieses Eintrags hochgeladen wurden (``eingang/list``)."""
         for v in self._wunsch_eintraege(top):
             w = v["wunsch"]
-            return {"ziel": w.get("ziel"), "art": w.get("art")}
+            aus = {"ziel": w.get("ziel"), "art": w.get("art")}
+            if w.get("gruppe_anzahl"):  # nur bei einer Gruppe (Vertrag W, 3.9, Rest aus A-1c)
+                aus["gruppe_anzahl"] = int(w["gruppe_anzahl"])
+            return aus
         return None
 
     def gruppe_belegt(self, top: str) -> bool:

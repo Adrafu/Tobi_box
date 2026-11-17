@@ -343,6 +343,9 @@
     "zu_viele_favoriten": {
       "message": "Es gibt schon sehr viele Favoriten. Bitte zuerst einen Stern wegnehmen."
     },
+    "wer_ungueltig": {
+      "message": "Diese Auswahl gibt es nicht. Bitte wähle die Box oder die Person noch einmal aus."
+    },
     "zu_viele_aenderungen": {
       "message": "Das waren gerade sehr viele Änderungen. Bitte kurz warten und dann noch einmal versuchen."
     },

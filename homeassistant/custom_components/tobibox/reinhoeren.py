@@ -224,6 +224,13 @@ class Reinhoeren:
             if neu is not None:
                 lauf.serie, lauf.folge = neu
 
+    def verwirf(self, nutzer_ids: list[str]) -> int:
+        """``gehoert/loeschen``: offene Sitzungen dieser Benutzer im Arbeitsspeicher gehören zu den gelöschten Daten und werden nicht mehr geschrieben."""
+        weg = [k for k in self.offen if k[0] in nutzer_ids]
+        for k in weg:
+            del self.offen[k]
+        return len(weg)
+
     async def schliesse_alle(self) -> None:
         """HA fährt herunter: alle offenen Sitzungen enden als ``dienst_ende``."""
         je_nutzer: dict[str, list[Zeile]] = {}

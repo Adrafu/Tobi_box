@@ -115,3 +115,13 @@ bleiben wie entworfen (sie decken Browser ab, die einfrieren). B2 wird wie entwo
 | B2: Box-Zeilen, die erst nach einem Verschieben eintreffen, zählen am alten Namen | so lassen; offene Reinhör-Sitzungen ziehen mit |
 | B2: Favoriten gelöschter Folgen zählen zur Grenze 1000 | so lassen |
 | B2: Obergrenzen gegen unsinnige Werte (Boot-Sekunden ≤ 10 Jahre, Dauer ≤ 7 Tage, `beginn` ≤ Empfang + 1 Tag) | Zeile ungültig, protokolliert, trotzdem quittiert |
+
+## B3: offene Punkte des Agents (17.11., alles PL: so lassen)
+
+Export-Pfad `/api/tobibox/export/<benutzer>/<quelle>` mit Signatur und Admin-Prüfung; ausgebaute Box mit alten Daten ist
+in `wer` gültig; Zeilen mit unbekanntem Datum fehlen in Zeitreihen und `summe`, zählen in Ranglisten nur bei `alles`;
+Raster Zeit × `wer` nimmt die Quellen, die der Filter zulässt; Sammelzeile gelöschter Serien mit `folgen_fertig` und
+`folgen_gesamt` 0; Export-Spalten mit Anzeigenamen, „Mal neu“ nur beim zählenden Mal; in `folgen/list` gilt der Stern der
+Folge; 3 Jahre bis zum gleichen Kalendertag, 400 Kalendertage einschließlich `bis`; Ränder in Befehl 52 mit wahrem
+Beginn; Befehl 54 verwirft auch offene Reinhör-Sitzungen der gelöschten Personen; `einsortierung/bestaetigen` setzt auch
+`teilweise` zurück; Reihenfolge in `hello.faehigkeiten` mit `hoerkopie` am Ende.

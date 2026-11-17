@@ -95,6 +95,8 @@ async def test_hello(api, api_lesend, integration):
         "warteschlange",  # 13.11., Paket A9c: Befehle 47 bis 49, Thema ``warteschlange``
         "zuordnung_rueckgaengig",  # 13.11., Paket A9c: ``als_neu`` bei ``zuordnung/remove``
         "reinhoeren",  # 14.11., Paket A4c: Audio-Ansicht, Befehle 39 bis 42, Sortierung ``angehoert``
+        "favoriten",  # 17.11., Paket B3: Befehle 55 und 56
+        "gehoert",  # 17.11., Paket B3: nur, wenn ``gehoert.sqlite`` offen ist
         "hoerkopie",  # 16.11., Paket A3c: nur, wenn ``ffmpeg`` da ist (die Tests brauchen es)
     ]
     assert r["konfig"]["zustand"] == "ok" and r["konfig"]["revision"] == 1
@@ -149,8 +151,8 @@ async def test_subscribe_snapshots_und_ende(hass, api, integration):
 async def test_subscribe_alle_themen_und_ungueltiges_thema(hass, api):
     await api.send_json_auto_id({"type": "tobibox/subscribe"})
     assert (await api.receive_json())["success"] is True
-    themen = [(await api.receive_json())["event"]["thema"] for _ in range(8)]
-    assert themen == ["boxen", "neue_tobies", "lernmodus", "medien", "eingang", "konfig", "upload", "warteschlange"]  # 13.11. mit ``warteschlange``
+    themen = [(await api.receive_json())["event"]["thema"] for _ in range(10)]
+    assert themen == ["boxen", "neue_tobies", "lernmodus", "medien", "eingang", "konfig", "upload", "warteschlange", "gehoert", "favoriten"]  # 13.11. mit ``warteschlange``, 17.11. mit ``gehoert`` und ``favoriten``
     assert await fehler(api, "subscribe", themen=["quatsch"]) == "invalid_format"
 
 
@@ -246,7 +248,7 @@ async def test_serien_list_und_serie_get(hass, api, nas, integration):
     assert r["pruefung_laeuft"] is False and r["geprueft_am"]
     rabe = next(s for s in r["serien"] if s["id"] == "rabe")
     assert rabe.keys() == {"id", "name", "typ", "ordner", "anzahl_folgen", "anzahl_tobies", "angelegt_am", "stand", "pruefen", "anzahl_pruefen", "hinweise",
-                           "art", "art_quelle", "einzeln", "cover_stand", "cover_quelle", "dauer_s", "kapitel_anzahl"}  # seit 12.11. (Pakete A3, A4, A3b, A3b3)
+                           "art", "art_quelle", "einzeln", "cover_stand", "cover_quelle", "dauer_s", "kapitel_anzahl", "favorit", "zuletzt_gehoert_am"}  # seit 12.11. (Pakete A3, A4, A3b, A3b3), seit 17.11. B3
     assert (rabe["anzahl_folgen"], rabe["typ"], rabe["ordner"], rabe["pruefen"], rabe["anzahl_pruefen"]) == (2, "normal", "rabe", False, 0)
     assert (rabe["art"], rabe["art_quelle"], rabe["einzeln"]) == ("hoerspiel", "geraten", False)  # alte serie.json ohne art
     assert (r["gesamt"], r["weitere"]) == (3, False)
@@ -254,7 +256,8 @@ async def test_serien_list_und_serie_get(hass, api, nas, integration):
     assert s["stand"] == rabe["stand"] and s["zuordnungen"] == []
     a, b = s["folgen"]
     # ``dauer_s`` und ``spuren_s`` fehlen, solange die Dauer unbekannt ist (der Hintergrundlauf holt sie nach), ``hoerstelle`` fehlt ohne Hörstelle
-    assert a.keys() - {"dauer_s", "spuren_s", "kapitel", "hoerkopie"} == {"name", "anzeige", "nummer", "datum", "art", "tracks", "groesse_bytes", "pruefung", "hinweis", "pruefen", "pruefen_gruende", "tobies"}
+    assert a.keys() - {"dauer_s", "spuren_s", "kapitel", "hoerkopie"} == {"name", "anzeige", "nummer", "datum", "art", "tracks", "groesse_bytes", "pruefung", "hinweis", "pruefen", "pruefen_gruende", "tobies", "favorit"}
+    assert a["favorit"] is False and s["favorit"] is False and s["zuletzt_gehoert_am"] is None  # B3
     assert (a["name"], a["anzeige"], a["nummer"], a["art"], a["tracks"]) == ("a.mp3", "Eins", 1, "datei", 1)
     assert (b["anzeige"], b["nummer"], b["datum"]) == ("b", None, None)  # Dateiname ohne Endung
     assert await fehler(api, "serie/get", serie_id="gibtsnicht") == "serie_nicht_gefunden"
@@ -563,7 +566,8 @@ async def test_boxen_list(hass, api, box_fabrik, integration):
     r = await ok(api, "boxen/list")
     assert [x["box"] for x in r["boxen"]] == ["box1", "box2"]  # Reihenfolge der Einrichtung
     x = r["boxen"][0]
-    assert x.keys() == {"box", "anzeigename", "anzeige", "online", "status", "status_empfangen_am", "konfig_stand", "lernmodus", "ereignisse"}
+    assert x.keys() == {"box", "anzeigename", "anzeige", "online", "status", "status_empfangen_am", "konfig_stand", "lernmodus", "akku_entitaet", "ereignisse"}
+    assert x["akku_entitaet"] is None  # kein Akku-Sensor angelegt
     assert x["anzeigename"] == "Kinderzimmer" and x["anzeige"] == "Kinderzimmer" and x["online"] is True and x["status"]["version"] == "1.0.0"
     assert x["ereignisse"][0].keys() == {"id", "ts", "art", "daten", "text"}
     assert r["boxen"][1]["online"] is None and r["boxen"][1]["status"] is None and r["boxen"][1]["konfig_stand"] == "unbekannt"
@@ -686,7 +690,8 @@ async def test_eingang_list_und_sortieren(hass, api, nas, ereignisse, integratio
     assert liste["gesamt"] == 2 and {e["status"] for e in liste["eintraege"]} == {"wartet"}
     assert liste.keys() == {"eintraege", "gesamt", "sortierung_laeuft", "geprueft_am"}
     eintrag = next(e for e in liste["eintraege"] if e["name"] == "a.mp3")
-    assert eintrag.keys() == {"id", "name", "art", "dateien", "ignoriert", "groesse_bytes", "zuerst_gesehen", "geaendert_am", "status", "hinweise", "ergebnis", "fertig_am", "wunsch", "quelle", "pruefen"}  # "wunsch": Vertrag W 12.11. (A3d), "quelle"/"pruefen": Nacharbeit A3d
+    assert eintrag.keys() == {"id", "name", "art", "dateien", "ignoriert", "groesse_bytes", "zuerst_gesehen", "geaendert_am", "status", "hinweise", "ergebnis", "fertig_am", "wunsch", "quelle", "pruefen", "dateinamen"}  # "wunsch": Vertrag W 12.11. (A3d), "quelle"/"pruefen": Nacharbeit A3d, "dateinamen": B3
+    assert eintrag["dateinamen"] == ["a.mp3"]
     assert eintrag["wunsch"] is None  # ohne Wunsch
     r = await ok(api, "eingang/sortieren", eintrag_ids=[eintrag["id"]], sofort=True)
     assert r["eintraege"] == 1

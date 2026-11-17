@@ -740,7 +740,7 @@ async def test_wunsch_neu_hoerbuch_zwoelf_dateien_gleiches_album_sind_eine_folge
     assert "pruefen" not in folge_info(serie, "Das große Hörbuch")
     assert inhalt(nas.medien / serie["_ordner"] / "Das große Hörbuch") == [f"{i:02d}.mp3" for i in range(1, 13)]
     assert not (nas.eingang / ORDNER).exists()
-    assert integration.eingang.protokoll[-1]["wunsch"] == {"ziel": "neu", "art": "hoerbuch"}
+    assert integration.eingang.protokoll[-1]["wunsch"] == {"ziel": "neu", "art": "hoerbuch", "gruppe_anzahl": 12}  # B3: bei einer Gruppe auch ``gruppe_anzahl``
     assert integration.eingang.protokoll[-1]["ergebnis"][0]["tracks"] == 12
     integration.eingang.abbrechen()
 
@@ -771,7 +771,7 @@ async def test_G2_drei_dateien_im_abstand_von_60_s_bleiben_eine_gruppe(hass, int
             assert alle_serien(nas) == {}
             eintrag = (await integration.eingang.liste("offen", 50, 0))["eintraege"][0]
             assert eintrag["status"] == "wartet" and eintrag["dateien"] == i
-            assert eintrag["wunsch"] == {"ziel": "neu", "art": "hoerbuch"}
+            assert eintrag["wunsch"] == {"ziel": "neu", "art": "hoerbuch", "gruppe_anzahl": 3}
             freezer.tick(timedelta(seconds=60))
     serie = alle_serien(nas)["Kapitän Knopf"]
     assert serie["folgen"] == ["Kapitän Knopf"]  # **eine** Folge, kein „… (2)“
@@ -902,7 +902,7 @@ async def test_auto_ist_kein_wunsch_und_bleibt_wie_vorher(hass, integration, nas
     await pass_ohne_sofort(hass, integration)
     serien = alle_serien(nas)
     assert list(serien) == ["Künstler A"] and serien["Künstler A"]["folgen"] == ["Album X"]  # eine Folge aus dem Album, wie bisher
-    assert integration.eingang.protokoll[-1]["wunsch"] == {"ziel": "auto", "art": None}
+    assert integration.eingang.protokoll[-1]["wunsch"] == {"ziel": "auto", "art": None, "gruppe_anzahl": 2}
     integration.eingang.abbrechen()
 
 
