@@ -90,3 +90,10 @@ Stand 16.11. · Grundlage: `design_draft.md` Rev. 1, `review_goldfisch_box.md` (
 Tobias: „Geb ich frei“. Die Verträge aus `b0_entwurf/` gelten jetzt (`docs/protocol/mqtt-v1.md`,
 `docs/protocol/ha-websocket-v1.md`, `docs/data-model.md`, Version bleibt 1); das Design Rev. 3.1 ist angenommen und
 liegt als `docs/designs/gehoert.md`. Weiter mit B2a (Messung am iPhone mit Tobias), dann B1 ‖ B2.
+
+## B2a: Messung am iPhone (17.11.)
+
+HA-App am iPhone (Tobias), Reinhören, Bildschirm 01:50–01:54 gesperrt: `hoerstelle/set` kam lückenlos **alle 10 s**,
+die Position lief von 25 auf 316 s ohne Sprung. Safari nicht gemessen: Tobias: „ich verwende safari nie“.
+**(PL)** Der Hinweis „Am Handy mit gesperrtem Bildschirm wird nur ungefähr gezählt“ entfällt; `spielt` und die Kappung
+bleiben wie entworfen (sie decken Browser ab, die einfrieren). B2 wird wie entworfen gebaut.
