@@ -62,6 +62,7 @@ from . import events as ev
 from .clock import SystemUhr, Uhr
 from .ausgang import Ausgang
 from .controls import Bedienung, GpioTreiber
+from .gehoert_puffer import GehoertPuffer
 from .ha import Ha
 from .headphones import Buchse, GpioKopfhoerer, SimKopfhoerer
 from .led import DECKEL_PROZENT, LedLogik
@@ -180,6 +181,8 @@ class App:
             asynchron=True
         )
         self.outbox = self.ausgang.outbox
+        # Stufe B „Gehört“: Beobachter und Puffer ``gehoert.json`` (Kennung des Geräts und Folgendauer holt er sich beim Laden und je Sitzung)
+        self.gehoert = GehoertPuffer(zustand, boot_id=lambda: self._boot_id(), dauer=self._folge_dauer_s, asynchron=True)
         self.sim = self.ausgang.sim
         self.ha_ersatz = self.ausgang.ha_ersatz
         self._baue_stufe_3a()
@@ -259,6 +262,7 @@ class App:
             self.ha = Ha(
                 k.mqtt, konfig_store=self.konfig_store, outbox=self.outbox, status=self.status, uhr=self.uhr,
                 ausgabe=self.ereignisse_ein, medien=k.pfade.medien, serien=lambda: self.bibliothek.serien,
+                gehoert=self.gehoert,
             )
             self.ausgang.ha = self.ha  # ab jetzt bestätigt HA, nicht der HA-Ersatz
         if k.sync is not None:
@@ -485,6 +489,8 @@ class App:
         self._sicher(self._ton_pegel_nachfuehren, "ton_pegel")
         self._sicher(lambda: self._nachfuehren_stufe_4(e, befehle, jetzt), "stufe_4")
         self._sicher(lambda: self.ausgang.nach_kern(self.kern), "ausgang")
+        # „Gehört“ sieht Ereignis und Befehle; bei ``Herunterfahren`` schreibt es **synchron**, bevor der Befehl ausgeführt wird
+        self._sicher(lambda: self.gehoert.beobachte(e, befehle, jetzt), "gehoert")
         auszufuehren: list[ev.Befehl] = []
         for b in befehle:
             try:
@@ -506,6 +512,17 @@ class App:
             self.befehle.put_nowait((b, jetzt.mono))
         self._sicher(self._marker_nachfuehren, "marker")
         return befehle
+
+    def _folge_dauer_s(self, serie_id: str, datei: str) -> int | None:
+        """Dauer der Folge in ganzen Sekunden aus der Bibliothek, ``None`` wenn ein Track unbekannt ist."""
+        for s in self.bibliothek.serien:
+            if s.id == serie_id:
+                d = s.dauern.get(datei)
+                if not d or len(d) != len(s.tracks.get(datei, (datei,))) or any(x is None for x in d):
+                    return None
+                gesamt = round(sum(d))  # type: ignore[arg-type]
+                return gesamt if gesamt > 0 else None
+        return None
 
     def _ausnahme(self, stelle: str, b: ev.Befehl | None = None) -> None:
         log.exception("Kern: Ausnahme bei %s", stelle)
@@ -958,6 +975,7 @@ class App:
         raeume_auf(self.konfig.pfade.zustand)  # Reste halber Schreibvorgänge: nur hier, nie zur Laufzeit
         self.bibliothek = await asyncio.to_thread(library.lade_bibliothek, self.konfig.pfade.medien)
         self.outbox.laden()  # offene Meldungen (unknown.json) bleiben über den Neustart
+        self.gehoert.laden(self.uhr.jetzt())  # gehoert.json: eine offene Sitzung (Absturz, Strom weg) wird zur Zeile ``abbruch``
         if self.outbox.offen():
             eventlog.logge("app", "INFO", "start", "offene_meldungen", daten={"anzahl": len(self.outbox.offen())})
         self._aufgaben = [
@@ -1146,6 +1164,7 @@ class App:
             self._ring_ausgabe("")  # Zeile beenden
             self._ring_zeile_offen = False
         await self._warte(self.outbox.warte_gespeichert(), "outbox")
+        await self._warte(self.gehoert.warte_gespeichert(), "gehoert")
         if self.ha is not None:
             await self._warte(self.ha.stop(), "ha")  # zuerst ``offline`` veröffentlichen, dann trennen
 
@@ -1172,6 +1191,7 @@ class App:
             # danach die daraus entstandenen Befehle (Zeiger speichern).
             await self._warte(self._leere_ereignisse(), "ereignisse_nach")
             await self._warte(self.befehle.join(), "befehle_nach")
+            self._sicher(lambda: self.gehoert.dienst_ende(self.uhr.jetzt()), "gehoert_dienst_ende")  # synchron, auch ohne laufende Wiedergabe
             await self._warte(self.outbox.warte_gespeichert(), "outbox")
             self._dienst_ende_marker()
         finally:

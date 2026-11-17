@@ -1344,6 +1344,9 @@ class Medien:
                 neuer_name = await self._executor(self._verschiebe_folge, quelle_pfad, ziel_pfad, quelle_serie, ziel_serie, folge)
             except (OSError, NamenErschoepft) as err:
                 raise self._fehler_schreiben(err) from err
+            # Die Datei ist bewegt: Hördaten und Sterne ziehen sofort mit (Vertrag W, 15.2), auch wenn ``serie.json`` danach nicht zu schreiben ist
+            await self.hub.gehoert.schreibe_um({(serie_id, folge): (ziel_serie_id, neuer_name)})
+            self.hub.favoriten.schreibe_um({(serie_id, folge): (ziel_serie_id, neuer_name)})
             self.hub.eingang.index_entferne_praefix(f"{quelle_pfad.name}/{folge}")
             info_alt = copy.deepcopy(quelle_serie.folgen_info.get(folge, {}))
             info_alt.pop("pruefen", None)
@@ -1449,6 +1452,10 @@ class Medien:
                 verschoben += 1
                 if neuer != folge:
                     umbenannt.append({"von": folge, "nach": neuer})
+            # Die Dateien sind bewegt: Hördaten und Sterne der Folgen ziehen sofort mit, auch wenn ``serie.json`` danach nicht zu schreiben ist
+            umschreiben = {(quelle_id, alt): (ziel_id, neu) for alt, neu in neue_namen.items()}
+            await self.hub.gehoert.schreibe_um(umschreiben)
+            self.hub.favoriten.schreibe_um(umschreiben)
             try:
                 await self._executor(schreibe_serie, ziel_pfad, ziel)
                 await self._executor(schreibe_serie, quelle_pfad, quelle)
@@ -1483,6 +1490,7 @@ class Medien:
                 raise self._fehler_schreiben(err) from err
             self.serien.pop(quelle_id, None)
             self.hub.medieninfo.loesche_serie_folgen(quelle_id)
+            self.hub.favoriten.schreibe_um({}, (quelle_id, ziel_id))  # der Stern an der Serie selbst: erst, wenn die Quelle im Papierkorb liegt
             for k in [k for k in self._pruefergebnisse if k[0] == quelle_pfad.name]:
                 self._pruefergebnisse.pop(k, None)
             konfig = None

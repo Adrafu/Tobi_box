@@ -54,6 +54,7 @@ HTTP_STATUS: Final = {
     "cover_nicht_gefunden": 404,
     "warteschlange_voll": 409,
     "warteschlange_doppelt": 409,
+    "zu_viele_favoriten": 409,
 }
 
 

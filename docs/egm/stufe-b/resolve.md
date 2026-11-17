@@ -97,3 +97,21 @@ HA-App am iPhone (Tobias), Reinhören, Bildschirm 01:50–01:54 gesperrt: `hoers
 die Position lief von 25 auf 316 s ohne Sprung. Safari nicht gemessen: Tobias: „ich verwende safari nie“.
 **(PL)** Der Hinweis „Am Handy mit gesperrtem Bildschirm wird nur ungefähr gezählt“ entfällt; `spielt` und die Kappung
 bleiben wie entworfen (sie decken Browser ab, die einfrieren). B2 wird wie entworfen gebaut.
+
+## B1/B2: offene Punkte der Agents und der Reviews (17.11., alles PL)
+
+| Punkt | Festlegung |
+|---|---|
+| B1: Schranke `gehoert_s ≤ ende − beginn + 2` gegen „Inhaltszeit bei schnellerem Abspielen“ | ohne Folge: die Box spielt nie schneller ab |
+| B1: erste Positionsmeldung einer Sitzung ist nur Basislinie (bis etwa 1 s fehlt) | so lassen |
+| B1: Box sendet erst, wenn `gehoert_wartet = false` gemeldet ist; Quittung beendet den Handshake nur, wenn `true` wirklich veröffentlicht war | so (Vertrag 4.5) |
+| B1: beim Trennen wartet die Box wieder; Hülle der Quittung nachsichtig geprüft | so lassen |
+| B1: leere `serie`/`folge` | keine Sitzung, Warnung im Protokoll |
+| B2: `spielt` fehlt (alte Seite) | gilt als spielend |
+| B2: Abschnitt bis zum Pause-Aufruf zählt noch | so lassen (sonst fehlen je Pause bis 10 s) |
+| B2: vorhandene Endzeile nur durch Endzeile mit mehr Hörzeit ersetzt | so lassen |
+| B2: Löschmarke verwirft auch Zeilen mit unbekanntem Datum | so lassen (Gelöschtes kommt nicht wieder) |
+| B2: Zwischenstände mit unbekanntem Datum werden beim nächsten Aufräumen `verwaist` | so lassen (Endzeile überschreibt) |
+| B2: Box-Zeilen, die erst nach einem Verschieben eintreffen, zählen am alten Namen | so lassen; offene Reinhör-Sitzungen ziehen mit |
+| B2: Favoriten gelöschter Folgen zählen zur Grenze 1000 | so lassen |
+| B2: Obergrenzen gegen unsinnige Werte (Boot-Sekunden ≤ 10 Jahre, Dauer ≤ 7 Tage, `beginn` ≤ Empfang + 1 Tag) | Zeile ungültig, protokolliert, trotzdem quittiert |

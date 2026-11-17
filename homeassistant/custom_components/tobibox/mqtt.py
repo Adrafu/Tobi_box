@@ -31,7 +31,7 @@ from .const import (
 )
 from .fehler import TobiboxFehler
 from .store import konfig_zu_mqtt
-from .util import jetzt_iso, neue_uuid
+from .util import jetzt, jetzt_iso, neue_uuid, parse_iso
 
 if TYPE_CHECKING:
     from .hub import Hub
@@ -204,6 +204,10 @@ class MqttSchicht:
             return
         online = text == "online"
         if z.online != online:
+            if self.hub.gehoert.verfuegbar:  # Technik-Zeile bei echtem Wechsel; der erste Stand nach dem Start von HA wird nur verglichen
+                zeilen = self.hub.gehoert.technik.online(z.online, online, int(jetzt().timestamp()))
+                if zeilen:
+                    self.hass.async_create_task(self.hub.gehoert.technik_schreibe(z.box, zeilen))
             z.online = online
             self.hub.box_geaendert(z.box)
 
@@ -234,6 +238,20 @@ class MqttSchicht:
         self.hub.box_geaendert(z.box)
         self.pruefe_abweichung(z)
         self.hub.lernmodus.on_status(z.box, daten)
+        self._gehoert_status(z, daten)
+
+    def _gehoert_status(self, z: BoxZustand, daten: dict[str, Any]) -> None:
+        """Stufe B: Handshake (``mqtt-v1.md``, 4.5, Punkt 1) und Technik-Zeilen (``data-model.md``, 12.1)."""
+        gehoert = self.hub.gehoert
+        if not gehoert.verfuegbar:
+            return
+        faehig = daten.get("box_faehig")
+        if daten.get("gehoert_wartet") is True and isinstance(faehig, list) and "gehoert" in faehig:
+            # HA antwortet auf **jeden** solchen ``status`` (auch einen alten retained) mit einer Quittung mit leerer Liste
+            self.hass.async_create_task(gehoert.handshake(z.box), "tobibox_gehoert_handshake")
+        zeilen = gehoert.technik.status(z.box, daten, int(jetzt().timestamp()))
+        if zeilen:
+            self.hass.async_create_task(gehoert.technik_schreibe(z.box, zeilen))
 
     def pruefe_abweichung(self, z: BoxZustand) -> None:
         """Eine Box mit neuerem Stand als HA meldet das Ereignis ``konfig`` ``abweichung`` (Vertrag W, 13.4)."""
@@ -267,6 +285,10 @@ class MqttSchicht:
         if not isinstance(eid, str) or not isinstance(art, str):
             return
         inhalt = daten.get("daten") if isinstance(daten.get("daten"), dict) else {}
+        if art == "gespielt":
+            # Stufe B: wird **vor** der Liste der Meldungen abgenommen und erscheint dort nie (``mqtt-v1.md``, 3.4). Doppelte Zustellung: Schlüssel (Quelle, Sitzung)
+            self.hass.async_create_task(self.hub.gehoert.nimm_box_auf(z.box, inhalt, int(jetzt().timestamp())), "tobibox_gehoert_aufnahme")
+            return
         ereignis = {
             "id": eid,
             "ts": ts if isinstance(ts, str) else jetzt_iso(),
@@ -277,6 +299,11 @@ class MqttSchicht:
         if not self.hub.store.box_ereignis_hinzu(z.box, ereignis):
             return  # doppelte Zustellung: dieselbe ``id`` wird nur einmal ausgewertet
         self.hub.emit("boxen", "ereignis", {"box": z.box, "ereignis": ereignis})
+        if art == "fehler" and self.hub.gehoert.verfuegbar:
+            zeit_ok = (z.status or {}).get("zeit_ok") is True
+            ts = parse_iso(ts) if zeit_ok else None
+            zeit_s = int(ts.timestamp()) if ts is not None else int(jetzt().timestamp())
+            self.hass.async_create_task(self.hub.gehoert.technik_schreibe(z.box, self.hub.gehoert.technik.fehler(inhalt, zeit_s)))
         if art == "liste_abgelehnt":
             self._liste_abgelehnt(z, inhalt)
         elif art == "befehl_abgelehnt":

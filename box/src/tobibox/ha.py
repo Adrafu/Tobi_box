@@ -41,7 +41,9 @@ from typing import Any, Protocol
 from . import events as ev
 from .clock import Uhr
 from .config import MqttKonfig
+from . import gehoert as gehoert_modul
 from .eventlog import logge
+from .gehoert_puffer import GehoertPuffer
 from .outbox import Outbox, zeitstempel
 from .status import Statussammler
 from .store import KonfigStore
@@ -58,6 +60,11 @@ BEFEHL_IDS_GEMERKT = 50
 BEFEHLE = ("lernen", "lernen_abbrechen", "sync", "update")
 ARTEN = ("unbekannt", "gelernt")
 ACK_GRUENDE = ("neu", "bekannt", "zugeordnet", "abgelehnt")
+GEHOERT_STATUS_WARTEN_S = 60.0  # solange die Box auf den Handshake wartet, meldet sie den Status alle 60 s neu (mqtt-v1 3.3)
+GEHOERT_SENDEN_ALLE_S = 600.0  # danach alle 10 Minuten alle Zeilen, solange welche da sind (4.5, Punkt 2)
+GEHOERT_JE_NACHRICHT = 20  # höchstens 20 Sitzungen je Nachricht
+GEHOERT_NACHRICHTEN_JE_TICK = 20  # höchstens 20 Nachrichten je Sekunde (``tick`` läuft jede Sekunde)
+MAX_QUITTUNG = 100
 STOPP_FRIST_S = 2.0  # so lange wartet ``stop`` auf den PUBACK von ``offline``
 _VERSION_MUSTER = re.compile(r"^\d+\.\d+\.\d+$")
 _MB = 1024 * 1024
@@ -368,6 +375,7 @@ class Ha:
         serien: Callable[[], Sequence[ev.Serie]] = lambda: (),
         klient: Klient | None = None,
         speicher_frei_mb: Callable[[], int | None] | None = None,
+        gehoert: GehoertPuffer | None = None,
     ) -> None:
         self.konfig = konfig
         self.themen = Themen(konfig.box_id)
@@ -391,6 +399,15 @@ class Ha:
         self._status_letzt: dict[str, Any] | None = None
         self._status_mono: float | None = None
         self._discovery_stand: tuple[str, tuple[str, ...]] | None = None
+        # Stufe B „Gehört“ (mqtt-v1 4.5): Handshake über den Zustand, Senden, Quittung
+        self.gehoert = gehoert
+        self._gehoert_wartet = True  # ab jedem Verbinden und bei jedem ``homeassistant/status online``, bis eine Quittung kommt
+        self._gehoert_gemeldet: bool | None = None  # ``gehoert_wartet`` im zuletzt veröffentlichten Status
+        self._gehoert_los = False  # nach dem Handshake: alle Zeilen senden
+        self._gehoert_zuletzt: float | None = None  # ``mono`` des letzten Sendens aller Zeilen
+        self._gehoert_lauf: list[Mapping[str, Any]] = []  # Zeilen, die noch zu senden sind (höchstens 20 Nachrichten je Sekunde)
+        if gehoert is not None:
+            status.zusatz = self.gehoert_status
 
     # -- Lebenslauf ----------------------------------------------------------------
 
@@ -497,12 +514,14 @@ class Ha:
         if not self.verbunden:
             return
         self.verbunden = self._bereit = False
+        self._gehoert_neu_warten()  # B1-OFFEN: auch beim Trennen (nicht erst beim Verbinden), damit nach einer Lücke nie ohne neuen Handshake gesendet wird
         logge("ha", "WARNING", "verbunden", "getrennt")
         await self._gib(ev.HaVerbindung(False))
 
     def _hallo(self) -> None:
         """Nach dem Abonnieren (4.4): ``online``, Discovery, Status, offene Einträge. ``tobibox/config`` kommt von selbst."""
         self._bereit = True
+        self._gehoert_neu_warten()  # jedes Verbinden: Handshake von vorn, nichts senden (4.5, Punkt 1)
         self._veroeffentliche(self.themen.online, b"online", True)
         self._discovery_senden()
         self._status_letzt = self._status_mono = None
@@ -526,6 +545,12 @@ class Ha:
     def _veroeffentliche_json(self, thema: str, daten: Mapping[str, Any], retain: bool) -> int | None:
         return self._veroeffentliche(thema, json.dumps(daten, ensure_ascii=False, separators=(",", ":")).encode("utf-8"), retain)
 
+    def gehoert_status(self) -> dict[str, Any]:
+        """Die Felder des Status für „Gehört“ (mqtt-v1 3.3): Fähigkeit, Handshake, verworfene Zeilen."""
+        if self.gehoert is None:
+            return {}
+        return {"box_faehig": ["gehoert"], "gehoert_wartet": self._gehoert_wartet, "gehoert_verworfen": self.gehoert.verworfen}
+
     def _discovery_senden(self) -> None:
         d = self.status.als_dict(self.uhr.jetzt(), self._serien(), None)
         version = str(d["version"])
@@ -540,6 +565,7 @@ class Ha:
         if self._veroeffentliche_json(self.themen.status, d, True) is not None:
             self._status_letzt = {k: v for k, v in d.items() if k != "ts"}
             self._status_mono = jetzt.mono
+            self._gehoert_gemeldet = d.get("gehoert_wartet")
 
     def tick(self) -> None:
         """Status und Discovery nachführen. Die Schleife ruft es jede Sekunde; Tests rufen es von Hand."""
@@ -552,8 +578,79 @@ class Ha:
             self._discovery_senden()  # Version oder Serienliste haben sich geändert (6)
         seit = float("inf") if self._status_mono is None else jetzt.mono - self._status_mono
         geaendert = self._status_letzt != {k: v for k, v in d.items() if k != "ts"}
-        if seit >= STATUS_ALLE_S or (geaendert and seit >= STATUS_MIN_ABSTAND_S):
+        wartet = self.gehoert is not None and self._gehoert_wartet
+        if seit >= STATUS_ALLE_S or (geaendert and seit >= STATUS_MIN_ABSTAND_S) or (wartet and seit >= GEHOERT_STATUS_WARTEN_S):
             self._status_senden()
+        self._gehoert_tick(jetzt)
+
+    # -- Gehört melden (mqtt-v1 4.5) -----------------------------------------------
+
+    def _gehoert_neu_warten(self) -> None:
+        if self.gehoert is not None:
+            self._gehoert_wartet = True
+            self._gehoert_gemeldet = None  # erst ein veröffentlichter Status mit ``true``/``false`` zählt
+            self._gehoert_los = False
+            self._gehoert_lauf = []
+            self._gehoert_zuletzt = None
+
+    def _gehoert_tick(self, jetzt: ev.Jetzt) -> None:
+        """Senden nach dem Handshake: alle Zeilen, bei jedem Sitzungsende, danach alle 10 Minuten; Zwischenstand alle 15 Minuten."""
+        g = self.gehoert
+        if g is None or not self._bereit or self._gehoert_wartet:
+            return  # kein Zwischenstand und keine Zeile, solange die Box wartet (Auflage Kurzprüfung)
+        if self._gehoert_gemeldet is not False:
+            # B1-OFFEN: Der Vertrag sagt „danach meldet die Box ``gehoert_wartet = false`` und sendet“: Die Box wartet darum, bis der Status mit
+            # ``false`` hinausgegangen ist (höchstens 5 s nach der Quittung, Mindestabstand des Status); erst dann gehen die Zeilen hinaus.
+            return  # erst muss ``gehoert_wartet = false`` im Status stehen ("danach meldet die Box ... und sendet")
+        zwischen = g.zwischenstand(jetzt)
+        if zwischen is not None:
+            self.sende_event("gespielt", gehoert_modul.baue_nachricht([zwischen], g.kontext.boot_id, jetzt))
+        faellig = (
+            self._gehoert_los
+            or g.neue_zeilen
+            or (self._gehoert_zuletzt is not None and jetzt.mono - self._gehoert_zuletzt >= GEHOERT_SENDEN_ALLE_S)
+        )
+        if faellig and not self._gehoert_lauf:
+            self._gehoert_los = False
+            g.neue_zeilen = False
+            self._gehoert_lauf = list(g.zeilen)
+            self._gehoert_zuletzt = jetzt.mono if self._gehoert_lauf else None
+        for _ in range(GEHOERT_NACHRICHTEN_JE_TICK):
+            if not self._gehoert_lauf:
+                return
+            noch = {r["sitzung"] for r in g.zeilen}  # inzwischen quittierte Zeilen nicht mehr senden
+            self._gehoert_lauf = [r for r in self._gehoert_lauf if r["sitzung"] in noch]
+            teil = self._gehoert_lauf[:GEHOERT_JE_NACHRICHT]
+            if not teil:
+                return
+            if not self.sende_event("gespielt", gehoert_modul.baue_nachricht(teil, g.kontext.boot_id, jetzt)):
+                self._gehoert_los = True  # nicht verbunden: beim nächsten Mal wieder von vorn
+                self._gehoert_lauf = []
+                return
+            self._gehoert_lauf = self._gehoert_lauf[GEHOERT_JE_NACHRICHT:]
+
+    def _quittung(self, d: Mapping[str, Any]) -> None:
+        """``gehoert_quittung`` (mqtt-v1 3.7): selbst behandelt, ohne Ablaufzeit und ``zeit_ok``, idempotent, nie ``befehl_abgelehnt``.
+
+        # B1-OFFEN: Von der Hülle prüft die Box nur ``v`` (Größe, JSON, Version wie bei jeder Nachricht); ``id``, ``erzeugt`` und ``ttl_s``
+        # werden nicht verlangt (der Vertrag sagt nur, Ablauf und ``zeit_ok`` zählen nicht). Eine ungültige Liste wird ignoriert und beendet den Handshake nicht."""
+        daten = d.get("daten")
+        liste = daten.get("sitzungen") if isinstance(daten, dict) else None
+        if (
+            self.gehoert is None
+            or not isinstance(liste, list)
+            or len(liste) > MAX_QUITTUNG
+            or not all(isinstance(x, str) and len(x) <= 64 for x in liste)
+        ):
+            logge("ha", "WARNING", "quittung", "ungueltig" if self.gehoert is not None else "ohne_gehoert")
+            return
+        n = self.gehoert.quittiere(liste, self.uhr.jetzt())
+        logge("ha", "INFO", "quittung", "angenommen", daten={"anzahl": len(liste), "geloescht": n})
+        # jede Quittung beendet den Handshake, auch eine nicht leere; aber nur, wenn HA ``gehoert_wartet = true`` schon gesehen haben kann
+        # (sonst wäre es eine nachgereichte Quittung auf einen älteren Status)
+        if self._gehoert_wartet and self._gehoert_gemeldet is True:
+            self._gehoert_wartet = False
+            self._gehoert_los = True
 
     async def _status_schleife(self) -> None:
         while True:
@@ -659,6 +756,9 @@ class Ha:
         elif thema == t.ha_status:
             if nutzlast.strip() == b"online" and self._bereit:
                 self._discovery_senden()  # HA ist (neu) gestartet und kennt die Entitäten nicht mehr
+                if self.gehoert is not None:
+                    self._gehoert_neu_warten()  # neuer Handshake; der Status mit ``gehoert_wartet = true`` geht gleich hinaus
+                    self._status_senden()
         else:
             logge("ha", "WARNING", "thema", "unbekannt", daten={"thema": thema[:80]})
 
@@ -734,6 +834,9 @@ class Ha:
         if d is None:
             return
         befehl, bid = d.get("befehl"), d.get("id")
+        if befehl == "gehoert_quittung":
+            self._quittung(d)
+            return
         if befehl not in BEFEHLE:
             logge("ha", "WARNING", "befehl", "unbekannt", daten={"befehl": str(befehl)[:40]})
             self._fehler("befehl_unbekannt", f"unbekannter Befehl {str(befehl)[:40]!r}")

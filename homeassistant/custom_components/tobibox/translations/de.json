@@ -340,6 +340,9 @@
     "sortierung_laeuft": {
       "message": "Das Einsortieren läuft gerade. Bitte gleich noch einmal versuchen."
     },
+    "zu_viele_favoriten": {
+      "message": "Es gibt schon sehr viele Favoriten. Bitte zuerst einen Stern wegnehmen."
+    },
     "zu_viele_aenderungen": {
       "message": "Das waren gerade sehr viele Änderungen. Bitte kurz warten und dann noch einmal versuchen."
     },

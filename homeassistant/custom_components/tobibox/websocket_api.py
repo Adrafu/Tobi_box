@@ -385,17 +385,27 @@ async def ws_hoerstelle_get(hub: Hub, connection: Any, msg: dict[str, Any]) -> A
         vol.Required("dauer_s"): _zahl_ueber_null,
         vol.Optional("track"): _ganz(0, 100000),
         vol.Optional("fertig"): _wahrheit,
+        # Stufe B (16.11.): eine Kennung je Player-Instanz der Seite und ob der Ton lief (Vertrag W, Nr. 41 und 15.3)
+        vol.Optional("spieler"): vol.All(_text, vol.Match(r"^[A-Za-z0-9_-]{8,64}$")),
+        vol.Optional("spielt"): _wahrheit,
     },
     recht="alltag",
 )
 async def ws_hoerstelle_set(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
-    """Antwortet sofort (``{}``); geschrieben wird gesammelt (60 s, 14.6). Höchstens 30 Aufrufe je Minute und Benutzer (nicht für Administratoren)."""
+    """Antwortet sofort (``{}``); geschrieben wird gesammelt (60 s, 14.6). Höchstens 60 Aufrufe je Minute und Benutzer (nicht für Administratoren).
+
+    Seit Stufe B zählt der Aufruf auch als Reinhör-Sitzung (``hub.reinhoeren``, Vertrag W, 15.3); ohne Datenbank „Gehört“ werden ``spieler`` und ``spielt`` ignoriert."""
     nutzer = _nutzer(connection)
     hub.schutz.mengen.pruefe("hoerstelle", nutzer, HOERSTELLE_SCHREIBEN_JE_MINUTE, MINUTE_S)
     await hub.medien._stelle_geprueft_sicher()
     hub.hoerstellen.setze(
         _nutzer_id(connection), msg["serie_id"], msg["folge"], msg["position_s"], msg["dauer_s"], msg.get("track"), msg.get("fertig")
     )
+    nutzer_id = _nutzer_id(connection)
+    if nutzer_id:
+        await hub.reinhoeren.melde(
+            nutzer_id, msg.get("spieler"), msg["serie_id"], msg["folge"], msg["position_s"], msg["dauer_s"], msg.get("track"), msg.get("spielt"), bool(msg.get("fertig"))
+        )
     hub.schutz.mengen.buche_fuer("hoerstelle", nutzer)
     return {}
 

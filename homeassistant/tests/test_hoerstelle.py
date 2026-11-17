@@ -457,7 +457,8 @@ async def test_rechte_lesen_und_alltag_fuer_jeden_angemeldeten_benutzer(anna):
     assert (await senden(anna, "hoerstelle/set", serie_id="rabe", folge="a.mp3", position_s=1, dauer_s=100))["success"] is True
 
 
-async def test_dreissig_aufrufe_je_minute_fuer_nicht_administratoren(hass, anna, admin, freezer):
+async def test_sechzig_aufrufe_je_minute_fuer_nicht_administratoren(hass, anna, admin, freezer):
+    assert HOERSTELLE_SCHREIBEN_JE_MINUTE == 60  # seit 16.11. (Stufe B) 60 statt 30; Vertrag W, Nr. 41 und 15.3
     for i in range(HOERSTELLE_SCHREIBEN_JE_MINUTE):
         await setze(anna, position=i % 90)
     assert await fehler(anna, "hoerstelle/set", serie_id="rabe", folge="a.mp3", position_s=1, dauer_s=100) == "zu_viele_aenderungen"

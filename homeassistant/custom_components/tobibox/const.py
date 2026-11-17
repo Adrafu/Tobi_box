@@ -252,7 +252,8 @@ AUDIO_LINK_GUELTIG_S: Final = 86400
 
 # --- Reinhören: Hörstelle und Dauer (Vertrag W, 14.6, 14.7 und 14.10) ---------------------------------
 #: ``hoerstelle/set`` je Minute und Benutzer (eigener Zähler)
-HOERSTELLE_SCHREIBEN_JE_MINUTE: Final = 30
+#: (seit 16.11. 60 statt 30, weil ``spielt`` die Seite öfter rufen lässt; Vertrag W, 15.3)
+HOERSTELLE_SCHREIBEN_JE_MINUTE: Final = 60
 #: im Speicher sofort, auf der Platte gesammelt (``Store.async_delay_save``)
 HOERSTELLE_SPEICHER_VERZOEGERUNG_S: Final = 60
 HOERSTELLE_MAX_SERIEN: Final = 2000
@@ -308,3 +309,35 @@ MESS_UPLOAD_MAX_BYTES: Final = 2 * 1024**3
 MESS_FFMPEG_AUDIO_S: Final = 600
 MESS_FFMPEG_ZEITGRENZE_S: Final = 900
 MESS_FFMPEG_KURZ_ZEITGRENZE_S: Final = 20
+
+
+# --- Stufe B „Gehört“ (Vertrag W, 15.4; Design ``docs/designs/gehoert.md``) -------------------------------
+#: Pause innerhalb einer Sitzung und eines Mals (30 Minuten)
+GEHOERT_PAUSE_MAX_S: Final = 1800
+#: Hörzeit, ab der ein Mal zählt
+GEHOERT_MAL_MIN_S: Final = 10
+#: „fertig“: Anteil der Folgendauer (Prozent); ohne bekannte Dauer mindestens ``GEHOERT_FERTIG_OHNE_DAUER_S``
+GEHOERT_FERTIG_PROZENT: Final = 80
+GEHOERT_FERTIG_OHNE_DAUER_S: Final = 60
+#: ein ungefähres Datum der Box gilt nur nach dem 1.1.2026 (UTC-Sekunden)
+GEHOERT_DATUM_FRUEHESTENS: Final = 1767225600
+#: höchstens so viele Sitzungen je Nachricht ``gespielt`` und UUIDs je Quittung (``mqtt-v1.md``, 3.4 und 3.7)
+GEHOERT_SITZUNGEN_JE_NACHRICHT: Final = 20
+GEHOERT_QUITTUNG_MAX: Final = 100
+#: Die Quittung läuft nachlaufend: höchstens so lange nach der ersten wartenden Zeile (Sekunden)
+GEHOERT_QUITTUNG_VERZOEGERUNG_S: Final = 2
+GEHOERT_QUITTUNG_TTL_S: Final = 3600
+#: Aufräumen der Zwischenstände ohne Abschluss: Intervall (Sekunden)
+GEHOERT_AUFRAEUMEN_S: Final = 600
+REINHOEREN_SPIELER_MAX: Final = 5
+#: offene Reinhör-Sitzungen als ``teilweise`` schreiben
+REINHOEREN_SCHREIBEN_S: Final = 300
+#: Reinhören ohne Fortschritt (und nach einem Neustart von HA) wird nach so langer Zeit ``pause`` bzw. ``verwaist``
+REINHOEREN_VERWAIST_S: Final = 1800
+#: Zwischenstand einer Box ohne Abschluss wird nach so langer Zeit ``verwaist``
+BOX_VERWAIST_S: Final = 86400
+#: Takt der Aufräumschleife für Reinhören (Sekunden)
+REINHOEREN_TAKT_S: Final = 60
+FAVORITEN_MAX: Final = 1000
+#: Favoriten im Speicher sofort, auf der Platte gesammelt (Sekunden)
+FAVORITEN_SPEICHER_VERZOEGERUNG_S: Final = 5

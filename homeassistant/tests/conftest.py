@@ -350,10 +350,14 @@ async def starte_integration(
     enable_custom_integrations: None,
     frontend_dir: Path,
     einrichtung_daten: dict[str, Any],
+    tmp_path_factory: pytest.TempPathFactory,
 ) -> AsyncGenerator[Callable[..., Any]]:
     """``await starte(warten=True)`` richtet die Integration ein. Mit ``warten=False`` kommt der Test zurück, solange die
     Prüfung des Speichers beim Start noch läuft (um dabei dauerhafte ``status``-Nachrichten der Boxen einzuspielen)."""
     eintraege: list[MockConfigEntry] = []
+    # Die Datenbank „Gehört“ liegt unter ``<config>/tobibox/``: jeder Test bekommt einen eigenen Ordner (nicht den gemeinsamen des Plugins)
+    # (neben, nicht unter ``tmp_path``: dort prüft ``test_keine_blockierenden_aufrufe`` jeden Dateizugriff in der Schleife, auch den von HA selbst)
+    hass.config.config_dir = str(tmp_path_factory.mktemp("ha_config"))
 
     async def starte(warten: bool = True) -> Any:
         entry = MockConfigEntry(domain=DOMAIN, data=einrichtung_daten, unique_id=DOMAIN, title="Tobi Box")

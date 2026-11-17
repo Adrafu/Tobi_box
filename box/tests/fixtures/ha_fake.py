@@ -116,10 +116,11 @@ class Aufbau:
     """``Ha`` mit echtem ``KonfigStore`` und ``Outbox`` in ``verz``, simulierter Uhr und einem Klienten ohne Netz."""
 
     def __init__(self, verz: Path, *, klient: FakeKlient | None = None, serien: list | None = None,
-                 frei_mb: int | None = 4096, anzeigename: str = "box1", mqtt: MqttKonfig | None = None) -> None:
+                 frei_mb: int | None = 4096, anzeigename: str = "box1", mqtt: MqttKonfig | None = None,
+                 gehoert: Any = None, uhr: SimUhr | None = None) -> None:
         self.verz = verz
         verz.mkdir(parents=True, exist_ok=True)
-        self.uhr = SimUhr()
+        self.uhr = uhr or SimUhr()
         self.store = KonfigStore(verz)
         self.store.laden()
         self.outbox = Outbox(verz)
@@ -136,7 +137,7 @@ class Aufbau:
             mqtt or MqttKonfig(BOX, "localhost", anzeigename=anzeigename),
             konfig_store=self.store, outbox=self.outbox, status=self.status, uhr=self.uhr,
             ausgabe=self._ausgabe, medien=verz, serien=lambda: self.serien, klient=self.klient,
-            speicher_frei_mb=lambda: self.frei_mb,
+            speicher_frei_mb=lambda: self.frei_mb, gehoert=gehoert,
         )
 
     def _ausgabe(self, e: ev.Ereignis) -> None:

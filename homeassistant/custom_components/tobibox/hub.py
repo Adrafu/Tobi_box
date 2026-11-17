@@ -23,7 +23,8 @@ from homeassistant.components import mqtt as ha_mqtt
 from homeassistant.components import persistent_notification
 from homeassistant.components import websocket_api
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.const import EVENT_HOMEASSISTANT_STOP
+from homeassistant.core import Event, HomeAssistant
 from homeassistant.helpers.event import async_call_later, async_track_time_interval
 
 from .const import (
@@ -67,11 +68,14 @@ from .dauer import DauerDienst
 from .eingang import Eingang
 from .fehler import TobiboxFehler
 from .hoerkopie import HoerkopieDienst
+from .favoriten import Favoriten
+from .gehoert import Gehoert
 from .hoerstelle import Hoerstellen
 from .lernmodus import Lernmodus
 from .medieninfo import MedienInfo
 from .media import Medien, name_pruefen
 from .mqtt import MqttSchicht
+from .reinhoeren import Reinhoeren
 from .schutz import Nutzer, Schutz, ist_admin
 from .warteschlange import Warteschlange
 from .store import (
@@ -184,6 +188,9 @@ class Hub:
         self.dauer = DauerDienst(self)
         self.hoerkopie = HoerkopieDienst(self)
         self.hoerstellen = Hoerstellen(self)
+        self.gehoert = Gehoert(self)
+        self.reinhoeren = Reinhoeren(self)
+        self.favoriten = Favoriten(self)
         self.medien = Medien(self)
         self.eingang = Eingang(self)
         self.mqtt = MqttSchicht(self)
@@ -218,12 +225,24 @@ class Hub:
         await self.eingang.async_laden()
         await self.medieninfo.async_laden()
         await self.hoerstellen.async_laden()
+        await self.favoriten.async_laden()
+        await self.gehoert.async_start()  # öffnet ``gehoert.sqlite``; ohne Datei startet „Gehört“ ohne die Fähigkeit (vor MQTT: der Handshake braucht sie)
+        self.reinhoeren.start()
+        # HA fährt herunter: Reinhör-Sitzungen als ``dienst_ende`` schließen und die Datenbank schließen, solange der Executor noch läuft.
+        # (Das Entladen der Integration, ``async_stop``, tut es danach noch einmal: doppelt schadet nichts.)
+        self._abmelden.append(self.hass.bus.async_listen(EVENT_HOMEASSISTANT_STOP, self._ha_stop))
         await self.hoerkopie.async_start()  # sucht ``ffmpeg``: entscheidet über die Fähigkeit ``hoerkopie``
         await self.mqtt.async_start()
         self._start_task = self.hass.async_create_background_task(self._start_pruefung(), "tobibox_start")
         self._abmelden.append(
             async_track_time_interval(self.hass, self._timer_pruefung, timedelta(seconds=PRUEF_INTERVALL_S))
         )
+
+    async def _ha_stop(self, _event: Event) -> None:
+        with contextlib.suppress(Exception):
+            await self.reinhoeren.schliesse_alle()
+        with contextlib.suppress(Exception):
+            await self.gehoert.async_stop()
 
     def plane(self, sekunden: float, fn: Callable[[Any], Awaitable[None]]) -> Callable[[], None]:
         """Ein Zeitgeber, der beim Beenden der Integration sicher abgemeldet wird. Gibt die Abmeldefunktion zurück."""
@@ -257,6 +276,12 @@ class Hub:
             if t is not None:
                 with contextlib.suppress(asyncio.CancelledError, Exception):
                     await t
+        with contextlib.suppress(Exception):
+            await self.reinhoeren.schliesse_alle()  # offene Reinhör-Sitzungen enden als ``dienst_ende``, vor dem Schließen der Datenbank
+        with contextlib.suppress(Exception):
+            await self.gehoert.async_stop()
+        with contextlib.suppress(Exception):
+            await self.favoriten.async_speichern()
         with contextlib.suppress(Exception):
             await self.store.async_speichern()
             await self.eingang.speichern_sofort()

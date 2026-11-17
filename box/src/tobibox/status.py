@@ -8,7 +8,7 @@ Netz). Stufe 3a zieht diese Klasse in das Modul ``ha`` und veröffentlicht den S
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from typing import Any
 
 from . import __version__
@@ -43,6 +43,9 @@ class Statussammler:
         #: bleibt Version 1). Nur für ``tobibox status`` und die Simulations-Oberfläche. ``None``, wenn kein Sync läuft.
         self.sync_fortschritt: dict[str, int] | None = None
         self.jetzt: Jetzt | None = None
+        #: Zusatzfelder des Status-JSON von ``ha`` (Stufe B: ``box_faehig``, ``gehoert_wartet``, ``gehoert_verworfen``, ``mqtt-v1.md`` 3.3);
+        #: ``None``: keine (Box ohne ``[mqtt]``, Tests)
+        self.zusatz: Callable[[], dict[str, Any]] | None = None
 
     @property
     def lader(self) -> bool | None:
@@ -120,7 +123,7 @@ class Statussammler:
         folge = {"name": z.folge, "track": z.track or 0} if z is not None and z.folge is not None else None
         zustand = "leer" if z is None else ("herunterfahren" if z.strom == "herunterfahren" else z.sitzung)
         k = self.konfig
-        return {
+        d = {
             "v": 1,
             "ts": zeitstempel(jetzt.wall),
             "zustand": zustand,
@@ -142,4 +145,7 @@ class Statussammler:
             "konfig": {"revision": k.revision, "liste_id": k.liste_id} if k is not None else {"revision": 0, "liste_id": ""},
             "update": dict(self.update),
         }
+        if self.zusatz is not None:
+            d.update(self.zusatz())
+        return d
 
