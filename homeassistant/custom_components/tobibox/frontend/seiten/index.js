@@ -16,8 +16,10 @@ import * as box from './box.js';
 import * as serie from './serie.js';
 import * as tb from './tobies.js';
 import * as hinzufuegen from './hinzufuegen.js';
+import * as gehoert from './gehoert.js';
 
 export const SEITEN = {
   start, bibliothek, suche, technik, geraete, box, serie, hinzufuegen, // A11a: `#hinzufuegen`
+  gehoert, // B4: `#gehoert` (Stufe B, Fähigkeit `gehoert`)
   tobies: tb.tobies, tobie: tb.tobie, neu: tb.neu, 'neu-warten': tb.neuWarten, 'neu-ziel': tb.neuZiel, 'neu-queue': tb.neuQueue, geben: tb.geben, // A9, A10
 };

@@ -6,12 +6,14 @@
  * (`folgen/order`) und „Mit anderem zusammenführen …“ (`serien/zusammenfuehren`) gibt es nur für Administratoren und sind für
  * andere nicht da (nicht nur gesperrt).
  *
+ * Stufe B (B4, Fähigkeit `favoriten`): der Stern-Knopf im Kopf (`aria-pressed`), „Zu Favoriten“ / „Aus Favoriten“ im Menü der Folge und kleine Sterne in den Zeilen.
+ *
  * „Gespielt von“ mit Chips, „+ Tobie“ und „Einem Tobie geben …“ (Karte und „⋯“ der Folge) kommen aus seiten/tobies.js (A9).
  * „Cover ändern“ (A8f, Design 5.5) steht in seiten/cover.js. „Reinhören / Hier weiterhören“, der Abspielknopf der Folgenzeilen und die Abspiel-Anzeige
  * (A8b, A7c, A8m) rufen den Player (`ctx.spieler`, player.js). Kapitel (A8d): der Abschnitt „Kapitel“ statt der Folgenliste nur bei einem Hörbuch aus **einer** Folge mit Kapiteln (AM12), Zeilen ganz antippbar (AM11, AM13); die Karte „Die Hörprobe wird vorbereitet“. Noch nicht hier: „Anders einsortieren“ (A-3), Playlists (Stufe C), Cover-Flug (A6m/A8m). Schnittstelle zur App: bausteine.js.
  */
-import { html, nothing, css, repeat, ic, cover, coverKlasse, coverGrossUrl, ladeMitGrenze, untertitel, uhr, norm, eq, abspiel, laeuftAn, zaehle } from '../bausteine.js';
-import { SERIE, ZEILE, GRUENDE, TOBIE, SEITE, PLAYER, KAPITEL, fuellen } from '../texte.js';
+import { html, nothing, css, repeat, ic, cover, coverKlasse, coverGrossUrl, ladeMitGrenze, untertitel, uhr, norm, eq, abspiel, laeuftAn, zaehle, sternKlein } from '../bausteine.js';
+import { SERIE, ZEILE, GRUENDE, TOBIE, SEITE, PLAYER, KAPITEL, STERN, fuellen } from '../texte.js';
 import { knopfText, globalPos, kapitelVon, kapitelIndex, kapitelZeilen, kapitelAb, kapitelZustandText, kapitelAria } from '../player.js';
 import { animiere, kannAnimieren, reduziert } from '../bewegung.js';
 import { coverBlatt, coverFehlerText, coverStil } from './cover.js';
@@ -114,6 +116,10 @@ class SerieSeite {
       this.ordnen = false;
       this._kette = Promise.resolve();
     }
+    this._favAbmelden?.();
+    this._favAbmelden = this.ctx.faehig('favoriten')
+      ? this.ctx.ereignis?.((ev) => { if (ev?.thema === 'favoriten' && ev.art === 'geaendert' && ev.daten?.serie_id === this.id && !this._favBusy) this.laden(true); }) ?? null
+      : null; // ein Stern in einem anderen Fenster oder von einer anderen Person: die Seite lädt still neu
     this.laden(this.z.phase === 'bereit'); // schon Daten da: still auffrischen
   }
 
@@ -122,7 +128,7 @@ class SerieSeite {
   /* Hat die Seite noch nichts zu zeigen? Dann lässt die App die vorige Seite kurz stehen, statt Platzhalter aufblitzen zu lassen. */
   laedt(route) { return route?.id !== this.id || this.z.phase === 'laedt'; }
 
-  verlassen() { this._lauf += 1; this.ordnen = false; if (this.z.phase === 'bereit') this._merke(this.id, this.z.serie); }
+  verlassen() { this._lauf += 1; this.ordnen = false; this._favAbmelden?.(); this._favAbmelden = null; if (this.z.phase === 'bereit') this._merke(this.id, this.z.serie); }
 
   /* ---- Daten */
   async laden(still = false) {
@@ -259,6 +265,36 @@ class SerieSeite {
     return this._blatt({ titel, inhalt, knoepfe: [{ label: SERIE.abbrechen }] }, ausloeser).then((g) => { clearTimeout(timer); lauf += 1; return g; });
   }
 
+  /* ---- Stern (Stufe B, Design 7): Knopf im Kopf, Punkt „Zu Favoriten“ / „Aus Favoriten“ im Menü der Folge. `folge`: Name der Folge oder null für die Serie. */
+  async sternSetzen(an, folge = null, titel = null) {
+    const s = this.z.serie;
+    if (!s || this._favBusy) return;
+    this._favBusy = true;
+    try {
+      const r = await this.ctx.api('tobibox/favorit/set', { serie_id: s.id, ...(folge ? { folge } : {}), an });
+      const jetzt = r?.an ?? an;
+      const neu = folge
+        ? { ...s, folgen: s.folgen.map((f) => (f.name === folge ? { ...f, favorit: jetzt } : f)) }
+        : { ...s, favorit: jetzt };
+      this.z = { ...this.z, serie: neu };
+      this._merke(this.id, neu);
+      this.ctx.melde(fuellen(jetzt ? STERN.gesetzt : STERN.genommen, { titel: titel ?? s.name }));
+    } catch (err) {
+      const code = err?.code || 'unknown_error';
+      this.ctx.meldeFehler(this.ctx.fehlerText(code));
+      if (ENDE_FEHLER.includes(code)) this.laden(true);
+    } finally { this._favBusy = false; }
+    this.ctx.neuZeichnen();
+  }
+
+  /* Stern-Knopf der Serie: `aria-pressed`, das Wort „Favorit“ steht im Namen; am Computer steht der Text daneben. */
+  _sternKnopf(s, { text = false } = {}) {
+    if (!this.ctx.faehig('favoriten')) return nothing;
+    const an = s.favorit === true;
+    return html`<button type="button" class=${text ? 'btn se-stern' : 'iconbtn se-stern'} data-stern aria-pressed=${an ? 'true' : 'false'} aria-label=${fuellen(STERN.knopf, { titel: s.name })}
+      @click=${() => this.sternSetzen(!an)}>${ic(an ? 'star' : 'star_border', 24)}${text ? STERN.sichtbar : nothing}</button>`;
+  }
+
   /* ---- Menü des Eintrags („⋯“ oben rechts) */
   serieMenue(ausloeser) {
     const s = this.z.serie;
@@ -281,6 +317,7 @@ class SerieSeite {
     const titel = x.anzeige || x.name;
     this._menue(titel, [
       { id: 'geben', label: TOBIE.einem_tobie_geben, fn: () => this.ctx.navigiere(gebenLink(this.z.serie.id, x.name)) },
+      ...(this.ctx.faehig('favoriten') ? [{ id: 'favorit', label: x.favorit === true ? STERN.menue_aus : STERN.menue_an, fn: () => { this.ctx.schliesseBlatt('knopf'); this.sternSetzen(x.favorit !== true, x.name, titel); } }] : []),
       { id: 'name', label: SERIE.menue.name, fn: () => this.folgeUmbenennen(x, ausloeser) },
       ...(this.ctx.faehig('korrektur') ? [{ id: 'verschieben', label: SERIE.menue.verschieben, fn: () => this.folgeVerschieben(x, ausloeser) }] : []),
     ], { id: 'papierkorb', label: SERIE.menue.folge_papierkorb, fn: () => this.folgeLoeschen(x, ausloeser) }, ausloeser);
@@ -631,8 +668,8 @@ class SerieSeite {
     const gross = this.ctx.layout === 'seite';
     const h = this.ctx.herkunft?.(); // woher man kam (AM6); ohne Herkunft (Seite direkt geöffnet) bleibt es die Bibliothek
     return html`<div class="se-leiste"><a class="back" href=${h?.hash ?? '#bibliothek'} data-zurueck>${h?.label ?? SERIE.zurueck}</a>
-      ${s && !gross ? html`<button type="button" class="iconbtn se-mehr-knopf" data-menue-serie aria-haspopup="dialog" aria-label=${fuellen(SERIE.mehr_zu, { titel: s.name })}
-        @click=${(e) => this.serieMenue(e.currentTarget)}>${ic('more', 24)}</button>` : nothing}</div>`;
+      ${s && !gross ? html`<span class="se-rechts">${this._sternKnopf(s)}<button type="button" class="iconbtn se-mehr-knopf" data-menue-serie aria-haspopup="dialog" aria-label=${fuellen(SERIE.mehr_zu, { titel: s.name })}
+        @click=${(e) => this.serieMenue(e.currentTarget)}>${ic('more', 24)}</button></span>` : nothing}</div>`;
   }
 
   render(route) {
@@ -649,7 +686,7 @@ class SerieSeite {
     return html`<div class="se-hero">
       <div class=${`cover se-xl ${coverKlasse(s.id)}`} data-cover-gross=${s.id} data-stand=${s.cover_stand ?? ''} aria-hidden="true"><span class="bst">${anfang(s.name)}</span></div>
       <div class="se-htxt"><h2 tabindex="-1">${s.name}${laeuftAn(s.id) ? eq(abspiel.spielt) : nothing}</h2><div class="muted" data-untertitel>${untertitel(s)}</div>
-        ${gross ? html`<div class="btns se-aktionen"><button type="button" class="btn se-mehr-knopf" data-menue-serie aria-haspopup="dialog" aria-label=${fuellen(SERIE.mehr_zu, { titel: s.name })}
+        ${gross ? html`<div class="btns se-aktionen">${this._sternKnopf(s, { text: true })}<button type="button" class="btn se-mehr-knopf" data-menue-serie aria-haspopup="dialog" aria-label=${fuellen(SERIE.mehr_zu, { titel: s.name })}
           @click=${(e) => this.serieMenue(e.currentTarget)}>${ic('more', 24)}${SERIE.mehr}</button></div>` : nothing}</div></div>`;
   }
 
@@ -760,7 +797,7 @@ class SerieSeite {
     return html`<div class="frow se-zeile" data-folge=${x.name} ?data-play=${sp}>
       ${sp ? html`<button type="button" class="se-zeilenknopf" data-abspielen aria-label=${fuellen(geladen ? PLAYER.folge.oeffnen : PLAYER.folge.abspielen, { titel })}
         @click=${tippe}></button>` : nothing}<span class="se-num">${laeuft ? eq(abspiel.spielt) : html`<span aria-hidden="true">${x.nummer ?? i + 1}</span>`}</span>
-      <div class="grow"><span class="nm">${titel}</span>${meta ? html`<span class="muted se-meta-voll">${meta}</span>` : nothing}${teile.kapitel ? html`<span class="muted se-meta-kap">${teile.kapitel}</span>` : nothing}${fort}${keineProbe ? html`<span class="ls se-keine-probe" data-keine-probe>${keineProbe}</span>` : nothing}${folgenChips(this.id, x)}</div>
+      <div class="grow"><span class="nm">${titel}${sternKlein(x)}</span>${meta ? html`<span class="muted se-meta-voll">${meta}</span>` : nothing}${teile.kapitel ? html`<span class="muted se-meta-kap">${teile.kapitel}</span>` : nothing}${fort}${keineProbe ? html`<span class="ls se-keine-probe" data-keine-probe>${keineProbe}</span>` : nothing}${folgenChips(this.id, x)}</div>
       <span class="se-dauer" aria-hidden="true">${teile.dauer}</span>
       ${ordnen
         ? html`<button type="button" class="iconbtn se-ord" data-auf ?disabled=${i === 0} aria-label=${fuellen(SERIE.reihenfolge.hoch, { titel })} @click=${() => this.bewege(i, -1)}>▲</button>
@@ -773,6 +810,10 @@ export const erzeuge = (ctx) => new SerieSeite(ctx);
 
 export const stil = () => css`
   .se-leiste { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 48px; }
+  .se-rechts { display: inline-flex; align-items: center; }
+  .se-stern { color: var(--primary-ink); }
+  .se-stern svg { fill: currentColor; }
+  .btn.se-stern { gap: 6px; }
   .se-mehr-knopf { margin-right: -8px; } /* ohne Fläche wie im Prototyp (Kopf), die Zeilen haben die getönte Fläche (X25) */
   .se-more { min-width: 44px; min-height: 44px; width: 44px; height: 44px; border-radius: 12px; border: 0; background: var(--primary-soft); color: var(--primary-ink); flex: none; margin-left: 8px; }
   .se-more svg, .se-mehr-knopf svg { fill: currentColor; }

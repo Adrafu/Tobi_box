@@ -50,7 +50,7 @@
  *   bausteinStil()              das CSS dazu; die App hängt es vor die Stile der Seiten.
  *   Reine Funktionen: norm, zaehle, dauerText, uhr, untertitel, fortschritt, coverKlasse, teile, ladeMitGrenze.
  */
-import { fuellen, ZEILE, PLAYER } from './texte.js';
+import { fuellen, ZEILE, PLAYER, STERN } from './texte.js';
 
 /* Lit steckt in lebenden Bindungen: Ohne DOM sind sie `undefined`. Wer das Modul ohne DOM lädt (Tests der reinen Funktionen),
  * bekommt sie mit `initLit(lit)` nachgereicht; tobibox-app.js ruft das, sobald es Lit geladen hat. Stile sind darum Funktionen. */
@@ -59,9 +59,10 @@ export let nothing;
 export let repeat;
 export let classMap;
 export let css;
+export let svg;
 export function initLit(l) {
   if (!l) return;
-  ({ html, nothing, repeat, classMap, css } = l);
+  ({ html, nothing, repeat, classMap, css, svg } = l);
 }
 if (typeof HTMLElement !== 'undefined' && typeof customElements !== 'undefined') initLit(await import('./lit-all.min.js'));
 
@@ -266,6 +267,8 @@ export const ICON = {
   pause: 'M6 19h4V5H6v14zm8-14v14h4V5h-4z',
   prev: 'M6 6h2v12H6zm3.5 6l8.5 6V6z',
   next: 'M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z',
+  star: 'M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z',
+  star_border: 'M22 9.24l-7.19-.62L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27 18.18 21l-1.63-7.03L22 9.24zM12 15.4l-3.76 2.27 1-4.28-3.32-2.88 4.38-.38L12 6.1l1.71 4.04 4.38.38-3.32 2.88 1 4.28L12 15.4z',
   lock: 'M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z',
 };
 
@@ -285,6 +288,9 @@ export function eq(spielt) {
   return html`<span class=${`eq${spielt ? '' : ' still'}`} role="img" aria-label=${spielt ? PLAYER.anzeige.laeuft : PLAYER.anzeige.pausiert}><i></i><i></i><i></i></span>`;
 }
 const eqSerie = (id) => (laeuftAn(id) ? eq(abspiel.spielt) : nothing);
+
+/* Kleiner Stern an einem Eintrag, den die Familie mit einem Stern versehen hat (Stufe B, Design 7: `aria-label` „Favorit“). `s.favorit` kommt nur mit der Fähigkeit `favoriten`. */
+export const sternKlein = (s) => (s?.favorit === true ? html`<span class="sternchen" role="img" aria-label=${STERN.klein} data-favorit>${ic('star', 16)}</span>` : nothing);
 
 /* ------------------------------------------------------------------ Templates */
 
@@ -311,19 +317,19 @@ export function listenZeile(s, { term = '' } = {}) {
   const f = fortschritt(s);
   const tobies = s.anzahl_tobies ?? 0;
   return html`<a class="lrow" href=${`#serie-${s.id}`} data-serie=${s.id}>${cover(s, 'lr')}<span class="grow">
-      <span class="lt">${markiert(s.name, term)}</span><span class="ls">${untertitel(s)}</span>
+      <span class="lt">${markiert(s.name, term)}${sternKlein(s)}</span><span class="ls">${untertitel(s)}</span>
       ${f ? html`<span class="pbar" role="progressbar" aria-label=${ZEILE.fortschritt} aria-valuemin="0" aria-valuemax="100" aria-valuenow=${Math.round(f.anteil * 100)}><i style=${`width:${Math.round(f.anteil * 100)}%`}></i></span><span class="ls">${f.text}</span>` : nothing}
       ${marke(s)}</span>
     ${eqSerie(s.id)}${tobies ? html`<span class="tbadge" role="img" aria-label=${zaehle(ZEILE.tobies, tobies)}>${ic('tag', 16)}${tobies}</span>` : nothing}</a>`;
 }
 
 export function kachel(s) {
-  return html`<a class="tile" href=${`#serie-${s.id}`} data-serie=${s.id}><span class="pos">${cover(s)}${marke(s)}${eqSerie(s.id)}</span>
+  return html`<a class="tile" href=${`#serie-${s.id}`} data-serie=${s.id}><span class="pos">${cover(s)}${marke(s)}${eqSerie(s.id)}${sternKlein(s)}</span>
     <span class="tn">${s.name}</span><span class="tm">${untertitel(s, { dauer: false })}</span></a>`;
 }
 
 export function schnellKachel(s) {
-  return html`<a class="qt" href=${`#serie-${s.id}`} data-serie=${s.id}>${cover(s)}<span class="qn">${s.name}</span>${eqSerie(s.id)}</a>`;
+  return html`<a class="qt" href=${`#serie-${s.id}`} data-serie=${s.id}>${cover(s)}<span class="qn">${s.name}</span>${eqSerie(s.id)}${sternKlein(s)}</a>`;
 }
 
 /* Karte im Cover-Raster der Bibliothek (Computer, AB3): Cover, darunter Titel und Untertitel; auf dem Cover das Tobie-Symbol mit
@@ -331,7 +337,7 @@ export function schnellKachel(s) {
 export function rasterKachel(s, { term = '' } = {}) {
   const f = fortschritt(s);
   const tobies = s.anzahl_tobies ?? 0;
-  return html`<a class="rcard" href=${`#serie-${s.id}`} data-serie=${s.id}><span class="rpos">${cover(s)}${marke(s)}${eqSerie(s.id)}
+  return html`<a class="rcard" href=${`#serie-${s.id}`} data-serie=${s.id}><span class="rpos">${cover(s)}${marke(s)}${eqSerie(s.id)}${sternKlein(s)}
       ${tobies ? html`<span class="tbadge on" role="img" aria-label=${zaehle(ZEILE.tobies, tobies)}>${ic('tag', 16)}${tobies}</span>` : nothing}</span>
     <span class="rt">${markiert(s.name, term)}</span><span class="rs">${untertitel(s, { dauer: false })}</span>
     ${f ? html`<span class="pbar" role="progressbar" aria-label=${ZEILE.fortschritt} aria-valuemin="0" aria-valuemax="100" aria-valuenow=${Math.round(f.anteil * 100)}><i style=${`width:${Math.round(f.anteil * 100)}%`}></i></span>` : nothing}</a>`;
@@ -347,7 +353,7 @@ export function kopfAktion({ href, label, symbol, primaer = false, onKlick = nul
 export function folgenZeile(x, { term = '', stand, aktionen = nothing } = {}) {
   const titel = x.anzeige || x.folge;
   return html`<div class="frow"><a class="slink" href=${`#serie-${x.serie_id}`} data-serie=${x.serie_id}>${cover({ id: x.serie_id, name: x.serie_name, cover_stand: stand }, 'sm')}
-      <span class="grow"><span class="nm">${markiert(titel, term)}</span><span class="muted">${x.serie_einzeln ? 'Einzeltitel' : x.serie_name}</span></span>${laeuftAn(x.serie_id, x.folge) ? eq(abspiel.spielt) : nothing}</a>${aktionen}</div>`;
+      <span class="grow"><span class="nm">${markiert(titel, term)}${sternKlein(x)}</span><span class="muted">${x.serie_einzeln ? 'Einzeltitel' : x.serie_name}</span></span>${laeuftAn(x.serie_id, x.folge) ? eq(abspiel.spielt) : nothing}</a>${aktionen}</div>`;
 }
 
 /* Segment-Umschalter: 2 bis 4 gleich breite Wahlmöglichkeiten, `aria-pressed`, Pfeiltasten springen und wählen. */
@@ -405,6 +411,11 @@ export const bausteinStil = () => css`
   .qt > .eq { margin-right: 4px; }
   @media (prefers-reduced-motion: reduce) { .eq i { animation: none !important; } }
 
+  /* Kleiner Stern (Stufe B): in Zeilen hinter dem Namen, auf Covern oben rechts auf einer runden Fläche */
+  .sternchen { display: inline-grid; place-items: center; width: 20px; height: 20px; margin-left: 6px; vertical-align: -3px; color: var(--primary-ink); flex: none; }
+  .sternchen svg { width: 16px; height: 16px; fill: currentColor; }
+  .pos > .sternchen, .rpos > .sternchen { position: absolute; top: 6px; right: 6px; margin: 0; width: 24px; height: 24px; border-radius: 12px; background: var(--card); box-shadow: 0 1px 3px var(--shadow); vertical-align: baseline; }
+  .qt > .sternchen { margin: 0 6px 0 0; align-self: center; }
   mark { background: var(--primary-soft); color: var(--text); border-radius: 3px; padding: 0 1px; }
   .badge { display: inline-block; font-size: 13px; font-weight: 500; padding: 2px 10px; border-radius: 12px; background: var(--warn-bg); color: var(--warn); }
   .count { font-size: 14px; color: var(--text2); margin: 4px 0 12px; }

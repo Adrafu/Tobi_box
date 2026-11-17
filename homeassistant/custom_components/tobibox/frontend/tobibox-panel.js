@@ -202,6 +202,15 @@ export function groesse(bytes) {
   return `${Math.max(1, Math.round(bytes / 1024))} KB`;
 }
 
+/* Stufe B (Rest aus A-1c): die Namen der Dateien eines Eintrags im Eingang (`dateinamen`, höchstens 50; `dateien_weitere` nennt die übrigen).
+ * Gibt die ersten zehn als Text zurück; ältere Backends liefern das Feld nicht, dann ist es leer. */
+export function dateinamenText(x) {
+  const namen = Array.isArray(x?.dateinamen) ? x.dateinamen.map(String).filter(Boolean) : [];
+  if (!namen.length) return '';
+  const mehr = Math.max(0, namen.length - 10) + (Number(x.dateien_weitere) || 0);
+  return `${namen.slice(0, 10).join(', ')}${mehr ? ` und ${mehr} weitere` : ''}`;
+}
+
 export function zeitKurz(iso) {
   if (!iso) return '';
   const d = new Date(iso);
@@ -1365,7 +1374,8 @@ if (lit) {
         <h2>${e.filter === 'offen' ? 'Liegt im Eingang' : 'Zuletzt einsortiert'}</h2>
         ${e.eintraege.length ? e.eintraege.map((x) => html`<div class="karte">
           <div class="titel">${x.name}</div>
-          <div class="meta">${plural(x.dateien, 'Datei', 'Dateien')} · ${groesse(x.groesse_bytes)} · ${({ wartet: 'wartet', bereit: 'bereit', laeuft: 'läuft', blockiert: 'blockiert', teilweise: 'teilweise einsortiert', erledigt: 'einsortiert' })[x.status] || x.status}</div>
+          <div class="meta">${x.wunsch?.gruppe_anzahl > x.dateien ? `${x.dateien} von ${x.wunsch.gruppe_anzahl} Dateien` : plural(x.dateien, 'Datei', 'Dateien')} · ${groesse(x.groesse_bytes)} · ${({ wartet: 'wartet', bereit: 'bereit', laeuft: 'läuft', blockiert: 'blockiert', teilweise: 'teilweise einsortiert', erledigt: 'einsortiert' })[x.status] || x.status}</div>
+          ${dateinamenText(x) ? html`<div class="meta" data-dateinamen>${dateinamenText(x)}</div>` : nothing}
           ${(x.hinweise || []).map((h) => html`<div class="marke warnm blockm">${hinweisText(h)}${h.datei ? html` (${h.datei})` : nothing}</div>`)}
           ${(x.ergebnis || []).map((r) => this._ergebnis(r))}
           ${w && this.store.has('eingang_entfernen') && e.filter === 'offen' && ['blockiert', 'teilweise'].includes(x.status)

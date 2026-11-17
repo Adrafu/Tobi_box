@@ -1649,3 +1649,29 @@ test('Jetzt prüfen: die Seite „Hinzufügen“ sendet `eingang/sortieren` nich
     assert.equal(s.m.aufrufe('tobibox/eingang/sortieren').length, 0);
   } finally { weg(); }
 });
+
+/* ------------------------------------------------------------------ Stufe B (B4): Dateinamen und Zahl einer Gruppe im Eingang (Rest aus A-1c) */
+
+test('eingangTitel(): Gruppen-Ordner mit Dateinamen (ohne Pfad, zwei Namen und „…“), „3 von 5 Dateien“ solange welche fehlen; ältere Backends wie bisher', () => {
+  const e = (extra) => ({ name: 'Upload ab12cd34', dateien: 3, ...extra });
+  assert.equal(H.eingangTitel(e()), '3 Dateien', 'ohne dateinamen wie bisher');
+  assert.equal(H.eingangTitel(e({ dateinamen: ['01 A.mp3', 'Ordner/02 B.mp3', '03 C.mp3'] })), '3 Dateien: 01 A.mp3, 02 B.mp3 …');
+  assert.equal(H.eingangTitel(e({ dateien: 2, dateinamen: ['a.mp3', 'b.mp3'] })), '2 Dateien: a.mp3, b.mp3');
+  assert.equal(H.eingangTitel(e({ dateinamen: ['a.mp3', 'b.mp3', 'c.mp3'], wunsch: { ziel: 'neu', art: 'hoerspiel', gruppe_anzahl: 5 } })), '3 von 5 Dateien: a.mp3, b.mp3 …');
+  assert.equal(H.eingangTitel(e({ dateinamen: ['a.mp3', 'b.mp3', 'c.mp3'], wunsch: { ziel: 'neu', gruppe_anzahl: 3 } })), '3 Dateien: a.mp3, b.mp3 …', 'vollständige Gruppe: ohne „von“');
+  assert.equal(H.eingangTitel(e({ dateien: 60, dateinamen: Array.from({ length: 50 }, (_, i) => `${i}.mp3`), dateien_weitere: 10 })), '60 Dateien: 0.mp3, 1.mp3 …');
+  assert.equal(H.eingangTitel({ name: 'Bibi-Ordner', dateien: 3, wunsch: { gruppe_anzahl: 4 } }), '3 von 4 Dateien: Bibi-Ordner');
+  assert.equal(H.eingangTitel({ name: 'Nur-Bilder', dateien: 0 }), 'Nur-Bilder');
+  assert.equal(H.eingangTitel({ name: 'x.mp3', dateien: 1 }), '1 Datei: x.mp3');
+});
+
+test('Liste: eine Gruppe vom Handy nennt die Namen der Dateien und „3 von 5 Dateien“ statt „Upload ab12cd34“', { ...MIT_DOM }, async () => {
+  const s = await start({
+    eingangErledigt: [nasFertig({ name: 'Upload ab12cd34', quelle: 'upload', dateien: 3, status: 'teilweise', dateinamen: ['01 Der Hafen.mp3', '02 Die Karte.mp3', '03 Der Sturm.mp3'], wunsch: { ziel: 'neu', art: 'hoerspiel', gruppe_anzahl: 5 }, hinweise: [{ code: 'gruppe_unvollstaendig', datei: null, text: 'x' }] })],
+  });
+  try {
+    const k = s.q('[data-titel-eintrag]');
+    assert.equal(k.textContent.trim(), '3 von 5 Dateien: 01 Der Hafen.mp3, 02 Die Karte.mp3 …');
+    assert.ok(!/Upload ab12cd34/.test(s.q('[data-liste="zuletzt"]').textContent));
+  } finally { weg(); }
+});

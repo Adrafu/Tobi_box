@@ -13,6 +13,7 @@
 import { groesse, zeitKurz } from '../tobibox-panel.js'; // lädt auch die Komponente <tobibox-panel>; ohne DOM harmlos
 import { html, nothing, css, ic, ladeMitGrenze, zaehle, korbNeueFremde } from '../bausteine.js';
 import { TECHNIK, SEITE, LEER, fuellen } from '../texte.js';
+import { VerlaufKarte, HoerdatenKarte } from './technik_gehoert.js';
 
 export const UNTERSEITEN = ['boxen', 'speicher', 'liste', 'tobies', 'meldungen', 'einstellungen'];
 
@@ -46,13 +47,18 @@ class TechnikSeite {
     this.korbVon = null; // Papierkorb (AC3): Stand „gesehen“ beim Betreten von „Speicher“ (ms); was danach von anderen kam, steht im Hinweis oben
     this._vorSub = null;
     this._korbAbmelden = null;
+    this.verlauf = new VerlaufKarte(ctx); // Stufe B: Karte „Verlauf“ auf der Box-Seite (nur mit `gehoert`)
+    this.hoerdaten = new HoerdatenKarte(ctx, this); // Stufe B: Karte „Hördaten“ in „Speicher und Netz“ (nur mit `gehoert`)
   }
 
   betreten(route) {
     this.route = route;
     const sub = unterseite(route);
-    this.ladeBasis();
+    const basis = this.ladeBasis();
+    const lauf = this._lauf;
+    if (sub === 'box' && this.ctx.faehig('gehoert')) basis.then(() => { if (lauf === this._lauf && this.route === route) this._ladeVerlauf(route); }); // nur, wenn die Seite noch dieselbe ist
     if (sub === 'speicher') {
+      if (this.ctx.faehig('gehoert')) this.hoerdaten.laden();
       if (this._vorSub !== 'speicher') this.korbVon = this.ctx.korbGesehenStand(); // nur beim Hereinkommen, nicht beim Neuladen nach einem Verbindungsabbruch
       this._korbBeobachten();
       this.ladeKorb();
@@ -62,7 +68,14 @@ class TechnikSeite {
     if (sub === 'liste' && this.ctx.faehig('konfig_staende')) this.ladeStaende();
   }
   neuLaden() { if (this.route) this.betreten(this.route); }
-  verlassen() { this._lauf += 1; this._vorSub = null; this._korbBeobachtenEnde(); }
+  verlassen() { this._lauf += 1; this._vorSub = null; this._korbBeobachtenEnde(); this.verlauf.verlassen(); this.hoerdaten.verlassen(); }
+
+  /* Karte „Verlauf“ laden, sobald die Box bekannt ist (die Liste der Boxen kommt mit `ladeBasis`). */
+  _ladeVerlauf(route) {
+    const id = route?.id != null ? decodeURIComponent(route.id) : null;
+    const box = this.b.boxen.find((x) => x.box === id);
+    if (box && unterseite(this.route) === 'box') this.verlauf.laden(box, { still: this.verlauf.z.phase === 'bereit' && this.verlauf._box?.box === box.box });
+  }
 
   /* Solange „Speicher“ offen ist: kommt etwas in den Papierkorb (oder geht heraus), wird die Liste neu geholt (Thema `medien` im Abo). */
   _korbBeobachten() {
@@ -427,9 +440,10 @@ class TechnikSeite {
       case 'box':
         if (!box) return html`${kopf}${baender}<div class="note warn" role="status" data-zustand="unbekannte-box">${TECHNIK.box.unbekannte_box}</div>`;
         return html`${kopf}${baender}${this._panel('boxen', box.box)}
+          ${ctx.faehig('gehoert') ? this.verlauf.render() : nothing}
           <div class="tstapel">${this._zeile('#technik-tobies', TECHNIK.box.lernmodus.titel, TECHNIK.box.lernmodus.zeile)}</div>`;
       case 'speicher':
-        return html`${kopf}${baender}${this._korbNeu()}${this._aufraeumen()}${this._papierkorb()}
+        return html`${kopf}${baender}${this._korbNeu()}${this._aufraeumen()}${this._papierkorb()}${ctx.faehig('gehoert') ? this.hoerdaten.render() : nothing}
           <section class="tkarte" data-karte="eingang" aria-labelledby="t-eingang"><h3 id="t-eingang">${TECHNIK.eingang}</h3>${this._panel('eingang')}</section>`;
       case 'liste':
         return html`${kopf}${baender}${this._panel('liste')}${ctx.faehig('konfig_staende') ? this._staende() : nothing}`;
@@ -458,4 +472,29 @@ export const stil = () => css`
   .alt { margin: 12px 0; }
   .korb-neu { margin: 4px 0; padding-left: 20px; }
   .korb-neu li { margin: 2px 0; }
+
+  /* Stufe B: Karten „Verlauf“ und „Hördaten“ (seiten/technik_gehoert.js) */
+  .tv { --chart1: var(--primary-ink); --grid: var(--divider); }
+  .tv-wahl { margin: 4px 0 12px; }
+  .tv-h { font-size: 15px; font-weight: 500; margin: 16px 0 4px; }
+  .tv-diagramm { margin: 4px 0; }
+  .tv-legende { margin: 0 0 4px; }
+  svg.tv-bild { display: block; width: 100%; max-width: 640px; height: auto; fill: var(--text2); overflow: visible; }
+  .tv-bild text { font-family: inherit; fill: var(--text2); font-size: 11px; }
+  .tv-bild .tv-ay { font-size: 10px; }
+  .tv-bild .tv-gitter { stroke: var(--grid); stroke-width: 1; }
+  .tv-bild .tv-linie { fill: none; stroke: var(--chart1); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+  .tv-bild .tv-laden { fill: var(--primary-soft); }
+  .tv-tw { overflow-x: auto; max-width: 100%; }
+  .tv-tabelle { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  .tv-tabelle th, .tv-tabelle td { padding: 8px 8px 8px 0; text-align: left; font-weight: 400; border-top: 1px solid var(--divider); vertical-align: top; }
+  .tv-tabelle thead th { font-size: 13px; font-weight: 500; color: var(--text2); border-top: 0; padding-top: 4px; padding-bottom: 4px; }
+  .tv-tabelle .tv-z { text-align: right; padding-right: 0; padding-left: 8px; }
+  .tv-tabelle tbody tr:first-child th, .tv-tabelle tbody tr:first-child td { border-top: 0; }
+  .tv-details > summary { display: flex; align-items: center; min-height: 44px; font-weight: 500; color: var(--primary-ink); cursor: pointer; border-radius: 8px; }
+  .tv-details > summary:focus-visible { outline: 3px solid var(--focus); outline-offset: -3px; }
+  .tv-feld { display: grid; gap: 6px; margin: 8px 0; }
+  .tv-feld label { font-size: 14px; color: var(--text2); }
+  .tv-feld input[type="text"] { min-height: 48px; border-radius: 12px; border: 1px solid var(--line); background: var(--card); color: var(--text); padding: 0 14px; width: 100%; }
+  .tv-feld .auswahl { width: 100%; }
 `;

@@ -204,6 +204,15 @@ function ladeTempo() {
 
 const radiusVon = (el) => { try { return parseFloat(getComputedStyle(el).borderTopLeftRadius) || 0; } catch { return 0; } };
 
+/* Kennung dieser Player-Instanz für `hoerstelle/set` (Vertrag 41: 8 bis 64 Zeichen aus [A-Za-z0-9_-]). Nicht der Benutzer, nichts Dauerhaftes. */
+export function neueSpielerId() {
+  try { const u = globalThis.crypto?.randomUUID?.(); if (u) return u; } catch { /* weiter */ }
+  let t = '';
+  const z = '0123456789abcdefghijklmnopqrstuvwxyz';
+  for (let i = 0; i < 24; i += 1) t += z[Math.floor(Math.random() * z.length)];
+  return t;
+}
+
 /* ------------------------------------------------------------------ Spieler */
 
 export class Spieler {
@@ -239,6 +248,7 @@ export class Spieler {
     this._miniAltKlon = null;
     this._hold = null;
     this._offene = null;
+    this._spielerId = neueSpielerId(); // Stufe B: eine zufällige Kennung je Player-Instanz; mit `gehoert` sendet jede Hörstelle sie mit (HA zählt je Instanz eine Sitzung)
     this._onSicht = () => { if (typeof document !== 'undefined' && document.hidden) this._speichere(true); };
     this._onHide = () => this._speichere(true);
   }
@@ -714,6 +724,7 @@ export class Spieler {
     const msg = { serie_id: this.s.serie.id, folge: f.name, position_s: Math.round(pos * 10) / 10, dauer_s: Math.max(1, Math.round(dauer * 10) / 10) };
     if (trackAnzahl(f) > 1) msg.track = this.s.track;
     if (fertig) msg.fertig = true;
+    if (this.ctx.faehig('gehoert')) { msg.spieler = this._spielerId; msg.spielt = this.spielt && !fertig; } // Stufe B (Vertrag 41): nur mit der Fähigkeit; `spielt` = der Ton läuft gerade
     this._letzteSpeicherung = jetzt;
     this._stellen[f.name] = { position_s: msg.position_s, fertig, track: this.s.track };
     Promise.resolve(this.ctx.api('tobibox/hoerstelle/set', msg)).catch(() => { /* zu_viele_aenderungen und Netzfehler: der nächste Anlass speichert wieder */ });

@@ -6,7 +6,7 @@
  * Läufe voneinander, damit sich ihre Änderungen (Umbenennen, neue Leise-Zeit) nicht stören. Kein Netz, keine festen Pfade.
  *
  * Profile (Teil vor `~`): admin, user (Alltag: schreiben ja, Technik nein), leer (leere Bibliothek), akku (Box mit schwachem Akku),
- * warn (Konfiguration „Export neuer“, Box mit Stand „voraus“).
+ * warn (Konfiguration „Export neuer“, Box mit Stand „voraus“), alt (ältere HA ohne die Fähigkeiten `gehoert` und `favoriten`: Stufe B fehlt ganz).
  *
  * A11a: `POST /api/tobibox/upload` (multipart, wie das Backend nach Vertrag 5 und 14.4, ohne die Dateien zu speichern) und `eingang/list` mit
  * Filter `alle`: Ein Upload legt nach kurzer Zeit einen Eingangs-Eintrag und das Ergebnis (Serie, Folgen) im Mock an. Marken im Dateinamen lösen
@@ -21,7 +21,7 @@ import { fileURLToPath } from 'node:url';
 
 const HIER = fileURLToPath(new URL('.', import.meta.url));
 const FRONT = resolve(HIER, '../../../custom_components/tobibox/frontend');
-const { createMockHass, FAEHIGKEITEN, FAEHIGKEITEN_V11, FAEHIGKEITEN_A9, mitStaenden, eingangEintrag } = await import(new URL('../mock-hass.mjs', import.meta.url));
+const { createMockHass, FAEHIGKEITEN, FAEHIGKEITEN_V11, FAEHIGKEITEN_A9, FAEHIGKEITEN_B, mitStaenden, eingangEintrag, beispielGehoert } = await import(new URL('../mock-hass.mjs', import.meta.url));
 
 const folge = (name, anzeige, extra = {}) => ({ name, anzeige, nummer: null, datum: null, art: 'datei', tracks: 1, groesse_bytes: 5 * 1048576, pruefung: 'ok', hinweis: null, pruefen: false, pruefen_gruende: [], tobies: [], ...extra });
 
@@ -30,7 +30,7 @@ function bauen(schluessel) {
   const leer = profil === 'leer';
   const m = createMockHass({
     sigPraefix: `m${[...schluessel].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7)}`, // eigene Signaturen je Lauf: ein künstlicher Audio-Fehler trifft nur den Lauf, der ihn auslöst (der Server ist für alle parallelen Läufe derselbe)
-  faehigkeiten: [...new Set([...FAEHIGKEITEN, ...FAEHIGKEITEN_V11, ...FAEHIGKEITEN_A9, 'konfig_staende', 'hoerkopie', 'einsortier_wunsch', 'reinhoeren'])],
+  faehigkeiten: [...new Set([...FAEHIGKEITEN, ...FAEHIGKEITEN_V11, ...FAEHIGKEITEN_A9, 'konfig_staende', 'hoerkopie', 'einsortier_wunsch', 'reinhoeren', ...(profil === 'alt' ? [] : FAEHIGKEITEN_B)])],
     viele: leer ? false : 130, leer, darf: true, istAdmin: profil !== 'user',
   });
   mitStaenden(m);
@@ -62,6 +62,17 @@ function bauen(schluessel) {
     b.serien.ogg = { id: 'ogg', name: 'Das Lied vom Wald', typ: 'normal', ordner: 'Ogg', pruefen: false, hinweise: [], art: 'musik', dauer_s: 40, cover_stand: null,
       folgen: [folge('wald.ogg', 'Das Lied vom Wald', { nummer: 1, dauer_s: 40, hoerkopie: { zustand: 'nicht_angelegt' } }), folge('mond.mp3', 'Der Mond', { nummer: 2, dauer_s: 40, hoerkopie: { zustand: 'fehler', grund: 'unplausibel' } })] }; // AM27: Grund nur für Administratoren
     b.serien.leersammlung = { id: 'leersammlung', name: 'Leere Sammlung', typ: 'normal', ordner: 'Leer', pruefen: false, hinweise: [], art: 'hoerspiel', folgen: [] };
+  }
+  // Stufe B: Hördaten (zwei Boxen, zwei Personen, 60 Tage), die lange Serie mit langem Namen, eine gelöschte Serie, zwei Sterne; die Box Küche hat einen Akku-Sensor
+  b.boxen[0].akku_entitaet = 'sensor.kueche_akku'; b.boxen[1].akku_entitaet = null;
+  b.akkuEntitaeten = ['sensor.kueche_akku'];
+  if (!leer) {
+    b.gehoert.zeilen = beispielGehoert(b, { ab: 10 }); // nicht die Einträge der Reihe „Neu hinzugefügt“ (die ersten acht): die Prüfungen der Reihen brauchen Kacheln, die nur dort stehen
+    for (let i = 0; i < 12; i += 1) b.gehoert.zeilen.push({ wer: i % 2 ? 'box:kueche' : 'benutzer:u1', serie: 'lang', folge: `f${String(1 + (i % 6)).padStart(2, '0')}.mp3`, tag: `2026-11-${String(13 - (i % 7)).padStart(2, '0')}`, stunde: 19, sekunden: 600 + i * 90, mal: 1, fertig: i % 4 === 0 ? 1 : 0 });
+    b.gehoert.zeilen.push({ wer: 'box:kinderzimmer', serie: 'weg-und-gelöscht', folge: 'x.mp3', tag: '2026-11-12', stunde: 8, sekunden: 900, mal: 1, fertig: 0 });
+    b.gehoert.zeilen.push({ wer: 'benutzer:u-fremd', serie: 'kurz', folge: 'k1.mp3', tag: '2026-11-11', stunde: 16, sekunden: 300, mal: 1, fertig: 1 }); // gelöschter Benutzer: „Früherer Benutzer“
+    b.favoriten = [{ serie_id: 'kurz', folge: null, gesetzt_von: { id: 'u1', name: 'Person A' }, gesetzt_am: '2026-11-12T10:00:00Z' },
+      { serie_id: 'lang', folge: 'f02.mp3', gesetzt_von: { id: 'u2', name: 'Person B' }, gesetzt_am: '2026-11-11T10:00:00Z' }];
   }
   /* A8d: `audio/bereit` für die OGG-Folge: das erste Mal (und 1,5 s lang danach) `wird_vorbereitet`, dann `bereit` mit der Kopie; alle anderen Folgen wie im Mock. Der Zähler der Warteschlange
    * der Hörkopien kommt in `hello.grenzen.hoerkopie_schlange` (Technik, Karte „Bibliothek aufräumen“). */
@@ -113,7 +124,7 @@ function bauen(schluessel) {
   });
   // A-1b: Ereignisse des Mocks sammeln; die Prüfseite holt sie mit `GET /ev` (Abo `subscribeMessage` der Seite)
   m.ereignisse = [];
-  m.hass.connection.subscribeMessage((ev) => m.ereignisse.push(ev), { type: 'tobibox/subscribe', themen: ['boxen', 'neue_tobies', 'konfig', 'warteschlange', 'eingang', 'medien'] });
+  m.hass.connection.subscribeMessage((ev) => m.ereignisse.push(ev), { type: 'tobibox/subscribe', themen: ['boxen', 'neue_tobies', 'konfig', 'warteschlange', 'eingang', 'medien', 'gehoert', 'favoriten'] });
   return m;
 }
 
@@ -231,7 +242,8 @@ function einsortieren(m, gr) {
   const w = gr.wunsch;
   const id = (x) => `up${Math.abs([...x].reduce((a, c) => (a * 31 + c.charCodeAt(0)) | 0, 7))}`;
   const eintrag = { id: id(gr.eingangName), name: gr.eingangName, art: gr.ordner ? 'ordner' : 'datei', dateien: gr.dateien.length, ignoriert: 0, groesse_bytes: gr.dateien.reduce((a, d) => a + d.groesse, 0),
-    zuerst_gesehen: new Date().toISOString(), geaendert_am: new Date().toISOString(), status: 'erledigt', hinweise: [], ergebnis: [], fertig_am: new Date().toISOString(), quelle: 'upload', wunsch: w.ziel ? { ziel: w.ziel, art: w.art ?? null } : null, pruefen: false };
+    zuerst_gesehen: new Date().toISOString(), geaendert_am: new Date().toISOString(), status: 'erledigt', hinweise: [], ergebnis: [], fertig_am: new Date().toISOString(), quelle: 'upload', wunsch: w.ziel ? { ziel: w.ziel, art: w.art ?? null, ...(w.gruppe_anzahl ? { gruppe_anzahl: w.gruppe_anzahl } : {}) } : null, pruefen: false,
+    dateinamen: gr.dateien.slice(0, 50).map((d) => d.name), ...(gr.dateien.length > 50 ? { dateien_weitere: gr.dateien.length - 50 } : {}) };
   if (gr.dateien.some((d) => /kopierschutz/i.test(d.name))) {
     Object.assign(eintrag, { status: 'blockiert', fertig_am: null, hinweise: [{ code: 'kopierschutz', datei: gr.dateien[0].name, text: 'x' }] });
     b.eingangErledigt.unshift(eintrag);
@@ -325,6 +337,23 @@ const server = http.createServer(async (req, res) => {
     const m = holeMock(u.searchParams.get('k') || 'admin');
     const ab = Number(u.searchParams.get('ab'));
     res.end(JSON.stringify(ab < 0 ? { n: m.ereignisse.length, ereignisse: [] } : { n: m.ereignisse.length, ereignisse: m.ereignisse.slice(ab) }));
+    return;
+  }
+  /* Stufe B: Hördaten und Sterne dieses Laufs weglegen (`leer`) oder zurückholen (`voll`): Prüfungen der Reihen auf dem Start brauchen den Start ohne die Reihen der Stufe B. Body { zustand } */
+  if (p === '/gehoert' && req.method === 'POST') {
+    const m = holeMock(u.searchParams.get('k') || 'admin');
+    const { zustand } = JSON.parse(await koerper(req));
+    if (zustand === 'leer' && !m.gehoertSicher) { m.gehoertSicher = { zeilen: m.backend.gehoert.zeilen, favoriten: m.backend.favoriten }; m.backend.gehoert.zeilen = []; m.backend.favoriten = []; }
+    if (zustand === 'voll' && m.gehoertSicher) { m.backend.gehoert.zeilen = m.gehoertSicher.zeilen; m.backend.favoriten = m.gehoertSicher.favoriten; m.gehoertSicher = null; }
+    res.end(JSON.stringify({ zustand }));
+    return;
+  }
+  /* Stufe B: ein Ereignis des Abos auslösen (zum Beispiel `gehoert`/`geaendert`, wenn eine Box neue Hördaten gemeldet hat): Body { thema, art, daten? } */
+  if (p === '/ereignis' && req.method === 'POST') {
+    const m = holeMock(u.searchParams.get('k') || 'admin');
+    const { thema, art, daten = {} } = JSON.parse(await koerper(req));
+    m.emit(thema, art, daten);
+    res.end(JSON.stringify({ thema, art }));
     return;
   }
   /* A-1b: ein Tobie wird auf eine Box gelegt (Mock-Funktion `legeAuf`): Body { box, uid, zeitOk? } */

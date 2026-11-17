@@ -77,6 +77,21 @@ export const SCHEMA_REIN = {
   'tobibox/hoerstelle/set': { req: ['serie_id', 'folge', 'position_s', 'dauer_s'], opt: ['track', 'fertig'], braucht: 'reinhoeren' },
   'tobibox/hoerstelle/liste': { opt: ['limit'], braucht: 'reinhoeren' },
 };
+/* Stufe B „Gehört“ (Vertrag W 3.14, Nr. 50 bis 56) und der HA-Befehl für die Akku-Kurve. Eigener Satz, damit die Abdeckungsprüfung der alten Seite unverändert bleibt.
+ * Fähigkeiten: `gehoert` (50 bis 54, Felder `spieler` und `spielt` bei Nr. 41, Sortierungen `zuletzt_gehoert` und `meist_gehoert`), `favoriten` (55, 56, Filter `favorit`). */
+export const FAEHIGKEITEN_B = ['gehoert', 'favoriten'];
+export const SCHEMA_B = {
+  'tobibox/gehoert/zusammenfassung': { opt: ['wer', 'zeitraum', 'von', 'bis', 'nach', 'serie_id', 'sortierung', 'limit'], must: ['nach'], braucht: 'gehoert' },
+  'tobibox/gehoert/zuletzt': { opt: ['wer', 'limit'], braucht: 'gehoert' },
+  'tobibox/technik/verlauf': { req: ['box', 'von', 'bis'], braucht: 'gehoert' },
+  'tobibox/gehoert/exportieren': { req: ['quelle'], braucht: 'gehoert' },
+  'tobibox/gehoert/loeschen': { req: ['quelle'], opt: ['trocken', 'bestaetigung'], braucht: 'gehoert' },
+  'tobibox/favorit/set': { req: ['serie_id', 'an'], opt: ['folge'], braucht: 'favoriten' },
+  'tobibox/favoriten/list': { braucht: 'favoriten' },
+  'recorder/statistics_during_period': { req: ['start_time', 'statistic_ids', 'period'], opt: ['end_time', 'types', 'units'] }, // HA-Kern, kein Befehl von Tobi Box
+};
+export const ADMIN_BEFEHLE_B = new Set(['tobibox/technik/verlauf', 'tobibox/gehoert/exportieren', 'tobibox/gehoert/loeschen']);
+
 /* A8: Befehle nur für Administratoren (Vertrag 2.1). Mit der Mock-Option `nichtAdmin` darf der Benutzer alles andere (Alltag). */
 export const ADMIN_BEFEHLE = new Set(['folgen/order', 'serien/zusammenfuehren', 'serie/create', 'papierkorb/restore', 'papierkorb/empty'].map((x) => `tobibox/${x}`));
 export const FELDER_V11 = {
@@ -84,6 +99,7 @@ export const FELDER_V11 = {
   'tobibox/zuordnung/list': { uid: 'zuordnung_uid' },
   'tobibox/konfig/export_lesen': { stand: 'konfig_staende' }, // A12/A13: frühere Stände (Vertrag 2.4)
   'tobibox/konfig/aus_export': { stand: 'konfig_staende' },
+  'tobibox/hoerstelle/set': { spieler: 'gehoert', spielt: 'gehoert' }, // Stufe B (Vertrag 41): nur mit der Fähigkeit `gehoert`
 };
 
 /* A12/A13 (Technik): Befehle der Stufe A, die nur Administratoren brauchen (Vertrag 3.12). */
@@ -99,17 +115,18 @@ export const FELDER_BIB = {
   'tobibox/einstellungen/set': ['erwartet_revision'], // A7b (Vertrag 3.11, 12.11.)
 };
 export const ARTEN = ['hoerspiel', 'hoerbuch', 'musik', 'geschichte'];
-const FILTER_WERTE = ['ohne_tobie', 'neu', 'pruefen', 'sammlung', 'einzeln'];
+const FILTER_WERTE = ['ohne_tobie', 'neu', 'pruefen', 'sammlung', 'einzeln', 'favorit'];
 const MOCK_JETZT = Date.parse('2026-11-13T12:00:00Z'); // „heute“ im Mock (Filter „neu“: letzte 14 Tage)
 export const NACHRICHT_MAX = 64 * 1024; // Vertrag 8: eine Nachricht hat höchstens 64 KiB
 export const FAEHIGKEITEN_V11 = ['einstellungen', 'eingang_entfernen', 'zuordnung_uid', 'konfig_lesen', 'upload_fertig_details'];
 
 /* Befehle, die nur Administratoren ausführen dürfen (Vertrag 2.1). */
-const LESEN = new Set(['hello', 'subscribe', 'serien/list', 'folgen/list', 'serie/get', 'papierkorb/list', 'neue_tobies/list', 'zuordnung/list', 'boxen/list', 'eingang/list', 'konfig/export_lesen', 'einstellungen/get', 'konfig/get', 'hoerstelle/get', 'hoerstelle/liste'].map((x) => `tobibox/${x}`));
+const LESEN = new Set(['hello', 'subscribe', 'serien/list', 'folgen/list', 'serie/get', 'papierkorb/list', 'neue_tobies/list', 'zuordnung/list', 'boxen/list', 'eingang/list', 'konfig/export_lesen', 'einstellungen/get', 'konfig/get', 'hoerstelle/get', 'hoerstelle/liste', 'gehoert/zusammenfassung', 'gehoert/zuletzt', 'favoriten/list'].map((x) => `tobibox/${x}`));
 
 export const FAEHIGKEITEN = ['medien', 'upload', 'zuordnung', 'tobie_namen', 'neue_tobies', 'lernmodus', 'boxen', 'papierkorb', 'liste_ausrollen', 'konfig_export', 'sync', 'eingang', 'korrektur', 'serie_loeschen', 'bibliothek', 'cover'];
 
 const fehler = (code, message = code) => ({ code, message });
+const ISO = (d) => d.toISOString().slice(0, 10);
 
 /* Ein Eintrag für `eingang/list` (Vertrag 3.9) mit sinnvollen Vorgaben; `teil` überschreibt. A11b: Band, Punkt am Reiter, Karte „bitte kurz ansehen“. */
 let eingangZaehler = 0;
@@ -133,9 +150,11 @@ function pruefeBibliothek(type, f, faehigkeiten) {
   if ('auch_folgen' in f && typeof f.auch_folgen !== 'boolean') throw fehler('invalid_format', 'auch_folgen');
   if ('filter' in f) {
     if (!Array.isArray(f.filter) || f.filter.some((x) => !FILTER_WERTE.includes(x))) throw fehler('invalid_format', 'filter');
+    if (faehigkeiten && f.filter.includes('favorit') && !faehigkeiten.includes('favoriten')) throw fehler('invalid_format', 'favorit braucht favoriten');
   }
   if ('sortierung' in f) {
-    const erlaubt = type === 'tobibox/folgen/list' ? ['titel', 'neu'] : ['name', 'neu', 'angehoert'];
+    const gehoert = !faehigkeiten || faehigkeiten.includes('gehoert');
+    const erlaubt = type === 'tobibox/folgen/list' ? ['titel', 'neu'] : ['name', 'neu', 'angehoert', ...(gehoert ? ['zuletzt_gehoert', 'meist_gehoert'] : [])];
     if (!erlaubt.includes(f.sortierung)) throw fehler('invalid_format', 'sortierung');
     if (f.sortierung === 'angehoert' && faehigkeiten && !faehigkeiten.includes('reinhoeren')) throw fehler('invalid_format', 'angehoert braucht reinhoeren');
   }
@@ -152,6 +171,8 @@ function pruefeRein(type, f) {
   if ('position_s' in f && !(zahl(f.position_s) && f.position_s >= 0)) throw fehler('invalid_format', 'position_s');
   if ('dauer_s' in f && !(zahl(f.dauer_s) && f.dauer_s > 0)) throw fehler('invalid_format', 'dauer_s');
   if ('limit' in f && !(Number.isInteger(f.limit) && f.limit >= 1 && f.limit <= 12)) throw fehler('invalid_format', 'limit 1 bis 12');
+  if ('spieler' in f && !(typeof f.spieler === 'string' && /^[A-Za-z0-9_-]{8,64}$/.test(f.spieler))) throw fehler('invalid_format', 'spieler: 8 bis 64 Zeichen [A-Za-z0-9_-]');
+  if ('spielt' in f && typeof f.spielt !== 'boolean') throw fehler('invalid_format', 'spielt');
   void type;
 }
 
@@ -215,7 +236,7 @@ export function beispielBibliothek(n = 130) {
 
 /* `faehigkeiten`: was das (simulierte) Backend zusagt. Ohne Angabe wird nur die Form geprüft (alles ist erlaubt). */
 export function pruefeEingabe(msg, faehigkeiten = null) {
-  const sch = SCHEMA[msg.type] || SCHEMA_V11[msg.type] || SCHEMA_BIB[msg.type] || SCHEMA_TECHNIK[msg.type] || SCHEMA_WS[msg.type] || SCHEMA_REIN[msg.type] || SCHEMA_NEU[msg.type];
+  const sch = SCHEMA[msg.type] || SCHEMA_V11[msg.type] || SCHEMA_BIB[msg.type] || SCHEMA_TECHNIK[msg.type] || SCHEMA_WS[msg.type] || SCHEMA_REIN[msg.type] || SCHEMA_NEU[msg.type] || SCHEMA_B[msg.type];
   if (!sch) throw fehler('unknown_command', `Unbekannter Befehl ${msg.type}`);
   if (faehigkeiten && sch.braucht && !faehigkeiten.includes(sch.braucht)) throw fehler('unknown_command', `Unbekannter Befehl ${msg.type}`);
   const { type, id, ...felder } = msg; // eslint-disable-line no-unused-vars
@@ -233,6 +254,222 @@ export function pruefeEingabe(msg, faehigkeiten = null) {
   if ('bestaetigt' in felder && felder.bestaetigt !== true) throw fehler('invalid_format', 'bestaetigt muss true sein');
   if ('anfrage_id' in felder && !/^[0-9A-Za-z-]{8,64}$/.test(felder.anfrage_id)) throw fehler('invalid_format', 'anfrage_id');
   return felder;
+}
+
+/* ---- Stufe B: Hördaten und Favoriten des Mocks (Vertrag W 3.14, 15) ---- */
+const addTage = (tag, n) => ISO(new Date(Date.parse(`${tag}T00:00:00Z`) + n * 86400000));
+const tageZwischen = (von, bis) => { const l = []; for (let t = von; t <= bis; t = addTage(t, 1)) l.push(t); return l; };
+/* ISO-Woche (Montag) als „JJJJ-Www“ */
+export function isoWoche(tag) {
+  const t = new Date(Date.parse(`${tag}T00:00:00Z`));
+  t.setUTCDate(t.getUTCDate() + 3 - ((t.getUTCDay() + 6) % 7)); // Donnerstag derselben Woche
+  const jahr = t.getUTCFullYear();
+  const w1 = new Date(Date.UTC(jahr, 0, 4));
+  const nr = 1 + Math.round(((t - w1) / 86400000 - 3 + ((w1.getUTCDay() + 6) % 7)) / 7);
+  return `${jahr}-W${String(nr).padStart(2, '0')}`;
+}
+
+/* Beispieldaten: `tage` Tage bis `heute`, drei bis vier Quellen (zwei Boxen, zwei Personen), die ersten Einträge der Bibliothek (ab dem `ab`-ten). Deterministisch.
+ * Zeile: { wer, serie, folge, tag, stunde, sekunden, mal (1 = beginnt ein zählendes Mal), fertig (1 = in dieser Sitzung fertig) }. `tag` null = Datum unbekannt. */
+export function beispielGehoert(b, { tage = 60, heute = '2026-11-13', ab = 0 } = {}) {
+  const serien = Object.values(b.serien).filter((s) => s.typ === 'normal' && s.folgen.length).slice(ab);
+  if (!serien.length) return [];
+  let z = 7;
+  const rnd = (n) => { z = (z * 1103515245 + 12345) % 2147483648; return (z >>> 7) % n; };
+  const quellen = [...b.boxen.slice(0, 2).map((x) => `box:${x.box}`), 'benutzer:u1', 'benutzer:u2'];
+  const zeilen = [];
+  for (let d = 0; d < tage; d += 1) {
+    const tag = addTage(heute, -d);
+    const n = 1 + rnd(4);
+    for (let i = 0; i < n; i += 1) {
+      const s = serien[rnd(Math.min(serien.length, 8))];
+      const f = s.folgen[rnd(s.folgen.length)];
+      zeilen.push({ wer: quellen[rnd(quellen.length)], serie: s.id, folge: f.name, tag, stunde: [7, 8, 15, 17, 18, 19, 19, 20][rnd(8)], sekunden: 120 + rnd(2400), mal: 1, fertig: rnd(3) === 0 ? 1 : 0 });
+    }
+  }
+  return zeilen;
+}
+
+/* Befehle 50 bis 56 und der Akku-Verlauf; Auslegung nach Vertrag 3.14 (Zeitreihen lückenlos, höchstens 400 Zeilen, Ranglisten nach `sekunden`). */
+function gehoertBefehle({ b, hat, emit, kurzform, istFavorit, holeSerie, holeFolge, istAdmin, opts }) {
+  const G = b.gehoert;
+  const ZEIT = ['tag', 'woche', 'monat', 'stunde'];
+  const boxName = (id) => { const x = b.boxen.find((y) => y.box === id); return x ? (x.anzeige || x.anzeigename || x.box) : id; };
+  const quellenName = (wer) => (wer.startsWith('box:') ? boxName(wer.slice(4)) : (G.personen[wer.slice(9)] ?? 'Früherer Benutzer'));
+  const auswahl = () => {
+    const alle = [...new Set([...b.boxen.map((x) => `box:${x.box}`), ...G.zeilen.map((z) => z.wer)])];
+    return alle.map((wer) => ({ wer, name: quellenName(wer), art: wer.startsWith('box:') ? 'box' : 'person' }))
+      .sort((x, y) => (x.art === y.art ? 0 : x.art === 'box' ? -1 : 1));
+  };
+  const werPruefen = (wer) => {
+    if (wer === undefined || wer === 'alle' || wer === 'alle_boxen') return;
+    if (typeof wer !== 'string' || !auswahl().some((x) => x.wer === wer)) throw fehler('wer_ungueltig');
+  };
+  const werPasst = (wer, z) => wer === undefined || wer === 'alle' || (wer === 'alle_boxen' ? z.wer.startsWith('box:') : z.wer === wer);
+  const heute = () => G.heute;
+  const ungueltig = (t) => fehler('invalid_format', t);
+  const monatVon = (tag) => tag.slice(0, 7);
+  const rasterWert = (art, tag) => (art === 'tag' ? tag : art === 'woche' ? isoWoche(tag) : art === 'monat' ? monatVon(tag) : null);
+
+  const zusammenfassung = (m) => {
+    if (!Array.isArray(m.nach) || m.nach.length < 1 || m.nach.length > 2 || new Set(m.nach).size !== m.nach.length) throw ungueltig('nach');
+    if (m.nach.some((k) => !['wer', 'serie', 'folge', ...ZEIT].includes(k))) throw ungueltig('nach');
+    const zeitSchluessel = m.nach.filter((k) => ZEIT.includes(k));
+    if (zeitSchluessel.length > 1 || (m.nach.includes('serie') && m.nach.includes('folge')) || (m.nach.includes('folge') && !m.serie_id)) throw ungueltig('nach');
+    const reihe = zeitSchluessel[0] ?? null;
+    if (reihe && ('sortierung' in m || 'limit' in m)) throw ungueltig('sortierung und limit gelten nur ohne Zeitschlüssel');
+    if ('sortierung' in m && !['sekunden', 'mal'].includes(m.sortierung)) throw ungueltig('sortierung');
+    if ('limit' in m && !(Number.isInteger(m.limit) && m.limit >= 1 && m.limit <= 200)) throw ungueltig('limit');
+    const frei = 'von' in m || 'bis' in m;
+    if (frei === ('zeitraum' in m) || (frei && !('von' in m && 'bis' in m))) throw ungueltig('zeitraum oder von und bis');
+    werPruefen(m.wer);
+    if (m.serie_id) holeSerie(m.serie_id);
+    const h = heute();
+    const erste = G.zeilen.filter((z) => z.tag).map((z) => z.tag).sort()[0] ?? h;
+    let von; let bis = h;
+    if (frei) { von = m.von; bis = m.bis; } else von = m.zeitraum === 'woche' ? addTage(h, -6) : m.zeitraum === 'monat' ? addTage(h, -29) : m.zeitraum === 'jahr' ? addTage(h, -364) : erste;
+    const alles = !frei && m.zeitraum === 'alles';
+    const zeilenAlle = G.zeilen.filter((z) => werPasst(m.wer, z) && (!m.serie_id || z.serie === m.serie_id)
+      && (z.tag ? z.tag >= von && z.tag <= bis : alles && !reihe));
+    const schluessel = (z, k) => (k === 'wer' ? z.wer : k === 'serie' ? z.serie : k === 'folge' ? z.folge : k === 'stunde' ? z.stunde : rasterWert(k, z.tag));
+    const gruppen = new Map();
+    for (const z of zeilenAlle) {
+      const key = JSON.stringify(m.nach.map((k) => schluessel(z, k)));
+      const g = gruppen.get(key) ?? { teile: m.nach.map((k) => schluessel(z, k)), sekunden: 0, mal: 0, fertig: 0, folgenFertig: new Set() };
+      g.sekunden += z.sekunden; g.mal += z.mal; g.fertig += z.fertig;
+      if (z.fertig) g.folgenFertig.add(`${z.serie}/${z.folge}`);
+      gruppen.set(key, g);
+    }
+    const zeile = (g) => {
+      const o = {};
+      m.nach.forEach((k, i) => { o[k] = g.teile[i]; });
+      o.sekunden = g.sekunden; o.mal = g.mal; o.fertig = g.fertig;
+      if (m.nach.includes('serie')) {
+        const sid = o.serie;
+        const sr = b.serien[sid];
+        o.name = sr ? sr.name : 'Gelöscht'; o.geloescht = !sr;
+        if (!sr) o.serie = null;
+      }
+      if ((m.nach.includes('serie') || m.serie_id) && !m.nach.includes('folge')) {
+        const sr = b.serien[m.nach.includes('serie') ? o.serie : m.serie_id];
+        o.folgen_fertig = sr ? [...g.folgenFertig].filter((x) => sr.folgen.some((f) => `${sr.id}/${f.name}` === x)).length : 0;
+        o.folgen_gesamt = sr ? sr.folgen.length : 0;
+      }
+      return o;
+    };
+    const zeilen = [];
+    let weitere = false;
+    if (reihe) {
+      let raster = [];
+      if (reihe === 'stunde') raster = Array.from({ length: 24 }, (_, i) => i);
+      else raster = [...new Set(tageZwischen(reihe === 'monat' && alles ? `${erste.slice(0, 7)}-01` : von, bis).map((t) => rasterWert(reihe, t)))];
+      if (raster.length > 400) throw ungueltig('mehr als 400 Zeilen');
+      const zweit = m.nach.find((k) => k !== reihe) ?? null;
+      const leer = (teile) => ({ teile, sekunden: 0, mal: 0, fertig: 0, folgenFertig: new Set() });
+      const mitZeit = (r, rest) => (m.nach[0] === reihe ? [r, ...rest] : [...rest, r]);
+      if (zweit === 'wer') {
+        const quellen = auswahl().map((x) => x.wer).filter((w) => werPasst(m.wer, { wer: w }));
+        if (raster.length * quellen.length > 400) throw ungueltig('mehr als 400 Zeilen');
+        for (const r of raster) for (const q of quellen) zeilen.push(zeile(gruppen.get(JSON.stringify(mitZeit(r, [q]))) ?? leer(mitZeit(r, [q]))));
+      } else if (zweit) {
+        for (const r of raster) for (const g of [...gruppen.values()].filter((x) => x.teile[m.nach.indexOf(reihe)] === r)) zeilen.push(zeile(g));
+      } else for (const r of raster) zeilen.push(zeile(gruppen.get(JSON.stringify([r])) ?? leer([r])));
+    } else {
+      const name = (g) => { const z = zeile(g); return String(z.name ?? z.folge ?? quellenName(String(z.wer ?? '')) ?? ''); };
+      let liste = [...gruppen.values()];
+      liste.sort((x, y) => (m.sortierung === 'mal' ? y.mal - x.mal : y.sekunden - x.sekunden) || name(x).localeCompare(name(y), 'de'));
+      const limit = m.limit ?? 50;
+      weitere = liste.length > limit;
+      liste = liste.slice(0, limit);
+      liste.forEach((g) => zeilen.push(zeile(g)));
+    }
+    const mitDatum = zeilenAlle.filter((z) => z.tag);
+    const summe = { sekunden: 0, mal: 0, fertig: 0 };
+    for (const z of reihe ? mitDatum : zeilenAlle) { summe.sekunden += z.sekunden; summe.mal += z.mal; summe.fertig += z.fertig; }
+    return { zeilen, summe, weitere, wer_auswahl: auswahl(), zeitzone: 'Europe/Berlin', von, bis };
+  };
+
+  const zuletzt = (m) => {
+    werPruefen(m.wer);
+    if ('limit' in m && !(Number.isInteger(m.limit) && m.limit >= 1 && m.limit <= 20)) throw ungueltig('limit');
+    const wer = m.wer ?? 'alle_boxen';
+    const letzte = new Map();
+    for (const z of G.zeilen.filter((x) => x.tag && werPasst(wer, x) && b.serien[x.serie])) {
+      const zeit = `${z.tag}T${String(z.stunde).padStart(2, '0')}:30:00Z`;
+      if (!letzte.has(z.serie) || letzte.get(z.serie).zeit < zeit) letzte.set(z.serie, { zeit, wer: z.wer });
+    }
+    const eintraege = [...letzte.entries()].sort((x, y) => y[1].zeit.localeCompare(x[1].zeit)).slice(0, m.limit ?? 10)
+      .map(([sid, x]) => ({ ...kurzform(b.serien[sid]), wer: x.wer, zeit: x.zeit }));
+    return { eintraege };
+  };
+
+  const quelleGueltig = (q) => {
+    if (['boxen', 'reinhoeren', 'alle'].includes(q)) return;
+    if (typeof q === 'string' && (q.startsWith('box:') || q.startsWith('benutzer:')) && auswahl().some((x) => x.wer === q)) return;
+    throw fehler('wer_ungueltig');
+  };
+  const quellePasst = (q, z) => q === 'alle' || (q === 'boxen' ? z.wer.startsWith('box:') : q === 'reinhoeren' ? z.wer.startsWith('benutzer:') : z.wer === q);
+
+  const verlauf = (m) => {
+    if (!b.boxen.some((x) => x.box === m.box)) throw fehler('box_unbekannt');
+    if (!(/^\d{4}-\d\d-\d\d$/.test(m.von) && /^\d{4}-\d\d-\d\d$/.test(m.bis)) || m.von > m.bis) throw ungueltig('von und bis');
+    if ((Date.parse(m.bis) - Date.parse(m.von)) / 86400000 > 400) throw ungueltig('höchstens 400 Tage');
+    if (b.technikVerlauf?.[m.box]) return structuredClone(b.technikVerlauf[m.box]);
+    const ende = `${m.bis}T12:00:00Z`;
+    const stunde = (tag, h, min = 0) => `${tag}T${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}:00Z`;
+    const tage = tageZwischen(m.von, m.bis);
+    const ladevorgaenge = tage.map((t, i) => (i === tage.length - 1 ? { beginn: stunde(t, 9), ende: null, dauer_s: null } : { beginn: stunde(t, 20), ende: stunde(addTage(t, 1), 0, 10 + (i % 3) * 20), dauer_s: 15000 + (i % 3) * 1200 }));
+    const laufzeiten = tage.slice(0, -1).map((t, i) => ({ von: stunde(addTage(t, 1), 0, 10 + (i % 3) * 20), bis: stunde(addTage(t, 1), 20), dauer_s: 70000 - (i % 4) * 3600 }));
+    return { ladevorgaenge, laufzeiten, verbindung: [{ zeit: stunde(m.von, 7), online: true }, { zeit: stunde(addTage(m.bis, -1), 21), online: false }, { zeit: stunde(m.bis, 7), online: true }],
+      syncs: [{ zeit: stunde(m.bis, 7, 5), ok: true, code: null }], fehler: [], verworfen: [{ zeit: stunde(m.von, 12), gesamt: 2 }, { zeit: ende, gesamt: 5 }], weitere: false };
+  };
+
+  const akku = (m) => {
+    const out = {};
+    const von = typeof m.start_time === 'string' ? Date.parse(m.start_time) : m.start_time;
+    const bis = m.end_time ? (typeof m.end_time === 'string' ? Date.parse(m.end_time) : m.end_time) : von + 7 * 86400000;
+    for (const id of m.statistic_ids) {
+      if (!b.akkuEntitaeten?.includes(id)) continue;
+      const l = [];
+      for (let t = Math.floor(von / 3600000) * 3600000, i = 0; t < bis; t += 3600000, i += 1) {
+        const h = i % 24;
+        const wert = h < 5 ? 40 + h * 12 : Math.max(8, 100 - (h - 5) * 4.6);
+        l.push({ start: t, end: t + 3600000, mean: Math.round(wert * 10) / 10, min: Math.round((wert - 2) * 10) / 10, max: Math.round((wert + 2) * 10) / 10 });
+      }
+      out[id] = l;
+    }
+    return out;
+  };
+
+  return {
+    'tobibox/gehoert/zusammenfassung': zusammenfassung,
+    'tobibox/gehoert/zuletzt': zuletzt,
+    'tobibox/technik/verlauf': verlauf,
+    'tobibox/gehoert/exportieren': (m) => { quelleGueltig(m.quelle); b.gehoert.exporte = [...(b.gehoert.exporte ?? []), m.quelle]; return { pfad: `/api/tobibox/export/u-admin/${encodeURIComponent(m.quelle)}?authSig=mock-export` }; },
+    'tobibox/gehoert/loeschen': (m) => {
+      quelleGueltig(m.quelle);
+      if ('trocken' in m && typeof m.trocken !== 'boolean') throw ungueltig('trocken');
+      if (!m.trocken && !['LÖSCHEN', 'LOESCHEN'].includes(m.bestaetigung)) throw ungueltig('bestaetigung');
+      const betroffen = G.zeilen.filter((z) => quellePasst(m.quelle, z));
+      if (!m.trocken) { G.zeilen = G.zeilen.filter((z) => !quellePasst(m.quelle, z)); G.loeschungen.push(m.quelle); emit('gehoert', 'geaendert', {}); }
+      return { anzahl: betroffen.length };
+    },
+    'tobibox/favorit/set': (m) => {
+      const s = holeSerie(m.serie_id);
+      if ('folge' in m) holeFolge(s, m.folge);
+      if (typeof m.an !== 'boolean') throw ungueltig('an');
+      const folge = m.folge ?? null;
+      const da = istFavorit(s.id, folge);
+      if (m.an && !da) {
+        if (b.favoriten.length >= (opts.favoritenMax ?? 1000)) throw fehler('zu_viele_favoriten');
+        b.favoriten.unshift({ serie_id: s.id, folge, gesetzt_von: { id: 'u1', name: 'Person A' }, gesetzt_am: new Date().toISOString() });
+      } else if (!m.an && da) b.favoriten = b.favoriten.filter((x) => !(x.serie_id === s.id && (x.folge ?? null) === folge));
+      if (m.an !== da) emit('favoriten', 'geaendert', { serie_id: s.id, folge, an: m.an });
+      return { an: m.an };
+    },
+    'tobibox/favoriten/list': () => ({ eintraege: b.favoriten.filter((x) => b.serien[x.serie_id] && (x.folge === null || b.serien[x.serie_id].folgen.some((f) => f.name === x.folge))).map((x) => structuredClone(x)) }),
+    'recorder/statistics_during_period': akku,
+  };
 }
 
 export function createMockHass(opts = {}) {
@@ -286,6 +523,16 @@ export function createMockHass(opts = {}) {
   if (opts.eingangErledigt) b.eingangErledigt = opts.eingangErledigt; // … und die letzten einsortierten
   if (opts.viele) Object.assign(b, beispielBibliothek(opts.viele === true ? 130 : opts.viele));
 
+  /* Stufe B: Fähigkeiten, Hördaten (`b.gehoert.zeilen`, siehe `beispielGehoert`) und Sterne (`b.favoriten`) */
+  const hat = (name) => (opts.faehigkeiten || FAEHIGKEITEN).includes(name);
+  b.favoriten = [];
+  b.gehoert = { heute: opts.heute ?? ISO(new Date(MOCK_JETZT)), zeilen: [], personen: { u1: 'Person A', u2: 'Person B' }, loeschungen: [] };
+  const istFavorit = (sid, folge = null) => b.favoriten.some((x) => x.serie_id === sid && (x.folge ?? null) === folge);
+  const zuletztGehoertAm = (sid) => {
+    const l = b.gehoert.zeilen.filter((z) => z.serie === sid && z.wer.startsWith('box:'));
+    if (!l.length) return null;
+    return l.map((z) => `${z.tag}T${String(z.stunde).padStart(2, '0')}:30:00Z`).sort().at(-1);
+  };
   const stand = (s) => hex(JSON.stringify([s.name, s.folgen.map((f) => [f.name, f.anzeige])]));
   const kurzform = (s) => ({
     id: s.id, name: s.name, typ: s.typ, ordner: s.ordner, anzahl_folgen: s.folgen.length,
@@ -294,6 +541,8 @@ export function createMockHass(opts = {}) {
     art: s.art ?? 'hoerspiel', art_quelle: s.art ? 'manuell' : 'tags', einzeln: !!s.einzeln, kapitel_anzahl: s.kapitel_anzahl ?? 0,
     dauer_s: s.dauer_s ?? null, cover_stand: s.cover_stand ?? null, cover_quelle: s.cover_stand ? (s.cover_quelle ?? 'auto') : null,
     ...(hoerKurz(s) ? { hoerstelle: hoerKurz(s) } : {}),
+    ...(hat('favoriten') ? { favorit: istFavorit(s.id) } : {}),
+    ...(hat('gehoert') ? { zuletzt_gehoert_am: zuletztGehoertAm(s.id) } : {}),
   });
   /* Hörstelle des Anfragenden (Vertrag 14.2, 14.6): aus dem Speicher des Mocks, sonst die feste Angabe der Serie (`s.hoerstelle`). */
   function hoerMass(s, name, e) {
@@ -322,7 +571,7 @@ export function createMockHass(opts = {}) {
     ...kurzform(s),
     folgen: s.folgen.map((f) => {
       const h = b.hoerstellen[s.id]?.folgen?.[f.name];
-      return { ...f, ...(h ? { hoerstelle: { position_s: h.p, fertig: h.fertig, ...(f.art === 'ordner' && f.tracks > 1 ? { track: h.track ?? 0 } : {}) } } : {}), tobies: Object.values(b.zuordnungen).filter((z) => z.ziel.typ === 'folge' && z.ziel.serie === s.id && z.ziel.folge === f.name).map(kurzTobie) };
+      return { ...f, ...(hat('favoriten') ? { favorit: istFavorit(s.id, f.name) } : {}), ...(h ? { hoerstelle: { position_s: h.p, fertig: h.fertig, ...(f.art === 'ordner' && f.tracks > 1 ? { track: h.track ?? 0 } : {}) } } : {}), tobies: Object.values(b.zuordnungen).filter((z) => z.ziel.typ === 'folge' && z.ziel.serie === s.id && z.ziel.folge === f.name).map(kurzTobie) };
     }),
     zuordnungen: Object.values(b.zuordnungen).filter((z) => z.ziel.typ === 'serie' && z.ziel.serie === s.id).map(kurzTobie),
   });
@@ -390,8 +639,13 @@ export function createMockHass(opts = {}) {
       if (f.includes('neu')) l = l.filter((s) => Date.parse(s.angelegt_am ?? '2026-10-01T10:00:00Z') >= grenze);
       if (f.includes('ohne_tobie')) l = l.filter((s) => !tobiesAuf(s.id).length);
       if (f.includes('pruefen')) l = l.filter((s) => s.pruefen);
+      if (f.includes('favorit')) l = l.filter((s) => istFavorit(s.id));
       const name = (x, y) => x.name.localeCompare(y.name, 'de', { numeric: true });
-      if (m.sortierung === 'neu') l.sort((x, y) => Date.parse(y.angelegt_am ?? '2026-10-01T10:00:00Z') - Date.parse(x.angelegt_am ?? '2026-10-01T10:00:00Z') || name(x, y));
+      if (m.sortierung === 'zuletzt_gehoert') l.sort((x, y) => String(zuletztGehoertAm(y.id) ?? '').localeCompare(String(zuletztGehoertAm(x.id) ?? '')) || name(x, y));
+      else if (m.sortierung === 'meist_gehoert') {
+        const sum = (id) => b.gehoert.zeilen.filter((z) => z.serie === id).reduce((a, z) => a + z.sekunden, 0);
+        l.sort((x, y) => sum(y.id) - sum(x.id) || name(x, y));
+      } else if (m.sortierung === 'neu') l.sort((x, y) => Date.parse(y.angelegt_am ?? '2026-10-01T10:00:00Z') - Date.parse(x.angelegt_am ?? '2026-10-01T10:00:00Z') || name(x, y));
       else if (m.sortierung === 'angehoert') l.sort((x, y) => (Date.parse(hoerKurz(y)?.zeit ?? 0) || 0) - (Date.parse(hoerKurz(x)?.zeit ?? 0) || 0) || name(x, y));
       else if (m.sortierung === 'name' || (!m.sortierung && ['art', 'text', 'auch_folgen', 'filter', 'limit', 'offset'].some((k) => k in m))) l.sort(name);
       // ganz ohne Eingabe (alte Seite) bleibt die Reihenfolge des Speichers; das echte Backend sortiert auch dann nach Name
@@ -415,6 +669,7 @@ export function createMockHass(opts = {}) {
           const ganze = Object.values(b.zuordnungen).some((z) => z.ziel.typ === 'serie' && z.ziel.serie === s.id);
           if (f.includes('ohne_tobie') && (ganze || direkt.length)) continue;
           if (f.includes('pruefen') && !(s.pruefen || fo.pruefen)) continue;
+          if (f.includes('favorit') && !istFavorit(s.id, fo.name)) continue;
           zeilen.push({ s, fo, direkt, ganze });
         }
       }
@@ -427,7 +682,7 @@ export function createMockHass(opts = {}) {
       zeilen = zeilen.slice(von, von + lim);
       return { gesamt, weitere: von + zeilen.length < gesamt, folgen: zeilen.map(({ s, fo, direkt, ganze }) => ({
         serie_id: s.id, serie_name: s.name, serie_einzeln: !!s.einzeln, art: s.art ?? 'hoerspiel', folge: fo.name, anzeige: fo.anzeige, nummer: fo.nummer ?? null, kapitel: 0,
-        groesse_mb: Math.round(fo.groesse_bytes / 1048576), tobies: direkt.map(kurzTobie), serie_hat_tobie: ganze || direkt.length > 0 || tobiesAuf(s.id).length > 0 })) };
+        groesse_mb: Math.round(fo.groesse_bytes / 1048576), ...(hat('favoriten') ? { favorit: istFavorit(s.id, fo.name) } : {}), tobies: direkt.map(kurzTobie), serie_hat_tobie: ganze || direkt.length > 0 || tobiesAuf(s.id).length > 0 })) };
     },
     'tobibox/serie/get': (m) => mitTobies(holeSerie(m.serie_id)),
     'tobibox/audio/bereit': (m) => {
@@ -543,6 +798,11 @@ export function createMockHass(opts = {}) {
       const s = holeSerie(m.serie_id);
       (m.folgen || s.folgen.map((f) => f.name)).forEach((n) => { holeFolge(s, n).pruefen = false; });
       if (!m.folgen) s.pruefen = false;
+      /* Rest aus A-1c (B3, 17.11.): auch im Protokoll des Eingangs verschwindet „bitte ansehen“ (`ergebnis[].pruefen` und `pruefen` der Einträge) */
+      for (const e of opts.ohneProtokollReset ? [] : [...b.eingang, ...b.eingangErledigt]) { // `ohneProtokollReset`: ein älteres Backend (vor B3)
+        for (const r of e.ergebnis || []) if (r.serie_id === s.id && (!m.folgen || m.folgen.includes(r.folge))) { r.pruefen = false; r.pruefen_gruende = []; }
+        if (e.pruefen && !(e.ergebnis || []).some((r) => r.pruefen)) e.pruefen = false;
+      }
       return { serie: kurzform(s) };
     },
     /* A11c: „Anders einsortieren“ (Vertrag 43). Prüfreihenfolge: Eintrag, Wunsch, Bedingungen (`pruefen` oder höchstens 24 Stunden seit `fertig_am`; `b.neuGesperrt`
@@ -706,6 +966,7 @@ export function createMockHass(opts = {}) {
       b.eingang = b.eingang.filter((x) => x !== e);
       return { eintrag: { id: hex(e.id, 12), typ: 'eingang', serie_id: null, serie_name: null, folge: null, anzeige: e.name, art: e.art, tracks: e.dateien, groesse_bytes: e.groesse_bytes, grund: 'manuell', geloescht_am: '2026-11-09T10:00:00Z' } };
     },
+    ...gehoertBefehle({ b, hat, emit: (...a) => emit(...a), kurzform, istFavorit, holeSerie, holeFolge, istAdmin, opts }),
     'tobibox/cover/neu_suchen': (m) => { if (m.serie_id) holeSerie(m.serie_id); return { gestartet: true, eintraege: m.serie_id ? 1 : Object.keys(b.serien).length }; },
     'tobibox/hoerkopie/neu_erzeugen': (m) => { if (m.serie_id) holeSerie(m.serie_id); return { eingereiht: m.serie_id ? 1 : 2 }; },
     /* alles, was in der letzten Stunde (vor MOCK_JETZT) in den Papierkorb kam */
@@ -727,6 +988,7 @@ export function createMockHass(opts = {}) {
     const felder = pruefeEingabe(msg, opts.faehigkeiten || FAEHIGKEITEN);
     if (!darf && !LESEN.has(msg.type)) throw fehler('unauthorized', 'Nur für Administratoren');
     if (opts.nichtAdmin && ADMIN_BEFEHLE.has(msg.type)) throw fehler('unauthorized', 'Nur für Administratoren');
+    if (!istAdmin && ADMIN_BEFEHLE_B.has(msg.type)) throw fehler('unauthorized', 'Nur für Administratoren'); // Stufe B: Verlauf, Export und Löschen der Hördaten
     if (!istAdmin && msg.type.startsWith('tobibox/lernmodus/')) throw fehler('unauthorized', 'Nur für Administratoren'); // seit 13.11. admin (A0-Q, X13a)
     const f = failures.get(msg.type);
     if (f && f.length) { const c = f.shift(); throw typeof c === 'string' ? fehler(c, `Fehler ${c}`) : c; }
@@ -755,7 +1017,7 @@ export function createMockHass(opts = {}) {
           neue_tobies: { gesamt: b.neueTobies.length }, lernmodus: { vorgaenge: [] },
           medien: { pruefung_laeuft: false, geprueft_am: '2026-11-09T08:00:00Z' },
           eingang: { offen: b.eingang.length, blockiert: 1, sortierung_laeuft: false, geprueft_am: '2026-11-09T08:00:00Z' },
-          konfig: { konfig: b.konfig }, upload: {},
+          konfig: { konfig: b.konfig }, upload: {}, gehoert: {}, favoriten: {},
         };
         if (opts.snapshots !== false) abo.themen.forEach((t) => emit(t, 'snapshot', snap[t]));
       });

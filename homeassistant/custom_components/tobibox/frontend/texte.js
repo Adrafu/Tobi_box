@@ -80,6 +80,8 @@ export const FEHLER = {
   hoerkopie_warteschlange_voll: 'Gerade sind viele Hörproben in Arbeit. Versuche es in einer Viertelstunde noch einmal. Auf der Box spielt es schon.',
   zu_viele_streams: 'Es läuft schon auf mehreren Geräten etwas. Beende dort das Hören und versuche es noch einmal.',
   rueckfrage_abgelaufen: 'Das hat zu lange gedauert. Der Tobie spielt wie vorher.',
+  wer_ungueltig: 'Diese Auswahl gibt es nicht mehr. Die Ansicht ist neu geladen.', // Stufe B (Befehle 50, 51, 53, 54)
+  zu_viele_favoriten: 'Es gibt schon sehr viele Favoriten. Nimm zuerst einen heraus.', // Stufe B (Befehl 55)
 
   // Vertrag, Abschnitt 7, ohne Design-Text
   invalid_format: 'Die Eingabe passt nicht. Versuche es noch einmal. Wenn es wieder nicht geht, sag {verwalter_dat} Bescheid.', // neu, nicht im Design
@@ -216,7 +218,7 @@ export const LEER = {
   keine_box: { bild: 'schlafende Box mit Zzz und gezogenem Stecker', satz: 'Noch keine Box eingerichtet. Bitte {verwalter_dat} Bescheid sagen.', knopf: 'Jetzt neu laden' },
   suche: { bild: 'Lupe mit Fragezeichen', satz: 'Nichts gefunden zu „{suchwort}“.', knopf: 'Suche löschen' },
   papierkorb: { bild: 'Papierkorb mit Haken', satz: 'Der Papierkorb ist leer.', knopf: 'Zur Bibliothek' },
-  gehoert: { bild: 'Kopfhörer mit leerem Diagramm', satz: 'Noch nichts gehört.', knopf: 'Zur Bibliothek' },
+  gehoert: { bild: 'Kopfhörer mit leerem Diagramm', satz: 'Noch nichts gehört.', knopf: 'Zur Bibliothek' }, // B4-OFFEN: Design 5.10 nennt hier noch einen zweiten Satz (wann etwas erscheint); die Prüfung AM16/AM17 (texte.test.mjs) verbietet ihn
 };
 
 // Seite „Geräte“ (Design 3.4, ersetzt „Mehr“, Runde 15). Boxen, Karten für neue Tobies, Abends, Zeile „Gehört“.
@@ -460,6 +462,7 @@ export const HINZU = {
     neu_satz: '{dateien} → {neu}.',
   },
   // Fortschritt und Ergebnis (Design 7.3 Punkt 4)
+  von_gruppe: '{anzahl} von {soll} Dateien', // Stufe B (Rest aus A-1c): eine Gruppe, in der noch Dateien fehlen
   titel_dateien: '{dateien}: {namen}', // „3 Dateien: 01 Der Hafen.mp3, 02 Die Karte.mp3 …“
   hochladen_eins: 'Wird hochgeladen … {prozent} %', // Design 7.3
   hochladen_mehr: 'Datei {nr} von {anzahl} wird hochgeladen … {prozent} %', // Design 7.3
@@ -582,7 +585,7 @@ export const START = {
     neu: 'Neu hinzugefügt',
     weiterhoeren: 'Am Handy weiterhören', // Stufe A-2 (Paket A7c), noch ohne Daten
     zuletzt_gehoert: 'Zuletzt auf den Boxen gehört', // Stufe B
-    favoriten: 'Favoriten / Empfehlungen', // Stufe B
+    favoriten: 'Favoriten', // Stufe B (Design Stufe B 7: „Favoriten“ statt „Favoriten / Empfehlungen“)
   },
   pfeil: { zurueck: 'Zurück blättern', vor: 'Weiter blättern' }, // Pfeile am Computer bei Maus-Hover (AB5), zusätzlich zum Scrollen
   alle: 'Alle anzeigen', // ruhiger Link rechts im Reihenkopf (AB5)
@@ -603,11 +606,11 @@ export const BIB = {
   blatt: {
     titel: 'Sortieren und Filter',
     sortieren: 'Sortieren',
-    sortierung: { name: 'A bis Z', neu: 'Zuletzt hinzugefügt', angehoert: 'Zuletzt angehört' },
+    sortierung: { name: 'A bis Z', neu: 'Zuletzt hinzugefügt', angehoert: 'Zuletzt angehört', zuletzt_gehoert: 'Zuletzt gehört', meist_gehoert: 'Meist gehört' }, // Stufe B: „gehört“ = auf den Boxen und beim Reinhören, „angehört“ = eigenes Reinhören
     was: 'Was zeigen',
     was_wahl: { alle: 'Alles', sammlung: 'Nur Hörspiele, Bücher, Alben', einzeln: 'Nur Einzeltitel (einzelne Lieder und Folgen)' },
     nur: 'Nur zeigen',
-    nur_wahl: { ohne_tobie: 'Ohne Tobie', neu: 'Neu (letzte 14 Tage)', pruefen: 'Bitte ansehen' },
+    nur_wahl: { ohne_tobie: 'Ohne Tobie', neu: 'Neu (letzte 14 Tage)', pruefen: 'Bitte ansehen', favorit: 'Favoriten' },
     zuruecksetzen: 'Zurücksetzen',
     fertig: 'Fertig',
   },
@@ -808,6 +811,41 @@ export const TECHNIK = {
     leeren_ja: 'Ja, für immer löschen', geleert: 'Der Papierkorb ist leer.',
     serie_waehlen: 'In welches Hörspiel soll die Folge?', serie_text: 'Das ursprüngliche gibt es nicht mehr.',
     mehr: 'Mehr laden',
+  },
+  verlauf: { // Karte „Verlauf“ auf der Box-Seite (Stufe B, Design 7; nur mit Fähigkeit `gehoert`)
+    titel: 'Verlauf',
+    zeitraum: 'Zeitraum', tage: { 7: '7 Tage', 30: '30 Tage' },
+    akku: 'Akku',
+    akku_kurve: 'Akku der letzten {tage} Tage: zwischen {min} und {max} Prozent, zuletzt {zuletzt} Prozent.',
+    akku_keine: 'Für diese Box gibt es keine Akku-Werte.',
+    akku_leer: 'In diesem Zeitraum gibt es keine Akku-Werte.',
+    achse: 'Prozent',
+    ladevorgaenge: 'Ladevorgänge', laufzeit: 'Laufzeit je Ladung', verworfen: 'Verworfene Hördaten',
+    laedt_noch: 'läuft noch', keine: 'Keine im Zeitraum.',
+    spalte: { tag: 'Tag', niedrigster: 'niedrigster Stand', hoechster: 'höchster Stand', beginn: 'Beginn', ende: 'Ende', dauer: 'Dauer', von: 'Von', bis: 'Bis', zeit: 'Zeit', gesamt: 'Insgesamt' },
+    tabelle: 'Zahlen als Tabelle',
+    laufzeit_zeile: 'Akku hielt {dauer}',
+    verworfen_keine: 'Es wurden keine Hördaten verworfen.',
+    verworfen_satz: { eins: '1 Eintrag der Hördaten ging auf der Box verloren, weil der Speicher voll war.', mehr: '{anzahl} Einträge der Hördaten gingen auf der Box verloren, weil der Speicher voll war.' },
+    weitere: 'Der Verlauf ist gekürzt: es gibt mehr Einträge als hier stehen.',
+    mehr: 'Alle zeigen', weniger: 'Weniger zeigen',
+  },
+  hoerdaten: { // Karte „Hördaten“ in „Speicher und Netz“ (Stufe B, Design 7; nur mit Fähigkeit `gehoert`)
+    titel: 'Hördaten',
+    welche: 'Welche Daten?',
+    quelle: { alle: 'Alle Hördaten', boxen: 'Alle Boxen', reinhoeren: 'Reinhören am Handy und Computer' },
+    sichern: 'Als Tabelle sichern',
+    sichern_gemacht: 'Die Tabelle wird geladen.',
+    loeschen: 'Löschen …',
+    loeschen_titel: 'Hördaten löschen?',
+    loeschen_text: { eins: 'Es wird 1 Eintrag gelöscht: {was}. Das lässt sich nicht rückgängig machen.', mehr: 'Es werden {anzahl} Einträge gelöscht: {was}. Das lässt sich nicht rückgängig machen.' },
+    loeschen_wort: 'Zum Bestätigen tippe das Wort LÖSCHEN.',
+    loeschen_label: 'Bestätigung',
+    loeschen_ja: 'Endgültig löschen',
+    loeschen_nichts: 'Da ist nichts zu löschen.',
+    geloescht: { eins: '1 Eintrag gelöscht.', mehr: '{anzahl} Einträge gelöscht.' },
+    wort: 'LÖSCHEN',
+    person: 'Person: {name}', box: 'Box: {name}',
   },
 };
 
@@ -1078,4 +1116,76 @@ export const PLAYER = {
   folge: { abspielen: '{titel} abspielen', pausieren: '{titel} pausieren', oeffnen: '{titel} im Player öffnen' }, // aria-label der Abspielknöpfe der Zeilen; `oeffnen` (AM13) für die geladene Folge der Serienseite
   reihe: { weiterhoeren: '{name} weiterhören' }, // aria-label des Knopfs auf der Kachel der Reihe „Am Handy weiterhören“ (Start)
   anzeige: { laeuft: 'läuft gerade', pausiert: 'pausiert' }, // Abspiel-Anzeige (drei Balken), Design 4
+};
+
+// Stern und Favoriten (Stufe B, Design 7): Knopf im Kopf der Serienseite, Punkt „⋯“ der Folge, kleiner Stern in Zeilen und Kacheln.
+export const STERN = {
+  klein: 'Favorit', // aria-label des kleinen Sterns in Zeilen und Kacheln
+  knopf: 'Favorit: {titel}', // aria-label des Knopfs im Kopf der Serienseite (mit `aria-pressed`); das Wort „Favorit“ steht im Namen
+  sichtbar: 'Favorit', // Text neben dem Stern am Computer
+  menue_an: 'Zu Favoriten',
+  menue_aus: 'Aus Favoriten',
+  gesetzt: '„{titel}“ ist jetzt ein Favorit.',
+  genommen: '„{titel}“ ist kein Favorit mehr.',
+};
+
+// Unterseite „Gehört“ (Stufe B, Design 7 und 5.10). Für Eltern überall gleich: „Hörzeit“, „Mal“, „fertig“.
+export const GEHOERT = {
+  titel: 'Gehört',
+  wer: 'Wer?',
+  alle: 'Alle', alle_boxen: 'Alle Boxen',
+  zeitraum: { label: 'Zeitraum', woche: 'Woche', monat: 'Monat', jahr: 'Jahr', alles: 'Alles' },
+  leer_zeitraum: 'In diesem Zeitraum wurde nichts gehört.',
+  rangliste: {
+    titel: 'Wer hat was gehört?',
+    spalten: { titel: 'Titel', hoerzeit: 'Hörzeit', mal: 'Mal', fertig: 'fertig' },
+    zeile: '{name}: Hörzeit {hoerzeit}, {mal}, fertig {fertig}. Aufteilung nach Folgen ansehen.', // aria-label der Zeilen
+    zeile_ohne_fertig: '{name}: Hörzeit {hoerzeit}, {mal}. Aufteilung nach Folgen ansehen.',
+    mal: { eins: '1 Mal', mehr: '{anzahl} Mal' },
+    fertig_von: '{fertig} von {gesamt}', // gesprochen: „17 von 20“
+    mehr: 'Alle {anzahl} zeigen', weniger: 'Nur die ersten 10 zeigen',
+    weitere: 'Es gibt noch mehr Einträge, als hier stehen.',
+  },
+  aufteilung: {
+    titel: 'Aufteilung nach Folgen',
+    zurueck: '‹ Rangliste',
+    summe: 'Summe',
+    spalten: { folge: 'Folge', hoerzeit: 'Hörzeit', mal: 'Mal', fertig: 'fertig' },
+    fertig_mal: '{anzahl}×',
+    nie: '–',
+  },
+  tag: {
+    titel: { tag: 'Hörzeit pro Tag', woche: 'Hörzeit pro Woche', monat: 'Hörzeit pro Monat' },
+    satz: {
+      woche: 'In den letzten 7 Tagen: {summe}', monat: 'In den letzten 30 Tagen: {summe}', jahr: 'Im letzten Jahr: {summe}', alles: 'Insgesamt: {summe}',
+      von_bis: 'Vom {von} bis zum {bis}: {summe}',
+    },
+    aufteilung: '({teile})',
+    achse: 'Minuten',
+    bild: 'Säulendiagramm „{titel}“. {satz}',
+    keine: '0 Min.',
+    spalten: { tag: 'Tag', woche: 'Woche', monat: 'Monat', hoerzeit: 'Hörzeit', summe: 'Summe', davon: 'Davon' },
+    woche_kurz: 'KW {nr}',
+  },
+  stunde: {
+    titel: 'Tageszeiten',
+    satz: 'Am meisten um {stunde} Uhr.',
+    satz_keine: 'In diesem Zeitraum wurde nichts gehört.',
+    achse: 'Minuten',
+    bild: 'Säulendiagramm „Tageszeiten“. {satz}',
+    spalten: { stunde: 'Uhrzeit', hoerzeit: 'Hörzeit' },
+    uhr: '{stunde} Uhr',
+  },
+  tabelle: 'Zahlen als Tabelle',
+  gezaehlt: {
+    titel: 'Was wird gezählt?',
+    zeilen: [
+      { k: 'Hörzeit', t: 'Gezählt wird, was wirklich gespielt wurde, nach der Länge des Inhalts. Schneller abspielen macht die Hörzeit nicht länger, Zurückspringen zählt nicht doppelt.' },
+      { k: 'Pausen', t: 'Pausen bis 30 Minuten gehören zum selben Hören.' },
+      { k: 'Mal', t: 'Eine Folge, die mit Pausen bis 30 Minuten dazwischen gehört wird, ist ein Mal. Es zählt ab 10 Sekunden. Wer sie nach dem Ende noch einmal hört, hat ein neues Mal.' },
+      { k: 'fertig', t: 'Eine Folge ist fertig, wenn sie bis zum Ende gehört wurde und dabei mindestens 80 Prozent ihrer Länge zusammengekommen sind. Ein Hörbuch, das in Portionen über mehrere Tage gehört wird, zählt auch.' },
+      { k: 'Reinhören', t: 'Boxen und Reinhören am Handy oder Computer zählen gleich. Zwei Fenster mit derselben Folge zählen doppelt.' },
+    ],
+  },
+  einheit: { std: 'Std.', min: 'Min.', sek: 'Sek.' },
 };

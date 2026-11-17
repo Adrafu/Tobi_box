@@ -63,6 +63,8 @@ const NEU_FUER_NEUE_SEITE = [
   'hoerkopie_wartet',
   'warteschlange_voll', // 13.11. (A0-Q): Texte kommen mit der neuen Seite, die alte Seite kennt die Warteschlange nicht
   'warteschlange_doppelt',
+  'wer_ungueltig', // Stufe B (B4): Texte kommen mit der neuen Seite
+  'zu_viele_favoriten',
 ];
 
 test('Alle Fehlercodes des Vertrags (Abschnitt 7) haben einen deutschen Text', () => {
@@ -865,4 +867,14 @@ test('Darstellung: Rückfrage des Lernmodus beim Überschreiben', MIT_DOM, async
   const d = q('[role=alertdialog]');
   assert.ok(d); assert.match(d.textContent, /Zuordnung überschreiben/); assert.match(d.textContent, /Die drei \?\?\?/);
   assert.match(d.textContent, /Bibi Blocksberg/);
+});
+
+/* ------------------------------------------------------------------ Stufe B (B4): Dateinamen im Eingang (Rest aus A-1c) */
+
+test('dateinamenText(): die ersten zehn Namen, „und N weitere“ aus der Liste und aus dateien_weitere; ohne das Feld (ältere HA) leer', () => {
+  assert.equal(panel.dateinamenText({}), '');
+  assert.equal(panel.dateinamenText({ dateinamen: [] }), '');
+  assert.equal(panel.dateinamenText({ dateinamen: ['a.mp3', 'b.mp3'] }), 'a.mp3, b.mp3');
+  const viele = Array.from({ length: 50 }, (_, i) => `${i + 1}.mp3`);
+  assert.equal(panel.dateinamenText({ dateinamen: viele, dateien_weitere: 7 }), `${viele.slice(0, 10).join(', ')} und 47 weitere`);
 });

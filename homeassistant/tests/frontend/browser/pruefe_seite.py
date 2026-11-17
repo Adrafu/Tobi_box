@@ -463,6 +463,15 @@ def ablauf_hinzufuegen(L: Lauf):
 
 
 # ------------------------------------------------------------------ Messen: alle Seiten und Blätter
+def gh_zuruecksetzen(L: Lauf):
+    """Stufe B: „Gehört“ auf Auswahl „Alle“, Zeitraum „Woche“, Aufteilung zu und die Daten frisch (die Seite behält ihren Zustand beim Hin- und Herwechseln)."""
+    L.js("""const o = el._seiten.gehoert; if (!o) return;
+      o.e = { wer: 'alle', zeitraum: 'woche', serie: null }; o.auf = null; o.alleRang = false; o.laden(true);""")
+    L.ruhe()
+    L.pg.wait_for_function("() => { const s = window.__el.shadowRoot; return !!s.querySelector('[data-gehoert], [data-leer=\"gehoert\"], .note.err'); }", timeout=6000)
+    L.ruhe()
+
+
 def seiten_messen(L: Lauf):
     admin = L.job["rolle"] == "admin"
     profil = L.job["profil"]
@@ -521,10 +530,55 @@ def seiten_messen(L: Lauf):
     seite("hinzufuegen", "#hinzufuegen")
     hinzufuegen_blatt_messen(L, leer)
     seite("geraete", "#geraete")
+    # Stufe B (B4): Unterseite „Gehört“ in allen Zuständen; bei einer älteren HA (Profil „alt“) gibt es sie nicht (Umleitung auf „Geräte“)
+    def gh(name, vorher=None):
+        def f():
+            gh_zuruecksetzen(L)
+            if vorher:
+                vorher()
+        seite(name, "#gehoert", f)
+    if profil == "alt":
+        with L.schritt("alt-ohne-stufe-b"):
+            L.gehe("#gehoert")
+            L.pruefe(L.hash() == "#geraete", "alt-ohne-stufe-b", f"#gehoert führt bei älterer HA nach {L.hash()} statt #geraete")
+            L.pruefe(not L.da("[data-gehoert-link]"), "alt-ohne-stufe-b", "Zeile „Wer hat was gehört?“ ohne Fähigkeit gehoert")
+            L.gehe("#start")
+            L.pruefe(not L.da('[data-reihe="favoriten"], [data-reihe="zuletzt_gehoert"]'), "alt-ohne-stufe-b", "Reihen der Stufe B ohne Fähigkeit")
+            L.gehe("#serie-lang")
+            L.pruefe(not L.da("[data-stern]") and not L.da("[data-favorit]"), "alt-ohne-stufe-b", "Stern ohne Fähigkeit favoriten")
+            L.gehe("#bibliothek")
+            L.klick("[data-sortieren]")
+            L.pruefe(L.js("return sr.querySelector('dialog [role=radiogroup]').querySelectorAll('.optrow').length") == 3, "alt-ohne-stufe-b", "Sortierungen der Stufe B ohne Fähigkeit")
+            L.pruefe(L.js("return !/Favoriten/.test(sr.querySelector('dialog').textContent)"), "alt-ohne-stufe-b", "Filter „Favoriten“ ohne Fähigkeit")
+            L.blatt_zu()
+            if admin:
+                L.gehe("#technik-box-kueche")
+                L.pruefe(not L.da('[data-karte="verlauf"]'), "alt-ohne-stufe-b", "Karte „Verlauf“ ohne Fähigkeit")
+                L.gehe("#technik-speicher")
+                L.pruefe(not L.da('[data-karte="hoerdaten"]'), "alt-ohne-stufe-b", "Karte „Hördaten“ ohne Fähigkeit")
+    else:
+        gh("gehoert")
+    if not leer and profil != "alt":
+        gh("gehoert-person", lambda: L.klick('[data-wer-knopf^="benutzer:"]'))
+        gh("gehoert-alle-boxen", lambda: L.klick('[data-wer-knopf="alle_boxen"]'))
+        gh("gehoert-monat", lambda: L.klick('[data-zeitraum] [data-wert="monat"]'))
+        gh("gehoert-jahr", lambda: L.klick('[data-zeitraum] [data-wert="jahr"]'))
+        gh("gehoert-alles", lambda: L.klick('[data-zeitraum] [data-wert="alles"]'))
+        gh("gehoert-alle-zeilen", lambda: L.klick("[data-rang-mehr]") if L.da("[data-rang-mehr]") else None)
+        gh("gehoert-aufteilung", lambda: L.klick('[data-serie-zeile="lang"]'))
+        def tabellen():
+            L.js("sr.querySelectorAll('[data-gehoert] details').forEach((d) => { d.open = true; })")
+            L.ruhe()
+        gh("gehoert-tabellen", tabellen)
     with L.schritt("geraete-abends"):
         L.gehe("#geraete")
         L.js("sr.querySelector('h2.abends')?.scrollIntoView()")
         L.messe("geraete-abends")
+    if admin and profil != "alt":
+        seite("technik-box-30", "#technik-box-kueche", lambda: L.klick('[data-karte="verlauf"] [data-wert="30"]'))
+        seite("technik-box-tabelle", "#technik-box-kueche", lambda: (L.js("sr.querySelectorAll('[data-karte=\"verlauf\"] details').forEach((d) => { d.open = true; })"), L.ruhe()))
+        seite("technik-box-ohne-akku", "#technik-box-kinderzimmer")
+        seite("technik-speicher-loeschen", "#technik-speicher", lambda: L.js("sr.querySelector('[data-karte=\"hoerdaten\"]')?.scrollIntoView()"))
     seite("box", "#box-kueche")
     seite("box-offline", "#box-kinderzimmer")
     seite("box-fehlt", "#box-gibtsnicht")
@@ -690,7 +744,7 @@ def ablauf_klicks(L: Lauf):
         L.pruefe(L.js("return location.hash").startswith("#serie-") and L.da(".se-hero"), "klick-browser-zurueck", "Zurück-Taste des Browsers wechselt die Seite nicht")
     with L.schritt("klick-alle-anzeigen"):
         L.gehe("#start")
-        L.pg.locator("a.alle").first.click(timeout=5000)
+        L.pg.locator(f".reihe:has({REIHE_NEU}) a.alle").first.click(timeout=5000)
         L.ruhe()
         L.pruefe(L.hash().startswith("#bibliothek"), "alle-anzeigen", f"„Alle anzeigen“ führt nach {L.hash()}")
         L.pruefe(L.js("return el._seiteObj.e.sortierung") == "neu", "alle-anzeigen", "Bibliothek nicht nach „Zuletzt hinzugefügt“ sortiert")
@@ -2527,9 +2581,14 @@ def ablauf_flug_ruhe(L: Lauf):
                                        ("bibliothek", "#bibliothek", "a.lrow[data-serie], a.rcard[data-serie]", 900), ("start", "#start", "a.rcard[data-serie], a.qt[data-serie], a.tile[data-serie], a.lrow[data-serie]", 0)):
         for weg in ("knopf", "zurueck-taste"):
             flug_herkunft(L, name, hash_, link, scrolle, weg, ausgabe)
-    for fall in ("am8", "am9"):
-        for weg in ("knopf", "zurueck-taste"):
-            flug_reihe(L, fall, weg, ausgabe)
+    # Die Reihen der Stufe B (zwei Reihen mehr auf dem Start) verschieben die Reihe „Neu hinzugefügt“ aus dem Bild, das diese Prüfung braucht: ohne Hördaten und Sterne gibt es sie nicht
+    L.mock("/gehoert", {"zustand": "leer"})
+    try:
+        for fall in ("am8", "am9"):
+            for weg in ("knopf", "zurueck-taste"):
+                flug_reihe(L, fall, weg, ausgabe)
+    finally:
+        L.mock("/gehoert", {"zustand": "voll"})
     player_aus(L)
 
 
@@ -3014,15 +3073,265 @@ def ablauf_kapitel(L: Lauf):
 
 
 
+# ------------------------------------------------------------------ Stufe B (B4): Gehört, Stern, Favoriten, Technik-Karten
+def aufrufe(L: Lauf, typ):
+    k = f"{L.job['profil']}~{L.job['kennung']}"
+    return L.pg.evaluate("async ([k, t]) => (await (await fetch(`/aufrufe?k=${encodeURIComponent(k)}&typ=${t}`)).json())", [k, typ])
+
+
+def ablauf_gehoert(L: Lauf):
+    """Unterseite „Gehört“: Weg von „Geräte“, Auswahl „Wer?“, Zeitraum, Rangliste mit Aufteilung nach Folgen (Fokus zurück), Diagramme mit Beschreibung und Tabelle,
+    „Was wird gezählt?“ (ohne „Handy“), Neuladen nach dem Ereignis `gehoert`."""
+    if L.job["profil"] == "alt":
+        return
+    with L.schritt("gehoert-weg"):
+        L.gehe("#geraete")
+        L.pruefe(L.da("[data-gehoert-link]"), "gehoert-weg", "Zeile „Wer hat was gehört?“ fehlt auf Geräte")
+        L.klick("[data-gehoert-link]")
+        L.pruefe(L.hash() == "#gehoert", "gehoert-weg", f"Zeile führt nach {L.hash()}")
+        L.warte_da("[data-gehoert]")
+        L.pruefe(L.da('a.back[href="#geraete"]'), "gehoert-weg", "‹ Geräte fehlt")
+        L.klick('a.back[href="#geraete"]')
+        L.pruefe(L.hash() == "#geraete", "gehoert-weg", f"Zurück führt nach {L.hash()}")
+    with L.schritt("gehoert-wer"):
+        L.gehe("#gehoert")
+        gh_zuruecksetzen(L)
+        knoepfe = L.js("return [...sr.querySelectorAll('[data-wer-knopf]')].map((b) => [b.dataset.werKnopf, b.getAttribute('aria-pressed'), b.textContent.trim()])")
+        L.pruefe(knoepfe and knoepfe[0][0] == "alle" and knoepfe[0][1] == "true", "gehoert-wer", f"„Alle“ nicht vorn und gewählt: {knoepfe[:2]}")
+        L.pruefe(any(k[0] == "alle_boxen" for k in knoepfe), "gehoert-wer", "„Alle Boxen“ fehlt")
+        L.pruefe(sum(1 for k in knoepfe if k[0].startswith("box:")) == 2 and sum(1 for k in knoepfe if k[0].startswith("benutzer:")) >= 2, "gehoert-wer", f"Boxen und Personen fehlen: {knoepfe}")
+        L.pruefe(L.js("return sr.querySelector('[data-wer]').getAttribute('aria-labelledby') === 'gh-wer' && !!sr.querySelector('#gh-wer')"), "gehoert-wer", "Gruppe „Wer?“ ohne sichtbare Beschriftung")
+        tabelle_alle = L.js("return sr.querySelector('[data-tabelle=\"zeitreihe\"]')?.textContent.replace(/\\s+/g, ' ')")
+        L.pruefe("Davon" in (tabelle_alle or "") and "Küche" in (tabelle_alle or "") and "Person A" in (tabelle_alle or ""), "gehoert-wer", f"Bei „Alle“ fehlt die Aufteilung nach Quellen in der Tabelle: {tabelle_alle}")
+        satz0 = L.js("return sr.querySelector('[data-karte=\"zeitreihe\"] [data-satz]').textContent")
+        L.klick('[data-wer-knopf="box:kueche"]')
+        L.pg.wait_for_function("() => window.__el.shadowRoot.querySelector('[data-wer-knopf=\"box:kueche\"]').getAttribute('aria-pressed') === 'true'", timeout=4000)
+        L.ruhe()
+        satz1 = L.js("return sr.querySelector('[data-karte=\"zeitreihe\"] [data-satz]').textContent")
+        L.pruefe(satz0 != satz1 and "(" not in satz1, "gehoert-wer", f"Satz ändert sich mit der Box nicht: {satz0!r} → {satz1!r}")
+        n = aufrufe(L, "tobibox/gehoert/zusammenfassung")
+        L.pruefe(any(a.get("wer") == "box:kueche" for a in n), "gehoert-wer", "Abfrage ohne wer=box:kueche")
+        L.klick('[data-wer-knopf="alle"]')
+    with L.schritt("gehoert-zeitraum"):
+        for zr, art, titel in (("monat", "tag", "Hörzeit pro Tag"), ("jahr", "woche", "Hörzeit pro Woche"), ("alles", "monat", "Hörzeit pro Monat"), ("woche", "tag", "Hörzeit pro Tag")):
+            L.klick(f'[data-zeitraum] [data-wert="{zr}"]')
+            L.pg.wait_for_function("z => window.__el.shadowRoot.querySelector(`[data-zeitraum] [data-wert=\"${z}\"]`).getAttribute('aria-pressed') === 'true'", arg=zr, timeout=4000)
+            L.ruhe()
+            L.pruefe(L.js("return sr.querySelector('#gh-tag-t')?.textContent.trim()") == titel, "gehoert-zeitraum", f"{zr}: Überschrift {L.js('return sr.querySelector(\"#gh-tag-t\")?.textContent')!r} statt {titel!r}")
+            sa = L.js("return sr.querySelector('[data-karte=\"zeitreihe\"] [data-satz]').textContent")
+            L.pruefe({"woche": "7 Tagen", "monat": "30 Tagen", "jahr": "letzten Jahr", "alles": "Insgesamt"}[zr] in sa, "gehoert-zeitraum", f"{zr}: Satz {sa!r}")
+            bild = L.js("const s = sr.querySelector('[data-diagramm=\"zeitreihe\"] svg'); return s && [s.getAttribute('role'), s.getAttribute('aria-label'), s.querySelectorAll('.gh-saeule').length]")
+            L.pruefe(bild and bild[0] == "img" and bild[1] and titel in bild[1] and bild[2] > 0, "gehoert-zeitraum", f"{zr}: Diagramm ohne role=img/Beschreibung: {bild}")
+            if zr == "monat":
+                L.pruefe(L.js("return sr.querySelectorAll('[data-diagramm=\"zeitreihe\"] .gh-zahl').length") == 0, "gehoert-zeitraum", "Zahlen über den Säulen bei 30 Tagen")
+            if zr == "woche":
+                L.pruefe(L.js("return sr.querySelectorAll('[data-diagramm=\"zeitreihe\"] .gh-zahl').length") == 7, "gehoert-zeitraum", "Woche: keine Zahl über jeder der 7 Säulen")
+    with L.schritt("gehoert-aufteilung"):
+        L.klick('[data-serie-zeile="lang"]')
+        L.warte_da('[data-karte="aufteilung"] [data-aufteilung]')
+        zeilen = L.js("return [...sr.querySelectorAll('[data-aufteilung] tbody tr')].map((r) => r.dataset.folge)")
+        L.pruefe(len(zeilen) == 45, "gehoert-aufteilung", f"{len(zeilen)} Folgen statt 45 (auch nicht gehörte)")
+        L.pruefe(L.da("[data-aufteilung] tr.gh-nie") and L.da("[data-aufteilung] tfoot [data-summe], [data-aufteilung] tfoot tr"), "gehoert-aufteilung", "Nicht gehörte Folgen oder Summe fehlen")
+        L.pruefe(L.js("return document.activeElement === null || sr.activeElement?.matches('[data-aufteilung-titel]')"), "gehoert-aufteilung", "Fokus nicht auf der Überschrift der Aufteilung")
+        L.klick("[data-aufteilung-zurueck]")
+        L.pruefe(L.da("[data-rangliste]") and not L.da("[data-aufteilung]"), "gehoert-aufteilung", "‹ Rangliste führt nicht zur Rangliste")
+        L.pg.wait_for_timeout(100)
+        L.pruefe(L.js("return sr.activeElement?.matches('[data-serie-zeile=\"lang\"]')"), "gehoert-aufteilung", "Fokus nach „‹ Rangliste“ nicht auf der Zeile")
+    with L.schritt("gehoert-tabellen"):
+        for karte in ("zeitreihe", "stunden"):
+            L.klick(f'[data-tabelle="{karte}"] summary')
+            L.pruefe(L.js(f"return sr.querySelector('[data-tabelle=\"{karte}\"]').open"), "gehoert-tabellen", f"{karte}: Tabelle klappt nicht auf")
+            L.pruefe(L.js(f"return sr.querySelectorAll('[data-tabelle=\"{karte}\"] tbody tr').length") >= 7, "gehoert-tabellen", f"{karte}: Tabelle ohne Zeilen")
+        satz = L.js("return sr.querySelector('[data-karte=\"stunden\"] [data-satz]').textContent")
+        L.pruefe("Am meisten um" in satz and "Uhr" in satz, "gehoert-tabellen", f"Tageszeiten ohne Satz „am meisten um …“: {satz!r}")
+        L.pruefe(L.js("return sr.querySelectorAll('[data-diagramm=\"stunden\"] .gh-saeule').length") > 0, "gehoert-tabellen", "Tageszeiten ohne Säulen")
+    with L.schritt("gehoert-gezaehlt"):
+        L.klick("[data-gezaehlt] summary")
+        t = L.js("return sr.querySelector('[data-gezaehlt]').textContent")
+        L.pruefe(all(w in t for w in ("Hörzeit", "Mal", "fertig", "30 Minuten")), "gehoert-gezaehlt", "Erklärung unvollständig")
+        L.pruefe("Handy ungefähr" not in t and "ungefähr" not in t, "gehoert-gezaehlt", "„Handy ungefähr“ steht noch da (Messung B2a)")
+    with L.schritt("gehoert-ereignis"):
+        n0 = len(aufrufe(L, "tobibox/gehoert/zusammenfassung"))
+        L.mock("/ereignis", {"thema": "gehoert", "art": "geaendert"})
+        L.pg.wait_for_function("([k, n]) => fetch(`/aufrufe?k=${encodeURIComponent(k)}&typ=tobibox/gehoert/zusammenfassung`).then((r) => r.json()).then((l) => l.length > n)",
+                               arg=[f"{L.job['profil']}~{L.job['kennung']}", n0], timeout=6000)
+        L.ruhe()
+        L.pruefe(L.da("[data-gehoert]"), "gehoert-ereignis", "Seite nach dem Ereignis weg")
+
+
+def ablauf_stern(L: Lauf):
+    """Stern auf der Serienseite (Knopf mit aria-pressed, Meldung), „Zu Favoriten“ im Menü der Folge, kleine Sterne in Zeilen und Kacheln, Filter „Favoriten“ und die
+    Sortierungen der Bibliothek, die Reihen „Zuletzt auf den Boxen gehört“ und „Favoriten“ auf dem Start."""
+    if L.job["profil"] == "alt":
+        return
+    k = f"{L.job['profil']}~{L.job['kennung']}"
+    with L.schritt("stern-reihen"):
+        L.mock("/ws", {"type": "tobibox/favorit/set", "serie_id": "lang", "folge": "f02.mp3", "an": True})
+        L.mock("/ws", {"type": "tobibox/favorit/set", "serie_id": "lang", "an": True})
+        L.gehe("#start")
+        L.warte_da('[data-reihe="zuletzt_gehoert"] .tile')
+        L.pruefe(L.da('[data-reihe="favoriten"] .tile'), "stern-reihen", "Reihe „Favoriten“ fehlt")
+        titel = L.js("return [...sr.querySelectorAll('.reihe .rowh')].map((h) => h.textContent.trim())")
+        L.pruefe("Zuletzt auf den Boxen gehört" in titel and "Favoriten" in titel and "Favoriten / Empfehlungen" not in titel, "stern-reihen", f"Reihentitel: {titel}")
+        L.pruefe(L.da('[data-reihe="favoriten"] [data-favorit][aria-label="Favorit"]'), "stern-reihen", "Kein kleiner Stern in der Reihe „Favoriten“")
+        L.pruefe(L.da('[data-reihe="favoriten"] [data-favorit-folge]'), "stern-reihen", "Stern an einer Folge ergibt keine Kachel mit Folgenname")
+        L.pruefe(L.js("return sr.querySelector('[data-reihe=\"zuletzt_gehoert\"]').closest('.reihe').querySelector('a.alle')?.getAttribute('href')") == "#bibliothek?sortierung=zuletzt_gehoert", "stern-reihen", "„Alle anzeigen“ der Reihe „Zuletzt gehört“ falsch")
+    with L.schritt("stern-serie"):
+        L.gehe("#serie-lied")
+        L.warte_da("[data-stern]")
+        L.pruefe(L.js("return sr.querySelector('[data-stern]').getAttribute('aria-pressed')") == "false", "stern-serie", "Stern schon gesetzt")
+        name = L.js("return sr.querySelector('[data-stern]').getAttribute('aria-label')")
+        L.pruefe(name.startswith("Favorit"), "stern-serie", f"Wort „Favorit“ nicht im Namen: {name!r}")
+        L.klick("[data-stern]")
+        L.pg.wait_for_function("() => window.__el.shadowRoot.querySelector('[data-stern]').getAttribute('aria-pressed') === 'true'", timeout=4000)
+        L.pruefe("ist jetzt ein Favorit" in L.toast(), "stern-serie", f"Meldung {L.toast()!r}")
+        L.pruefe(any(a["serie_id"] == "lied" and a["an"] is True and "folge" not in a for a in aufrufe(L, "tobibox/favorit/set")), "stern-serie", "Kein favorit/set für den Eintrag")
+        L.messe("stern-serie-gesetzt")
+        L.klick("[data-stern]")
+        L.pg.wait_for_function("() => window.__el.shadowRoot.querySelector('[data-stern]').getAttribute('aria-pressed') === 'false'", timeout=4000)
+        L.pruefe("kein Favorit mehr" in L.toast(), "stern-serie", f"Meldung {L.toast()!r}")
+    with L.schritt("stern-folge"):
+        L.gehe("#serie-lang")
+        L.warte_da('[data-folge="f02.mp3"]')
+        L.pruefe(L.da('[data-folge="f02.mp3"] [data-favorit]'), "stern-folge", "Kleiner Stern an der Folge mit Stern fehlt")
+        L.klick('[data-folge="f02.mp3"] [data-menue-folge]')
+        L.pruefe(L.js("return sr.querySelector('dialog [data-menue=\"favorit\"]')?.textContent.trim()") == "Aus Favoriten", "stern-folge", "Menüpunkt „Aus Favoriten“ fehlt")
+        L.klick('dialog [data-menue="favorit"]')
+        L.pg.wait_for_function("() => !window.__el.shadowRoot.querySelector('dialog[open]')", timeout=4000)
+        L.ruhe()
+        L.pruefe(not L.da('[data-folge="f02.mp3"] [data-favorit]'), "stern-folge", "Stern bleibt nach „Aus Favoriten“")
+        L.klick('[data-folge="f03.mp3"] [data-menue-folge]')
+        L.pruefe(L.js("return sr.querySelector('dialog [data-menue=\"favorit\"]')?.textContent.trim()") == "Zu Favoriten", "stern-folge", "Menüpunkt „Zu Favoriten“ fehlt")
+        L.klick('dialog [data-menue="favorit"]')
+        L.pg.wait_for_function("() => !!window.__el.shadowRoot.querySelector('[data-folge=\"f03.mp3\"] [data-favorit]')", timeout=4000)
+        L.pruefe(any(a.get("folge") == "f03.mp3" and a["an"] is True for a in aufrufe(L, "tobibox/favorit/set")), "stern-folge", "Kein favorit/set mit folge")
+    with L.schritt("stern-bibliothek"):
+        # frühere Abläufe haben vielleicht Einträge gelöscht: ein Stern an einer vorhandenen Serie, damit der Filter einen Treffer hat
+        L.mock("/ws", {"type": "tobibox/favorit/set", "serie_id": "lang", "an": True})
+        L.gehe("#bibliothek")
+        L.klick("[data-sortieren]")
+        namen = L.js("return [...sr.querySelector('dialog [role=radiogroup]').querySelectorAll('.optrow')].map((b) => b.textContent.trim())")
+        L.pruefe(namen == ["A bis Z", "Zuletzt hinzugefügt", "Zuletzt angehört", "Zuletzt gehört", "Meist gehört"], "stern-bibliothek", f"Sortierungen: {namen}")
+        L.pruefe(L.js("return [...sr.querySelectorAll('dialog .optrow[aria-pressed]')].map((b) => b.textContent.trim()).includes('Favoriten')"), "stern-bibliothek", "Filter „Favoriten“ fehlt")
+        L.klick('dialog .optrow[role=radio]:nth-of-type(5)')
+        L.js("[...sr.querySelectorAll('dialog .optrow[aria-pressed]')].find((b) => b.textContent.trim() === 'Favoriten').click()")
+        L.ruhe()
+        L.klick("dialog .knoepfe .btn.primary")
+        L.pg.wait_for_function("() => window.__el.shadowRoot.querySelectorAll('a.lrow, a.rcard').length > 0", timeout=4000)
+        L.ruhe()
+        L.pruefe(L.js("return sr.querySelectorAll('a.lrow, a.rcard').length") >= 1, "stern-bibliothek", "Filter „Favoriten“ ohne Treffer")
+        L.pruefe(L.js("return [...sr.querySelectorAll('a.lrow, a.rcard')].every((a) => !!a.querySelector('[data-favorit]'))"), "stern-bibliothek", "Nicht alle Treffer des Filters tragen den kleinen Stern")
+        s = aufrufe(L, "tobibox/serien/list")[-1]
+        L.pruefe(s.get("sortierung") == "meist_gehoert" and "favorit" in s.get("filter", []), "stern-bibliothek", f"Abfrage {s}")
+        L.js("el._seiten.bibliothek.zuruecksetzen({ mitArt: true })")
+        L.ruhe()
+    with L.schritt("stern-link"):
+        L.gehe("#start")
+        L.gehe("#bibliothek?filter=favorit")
+        L.pg.wait_for_function("() => { const o = window.__el._seiten.bibliothek; return o && o.e.filter.favorit; }", timeout=4000)
+        L.js("el._seiten.bibliothek.zuruecksetzen({ mitArt: true })")
+        L.ruhe()
+
+
+def ablauf_technik_gehoert(L: Lauf):
+    """Technik, Stufe B: Karte „Verlauf“ (Akku-Kurve mit Beschreibung und Tabelle, 7 und 30 Tage, Ladevorgänge, Box ohne Sensor) und Karte „Hördaten“ (Tabelle sichern,
+    Löschen mit Anzahl und dem Wort LÖSCHEN). Nur Administratoren."""
+    if L.job["rolle"] != "admin" or L.job["profil"] == "alt":
+        return
+    k = f"{L.job['profil']}~{L.job['kennung']}"
+    with L.schritt("verlauf"):
+        L.gehe("#technik-box-kueche")
+        L.warte_da('[data-karte="verlauf"] [data-diagramm="akku"] svg')
+        s = L.js("const s = sr.querySelector('[data-diagramm=\"akku\"] svg'); return [s.getAttribute('role'), s.getAttribute('aria-label')]")
+        L.pruefe(s[0] == "img" and "Akku der letzten 7 Tage" in (s[1] or ""), "verlauf", f"Kurve ohne Beschreibung: {s}")
+        L.pruefe(L.da('[data-karte="verlauf"] [data-tabelle="akku"]'), "verlauf", "Akku-Tabelle fehlt")
+        L.pruefe(L.da('[data-liste="laden"] tbody tr') and L.da('[data-liste="lauf"] tbody tr'), "verlauf", "Ladevorgänge oder Laufzeit fehlen")
+        L.pruefe("läuft noch" in L.js("return sr.querySelector('[data-liste=\"laden\"]').textContent"), "verlauf", "Der laufende Ladevorgang steht nicht als „läuft noch“ da")
+        L.pruefe(L.js("return sr.querySelector('[data-verworfen]').textContent").startswith("3 Einträge"), "verlauf", "Verworfene Hördaten fehlen")
+        v = aufrufe(L, "tobibox/technik/verlauf")[-1]
+        L.pruefe(v["box"] == "kueche" and v["von"] < v["bis"], "verlauf", f"Abfrage {v}")
+        L.klick('[data-karte="verlauf"] [data-wert="30"]')
+        L.pg.wait_for_function("() => /30 Tage/.test(window.__el.shadowRoot.querySelector('[data-diagramm=\"akku\"] svg')?.getAttribute('aria-label') || '')", timeout=5000)
+        L.ruhe()
+        L.pruefe(L.js("return sr.querySelectorAll('[data-liste=\"laden\"] tbody tr').length") == 8 and L.da('[data-liste-mehr="laden"]'), "verlauf", "30 Tage: nicht erst acht Ladevorgänge mit „Alle zeigen“")
+        L.klick('[data-liste-mehr="laden"]')
+        L.pruefe(L.js("return sr.querySelectorAll('[data-liste=\"laden\"] tbody tr').length") > 8, "verlauf", "„Alle zeigen“ zeigt nicht mehr")
+        L.klick('[data-karte="verlauf"] [data-tabelle="akku"] summary')
+        L.pruefe(L.js("return sr.querySelectorAll('[data-tabelle=\"akku\"] tbody tr').length") >= 28, "verlauf", "Akku-Tabelle: zu wenige Tage")
+    with L.schritt("verlauf-ohne-sensor"):
+        L.gehe("#technik-box-kinderzimmer")
+        L.warte_da('[data-karte="verlauf"] [data-akku-keine]')
+        L.pruefe(not L.da('[data-diagramm="akku"]'), "verlauf-ohne-sensor", "Kurve ohne Akku-Sensor")
+    with L.schritt("hoerdaten-sichern"):
+        L.gehe("#technik-speicher")
+        L.pg.wait_for_function("() => window.__el.shadowRoot.querySelectorAll('[data-karte=\"hoerdaten\"] [data-quelle] option').length > 3", timeout=6000)
+        opt = L.js("return [...sr.querySelectorAll('[data-quelle] option')].map((o) => [o.value, o.textContent.trim()])")
+        L.pruefe([o[0] for o in opt[:3]] == ["alle", "boxen", "reinhoeren"] and any(o[0] == "box:kueche" for o in opt) and any(o[0].startswith("benutzer:") for o in opt), "hoerdaten-sichern", f"Auswahl: {opt}")
+        L.js("window.__dl = null; el._seiten.technik.hoerdaten.download = (u) => { window.__dl = u; };")
+        L.pg.select_option('[data-quelle]', "box:kueche")
+        L.klick('[data-aktion="hoerdaten_sichern"]')
+        L.pg.wait_for_function("() => !!window.__dl", timeout=4000)
+        e = aufrufe(L, "tobibox/gehoert/exportieren")
+        L.pruefe(e and e[-1]["quelle"] == "box:kueche", "hoerdaten-sichern", f"Export {e}")
+        L.pruefe("authSig=" in L.js("return window.__dl"), "hoerdaten-sichern", "Download ohne signierten Pfad")
+    with L.schritt("hoerdaten-loeschen"):
+        L.pg.select_option('[data-quelle]', "reinhoeren")
+        L.klick('[data-aktion="hoerdaten_loeschen"]')
+        L.warte_da("dialog[open] [data-loeschen-zahl]")
+        L.pruefe("nicht rückgängig" in L.js("return sr.querySelector('dialog[open] [data-loeschen-zahl]').textContent") and "Reinhören" in L.js("return sr.querySelector('dialog[open] [data-loeschen-zahl]').textContent"), "hoerdaten-loeschen", "Anzahl und Warnung fehlen im Blatt")
+        ja = "dialog[open] .knoepfe .btn.danger"
+        L.pruefe(L.js("return sr.querySelector('dialog[open] .knoepfe .btn.danger').disabled"), "hoerdaten-loeschen", "„Endgültig löschen“ vor dem Wort nicht gesperrt")
+        L.pruefe(all(a.get("trocken") for a in aufrufe(L, "tobibox/gehoert/loeschen")), "hoerdaten-loeschen", "Gelöscht, bevor bestätigt wurde")
+        L.pg.locator("#tv-wort").fill("falsch")
+        L.pruefe(L.js("return sr.querySelector('dialog[open] .knoepfe .btn.danger').disabled"), "hoerdaten-loeschen", "Falsches Wort entsperrt den Knopf")
+        L.pg.locator("#tv-wort").fill("LÖSCHEN")
+        L.ruhe()
+        L.klick(ja)
+        L.pg.wait_for_function("() => !window.__el.shadowRoot.querySelector('dialog[open]')", timeout=4000)
+        L.ruhe()
+        l = aufrufe(L, "tobibox/gehoert/loeschen")
+        L.pruefe(l[-1].get("bestaetigung") == "LÖSCHEN" and l[-1]["quelle"] == "reinhoeren" and not l[-1].get("trocken"), "hoerdaten-loeschen", f"Löschbefehl {l[-1]}")
+        L.pruefe("gelöscht" in L.toast(), "hoerdaten-loeschen", f"Meldung {L.toast()!r}")
+        L.gehe("#gehoert")
+        gh_zuruecksetzen(L)
+        L.pruefe(not L.da('[data-wer-knopf^="benutzer:"]') or L.js("return sr.querySelectorAll('[data-wer-knopf^=\"benutzer:\"]').length") <= 1, "hoerdaten-loeschen", "Personen stehen nach dem Löschen noch in der Auswahl")
+
+
+def ablauf_player_gehoert(L: Lauf):
+    """Der Player sendet mit jedem `hoerstelle/set` `spieler` (eine Kennung je Player) und `spielt`; ohne die Fähigkeit `gehoert` sendet er beides nicht."""
+    L.gehe("#bibliothek")
+    if not L.da("a.lrow[data-serie], a.rcard[data-serie]"):
+        return
+    alt = L.job["profil"] == "alt"
+    with L.schritt("player-spieler"):
+        n0 = len(aufrufe(L, "tobibox/hoerstelle/set"))  # frühere Abläufe haben schon Hörstellen gesendet (und den Player neu geladen)
+        player_start(L)
+        L.js("el.spieler._speichere(true)")
+        L.pg.wait_for_timeout(300)
+        L.js("const a = sr.querySelector('audio'); a.pause();")
+        L.pg.wait_for_timeout(500)
+        sets = aufrufe(L, "tobibox/hoerstelle/set")[n0:]
+        L.pruefe(len(sets) >= 2, "player-spieler", f"Nur {len(sets)} hoerstelle/set")
+        if alt:
+            L.pruefe(all("spieler" not in x and "spielt" not in x for x in sets), "player-spieler", "spieler/spielt ohne die Fähigkeit gehoert gesendet")
+        else:
+            ids = {x.get("spieler") for x in sets}
+            L.pruefe(len(ids) == 1 and re.fullmatch(r"[A-Za-z0-9_-]{8,64}", next(iter(ids)) or ""), "player-spieler", f"spieler: {ids}")
+            L.pruefe(any(x.get("spielt") is True for x in sets) and sets[-1].get("spielt") is False, "player-spieler", f"spielt: {[x.get('spielt') for x in sets]} (läuft, dann Pause)")
+    player_aus(L)
+
+
+
 ABLAEUFE = [ablauf_unterkante, ablauf_reiter, ablauf_klicks, ablauf_reihen, ablauf_suche, ablauf_bibliothek, ablauf_serie, ablauf_cover, ablauf_leise, ablauf_box, ablauf_technik, ablauf_blaetter,
             ablauf_tobies_weg1, ablauf_tobies_weg2, ablauf_tobies_meldung, ablauf_tobies_umhaengen, ablauf_tobies_geben, ablauf_tobies_lernmodus,
             ablauf_tobies_name_geben_weit_unten, ablauf_hinzufuegen, ablauf_eingang_liste, ablauf_anders_einsortieren, ablauf_eingang, ablauf_papierkorb, ablauf_papierkorb_punkt, ablauf_bewegung,
-            ablauf_druck, ablauf_seitenwechsel, ablauf_player_bewegung, ablauf_play_pause_lage, ablauf_wechsel_serie, ablauf_flug_ruhe, ablauf_blatt_tastatur, ablauf_serie_zeile, ablauf_kapitel, ablauf_player]
+            ablauf_druck, ablauf_seitenwechsel, ablauf_player_bewegung, ablauf_play_pause_lage, ablauf_wechsel_serie, ablauf_flug_ruhe, ablauf_blatt_tastatur, ablauf_serie_zeile, ablauf_kapitel, ablauf_player,
+            ablauf_gehoert, ablauf_stern, ablauf_technik_gehoert, ablauf_player_gehoert]
 
 
 # ------------------------------------------------------------------ Browser und Läufe
 # Abläufe, in denen die Seite Audio bewusst wechselt (Spulen, Folgenwechsel, Kapitelsprung, Neuladen, Fehlerwiederholung): dort sind abgebrochene Abrufe erlaubt
-AUDIO_ABBRUCH_ERLAUBT = ("ablauf_player", "ablauf_kapitel", "ablauf_wechsel_serie", "ablauf_play_pause_lage", "ablauf_serie_zeile")
+AUDIO_ABBRUCH_ERLAUBT = ("ablauf_player", "ablauf_kapitel", "ablauf_wechsel_serie", "ablauf_play_pause_lage", "ablauf_serie_zeile", "ablauf_player_gehoert")
 
 
 def audio_pruefen(L: Lauf, abrufe: list[dict]):
@@ -3287,6 +3596,10 @@ def jobs_bauen(a, basis):
             for thema in themen[:1]:
                 if "admin" in rollen:
                     neu("seiten", thema, "admin", "fenster", 390, profil=profil)
+        # ältere HA ohne Stufe B: keine Zeile, keine Reihen, kein Stern, kein Verlauf (Seiten) und der Player sendet kein `spieler` (Ablauf)
+        if "admin" in rollen:
+            neu("seiten", themen[0], "admin", "fenster", 390, profil="alt")
+            neu("ablaeufe", themen[0], "admin", "fenster", 390, profil="alt")
     return jobs
 
 

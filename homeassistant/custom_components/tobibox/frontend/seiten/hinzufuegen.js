@@ -148,6 +148,21 @@ export function wunschFuer(w, gruppe = neueId()) {
   return { ziel: 'auto', ...(n > 1 ? { gruppe } : {}) };
 }
 
+/* Titel einer Eingangs-Karte (Stufe B, Rest aus A-1c): ein Ordner, den die Seite für eine Gruppe angelegt hat („Upload ab12cd34“), zeigt die Namen der Dateien
+ * (`dateinamen` des Eintrags, ohne den Pfad) statt des erzeugten Namens; wartet die Gruppe noch auf Dateien (`wunsch.gruppe_anzahl` größer als die Zahl im Eintrag), steht
+ * „3 von 5 Dateien“. Ältere Backends liefern beides nicht: dann wie bisher. */
+export function eingangTitel(e) {
+  const n = Math.max(1, Number(e.dateien) || 1);
+  const generisch = !e.name || /^Upload [0-9a-f]{6,}$/i.test(e.name); // der Ordner, den die Seite für eine Gruppe anlegt, heißt nur „Upload ab12cd34“
+  if (Number(e.dateien) === 0 && !generisch) return String(e.name); // AC11: Ordner ohne Audiodatei: nur der Name, ohne Zahl
+  const soll = Number(e.wunsch?.gruppe_anzahl) || 0;
+  const dateien = soll > n ? fuellen(HINZU.von_gruppe, { anzahl: n, soll }) : dateienText(n);
+  if (!generisch) return fuellen(HINZU.titel_dateien, { dateien, namen: e.name });
+  const namen = (Array.isArray(e.dateinamen) ? e.dateinamen : []).map((x) => String(x).split('/').pop()).filter(Boolean);
+  if (!namen.length) return dateien;
+  return fuellen(HINZU.titel_dateien, { dateien, namen: `${namen.slice(0, ANZEIGE_NAMEN).join(', ')}${n > ANZEIGE_NAMEN ? ' …' : ''}` });
+}
+
 /* ------------------------------------------------------------------ Ergebnis aus dem Eingang (für den eigenen Hochladen) */
 
 const nameDesEintrags = (a) => {
@@ -897,10 +912,7 @@ class HinzSeite {
   _eingangKarte(z) {
     const e = z.eintrag;
     const T = HINZU;
-    const n = Math.max(1, Number(e.dateien) || 1);
-    const generisch = !e.name || /^Upload [0-9a-f]{6,}$/i.test(e.name); // der Ordner, den die Seite für eine Gruppe anlegt, heißt nur „Upload ab12cd34“
-    const ohneAudio = Number(e.dateien) === 0 && !generisch; // AC11: Ordner ohne Audiodatei: nur der Name, ohne Zahl
-    const titel = ohneAudio ? String(e.name) : generisch ? dateienText(n) : fuellen(T.titel_dateien, { dateien: dateienText(n), namen: e.name });
+    const titel = eingangTitel(e);
     const q = T.quelle[e.quelle] ?? null;
     const kopf = html`<div class="hz-titel" data-titel-eintrag>${titel}</div>`;
     const zeile = (art, text) => html`<div class="hz-zeile2">${art ? marke(art, text) : nothing}${q ? html`<span class="hz-quelle" data-quelle=${e.quelle}>${q}</span>` : nothing}</div>`;

@@ -57,8 +57,8 @@ export function kannNeuEinsortieren(e, { jetzt = Date.now() } = {}) {
 
 /* Die Einträge der letzten 24 Stunden (neueste zuerst, ohne Doppelte), je Zustand eine Liste.
  * opt.jetzt: Zeit in ms (Vorgabe jetzt). opt.offeneSerien: Menge von Serien-IDs, die noch „bitte prüfen“ sind (aus `serien/list` mit Filter
- * `pruefen`). Der Vertrag löscht `pruefen` am Eingangs-Eintrag nicht, wenn jemand „Das ist richtig“ tippt (`einsortierung/bestaetigen` wirkt nur auf
- * die Serie); darum zählt ein Eintrag nur dann als „bitte kurz ansehen“, wenn mindestens eine der betroffenen Serien noch geprüft werden muss.
+ * `pruefen`). Seit B3 setzt `einsortierung/bestaetigen` `pruefen` auch im Protokoll zurück; ein älteres Backend tut das nicht (nur die Serie). Darum zählt ein
+ * Eintrag weiter nur dann als „bitte kurz ansehen“, wenn mindestens eine der betroffenen Serien noch geprüft werden muss (Rückfall für ältere Backends).
  * Ohne `offeneSerien` (Backend ohne Bibliothek) gilt `pruefen` des Eintrags. */
 export function eingangAbleiten(eintraege, { jetzt = Date.now(), offeneSerien = null } = {}) {
   const gesehen = new Set();

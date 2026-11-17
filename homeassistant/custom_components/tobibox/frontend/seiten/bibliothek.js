@@ -3,7 +3,8 @@
  * Aufbau: Platz für das Upload-Band (A11), Zeile „Bibliothek“ mit Lupe und „+“, Arten-Zeile, Zählzeile mit dem Knopf
  * „Sortieren und Filter“, Liste (Päckchen von 60, endlos nachladend, mit „Mehr laden“ als Rückfall).
  * Die Arten-Zeile mit „Playlists“ kommt erst mit Stufe C und fehlt hier. Das Backend sucht, filtert, sortiert und blättert
- * (`serien/list`: art, filter, sortierung, limit, offset). Schnittstelle zur App: siehe bausteine.js.
+ * (`serien/list`: art, filter, sortierung, limit, offset). Stufe B (B4): Sortierungen „Zuletzt gehört“ und „Meist gehört“ (Fähigkeit `gehoert`) und der Filter „Favoriten“ (Fähigkeit
+ * `favoriten`), `#bibliothek?filter=favorit` vom Start. Schnittstelle zur App: siehe bausteine.js.
  */
 import { html, nothing, css, ic, listenZeile, rasterKachel, kopfAktion, segment, ladeMitGrenze, zaehle } from '../bausteine.js';
 import { BIB, SEITE, fuellen } from '../texte.js';
@@ -11,9 +12,10 @@ import { plusKlick } from './hinzufuegen.js';
 
 export const SEITE_GROESSE = 60; // Päckchen (Design 5.2 Punkt 5, X23)
 export const ARTEN = ['alle', 'hoerspiel', 'hoerbuch', 'musik', 'geschichte'];
-const FILTER = ['ohne_tobie', 'neu', 'pruefen'];
+const FILTER = ['ohne_tobie', 'neu', 'pruefen', 'favorit'];
+const SORTIERUNGEN = ['name', 'neu', 'angehoert', 'zuletzt_gehoert', 'meist_gehoert'];
 
-export const STANDARD = () => ({ art: 'alle', sortierung: 'name', typ: 'alle', filter: { ohne_tobie: false, neu: false, pruefen: false } });
+export const STANDARD = () => ({ art: 'alle', sortierung: 'name', typ: 'alle', filter: { ohne_tobie: false, neu: false, pruefen: false, favorit: false } });
 
 /* Zahl der eingestellten Dinge am Knopf „Sortieren und Filter“ (Art zählt nicht, sie hat eigene Reiter). */
 export function aktiveEinstellungen(e) {
@@ -54,9 +56,20 @@ class BibliothekSeite {
 
   betreten(route) {
     const w = route?.sortierung;
-    if (['name', 'neu', 'angehoert'].includes(w) && w !== this.e.sortierung) { this.e = { ...this.e, sortierung: w }; this.laden(false); return; }
+    const nurFavoriten = route?.filter === 'favorit' && this.ctx.faehig('favoriten'); // „Alle anzeigen“ der Reihe „Favoriten“ (Start)
+    if (nurFavoriten && !this.e.filter.favorit) { this.e = { ...this.e, filter: { ...this.e.filter, favorit: true } }; this.laden(false); return; }
+    if (SORTIERUNGEN.includes(w) && this._sortierungMoeglich(w) && w !== this.e.sortierung) { this.e = { ...this.e, sortierung: w }; this.laden(false); return; }
     this.laden(this.z.phase === 'bereit');
   } // schon Daten da: still auffrischen, ohne Platzhalter
+  /* „Zuletzt angehört“ gibt es mit `reinhoeren`, „Zuletzt gehört“ und „Meist gehört“ mit `gehoert` (Stufe B). */
+  _sortierungMoeglich(w) {
+    if (w === 'angehoert') return this.ctx.faehig('reinhoeren');
+    if (w === 'zuletzt_gehoert' || w === 'meist_gehoert') return this.ctx.faehig('gehoert');
+    return true;
+  }
+
+  _sortierungen() { return SORTIERUNGEN.filter((w) => this._sortierungMoeglich(w)); }
+
   neuLaden() { this.laden(true); }
   verlassen() { this._lauf += 1; this._io?.disconnect(); this._io = null; }
 
@@ -120,13 +133,14 @@ class BibliothekSeite {
   /* ---- Blatt „Sortieren und Filter“ */
   oeffneBlatt() {
     const b = BIB.blatt;
-    const sortierungen = this.ctx.faehig('reinhoeren') ? ['name', 'neu', 'angehoert'] : ['name', 'neu'];
+    const sortierungen = this._sortierungen();
+    const filter = FILTER.filter((f) => f !== 'favorit' || this.ctx.faehig('favoriten'));
     const wahl = (name, werte, texte, aktuell, setze) => html`<div class="stack" role="radiogroup" aria-label=${name}>${werte.map((w) => html`
       <button type="button" class="optrow" role="radio" aria-checked=${aktuell === w ? 'true' : 'false'} @click=${() => setze(w)}><span>${texte[w]}</span>${aktuell === w ? ic('check', 22) : nothing}</button>`)}</div>`;
     const inhalt = () => html`
       <h3 class="blatt-h">${b.sortieren}</h3>${wahl(b.sortieren, sortierungen, b.sortierung, this.e.sortierung, (w) => this.aendere({ sortierung: w }))}
       <h3 class="blatt-h">${b.was}</h3>${wahl(b.was, ['alle', 'sammlung', 'einzeln'], b.was_wahl, this.e.typ, (w) => this.aendere({ typ: w }))}
-      <h3 class="blatt-h">${b.nur}</h3><div class="stack">${FILTER.map((f) => html`
+      <h3 class="blatt-h">${b.nur}</h3><div class="stack">${filter.map((f) => html`
         <button type="button" class="optrow" aria-pressed=${this.e.filter[f] ? 'true' : 'false'} @click=${() => this.aendere({ filter: { [f]: !this.e.filter[f] } })}><span>${b.nur_wahl[f]}</span>${this.e.filter[f] ? ic('check', 22) : nothing}</button>`)}</div>`;
     return this.ctx.oeffneBlatt({
       titel: b.titel,

@@ -192,7 +192,7 @@ export function parseRoute(hash, { faehigkeiten = null } = {}) {
     return r({ name: 'gehoert', tab: 'geraete', seite: 'gehoert', zurueck: 'geraete' });
   }
   if (h === 'abends' || h === 'mehr') return r({ name: 'geraete', tab: 'geraete', umleitung: 'geraete' });
-  if (h === 'bibliothek') return r({ name: h, tab: h, sortierung: new URLSearchParams(abfrage).get('sortierung') || undefined });
+  if (h === 'bibliothek') return r({ name: h, tab: h, sortierung: new URLSearchParams(abfrage).get('sortierung') || undefined, filter: new URLSearchParams(abfrage).get('filter') || undefined });
   if (REITER.includes(h)) return r({ name: h, tab: h });
   return r({ name: 'start', tab: 'start' });
 }
@@ -201,7 +201,7 @@ export function parseRoute(hash, { faehigkeiten = null } = {}) {
 
 const GRENZE_LAEDT_MS = 10000;
 const KORB_GESEHEN = 'tobibox.korb_gesehen'; // localStorage: Zeitpunkt (ms) des neuesten Papierkorb-Eintrags, den dieses Gerät gesehen hat (AC3)
-const THEMEN = ['boxen', 'neue_tobies', 'konfig']; // dazu `eingang` (Band und Punkt, A11b) und `warteschlange`, wenn hello die Fähigkeit zusagt (Vertrag 4.5, 4.8)
+const THEMEN = ['boxen', 'neue_tobies', 'konfig']; // dazu `eingang` (Band und Punkt, A11b), `warteschlange`, `gehoert` und `favoriten`, wenn hello die Fähigkeit zusagt (Vertrag 4.5, 4.8 bis 4.10)
 
 export class AppStore {
   constructor({ ladeGrenzeMs = GRENZE_LAEDT_MS } = {}) {
@@ -268,7 +268,7 @@ export class AppStore {
       this.s.grenzen = hello.grenzen || {}; // upload_max_bytes, upload_parallel, endungen … (A11a: Hinzufügen)
       this.s.boxAnzeigen = { ...(hello.grenzen?.box_anzeigen || {}), ...(hello.box_anzeigen || {}) };
       this.s.konfigZustand = hello.konfig?.zustand || 'ok';
-      const themen = [...THEMEN, ...(fae.includes('eingang') ? ['eingang'] : []), ...(fae.includes('warteschlange') ? ['warteschlange'] : []), ...(this._korbBeobachten() ? ['medien'] : [])];
+      const themen = [...THEMEN, ...(fae.includes('eingang') ? ['eingang'] : []), ...(fae.includes('warteschlange') ? ['warteschlange'] : []), ...(fae.includes('gehoert') ? ['gehoert'] : []), ...(fae.includes('favoriten') ? ['favoriten'] : []), ...(this._korbBeobachten() ? ['medien'] : [])];
       this._abo = await this.hass.connection.subscribeMessage((ev) => this._ereignis(ev), { type: 'tobibox/subscribe', themen });
       if (lauf !== this._lauf) return;
       await this._ladeListen();
@@ -1579,8 +1579,6 @@ if (lit) {
           return html`${h2()}${this._leer('tobies', 'keineTobies')}`;
         case 'geraete':
           return html`${h2()}<div class="platz" data-platz="boxen"></div>${Object.keys(s.boxen).length ? nothing : this._leer('keine_box', 'keineBox', { aktion: () => this.store.start() })}`;
-        case 'gehoert':
-          return html`${this._zurueck(r)}${h2()}${this._leer('gehoert', 'gehoertOhneDaten', { href: '#bibliothek' })}`;
         default:
           return html`${this._zurueck(r)}${h2()}<div class="platz" data-platz=${r.name}></div>`;
       }

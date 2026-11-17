@@ -416,8 +416,26 @@ test('Serienseite: ohne Eintrag in den letzten 24 Stunden steht die Karte ohne �
   weg();
 });
 
-test('Serienseite: „Das ist richtig“ sendet einsortierung/bestaetigen, die Karte verschwindet, und das Band in der Bibliothek ist weg (der Eintrag bleibt „pruefen“ im Protokoll)', MIT_DOM, async () => {
+test('Serienseite: „Das ist richtig“ sendet einsortierung/bestaetigen, die Karte verschwindet, und das Band in der Bibliothek ist weg (das Backend setzt „pruefen“ im Protokoll zurück, B3)', MIT_DOM, async () => {
   const s = await serieSeite('s2', { eingangErledigt: [bibi()] });
+  await geheZu(s, '#bibliothek');
+  assert.equal(bandText(s), '1 neuer Eintrag bitte kurz ansehen.');
+  await geheZu(s, '#serie-s2');
+  await klick(s, s.q('[data-richtig]'));
+  assert.deepEqual(s.m.aufrufe('tobibox/einsortierung/bestaetigen').map(({ id, type, ...r }) => r), [{ serie_id: 's2' }]);
+  assert.equal(s.q('[data-karte="ansehen"]'), null);
+  assert.deepEqual(toasts(s), ['Danke, ist erledigt.']);
+  assert.equal(s.m.backend.eingangErledigt[0].pruefen, false, 'das Backend setzt das Kennzeichen am Eintrag jetzt zurück (Rest aus A-1c, B3)');
+  assert.equal(s.m.backend.eingangErledigt[0].ergebnis[0].pruefen, false);
+  await s.flush(10);
+  await geheZu(s, '#bibliothek');
+  assert.equal(band(s)?.dataset.eingangBand, 'fertig', 'bestätigt heißt: nichts mehr anzusehen, kurz „Alles hinzugefügt.“');
+  assert.ok(!band(s).classList.contains('pruefen'));
+  weg();
+});
+
+test('Ältere HA ohne Zurücksetzen im Protokoll: „Das ist richtig“ sendet einsortierung/bestaetigen, die Karte verschwindet, und das Band in der Bibliothek ist weg (der Eintrag bleibt „pruefen“ im Protokoll, Rückfall der Seite)', MIT_DOM, async () => {
+  const s = await serieSeite('s2', { eingangErledigt: [bibi()], ohneProtokollReset: true });
   await geheZu(s, '#bibliothek');
   assert.equal(bandText(s), '1 neuer Eintrag bitte kurz ansehen.');
   await geheZu(s, '#serie-s2');

@@ -3,7 +3,7 @@
  * Von oben nach unten: Karten der Boxen (ein Satz je Box, ganze Karte ist ein Link auf `#box-<id>`), ein Platz für die
  * Karten „Neuer Tobie aufgelegt“ und die Warteschlange (A9/A10), dann „Abends“ mit der Karte „Gute Nacht“ (Schnellwahl, ein Tipp
  * speichert sofort) und der Karte „Leise-Zeiten“ (Wochenansicht, Satz „Jetzt: …“, „+ Leise-Zeit“, Blatt zum Anlegen,
- * Ändern und Löschen). Die Zeile „Wer hat was gehört?“ ist Stufe B (Fähigkeit `gehoert`, Paket B5) und fehlt hier.
+ * Ändern und Löschen). Ganz unten die Zeile „Wer hat was gehört?“ (Stufe B, Fähigkeit `gehoert`, Paket B4) zur Unterseite `#gehoert`.
  *
  * Daten: Boxen kommen live aus dem Speicher der App (`ctx.boxen()`, Vertrag `boxen/list` und Ereignisse), die Namen der
  * spielenden Serie und Folge holt die Seite einmal je Serie mit `serie/get`. Einstellungen: `einstellungen/get` und
@@ -464,7 +464,13 @@ class GeraeteSeite {
         ? html`<div class="gboxen" data-geraete="boxen" role="list" aria-label=${GERAETE_SEITE.boxen_label}>${boxen.map((b) => html`<div role="listitem">${boxKarte(this.status.daten(b))}</div>`)}</div>`
         : ctx.leer('keine_box', 'keineBox', { aktion: () => window.location.reload() })}
       <div class="platz" data-platz="neue-tobies">${geraeteKarten(ctx)}</div>
-      ${this._abends()}`;
+      ${this._abends()}${this._gehoertZeile()}`;
+  }
+
+  /* Zeile „Wer hat was gehört?“ (Stufe B, Design 5.10): nur mit der Fähigkeit `gehoert`; öffnet die Unterseite `#gehoert`. */
+  _gehoertZeile() {
+    if (!this.ctx.faehig('gehoert')) return nothing;
+    return html`<a class="gkarte glink gh-zeile" href="#gehoert" data-gehoert-link>${GERAETE.gehoert.titel}<span class="chev" aria-hidden="true">${ic('chev', 24)}</span></a>`;
   }
 
   _abends() {
@@ -626,4 +632,5 @@ export const stil = () => css`
   a.glink .chev svg { width: 24px; height: 24px; fill: currentColor; display: block; }
   a.glink.gkarte { padding: 0 16px; }
   main h2.technik { margin-top: 24px; }
+  .gh-zeile { margin-top: 24px; }
 `;
