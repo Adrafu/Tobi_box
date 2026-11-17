@@ -103,6 +103,9 @@ class Favoriten:
         if vorhanden is not None:
             return False
         if len(self.eintraege) >= FAVORITEN_MAX:
+            # unsichtbare Sterne (gelöschte Serie oder Folge) zählen nicht: erst bereinigen, dann erneut prüfen
+            self._raeume_verwaiste_auf()
+        if len(self.eintraege) >= FAVORITEN_MAX:
             raise TobiboxFehler("zu_viele_favoriten")
         self.eintraege.append({"serie_id": serie_id, "folge": folge, "gesetzt_von": nutzer_id, "gesetzt_am": jetzt_iso()})
         self._speichern()
@@ -116,6 +119,13 @@ class Favoriten:
             return True
         info = medien.serien.get(e["serie_id"])
         return info is not None and (e["folge"] is None or e["folge"] in info.serie.folgen)
+
+    def _raeume_verwaiste_auf(self) -> None:
+        """Entfernt Einträge, deren Serie oder Folge es nicht mehr gibt (nur nach gelungener Prüfung der Freigabe, wie ``liste``)."""
+        rest = [e for e in self.eintraege if self._existiert(e)]
+        if len(rest) != len(self.eintraege):
+            self.eintraege = rest
+            self._speichern()
 
     def liste(self) -> list[dict[str, Any]]:
         """Die Einträge, deren Serie und Folge es gibt (Befehl 56); älteste zuerst."""
@@ -156,7 +166,7 @@ class Favoriten:
     def schreibe_um(self, zuordnung: dict[tuple[str, str], tuple[str, str]], serie_um: tuple[str, str] | None = None) -> None:
         """Zieht Sterne mit: ``(serie, folge)`` -> ``(neue serie, neue folge)``; ``serie_um = (alt, neu)`` zieht außerdem den Stern an der Serie selbst
         um (Zusammenführen). Steht der Stern am Ziel schon, bleibt einer (der ältere)."""
-        geaendert = False
+        geaendert: list[tuple[tuple[str, str | None], tuple[str, str | None]]] = []
         for e in self.eintraege:
             neu: tuple[str, str | None] | None = None
             if e["folge"] is not None and (e["serie_id"], e["folge"]) in zuordnung:
@@ -164,8 +174,8 @@ class Favoriten:
             elif serie_um is not None and e["folge"] is None and e["serie_id"] == serie_um[0]:
                 neu = (serie_um[1], None)
             if neu is not None:
+                geaendert.append(((e["serie_id"], e["folge"]), neu))
                 e["serie_id"], e["folge"] = neu
-                geaendert = True
         if not geaendert:
             return
         gesehen: set[tuple[str, str | None]] = set()
@@ -177,3 +187,7 @@ class Favoriten:
             rest.append(e)
         self.eintraege = rest
         self._speichern()
+        # Ereignis wie bei ``favorit/set`` (Vertrag 4.10): der Stern fällt am alten Ort weg und steht am neuen (andere Fenster ziehen die Anzeige nach)
+        for (alt_serie, alt_folge), (neu_serie, neu_folge) in geaendert:
+            self.hub.emit("favoriten", "geaendert", {"serie_id": alt_serie, "folge": alt_folge, "an": False})
+            self.hub.emit("favoriten", "geaendert", {"serie_id": neu_serie, "folge": neu_folge, "an": True})

@@ -132,3 +132,36 @@ async def test_befehl_50_waehrend_einer_aufnahme(hass, gross, hass_ws_client):
     print(f"\nBefehl 50 während der Aufnahme ({zaehler} Zeilen geschrieben): Median {statistics.median(zeiten) * 1000:.1f} ms, größter Wert {max(zeiten) * 1000:.1f} ms")
     assert zaehler > 10  # die Aufnahme lief wirklich
     assert statistics.median(zeiten) < GRENZE_S
+
+
+async def test_export_30000_zeilen_blockiert_die_event_loop_nicht(hass, gross):
+    """Befehl 53: Zeilenaufbau und CSV laufen im Executor; ein parallel tickender Zeitgeber misst, wie lange die Event-Loop stillsteht."""
+    # Die Testschleife von HA läuft im Debug-Modus: jede Future sammelt dort ihren Aufrufstapel (mit ``os.stat`` je Datei), und jeder dieser Aufrufe wartet
+    # neben einem rechnenden Executor-Thread bis zu 5 ms auf die GIL. Das verfälscht die Messung (150 ms Stillstand ohne Ursache im Code), nicht die HA.
+    hass.loop.set_debug(False)
+    abstaende: list[float] = []
+    laeuft = True
+
+    async def ticker():
+        letzt = time.perf_counter()
+        while laeuft:
+            await asyncio.sleep(0.005)
+            jetzt = time.perf_counter()
+            abstaende.append(jetzt - letzt)
+            letzt = jetzt
+
+    task = hass.async_create_background_task(ticker(), "test_ticker")
+    await asyncio.sleep(0.05)
+    t0 = time.perf_counter()
+    try:
+        inhalt, name = await gross.gehoert.abfrage.export_csv("alle")
+    finally:
+        gesamt = time.perf_counter() - t0
+        laeuft = False
+        await task
+    zeilen = inhalt.decode("utf-8-sig").split("\r\n")
+    print(f"\nExport bei 30 000 Zeilen: {gesamt * 1000:.0f} ms, längster Stillstand der Event-Loop {max(abstaende) * 1000:.0f} ms")
+    assert len(zeilen) == 1 + ZEILEN + 1  # Kopfzeile, Zeilen, leeres Ende nach dem letzten Zeilenumbruch
+    assert name.startswith("gehoert-alle-")
+    assert gesamt < 2.0
+    assert max(abstaende) < 0.1

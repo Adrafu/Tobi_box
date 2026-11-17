@@ -981,3 +981,106 @@ async def test_subscribe_themen_gehoert_und_favoriten_snapshot_leer_und_ereignis
     nachrichten = [await api.receive_json(), await api.receive_json()]
     ereignis = next(n for n in nachrichten if n["type"] == "event")
     assert ereignis["event"]["daten"] == {"serie_id": "rabe", "folge": None, "an": True}
+
+
+# --------------------------------------------------------------------------------------------
+# Nacharbeit B3 (Review)
+# --------------------------------------------------------------------------------------------
+
+
+async def test_csv_entschaerfung_tab_und_cr_am_zellenanfang():
+    from custom_components.tobibox.gehoert_abfrage import csv_zelle
+
+    assert csv_zelle("\tx") == "'\tx"
+    assert csv_zelle("\rx") == "'\rx"
+    assert csv_zelle("x\ty") == "x\ty"  # nur der Anfang zählt
+    assert csv_zelle(None) == "" and csv_zelle(5) == "5"
+
+
+async def test_54_loeschen_alle_und_reinhoeren_erfasst_offene_sitzung_ohne_zeile(hass, api, bestand, anna, ereignisse):
+    """Eine Reinhör-Sitzung unter 5 Minuten hat noch keine Zeile: ``alle`` und ``reinhoeren`` verwerfen sie trotzdem und setzen die Löschmarke."""
+    uhr = {"t": 1000.0}
+    bestand.reinhoeren.mono = lambda: uhr["t"]
+    quelle = "benutzer:" + anna.nutzer.id
+    for befehl_quelle in ("alle", "reinhoeren"):
+        await bestand.reinhoeren.melde(anna.nutzer.id, "spieler-0001", "rabe", "a.mp3", 0, 100, None, True, False)
+        uhr["t"] += 30
+        await bestand.reinhoeren.melde(anna.nutzer.id, "spieler-0001", "rabe", "a.mp3", 30, 100, None, True, False)
+        assert len(bestand.reinhoeren.offen) == 1
+        assert await zeilen(bestand, quelle) == []  # noch keine Zeile in der Datenbank
+        assert (await ok(api, "gehoert/loeschen", quelle=befehl_quelle, trocken=True))["anzahl"] == 0
+        await ok(api, "gehoert/loeschen", quelle=befehl_quelle, bestaetigung="LÖSCHEN")
+        assert bestand.reinhoeren.offen == {}
+        uhr["t"] += 400
+        await bestand.reinhoeren.takt()  # schreibt nichts von vor der Löschung
+        assert await zeilen(bestand, quelle) == []
+    marken = await hass.async_add_executor_job(bestand.gehoert.db.marken)
+    assert quelle in marken
+
+
+async def test_55_grenze_zaehlt_keine_unsichtbaren_sterne(bestand):
+    f = bestand.favoriten
+    with patch("custom_components.tobibox.favoriten.FAVORITEN_MAX", 2):
+        f.setze("u", "rabe", None, True)
+        f.eintraege.append({"serie_id": "weg", "folge": None, "gesetzt_von": "u", "gesetzt_am": "2026-11-16T10:00:00Z"})  # Serie gelöscht: unsichtbar
+        assert f.setze("u", "rabe", "a.mp3", True) is True  # der verwaiste Stern wird erst bereinigt, dann geprüft
+        assert [(e["serie_id"], e["folge"]) for e in f.eintraege] == [("rabe", None), ("rabe", "a.mp3")]
+        with pytest.raises(Exception) as e:  # zwei sichtbare Sterne: die Grenze gilt weiter
+            f.setze("u", "rabe", "b.mp3", True)
+        assert e.value.code == "zu_viele_favoriten"
+
+
+async def test_55_grenze_ohne_geprueftes_nas_bereinigt_nichts(bestand):
+    f = bestand.favoriten
+    with patch("custom_components.tobibox.favoriten.FAVORITEN_MAX", 2):
+        f.setze("u", "rabe", None, True)
+        f.eintraege.append({"serie_id": "weg", "folge": None, "gesetzt_von": "u", "gesetzt_am": "2026-11-16T10:00:00Z"})
+        bestand.medien.geprueft_am = None
+        with pytest.raises(Exception) as e:
+            f.setze("u", "rabe", "a.mp3", True)
+        assert e.value.code == "zu_viele_favoriten"
+        assert len(f.eintraege) == 2
+
+
+async def test_stern_beim_verschieben_loest_ereignis_aus(api, bestand, ereignisse):
+    await ok(api, "favorit/set", serie_id="rabe", folge="a.mp3", an=True)
+    ereignisse.clear()
+    await ok(api, "folge/verschieben", serie_id="rabe", folge="a.mp3", ziel_serie_id="zwei")
+    assert [e["daten"] for e in ereignisse if e["thema"] == "favoriten"] == [
+        {"serie_id": "rabe", "folge": "a.mp3", "an": False},
+        {"serie_id": "zwei", "folge": "a.mp3", "an": True},
+    ]
+    ereignisse.clear()
+    bestand.favoriten.schreibe_um({("rabe", "gibtsnicht"): ("zwei", "x")})  # nichts betroffen: kein Ereignis
+    assert [e for e in ereignisse if e["thema"] == "favoriten"] == []
+
+
+async def test_stern_beim_zusammenfuehren_loest_ereignis_aus(bestand, ereignisse):
+    bestand.favoriten.setze("u", "rabe", None, True)
+    ereignisse.clear()
+    bestand.favoriten.schreibe_um({}, ("rabe", "zwei"))
+    assert [e["daten"] for e in ereignisse if e["thema"] == "favoriten"] == [
+        {"serie_id": "rabe", "folge": None, "an": False},
+        {"serie_id": "zwei", "folge": None, "an": True},
+    ]
+
+
+async def test_kurzform_nach_aenderung_hat_zuletzt_gehoert_am_auch_beim_ersten_aufruf(daten):
+    bestand = daten
+    bestand.gehoert._zs = None  # wie nach dem Start: noch nie geladen
+    antwort = await bestand.medien.bestaetigen("rabe", None)
+    assert antwort["zuletzt_gehoert_am"] == "2026-11-17T08:01:40Z"
+    bestand.gehoert._zs = None
+    antwort = await bestand.medien.serie_umbenennen("zwei", "Zweite Serie neu")
+    assert antwort["zuletzt_gehoert_am"] == "2026-11-10T09:05:00Z"
+
+
+async def test_52_verlauf_kuerzt_die_gelesenen_zeilen_und_meldet_weitere(api, bestand):
+    from custom_components.tobibox import gehoert as gehoert_modul
+
+    await bestand.gehoert.technik_schreibe("box1", [(utc(2026, 11, 10, 8) + i, "fehler", "x") for i in range(30)])
+    with patch.object(gehoert_modul, "TECHNIK_ZEILEN_MAX", 20), patch("custom_components.tobibox.gehoert_abfrage.TECHNIK_ZEILEN_MAX", 20):
+        r = await ok(api, "technik/verlauf", box="box1", von="2026-11-10", bis="2026-11-10")
+    assert len(r["fehler"]) == 20 and r["weitere"] is True
+    r = await ok(api, "technik/verlauf", box="box1", von="2026-11-10", bis="2026-11-10")
+    assert len(r["fehler"]) == 30 and r["weitere"] is False

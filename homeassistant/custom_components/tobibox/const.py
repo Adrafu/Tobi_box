@@ -370,5 +370,9 @@ GEHOERT_MEIST_TAGE: Final = 365
 #: Befehl 52: Spanne von ``von`` bis ``bis`` in Tagen, Einträge je Liste
 TECHNIK_SPANNE_MAX_TAGE: Final = 400
 TECHNIK_LISTE_MAX: Final = 2000
+#: Befehl 52: höchstens so viele Tabellenzeilen werden gelesen. Der Vertrag kürzt jede der sechs Listen bei ``TECHNIK_LISTE_MAX`` (2000) Einträgen; ein
+#: Ladevorgang oder eine Laufzeit braucht zwei Zeilen, also genügen für alle Listen zusammen höchstens rund 12 000 Zeilen. 50 000 lassen reichlich Luft
+#: (auch für eine Flut einer einzigen Art) und halten Speicher und Rechenzeit klein; wird die Grenze erreicht, steht ``weitere`` auf ``true``.
+TECHNIK_ZEILEN_MAX: Final = 50_000
 #: ``favorit/set`` je Minute und Benutzer (eigener Zähler; Administratoren ausgenommen, 2.4)
 FAVORITEN_JE_MINUTE: Final = 30

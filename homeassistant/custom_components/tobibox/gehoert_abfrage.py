@@ -15,7 +15,7 @@ import io
 import logging
 import re
 import unicodedata
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta, tzinfo
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.util import dt as dt_util
@@ -27,6 +27,7 @@ from .const import (
     GEHOERT_ZULETZT_LIMIT_MAX,
     RE_BOX,
     TECHNIK_LISTE_MAX,
+    TECHNIK_ZEILEN_MAX,
     TECHNIK_SPANNE_MAX_TAGE,
 )
 from .fehler import TobiboxFehler
@@ -164,6 +165,41 @@ def baue_csv(zeilen: list[list[Any]]) -> bytes:
     for z in zeilen:
         schreiber.writerow([csv_zelle(x) for x in z])
     return ("﻿" + puffer.getvalue()).encode("utf-8")
+
+
+def baue_export(
+    zeilen: list[dict[str, Any]], namen: dict[str, str], serien_namen: dict[str, str], anzeigen: dict[str, dict[str, str]], zone: tzinfo
+) -> bytes:
+    """Die CSV-Datei des Exports aus den Tabellenzeilen (läuft im Executor; liest nur die übergebenen Werte).
+
+    ``Quelle`` ist der Anzeigename (Box, Person), ``Folge`` der Titel der Folge, wenn es ihn gibt, sonst der gespeicherte Name; ``Serie`` „Gelöscht“, wenn es
+    die Serie nicht mehr gibt (B3-OFFEN)."""
+
+    def zeit(sekunden: int) -> str:
+        return datetime.fromtimestamp(sekunden, zone).strftime("%Y-%m-%d %H:%M:%S")
+
+    aus = []
+    for z in zeilen:
+        folge = z["folge"]
+        serie_name = serien_namen.get(z["serie"])
+        if serie_name is not None:
+            folge = anzeigen.get(z["serie"], {}).get(folge, folge)
+        bekannt = z["datum"] != "unbekannt"
+        aus.append(
+            [
+                zeit(z["beginn"]) if bekannt else "",
+                zeit(z["ende_um"]) if bekannt else "",
+                namen.get(z["quelle"], z["quelle"]),
+                serie_name if serie_name is not None else GELOESCHT_NAME,
+                folge,
+                z["gehoert_s"],
+                z["ende"],
+                "ja" if z["mal_zaehlt"] else "nein",  # B3-OFFEN: „Mal neu“ = erste Sitzung eines Mals, das zählt (so summiert die Spalte zur Zahl „Mal“)
+                "ja" if z["fertig"] else "nein",
+                DATUM_TEXT.get(z["datum"], z["datum"]),
+            ]
+        )
+    return baue_csv(aus)
 
 
 def export_dateiname(quelle: str, heute: date) -> str:
@@ -444,7 +480,11 @@ class GehoertAbfragen:
         ende_tag = bis_tag + timedelta(days=1)
         bis_s = int(datetime(ende_tag.year, ende_tag.month, ende_tag.day, tzinfo=zone).timestamp())
         roh = await self.gehoert._lauf(db.technik_lies, box, von_s, bis_s)
-        return baue_verlauf(roh["zeilen"], roh["vorher"], roh["danach"])
+        # Der Aufbau rechnet über bis zu ``TECHNIK_ZEILEN_MAX`` Zeilen: nicht in der Event-Loop
+        verlauf = await self.hub.hass.async_add_executor_job(baue_verlauf, roh["zeilen"], roh["vorher"], roh["danach"])
+        if len(roh["zeilen"]) >= TECHNIK_ZEILEN_MAX:  # die Zeilen waren schon gekürzt: es gibt mehr
+            verlauf["weitere"] = True
+        return verlauf
 
     # --- 53: gehoert/exportieren (der Abruf: ``gehoert_export.py``) -----------------------------------
 
@@ -463,41 +503,28 @@ class GehoertAbfragen:
         zeilen = await self.gehoert._lauf(db.zeilen_fuer_export, sql, params)
         # B3-OFFEN: ``Quelle`` ist der Anzeigename (Box, Person), ``Folge`` der Titel der Folge, wenn es sie gibt, sonst der gespeicherte Name; ``Serie`` „Gelöscht“, wenn es sie nicht mehr gibt
         namen = {a["wer"]: a["name"] for a in await self.wer_auswahl(await self.quellen_in_db())}
-        zone = self._zone()
         serien = hub.medien.serien
-
-        def zeit(sekunden: int) -> str:
-            return datetime.fromtimestamp(sekunden, zone).strftime("%Y-%m-%d %H:%M:%S")
-
-        aus = []
-        for z in zeilen:
-            info = serien.get(z["serie"])
-            folge = z["folge"]
+        # Anzeigenamen der Folgen und Namen der Serien je Serie **einmal** vorrechnen (nur die Serien, die in den Zeilen vorkommen)
+        serien_namen: dict[str, str] = {}
+        anzeigen: dict[str, dict[str, str]] = {}
+        for sid in {z["serie"] for z in zeilen}:
+            info = serien.get(sid)
             if info is not None:
-                folge = next((o.get("anzeige") or folge for o in info.folgen_objekte if o["name"] == folge), folge)
-            bekannt = z["datum"] != "unbekannt"
-            aus.append(
-                [
-                    zeit(z["beginn"]) if bekannt else "",
-                    zeit(z["ende_um"]) if bekannt else "",
-                    namen.get(z["quelle"], z["quelle"]),
-                    info.serie.name if info is not None else GELOESCHT_NAME,
-                    folge,
-                    z["gehoert_s"],
-                    z["ende"],
-                    "ja" if z["mal_zaehlt"] else "nein",  # B3-OFFEN: „Mal neu“ = erste Sitzung eines Mals, das zählt (so summiert die Spalte zur Zahl „Mal“)
-                    "ja" if z["fertig"] else "nein",
-                    DATUM_TEXT.get(z["datum"], z["datum"]),
-                ]
-            )
-        return baue_csv(aus), export_dateiname(quelle, self._heute())
+                serien_namen[sid] = info.serie.name
+                anzeigen[sid] = {o["name"]: o["anzeige"] for o in info.folgen_objekte if o.get("anzeige")}
+        # Zeilenaufbau und CSV rechnen bei 30 000 Zeilen merklich: im Executor, nicht in der Event-Loop
+        inhalt = await hub.hass.async_add_executor_job(baue_export, zeilen, namen, serien_namen, anzeigen, self._zone())
+        return inhalt, export_dateiname(quelle, self._heute())
 
     # --- 54: gehoert/loeschen -----------------------------------------------------------------------
 
     async def konkrete_quellen(self, quelle: str, quellen_db: list[str]) -> list[str]:
         """Die konkreten Quellen hinter ``quelle``: ``boxen`` = eingerichtete Boxen und Boxen mit Daten, ``reinhoeren`` = alle Benutzer mit Daten."""
         boxen = sorted({f"box:{b}" for b in self.hub.boxen} | {q for q in quellen_db if q.startswith("box:")})
-        personen = sorted(q for q in quellen_db if q.startswith("benutzer:"))
+        personen = {q for q in quellen_db if q.startswith("benutzer:")}
+        # auch Benutzer mit einer offenen Reinhör-Sitzung, zu der es noch keine Zeile gibt (< 5 Minuten): sie gehören zu „alle“ und „reinhoeren“
+        personen |= {f"benutzer:{k[0]}" for k in self.hub.reinhoeren.offen}
+        personen = sorted(personen)
         if quelle == "boxen":
             return boxen
         if quelle == "reinhoeren":

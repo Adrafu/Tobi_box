@@ -38,6 +38,7 @@ from .const import (
     GEHOERT_QUITTUNG_TTL_S,
     GEHOERT_QUITTUNG_VERZOEGERUNG_S,
     GEHOERT_SITZUNGEN_JE_NACHRICHT,
+    TECHNIK_ZEILEN_MAX,
     REINHOEREN_VERWAIST_S,
 )
 from .fehler import TobiboxFehler
@@ -470,7 +471,7 @@ class GehoertDb:
                 dict(r)
                 for r in con.execute(
                     "SELECT zeit, art, wert FROM technik WHERE box = ? AND zeit >= ? AND zeit < ? ORDER BY zeit, rowid LIMIT ?",
-                    (box, von_s, bis_s, 1_000_000),
+                    (box, von_s, bis_s, TECHNIK_ZEILEN_MAX),
                 )
             ]
             vorher = con.execute(

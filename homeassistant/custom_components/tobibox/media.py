@@ -981,6 +981,7 @@ class Medien:
             zuletzt_gehoert=zs.zuletzt if zs is not None else None,
             meist_gehoert=zs.meist if zs is not None else None,
         )
+        await self.hub.gehoert.zwischenspeicher()  # für ``zuletzt_gehoert_am`` in der Kurzform
         return {
             "serien": [self.kurzform(i, zaehler, nutzer_id) for i in infos],
             "gesamt": gesamt,
@@ -1029,6 +1030,7 @@ class Medien:
             info = await self._aktualisiere_cache(serie, pfad.name)
         if geaendert:
             self.hub.emit("medien", "serien_geaendert", {"serie_ids": [serie_id]})
+        await self.hub.gehoert.zwischenspeicher()  # für ``zuletzt_gehoert_am`` in der Kurzform
         return self.kurzform(info)
 
     def ueberraschung_status(self) -> str:
@@ -1130,6 +1132,7 @@ class Medien:
                 raise self._fehler_schreiben(err) from err
             info = await self._aktualisiere_cache(serie, ordner, [])
         self.hub.emit("medien", "serien_geaendert", {"serie_ids": [sid]})
+        await self.hub.gehoert.zwischenspeicher()  # für ``zuletzt_gehoert_am`` in der Kurzform
         return self.kurzform(info)
 
     def _lege_ordner_an(self, wunsch: str) -> str:
@@ -1157,6 +1160,7 @@ class Medien:
                     raise self._fehler_schreiben(err) from err
             info = await self._aktualisiere_cache(serie, pfad.name)
         self.hub.emit("medien", "serien_geaendert", {"serie_ids": [serie_id]})
+        await self.hub.gehoert.zwischenspeicher()  # für ``zuletzt_gehoert_am`` in der Kurzform
         return self.kurzform(info)
 
     async def folgen_ordnen(self, serie_id: str, folgen: list[str], stand: str | None) -> dict[str, Any]:
@@ -1173,6 +1177,7 @@ class Medien:
                     raise self._fehler_schreiben(err) from err
             info = await self._aktualisiere_cache(serie, pfad.name)
         self.hub.emit("medien", "serien_geaendert", {"serie_ids": [serie_id]})
+        await self.hub.gehoert.zwischenspeicher()  # für ``zuletzt_gehoert_am`` in der Kurzform
         return self.kurzform(info)
 
     async def folge_umbenennen(self, serie_id: str, folge: str, name: Any, stand: str | None) -> dict[str, Any]:
@@ -1192,6 +1197,7 @@ class Medien:
             info = await self._aktualisiere_cache(serie, pfad.name)
         self.hub.emit("medien", "serien_geaendert", {"serie_ids": [serie_id]})
         objekt = next(o for o in info.folgen_objekte if o["name"] == folge)
+        await self.hub.gehoert.zwischenspeicher()  # für ``zuletzt_gehoert_am`` in der Kurzform
         return {"serie": self.kurzform(info), "folge": objekt}
 
     async def bestaetigen(self, serie_id: str, folgen: list[str] | None) -> dict[str, Any]:
@@ -1221,6 +1227,7 @@ class Medien:
             info = await self._aktualisiere_cache(serie, pfad.name)
         self.hub.eingang.pruefen_zuruecksetzen(serie_id, folgen)  # auch im Protokoll des Eingangs (Vertrag W, Nr. 28, Rest aus A-1c)
         self.hub.emit("medien", "serien_geaendert", {"serie_ids": [serie_id]})
+        await self.hub.gehoert.zwischenspeicher()  # für ``zuletzt_gehoert_am`` in der Kurzform
         return self.kurzform(info)
 
     # --- Löschen (Papierkorb) -----------------------------------------------------------------
@@ -1393,6 +1400,7 @@ class Medien:
             qinfo = await self._aktualisiere_cache(quelle_serie, quelle_pfad.name)
             zinfo = await self._aktualisiere_cache(ziel_serie, ziel_pfad.name)
         self.hub.emit("medien", "serien_geaendert", {"serie_ids": sorted({serie_id, ziel_serie_id})})
+        await self.hub.gehoert.zwischenspeicher()  # für ``zuletzt_gehoert_am`` in der Kurzform
         return {
             "quelle": self.kurzform(qinfo),
             "ziel": self.kurzform(zinfo),
@@ -1524,6 +1532,7 @@ class Medien:
         self.hub.schutz.papierkorb_gebucht(nutzer, eintrag, tobies)
         self.hub.emit("medien", "serien_geaendert", {"serie_ids": sorted({quelle_id, ziel_id})})
         self.hub.emit("medien", "papierkorb_geaendert", {})
+        await self.hub.gehoert.zwischenspeicher()  # für ``zuletzt_gehoert_am`` in der Kurzform
         return {
             "ziel": self.kurzform(zinfo),
             "verschoben": verschoben,
@@ -1655,6 +1664,7 @@ class Medien:
             self.hub.dauer.anstossen([ziel_id])  # die Dauer der zurückgeholten Folge fehlt (Hintergrund)
             self.hub.emit("medien", "serien_geaendert", {"serie_ids": [ziel_id]})
             self.hub.emit("medien", "papierkorb_geaendert", {})
+            await self.hub.gehoert.zwischenspeicher()  # für ``zuletzt_gehoert_am`` in der Kurzform
             return {"serie": self.kurzform(info), "folge": name}
         if typ == "serie":
             sid = meta.get("serie_id")
@@ -1684,6 +1694,7 @@ class Medien:
             self.hub.dauer.anstossen([serie.id])  # die Dauern der zurückgeholten Serie fehlen (Hintergrund)
             self.hub.emit("medien", "serien_geaendert", {"serie_ids": [serie.id]})
             self.hub.emit("medien", "papierkorb_geaendert", {})
+            await self.hub.gehoert.zwischenspeicher()  # für ``zuletzt_gehoert_am`` in der Kurzform
             return {"serie": self.kurzform(info), "folge": None}
         raise TobiboxFehler("eintrag_nicht_gefunden")
 
