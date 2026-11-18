@@ -1,0 +1,1237 @@
+{
+ "stand": "18.11., Regeln aus OS1 (regeln.py), Namen nach Regel",
+ "hinweis": "Je Fall das Ergebnis der Regeln je Feld in den Fassungen A/B/U (U = A oder B, gilt). Felder: status und neuer Wert. Der Cover-Wert ist die Apple-Bild-URL (100 px).",
+ "urteile_tobias": {
+  "folgentitel": "Wortlaut des heutigen Titels behalten, nur „Folge N: “ davor (Nummer bekannt); Apple-Titel nur bei Platzhaltern",
+  "name": "wird nie automatisch aus der Regel übernommen",
+  "mulan_cover": "falsch, Regel bleibt trotzdem"
+ },
+ "faelle": {
+  "hotzenplotz": {
+   "eintrag": "Der Räuber Hotzenplotz",
+   "folge": "Der Räuber Hotzenplotz",
+   "unsere_tracks": 4,
+   "heutige_nummer": null,
+   "cover_heute": "auto",
+   "art_heute": "hoerspiel (geraten)",
+   "kuenstlich": true,
+   "itunes_dateien": [
+    "hotzenplotz_pop_soundtrack_alle_83titel"
+   ],
+   "tonie_status": "sicher",
+   "felder_nach_regel": {
+    "cover": {
+     "A": {
+      "status": "sicher",
+      "neu": "https://is1-ssl.mzstatic.com/synthetisch/900004/100x100bb.jpg"
+     },
+     "B": {
+      "status": "sicher",
+      "neu": "https://is1-ssl.mzstatic.com/synthetisch/900004/100x100bb.jpg"
+     },
+     "U": {
+      "status": "sicher",
+      "neu": "https://is1-ssl.mzstatic.com/synthetisch/900004/100x100bb.jpg"
+     }
+    },
+    "serie_name": {
+     "A": {
+      "status": "sicher",
+      "neu": "Der Räuber Hotzenplotz"
+     },
+     "B": {
+      "status": "sicher",
+      "neu": "Der Räuber Hotzenplotz"
+     },
+     "U": {
+      "status": "sicher",
+      "neu": "Der Räuber Hotzenplotz"
+     }
+    },
+    "art": {
+     "A": {
+      "status": "sicher",
+      "neu": "hoerspiel"
+     },
+     "B": {
+      "status": "unsicher",
+      "neu": "hoerspiel"
+     },
+     "U": {
+      "status": "unsicher",
+      "neu": "hoerspiel"
+     }
+    },
+    "folge_titel": {
+     "A": {
+      "status": "sicher",
+      "neu": "Folge 1: Der Räuber Hotzenplotz"
+     },
+     "B": {
+      "status": "sicher",
+      "neu": "Der Räuber Hotzenplotz"
+     },
+     "U": {
+      "status": "sicher",
+      "neu": "Folge 1: Der Räuber Hotzenplotz"
+     }
+    },
+    "nummer": {
+     "A": {
+      "status": "sicher",
+      "neu": 1
+     },
+     "B": {
+      "status": "keiner",
+      "neu": null
+     },
+     "U": {
+      "status": "sicher",
+      "neu": 1
+     }
+    },
+    "beschreibung": {
+     "A": {
+      "status": "keiner",
+      "neu": null
+     },
+     "B": {
+      "status": "sicher",
+      "neu": "Vor dem Räuber Hotzenplotz hat jeder Angst, sogar Wachtmeister Dimpfelmoser, und der ist immerhin von der Polizei. Als Großmutters Kaffeemühle gestohlen wird, machen sich Kasperl und Seppel auf, um…"
+     },
+     "U": {
+      "status": "sicher",
+      "neu": "Vor dem Räuber Hotzenplotz hat jeder Angst, sogar Wachtmeister Dimpfelmoser, und der ist immerhin von der Polizei. Als Großmutters Kaffeemühle gestohlen wird, machen sich Kasperl und Seppel auf, um…"
+     }
+    },
+    "alter_ab": {
+     "A": {
+      "status": "keiner",
+      "neu": null
+     },
+     "B": {
+      "status": "keiner",
+      "neu": null
+     },
+     "U": {
+      "status": "keiner",
+      "neu": null
+     }
+    }
+   }
+  },
+  "bibi_folge100": {
+   "eintrag": "Bibi Blocksberg",
+   "folge": "Folge 100: Die große Hexenparty",
+   "unsere_tracks": 13,
+   "heutige_nummer": 100,
+   "cover_heute": "auto",
+   "art_heute": "hoerspiel (geraten)",
+   "kuenstlich": true,
+   "itunes_dateien": [
+    "bibi_folge100_album_mit_jubilaeum",
+    "bibi_folge100_buch"
+   ],
+   "tonie_status": "sicher",
+   "felder_nach_regel": {
+    "cover": {
+     "A": {
+      "status": "sicher",
+      "neu": "https://is1-ssl.mzstatic.com/image/thumb/Music49/v4/82/45/a0/8245a033-f8b8-49b7-ba5a-1c340edce8e1/825646253470.jpg/100x100bb.jpg"
+     },
+     "B": {
+      "status": "unsicher",
+      "neu": "https://is1-ssl.mzstatic.com/image/thumb/Music126/v4/de/1a/b7/de1ab7ba-4f67-f51a-6012-f7b31e6881bb/4033694256008_3000.jpg/100x100bb.jpg"
+     },
+     "U": {
+      "status": "sicher",
+      "neu": "https://is1-ssl.mzstatic.com/image/thumb/Music49/v4/82/45/a0/8245a033-f8b8-49b7-ba5a-1c340edce8e1/825646253470.jpg/100x100bb.jpg"
+     }
+    },
+    "serie_name": {
+     "A": {
+      "status": "sicher",
+      "neu": "Bibi Blocksberg"
+     },
+     "B": {
+      "status": "sicher",
+      "neu": "Bibi Blocksberg"
+     },
+     "U": {
+      "status": "sicher",
+      "neu": "Bibi Blocksberg"
+     }
+    },
+    "art": {
+     "A": {
+      "status": "sicher",
+      "neu": "hoerspiel"
+     },
+     "B": {
+      "status": "unsicher",
+      "neu": "hoerspiel"
+     },
+     "U": {
+      "status": "sicher",
+      "neu": "hoerspiel"
+     }
+    },
+    "folge_titel": {
+     "A": {
+      "status": "sicher",
+      "neu": "Folge 100: Die große Hexenparty"
+     },
+     "B": {
+      "status": "sicher",
+      "neu": "Folge 100: Die große Hexenparty"
+     },
+     "U": {
+      "status": "sicher",
+      "neu": "Folge 100: Die große Hexenparty"
+     }
+    },
+    "nummer": {
+     "A": {
+      "status": "sicher",
+      "neu": 100
+     },
+     "B": {
+      "status": "sicher",
+      "neu": 100
+     },
+     "U": {
+      "status": "sicher",
+      "neu": 100
+     }
+    },
+    "beschreibung": {
+     "A": {
+      "status": "sicher",
+      "neu": "Ein neues hexisches Zeitalter bricht an! Für das Begrüßungsritual auf der großen Hexenparty muss die uralte Gruftia vier hexische Steine aus der ganzen Welt einsammeln."
+     },
+     "B": {
+      "status": "sicher",
+      "neu": "Ein neues hexisches Zeitalter bricht an! Für das Begrüßungsritual auf der großen Hexenparty muss die uralte Gruftia vier hexische Steine aus der ganzen Welt einsammeln."
+     },
+     "U": {
+      "status": "sicher",
+      "neu": "Ein neues hexisches Zeitalter bricht an! Für das Begrüßungsritual auf der großen Hexenparty muss die uralte Gruftia vier hexische Steine aus der ganzen Welt einsammeln."
+     }
+    },
+    "alter_ab": {
+     "A": {
+      "status": "sicher",
+      "neu": 4
+     },
+     "B": {
+      "status": "sicher",
+      "neu": 4
+     },
+     "U": {
+      "status": "sicher",
+      "neu": 4
+     }
+    }
+   }
+  },
+  "blumchen_in_italien": {
+   "eintrag": "Benjamin Blümchen",
+   "folge": "in Italien",
+   "unsere_tracks": 31,
+   "heutige_nummer": null,
+   "cover_heute": "auto",
+   "art_heute": "hoerspiel (geraten)",
+   "kuenstlich": true,
+   "itunes_dateien": [
+    "blumchen_in_italien_album",
+    "blumchen_in_italien_buch"
+   ],
+   "tonie_status": "unsicher",
+   "felder_nach_regel": {
+    "cover": {
+     "A": {
+      "status": "sicher",
+      "neu": "https://is1-ssl.mzstatic.com/image/thumb/Music126/v4/d4/b1/e6/d4b1e64d-9fc3-72e2-eb1f-3a718ec8f41a/5054197534041.jpg/100x100bb.jpg"
+     },
+     "B": {
+      "status": "unsicher",
+      "neu": "https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/1f/5e/7d/1f5e7df4-3faf-7936-6ec9-bf78d561ad0c/4033694255544_3000.jpg/100x100bb.jpg"
+     },
+     "U": {
+      "status": "sicher",
+      "neu": "https://is1-ssl.mzstatic.com/image/thumb/Music126/v4/d4/b1/e6/d4b1e64d-9fc3-72e2-eb1f-3a718ec8f41a/5054197534041.jpg/100x100bb.jpg"
+     }
+    },
+    "serie_name": {
+     "A": {
+      "status": "keiner",
+      "neu": null
+     },
+     "B": {
+      "status": "keiner",
+      "neu": null
+     },
+     "U": {
+      "status": "keiner",
+      "neu": null
+     }
+    },
+    "art": {
+     "A": {
+      "status": "sicher",
+      "neu": "hoerspiel"
+     },
+     "B": {
+      "status": "sicher",
+      "neu": "hoerbuch"
+     },
+     "U": {
+      "status": "sicher",
+      "neu": "hoerspiel"
+     }
+    },
+    "folge_titel": {
+     "A": {
+      "status": "sicher",
+      "neu": "Folge 154: in Italien"
+     },
+     "B": {
+      "status": "sicher",
+      "neu": "Folge 154: in Italien"
+     },
+     "U": {
+      "status": "sicher",
+      "neu": "Folge 154: in Italien"
+     }
+    },
+    "nummer": {
+     "A": {
+      "status": "sicher",
+      "neu": 154
+     },
+     "B": {
+      "status": "sicher",
+      "neu": 154
+     },
+     "U": {
+      "status": "sicher",
+      "neu": 154
+     }
+    },
+    "beschreibung": {
+     "A": {
+      "status": "keiner",
+      "neu": null
+     },
+     "B": {
+      "status": "sicher",
+      "neu": "Neustadts Reporterin Karla Kolumna ist krank und kann ihre geplante Reisereportage über Italien nicht machen. Benjamin und Otto springen gerne für sie ein, weil sie so auch ihre Freundin Stella…"
+     },
+     "U": {
+      "status": "sicher",
+      "neu": "Neustadts Reporterin Karla Kolumna ist krank und kann ihre geplante Reisereportage über Italien nicht machen. Benjamin und Otto springen gerne für sie ein, weil sie so auch ihre Freundin Stella…"
+     }
+    },
+    "alter_ab": {
+     "A": {
+      "status": "keiner",
+      "neu": null
+     },
+     "B": {
+      "status": "keiner",
+      "neu": null
+     },
+     "U": {
+      "status": "keiner",
+      "neu": null
+     }
+    }
+   }
+  },
+  "peppa_das_neue_haus": {
+   "eintrag": "Peppa Pig",
+   "folge": "Das neue Haus",
+   "unsere_tracks": 4,
+   "heutige_nummer": null,
+   "cover_heute": "auto",
+   "art_heute": "hoerspiel (geraten)",
+   "kuenstlich": true,
+   "itunes_dateien": [
+    "peppa_das_neue_haus_album"
+   ],
+   "tonie_status": "unsicher",
+   "felder_nach_regel": {
+    "cover": {
+     "A": {
+      "status": "sicher",
+      "neu": "https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/5a/9e/83/5a9e839e-ac01-b215-1c01-e48637e5c79f/196871087087.jpg/100x100bb.jpg"
+     },
+     "B": {
+      "status": "keiner",
+      "neu": null
+     },
+     "U": {
+      "status": "sicher",
+      "neu": "https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/5a/9e/83/5a9e839e-ac01-b215-1c01-e48637e5c79f/196871087087.jpg/100x100bb.jpg"
+     }
+    },
+    "serie_name": {
+     "A": {
+      "status": "sicher",
+      "neu": "Peppa Pig Hörspiele"
+     },
+     "B": {
+      "status": "sicher",
+      "neu": "Peppa Pig Hörspiele"
+     },
+     "U": {
+      "status": "sicher",
+      "neu": "Peppa Pig Hörspiele"
+     }
+    },
+    "art": {
+     "A": {
+      "status": "sicher",
+      "neu": "hoerspiel"
+     },
+     "B": {
+      "status": "unsicher",
+      "neu": "hoerspiel"
+     },
+     "U": {
+      "status": "sicher",
+      "neu": "hoerspiel"
+     }
+    },
+    "folge_titel": {
+     "A": {
+      "status": "sicher",
+      "neu": "Folge 35: Das neue Haus"
+     },
+     "B": {
+      "status": "keiner",
+      "neu": null
+     },
+     "U": {
+      "status": "sicher",
+      "neu": "Folge 35: Das neue Haus"
+     }
+    },
+    "nummer": {
+     "A": {
+      "status": "sicher",
+      "neu": 35
+     },
+     "B": {
+      "status": "unsicher",
+      "neu": 35
+     },
+     "U": {
+      "status": "sicher",
+      "neu": 35
+     }
+    },
+    "beschreibung": {
+     "A": {
+      "status": "keiner",
+      "neu": null
+     },
+     "B": {
+      "status": "keiner",
+      "neu": null
+     },
+     "U": {
+      "status": "keiner",
+      "neu": null
+     }
+    },
+    "alter_ab": {
+     "A": {
+      "status": "keiner",
+      "neu": null
+     },
+     "B": {
+      "status": "keiner",
+      "neu": null
+     },
+     "U": {
+      "status": "keiner",
+      "neu": null
+     }
+    }
+   }
+  },
+  "mulan": {
+   "eintrag": "Mulan",
+   "folge": "Mulan",
+   "unsere_tracks": 6,
+   "heutige_nummer": null,
+   "cover_heute": "eigen",
+   "art_heute": "hoerspiel (geraten)",
+   "kuenstlich": false,
+   "itunes_dateien": [
+    "mulan_album"
+   ],
+   "tonie_status": "unsicher",
+   "felder_nach_regel": {
+    "cover": {
+     "A": {
+      "status": "sicher",
+      "neu": "https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/26/5d/ae/265daeba-9af8-fbad-beb4-0cbee91d8027/4066339450233.jpg/100x100bb.jpg"
+     },
+     "B": {
+      "status": "sicher",
+      "neu": "https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/26/5d/ae/265daeba-9af8-fbad-beb4-0cbee91d8027/4066339450233.jpg/100x100bb.jpg"
+     },
+     "U": {
+      "status": "sicher",
+      "neu": "https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/26/5d/ae/265daeba-9af8-fbad-beb4-0cbee91d8027/4066339450233.jpg/100x100bb.jpg"
+     }
+    },
+    "serie_name": {
+     "A": {
+      "status": "keiner",
+      "neu": null
+     },
+     "B": {
+      "status": "keiner",
+      "neu": null
+     },
+     "U": {
+      "status": "keiner",
+      "neu": null
+     }
+    },
+    "art": {
+     "A": {
+      "status": "sicher",
+      "neu": "hoerspiel"
+     },
+     "B": {
+      "status": "unsicher",
+      "neu": "hoerspiel"
+     },
+     "U": {
+      "status": "unsicher",
+      "neu": "hoerspiel"
+     }
+    },
+    "folge_titel": {
+     "A": {
+      "status": "sicher",
+      "neu": "Mulan"
+     },
+     "B": {
+      "status": "sicher",
+      "neu": "Mulan"
+     },
+     "U": {
+      "status": "sicher",
+      "neu": "Mulan"
+     }
+    },
+    "nummer": {
+     "A": {
+      "status": "keiner",
+      "neu": null
+     },
+     "B": {
+      "status": "keiner",
+      "neu": null
+     },
+     "U": {
+      "status": "keiner",
+      "neu": null
+     }
+    },
+    "beschreibung": {
+     "A": {
+      "status": "sicher",
+      "neu": "Ein Dekret des Kaisers verfügt, dass jeder Haushalt einen Mann stellen muss, um gegen den grausamen Plünderer Böri Khan zu kämpfen. Als ihr alter Vater Zhou in den Krieg ziehen soll, verkleidet sich…"
+     },
+     "B": {
+      "status": "keiner",
+      "neu": null
+     },
+     "U": {
+      "status": "keiner",
+      "neu": null
+     }
+    },
+    "alter_ab": {
+     "A": {
+      "status": "keiner",
+      "neu": null
+     },
+     "B": {
+      "status": "keiner",
+      "neu": null
+     },
+     "U": {
+      "status": "keiner",
+      "neu": null
+     }
+    }
+   },
+   "urteil_tobias": {
+    "cover": "falsch (das Real-Kinofilm-Hörspiel-Cover wird sicher gewählt); die Regel bleibt trotzdem"
+   }
+  },
+  "toy_story_2": {
+   "eintrag": "Toy Story",
+   "folge": "Toy Story 2",
+   "unsere_tracks": 4,
+   "heutige_nummer": null,
+   "cover_heute": "eigen",
+   "art_heute": "hoerspiel (geraten)",
+   "kuenstlich": false,
+   "itunes_dateien": [
+    "toy_story_2_album"
+   ],
+   "tonie_status": "unsicher",
+   "felder_nach_regel": {
+    "cover": {
+     "A": {
+      "status": "keiner",
+      "neu": null
+     },
+     "B": {
+      "status": "unsicher",
+      "neu": "https://is1-ssl.mzstatic.com/image/thumb/Music113/v4/71/10/2e/71102e1a-8061-21f0-eca5-6e20e26de77f/9788711977781.jpg/100x100bb.jpg"
+     },
+     "U": {
+      "status": "unsicher",
+      "neu": "https://is1-ssl.mzstatic.com/image/thumb/Music113/v4/71/10/2e/71102e1a-8061-21f0-eca5-6e20e26de77f/9788711977781.jpg/100x100bb.jpg"
+     }
+    },
+    "serie_name": {
+     "A": {
+      "status": "unsicher",
+      "neu": "Disney"
+     },
+     "B": {
+      "status": "unsicher",
+      "neu": "Disney"
+     },
+     "U": {
+      "status": "unsicher",
+      "neu": "Disney"
+     }
+    },
+    "art": {
+     "A": {
+      "status": "sicher",
+      "neu": "hoerspiel"
+     },
+     "B": {
+      "status": "unsicher",
+      "neu": "hoerspiel"
+     },
+     "U": {
+      "status": "unsicher",
+      "neu": "hoerspiel"
+     }
+    },
+    "folge_titel": {
+     "A": {
+      "status": "keiner",
+      "neu": null
+     },
+     "B": {
+      "status": "sicher",
+      "neu": "Toy Story 2"
+     },
+     "U": {
+      "status": "sicher",
+      "neu": "Toy Story 2"
+     }
+    },
+    "nummer": {
+     "A": {
+      "status": "unsicher",
+      "neu": 1
+     },
+     "B": {
+      "status": "unsicher",
+      "neu": 1
+     },
+     "U": {
+      "status": "unsicher",
+      "neu": 1
+     }
+    },
+    "beschreibung": {
+     "A": {
+      "status": "keiner",
+      "neu": null
+     },
+     "B": {
+      "status": "keiner",
+      "neu": null
+     },
+     "U": {
+      "status": "keiner",
+      "neu": null
+     }
+    },
+    "alter_ab": {
+     "A": {
+      "status": "keiner",
+      "neu": null
+     },
+     "B": {
+      "status": "keiner",
+      "neu": null
+     },
+     "U": {
+      "status": "keiner",
+      "neu": null
+     }
+    }
+   }
+  },
+  "fuenf_freunde_121": {
+   "eintrag": "Fünf Freunde",
+   "folge": "Folge 121: Fünf Freunde und die verlassene Jagdhütte",
+   "unsere_tracks": 40,
+   "heutige_nummer": null,
+   "cover_heute": "auto",
+   "art_heute": "hoerspiel (manuell)",
+   "kuenstlich": false,
+   "itunes_dateien": [
+    "fuenf_freunde_121_album_gekuerzter_titel"
+   ],
+   "tonie_status": "unsicher",
+   "felder_nach_regel": {
+    "cover": {
+     "A": {
+      "status": "unsicher",
+      "neu": "https://is1-ssl.mzstatic.com/image/thumb/Music111/v4/66/f3/d1/66f3d1c7-2714-60f2-9f14-ee57e24032f9/886446072050.jpg/100x100bb.jpg"
+     },
+     "B": {
+      "status": "keiner",
+      "neu": null
+     },
+     "U": {
+      "status": "unsicher",
+      "neu": "https://is1-ssl.mzstatic.com/image/thumb/Music111/v4/66/f3/d1/66f3d1c7-2714-60f2-9f14-ee57e24032f9/886446072050.jpg/100x100bb.jpg"
+     }
+    },
+    "serie_name": {
+     "A": {
+      "status": "sicher",
+      "neu": "Fünf Freunde"
+     },
+     "B": {
+      "status": "sicher",
+      "neu": "Fünf Freunde"
+     },
+     "U": {
+      "status": "sicher",
+      "neu": "Fünf Freunde"
+     }
+    },
+    "art": {
+     "A": {
+      "status": "sicher",
+      "neu": "hoerspiel"
+     },
+     "B": {
+      "status": "sicher",
+      "neu": "hoerspiel"
+     },
+     "U": {
+      "status": "sicher",
+      "neu": "hoerspiel"
+     }
+    },
+    "folge_titel": {
+     "A": {
+      "status": "sicher",
+      "neu": "Folge 121: Fünf Freunde und die verlassene Jagdhütte"
+     },
+     "B": {
+      "status": "keiner",
+      "neu": null
+     },
+     "U": {
+      "status": "sicher",
+      "neu": "Folge 121: Fünf Freunde und die verlassene Jagdhütte"
+     }
+    },
+    "nummer": {
+     "A": {
+      "status": "sicher",
+      "neu": 121
+     },
+     "B": {
+      "status": "keiner",
+      "neu": null
+     },
+     "U": {
+      "status": "sicher",
+      "neu": 121
+     }
+    },
+    "beschreibung": {
+     "A": {
+      "status": "keiner",
+      "neu": null
+     },
+     "B": {
+      "status": "keiner",
+      "neu": null
+     },
+     "U": {
+      "status": "keiner",
+      "neu": null
+     }
+    },
+    "alter_ab": {
+     "A": {
+      "status": "keiner",
+      "neu": null
+     },
+     "B": {
+      "status": "keiner",
+      "neu": null
+     },
+     "U": {
+      "status": "keiner",
+      "neu": null
+     }
+    }
+   }
+  },
+  "olchis_geburtstagsreise": {
+   "eintrag": "Die Olchis",
+   "folge": "Die Olchis auf Geburtstagsreise",
+   "unsere_tracks": 9,
+   "heutige_nummer": null,
+   "cover_heute": "eigen",
+   "art_heute": "hoerspiel (geraten)",
+   "kuenstlich": false,
+   "itunes_dateien": [
+    "olchis_geburtstagsreise_buch",
+    "olchis_geburtstagsreise_album_ohne_treffer"
+   ],
+   "tonie_status": "unsicher",
+   "felder_nach_regel": {
+    "cover": {
+     "A": {
+      "status": "unsicher",
+      "neu": "https://is1-ssl.mzstatic.com/image/thumb/Music112/v4/f2/9b/ae/f29bae58-28fa-9d75-2f47-2b8216c45226/9783837360363.jpg/100x100bb.jpg"
+     },
+     "B": {
+      "status": "unsicher",
+      "neu": "https://is1-ssl.mzstatic.com/image/thumb/Music112/v4/f2/9b/ae/f29bae58-28fa-9d75-2f47-2b8216c45226/9783837360363.jpg/100x100bb.jpg"
+     },
+     "U": {
+      "status": "unsicher",
+      "neu": "https://is1-ssl.mzstatic.com/image/thumb/Music112/v4/f2/9b/ae/f29bae58-28fa-9d75-2f47-2b8216c45226/9783837360363.jpg/100x100bb.jpg"
+     }
+    },
+    "serie_name": {
+     "A": {
+      "status": "sicher",
+      "neu": "Die Olchis"
+     },
+     "B": {
+      "status": "sicher",
+      "neu": "Die Olchis"
+     },
+     "U": {
+      "status": "sicher",
+      "neu": "Die Olchis"
+     }
+    },
+    "art": {
+     "A": {
+      "status": "unsicher",
+      "neu": "hoerbuch"
+     },
+     "B": {
+      "status": "unsicher",
+      "neu": "hoerbuch"
+     },
+     "U": {
+      "status": "unsicher",
+      "neu": "hoerbuch"
+     }
+    },
+    "folge_titel": {
+     "A": {
+      "status": "sicher",
+      "neu": "Die Olchis auf Geburtstagsreise"
+     },
+     "B": {
+      "status": "sicher",
+      "neu": "Die Olchis auf Geburtstagsreise"
+     },
+     "U": {
+      "status": "sicher",
+      "neu": "Die Olchis auf Geburtstagsreise"
+     }
+    },
+    "nummer": {
+     "A": {
+      "status": "keiner",
+      "neu": null
+     },
+     "B": {
+      "status": "keiner",
+      "neu": null
+     },
+     "U": {
+      "status": "keiner",
+      "neu": null
+     }
+    },
+    "beschreibung": {
+     "A": {
+      "status": "sicher",
+      "neu": "Auf Feuerstuhl quer durch Europa!\nDie Olchis suchen einen schönen Platz für die Geburtstagsfeier von Olchi-Opa. Durch ganz Europa führt ihre reise auf dem Rücken von Feuerstuhl, dem Drachen. Doch…"
+     },
+     "B": {
+      "status": "sicher",
+      "neu": "Auf Feuerstuhl quer durch Europa!\nDie Olchis suchen einen schönen Platz für die Geburtstagsfeier von Olchi-Opa. Durch ganz Europa führt ihre reise auf dem Rücken von Feuerstuhl, dem Drachen. Doch…"
+     },
+     "U": {
+      "status": "sicher",
+      "neu": "Auf Feuerstuhl quer durch Europa!\nDie Olchis suchen einen schönen Platz für die Geburtstagsfeier von Olchi-Opa. Durch ganz Europa führt ihre reise auf dem Rücken von Feuerstuhl, dem Drachen. Doch…"
+     }
+    },
+    "alter_ab": {
+     "A": {
+      "status": "keiner",
+      "neu": null
+     },
+     "B": {
+      "status": "keiner",
+      "neu": null
+     },
+     "U": {
+      "status": "keiner",
+      "neu": null
+     }
+    }
+   }
+  },
+  "sternenschweif_teil1": {
+   "eintrag": "Sternenschweif",
+   "folge": "Teil 1: Geheimnisvolle Verwandlung",
+   "unsere_tracks": 19,
+   "heutige_nummer": 1,
+   "cover_heute": "eigen",
+   "art_heute": "hoerspiel (geraten)",
+   "kuenstlich": false,
+   "itunes_dateien": [
+    "sternenschweif_teil1_album",
+    "sternenschweif_teil1_buch"
+   ],
+   "tonie_status": "unsicher",
+   "felder_nach_regel": {
+    "cover": {
+     "A": {
+      "status": "sicher",
+      "neu": "https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/e7/fd/5f/e7fd5ff5-3148-bdeb-3b09-dacb4f6ee909/4066004601137_3000.jpg/100x100bb.jpg"
+     },
+     "B": {
+      "status": "unsicher",
+      "neu": "https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/ea/b5/69/eab5694f-0d5f-e091-c7ad-f521d05002f4/4066004601137_3000.jpg/100x100bb.jpg"
+     },
+     "U": {
+      "status": "sicher",
+      "neu": "https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/e7/fd/5f/e7fd5ff5-3148-bdeb-3b09-dacb4f6ee909/4066004601137_3000.jpg/100x100bb.jpg"
+     }
+    },
+    "serie_name": {
+     "A": {
+      "status": "sicher",
+      "neu": "Sternenschweif"
+     },
+     "B": {
+      "status": "sicher",
+      "neu": "Sternenschweif"
+     },
+     "U": {
+      "status": "sicher",
+      "neu": "Sternenschweif"
+     }
+    },
+    "art": {
+     "A": {
+      "status": "sicher",
+      "neu": "hoerspiel"
+     },
+     "B": {
+      "status": "sicher",
+      "neu": "hoerbuch"
+     },
+     "U": {
+      "status": "sicher",
+      "neu": "hoerspiel"
+     }
+    },
+    "folge_titel": {
+     "A": {
+      "status": "sicher",
+      "neu": "Teil 1: Geheimnisvolle Verwandlung"
+     },
+     "B": {
+      "status": "sicher",
+      "neu": "Teil 1: Geheimnisvolle Verwandlung"
+     },
+     "U": {
+      "status": "sicher",
+      "neu": "Teil 1: Geheimnisvolle Verwandlung"
+     }
+    },
+    "nummer": {
+     "A": {
+      "status": "sicher",
+      "neu": 1
+     },
+     "B": {
+      "status": "sicher",
+      "neu": 1
+     },
+     "U": {
+      "status": "sicher",
+      "neu": 1
+     }
+    },
+    "beschreibung": {
+     "A": {
+      "status": "keiner",
+      "neu": null
+     },
+     "B": {
+      "status": "sicher",
+      "neu": "Das magische Pony Sternenschweif ist der geheimnisvolle Held der zauberhaften \"Sternenschweif\"-Welt. Zusammen mit Laura erlebt es phantasievolle Abenteuer und romantische Geschichten, die viel Platz…"
+     },
+     "U": {
+      "status": "sicher",
+      "neu": "Das magische Pony Sternenschweif ist der geheimnisvolle Held der zauberhaften \"Sternenschweif\"-Welt. Zusammen mit Laura erlebt es phantasievolle Abenteuer und romantische Geschichten, die viel Platz…"
+     }
+    },
+    "alter_ab": {
+     "A": {
+      "status": "keiner",
+      "neu": null
+     },
+     "B": {
+      "status": "keiner",
+      "neu": null
+     },
+     "U": {
+      "status": "keiner",
+      "neu": null
+     }
+    }
+   }
+  },
+  "muppets": {
+   "eintrag": "Die Muppets",
+   "folge": "Die Muppets",
+   "unsere_tracks": 48,
+   "heutige_nummer": null,
+   "cover_heute": "eigen",
+   "art_heute": "hoerspiel (manuell)",
+   "kuenstlich": false,
+   "itunes_dateien": [
+    "muppets_album",
+    "muppets_buch_hoerbuch_genre"
+   ],
+   "tonie_status": "keiner",
+   "felder_nach_regel": {
+    "cover": {
+     "A": {
+      "status": "unsicher",
+      "neu": "https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/e6/59/a9/e659a939-d7ce-dcf8-1ce5-72b9b89b47a2/4066339483828.jpg/100x100bb.jpg"
+     },
+     "B": {
+      "status": "unsicher",
+      "neu": "https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/e6/59/a9/e659a939-d7ce-dcf8-1ce5-72b9b89b47a2/4066339483828.jpg/100x100bb.jpg"
+     },
+     "U": {
+      "status": "unsicher",
+      "neu": "https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/e6/59/a9/e659a939-d7ce-dcf8-1ce5-72b9b89b47a2/4066339483828.jpg/100x100bb.jpg"
+     }
+    },
+    "serie_name": {
+     "A": {
+      "status": "keiner",
+      "neu": null
+     },
+     "B": {
+      "status": "keiner",
+      "neu": null
+     },
+     "U": {
+      "status": "keiner",
+      "neu": null
+     }
+    },
+    "art": {
+     "A": {
+      "status": "sicher",
+      "neu": "hoerbuch"
+     },
+     "B": {
+      "status": "sicher",
+      "neu": "hoerbuch"
+     },
+     "U": {
+      "status": "sicher",
+      "neu": "hoerbuch"
+     }
+    },
+    "folge_titel": {
+     "A": {
+      "status": "sicher",
+      "neu": "Die Muppets"
+     },
+     "B": {
+      "status": "sicher",
+      "neu": "Die Muppets"
+     },
+     "U": {
+      "status": "sicher",
+      "neu": "Die Muppets"
+     }
+    },
+    "nummer": {
+     "A": {
+      "status": "keiner",
+      "neu": null
+     },
+     "B": {
+      "status": "keiner",
+      "neu": null
+     },
+     "U": {
+      "status": "keiner",
+      "neu": null
+     }
+    },
+    "beschreibung": {
+     "A": {
+      "status": "sicher",
+      "neu": "Die Muppets sind seit 30 Jahren nicht mehr aufgetreten, ihr Theater und das alte Studio zerfallen. Niemand interessiert sich mehr für die singenden, tanzenden und Witze erzählenden Puppen – niemand…"
+     },
+     "B": {
+      "status": "sicher",
+      "neu": "Die Muppets sind seit 30 Jahren nicht mehr aufgetreten, ihr Theater und das alte Studio zerfallen. Niemand interessiert sich mehr für die singenden, tanzenden und Witze erzählenden Puppen – niemand…"
+     },
+     "U": {
+      "status": "sicher",
+      "neu": "Die Muppets sind seit 30 Jahren nicht mehr aufgetreten, ihr Theater und das alte Studio zerfallen. Niemand interessiert sich mehr für die singenden, tanzenden und Witze erzählenden Puppen – niemand…"
+     }
+    },
+    "alter_ab": {
+     "A": {
+      "status": "keiner",
+      "neu": null
+     },
+     "B": {
+      "status": "keiner",
+      "neu": null
+     },
+     "U": {
+      "status": "keiner",
+      "neu": null
+     }
+    }
+   }
+  }
+ },
+ "claude": {
+  "die_drei_ausrufezeichen": {
+   "modus": "bestand",
+   "antwort_entscheidung": "kandidat",
+   "antwort_name": "Die drei ???",
+   "antwort_sicher": true,
+   "pruefung_im_code": {
+    "status": "sicher",
+    "entscheidung": "kandidat",
+    "name": "Die drei ???",
+    "sicher": true,
+    "name_ok": true
+   },
+   "bemerkung": "falsch-sicher: Claude nennt „Die drei ???“ sicher; der heutige Name ist freigegeben richtig"
+  },
+  "pyjamahelden": {
+   "modus": "bestand",
+   "antwort_entscheidung": "kandidat",
+   "antwort_name": "PJ Masks",
+   "antwort_sicher": true,
+   "pruefung_im_code": {
+    "status": "sicher",
+    "entscheidung": "kandidat",
+    "name": "PJ Masks",
+    "sicher": true,
+    "name_ok": true
+   },
+   "bemerkung": "richtig: PJ Masks (sicher)"
+  },
+  "autoren_freddy_und_flo": {
+   "modus": "bestand",
+   "antwort_entscheidung": "kandidat",
+   "antwort_name": "Freddy und Flo",
+   "antwort_sicher": false,
+   "pruefung_im_code": {
+    "status": "unsicher",
+    "entscheidung": "kandidat",
+    "name": "Freddy und Flo",
+    "sicher": false,
+    "name_ok": true
+   },
+   "bemerkung": "guter unsicherer Vorschlag"
+  },
+  "disney_mulan_pruefmenge": {
+   "modus": "pruefmenge",
+   "antwort_entscheidung": "behalten",
+   "antwort_name": "Disney - Mulan",
+   "antwort_sicher": false,
+   "pruefung_im_code": {
+    "status": "unsicher",
+    "entscheidung": "behalten",
+    "name": "Disney - Mulan",
+    "sicher": false,
+    "name_ok": true
+   },
+   "bemerkung": "behalten, unsicher (freigegebener Name: Mulan)",
+   "freigegebener_name": "Mulan"
+  },
+  "janosch_pruefmenge": {
+   "modus": "pruefmenge",
+   "antwort_entscheidung": "behalten",
+   "antwort_name": "Janosch",
+   "antwort_sicher": true,
+   "pruefung_im_code": {
+    "status": "sicher",
+    "entscheidung": "behalten",
+    "name": "Janosch",
+    "sicher": true,
+    "name_ok": true
+   },
+   "bemerkung": "falsch-sicher: Claude behält „Janosch“ sicher; freigegebener Name: Tiger und Bär",
+   "freigegebener_name": "Tiger und Bär"
+  },
+  "das_kleine_gespenst": {
+   "modus": "bestand",
+   "antwort_entscheidung": "behalten",
+   "antwort_name": "Das kleine Gespenst",
+   "antwort_sicher": true,
+   "pruefung_im_code": {
+    "status": "sicher",
+    "entscheidung": "behalten",
+    "name": "Das kleine Gespenst",
+    "sicher": true,
+    "name_ok": true
+   },
+   "bemerkung": "behalten, sicher"
+  }
+ }
+}

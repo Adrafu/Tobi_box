@@ -1,0 +1,50 @@
+{
+ "modus": "bestand",
+ "eingabe": {
+  "heutiger_name": "Marc-Uwe Kling, Maria Kling, Freddy und Flo",
+  "ordner": "Marc-Uwe Kling, Maria Kling, Freddy und Flo",
+  "einzeltitel": false,
+  "folgen_gesamt": 1,
+  "folgen_gezeigt": 1,
+  "folgen": [
+   {
+    "anzeige": "Folge 1: Freddy und Flo gruseln sich vor gar nix!",
+    "nummer": null,
+    "tracks": 43,
+    "pruefen_gruende": [],
+    "tonies": [
+     {
+      "model": "11003566",
+      "series": "Freddy und Flo",
+      "episodes": "Gruseln sich vor gar nix!",
+      "tracks": 31,
+      "category": "audio-book"
+     }
+    ],
+    "apple": [
+     {
+      "collectionName": "Freddy und Flo 1: Freddy und Flo gruseln sich vor gar nix!",
+      "artistName": "Maria Kling",
+      "genre": "Kinder und Jugend",
+      "trackCount": 1,
+      "wrapperType": "audiobook"
+     }
+    ]
+   }
+  ]
+ },
+ "antwort": {
+  "entscheidung": "kandidat",
+  "name": "Freddy und Flo",
+  "sicher": false,
+  "grund": "Der Eintrag ist nach den Autoren benannt. Die Reihe heißt laut Tonie-Liste und Folgentitel „Freddy und Flo“."
+ },
+ "pruefung_im_code": {
+  "status": "unsicher",
+  "entscheidung": "kandidat",
+  "name": "Freddy und Flo",
+  "sicher": false,
+  "name_ok": true
+ },
+ "bemerkung": "guter unsicherer Vorschlag"
+}

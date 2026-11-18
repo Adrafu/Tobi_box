@@ -1,0 +1,105 @@
+{
+ "modus": "bestand",
+ "eingabe": {
+  "heutiger_name": "Das kleine Gespenst",
+  "ordner": "Das kleine Gespenst",
+  "einzeltitel": false,
+  "folgen_gesamt": 2,
+  "folgen_gezeigt": 2,
+  "folgen": [
+   {
+    "anzeige": "Das kleine Gespenst",
+    "nummer": null,
+    "tracks": 27,
+    "pruefen_gruende": [],
+    "tonies": [
+     {
+      "model": "01-0141",
+      "series": "Das kleine Gespenst",
+      "episodes": "Das kleine Gespenst",
+      "tracks": 0,
+      "category": "audio-play"
+     }
+    ],
+    "apple": [
+     {
+      "collectionName": "Das kleine Gespenst (Tohuwabohu auf Burg Eulenstein)",
+      "artistName": "Otfried Preußler",
+      "genre": "Hörspiele",
+      "trackCount": 8,
+      "wrapperType": "collection"
+     },
+     {
+      "collectionName": "Das kleine Gespenst",
+      "artistName": "Otfried Preußler",
+      "genre": "Kinder und Jugend",
+      "trackCount": 1,
+      "wrapperType": "audiobook"
+     },
+     {
+      "collectionName": "Das kleine Gespenst",
+      "artistName": "Otfried Preußler & Jens Wawrczeck",
+      "genre": "Kinder und Jugend",
+      "trackCount": 1,
+      "wrapperType": "audiobook"
+     }
+    ]
+   },
+   {
+    "anzeige": "Das Kleine Gespenst",
+    "nummer": null,
+    "tracks": 18,
+    "pruefen_gruende": [
+     "tags_fehlen",
+     "serie_aus_ordner"
+    ],
+    "tonies": [
+     {
+      "model": "01-0141",
+      "series": "Das kleine Gespenst",
+      "episodes": "Das kleine Gespenst",
+      "tracks": 0,
+      "category": "audio-play"
+     }
+    ],
+    "apple": [
+     {
+      "collectionName": "Das kleine Gespenst (Tohuwabohu auf Burg Eulenstein)",
+      "artistName": "Otfried Preußler",
+      "genre": "Hörspiele",
+      "trackCount": 8,
+      "wrapperType": "collection"
+     },
+     {
+      "collectionName": "Das kleine Gespenst",
+      "artistName": "Otfried Preußler",
+      "genre": "Kinder und Jugend",
+      "trackCount": 1,
+      "wrapperType": "audiobook"
+     },
+     {
+      "collectionName": "Das kleine Gespenst",
+      "artistName": "Otfried Preußler & Jens Wawrczeck",
+      "genre": "Kinder und Jugend",
+      "trackCount": 1,
+      "wrapperType": "audiobook"
+     }
+    ]
+   }
+  ]
+ },
+ "antwort": {
+  "entscheidung": "behalten",
+  "name": "Das kleine Gespenst",
+  "sicher": true,
+  "grund": "Der heutige Name entspricht der Reihe, die in beiden Quellen unter diesem Namen geführt wird; die Schreibweise der Folgen variiert nur leicht."
+ },
+ "pruefung_im_code": {
+  "status": "sicher",
+  "entscheidung": "behalten",
+  "name": "Das kleine Gespenst",
+  "sicher": true,
+  "name_ok": true
+ },
+ "bemerkung": "behalten, sicher"
+}

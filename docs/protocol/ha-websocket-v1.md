@@ -5,7 +5,22 @@
     „Auflösung“ am Ende des Reports), mit Entscheidung M (Einsortieren nach Metadaten)
     und den Vorgaben der Projektleitung vom 09.11. (Abschnitt „Vorgaben der
     Projektleitung“ am Ende). Wartet auf die Freigabe durch Tobias. **Stand der Rechte, des Uploads und der
-    neuen Befehle: Änderungen 12.11., 13.11. und 16.11. unten.**
+    neuen Befehle: Änderungen 12.11., 13.11., 16.11. und 18.11. unten.**
+*   **Änderung 18.11. (Online-Suche, Paket OS0; von Tobias freigegeben am 18.11., „Ja, freigeben“):** Grundlage `docs/designs/online-suche.md` (Rev. 2.4, Abschnitt 9, dazu 3.4, 4.8, 5.4, 6.4,
+    7.2, 7.3 und 10) und `docs/egm/online-suche/resolve.md` (Entscheidungen R1 bis R7 und T1 bis T3 von Tobias, Rest Projektleitung; Runden 1 bis 4).
+    Die Version bleibt 1; alles ist additiv (Abschnitt 9), mit den Ausnahmen unten. **Neu:** 8 Befehle (Nr. 57 bis 64, Abschnitt 3.15: `online/suchen`, `online/treffer`,
+    `online/uebernehmen`, `online/zuruecknehmen`, `online/vorschlag_verwerfen`, `online/lauf`, `online/status`, `online/beschreibung`), die Fähigkeit `online_suche` (14.1),
+    das Ereignisthema `online` (4.11; **nur für Administratoren**, `tobibox/subscribe` streicht es für andere still), zwei HTTP-Wege (`GET /api/tobibox/online/vorschau/<treffer_id>` und
+    `DELETE /api/tobibox/cover/<serie_id>?quelle=online`, 3.15 und 14.3), der Filterwert `online_vorschlag` (nur Administratoren, 14.2), 6 Fehlercodes (`treffer_abgelaufen`,
+    `vorschlag_nicht_gefunden`, `aenderung_nicht_gefunden`, `lauf_nicht_gefunden`, `lauf_laeuft_schon`, `online_nicht_erreichbar`, Abschnitt 7), die Ausgabefelder `beschreibung`,
+    `beschreibung_gekuerzt`, `alter_ab` und `beschreibung_quelle` an der Folge von `serie/get` (3.2), die Felder `online` (für alle) und `online_vorschlaege` (nur Administratoren,
+    nur in `serien/list`, `serie/get` und Nr. 51) an der Serie-Kurzform (14.2), für Administratoren die Liste `online_vorschlaege_liste` in `serie/get` (3.2) und die Quelle `claude` bei Vorschlägen
+    (3.15). Die Entität für die Namensvorschläge von Claude ist eine **Option der Integration** (`online_ki_entitaet`, Vorgabe: die `ai_task`-Entität der Claude-Integration (`anthropic`), wenn es genau eine gibt; abschaltbar) und **nicht** Teil dieses Vertrags; Befehl 63 meldet nur,
+    ob sie gesetzt ist (`quellen.claude`). `mqtt-v1.md`, die Box und der Sync ändern sich **nicht** (Design 9.4); die Speicher stehen in `data-model.md` (Abschnitte 5, 5b, 13).
+    **Ausdrücklich nicht rein additiv (wie am 12.11. in 14.2):** (1) **neuer Wert `online` in den vorhandenen Ausgabefeldern `cover_quelle` und `art_quelle`** (14.2): Der Wertebereich wächst.
+    Die Seite behandelt unbekannte Werte von `cover_quelle` wie `auto` und von `art_quelle` wie `tags` (sie prüft nur auf `eigen`, `cover.js:254`). **Rückfall auf eine ältere Integration** macht aus `art_quelle`
+    `online` den Wert `manuell` (`serie_aus_json` kennt `online` nicht): Die Art bleibt, gilt dann aber als von Hand gesetzt; der Hinweis kommt in `docs/betrieb/`. (2) Nr. 44 `cover/neu_suchen` berührt nun
+    auch `cover-online.jpg` nie (Klarstellung, 14.3). (3) `tobibox/subscribe` ohne `themen` abonniert für Nicht-Administratoren nicht mehr „alle“ Themen des Backends, sondern alle **außer `online`** (4.11).
 *   **Änderung 16.11. (Stufe B „Gehört“, Paket B0; Entwurf, wartet auf die Freigabe durch Tobias):** Grundlage `docs/egm/stufe-b/design_draft.md` (Rev. 3.1,
     Abschnitte 3.3 bis 3.7, 4, 5, 6, 8, 11), `resolve.md` (Entscheidungen R1 bis R4 von Tobias, Rest Projektleitung) und `concepts_brief.md` Abschnitt 6 (Reste aus Stufe A).
     Die Version bleibt 1; alles ist additiv (Abschnitt 9), mit den Ausnahmen unten. **Neu:** 7 Befehle (Nr. 50 bis 56, Abschnitt 3.14: `gehoert/zusammenfassung`, `gehoert/zuletzt`,
@@ -208,13 +223,13 @@ HA prüft bei einem WebSocket-Befehl nur, dass der Nutzer **angemeldet** ist. We
 | **alltag** | jeder angemeldete HA-Nutzer | kein Dekorator; für Nicht-Administratoren gelten zusätzlich die Schutzregeln in 2.4 (Zusatzprüfungen im Befehl, Fehler `unauthorized` oder der Code der Prüfung) |
 | **admin** | nur Administratoren | `@websocket_api.require_admin`; Fehler `unauthorized` |
 
-**Befehle nach Stufe** (Nr. wie in der Übersicht in Abschnitt 3; Nr. 37 bis 46 sind seit dem 12.11., Nr. 47 bis 49 seit dem 13.11., Nr. 50 bis 56 seit dem 16.11. neu; Nr. 18 bis 20 stehen seit dem 13.11. wieder bei `admin`):
+**Befehle nach Stufe** (Nr. wie in der Übersicht in Abschnitt 3; Nr. 37 bis 46 sind seit dem 12.11., Nr. 47 bis 49 seit dem 13.11., Nr. 50 bis 56 seit dem 16.11., Nr. 57 bis 64 seit dem 18.11. neu; Nr. 18 bis 20 stehen seit dem 13.11. wieder bei `admin`):
 
 | Stufe | Befehle |
 |---|---|
-| **lesen** | 1 `hello`, 2 `subscribe`, 3 `serien/list`, 4 `serie/get`, 10 `papierkorb/list`, 13 `neue_tobies/list`, 15 `zuordnung/list`, 21 `boxen/list` (ohne das Feld `ereignisse`), 29 `eingang/list`, 34 `konfig/get`, 35 `einstellungen/get`, 37 `folgen/list`, 40 `hoerstelle/get`, 42 `hoerstelle/liste`, 50 `gehoert/zusammenfassung`, 51 `gehoert/zuletzt`, 56 `favoriten/list`; HTTP: Cover (GET), Audio (GET, Anmeldung oder gültige Signatur) |
+| **lesen** | 1 `hello`, 2 `subscribe`, 3 `serien/list`, 4 `serie/get`, 10 `papierkorb/list`, 13 `neue_tobies/list`, 15 `zuordnung/list`, 21 `boxen/list` (ohne das Feld `ereignisse`), 29 `eingang/list`, 34 `konfig/get`, 35 `einstellungen/get`, 37 `folgen/list`, 40 `hoerstelle/get`, 42 `hoerstelle/liste`, 50 `gehoert/zusammenfassung`, 51 `gehoert/zuletzt`, 56 `favoriten/list`, 64 `online/beschreibung`; HTTP: Cover (GET), Audio (GET, Anmeldung oder gültige Signatur) |
 | **alltag** | 6 `serie/rename`, 8 `folge/delete`, 9 `medien/pruefen`, 14 `neue_tobies/verwerfen`, 16 `zuordnung/set` (mit Name), 17 `zuordnung/remove`, 24 `serie/delete`, 25 `folge/rename`, 26 `folge/verschieben` (Ziel „Überraschungs-Serie“ nur Administratoren), 28 `einsortierung/bestaetigen`, 30 `eingang/sortieren` (ohne `sofort`), 36 `einstellungen/set` (ohne `lesezeichen_tage`; `leise_zeiten.zeitzone` wird ignoriert), 38 `serie/art_setzen`, 39 `audio/bereit`, 41 `hoerstelle/set` (nur die eigene Hörstelle), 43 `einsortierung/neu`, 47 `warteschlange/set`, 48 `warteschlange/list`, 49 `warteschlange/abbrechen`, 55 `favorit/set`; HTTP: Upload, Cover (POST, DELETE `quelle=eigen`) |
-| **admin** | 5 `serie/create`, 7 `folgen/order`, 18 `lernmodus/start`, 19 `lernmodus/antwort`, 20 `lernmodus/abbrechen` (seit 13.11. wieder admin, X13a), 11 `papierkorb/restore`, 12 `papierkorb/empty`, 22 `box/sync`, 23 `liste/neu_ausrollen`, 27 `serien/zusammenfuehren`, 31 `konfig/export_lesen`, 32 `konfig/aus_export`, 33 `eingang/entfernen`, 44 `cover/neu_suchen`, 45 `hoerkopie/neu_erzeugen`, 46 `papierkorb/restore_letzte_stunde`, 52 `technik/verlauf`, 53 `gehoert/exportieren`, 54 `gehoert/loeschen`; das Feld `ereignisse` von `boxen/list`; `eingang/sortieren` mit `sofort`; `einstellungen/set` mit `lesezeichen_tage` |
+| **admin** | 5 `serie/create`, 7 `folgen/order`, 18 `lernmodus/start`, 19 `lernmodus/antwort`, 20 `lernmodus/abbrechen` (seit 13.11. wieder admin, X13a), 11 `papierkorb/restore`, 12 `papierkorb/empty`, 22 `box/sync`, 23 `liste/neu_ausrollen`, 27 `serien/zusammenfuehren`, 31 `konfig/export_lesen`, 32 `konfig/aus_export`, 33 `eingang/entfernen`, 44 `cover/neu_suchen`, 45 `hoerkopie/neu_erzeugen`, 46 `papierkorb/restore_letzte_stunde`, 52 `technik/verlauf`, 53 `gehoert/exportieren`, 54 `gehoert/loeschen`, 57 `online/suchen`, 58 `online/treffer`, 59 `online/uebernehmen`, 60 `online/zuruecknehmen`, 61 `online/vorschlag_verwerfen`, 62 `online/lauf`, 63 `online/status`; HTTP: Online-Vorschau (GET), Cover (DELETE mit `quelle=online`); das Feld `ereignisse` von `boxen/list`; `eingang/sortieren` mit `sofort`; `einstellungen/set` mit `lesezeichen_tage` |
 
 **Lernmodus (seit 13.11.):** `lernmodus/start`, `lernmodus/antwort` und `lernmodus/abbrechen` sind ein Vorgang und wieder nur für Administratoren (X13a). Der Alltag legt neue Tobies über die Warteschlange an (3.13, Recht alltag). Das Ereignisthema `lernmodus` und das Feld `lernmodus` von `boxen/list` bleiben für jeden lesbar (nur Anzeige). *(Lücke im Design: Es sagt nichts zum Lesen des Zustands; unverändert gelassen, weil es nichts auslöst.)*
 
@@ -225,6 +240,8 @@ HA prüft bei einem WebSocket-Befehl nur, dass der Nutzer **angemeldet** ist. We
 **Hörstelle:** `hoerstelle/*` arbeitet nur mit der **eigenen** Hörstelle; die Benutzerkennung kommt aus der Verbindung (`connection.user.id`), nie aus der Eingabe. Auch Administratoren sehen keine fremden (Ausnahme: das Backend liest sie intern für die Prüfung in 2.4, zeigt sie aber nirgends).
 
 **Gehört (seit 16.11., Stufe B):** Die **Stelle** zum Weiterhören bleibt privat (siehe oben). **Dass** jemand etwas gehört hat und wie lange, sehen alle angemeldeten Benutzer, auch Konten für Gäste (Befehle 50 und 51, Frage 23 des Designs; Entscheidung R1 bis R3). Löschen, Export und Technik-Verlauf (52 bis 54) sind nur für Administratoren. Favoriten gelten für die **ganze Familie**: alle lesen, alle setzen (55, 56). Die Kennung eines Tobies kommt in keinem dieser Daten vor (Frage 9).
+
+**Online-Suche (seit 18.11.):** Suchen, Übernehmen, Zurücknehmen, Vorschläge verwerfen, der Lauf, der Status und die Vorschau (Nr. 57 bis 63, HTTP Vorschau, `DELETE …?quelle=online`) sind **nur für Administratoren** (Entscheidung R1); ein Nicht-Administrator bekommt `unauthorized`. Das Ereignisthema `online`, der Filterwert `online_vorschlag` und die Felder `online_vorschlaege` und `online_vorschlaege_liste` gibt es ebenfalls nur für Administratoren. **Alle** angemeldeten Benutzer sehen den Hinweis „Aus der Online-Suche übernommen“ (Feld `online` der Serie-Kurzform, nur Zeit und Feldnamen), Beschreibung und Alter der Folgen und lesen den vollen Beschreibungstext (Nr. 64, Recht lesen). Ein eigenes Foto ersetzt ein Online-Cover für alle wie bisher (14.3).
 
 **Die Seite in der Seitenleiste** (`panel_custom`): bleibt `require_admin=True`, **bis Tobias die Abnahme von Teil A-1 gemacht hat**; erst dann öffnet der eigene kleine Schritt „Seite für alle öffnen“ sie (`require_admin=False`). Das blendet die Seite nur aus oder ein und **ersetzt keine Prüfung**: Das Backend prüft bei jedem Aufruf selbst. `hello.darf_schreiben` bleibt „Nutzer ist Administrator“ (der Name bleibt aus Gründen der Verträglichkeit); die Seite blendet „Technik“ danach aus. Das ist Komfort, keine Sicherheit. Die Rechte der Befehle gelten **ab Einführung im Backend**, auch ohne die Seite: Wer per WebSocket aufruft, darf die Alltagsbefehle als Nicht-Administrator benutzen.
 
@@ -258,7 +275,7 @@ Jeder Befehl nennt in „MQTT“, was er auslöst. Zusammengefasst:
 | veröffentlicht `tobibox/config` mit **neuer Listen-ID** | `liste/neu_ausrollen`, `konfig/aus_export` |
 | sendet `tobibox/<box>/cmd` (mit `id`, `erzeugt`, `ttl_s`) | `lernmodus/start` (`lernen`, 60 s), `lernmodus/abbrechen` (`lernen_abbrechen`, 30 s), `box/sync` (`sync`, 300 s), später `box/update` (`update`, 300 s) |
 | sendet `tobibox/<box>/unknown/<uid>/ack` | der Lernmodus (6.2: `zugeordnet`, `abgelehnt`). Die Bestätigung beim ersten Eintreffen einer Kennung (`neu`, `bekannt`) ist **Sache des Backends allein**, kein Befehl der Seite (`mqtt-v1.md`, 3.6). |
-| nichts | alle übrigen (Medien, Eingang, Papierkorb, Lesen, Verwerfen, `warteschlange/set`, `warteschlange/list`, `warteschlange/abbrechen`, Gehört und Favoriten Nr. 50 bis 56). Die Quittung `gehoert_quittung` an die Box sendet das Backend selbst beim Eintreffen von `gespielt` und beim Handshake, **nicht** auf einen Befehl der Seite (`mqtt-v1.md`, 4.5) |
+| nichts | alle übrigen (Medien, Eingang, Papierkorb, Lesen, Verwerfen, `warteschlange/set`, `warteschlange/list`, `warteschlange/abbrechen`, Gehört und Favoriten Nr. 50 bis 56, Online-Suche Nr. 57 bis 64). Die Quittung `gehoert_quittung` an die Box sendet das Backend selbst beim Eintreffen von `gespielt` und beim Handshake, **nicht** auf einen Befehl der Seite (`mqtt-v1.md`, 4.5) |
 
 Die **Reihenfolge** „erst Konfiguration, dann `ack`“ (Entscheidung H, 07.11.;
 `mqtt-v1.md`, 4.2) gilt für jeden Weg, der eine Zuordnung schreibt und danach
@@ -349,10 +366,18 @@ Pflichtfelder sind fett. Fehlercodes: Tabelle in Abschnitt 7.
 | 54 | `tobibox/gehoert/loeschen` | admin | ja (Endzustand) | – |
 | 55 | `tobibox/favorit/set` | alltag | ja | – |
 | 56 | `tobibox/favoriten/list` | lesen | ja | – |
+| 57 | `tobibox/online/suchen` | admin | ja (neue Treffer-IDs) | – |
+| 58 | `tobibox/online/treffer` | admin | ja | – |
+| 59 | `tobibox/online/uebernehmen` | admin | mit `anfrage_id` | – |
+| 60 | `tobibox/online/zuruecknehmen` | admin | ja (Endzustand) | – |
+| 61 | `tobibox/online/vorschlag_verwerfen` | admin | ja (Endzustand) | – |
+| 62 | `tobibox/online/lauf` | admin | ja | – |
+| 63 | `tobibox/online/status` | admin | ja | – |
+| 64 | `tobibox/online/beschreibung` | lesen | ja | – |
 
 Dazu der HA-eigene Befehl `unsubscribe_events` zum Beenden eines Abos (Abschnitt 4).
 Die Befehle 33 bis 36 sind seit dem 09.11. (AP 4.7) gültig; ihre Fähigkeiten stehen in `hello`.
-Die Befehle 37 bis 46 und die Stufen `lesen`, `alltag`, `admin` sind seit dem 12.11. festgelegt (Abschnitt 2.1, 3.12, 14); an den Befehlen 1 bis 36 steht „Recht“ statt „Rechte“. Die Befehle 47 bis 49 (Abschnitt 3.13) sind seit dem 13.11. festgelegt; seit dem 13.11. sind 18 bis 20 wieder `admin`. Die Befehle 50 bis 56 (Abschnitt 3.14) sind seit dem 16.11. festgelegt (Entwurf B0).
+Die Befehle 37 bis 46 und die Stufen `lesen`, `alltag`, `admin` sind seit dem 12.11. festgelegt (Abschnitt 2.1, 3.12, 14); an den Befehlen 1 bis 36 steht „Recht“ statt „Rechte“. Die Befehle 47 bis 49 (Abschnitt 3.13) sind seit dem 13.11. festgelegt; seit dem 13.11. sind 18 bis 20 wieder `admin`. Die Befehle 50 bis 56 (Abschnitt 3.14) sind seit dem 16.11. festgelegt (Entwurf B0). Die Befehle 57 bis 64 (Abschnitt 3.15) sind seit dem 18.11. festgelegt (Entwurf OS0).
 **Reserviert** für später (Namen sind vergeben, der Inhalt kommt in der jeweiligen
 Stufe): Abschnitt 10.
 
@@ -400,6 +425,7 @@ Zuordnung, `data-model.md`, Abschnitt 2).
 | `hinweise` | array | Hinweise zu dieser Serie, siehe unten |
 | *(seit 12.11.)* | | weitere Ausgabefelder `art`, `art_quelle`, `einzeln`, `kapitel_anzahl`, `dauer_s`, `cover_stand`, `cover_quelle`, `hoerstelle`: 14.2 |
 | *(seit 16.11.)* | | weitere Ausgabefelder `favorit` (Fähigkeit `favoriten`) und `zuletzt_gehoert_am` (Fähigkeit `gehoert`): 14.2 |
+| *(seit 18.11.)* | | weitere Ausgabefelder `online` (für alle) und `online_vorschlaege` (nur Administratoren, nur an drei Stellen): 14.2 |
 
 **Hinweis** (`hinweise[]`): `{"code": <string>, "folge": <string oder null>, "text": <string>}`.
 Codes in Version 1: `datei_fehlt` (Name steht in `folgen`, Datei fehlt; die Integration
@@ -431,7 +457,7 @@ Ausgabe:
 | `v` | int | Vertragsversion des Backends |
 | `version` | string | Version der Integration (`manifest.json`) |
 | `darf_schreiben` | bool | der angemeldete Nutzer ist Administrator |
-| `faehigkeiten` | array von string | was das Backend kann; Version 1 (Stufe 3a): `medien`, `upload`, `zuordnung`, `tobie_namen`, `neue_tobies`, `lernmodus`, `boxen`, `papierkorb`, `liste_ausrollen`, `konfig_export`, `sync`, `eingang`, `korrektur`, `serie_loeschen`. **(09.11., AP 4.7)** Dazu `einstellungen` (Befehle 35 und 36), `eingang_entfernen` (Nr. 33), `zuordnung_uid` (Eingabe `uid` bei Nr. 15), `konfig_lesen` (Nr. 34) und `upload_fertig_details` (`datei` und `pruefung` im Ereignis „Upload fertig“, 4.7). **(12.11., Stufe A der HA-Oberfläche)** Dazu, nach Teil gebaut: `cover`, `bibliothek`, `einsortier_wunsch`, `konfig_staende`, `reinhoeren`, `hoerkopie` (Regel und Bedeutung: 14.1). **(13.11., A0-Q)** Dazu `warteschlange` und `zuordnung_rueckgaengig` (14.1). **(16.11., Stufe B)** Dazu `gehoert` und `favoriten` (14.1). Spätere Stufen ergänzen `update` (3b). Die Reihenfolge der Liste hat keine Bedeutung (K4, 12.11.). Die Seite zeigt und sendet nur, was hier steht. |
+| `faehigkeiten` | array von string | was das Backend kann; Version 1 (Stufe 3a): `medien`, `upload`, `zuordnung`, `tobie_namen`, `neue_tobies`, `lernmodus`, `boxen`, `papierkorb`, `liste_ausrollen`, `konfig_export`, `sync`, `eingang`, `korrektur`, `serie_loeschen`. **(09.11., AP 4.7)** Dazu `einstellungen` (Befehle 35 und 36), `eingang_entfernen` (Nr. 33), `zuordnung_uid` (Eingabe `uid` bei Nr. 15), `konfig_lesen` (Nr. 34) und `upload_fertig_details` (`datei` und `pruefung` im Ereignis „Upload fertig“, 4.7). **(12.11., Stufe A der HA-Oberfläche)** Dazu, nach Teil gebaut: `cover`, `bibliothek`, `einsortier_wunsch`, `konfig_staende`, `reinhoeren`, `hoerkopie` (Regel und Bedeutung: 14.1). **(13.11., A0-Q)** Dazu `warteschlange` und `zuordnung_rueckgaengig` (14.1). **(16.11., Stufe B)** Dazu `gehoert` und `favoriten` (14.1). **(18.11., Online-Suche)** Dazu `online_suche` (14.1). Spätere Stufen ergänzen `update` (3b). Die Reihenfolge der Liste hat keine Bedeutung (K4, 12.11.). Die Seite zeigt und sendet nur, was hier steht. |
 | `boxen` | array von string | die eingerichteten Box-Namen (aus der Einrichtung der Integration) |
 | `konfig` | object | Konfig-Stand mit `zustand`. Ist `zustand` nicht `ok`, zeigt die Seite zuerst die Warnung aus Abschnitt 13 und sperrt Änderungen der Konfiguration. |
 | `grenzen` | object | `upload_max_bytes` (Vorgabe seit 12.11. 2147483648 = 2 GiB, einstellbar; vorher 500 MiB), `upload_block_bytes`, `upload_parallel` (2), `endungen` (array), `serie_name_max` (100), `folge_anzeige_max` (200), `tobie_name_max` (60), `name_max_bytes` (255), `limit_max` (100 bzw. 200, je Befehl); **(12.11.)** bei zugesagter Fähigkeit dazu `audio_verbindungen_je_benutzer` (6), `hoerkopie_kbit` (96), `hoerkopie_dauer_max_s` (14.10); **(13.11.)** bei Fähigkeit `warteschlange` dazu `warteschlange_max` (5); **(16.11., Rest aus A-3)** bei Fähigkeit `hoerkopie` dazu `hoerkopie_schlange` (object `{"dateien": <int>, "dateien_max": <int>, "bytes": <int>, "bytes_max": <int>}`: Aufträge in der Warteschlange der Hörkopien einschließlich des laufenden, Summe der Größen ihrer Quellen und die Grenzen `HOERKOPIE_SCHLANGE_DATEIEN` und `HOERKOPIE_SCHLANGE_BYTES`; der Stand beim Aufruf von `hello`, für „Technik“, 14.8). Außerdem `box_anzeigen` (object: Box-Name → Anzeigename, 14.9) im Ergebnis von `hello` |
@@ -446,7 +472,7 @@ Abonniert Ereignisse (Abschnitt 4). Ein Abo je Seite genügt.
 
 | Eingabe | Typ | Pflicht | Bedeutung |
 |---|---|---|---|
-| `themen` | array von string | nein | Teilmenge von `boxen`, `neue_tobies`, `lernmodus`, `medien`, `eingang`, `konfig`, `upload`; **(13.11.)** dazu `warteschlange` (nur senden, wenn `hello.faehigkeiten` `warteschlange` zusagt); **(16.11.)** dazu `gehoert` (nur mit Fähigkeit `gehoert`) und `favoriten` (nur mit Fähigkeit `favoriten`); Vorgabe: alle, die das Backend zusagt |
+| `themen` | array von string | nein | Teilmenge von `boxen`, `neue_tobies`, `lernmodus`, `medien`, `eingang`, `konfig`, `upload`; **(13.11.)** dazu `warteschlange` (nur senden, wenn `hello.faehigkeiten` `warteschlange` zusagt); **(16.11.)** dazu `gehoert` (nur mit Fähigkeit `gehoert`) und `favoriten` (nur mit Fähigkeit `favoriten`); **(18.11.)** dazu `online` (nur mit Fähigkeit `online_suche` **und** nur für Administratoren; für Nicht-Administratoren streicht HA es **still** aus `themen`, auch wenn es ausdrücklich genannt ist, 4.11); Vorgabe: alle, die das Backend zusagt (für Nicht-Administratoren ohne `online`) |
 
 Ausgabe: `null` (HA-Muster). Danach kommen die Ereignisse als `{"id": <id des Abos>,
 "type": "event", "event": {…}}`. Direkt nach der Antwort sendet das Backend je
@@ -486,6 +512,7 @@ Liest `serie.json` frisch. Ausgabe: die Felder der Serie-Kurzform und dazu
 |---|---|---|
 | `folgen` | array | in der maßgeblichen Reihenfolge (`serie.json`), Objekte siehe unten |
 | `zuordnungen` | array von Tobie-Kurzform | Tobies, die auf die **ganze Serie** zeigen (Folgen-Tobies stehen bei der Folge) |
+| `online_vorschlaege_liste` | array | **(18.11., nur für Administratoren, Fähigkeit `online_suche`)** die offenen, gültigen Vorschläge der Online-Suche zu diesem Eintrag (3.15): je Eintrag `{"id", "art": "felder" oder "zusammenfuehren", "quelle": "itunes", "tonies" oder "claude", "felder": [<feld>[@<folge>]…] (nur Art `felder`), "name" (nur bei Quelle `claude` und Feld `serie_name`: der vorgeschlagene Name), "grund" (nur Quelle `claude`, höchstens 160 Zeichen), "ziel_serie_id" (nur Art `zusammenfuehren`), "zeit"}`. Für andere Benutzer fehlt das Feld. Die Werte holt die Seite mit Nr. 58 |
 
 Folge-Objekt:
 
@@ -503,6 +530,10 @@ Folge-Objekt:
 | `pruefen` | bool | „bitte prüfen“ (Abschnitt 11.9) |
 | `pruefen_gruende` | array von string | Codes aus 11.9, leer wenn `pruefen=false` |
 | `tobies` | array von Tobie-Kurzform | Tobies, deren `ziel` genau auf diese Folge zeigt |
+| `beschreibung` | string oder fehlt | **(18.11., Ausgabefeld, keine Fähigkeit nötig)** Beschreibung der Folge, **höchstens 300 Zeichen**, am Satzende gekürzt; fehlt, wenn es keine gibt. Der volle Text (höchstens 2 000 Zeichen) kommt mit Nr. 64 |
+| `beschreibung_gekuerzt` | bool | **(18.11.)** `true`, wenn `beschreibung` gekürzt ist; nur zusammen mit `beschreibung` |
+| `alter_ab` | int 0 bis 18 oder fehlt | **(18.11.)** Mindestalter in Jahren („ab 3“); fehlt, wenn unbekannt |
+| `beschreibung_quelle` | `tonies_shop` oder `itunes` | **(18.11.)** woher `beschreibung` stammt; nur zusammen mit `beschreibung` |
 
 Fehler: `serie_nicht_gefunden`, `medien_nicht_erreichbar`. Recht: lesen.
 Idempotent: ja. MQTT: –.
@@ -1452,7 +1483,7 @@ Nur möglich, solange die Bedingungen aus 2.4 erfüllt sind (`pruefen=true` oder
 |---|---|---|---|
 | `serie_id` | string | nein | fehlt: alle Einträge |
 
-Löscht `cover.jpg` und die Marke `cover_suche` und startet die Suche im Hintergrund neu (14.3). Berührt nie `cover-eigen.jpg`. Ausgabe: `{"gestartet": <bool>, "eintraege": <int>}`. Fehler: `serie_nicht_gefunden`, `medien_nicht_erreichbar`. Recht: admin. Idempotent: ja. MQTT: –.
+Löscht `cover.jpg` und die Marke `cover_suche` und startet die Suche im Hintergrund neu (14.3). Berührt nie `cover-eigen.jpg` und (seit 18.11.) nie `cover-online.jpg`. Ausgabe: `{"gestartet": <bool>, "eintraege": <int>}`. Fehler: `serie_nicht_gefunden`, `medien_nicht_erreichbar`. Recht: admin. Idempotent: ja. MQTT: –.
 
 #### 45. `tobibox/hoerkopie/neu_erzeugen` (Fähigkeit `hoerkopie`)
 
@@ -1634,6 +1665,150 @@ Ausgabe: `{"an": <bool>}` (der Stand nach dem Aufruf). Höchstens `FAVORITEN_MAX
 
 Keine Eingabe. Ausgabe: `eintraege` (array): je Eintrag `serie_id`, `folge` (string oder `null`, wenn der Stern an der Serie hängt), `gesetzt_von` (object `{"id", "name"}`; für einen gelöschten Benutzer „unbekannt“) und `gesetzt_am` (Zeitstempel). Einträge, deren Serie oder Folge es nicht mehr gibt, fehlen. Reihenfolge: neueste zuerst (`gesetzt_am`). Fehler: keine außer den allgemeinen. Recht: lesen. Idempotent: ja. MQTT: –.
 
+### 3.15 Online-Suche (ab 18.11., Fähigkeit `online_suche`)
+
+Befehle 57 bis 64. Grundlage: `docs/designs/online-suche.md` (Rev. 2.4): Abläufe 5, Herkunft, Übernahme und Rücknahme 6, Netz 8; Rechte: 2.1; Speicher: `data-model.md`, 5, 5b und 13; Ereignisse: 4.11; Fehlercodes: Abschnitt 7. Die Befehle stehen nur im Backend, wenn `hello.faehigkeiten` `online_suche` zusagt (14.1). Die Fähigkeit hängt **nicht vom Netz ab**: Fällt eine Quelle aus, bleiben die Befehle da und melden es im Ergebnis (`quellen`). **Nur Nr. 64 ist für alle Benutzer (Recht lesen); alle anderen sind admin.** Die Entität für die Namensvorschläge von Claude ist eine Option der Integration (`online_ki_entitaet`, Vorgabe: die `ai_task`-Entität der Claude-Integration (`anthropic`), wenn es genau eine gibt; abschaltbar) und nicht Teil dieses Vertrags.
+
+**Begriffe dieses Abschnitts**
+
+*   **Feld:** `serie_name`, `art`, `cover` gelten für den Eintrag; `folge_titel`, `nummer`, `beschreibung`, `alter_ab` gelten je Folge und stehen in Eingaben und Ausgaben als `<feld>@<folge>` (`<folge>` = Name der Folge wie in `serie.json`, 3.2; getrennt wird am **ersten** `@`). In Listen `felder` stehen immer Feldnamen, nie Werte, außer wo unten ausdrücklich „Wert“ steht.
+*   **Quelle:** `itunes` (auf der Seite „Apple“), `tonies` (Tonie-Liste, „Tonies“) und, nur bei Vorschlägen, `claude` („Claude“). `tonies_shop` (die Shopseite) kommt nur als `beschreibung_quelle` und in `quellen` von Nr. 63 vor.
+*   **Treffer:** Ergebnis einer Suche (Nr. 57), `treffer_id` = 16 Zeichen `[0-9a-f]`. Treffer samt Bildern liegen nur im Arbeitsspeicher von HA, **15 Minuten**, höchstens 4 Suchen zugleich; danach `treffer_abgelaufen`. Ein HA-Neustart vergisst sie.
+*   **Vorschlag:** gespeichert im Store (`data-model.md`, 5b). Art `felder` (unsichere Felder einer Quelle, oder ein Name von Claude mit Feld `serie_name` und `grund`) oder `zusammenfuehren` (Ziel ist ein anderer Eintrag, Quelle `claude`). **Es gibt keine Vorschläge zum Verschieben** (Design 4.8). Ein Vorschlag **speichert seine Werte** (Store `werte`) und den Namen beim Anlegen (`name_vorher`); er fällt weg, wenn der Name nicht mehr gleich ist (GO-1, GO-3). Name, Quelle und `grund` eines Vorschlags liefert die Liste `online_vorschlaege_liste` in `serie/get` (3.2); die Werte holt Nr. 58.
+*   **Änderung:** eine Übernahme mit Vorher- und Nachher-Werten (`aenderung_id`), zurücknehmbar (Nr. 60).
+*   **Von Hand:** ein Feld, das ein Mensch gewählt hat (Design 6.1). Die Automatik fasst es nie an; die Suche von Hand zeigt es ohne Häkchen (`hand` in Nr. 58).
+*   **Werte kommen nie aus der Eingabe.** Eingaben wählen nur aus, was HA aus Treffer oder Vorschlag hält; Zeichenketten aus Quellen reinigt HA vor dem Schreiben.
+*   **64 KiB:** gewahrt durch höchstens 10 Treffer mit Feldnamen statt Werten (Nr. 57), gekürzte Beschreibungen (3.2), höchstens 50 Einträge in `uebersprungen` (Nr. 60).
+
+#### 57. `tobibox/online/suchen` (Fähigkeit `online_suche`)
+
+Suche von Hand (Design 5.2): sucht bei Apple und in der Tonie-Liste und liefert höchstens 10 Treffer. Nur bei `typ = normal` (nicht bei der Überraschungs-Serie), auch bei Einzeltiteln.
+
+| Eingabe | Typ | Pflicht | Bedeutung |
+|---|---|---|---|
+| `serie_id` | string | **ja** | Eintrag |
+| `folge` | string | nein | Name der Folge: Suche für diese Folge (Ordner-Name, Folgentitel); fehlt: Suche für den Eintrag |
+| `text` | string, 2 bis 100 Zeichen | nein | Suchtext; fehlt: Name des Eintrags bzw. Anzeige der Folge |
+
+Ausgabe:
+
+| Feld | Typ | Bedeutung |
+|---|---|---|
+| `treffer` | array, höchstens 10 | beste zuerst; je Treffer: `treffer_id` (string), `quelle` (`itunes` oder `tonies`), `titel` (string), `reihe` (string oder `null`), `nummer` (int, fehlt wenn unbekannt), `tracks` (int, fehlt wenn unbekannt), `art` (`hoerspiel`, `hoerbuch`, `musik`, fehlt wenn unbekannt), `hat_cover` (bool), `frueher_abgelehnt` (bool: dieser Wert wurde früher mit „Nein“ verworfen, Design 5.4), `felder` (array von Feldnamen, die dieser Treffer liefern kann, mit `@<folge>`) |
+| `quellen` | object | je Quelle `itunes` und `tonies`: `ok`, `pause` (gedrosselt, 429/5xx, Design 8.2) oder `fehler`. Antwortet nur eine Quelle, liefert der Befehl deren Treffer und die Seite zeigt den Hinweis über der Liste |
+
+Die Bilder der obersten 5 Treffer lädt HA schon beim Suchen (Vorschau, HTTP unten); bei den übrigen holt Nr. 58 das Bild nach. Die Suche von Hand wartet höchstens 5 s auf die Drossel, danach kommt ein Teilergebnis (`quellen`: `pause`). Fehler: `serie_nicht_gefunden`, `folge_nicht_gefunden`, `online_nicht_erreichbar` (nur wenn **keine** Quelle antwortet), `invalid_format` (auch: Überraschungs-Serie), `unauthorized`. Recht: admin. Idempotent: ja (jeder Aufruf liefert neue Treffer-IDs). MQTT: –. Netz: ja (Apple, Tonie-Liste; kein Aufruf von Claude).
+
+#### 58. `tobibox/online/treffer` (Fähigkeit `online_suche`)
+
+Holt die Werte „heute“ und „neu“ je Feld für die Übersicht (Design 5.2, Schritt 3). Eine Quelle: **entweder** `treffer_id` **oder** `serie_id` zusammen mit `vorschlag_id` (die Übersicht eines Vorschlags aus der Karte „bitte ansehen“); alles andere ist `invalid_format`.
+
+| Eingabe | Typ | Pflicht | Bedeutung |
+|---|---|---|---|
+| `treffer_id` | string | eins von beiden | Treffer aus Nr. 57 |
+| `serie_id`, `vorschlag_id` | string | eins von beiden (zusammen) | Vorschlag der Art `felder` aus `serie/get` |
+
+Bei einem **Vorschlag** baut HA die Übersicht aus den **gespeicherten Werten** des Vorschlags (Store `werte`, `data-model.md`, 5b), nicht aus einem Treffer; das Bild eines Cover-Vorschlags lädt HA dafür **neu** (Netz, Drossel: Design 8.2; schlägt es fehl, fehlt `cover`) (GO-1).
+
+Ausgabe: `{"felder": {<feld>[@<folge>]: {"heute", "neu", "sicher", "hand"}}, "grund"?: <string>}`. `heute` und `neu` sind der aktuelle und der neue **Wert** (string, int oder `null`; `beschreibung` höchstens 2 000 Zeichen); bei `cover` ist `heute` die Quelle des heutigen Covers (`eigen`, `online`, `auto` oder `null`) und `neu` `true` (das neue Bild: Vorschau, HTTP unten). `sicher` (bool): der Wert gilt nach den Regeln des Designs (Abschnitt 4) als sicher. `hand` (bool): das Feld ist „von Hand“ gesetzt; die Seite setzt dafür kein Häkchen. **Felder, deren neuer Wert dem heutigen gleicht, fehlen.** `grund` steht nur bei einem Vorschlag der Quelle `claude`. Ein Treffer, dessen Bild nicht geladen werden kann, liefert `cover` nicht.
+
+Fehler: `treffer_abgelaufen`, `vorschlag_nicht_gefunden`, `serie_nicht_gefunden`, `invalid_format`. Recht: admin. Idempotent: ja. MQTT: –. Netz: höchstens das Bild eines Treffers oder eines Cover-Vorschlags (Drossel: Design 8.2); sonst keines.
+
+#### 59. `tobibox/online/uebernehmen` (Fähigkeit `online_suche`)
+
+Schreibt die gewählten Felder als **eine** Änderung **von Hand** (Design 5.2, Schritt 4, 6.3): Die Felder bekommen **keinen** Schnappschuss und gelten danach als „von Hand“ (`hand`, `data-model.md`, 5b). Reihenfolge im Backend: Änderung mit Vorher-Werten und Status `offen` sofort speichern, Dateien und `serie.json` schreiben, Status `fertig`, Prüfgründe nach Design 5.5 auflösen, `medien`/`serien_geaendert` auslösen. Braucht kein Netz (das Bild liegt schon bei HA; bei einem Vorschlag kommen die Werte aus dem Store, nie aus der Eingabe).
+
+| Eingabe | Typ | Pflicht | Bedeutung |
+|---|---|---|---|
+| `serie_id` | string | **ja** | Eintrag |
+| `treffer_id` | string | eins von beiden | Treffer aus Nr. 57 |
+| `vorschlag_id` | string | eins von beiden | Vorschlag der Art `felder` (nicht `zusammenfuehren`: `invalid_format`; dafür gilt Nr. 27) |
+| `felder` | array von string, 1 bis (Zahl der Folgen × 4 + 3) | **ja** | Muster `<feld>` oder `<feld>@<folge>` (oben); jedes Feld muss der Treffer bzw. Vorschlag anbieten, sonst `invalid_format`. Doppelte Einträge ignoriert HA |
+| `stand` | string | nein | `stand` der Serie (3, Serie-Kurzform); weicht er ab: `stand_veraltet`. **Pflicht bei `serie_name`** (sonst `invalid_format`, GO-3) |
+| `anfrage_id` | string | nein | 2.2 |
+
+Ausgabe: `{"aenderung_id": <string oder null>, "serie_id": <string>, "stand": <neuer stand der Serie>}`. Ein **Namensvorschlag von Claude** wirkt wie `serie/rename` von Hand (gleiche Namensprüfung, `name_ungueltig`): Es ist **keine** Online-Änderung, `aenderung_id` ist `null`, der Name steht nicht in `online.felder` (GO-14). Der Vorschlag fällt weg, wenn der Name des Eintrags nicht mehr dem Namen beim Anlegen entspricht (`name_vorher`, GO-3). Mit der Übernahme verschwindet der Vorschlag, aus dem sie kam, wenn alle seine Felder übernommen sind; sie zählt **nicht** als „Nein“ (kein `verworfen`). Fehler: `treffer_abgelaufen`, `vorschlag_nicht_gefunden`, `stand_veraltet`, `serie_nicht_gefunden`, `folge_nicht_gefunden`, `name_ungueltig`, `invalid_format`, `medien_nicht_erreichbar`, `medien_schreibfehler`. Recht: admin. Idempotent: über `anfrage_id` (2.2). MQTT: –. Ereignis: `medien`/`serien_geaendert`.
+
+#### 60. `tobibox/online/zuruecknehmen` (Fähigkeit `online_suche`)
+
+Nimmt Online-Änderungen zurück (Design 6.4). Genau **eine** der drei Formen: `serie_id` + `aenderung_id` (diese Änderung), `serie_id` allein (alle Änderungen des Eintrags) oder `lauf_id` (alle Änderungen eines Laufs, „Alle zurücknehmen“); andere Mischungen sind `invalid_format`.
+
+| Eingabe | Typ | Pflicht | Bedeutung |
+|---|---|---|---|
+| `serie_id` | string | je Form | Eintrag |
+| `aenderung_id` | string | nein | nur mit `serie_id` |
+| `lauf_id` | string | nein | ein Lauf aus `letzte_laeufe` (Nr. 63) |
+
+*   Ein Feld wird **nur zurückgesetzt, wenn es noch den Online-Wert trägt** (`folge_titel` und `nummer` einer Folge gemeinsam, das Cover über den gespeicherten Dateistand). Sonst steht es in `uebersprungen`, und das Feld bleibt, wie es ist. Zurückgesetzt werden auch `pruefen`, `pruefen_gruende` und `art_quelle`; das Eingangsprotokoll bekommt sein `pruefen` zurück.
+*   **Je Änderung oder je Eintrag** bekommt jedes zurückgesetzte Feld die Marke „zurückgenommen“ (`data-model.md`, 5b): Die Automatik darf es später nur noch **vorschlagen**. **„Alle zurücknehmen“ eines Laufs** setzt sie **nicht**.
+*   Je Serie ein Schritt unter ihrer Sperre. Nicht zurückgenommen werden ausgeführte Zusammenführungen und Verschiebungen (dafür Papierkorb bzw. Zurückverschieben).
+
+Ausgabe, Form Serie (`aenderung_id` oder `serie_id` allein): `{"zurueckgenommen": <int>, "uebersprungen": [{"serie_id", "feld", "grund"}…], "uebersprungen_anzahl": <int>}` (`zurueckgenommen` = Zahl der zurückgesetzten Felder; `uebersprungen` höchstens 50 Einträge, `uebersprungen_anzahl` ist die volle Zahl; `grund` ∈ `seitdem_geaendert`, `serie_nicht_gefunden`, `folge_verschoben`). Ausgabe, Form Lauf: `{"gestartet": true}`; die Rücknahme läuft im Hintergrund, das Ergebnis kommt über das Ereignis `online` (4.11, `vorgang = zuruecknahme`). Fehler: `aenderung_nicht_gefunden`, `lauf_nicht_gefunden`, `serie_nicht_gefunden`, `invalid_format`, `medien_nicht_erreichbar`, `medien_schreibfehler`. Recht: admin. Idempotent: Endzustand ja (ein zweites Mal setzt 0 Felder zurück). MQTT: –.
+
+#### 61. `tobibox/online/vorschlag_verwerfen` (Fähigkeit `online_suche`)
+
+„Nein“ zu einem Vorschlag (Design 5.4): verwirft ihn **dauerhaft** (Store `verworfen`); derselbe Wert aus derselben Quelle kommt im Lauf nicht wieder, bei der Suche von Hand mit der Marke `frueher_abgelehnt`.
+
+| Eingabe | Typ | Pflicht | Bedeutung |
+|---|---|---|---|
+| `serie_id` | string | **ja** | Eintrag |
+| `vorschlag_id` | string | **ja** | Vorschlag aus `serie/get` |
+
+Ausgabe: `{}`. Löst `medien`/`serien_geaendert` aus (der Zähler `online_vorschlaege` ändert sich). Fehler: `vorschlag_nicht_gefunden` (auch beim zweiten Mal), `serie_nicht_gefunden`, `invalid_format`. Recht: admin. Idempotent: Endzustand ja. MQTT: –.
+
+#### 62. `tobibox/online/lauf` (Fähigkeit `online_suche`)
+
+Startet den Lauf über den Rest der Bibliothek oder hält ihn an (Design 5.3). Ein Lauf zugleich.
+
+| Eingabe | Typ | Pflicht | Bedeutung |
+|---|---|---|---|
+| `aktion` | `start` oder `stop` | **ja** | `start`: bestimmt die Kandidaten und startet im Hintergrund; `stop`: hält **nach der aktuellen Serie** an |
+
+Ausgabe: `{"lauf": <Laufzustand wie in Nr. 63> oder null}` (Zustand sofort nach dem Aufruf). `stop` ohne Lauf ist kein Fehler (`lauf` ist `null`). Fehler: `lauf_laeuft_schon` (nur bei `start`), `invalid_format`. Recht: admin. Idempotent: Endzustand ja (ein zweites `start` gibt `lauf_laeuft_schon`, GO-14). MQTT: –. Ereignis `online` (4.11). Der Lauf braucht die Seite nicht; ein HA-Neustart bricht ihn ab (Zustand `abgebrochen`, `grund` `neustart`, kein Fortsetzen, ein neuer Start nimmt die Marken).
+
+#### 63. `tobibox/online/status` (Fähigkeit `online_suche`)
+
+Keine Eingabe. Ausgabe (aus dem Arbeitsspeicher, ohne Netz):
+
+| Feld | Typ | Bedeutung |
+|---|---|---|
+| `lauf` | object oder `null` | der laufende Lauf, sonst `null`: `{"lauf_id", "zustand", "erledigt", "gesamt", "geaendert", "vorschlaege", "keiner", "pause_bis"?}`; `zustand` ∈ `laeuft`, `pausiert` (eine Quelle bremst; `pause_bis` Zeitstempel), `wird_angehalten` (Nr. 62 `stop`, die aktuelle Serie wird noch fertig; GO-12). Beendete Läufe stehen in `letzte_laeufe` |
+| `quellen` | object | je Quelle `itunes`, `tonies`, `tonies_shop`: `{"erreichbar": <bool>, "pause_bis"?: <Zeitstempel>}`; dazu `claude`: `{"eingerichtet": <bool>, "erreichbar": <bool>}` (`eingerichtet = false`: keine Entität gesetzt, es gibt keine Namensvorschläge; dann ist `erreichbar` `false`) |
+| `tonie_liste` | object oder `null` | `{"stand": <Zeitstempel des letzten Ladens>, "anzahl": <int benutzbare Einträge>}`; `null`, solange nie geladen |
+| `letzte_laeufe` | array, höchstens 5 | neueste zuerst: `{"lauf_id", "beginn", "ende", "zustand", "grund"?, "zahlen"}`; `zustand` ∈ `fertig`, `angehalten`, `abgebrochen`; `grund` (nur bei `angehalten` und `abgebrochen`): `angehalten` (Nr. 62 `stop`), `neustart` (HA-Neustart), `quelle` (nach drei Pausen in Folge „Quelle nicht erreichbar“) (GO-12); `zahlen` = `{"erledigt", "gesamt", "geaendert", "vorschlaege", "keiner"}`. Daraus bildet die Seite „Fertig: 120 Einträge geändert, 38 Vorschläge, 12 ohne Treffer.“ |
+
+Fehler: keine außer den allgemeinen. Recht: admin. Idempotent: ja. MQTT: –.
+
+#### 64. `tobibox/online/beschreibung` (Fähigkeit `online_suche`)
+
+Der volle Beschreibungstext einer Folge, wenn `serie/get` ihn gekürzt hat (`beschreibung_gekuerzt`). Eine reine Leseanfrage aus dem Speicher von HA, ohne Netz; **für jeden angemeldeten Benutzer** (Recht lesen). Die Seite ruft sie nur, wenn `hello.faehigkeiten` `online_suche` zusagt; sonst zeigt sie den gekürzten Text.
+
+| Eingabe | Typ | Pflicht | Bedeutung |
+|---|---|---|---|
+| `serie_id` | string | **ja** | Eintrag |
+| `folge` | string | **ja** | Name der Folge |
+
+Ausgabe: `{"beschreibung": <string, höchstens 2 000 Zeichen>, "alter_ab"?: <int 0 bis 18>, "quelle": "tonies_shop" oder "itunes"}`; gibt es keine Beschreibung, sind `beschreibung` und `quelle` `null`. Fehler: `serie_nicht_gefunden`, `folge_nicht_gefunden`. Recht: **lesen**. Idempotent: ja. MQTT: –.
+
+**HTTP (Fähigkeit `online_suche`)**
+
+*   **`GET /api/tobibox/online/vorschau/<treffer_id>`:** das neue Bild eines Treffers aus Nr. 57. Recht: **admin** (Nicht-Administrator: 403 `unauthorized`). `treffer_id` nur `[0-9a-f]` (16 Zeichen, sonst 404). `image/jpeg`, 192 px, erzeugt aus dem gehaltenen Bild; `Cache-Control: no-store`; keine Anfrage an Fremde (kein `blob:` von einem fremden Host, auch über Nabu Casa). Fehler: 410 `treffer_abgelaufen`, 404 `cover_nicht_gefunden` (Treffer ohne Bild oder Bild noch nicht geladen; dann holt Nr. 58 es nach).
+*   **`DELETE /api/tobibox/cover/<serie_id>?quelle=online`:** 14.3.
+
+**Grenzen dieses Abschnitts** (Namen sind Vorschläge für `const.py`)
+
+| Konstante | Wert | Stand |
+|---|---|---|
+| `ONLINE_TREFFER_MAX` | 10 Treffer je Suche | Design 9.2 |
+| `ONLINE_TREFFER_GUELTIG_S` | 900 (15 Minuten), höchstens 4 Suchen gehalten | Design 7.4, 8.4 |
+| `ONLINE_VORSCHAU_PX` | 192 | Design 9.2 |
+| `ONLINE_BESCHREIBUNG_KURZ`, `ONLINE_BESCHREIBUNG_MAX` | 300, 2 000 Zeichen | Design R4, 3.2, 9.2 |
+| `ONLINE_UEBERSPRUNGEN_MAX` | 50 Einträge in `uebersprungen` | Design 9.2 |
+| `ONLINE_AENDERUNGEN_TAGE`, `ONLINE_AENDERUNGEN_MAX` | 30 Tage, 20 je Eintrag | Design 7.3 |
+| `ONLINE_VERWORFEN_MAX` | 200 je Eintrag | Design 7.3 |
+| `ONLINE_STAND_BUENDEL_S` | 2 (Ereignis `stand`) | Design 9.3 |
+| Drossel der Quellen | Design 8.2 (kein Teil dieses Vertrags) | Design 8.2 |
+
 ## 4. Ereignisse (Abo `tobibox/subscribe`)
 
 Alle Ereignisse haben dieselbe Hülle (Inhalt des Feldes `event` der HA-Nachricht):
@@ -1655,7 +1830,7 @@ Alle Ereignisse haben dieselbe Hülle (Inhalt des Feldes `event` der HA-Nachrich
     abonniert dabei erneut.
 *   **Bündeln (W-23):** Das Backend fasst nur die Ereignisse `geaendert` (Themen
     `boxen`, `konfig`, `eingang`) und `serien_geaendert` zusammen: höchstens **eines je
-    Thema und Box (bzw. Serie) und Sekunde**; **seit 16.11.** kommt `gehoert`/`geaendert` höchstens alle 5 s (4.9). Ereignisse mit eigenem Inhalt
+    Thema und Box (bzw. Serie) und Sekunde**; **seit 16.11.** kommt `gehoert`/`geaendert` höchstens alle 5 s (4.9); **seit 18.11.** kommt `online`/`stand` höchstens alle 2 s (4.11). Ereignisse mit eigenem Inhalt
     (`boxen`/`ereignis`, `lernmodus`-Zustände, `neu_einsortiert`, `abweichung`,
     `fortschritt`, seit 16.11. `favoriten`/`geaendert`) werden **nie** zusammengefasst oder verschluckt. Die HA-Warteschlange
     je Verbindung ist begrenzt (4096 Nachrichten, Abschnitt 8); Ereignisse sind darum
@@ -1784,6 +1959,17 @@ Die Ereignisse sind Hinweise (Abschnitt 4); die Quelle der Wahrheit ist `wartesc
 | `geaendert` | `{"serie_id": <string>, "folge": <string oder `null`>, "an": <bool>}`: ein Stern wurde gesetzt oder genommen (auch von einem anderen Fenster oder Benutzer); `folge` ist `null` bei einem Stern an der Serie |
 
 `geaendert` trägt eigenen Inhalt und wird **nie** gebündelt (4). Die Seite lädt bei Bedarf `favoriten/list`.
+
+### 4.11 Thema `online` (ab 18.11., Fähigkeit `online_suche`, **nur Administratoren**)
+
+Das Thema geht **nur an Administratoren**: Das Abo trägt die Rolle, das Backend filtert beim Senden, und `tobibox/subscribe` streicht `online` für Nicht-Administratoren **still** aus `themen`, auch bei ausdrücklicher Nennung (kein Fehler, kein Snapshot, nie ein Ereignis `online`). **Reihenfolge in `subscribe`:** erst die Themen auflösen (fehlt `themen`, gilt „alle, die das Backend zusagt“), **dann** `online` streichen; eine dabei leer gewordene Menge bleibt leer und wird **nicht** zu „alle“ (sonst würde aus `themen: ["online"]` ein Abo aller Themen). Die Rolle gilt bis zum neuen Abo; wechselt ein Benutzer seine Rolle, bekommt er das Thema erst nach dem erneuten Abonnieren (GO-13). Die Ereignisse sind Hinweise (Abschnitt 4); die Quelle der Wahrheit ist Nr. 63. Änderungen an Serien (Übernahme, Rücknahme, Vorschläge) kommen weiter über `medien`/`serien_geaendert`.
+
+| `art` | `daten` |
+|---|---|
+| `snapshot` | wie die Ausgabe von Nr. 63 |
+| `stand` | Zahlen des Laufs **oder** der Lauf-Rücknahme: `{"vorgang": "lauf" oder "zuruecknahme", "lauf_id", "zustand", "erledigt", "gesamt", …}`; beim Lauf dazu `geaendert`, `vorschlaege`, `keiner`, `pause_bis?`; bei der Rücknahme dazu `zurueckgenommen`, `uebersprungen_anzahl`. **Gebündelt** (`fenster_s = 2`): höchstens eines je 2 s |
+| `fertig` | `{"vorgang", "lauf_id", "zustand"}` und dazu die Zahlen wie bei `stand`: der Lauf bzw. die Rücknahme ist zu Ende; beim Lauf mit `grund` (`angehalten`, `neustart`, `quelle`, wie in `letzte_laeufe` von Nr. 63; fehlt bei `fertig`), bei der Rücknahme mit `uebersprungen_anzahl`. Nie gebündelt |
+| `quelle` | `{"quelle": "itunes" oder "tonies" oder "tonies_shop", "erreichbar": <bool>, "pause_bis"?: <Zeitstempel>}` bei jedem Wechsel. Nie gebündelt |
 
 ## 5. Hochladen (HTTP)
 
@@ -2137,8 +2323,8 @@ Die Seite liest bei Bedarf den Zustand neu (z. B. `zuordnung/list` nach
 | `medien_schreibfehler` | 500 | Schreiben auf die Freigabe schlug fehl (Rechte, Platz, Verbindung, Namen, die die Freigabe nicht annimmt) | Medien, Eingang, Papierkorb |
 | `kein_speicher` | 507 | Auf der Freigabe ist kein Platz mehr (vorab geprüft, 5.1; seit 12.11. auch Kontingent von `hoerkopien/`, 14.8) | Upload, Hörkopie |
 | `mqtt_nicht_verbunden` | 503 | Der Broker ist nicht erreichbar; der Befehl wurde **nicht** gesendet. (Konfigurationsänderungen scheitern daran nicht: Sie sind gespeichert, `veroeffentlicht=false`.) | Befehle an Boxen |
-| `serie_nicht_gefunden` | 404 | Serien-ID unbekannt | Serie, Folgen, Upload, Zuordnung, Lernmodus, Papierkorb, Warteschlange, Gehört (Nr. 50), Favoriten (Nr. 55) |
-| `folge_nicht_gefunden` | 404 | Folge steht nicht in `folgen` der Serie | Folgen, Zuordnung, Lernmodus, Warteschlange, Favoriten (Nr. 55) |
+| `serie_nicht_gefunden` | 404 | Serien-ID unbekannt | Serie, Folgen, Upload, Zuordnung, Lernmodus, Papierkorb, Warteschlange, Gehört (Nr. 50), Favoriten (Nr. 55), Online-Suche (Nr. 57 bis 61, 64) |
+| `folge_nicht_gefunden` | 404 | Folge steht nicht in `folgen` der Serie | Folgen, Zuordnung, Lernmodus, Warteschlange, Favoriten (Nr. 55), Online-Suche (Nr. 57, 64) |
 | `eintrag_nicht_gefunden` | 404 | Papierkorb-Eintrag oder Eingangs-Eintrag unbekannt | Papierkorb, Eingang |
 | `export_nicht_gefunden` | 404 | Es gibt keine Exportdatei | `konfig/aus_export` |
 | `export_ungueltig` | 422 | Die Exportdatei ist nicht lesbar oder nach `data-model.md` ungültig; nichts wurde übernommen | `konfig/export_lesen`, `konfig/aus_export` |
@@ -2177,6 +2363,12 @@ Die Seite liest bei Bedarf den Zustand neu (z. B. `zuordnung/list` nach
 | `warteschlange_doppelt` | 409 | **(13.11.)** Genau diese Vormerkung (gleiche Box, gleiches Ziel) wartet schon; die Seite sagt: „Das wartet schon.“ | `warteschlange/set` |
 | `wer_ungueltig` | 400 | **(16.11.)** `wer` oder `quelle` ist keine der erlaubten Formen (`alle`, `alle_boxen`, `box:<Name>`, `benutzer:<id>`; bei Nr. 53 und 54 `boxen`, `reinhoeren`, `alle`, `box:<Name>`, `benutzer:<id>`). Der Code gilt auch für `box:<Name>` einer Box, die nicht eingerichtet ist, und für `benutzer:<id>` eines Benutzers, den es in HA nicht gibt und der keine Daten hat; bei Nr. 50, 53 und 54 gleich | Gehört (Nr. 50, 51, 53, 54) |
 | `zu_viele_favoriten` | 409 | **(16.11.)** Es gibt schon `FAVORITEN_MAX` (1 000) Favoriten; ein Stern wird nicht gesetzt | `favorit/set` |
+| `treffer_abgelaufen` | 410 | **(18.11.)** Der Treffer ist älter als 15 Minuten oder war nie da (HA hält höchstens 4 Suchen); die Seite sagt: „Die Suche ist zu alt. Such bitte noch einmal.“ Gilt auch für die HTTP-Vorschau | `online/treffer`, `online/uebernehmen`, Vorschau (HTTP) |
+| `vorschlag_nicht_gefunden` | 404 | **(18.11.)** Es gibt keinen offenen, gültigen Vorschlag mit dieser Kennung (verworfen, übernommen, Ziel oder Folge nicht mehr da) | `online/treffer`, `online/uebernehmen`, `online/vorschlag_verwerfen` |
+| `aenderung_nicht_gefunden` | 404 | **(18.11.)** Es gibt keine Online-Änderung mit dieser Kennung (auch nach dem Verfall nach 30 Tagen oder über 20) | `online/zuruecknehmen` |
+| `lauf_nicht_gefunden` | 404 | **(18.11.)** Es gibt keinen Lauf mit dieser `lauf_id` unter den letzten 5 | `online/zuruecknehmen` |
+| `lauf_laeuft_schon` | 409 | **(18.11.)** Ein Lauf über die Bibliothek ist schon gestartet (ein Lauf zugleich) | `online/lauf` |
+| `online_nicht_erreichbar` | 503 | **(18.11.)** **Keine** Quelle hat geantwortet (sonst kommt ein Teilergebnis mit `quellen`); die Seite sagt: „Online-Suche gerade nicht erreichbar, später noch einmal.“ | `online/suchen` |
 | `hoerkopie_wartet` | 503 | **(12.11.)** Die Hörkopie wird noch erzeugt (nur HTTP, mit `Retry-After: 60`; Rückfall für Aufrufer ohne `audio/bereit`) | Audio (HTTP) |
 
 Der Körper einer HTTP-Fehlerantwort des Uploads ist in 5.5 beschrieben. Eine
@@ -2216,6 +2408,7 @@ Start von AP 3.1) und aus dem Design:
     Eingabefelder, neue Felder in Ausgaben und Ereignissen, neue `art`-Werte, neue
     Themen, neue Hinweis-Codes, neue Fehlercodes für neue Fälle, neue Werte in
     `faehigkeiten`. Die Seite ignoriert Unbekanntes in Antworten und Ereignissen.
+*   **Ausnahme vom 18.11. (Online-Suche):** Die Wertebereiche der vorhandenen Ausgabefelder `cover_quelle` und `art_quelle` wachsen um `online` (14.2). Das ist streng genommen eine Wertebereichsänderung; sie bleibt in Version 1, weil die Seite unbekannte Werte wie `auto` bzw. `tags` behandelt und Seite und Backend im selben Paket liegen. Ein Rückfall auf eine ältere Integration macht aus `art_quelle` `online` den Wert `manuell` (14.2).
 *   **Eingaben sind strenger.** Der HA-Schemaprüfer lehnt **unbekannte Eingabefelder
     ab** (`invalid_format`). Eine neue Seite darf deshalb ein neues optionales
     Eingabefeld nur senden, wenn `hello.faehigkeiten` es zusagt. Seite und Backend
@@ -2764,6 +2957,7 @@ Eine Fähigkeit gibt es **nur** (1) für etwas, das von der Umgebung abhängt (`
 | `gehoert` | B (16.11.) | Befehle 50 bis 54; die Eingabefelder `spieler` und `spielt` bei Befehl 41; die Sortierungen `zuletzt_gehoert` und `meist_gehoert` bei `serien/list`; die Ausgabefelder `zuletzt_gehoert_am`; Ereignisthema `gehoert`; Unterseite `#gehoert`, Reihe „Zuletzt auf den Boxen gehört“. **Nur zugesagt, wenn die Datenbank `gehoert.sqlite` offen ist** (`data-model.md`, 12.1). Die im Stand A genannte Fähigkeit `gehoert_reinhoeren` **entfällt** |
 | `favoriten` | B (16.11.) | Befehle 55 und 56; der Filter `favorit` bei `serien/list` und `folgen/list`; die Ausgabefelder `favorit`; Ereignisthema `favoriten`; Stern, Reihe „Favoriten“ |
 | `zuordnung_rueckgaengig` | A0-Q (13.11.) | optionale Eingabe `als_neu` bei `zuordnung/remove` (3.5). Eigene Fähigkeit, weil „Rückgängig“ (X20d) vor der Warteschlange gebaut werden kann |
+| `online_suche` | OS (18.11.) | Befehle 57 bis 64 (3.15); der Filterwert `online_vorschlag` bei `serien/list`; das Ereignisthema `online` in `subscribe.themen` (nur Administratoren); `DELETE /api/tobibox/cover/<serie_id>?quelle=online` und `GET /api/tobibox/online/vorschau/<treffer_id>`; die Liste `online_vorschlaege_liste` in `serie/get`. **Nicht vom Netz abhängig:** Sie wird zugesagt, sobald der Dienst läuft; fällt eine Quelle aus, melden die Befehle es im Ergebnis (`quellen`). Claude hat **keine** eigene Fähigkeit und keinen eigenen Befehl (3.15). Die reinen Ausgabefelder (`online`, `online_vorschlaege`, `beschreibung` …) brauchen keine Fähigkeit |
 
 **Entfallen** (in Rev. 5 des Designs gestrichen): `kapitel` (das Feld `kapitel` ist ein Ausgabefeld; fehlt es, zeigt die Seite keine Liste), `box_anzeigenamen` und `rechte_stufen` (Feld da bzw. Seite und Backend liegen im selben Paket). Fehlt eine Fähigkeit, die die Seite braucht, zeigt sie **eine** Antwort („Die Seite ist veraltet. Bitte lade sie neu.“). Eine **alte Seite** im Zwischenspeicher kennt die neuen Befehle nicht, schickt sie nicht und blendet nach `darf_schreiben` aus: harmlos. Stufe B (`gehoert`, `favoriten`) steht seit 16.11. in diesem Vertrag (Abschnitt 15; `gehoert_reinhoeren` entfällt); Stufe C (`playlists`): geplant, siehe Design Abschnitt 13; sie gehört **nicht** zu diesem Vertragsstand.
 
@@ -2774,15 +2968,17 @@ Eine Fähigkeit gibt es **nur** (1) für etwas, das von der Umgebung abhängt (`
 | Feld | Typ | Bedeutung |
 |---|---|---|
 | `art` | `hoerspiel`, `hoerbuch`, `musik`, `geschichte` | Art des Eintrags; fehlt sie in `serie.json`, gilt `hoerspiel` |
-| `art_quelle` | `tags`, `geraten`, `manuell` | woher `art` kommt; `manuell` wird nie überschrieben |
+| `art_quelle` | `tags`, `geraten`, `manuell`, `online` | woher `art` kommt; `manuell` wird nie überschrieben; **(18.11.)** `online` = von der Online-Suche übernommen. Eine ältere Integration macht aus `online` den Wert `manuell` (Rückfall) |
 | `einzeln` | bool | Einzeltitel (14.4); fehlt = `false` |
 | `kapitel_anzahl` | int | Summe der Kapitel aller Folgen (A-3); 0 oder fehlt = keine Liste |
 | `dauer_s` | Zahl oder `null` | Summe der bekannten Folgendauern (A-2); `null`, solange unbekannt |
 | `cover_stand` | string (8 Zeichen `[0-9a-f]`) oder `null` | Fingerabdruck der angezeigten Bilddatei; `null` = kein Cover |
-| `cover_quelle` | `eigen`, `auto` oder `null` | |
+| `cover_quelle` | `eigen`, `online`, `auto` oder `null` | **(18.11.)** `online` = das Cover stammt aus der Online-Suche (`cover-online.jpg`, 14.3); unbekannte Werte behandelt die Seite wie `auto` |
 | `hoerstelle` | object | nur wenn der Anfragende angefangen hat: `anteil` (Zahl 0 bis 1), `rest_s`, `zeit`, `folge`; **nur seine eigene** (A-2) |
 | `favorit` | bool | **(16.11., Fähigkeit `favoriten`)** der Eintrag als Ganzes hat einen Stern (nur der Stern der Serie, nicht die Sterne einzelner Folgen; eine Serie, von der nur eine Folge einen Stern hat, ist nicht `favorit`) |
 | `zuletzt_gehoert_am` | Zeitstempel oder `null` | **(16.11., Fähigkeit `gehoert`)** `ende_um` der letzten Sitzung an einer **Box**; `null`, wenn noch nie eine Box den Eintrag gespielt hat (Reinhören zählt hier nicht, wie die Reihe „Zuletzt auf den Boxen gehört“) |
+| `online` | object oder `null` | **(18.11., für alle Benutzer, keine Fähigkeit nötig)** `{"zeit": <Zeitstempel>, "felder": [<feld>…]}` der letzten Online-Änderung (Status `fertig`), wenn sie **jünger als 30 Tage** ist (ein angenommener Namensvorschlag von Claude ist keine Online-Änderung und taucht nicht auf, GO-14), sonst `null`. `felder` nennt die Feldnamen **ohne** `@<folge>` und ohne Doppelte (`serie_name`, `folge_titel`, `nummer`, `art`, `cover`, `beschreibung`, `alter_ab`); nie Werte. Daraus bildet die Seite die Zeile „Aus der Online-Suche übernommen: Cover, Art.“ Das Feld wird aus dem Store gebildet und verschwindet mit dem Verfall der Änderungen (`data-model.md`, 5b) |
+| `online_vorschlaege` | int | **(18.11., nur für Administratoren)** Zahl der offenen, gültigen Vorschläge der Online-Suche. Steht **nur** in den Antworten von `serien/list`, `serie/get` und Nr. 51 `gehoert/zuletzt` (dort, wo die Verbindung zum Store bekannt ist); in allen anderen Antworten mit Serie-Kurzform (zum Beispiel auf `serie/create`, `serie/rename`, `serie/art_setzen`) fehlt es, und die Seite behält ihren Wert. Neue oder verworfene Vorschläge lösen `medien`/`serien_geaendert` aus |
 
 Schon vorhanden und unverändert benutzt: `anzahl_folgen`, `anzahl_tobies` (zählt `serie` **und** `folge`), `angelegt_am`. Bei einem Einzeltitel ist `anzahl_folgen` 1. Ereignisse (`medien`, `snapshot`) tragen kein Cover, nur Antworten auf Befehle. Die Adresse des Covers ist fest (`/api/tobibox/cover/<serie_id>`, 14.3), es gibt kein signiertes `cover_url`.
 
@@ -2793,7 +2989,7 @@ Schon vorhanden und unverändert benutzt: `anzahl_folgen`, `anzahl_tobies` (zäh
 | `art` | siehe oben | nur Einträge dieser Art |
 | `text` | string, 2–100 Zeichen | sucht im Namen des Eintrags (normalisiert); mit `auch_folgen=true` auch in Folgentiteln |
 | `auch_folgen` | bool | Vorgabe `false` |
-| `filter` | array aus `ohne_tobie`, `neu`, `pruefen`, `sammlung`, `einzeln`, `favorit` | `sammlung` = nur Einträge, die kein Einzeltitel sind; `einzeln` = nur Einzeltitel; **(16.11.)** `favorit` = nur Einträge mit Stern (nur mit Fähigkeit `favoriten`); mehrere Werte gelten als „und“ |
+| `filter` | array aus `ohne_tobie`, `neu`, `pruefen`, `sammlung`, `einzeln`, `favorit` | `sammlung` = nur Einträge, die kein Einzeltitel sind; `einzeln` = nur Einzeltitel; **(16.11.)** `favorit` = nur Einträge mit Stern (nur mit Fähigkeit `favoriten`); **(18.11.)** `online_vorschlag` = nur Einträge mit mindestens einem offenen Vorschlag der Online-Suche (**nur Administratoren** und nur mit Fähigkeit `online_suche`; von einem Nicht-Administrator `unauthorized`); `filter=pruefen` bleibt unverändert; mehrere Werte gelten als „und“ |
 | `sortierung` | `name` (Vorgabe), `neu`, `angehoert`, `zuletzt_gehoert`, `meist_gehoert` | `angehoert` = zuletzt angehört vom Anfragenden, nur mit Fähigkeit `reinhoeren` (**privat**, die eigenen Hörstellen). **(16.11., nur mit Fähigkeit `gehoert`)** `zuletzt_gehoert` = zuletzt an einer **Box** gespielt, neueste zuerst (Quelle: `zuletzt_gehoert_am`); `meist_gehoert` = größte Hörzeit im letzten Jahr (365 Kalendertage), **alle Quellen** (Boxen und Reinhören). Gleichstand nach Name. Einträge ohne Hörzeit bzw. ohne Box-Sitzung stehen am Ende, nach Name |
 | `limit` | int 1–200 | |
 | `offset` | int ≥ 0 | |
@@ -2806,13 +3002,15 @@ Die Ausgabe bekommt `gesamt` (nach Filter) und `weitere` (bool). **Fehlt `limit`
 
 **Einzeltitel** sind eine **normale Serie** mit genau einer Folge und `einzeln: true` (eigene ID, Ordner, `serie.json`, Cover, Papierkorb, Umbenennen, Befehl 38). Neue Folgen kommen nicht hinein: `ergaenzen` (14.4) antwortet `wunsch_ungueltig`, `folge/verschieben` mit einem Einzeltitel als Ziel `ziel_ungueltig`; `serien/zusammenfuehren` darf ihn als Quelle, nicht als Ziel benutzen. Ein Tobie auf einen Einzeltitel zeigt auf die **Folge** (`ziel.typ="folge"`), nicht auf die Serie.
 
-**Folge-Objekt von `serie/get` bekommt** (Ausgabefelder): `dauer_s` (Zahl oder fehlt), `spuren_s` (bei Ordner-Folgen: Liste der Track-Längen), `kapitel` (Liste aus `titel`, `start_s` und bei Ordner-Folgen `track` (0-basiert), nur wenn mindestens zwei, Regeln 14.7), `hoerstelle` (`position_s`, `fertig`, bei Ordner-Folgen zusätzlich `track` (0-basiert, seit 15.11., Entscheidung AM4); nur des Anfragenden, nur wenn angefangen) und `hoerkopie` (`original`, `nicht_angelegt`, `wartet`, `fertig`, `fehler`; bei `fehler` zusätzlich `grund`) und **(16.11., Fähigkeit `favoriten`)** `favorit` (bool; Stern an dieser Folge). **Hörstelle je Folge mit `track`** (Rest aus Stufe A, im Vertrag seit 15.11., Entscheidung AM4; gebaut): `hoerstelle.track` (0-basiert) steht nur bei Ordner-Folgen (mehr als ein Track), bei einer Datei fehlt es. **`stand`** der Serie rechnet künftig **nur** über `name`, `folgen` und die von Menschen gesetzten Felder von `folgen_info` (`anzeige`, `nummer`, `datum`, `pruefen`); Werte aus dem Store `tobibox.medieninfo` und Hintergrundläufe ändern ihn nie (Abschnitt 3, Serie-Kurzform).
+**Folge-Objekt von `serie/get` bekommt** (Ausgabefelder): `dauer_s` (Zahl oder fehlt), `spuren_s` (bei Ordner-Folgen: Liste der Track-Längen), `kapitel` (Liste aus `titel`, `start_s` und bei Ordner-Folgen `track` (0-basiert), nur wenn mindestens zwei, Regeln 14.7), `hoerstelle` (`position_s`, `fertig`, bei Ordner-Folgen zusätzlich `track` (0-basiert, seit 15.11., Entscheidung AM4); nur des Anfragenden, nur wenn angefangen) und `hoerkopie` (`original`, `nicht_angelegt`, `wartet`, `fertig`, `fehler`; bei `fehler` zusätzlich `grund`) und **(16.11., Fähigkeit `favoriten`)** `favorit` (bool; Stern an dieser Folge) und **(18.11.)** `beschreibung`, `beschreibung_gekuerzt`, `alter_ab`, `beschreibung_quelle` (Tabelle in 3.2). **Hörstelle je Folge mit `track`** (Rest aus Stufe A, im Vertrag seit 15.11., Entscheidung AM4; gebaut): `hoerstelle.track` (0-basiert) steht nur bei Ordner-Folgen (mehr als ein Track), bei einer Datei fehlt es. **`stand`** der Serie rechnet künftig **nur** über `name`, `folgen` und die von Menschen gesetzten Felder von `folgen_info` (`anzeige`, `nummer`, `datum`, `pruefen`); Werte aus dem Store `tobibox.medieninfo` und Hintergrundläufe ändern ihn nie (Abschnitt 3, Serie-Kurzform).
 
 ### 14.3 Cover (V-1, Fähigkeit `cover`)
 
 *   **`GET /api/tobibox/cover/<serie_id>?groesse=klein|gross`:** `image/jpeg`; `klein` 192 px, `gross` 512 px; `ETag` = `cover_stand` **in Anführungszeichen** (K3, 12.11.; der Server nimmt `If-None-Match` mit und ohne Anführungszeichen sowie mit `W/` an); `Cache-Control: private, max-age=86400`. Recht: lesen (Anmeldung per `Authorization`-Kopf; die Seite lädt mit `hass.fetchWithAuth` und hält das Bild als `blob:`). 404 `cover_nicht_gefunden`.
 *   **`POST /api/tobibox/cover/<serie_id>`:** Rumpf `image/jpeg`, höchstens `COVER_UPLOAD_MAX_BYTES`, Quadrat bis auf `COVER_QUADRAT_TOLERANZ`, höchstens `COVER_KANTE_MAX_PX` je Seite. **Reihenfolge im Backend:** (1) der Rumpf wird **in Blöcken gelesen und gezählt** (die Grenze gilt auch ohne `Content-Length`), (2) Typ aus den Kopfbytes, (3) **Maße und Pixelzahl aus dem Kopf lesen, bevor ein Pixel dekodiert wird**, (4) erst dann dekodieren, auf `COVER_GROSS_PX` und `COVER_KLEIN_PX` herunterrechnen und als `cover-eigen.jpg` speichern; das Original wird nie gespeichert. Dieselbe **eine** Funktion `cover_pruefen_und_skalieren` hat **zwei Modi** (K2, 12.11.): **`streng`** (Foto-Upload, wie oben: JPEG, quadratisch bis `COVER_QUADRAT_TOLERANZ`, höchstens `COVER_KANTE_MAX_PX`) und **`nachsichtig`** (Tag-Bilder und mitgelieferte Dateien, unten): nur die Pixelobergrenze `COVER_NACHSICHT_PIXEL_MAX` (16 000 000) vor dem Dekodieren prüfen, dann verkleinern, EXIF-Drehung anwenden, mittig quadratisch zuschneiden. Recht: alltag; Menge `COVER_JE_STUNDE` je Benutzer. Fehler: `cover_ungueltig` (400), `datei_zu_gross` (413), `serie_nicht_gefunden` (404), `zu_viele_aenderungen` (429).
 *   **`DELETE /api/tobibox/cover/<serie_id>?quelle=eigen`:** zurück zum automatischen Cover. Recht: alltag. **Ohne eigenes Cover ist DELETE kein Fehler** (K3): Antwort 200, nichts ändert sich. **Antwort von POST und DELETE** (K3): `{v, serie_id, cover_stand, cover_quelle}`.
+*   **Online-Cover (seit 18.11., Fähigkeit `online_suche`):** Die Integration kann ein drittes Cover `cover-online.jpg` schreiben (Online-Suche, Nr. 59; erzeugt aus dem 600-px-Bild des Treffers durch `cover_pruefen_und_skalieren` im Modus `nachsichtig`). **Vorrang für das angezeigte Cover: `cover-eigen.jpg` vor `cover-online.jpg` vor `cover.jpg`;** `cover_quelle` nennt die Quelle der angezeigten Datei (`eigen`, `online`, `auto`), `cover_stand` ist der Fingerabdruck dieser Datei. Ein eigenes Foto (POST) ersetzt ein Online-Cover für alle Benutzer wie bisher; ein späteres `DELETE …?quelle=eigen` zeigt dann wieder das Online-Cover.
+*   **`DELETE /api/tobibox/cover/<serie_id>?quelle=online` (seit 18.11.):** löscht `cover-online.jpg`; danach gilt `cover.jpg` bzw. `cover-eigen.jpg`. Gedacht für ein Online-Cover **ohne** Änderung im Store (zurückgekommen aus dem Papierkorb, Änderung verfallen). Recht: **admin** (Nicht-Administrator: `unauthorized`). Wie bei `quelle=eigen` ist es **kein Fehler**, wenn es kein Online-Cover gibt (Antwort 200, nichts ändert sich); Antwort `{v, serie_id, cover_stand, cover_quelle}`. Ein anderer Wert von `quelle` als `eigen` oder `online`: `invalid_format` (400). Fehler: `serie_nicht_gefunden`, `unauthorized`, `medien_nicht_erreichbar`, `medien_schreibfehler`. Die Seite bietet es nur bei `cover_quelle = online`.
 *   **Automatisches Cover:** Beim Einsortieren liest die Integration das eingebettete Bild (ID3 `APIC`, MP4 `covr`, FLAC `PICTURE`) der ersten Folge, die eines hat, nur mit `ffmpeg`. **Vorrang** hat ein mitgeliefertes `cover.jpg`, `folder.jpg` oder `cover.png` im Eingangs-Ordner: die Integration **kopiert** es (durch `cover_pruefen_und_skalieren` im Modus `nachsichtig`) als `cover.jpg` in den Serien-Ordner; die mitgelieferte Datei im Eingang folgt danach der **bisherigen Regel** (Reste gehen in den Papierkorb, 11.10 bleibt unverändert). Je Eintrag eine **Marke „schon gesucht“** (`cover_suche`: `tags`, `datei` oder `keine`, mit Zeit) im Store `tobibox.medieninfo` (`data-model.md`, 5a). Nachholen für bestehende Einträge nur (a) einmal im Hintergrund nach dem Start der Integration, (b) für Einträge ohne Marke, (c) mit Zeitgrenze `COVER_SUCHE_ZEITGRENZE_S` je Datei und Abbruch bei `medien_nicht_erreichbar`. Neue Folgen in einem Eintrag mit Marke `keine` lösen genau eine neue Suche aus. **Kein Dauer-Scan:** `medien/pruefen` startet keine Cover-Suche; die Seite ruft es höchstens alle `PRUEF_INTERVALL_S` und nur sichtbar. Fehlt `ffmpeg`: die Fähigkeit bleibt (Foto-Upload geht), nur das Lesen aus Tags entfällt, ohne Fehlermeldung. Die Tag-Suche probiert höchstens `COVER_SUCHE_DATEIEN_MAX` (5) Dateien je Eintrag (K3, 12.11.).
 *   `manifest.json` bekommt `"requirements": ["Pillow"]`.
 *   **Auf den Boxen:** `cover*.jpg`, `cover*.png` und `folder.jpg` werden **nicht synchronisiert** (`data-model.md`, Abschnitt 5; Änderung in `box/src/tobibox/sync.py`).

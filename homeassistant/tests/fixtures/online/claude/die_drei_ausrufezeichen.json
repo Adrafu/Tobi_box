@@ -1,0 +1,129 @@
+{
+ "modus": "bestand",
+ "eingabe": {
+  "heutiger_name": "Die drei !!!",
+  "ordner": "Die drei !!!",
+  "einzeltitel": false,
+  "folgen_gesamt": 4,
+  "folgen_gezeigt": 4,
+  "folgen": [
+   {
+    "anzeige": "Folge 37: Mission Pferdeshow",
+    "nummer": null,
+    "tracks": 40,
+    "pruefen_gruende": [],
+    "tonies": [
+     {
+      "model": "01-0102",
+      "series": "Die drei !!!",
+      "episodes": "Mission Pferdeshow",
+      "tracks": 11,
+      "category": "audio-play"
+     }
+    ],
+    "apple": [
+     {
+      "collectionName": "Folge 37: Mission Pferdeshow",
+      "artistName": "Die drei !!!",
+      "genre": "Hörspiele",
+      "trackCount": 40,
+      "wrapperType": "collection"
+     }
+    ]
+   },
+   {
+    "anzeige": "Folge 42: Geheimnis der alten Villa",
+    "nummer": null,
+    "tracks": 40,
+    "pruefen_gruende": [],
+    "tonies": [
+     {
+      "model": "01-0101",
+      "series": "Die drei !!!",
+      "episodes": "Das Geheimnis der alten Villa",
+      "tracks": 9,
+      "category": "audio-play"
+     }
+    ],
+    "apple": [
+     {
+      "collectionName": "Folge 42: Geheimnis der alten Villa",
+      "artistName": "Die drei !!!",
+      "genre": "Hörspiele",
+      "trackCount": 40,
+      "wrapperType": "collection"
+     }
+    ]
+   },
+   {
+    "anzeige": "Das rote Phantom",
+    "nummer": null,
+    "tracks": 9,
+    "pruefen_gruende": [],
+    "tonies": [
+     {
+      "model": "01-0103",
+      "series": "Die drei !!!",
+      "episodes": "Das rote Phantom",
+      "tracks": 9,
+      "category": "audio-play"
+     }
+    ],
+    "apple": [
+     {
+      "collectionName": "Folge 52: Das rote Phantom",
+      "artistName": "Die drei !!!",
+      "genre": "Hörspiele",
+      "trackCount": 40,
+      "wrapperType": "collection"
+     }
+    ]
+   },
+   {
+    "anzeige": "Der Super-Papagei",
+    "nummer": null,
+    "tracks": 8,
+    "pruefen_gruende": [],
+    "tonies": [
+     {
+      "model": "10000158",
+      "series": "Die drei ???",
+      "episodes": "Der Super-Papagei",
+      "tracks": 8,
+      "category": "audio-play"
+     }
+    ],
+    "apple": [
+     {
+      "collectionName": "Folge 1: und der Super-Papagei",
+      "artistName": "Die drei ???",
+      "genre": "Hörspiele",
+      "trackCount": 4,
+      "wrapperType": "collection"
+     },
+     {
+      "collectionName": "Die drei ??? und der Super-Papagei 2004",
+      "artistName": "Die drei ???",
+      "genre": "Hörspiele",
+      "trackCount": 4,
+      "wrapperType": "collection"
+     }
+    ]
+   }
+  ]
+ },
+ "antwort": {
+  "entscheidung": "kandidat",
+  "name": "Die drei ???",
+  "sicher": true,
+  "grund": "Heutiger Name ist abgeschnitten. Tonies und Apple nennen die Reihe Die drei ??? (Fragezeichen), die Folgen passen dazu."
+ },
+ "pruefung_im_code": {
+  "status": "sicher",
+  "entscheidung": "kandidat",
+  "name": "Die drei ???",
+  "sicher": true,
+  "name_ok": true
+ },
+ "bemerkung": "falsch-sicher: Claude nennt „Die drei ???“ sicher; der heutige Name ist freigegeben richtig"
+}

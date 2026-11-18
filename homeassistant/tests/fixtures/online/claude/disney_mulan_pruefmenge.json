@@ -1,0 +1,64 @@
+{
+ "modus": "pruefmenge",
+ "eingabe": {
+  "heutiger_name": "Disney - Mulan",
+  "ordner": "Disney - Mulan",
+  "einzeltitel": false,
+  "folgen_gesamt": 1,
+  "folgen_gezeigt": 1,
+  "folgen": [
+   {
+    "anzeige": "Mulan",
+    "nummer": null,
+    "tracks": 6,
+    "pruefen_gruende": [],
+    "tonies": [
+     {
+      "model": "10000209",
+      "series": "Mulan",
+      "episodes": "Mulan",
+      "tracks": 5,
+      "category": "audio-play-songs"
+     }
+    ],
+    "apple": [
+     {
+      "collectionName": "Mulan (Hörspiel zum Disney Real-Kinofilm)",
+      "artistName": "Mulan",
+      "genre": "Hörspiele",
+      "trackCount": 39,
+      "wrapperType": "collection"
+     },
+     {
+      "collectionName": "Mulán (Banda Sonora Original en Español)",
+      "artistName": "Matthew Wilder, David Zippel & Jerry Goldsmith",
+      "genre": "Musicals",
+      "trackCount": 12,
+      "wrapperType": "collection"
+     },
+     {
+      "collectionName": "Mulan",
+      "artistName": "One Piano",
+      "genre": "Soundtracks",
+      "trackCount": 13,
+      "wrapperType": "collection"
+     }
+    ]
+   }
+  ]
+ },
+ "antwort": {
+  "entscheidung": "behalten",
+  "name": "Disney - Mulan",
+  "sicher": false,
+  "grund": "Einzelner Titel aus Disney-Hörspielen; Tonie-Liste nennt nur Mulan, Name mit Verlagspräfix ist unsicher, daher behalten."
+ },
+ "pruefung_im_code": {
+  "status": "unsicher",
+  "entscheidung": "behalten",
+  "name": "Disney - Mulan",
+  "sicher": false,
+  "name_ok": true
+ },
+ "bemerkung": "behalten, unsicher (freigegebener Name: Mulan)"
+}

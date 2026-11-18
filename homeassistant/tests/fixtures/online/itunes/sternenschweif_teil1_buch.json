@@ -1,0 +1,49 @@
+{
+ "resultCount": 2,
+ "results": [
+  {
+   "wrapperType": "audiobook",
+   "artistId": 1529330669,
+   "collectionId": 1700429544,
+   "artistName": "Linda Chapman",
+   "collectionName": "Sternenschweif, Teil 1: Geheimnisvolle Verwandlung",
+   "collectionCensoredName": "Sternenschweif, Teil 1: Geheimnisvolle Verwandlung",
+   "artistViewUrl": "https://books.apple.com/de/artist/linda-chapman/1529330669?uo=4",
+   "collectionViewUrl": "https://books.apple.com/de/audiobook/sternenschweif-teil-1-geheimnisvolle-verwandlung/id1700429544?uo=4",
+   "artworkUrl60": "https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/ea/b5/69/eab5694f-0d5f-e091-c7ad-f521d05002f4/4066004601137_3000.jpg/60x60bb.jpg",
+   "artworkUrl100": "https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/ea/b5/69/eab5694f-0d5f-e091-c7ad-f521d05002f4/4066004601137_3000.jpg/100x100bb.jpg",
+   "collectionPrice": 4.99,
+   "collectionExplicitness": "cleaned",
+   "trackCount": 1,
+   "copyright": "© 2015 United Soft Media Verlag GmbH, Working Partners Limited, Franckh-Kosmos Verlags-GmbH & Co. KG",
+   "country": "DEU",
+   "currency": "EUR",
+   "releaseDate": "2007-11-14T08:00:00Z",
+   "primaryGenreName": "Kinder und Jugend",
+   "previewUrl": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview116/v4/8d/f8/ff/8df8ff73-5939-e9d9-222a-4f9aae81630d/mzaf_17976671768204340356.std.aac.p.m4a",
+   "description": "Das magische Pony Sternenschweif ist der geheimnisvolle Held der zauberhaften \"Sternenschweif\"-Welt. Zusammen mit Laura erlebt es phantasievolle Abenteuer und romantische Geschichten, die viel Platz…"
+  },
+  {
+   "wrapperType": "audiobook",
+   "artistId": 1529330669,
+   "collectionId": 1700455880,
+   "artistName": "Linda Chapman & Anne Scheller",
+   "collectionName": "Sternenschweif, Teil 60: Zauberfohlen",
+   "collectionCensoredName": "Sternenschweif, Teil 60: Zauberfohlen",
+   "artistViewUrl": "https://books.apple.com/de/artist/linda-chapman/1529330669?uo=4",
+   "collectionViewUrl": "https://books.apple.com/de/audiobook/sternenschweif-teil-60-zauberfohlen/id1700455880?uo=4",
+   "artworkUrl60": "https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/85/db/5d/85db5d1a-74c5-e2b4-4d8d-468835268b29/4066004600222_3000.jpg/60x60bb.jpg",
+   "artworkUrl100": "https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/85/db/5d/85db5d1a-74c5-e2b4-4d8d-468835268b29/4066004600222_3000.jpg/100x100bb.jpg",
+   "collectionPrice": 5.99,
+   "collectionExplicitness": "cleaned",
+   "trackCount": 1,
+   "copyright": "© 2021 United Soft Media Verlag GmbH",
+   "country": "DEU",
+   "currency": "EUR",
+   "releaseDate": "2022-02-10T08:00:00Z",
+   "primaryGenreName": "Kinder und Jugend",
+   "previewUrl": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview126/v4/5d/8c/2b/5d8c2b58-505c-77cc-3704-752a1a07cfc8/mzaf_9216484088571915345.std.aac.p.m4a",
+   "description": "Das magische Pony Sternenschweif ist der geheimnisvolle Held der zauberhaften \"Sternenschweif\"-Welt. Zusammen mit Laura erlebt es fantasievolle Abenteuer und aufregende Geschichten, die viel Platz…"
+  }
+ ]
+}

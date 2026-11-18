@@ -1,0 +1,49 @@
+{
+ "resultCount": 2,
+ "results": [
+  {
+   "wrapperType": "audiobook",
+   "artistId": 556813799,
+   "collectionId": 1425690530,
+   "artistName": "Die Olchis & Erhard Dietl",
+   "collectionName": "Die Olchis auf Geburtstagsreise",
+   "collectionCensoredName": "Die Olchis auf Geburtstagsreise",
+   "artistViewUrl": "https://books.apple.com/de/artist/die-olchis/556813799?uo=4",
+   "collectionViewUrl": "https://books.apple.com/de/audiobook/die-olchis-auf-geburtstagsreise/id1425690530?uo=4",
+   "artworkUrl60": "https://is1-ssl.mzstatic.com/image/thumb/Music112/v4/f2/9b/ae/f29bae58-28fa-9d75-2f47-2b8216c45226/9783837360363.jpg/60x60bb.jpg",
+   "artworkUrl100": "https://is1-ssl.mzstatic.com/image/thumb/Music112/v4/f2/9b/ae/f29bae58-28fa-9d75-2f47-2b8216c45226/9783837360363.jpg/100x100bb.jpg",
+   "collectionPrice": 4.99,
+   "collectionExplicitness": "cleaned",
+   "trackCount": 1,
+   "copyright": "© 2006 Oetinger Media GmbH, Hamburg",
+   "country": "DEU",
+   "currency": "EUR",
+   "releaseDate": "2006-01-01T08:00:00Z",
+   "primaryGenreName": "Kinder und Jugend",
+   "previewUrl": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview113/v4/13/06/cd/1306cd4f-1c2d-2566-bd04-3d813b99867a/mzaf_5990938669260085320.std.aac.p.m4a",
+   "description": "Auf Feuerstuhl quer durch Europa!\r\nDie Olchis suchen einen schönen Platz für die Geburtstagsfeier von Olchi-Opa. Durch ganz Europa führt ihre reise auf dem Rücken von Feuerstuhl, dem Drachen. Doch…"
+  },
+  {
+   "wrapperType": "audiobook",
+   "artistId": 1691048958,
+   "collectionId": 1648467841,
+   "artistName": "Erhard Dietl & Die Olchis",
+   "collectionName": "Die Olchis 10er Box",
+   "collectionCensoredName": "Die Olchis 10er Box",
+   "artistViewUrl": "https://books.apple.com/de/artist/erhard-dietl/1691048958?uo=4",
+   "collectionViewUrl": "https://books.apple.com/de/audiobook/die-olchis-10er-box/id1648467841?uo=4",
+   "artworkUrl60": "https://is1-ssl.mzstatic.com/image/thumb/Music122/v4/7e/db/56/7edb5667-bc37-e316-ccae-61e68afb2fae/9783837394269.jpg/60x60bb.jpg",
+   "artworkUrl100": "https://is1-ssl.mzstatic.com/image/thumb/Music122/v4/7e/db/56/7edb5667-bc37-e316-ccae-61e68afb2fae/9783837394269.jpg/100x100bb.jpg",
+   "collectionPrice": 17.99,
+   "collectionExplicitness": "cleaned",
+   "trackCount": 1,
+   "copyright": "© 2018 Oetinger Media GmbH, Hamburg",
+   "country": "DEU",
+   "currency": "EUR",
+   "releaseDate": "2022-10-06T07:00:00Z",
+   "primaryGenreName": "Kinder und Jugend",
+   "previewUrl": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview122/v4/cc/34/a2/cc34a24e-bef1-1c32-c15b-9a9bab1ac5ff/mzaf_11634631008458232803.std.aac.p.m4a",
+   "description": "Die besten Geschichten der Olchis in einer Box zum muffelfurzteuflischen Preis von nur 14,99 €! Krötig gut!\nEnthält:\nDie Olchis sind da\nDie Olchis auf Geburtstagsreise\nDie Olchis fliegen in die…"
+  }
+ ]
+}

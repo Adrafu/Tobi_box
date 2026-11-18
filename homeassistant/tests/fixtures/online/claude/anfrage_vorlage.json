@@ -1,0 +1,41 @@
+{
+ "hinweis": "Vorlage des Aufrufs an HA (WebSocket call_service, domain ai_task, service generate_data); Eingabe-JSON wird an `instructions` angehängt. Erzeugt aus dem aktuellen urteil.py (Anweisungstext Stand: von der Projektleitung geändert).",
+ "modell_hinweis": "Claude über die HA-Entität ai_task.claude_ai_task; das Modell bestimmt die Entität, nicht der Aufruf",
+ "entity_id": "ai_task.claude_ai_task",
+ "instructions_vorlage": "Du hilfst beim Aufräumen einer Hörspiel-Bibliothek für Kinder (Tonies und CDs). Jeder Eintrag in der Bibliothek ist eine Reihe oder ein einzelner Titel. Sein Name soll so lauten, wie Eltern die Reihe kennen und benennen würden, zum Beispiel „Benjamin Blümchen“, „Bibi Blocksberg“ oder „Die drei ??? Kids“.\n\nDu bekommst unten als JSON: den heutigen Namen des Eintrags, den Ordnernamen, die Folgen (Anzeigename, Nummer, Anzahl Tracks, Prüfgründe) und je Folge die besten Kandidaten aus zwei Quellen: „tonies“ (Tonie-Liste der Gemeinschaft: series, episodes, tracks, category) und „apple“ (iTunes-Suche: collectionName, artistName, genre, trackCount, wrapperType).\n\nEntscheide:\n- entscheidung = \"behalten\": Der heutige Name ist der richtige Name der Reihe (oder du bist unsicher). Das ist der Normalfall.\n- entscheidung = \"kandidat\": Ein anderer Name ist klar besser. Dann steht in `name` genau dieser Name. Er muss wörtlich als Name in den Kandidaten stehen (tonies.series, tonies.episodes, apple.collectionName, apple.artistName), oder der Ordnername sein, oder der Teil eines solchen Namens vor „ - “. Erfinde nie einen Namen und ändere keine Schreibweise.\n\nRegeln:\n- Gesucht ist der Name der Reihe, wie Eltern sie kennen. Nie ein Verlag, Label, Sammelname oder Oberbegriff (zum Beispiel ein Studio-, Verlags- oder Freizeitpark-Name), nie der Autor, die Autorin, ein Interpret oder Sprecher , es sei denn, die Reihe heißt wirklich so.\n- Ein Titel, der nur eine einzelne Folge oder ein einzelnes Buch ist, behält seinen Namen, wenn er nicht Teil einer erkennbaren Reihe ist.\n- Der Ordnername ist oft schon richtig. Ein Name mit Zusätzen wie „(2)“ oder einem Dateinamen ist es nicht.\n- Im Zweifel: entscheidung = \"behalten\" und sicher = false.\n- sicher = true nur, wenn du dir ganz sicher bist, dass Eltern genau diesen Namen als Reihe erkennen würden und mehrere Folgen oder Kandidaten das stützen.\n- `grund`: ein kurzer deutscher Satz (höchstens 160 Zeichen).\n\nAntworte nur über die vorgegebenen Felder.\n\nEingabe (JSON):\n",
+ "structure": {
+  "entscheidung": {
+   "description": "behalten, wenn der heutige Name richtig ist (oder du unsicher bist); kandidat, wenn ein anderer Name klar besser ist",
+   "required": true,
+   "selector": {
+    "select": {
+     "options": [
+      "behalten",
+      "kandidat"
+     ]
+    }
+   }
+  },
+  "name": {
+   "description": "Bei kandidat: der neue Name, wörtlich aus der Eingabe (Kandidat, Ordnername oder Teil vor ' - '). Bei behalten: der heutige Name.",
+   "required": true,
+   "selector": {
+    "text": {}
+   }
+  },
+  "sicher": {
+   "description": "true nur, wenn du dir ganz sicher bist",
+   "required": true,
+   "selector": {
+    "boolean": {}
+   }
+  },
+  "grund": {
+   "description": "kurzer deutscher Grund, höchstens 160 Zeichen",
+   "required": true,
+   "selector": {
+    "text": {}
+   }
+  }
+ }
+}

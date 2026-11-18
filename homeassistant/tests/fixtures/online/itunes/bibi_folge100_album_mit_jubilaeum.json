@@ -1,0 +1,49 @@
+{
+ "resultCount": 2,
+ "results": [
+  {
+   "wrapperType": "collection",
+   "collectionType": "Album",
+   "artistId": 41480004,
+   "collectionId": 1069118023,
+   "amgArtistId": 1114385,
+   "artistName": "Bibi Blocksberg",
+   "collectionName": "Folge 100 - Die große Hexenparty",
+   "collectionCensoredName": "Folge 100 - Die große Hexenparty",
+   "artistViewUrl": "https://music.apple.com/de/artist/bibi-blocksberg/41480004?uo=4",
+   "collectionViewUrl": "https://music.apple.com/de/album/folge-100-die-gro%C3%9Fe-hexenparty/1069118023?uo=4",
+   "artworkUrl60": "https://is1-ssl.mzstatic.com/image/thumb/Music49/v4/82/45/a0/8245a033-f8b8-49b7-ba5a-1c340edce8e1/825646253470.jpg/60x60bb.jpg",
+   "artworkUrl100": "https://is1-ssl.mzstatic.com/image/thumb/Music49/v4/82/45/a0/8245a033-f8b8-49b7-ba5a-1c340edce8e1/825646253470.jpg/100x100bb.jpg",
+   "collectionPrice": 5.99,
+   "collectionExplicitness": "notExplicit",
+   "trackCount": 23,
+   "copyright": "℗ 2010 KIDDINX Studios GmbH, Berlin",
+   "country": "DEU",
+   "currency": "EUR",
+   "releaseDate": "2010-01-01T08:00:00Z",
+   "primaryGenreName": "Hörspiele"
+  },
+  {
+   "wrapperType": "collection",
+   "collectionType": "Album",
+   "artistId": 41480004,
+   "collectionId": 1493441923,
+   "amgArtistId": 1114385,
+   "artistName": "Bibi Blocksberg",
+   "collectionName": "Ich hex für dich! Jubiläumsedition 1 (Der Hexenball / Die große Hexenparty)",
+   "collectionCensoredName": "Ich hex für dich! Jubiläumsedition 1 (Der Hexenball / Die große Hexenparty)",
+   "artistViewUrl": "https://music.apple.com/de/artist/bibi-blocksberg/41480004?uo=4",
+   "collectionViewUrl": "https://music.apple.com/de/album/ich-hex-f%C3%BCr-dich-jubil%C3%A4umsedition-1-der-hexenball-die/1493441923?uo=4",
+   "artworkUrl60": "https://is1-ssl.mzstatic.com/image/thumb/Music123/v4/6d/59/4a/6d594a56-d4f7-e250-ace1-89466f0b0549/190295286729.jpg/60x60bb.jpg",
+   "artworkUrl100": "https://is1-ssl.mzstatic.com/image/thumb/Music123/v4/6d/59/4a/6d594a56-d4f7-e250-ace1-89466f0b0549/190295286729.jpg/100x100bb.jpg",
+   "collectionPrice": 8.99,
+   "collectionExplicitness": "notExplicit",
+   "trackCount": 31,
+   "copyright": "℗ 2020 KIDDINX Studios GmbH",
+   "country": "DEU",
+   "currency": "EUR",
+   "releaseDate": "2020-01-10T08:00:00Z",
+   "primaryGenreName": "Hörspiele"
+  }
+ ]
+}

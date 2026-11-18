@@ -1,0 +1,27 @@
+{
+ "resultCount": 1,
+ "results": [
+  {
+   "wrapperType": "collection",
+   "collectionType": "Album",
+   "artistId": 216347875,
+   "collectionId": 1214872067,
+   "amgArtistId": 972373,
+   "artistName": "Fünf Freunde",
+   "collectionName": "Folge 121: und die verlassene Jagdhütte",
+   "collectionCensoredName": "Folge 121: und die verlassene Jagdhütte",
+   "artistViewUrl": "https://music.apple.com/de/artist/f%C3%BCnf-freunde/216347875?uo=4",
+   "collectionViewUrl": "https://music.apple.com/de/album/folge-121-und-die-verlassene-jagdh%C3%BCtte/1214872067?uo=4",
+   "artworkUrl60": "https://is1-ssl.mzstatic.com/image/thumb/Music111/v4/d2/4c/98/d24c9847-a404-daba-a0e2-f44fb0b46d17/886446072043.jpg/60x60bb.jpg",
+   "artworkUrl100": "https://is1-ssl.mzstatic.com/image/thumb/Music111/v4/d2/4c/98/d24c9847-a404-daba-a0e2-f44fb0b46d17/886446072043.jpg/100x100bb.jpg",
+   "collectionPrice": 4.99,
+   "collectionExplicitness": "notExplicit",
+   "trackCount": 40,
+   "copyright": "℗ 2017 Sony Music Entertainment Germany GmbH",
+   "country": "DEU",
+   "currency": "EUR",
+   "releaseDate": "2017-04-21T07:00:00Z",
+   "primaryGenreName": "Hörspiele"
+  }
+ ]
+}

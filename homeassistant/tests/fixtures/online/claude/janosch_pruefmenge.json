@@ -1,0 +1,127 @@
+{
+ "modus": "pruefmenge",
+ "eingabe": {
+  "heutiger_name": "Janosch",
+  "ordner": "Janosch",
+  "einzeltitel": false,
+  "folgen_gesamt": 4,
+  "folgen_gezeigt": 4,
+  "folgen": [
+   {
+    "anzeige": "Als Tiger und Bär beinahe das Beste verpassten",
+    "nummer": null,
+    "tracks": 7,
+    "pruefen_gruende": [],
+    "tonies": [
+     {
+      "model": "10000279",
+      "series": "Janosch",
+      "episodes": "Als Tiger und Bär beinahe das Beste verpassten",
+      "tracks": 7,
+      "category": "audio-play"
+     }
+    ],
+    "apple": [
+     {
+      "collectionName": "Nach einer Figurenwelt von Janosch. Als Tiger und Bär beinahe das Beste verpassten",
+      "artistName": "Florian Fickel & Nach einer Figurenwelt von Janosch",
+      "genre": "Kinder und Jugend",
+      "trackCount": 1,
+      "wrapperType": "audiobook"
+     }
+    ]
+   },
+   {
+    "anzeige": "Oh, wie schön ist Panama",
+    "nummer": null,
+    "tracks": 3,
+    "pruefen_gruende": [],
+    "tonies": [
+     {
+      "model": "01-0001",
+      "series": "Janosch",
+      "episodes": "Oh, wie schön ist Panama",
+      "tracks": 3,
+      "category": "audio-play"
+     }
+    ],
+    "apple": [
+     {
+      "collectionName": "Janosch - Oh, wie schön ist Panama",
+      "artistName": "Janosch & Florian Fickel",
+      "genre": "Kinder und Jugend",
+      "trackCount": 1,
+      "wrapperType": "audiobook"
+     },
+     {
+      "collectionName": "Janosch - Oh, wie schön ist Panama (Das Original-Hörspiel zum Kinofilm)",
+      "artistName": "Janosch",
+      "genre": "Kinder und Jugend",
+      "trackCount": 1,
+      "wrapperType": "audiobook"
+     }
+    ]
+   },
+   {
+    "anzeige": "Post für den Tiger und weitere",
+    "nummer": null,
+    "tracks": 1,
+    "pruefen_gruende": [],
+    "tonies": [],
+    "apple": []
+   },
+   {
+    "anzeige": "Ich mach Dich gesund, sagte der Bär",
+    "nummer": null,
+    "tracks": 1,
+    "pruefen_gruende": [],
+    "tonies": [
+     {
+      "model": "01-0022",
+      "series": "Janosch",
+      "episodes": "Ich mach dich gesund, sagte der Bär",
+      "tracks": 3,
+      "category": "audio-play"
+     },
+     {
+      "model": "2000010844",
+      "series": "Janosch",
+      "episodes": "Ich mach Dich gesund, sagte der Bär",
+      "tracks": 33,
+      "category": "audio-play"
+     }
+    ],
+    "apple": [
+     {
+      "collectionName": "Folge 3: Ich mach dich gesund, sagte der Bär",
+      "artistName": "Janosch",
+      "genre": "Hörspiele",
+      "trackCount": 33,
+      "wrapperType": "collection"
+     },
+     {
+      "collectionName": "Janosch, Folge 3: Ich mach Dich gesund, sagte der Bär",
+      "artistName": "Janosch",
+      "genre": "Kinder und Jugend",
+      "trackCount": 1,
+      "wrapperType": "audiobook"
+     }
+    ]
+   }
+  ]
+ },
+ "antwort": {
+  "entscheidung": "behalten",
+  "name": "Janosch",
+  "sicher": true,
+  "grund": "Alle Folgen und Quellen nennen Janosch als Reihe; der heutige Name entspricht dem, was Eltern kennen."
+ },
+ "pruefung_im_code": {
+  "status": "sicher",
+  "entscheidung": "behalten",
+  "name": "Janosch",
+  "sicher": true,
+  "name_ok": true
+ },
+ "bemerkung": "falsch-sicher: Claude behält „Janosch“ sicher; freigegebener Name: Tiger und Bär"
+}

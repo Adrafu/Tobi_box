@@ -1,0 +1,49 @@
+{
+ "resultCount": 2,
+ "results": [
+  {
+   "wrapperType": "audiobook",
+   "artistId": 513684672,
+   "collectionId": 1607928809,
+   "artistName": "Klaus-P. Weigand",
+   "collectionName": "Bibi Blocksberg, Folge 100: Die große Hexenparty",
+   "collectionCensoredName": "Bibi Blocksberg, Folge 100: Die große Hexenparty",
+   "artistViewUrl": "https://books.apple.com/de/author/klaus-p-weigand/id513684672?uo=4",
+   "collectionViewUrl": "https://books.apple.com/de/audiobook/bibi-blocksberg-folge-100-die-gro%C3%9Fe-hexenparty/id1607928809?uo=4",
+   "artworkUrl60": "https://is1-ssl.mzstatic.com/image/thumb/Music126/v4/de/1a/b7/de1ab7ba-4f67-f51a-6012-f7b31e6881bb/4033694256008_3000.jpg/60x60bb.jpg",
+   "artworkUrl100": "https://is1-ssl.mzstatic.com/image/thumb/Music126/v4/de/1a/b7/de1ab7ba-4f67-f51a-6012-f7b31e6881bb/4033694256008_3000.jpg/100x100bb.jpg",
+   "collectionPrice": 5.99,
+   "collectionExplicitness": "cleaned",
+   "trackCount": 1,
+   "copyright": "© 2010 KIDDINX Studios GmbH, Berlin",
+   "country": "DEU",
+   "currency": "EUR",
+   "releaseDate": "2010-10-08T07:00:00Z",
+   "primaryGenreName": "Kinder und Jugend",
+   "previewUrl": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview126/v4/6d/7e/f8/6d7ef898-2d3f-61f2-c035-e2c6b7f4611f/mzaf_1722241284229713609.std.aac.p.m4a",
+   "description": "Ein neues hexisches Zeitalter bricht an! Für das Begrüßungsritual auf der großen Hexenparty muss die uralte Gruftia vier hexische Steine aus der ganzen Welt einsammeln. Doch Gruftia erkrankt. Bibi…"
+  },
+  {
+   "wrapperType": "audiobook",
+   "artistId": 513684672,
+   "collectionId": 1607399480,
+   "artistName": "Klaus-P. Weigand",
+   "collectionName": "Bibi Blocksberg, Bibi erzählt, Folge 3: Junghexengeschichten",
+   "collectionCensoredName": "Bibi Blocksberg, Bibi erzählt, Folge 3: Junghexengeschichten",
+   "artistViewUrl": "https://books.apple.com/de/author/klaus-p-weigand/id513684672?uo=4",
+   "collectionViewUrl": "https://books.apple.com/de/audiobook/bibi-blocksberg-bibi-erz%C3%A4hlt-folge-3-junghexengeschichten/id1607399480?uo=4",
+   "artworkUrl60": "https://is1-ssl.mzstatic.com/image/thumb/Music126/v4/62/cd/3c/62cd3c65-e6df-f337-31a4-b4e428b28c26/4033694254035_3000.jpg/60x60bb.jpg",
+   "artworkUrl100": "https://is1-ssl.mzstatic.com/image/thumb/Music126/v4/62/cd/3c/62cd3c65-e6df-f337-31a4-b4e428b28c26/4033694254035_3000.jpg/100x100bb.jpg",
+   "collectionPrice": 5.99,
+   "collectionExplicitness": "cleaned",
+   "trackCount": 1,
+   "copyright": "© 2016 KIDDINX Studios GmbH, Berlin",
+   "country": "DEU",
+   "currency": "EUR",
+   "releaseDate": "2016-01-01T08:00:00Z",
+   "primaryGenreName": "Kinder und Jugend",
+   "previewUrl": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview116/v4/f6/93/38/f6933809-5504-cc4e-d25d-5e3c6d38667e/mzaf_15484790098624741868.std.aac.p.m4a",
+   "description": "Bibi Blocksberg erzählt lustige Geschichten aus ihrem Leben.\nGruselnacht im Hexenhaus\nBibi soll Manias Hexenhaus hüten. Doch nachts ist es dort so unheimlich. Sie ruft Xenia und Flauipaui zu Hilfe.…"
+  }
+ ]
+}

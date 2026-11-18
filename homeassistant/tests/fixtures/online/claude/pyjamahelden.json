@@ -1,0 +1,118 @@
+{
+ "modus": "bestand",
+ "eingabe": {
+  "heutiger_name": "Pyjamahelden",
+  "ordner": "Uta Kienemann-Zaradic",
+  "einzeltitel": false,
+  "folgen_gesamt": 3,
+  "folgen_gezeigt": 3,
+  "folgen": [
+   {
+    "anzeige": "Ein mächtiges Mondproblem",
+    "nummer": null,
+    "tracks": 21,
+    "pruefen_gruende": [],
+    "tonies": [
+     {
+      "model": "10001328",
+      "series": "PJ Masks",
+      "episodes": "Ein mächtiges Mondproblem",
+      "tracks": 6,
+      "category": "audio-play"
+     },
+     {
+      "model": "2000011237",
+      "series": "PJ Masks",
+      "episodes": "Folgen 31-36: Ein mächtiges Mondproblem",
+      "tracks": 6,
+      "category": "audio-play"
+     }
+    ],
+    "apple": [
+     {
+      "collectionName": "Folgen 31-36: Ein mächtiges Mondproblem",
+      "artistName": "Uta Kienemann-Zaradic & PJ Masks",
+      "genre": "Hörspiele",
+      "trackCount": 6,
+      "wrapperType": "collection"
+     },
+     {
+      "collectionName": "Folgen 31-36: Ein mächtiges Mondproblem",
+      "artistName": "Uta Kienemann-Zaradic & PJ Masks",
+      "genre": "Kinder und Jugend",
+      "trackCount": 1,
+      "wrapperType": "audiobook"
+     }
+    ]
+   },
+   {
+    "anzeige": "Los geht’s Pyjamahelden",
+    "nummer": null,
+    "tracks": 25,
+    "pruefen_gruende": [],
+    "tonies": [
+     {
+      "model": "10001332",
+      "series": "PJ Masks",
+      "episodes": "Los geht’s Pyjamahelden",
+      "tracks": 6,
+      "category": "audio-play"
+     }
+    ],
+    "apple": []
+   },
+   {
+    "anzeige": "Zeit ein Held zu sein",
+    "nummer": null,
+    "tracks": 23,
+    "pruefen_gruende": [],
+    "tonies": [
+     {
+      "model": "10000928",
+      "series": "PJ Masks",
+      "episodes": "Zeit ein Held zu sein",
+      "tracks": 6,
+      "category": "audio-play"
+     },
+     {
+      "model": "2000011239",
+      "series": "PJ Masks",
+      "episodes": "Folgen 1-6: Zeit ein Held zu sein",
+      "tracks": 6,
+      "category": "audio-play"
+     }
+    ],
+    "apple": [
+     {
+      "collectionName": "Folgen 1-6: Zeit ein Held zu sein",
+      "artistName": "Uta Kienemann-Zaradic & PJ Masks",
+      "genre": "Hörspiele",
+      "trackCount": 6,
+      "wrapperType": "collection"
+     },
+     {
+      "collectionName": "Folgen 1-6: Zeit ein Held zu sein",
+      "artistName": "Uta Kienemann-Zaradic & PJ Masks",
+      "genre": "Kinder und Jugend",
+      "trackCount": 1,
+      "wrapperType": "audiobook"
+     }
+    ]
+   }
+  ]
+ },
+ "antwort": {
+  "entscheidung": "kandidat",
+  "name": "PJ Masks",
+  "sicher": true,
+  "grund": "Alle Folgen gehören zur Reihe PJ Masks (Tonie-Liste: series); der heutige Name ist der Autorin statt der Reihe."
+ },
+ "pruefung_im_code": {
+  "status": "sicher",
+  "entscheidung": "kandidat",
+  "name": "PJ Masks",
+  "sicher": true,
+  "name_ok": true
+ },
+ "bemerkung": "richtig: PJ Masks (sicher)"
+}

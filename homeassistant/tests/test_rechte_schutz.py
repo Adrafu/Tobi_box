@@ -149,6 +149,14 @@ TABELLE = [
     (54, "gehoert/loeschen", "admin", {"quelle": "boxen", "trocken": True}, None, True),
     (55, "favorit/set", "alltag", {"serie_id": "rabe", "an": True}, None, True),
     (56, "favoriten/list", "lesen", {}, None, True),
+    (57, "online/suchen", "admin", {"serie_id": "rabe", "text": "Rabe"}, None, False),
+    (58, "online/treffer", "admin", {"treffer_id": "0123456789abcdef"}, None, False),
+    (59, "online/uebernehmen", "admin", {"serie_id": "rabe", "treffer_id": "0123456789abcdef", "felder": ["serie_name"]}, None, False),
+    (60, "online/zuruecknehmen", "admin", {"serie_id": "rabe"}, None, False),
+    (61, "online/vorschlag_verwerfen", "admin", {"serie_id": "rabe", "vorschlag_id": "0123456789abcdef"}, None, False),
+    (62, "online/lauf", "admin", {"aktion": "start"}, None, False),
+    (63, "online/status", "admin", {}, None, False),
+    (64, "online/beschreibung", "lesen", {"serie_id": "rabe", "folge": "a.mp3"}, None, False),
 ]
 IDS = [f"{z[0]:02d}-{z[1]}" for z in TABELLE]
 
@@ -162,7 +170,7 @@ def vertrags_uebersicht() -> dict[str, tuple[int, str]]:
 
 def test_tabelle_enthaelt_jeden_befehl_der_vertragsuebersicht_genau_einmal():
     uebersicht = vertrags_uebersicht()
-    assert len(uebersicht) == 56  # seit 13.11. (A0-Q) mit den Befehlen 47 bis 49, seit 16.11. (Stufe B) mit 50 bis 56
+    assert len(uebersicht) == 64  # seit 13.11. (A0-Q) mit den Befehlen 47 bis 49, seit 16.11. (Stufe B) mit 50 bis 56, seit 18.11. (Online-Suche, OS0) mit 57 bis 64
     assert [z[1] for z in TABELLE] == [b for b, _ in sorted(uebersicht.items(), key=lambda kv: kv[1][0])]
     for nr, befehl, recht, *_ in TABELLE:
         assert uebersicht[befehl] == (nr, recht), befehl

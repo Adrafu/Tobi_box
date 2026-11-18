@@ -35,6 +35,8 @@ EGM artifact directory: docs/egm
   (Entstehung, Prototyp und Reviews: `docs/egm/ha-ui/`). Bau ab Paket A0.
 - Angenommenes Design Stufe B „Gehört“: `docs/designs/gehoert.md` (Entstehung und Reviews:
   `docs/egm/stufe-b/`). Bau ab B2a.
+- Angenommenes Design Online-Suche (Cover und Angaben): `docs/designs/online-suche.md` (Entstehung und Reviews:
+  `docs/egm/online-suche/`). OS1 abgenommen, OS0 freigegeben (18.11., Rev. 2.4). Nächster Schritt: Bau ab OS2.
 - Verträge (Stufe 0): `docs/protocol/`, `docs/data-model.md`. Agents ändern
   sie nicht eigenmächtig.
 

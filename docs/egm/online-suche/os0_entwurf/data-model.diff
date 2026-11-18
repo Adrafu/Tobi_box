@@ -1,0 +1,120 @@
+--- docs/data-model.md	2026-11-18 08:59:13
++++ docs/egm/online-suche/os0_entwurf/data-model.md	2026-11-18 16:36:59
+@@ -4,9 +4,16 @@
+ *   **Grundlage:** `docs/designs/box-software.md` („Datenmodell und Dateien“,
+     „Update“, „Fehlersuche“, Baustein 4 „Speicher und Medien“)
+ *   **Gilt für:** Box-Dienst (`store`, `library`, `outbox`, `update`, `eventlog`,
+-    `guard.py`, seit 16.11. der Beobachter `gehoert`) und die HA-Integration (`media.py`, `store.py`, `mqtt.py`, seit 16.11. der Speicher für „Gehört“).
++    `guard.py`, seit 16.11. der Beobachter `gehoert`) und die HA-Integration (`media.py`, `store.py`, `mqtt.py`, seit 16.11. der Speicher für „Gehört“, seit 18.11. der Speicher der Online-Suche).
+ *   Ein AP, das ein Schema einführt oder ändert, ergänzt dieses Dokument
+     (siehe Umsetzungsplan).
++*   **Änderung 18.11. (Online-Suche, Paket OS0; von Tobias freigegeben am 18.11. („Ja, freigeben“); alles additiv bis auf einen neuen Wert, `schema_version` bleibt):**
++    Grundlage `docs/designs/online-suche.md` (Rev. 2.4, Abschnitte 7.1 bis 7.4 und 9.1) und `docs/egm/online-suche/resolve.md`. **`serie.json`:** neuer Wert `"online"` für `art_quelle`
++    (Abschnitt 5; **Ausnahme:** eine ältere Integration kennt ihn nicht und macht daraus `"manuell"`, siehe dort). **Reservierter Dateiname** `cover-online.jpg` im Serien-Ordner
++    (Abschnitte 5 und 1.6), Vorrang `cover-eigen.jpg` vor `cover-online.jpg` vor `cover.jpg`; der Sync nimmt sie schon mit `cover*.jpg` aus, die Box ändert sich nicht.
++    **Neuer Store** `tobibox.online` (Abschnitt 5b; Version 1, `minor_version` 1, nur in HA, in der HA-Sicherung, nicht gesynct) und **neue Datei** `<config>/tobibox/tonies.json`
++    (Abschnitt 13; Zwischenspeicher, darf fehlen). Kein Feld von `config.json`, `resume.json`, `unknown.json` oder `gehoert.json` ändert sich; `mqtt-v1.md` und die Box bleiben unverändert (Design 9.4).
++    Die Befehle dazu: `ha-websocket-v1.md`, 3.15.
+ *   **Änderung 16.11. (Stufe B „Gehört“, Paket B0; Entwurf, wartet auf die Freigabe durch Tobias; alles additiv, `schema_version` bleibt):**
+     Grundlage `docs/egm/stufe-b/design_draft.md` (Rev. 3.1, Abschnitte 3.3 bis 3.7, 4, 11) und `resolve.md`. **Box:** neue Zustandsdatei `gehoert.json`
+     (Puffer der gespielten Sitzungen, Abschnitt 1.6, neues `schema_version` 1, `schema_version` der anderen Dateien unberührt); Schreibbudget (1.7); sie gehört
+@@ -172,6 +179,9 @@
+ | `gehoert.json` (16.11.) | Box, Zustandsverzeichnis | Box: Beobachter `gehoert` (über `store`, Hintergrund-Schreiber wie `outbox`; synchron bei `herunterfahren` und `dienst_ende`) | Box: `app` (beim Start), `ha` (Senden) | **nie**; **nicht** in der Rückfall-Sicherung des Updates (Abschnitt 7) |
+ | `gehoert.sqlite` (16.11.) | HA, `<config>/tobibox/` (nicht `.storage/`, nicht auf dem NAS) | HA-Integration | HA-Integration | **nie**; Teil der HA-Sicherung (Abschnitt 12.1) |
+ | `tobibox.favoriten` (16.11.) | HA, `.storage/` (HA-`Store`), nicht auf dem NAS | HA-Integration | HA-Integration | **nie**; Teil der HA-Sicherung (Abschnitt 12.2) |
++| `cover-online.jpg` (18.11.) | NAS, `medien/<ordner>/` | HA-Integration (Online-Suche; Befehl `online/uebernehmen`, Vertrag W, 3.15) | HA-Integration | **nie** (vom Sync ausgenommen, `cover*.jpg`, Abschnitt 5) |
++| `tobibox.online` (18.11.) | HA, `.storage/` (HA-`Store`), nicht auf dem NAS | HA-Integration (Online-Suche) | HA-Integration | **nie**; Teil der HA-Sicherung; nicht neu berechenbar (Abschnitt 5b) |
++| `tonies.json` (18.11.) | HA, `<config>/tobibox/` (nicht `.storage/`, nicht auf dem NAS) | HA-Integration (Online-Suche, Abruf der Tonie-Liste) | HA-Integration | **nie**; darf fehlen (Abschnitt 13) |
+ 
+ *   `update.json` schreiben zwei Programme, aber nie gleichzeitig: `guard.py`
+     läuft als `ExecStartPre` vor dem Dienst, `update.py` im Dienst. Beide
+@@ -541,7 +551,7 @@
+ | `pruefen` | bool | nein | **(09.11., Entscheidung M)** Die Serie wurde beim Einsortieren aus schwachen Angaben (Interpret, Ordnername) angelegt: „bitte prüfen“. Fehlt = `false`. |
+ | `pruefen_gruende` | array von string | nein | Codes zu `pruefen` (Vertrag W, 11.9). |
+ | `art` | `"hoerspiel"`, `"hoerbuch"`, `"musik"`, `"geschichte"` | nein | **(12.11.)** Art des Eintrags; fehlt = `"hoerspiel"`. Nur von Menschen gesetzt (Beschriftung beim Hochladen, „Art ändern“) oder beim Einsortieren aus den Tags vorgeschlagen (Vertrag W, 14.2). |
+-| `art_quelle` | `"tags"`, `"geraten"`, `"manuell"` | nein | **(12.11.)** woher `art` kommt; `"manuell"` wird nie überschrieben; fehlt = `"geraten"`, wenn `art` fehlt |
++| `art_quelle` | `"tags"`, `"geraten"`, `"manuell"`, `"online"` | nein | **(12.11.)** woher `art` kommt; `"manuell"` wird nie überschrieben; fehlt = `"geraten"`, wenn `art` fehlt. **(18.11.)** `"online"` = von der Online-Suche übernommen (nur HA setzt es, Vertrag W, 3.15). **Rückfall:** Eine ältere Integration kennt `"online"` nicht und liest es als `"manuell"` (`serie_aus_json`); die Art bleibt, gilt dann aber als von Hand gesetzt. Die Box ignoriert `art_quelle` |
+ | `einzeln` | bool | nein | **(12.11.)** Einzeltitel: genau eine Folge, steht für sich, keine neuen Folgen; fehlt = `false`. Ein Tobie auf einen Einzeltitel zeigt auf die **Folge** (`ziel.typ="folge"`). |
+ | `folgen_info` | object | nein | **(09.11.)** Schlüssel = Name einer Folge aus `folgen`; Wert = Objekt mit den optionalen Feldern `anzeige` (string, 1–200 Zeichen: Anzeigename), `nummer` (int ≥ 0: Folgen-Nummer aus den Tags oder dem Albumnamen), `datum` (string `YYYY-MM-DD`: Erscheinungsdatum), `pruefen` (bool) und `pruefen_gruende` (array von string). Nur die HA-Integration schreibt es. Einträge für Namen, die nicht in `folgen` stehen, sind bedeutungslos und werden beim nächsten Schreiben entfernt. |
+ 
+@@ -616,8 +626,8 @@
+     `@Recycle`, `.@__thumb`, `.@__qini`, `#recycle`, `$RECYCLE.BIN`; Groß-/Kleinschreibung egal) nimmt der
+     Sync ebenfalls aus, und die Bibliothek der Box liest Ordner mit `.`, `@`, `#` oder `$` am Anfang nie ein. Namensregeln für neue Dateien und
+     Ordner: Vertrag W, Abschnitt 12.
+-*   **Reservierte Dateinamen im Serien-Ordner (12.11., additiv):** `cover.jpg` (automatisches Cover, aus den Tags oder einer mitgelieferten Bilddatei **kopiert**) und `cover-eigen.jpg` (Foto aus der Seite, hat Vorrang vor `cover.jpg`). Als **Quelle** gelesen, nie geschrieben: `folder.jpg`, `cover.png`. Es sind keine Folgen (die Endung ist keine Audioendung; die Bibliothek der Box liest nur Audioendungen). Beim **Zusammenführen** übernimmt die Ziel-Serie das Cover der Quelle, wenn sie selbst keines hat; im **Papierkorb** wandern die Dateien mit dem Ordner (sie sind eine Kopie des Originals und mit dem Eintrag wiederherstellbar); beim **Umbenennen** bleiben Ordnername und ID, also auch die Cover. Ein Cover ist höchstens 512 px je Seite (JPEG); die kleine Ansicht (192 px) rechnet die Integration bei Bedarf aus dieser Datei.
+-*   **Sync (12.11.):** Der Sync der Box (`box/src/tobibox/sync.py`) nimmt zusätzlich zu den Systemdateien und `_upload`, `_papierkorb`, `eingang` auch `cover*.jpg`, `cover*.png` und `folder.jpg` aus (an jeder Tiefe, Groß-/Kleinschreibung egal; `--exclude` schützt sie auch vor `--delete`). Grund: Die Box hat kein Display; 500 Cover à 150 KiB wären 75 MB SD-Platz und Schreibvorgänge für nichts. Ein späteres Display bräuchte eine neue Entscheidung. Einzeltitel sind 300 kleine Ordner mit je einer Datei und einer `serie.json` (etwa 300 Byte); `rsync` braucht dafür keine Sonderregel. Hörkopien liegen nicht in `medien/` (Abschnitt 11), also gibt es dort nichts auszunehmen.
++*   **Reservierte Dateinamen im Serien-Ordner (12.11., additiv):** `cover.jpg` (automatisches Cover, aus den Tags oder einer mitgelieferten Bilddatei **kopiert**) und `cover-eigen.jpg` (Foto aus der Seite, hat Vorrang vor `cover.jpg`). **(18.11.)** Dazu `cover-online.jpg` (Cover aus der Online-Suche, aus dem Bild des Treffers erzeugt, JPEG): **Vorrang `cover-eigen.jpg` vor `cover-online.jpg` vor `cover.jpg`**; `cover_quelle` (Vertrag W, 14.2) nennt die Quelle der angezeigten Datei (`eigen`, `online`, `auto`). Als **Quelle** gelesen, nie geschrieben: `folder.jpg`, `cover.png`. Es sind keine Folgen (die Endung ist keine Audioendung; die Bibliothek der Box liest nur Audioendungen). Beim **Zusammenführen** übernimmt die Ziel-Serie das Cover der Quelle, wenn sie selbst keines hat (**seit 18.11.** kopiert HA die Datei, die die Quelle **anzeigt**, also `cover-eigen.jpg` vor `cover-online.jpg`, unter dem Namen, den sie in der Quelle hat; die Einträge `hand.cover` und `zurueckgenommen.cover` ziehen im Store mit, GO-17); im **Papierkorb** wandern die Dateien mit dem Ordner (sie sind eine Kopie des Originals und mit dem Eintrag wiederherstellbar); beim **Umbenennen** bleiben Ordnername und ID, also auch die Cover. Ein Cover (auch `cover-online.jpg`) ist höchstens 512 px je Seite (JPEG); die kleine Ansicht (192 px) rechnet die Integration bei Bedarf aus dieser Datei.
++*   **Sync (12.11.):** Der Sync der Box (`box/src/tobibox/sync.py`) nimmt zusätzlich zu den Systemdateien und `_upload`, `_papierkorb`, `eingang` auch `cover*.jpg` (damit seit 18.11. auch `cover-online.jpg`), `cover*.png` und `folder.jpg` aus (an jeder Tiefe, Groß-/Kleinschreibung egal; `--exclude` schützt sie auch vor `--delete`). Grund: Die Box hat kein Display; 500 Cover à 150 KiB wären 75 MB SD-Platz und Schreibvorgänge für nichts. Ein späteres Display bräuchte eine neue Entscheidung. Einzeltitel sind 300 kleine Ordner mit je einer Datei und einer `serie.json` (etwa 300 Byte); `rsync` braucht dafür keine Sonderregel. Hörkopien liegen nicht in `medien/` (Abschnitt 11), also gibt es dort nichts auszunehmen.
+ *   **Ungültige `serie.json`:** behandelt die Box wie eine fehlende; die Datei
+     wird nicht repariert, aber protokolliert. (Die Integration repariert sie.)
+ *   **Überraschungs-Serie:** genau eine Serie mit `typ="ueberraschung"`. Keine,
+@@ -704,6 +714,30 @@
+ 
+ Die Hörstellen (`tobibox.hoerstellen`, Vertrag W, 14.6) sind ein zweiter Store mit eigener Form; sie gehören je Benutzer und liegen ebenfalls nur in HA.
+ 
++## 5b. Store `tobibox.online` (18.11., Online-Suche; Vertrag W, 3.15)
++
++Was die Online-Suche über einen Eintrag weiß: woher Felder stammen, Änderungen mit Vorher-Werten, Vorschläge, Marken „schon gesucht“, Beschreibung und Alter je Folge. HA-`Store` `tobibox.online` (`.storage/`), **Version 1, `minor_version` 1**, mit Migrationsfunktion von Anfang an (Migration nur vorwärts). Der Store ist **nicht neu berechenbar** (Änderungen mit Vorher-Werten, `hand`, `zurueckgenommen`, `verworfen`), liegt nur in HA, ist **nicht gesynct**, nicht auf dem NAS, nicht Teil der Konfiguration und der Box unbekannt. Er gehört zu jeder HA-Sicherung. Bei Verlust fängt die Online-Suche ohne Herkunft an (Design 6.1, „Bestand ohne Schnappschuss“); Beschreibung und Alter holt der nächste Lauf neu.
++
++Schlüssel `serien.<serie_id>.…`, dazu `laeufe`. Für den **Namen** der Serie gibt es keinen Schnappschuss (die Automatik ändert ihn nie, Design 4.6); `serie_name` steht nur in `hand` und `zurueckgenommen`. In `felder` stehen Feldnamen wie im Vertrag W, 3.15: `serie_name`, `art`, `cover` für den Eintrag, `<feld>@<folge>` für `folge_titel`, `nummer`, `beschreibung`, `alter_ab`.
++
++| Schlüssel | Inhalt | Speichern |
++|---|---|---|
++| `serien.<id>.schnapp` | `{"art"?, "folgen": {<f>: {"anzeige"?, "nummer"?}}}` (**kein** Name, GO-8): der Wert, den Einsortieren oder eine **automatische** Online-Übernahme zuletzt gesetzt hat („unberührt“-Schnappschuss, Design 6.1) | sofort |
++| `serien.<id>.hand` | `{"serie_name"?: true, "art"?: true, "cover"?: true, "folgen": {<f>: [<feld>…]}}`: Felder aus einer Übernahme **von Hand**; verfällt nie; nur eine Rücknahme dieser Übernahme oder ein neuer Wert von Hand berührt ihn, die Automatik nie | sofort |
++| `serien.<id>.zurueckgenommen` | `{"serie_name"?: true, "art"?: true, "cover"?: true, "folgen": {<f>: [<feld>…]}}`: Felder, deren Online-Änderung ein Administrator zurückgenommen hat (Design 6.4); verfällt nie | sofort |
++| `serien.<id>.marke` | `{"ergebnis": "geaendert" \| "vorschlag" \| "keiner" \| "fehler", "zeit", "folgen": [<f>…]}`: „schon gesucht“, mit den gesuchten Folgen; `keiner` und `fehler` verfallen nach 30 Tagen oder bei neuer Tonie-Liste | verzögert |
++| `serien.<id>.marke.claude` | `{"ergebnis": "vorschlag" \| "behalten" \| "fehler" \| "aus", "zeit"}`: Marke des Claude-Schritts (Namensvorschläge), **getrennt** von `marke`, damit ein Eintrag, der vor dem Setzen der Option oder bei einem Ausfall gesucht wurde, später noch an Claude geht; `aus` verfällt, sobald die Option gesetzt ist, `fehler` nach 1 Tag, `vorschlag` und `behalten` nie (GO-2) | verzögert |
++| `serien.<id>.folgen.<f>` | `{"beschreibung", "alter_ab", "quelle", "tonie_model"?, "seite"?, "zeit"}`: Beschreibung (höchstens 2 000 Zeichen) und Alter (0 bis 18) der Folge; `quelle` ∈ `tonies_shop`, `itunes`; `seite` = **Pfad** der Shopseite (`/de-de/tonies/<serie-slug>/<folge-slug>/`, nie ein freier Text, nie ein Host); ob eine Beschreibung von Hand gewählt wurde, steht nur in `hand` (GO-15) | verzögert |
++| `serien.<id>.aenderungen` | höchstens 20, höchstens 30 Tage: `{"id", "zeit", "wer": "auto" \| <HA-Benutzer-ID>, "lauf_id"?, "quelle", "status" (`offen` \| `fertig` \| `zurueckgenommen`), "felder": {<feld>[@<f>]: {"vorher", "nachher"}}, "pruefen_vorher", "schnapp_vorher", "cover_stand"?}` | sofort |
++| `serien.<id>.vorschlaege` | `{"id", "art": "felder" \| "zusammenfuehren", "quelle": "itunes" \| "tonies" \| "claude", "felder"?, "werte"? (`{<feld>[@<f>]: neuer Wert}`; Cover: `{"cover_url": <Adresse des 600-px-Bildes>, "collection_id"}`; Quelle `claude`: `{"serie_name": <Name>}`), "grund"? (nur `claude`, höchstens 160 Zeichen), "name_vorher"? (nur bei `serie_name`: der Name des Eintrags beim Anlegen), "ziel_serie_id"?, "zeit"}`; die Werte stehen im Store, damit „Ansehen“ und „Übernehmen“ auch nach Stunden und nach einem Neustart gehen (das Bild lädt HA neu); beim Lesen auf Gültigkeit geprüft (Ziel und Folge noch da, bei `serie_name` der Name noch gleich `name_vorher`), sonst verworfen | sofort |
++| `serien.<id>.verworfen` | höchstens 200: `{"feld", "wert_hash", "quelle"}`; `wert_hash` über (Feld, normalisierter Wert, Quelle), Cover über die Kennung der Quelle (`collectionId`) | sofort |
++| `laeufe` | die letzten 5: `{"lauf_id", "beginn", "ende", "zustand", "zahlen"}` | sofort |
++
++*   **Speichern:** „sofort“ = `async_save` vor der nächsten Wirkung (eine Änderung steht mit `status` `offen` auf der Platte, **bevor** Dateien geschrieben werden; so klärt HA beim Start offene Änderungen); „verzögert“ = `async_delay_save`.
++*   **Änderung:** `status` ∈ `offen`, `fertig`, `zurueckgenommen`. `vorher`/`nachher` sind der Wert des Felds (bei `art` samt `art_quelle`, bei `cover` die Quelle des Covers); `pruefen_vorher` hält `pruefen` und `pruefen_gruende` von Serie und betroffenen Folgen, `schnapp_vorher` nur bei offenen Änderungen den Schnappschuss davor, `cover_stand` den Dateistand des Covers (Fingerabdruck). `wer` ist `auto` für eine Übernahme der Automatik. Nur der Status `fertig` zählt für das Feld `online` der Serie-Kurzform (Vertrag W, 14.2).
++*   **Verfall:** Änderungen verfallen nach **30 Tagen** oder über **20** je Eintrag (älteste zuerst); mit ihnen verschwindet die Zeile „Aus der Online-Suche übernommen“. `hand`, `zurueckgenommen`, `schnapp` und `verworfen` (hier nur durch die Obergrenze 200) sind vom Verfall der Änderungen **nicht** betroffen. Marken `keiner`/`fehler`: siehe Tabelle.
++*   **Pflegestellen** (über **eine** Klasse mit `folge_umbenannt(sid, alt, ziel_sid, neu)`, `loesche_folge`, `loesche_serie`, `bereinige`; Design 7.3): (1) Folge löschen, Serie löschen; (2) `folge/verschieben` und `serien/zusammenfuehren`: `folgen.<f>`, `schnapp`, `hand`, `zurueckgenommen` und offene Vorschläge ziehen mit, bei neuem Namen im Ziel werden alle Schlüssel und `<feld>@<folge>` umbenannt, Änderungen bleiben bei der Quelle und verfallen mit ihr; (3) Zurückholen in den Eingang („Anders einsortieren“, `neu_einsortieren.py`): aufräumen; (4) beim Start `bereinige` (verwaiste Serien und Folgen); (5) **Papierkorb-Restore stellt den Store nicht wieder her**, der nächste Lauf sucht neu. Umbenennen ändert nichts (ID und Folgenname bleiben).
++
+ ## 6. `manifest.json` (Update-Paket)
+ 
+ Liegt im Wurzelverzeichnis des Pakets `tobibox-<version>.tar.gz`. Neben dem
+@@ -948,7 +982,38 @@
+ 
+ Höchstens **1 000** Einträge; ein Paar (`serie_id`, `folge`) kommt nur einmal vor. Einträge, deren Serie oder Folge es nicht mehr gibt, fallen **beim Lesen** weg (der Speicher wird nicht sofort bereinigt). Der Store wird, wie `tobibox.hoerstellen`,
+ im Speicher sofort und auf der Platte gesammelt geschrieben. **Verschieben und Zusammenführen** von Folgen und Serien ziehen die Sterne mit (`serie_id` und `folge` werden umgeschrieben, wie bei den Sitzungen in 12.1; steht der Stern am Ziel schon, bleibt einer). Umbenennen ändert nichts.
++
++## 13. Zwischenspeicher der Online-Suche `<config>/tobibox/tonies.json` (18.11., Vertrag W, 3.15)
++
++Die gefilterte Tonie-Liste der Gemeinschaft (`tonies-json`, Design 3.1), geladen von HA beim ersten Bedarf und danach höchstens einmal je 7 Tage (mit ETag). Reiner **Zwischenspeicher**: Er **darf fehlen oder verloren gehen** (HA lädt ihn dann neu; fehlt er und ist das Netz weg, gibt es keine Treffer aus der Tonie-Liste, aber alles andere geht weiter) und ist nicht gesynct, nicht auf dem NAS und der Box unbekannt. Schreiber und Leser ist allein die HA-Integration; geschrieben wird **atomar** (Verfahren wie 1.2, ohne `.bak`; **ersetzt** wird die Datei nur, wenn die Antwort eine gültige Liste ist, mindestens 1 000 benutzbare deutsche Einträge hat und deren Zahl sich um höchstens ±50 % geändert hat; sonst bleibt die alte Datei).
++
++```json
++{
++  "schema_version": 1,
++  "geladen_am": "2026-11-18T09:00:00Z",
++  "etag": "\"abc123\"",
++  "eintraege": [
++    {
++      "model": "01-0033",
++      "series": "Bibi Blocksberg",
++      "episodes": "Die Junghexenbande",
++      "tracks": ["Kapitel 1", "Kapitel 2"],
++      "release": "1590000000",
++      "category": "audio-play"
++    }
++  ]
++}
++```
+ 
++| Feld | Typ | Bedeutung |
++|---|---|---|
++| `schema_version` | int | `1` (als erstes Feld, 1.1) |
++| `geladen_am` | string | Zeitstempel des letzten erfolgreichen Ladens |
++| `etag` | string oder `null` | `ETag` der Antwort für die nächste bedingte Anfrage |
++| `eintraege` | Liste | nur **benutzbare** Einträge: `language = de-de`, `model` gesetzt, Titel ohne Merkmale anderer Sprachen (Design 3.1) |
++
++Je Eintrag nur, was die Online-Suche benutzt: `model` (string), `series` (string), `episodes` (string), `tracks` (Liste von Titeln; die Zahl der Tracks ist ihre Länge), `release` (string wie in der Quelle) und `category` (string, zum Beispiel `audio-play`, `audio-book`, `music`). Das Bild der Figur (`pic`) und alle anderen Felder der Quelle werden **nicht** abgelegt. Ein Eintrag mit fehlendem oder falsch getyptem Feld wird beim Laden verworfen (Typprüfung je Feld). Größe etwa einige MB; die Quelle hat etwa 6,3 MB und 6 709 Einträge, davon etwa 4 900 benutzbar.
++
+ ## Festlegungen in diesem Vertrag (Stand 05.11.)
+ 
+ Das Design lässt diese Einzelheiten offen. Entschieden wurde die einfachste

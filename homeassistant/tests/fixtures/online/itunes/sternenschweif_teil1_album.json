@@ -1,0 +1,26 @@
+{
+ "resultCount": 1,
+ "results": [
+  {
+   "wrapperType": "collection",
+   "collectionType": "Album",
+   "artistId": 1062930511,
+   "collectionId": 1700440181,
+   "artistName": "Sternenschweif",
+   "collectionName": "Teil 1: Geheimnisvolle Verwandlung",
+   "collectionCensoredName": "Teil 1: Geheimnisvolle Verwandlung",
+   "artistViewUrl": "https://music.apple.com/de/artist/sternenschweif/1062930511?uo=4",
+   "collectionViewUrl": "https://music.apple.com/de/album/teil-1-geheimnisvolle-verwandlung/1700440181?uo=4",
+   "artworkUrl60": "https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/e7/fd/5f/e7fd5ff5-3148-bdeb-3b09-dacb4f6ee909/4066004601137_3000.jpg/60x60bb.jpg",
+   "artworkUrl100": "https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/e7/fd/5f/e7fd5ff5-3148-bdeb-3b09-dacb4f6ee909/4066004601137_3000.jpg/100x100bb.jpg",
+   "collectionPrice": 6.99,
+   "collectionExplicitness": "notExplicit",
+   "trackCount": 28,
+   "copyright": "℗ 2015 United Soft Media Verlag GmbH, Working Partners Limited, Franckh-Kosmos Verlags-GmbH & Co. KG",
+   "country": "DEU",
+   "currency": "EUR",
+   "releaseDate": "2007-11-14T08:00:00Z",
+   "primaryGenreName": "Hörspiele"
+  }
+ ]
+}
