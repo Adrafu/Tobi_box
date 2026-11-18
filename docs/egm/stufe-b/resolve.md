@@ -125,3 +125,11 @@ Raster Zeit × `wer` nimmt die Quellen, die der Filter zulässt; Sammelzeile gel
 Folge; 3 Jahre bis zum gleichen Kalendertag, 400 Kalendertage einschließlich `bis`; Ränder in Befehl 52 mit wahrem
 Beginn; Befehl 54 verwirft auch offene Reinhör-Sitzungen der gelöschten Personen; `einsortierung/bestaetigen` setzt auch
 `teilweise` zurück; Reihenfolge in `hello.faehigkeiten` mit `hoerkopie` am Ende.
+
+## B6: Abnahme (18.11.)
+
+| Nr. | Befund | Entscheidung |
+|---|---|---|
+| BB1 | Papierkorb wird sehr lang; er leert sich nie von selbst | **(Tobias)** „Nach 30 Tagen“: Einträge, die länger als 30 Tage im Papierkorb liegen, löscht HA einmal am Tag endgültig. Vertragssatz „Nie endgültig“ wird angepasst |
+| BB2 | Karte „Hördaten“ steht unter dem langen Papierkorb | **(PL)** Papierkorb-Karte zeigt die neuesten 5 Einträge plus „Alle … zeigen“; „Hördaten“ steht darüber |
+| BB3 | Test-Box nach der Abnahme | **(Tobias)** aus der Integration nehmen, Mosquitto-Konto und lokale Dateien behalten |
