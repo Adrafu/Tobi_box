@@ -1,0 +1,389 @@
+{
+ "hinweis": "Ergänzung OS2: Antworten, die zu den Fällen in erwartung.json gehören, aber in itunes/ und tonies_auszug.json fehlen. Siehe README.md, Abschnitt „Ergänzung OS2“.",
+ "hotzenplotz": {
+  "kuenstliche_alben": [
+   {
+    "wrapperType": "collection",
+    "collectionId": 900001,
+    "collectionName": "Der Räuber Hotzenplotz",
+    "artistName": "Various Artists",
+    "primaryGenreName": "Pop",
+    "trackCount": 19,
+    "artworkUrl100": "https://is1-ssl.mzstatic.com/synthetisch/900001/100x100bb.jpg",
+    "releaseDate": "2020-01-01T08:00:00Z"
+   },
+   {
+    "wrapperType": "collection",
+    "collectionId": 900002,
+    "collectionName": "Der Räuber Hotzenplotz (Original Motion Picture Soundtrack)",
+    "artistName": "Irgendwer",
+    "primaryGenreName": "Soundtrack",
+    "trackCount": 20,
+    "artworkUrl100": "https://is1-ssl.mzstatic.com/synthetisch/900002/100x100bb.jpg",
+    "releaseDate": "2020-01-01T08:00:00Z"
+   },
+   {
+    "wrapperType": "collection",
+    "collectionId": 900003,
+    "collectionName": "Der Räuber Hotzenplotz - Alle Hörspiele",
+    "artistName": "Der Räuber Hotzenplotz",
+    "primaryGenreName": "Hörspiele",
+    "trackCount": 231,
+    "artworkUrl100": "https://is1-ssl.mzstatic.com/synthetisch/900003/100x100bb.jpg",
+    "releaseDate": "2020-01-01T08:00:00Z"
+   },
+   {
+    "wrapperType": "collection",
+    "collectionId": 900004,
+    "collectionName": "1: Der Räuber Hotzenplotz",
+    "artistName": "Der Räuber Hotzenplotz",
+    "primaryGenreName": "Hörspiele",
+    "trackCount": 4,
+    "artworkUrl100": "https://is1-ssl.mzstatic.com/synthetisch/900004/100x100bb.jpg",
+    "releaseDate": "2020-01-01T08:00:00Z"
+   }
+  ],
+  "hoerbuch_antwort": [
+   {
+    "wrapperType": "audiobook",
+    "collectionId": 1599717064,
+    "collectionName": "Der Räuber Hotzenplotz - Hörspiele: Der Räuber Hotzenplotz. Das Originalhörspiel zum Kinofilm",
+    "artistName": "Otfried Preußler, Der Räuber Hotzenplotz - Hörspiele & Der Räuber Hotzenplotz",
+    "primaryGenreName": "Kinder und Jugend",
+    "trackCount": 1,
+    "artworkUrl100": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/b1/a9/a1/b1a9a13f-3370-7945-94c4-7dd9008626b5/9783844930672.jpg/100x100bb.jpg",
+    "releaseDate": "2022-11-28T08:00:00Z",
+    "description": "Das Originalhörspiel zum Hotzenplotz-Kinohighlight\nVorhang auf für den wohl berühmtesten Räuber der Welt: Otfried Preußlers beliebte Helden Kasperl, Seppel und natürlich Hotzenplotz höchstpersönlich…"
+   },
+   {
+    "wrapperType": "audiobook",
+    "collectionId": 1715809868,
+    "collectionName": "Der Räuber Hotzenplotz 2: Neues vom Räuber Hotzenplotz",
+    "artistName": "Otfried Preußler, Ulrich Noethen & Der Räuber Hotzenplotz",
+    "primaryGenreName": "Kinder und Jugend",
+    "trackCount": 1,
+    "artworkUrl100": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/9b/7c/33/9b7c339f-5b28-9ef7-abd9-155025f46378/9783844924404.jpg/100x100bb.jpg",
+    "releaseDate": "2024-03-25T07:00:00Z",
+    "description": "Sapperlot! Ulrich Noethen liest Teil 2 von Preußlers berühmter Räubergeschichte\nDimpfelmosers gefährlichster Gefangener ist aus dem Spritzenhaus entflohen. Zu allem Unglück hat Hotzenplotz auch noch…"
+   },
+   {
+    "wrapperType": "audiobook",
+    "collectionId": 1509253448,
+    "collectionName": "Der Räuber Hotzenplotz - Hörspiele 1: Der Räuber Hotzenplotz - Das Hörspiel",
+    "artistName": "Charly Hübner, Der Räuber Hotzenplotz & Der Räuber Hotzenplotz - Hörspiele",
+    "primaryGenreName": "Kinder und Jugend",
+    "trackCount": 1,
+    "artworkUrl100": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/ee/39/67/ee3967f1-dac0-6396-4795-4d9f1e860980/9783844924268.jpg/100x100bb.jpg",
+    "releaseDate": "2020-04-30T07:00:00Z",
+    "description": "Schlipperdibix! Neues Hörspiel mit Charly Hübner, Felix von Manteuffel, Hedi Kriegeskotte u.v.m.\nDer Bösewicht mit den sieben Messern und der Pfefferpistole hält seit Generationen die Welt in Atem!…"
+   },
+   {
+    "wrapperType": "audiobook",
+    "collectionId": 1599129170,
+    "collectionName": "Der Räuber Hotzenplotz 1: Der Räuber Hotzenplotz",
+    "artistName": "Otfried Preußler, Ulrich Noethen & Der Räuber Hotzenplotz",
+    "primaryGenreName": "Kinder und Jugend",
+    "trackCount": 1,
+    "artworkUrl100": "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/a3/c5/df/a3c5df8a-0dea-23e3-83d8-d21b2b91a172/9783844924367.jpg/100x100bb.jpg",
+    "releaseDate": "2022-02-24T08:00:00Z",
+    "description": "Sapperlot! Ulrich Noethen liest Preußlers berühmte Räubergeschichte\nDer Räuber Hotzenplotz hat Großmutters Kaffeemühle gestohlen! Kasperl und Seppel wissen, was zu tun ist: Sie müssen den Dieb…"
+   },
+   {
+    "wrapperType": "audiobook",
+    "collectionId": 1509262880,
+    "collectionName": "Der Räuber Hotzenplotz - Hörspiele 3: Schluss mit der Räuberei - Das Hörspiel",
+    "artistName": "Charly Hübner, Der Räuber Hotzenplotz & Otfried Preußler",
+    "primaryGenreName": "Kinder und Jugend",
+    "trackCount": 1,
+    "artworkUrl100": "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/f9/18/12/f9181226-4c6d-f69e-f599-c5e94b438b94/9783844924282.jpg/100x100bb.jpg",
+    "releaseDate": "2020-04-30T07:00:00Z",
+    "description": "Schlipperdibix! Neues Hörspiel mit Charly Hübner, Felix von Manteuffel, Hedi Kriegeskotte u.v.m.\nDer Bösewicht mit den sieben Messern und der Pfefferpistole hält seit Generationen die Welt in Atem!…"
+   },
+   {
+    "wrapperType": "audiobook",
+    "collectionId": 1509259886,
+    "collectionName": "Der Räuber Hotzenplotz - Hörspiele 2: Neues vom Räuber Hotzenplotz - Das Hörspiel",
+    "artistName": "Otfried Preußler, Charly Hübner & Der Räuber Hotzenplotz - Hörspiele",
+    "primaryGenreName": "Kinder und Jugend",
+    "trackCount": 1,
+    "artworkUrl100": "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/00/90/99/009099a3-974e-eb41-9ec3-1db41f05cca3/9783844924275.jpg/100x100bb.jpg",
+    "releaseDate": "2020-04-30T07:00:00Z",
+    "description": "Schlipperdibix! Neues Hörspiel mit Charly Hübner, Felix von Manteuffel, Hedi Kriegeskotte u.v.m.\nDer Bösewicht mit den sieben Messern und der Pfefferpistole hält seit Generationen die Welt in Atem!…"
+   },
+   {
+    "wrapperType": "audiobook",
+    "collectionId": 1842150309,
+    "collectionName": "1: Der Räuber Hotzenplotz",
+    "artistName": "Otfried Preußler",
+    "primaryGenreName": "Kinder und Jugend",
+    "trackCount": 1,
+    "artworkUrl100": "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/ab/d6/9c/abd69cef-b44f-ed88-f61b-c8ce226cc8f3/4069828934221.jpg/100x100bb.jpg",
+    "releaseDate": "2008-10-31T07:00:00Z",
+    "description": "Vor dem Räuber Hotzenplotz hat jeder Angst, sogar Wachtmeister Dimpfelmoser, und der ist immerhin von der Polizei. Als Großmutters Kaffeemühle gestohlen wird, machen sich Kasperl und Seppel auf, um…"
+   },
+   {
+    "wrapperType": "audiobook",
+    "collectionId": 1491367604,
+    "collectionName": "Der Räuber Hotzenplotz und die Mondrakete",
+    "artistName": "Otfried Preußler",
+    "primaryGenreName": "Kinder und Jugend",
+    "trackCount": 1,
+    "artworkUrl100": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/63/1d/96/631d960b-6c3e-77c7-ce77-0bb2e6df077e/4057664512178.jpg/100x100bb.jpg",
+    "releaseDate": "2018-10-26T07:00:00Z",
+    "description": "Wachtmeister Dimpfelmoser steht der Schweiß auf der Stirn. Grund dafür: Der berüchtigte Räuber Hotzenplotz ist mal wieder ausgebrochen. Was für eine Katastrophe! Denn jeder weiß: Der Räuber…"
+   },
+   {
+    "wrapperType": "audiobook",
+    "collectionId": 1715810142,
+    "collectionName": "Der Räuber Hotzenplotz 3: Der Räuber Hotzenplotz. Schluss mit der Räuberei",
+    "artistName": "Otfried Preußler, Ulrich Noethen & Der Räuber Hotzenplotz",
+    "primaryGenreName": "Kinder und Jugend",
+    "trackCount": 1,
+    "artworkUrl100": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/f9/60/be/f960be29-1a21-a513-feae-70c71764f9d6/9783844924411.jpg/100x100bb.jpg",
+    "releaseDate": "2024-03-25T07:00:00Z",
+    "description": "Sapperlot! Ulrich Noethen liest Teil 3 von Preußlers berühmter Räubergeschichte\nGenug geräubert! Hotzenplotz will seinen Job an den Nagel hängen. Doch von was soll er jetzt leben? Vielleicht muss er…"
+   },
+   {
+    "wrapperType": "audiobook",
+    "collectionId": 1686572424,
+    "collectionName": "Der Räuber Hotzenplotz - Hörspiele: Der Räuber Hotzenplotz und die Mondrakete - Das Hörspiel",
+    "artistName": "Otfried Preußler, Der Räuber Hotzenplotz & Charly Hübner",
+    "primaryGenreName": "Kinder und Jugend",
+    "trackCount": 1,
+    "artworkUrl100": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/ba/51/66/ba516672-6c01-a7ab-e6c8-fad3354706fa/9783844924428.jpg/100x100bb.jpg",
+    "releaseDate": "2023-11-29T08:00:00Z",
+    "description": "Mit Charly Hübner als Hotzenplotz auf zum Mond\nSeit Generationen hält Hotzenplotz, der Räuber mit den sieben Messern, die Welt in Atem – und hat doch längst nicht ausgeräubert. Zum 100. Geburtstag…"
+   },
+   {
+    "wrapperType": "audiobook",
+    "collectionId": 1527779285,
+    "collectionName": "3: Der Räuber Hotzenplotz - Schluss mit der Räuberei",
+    "artistName": "Otfried Preußler",
+    "primaryGenreName": "Kinder und Jugend",
+    "trackCount": 1,
+    "artworkUrl100": "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/20/14/1f/20141f76-13f6-a4ba-8e38-a2d668a4cccd/4064066675608.jpg/100x100bb.jpg",
+    "releaseDate": "2008-11-14T08:00:00Z",
+    "description": "Wegen guter Führung wird der Räuber Hotzenplotz vorzeitig aus dem Gefängnis entlassen und beschließt von nun an ein friedlicher Bürger zu werden. Doch zu ganz traut ihm Polizeihauptwachtmeister…"
+   },
+   {
+    "wrapperType": "audiobook",
+    "collectionId": 6815235722,
+    "collectionName": "Der Räuber Hotzenplotz - Alle Hörspiele",
+    "artistName": "Otfried Preußler",
+    "primaryGenreName": "Kinder und Jugend",
+    "trackCount": 1,
+    "artworkUrl100": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/13/f1/f3/13f1f349-cd2a-56fb-778d-6a18d6a82df8/4071498913642.jpg/100x100bb.jpg",
+    "releaseDate": "2026-10-02T07:00:00Z",
+    "description": "Der Räuber Hotzenplotz hält alle in Atem: Er stiehlt Großmutters Kaffeemühle, nimmt Kasperl und Seppel gefangen und entführt später sogar Großmutter. Doch die beiden Freunde lassen sich nicht…"
+   },
+   {
+    "wrapperType": "audiobook",
+    "collectionId": 1527778710,
+    "collectionName": "2: Neues vom Räuber Hotzenplotz",
+    "artistName": "Otfried Preußler",
+    "primaryGenreName": "Kinder und Jugend",
+    "trackCount": 1,
+    "artworkUrl100": "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/e6/51/04/e6510428-6d1a-2feb-9087-f44c8b80dc82/4064066675615.jpg/100x100bb.jpg",
+    "releaseDate": "2008-11-07T08:00:00Z",
+    "description": "Schon wieder gelingt es dem Räuber Hotzenplotz, sich aus seiner Gefangenschaft zu befreien. Endlich auf freiem Fuß, isst Hotzenplotz Großmutter die ganzen Bratwürste und das Sauerkraut weg und macht…"
+   },
+   {
+    "wrapperType": "audiobook",
+    "collectionId": 431455174,
+    "collectionName": "Radio Teddy Bärenhöhle Vol. 1",
+    "artistName": "Tom Deininger",
+    "primaryGenreName": "Kinder und Jugend",
+    "trackCount": 1,
+    "artworkUrl100": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/b7/90/7a/b7907a2a-e267-5366-20fa-53260cff49a4/rm_image.jpg/100x100bb.jpg",
+    "releaseDate": "2024-12-07T08:00:00Z",
+    "description": "Eine der beliebtesten Sendungen bei Radio Teddy ist die Sendung BÄRENHÖHLE. <br />\nGute Nacht Geschichten vorgetragen von Tom Deininger. <br /><br />\nTom Deininger, der Radio TEDDY Märchenbär, ist…"
+   }
+  ]
+ },
+ "toy_story_2": {
+  "hoerbuch_antwort": [
+   {
+    "wrapperType": "audiobook",
+    "collectionId": 1666795534,
+    "collectionName": "Toy Story 2 (Hörspiel zum Disney/Pixar Film)",
+    "artistName": "Toy Story",
+    "primaryGenreName": "Kinder und Jugend",
+    "trackCount": 1,
+    "artworkUrl100": "https://is1-ssl.mzstatic.com/image/thumb/Music113/v4/16/25/17/162517b6-40f4-ddd5-95d3-edf666c6153d/4066339467132.jpg/100x100bb.jpg",
+    "releaseDate": "2023-01-27T08:00:00Z",
+    "description": "Ihre Chancen, in der feindlichen Großstadt zu überleben, sind minimal. Ihr Wettlauf gegen die Zeit scheint aussichtslos - aber für die Rettung ihres besten Freundes riskieren sie ihr Leben. Die…"
+   },
+   {
+    "wrapperType": "audiobook",
+    "collectionId": 1479663896,
+    "collectionName": "Toy Story 2",
+    "artistName": "Disney",
+    "primaryGenreName": "Kinder und Jugend",
+    "trackCount": 1,
+    "artworkUrl100": "https://is1-ssl.mzstatic.com/image/thumb/Music113/v4/71/10/2e/71102e1a-8061-21f0-eca5-6e20e26de77f/9788711977781.jpg/100x100bb.jpg",
+    "releaseDate": "2019-09-11T07:00:00Z",
+    "description": "Da sherif Woody bliver stjålet af en skummel legetøjshandler, der vil sælge ham til et museum i Japan, tager Woodys legetøjsvenner med Buzz Lightyear i spidsen ud for at redde ham. Men vil Woody…"
+   },
+   {
+    "wrapperType": "audiobook",
+    "collectionId": 1647439109,
+    "collectionName": "Toy Story 2",
+    "artistName": "Disney",
+    "primaryGenreName": "Kinder und Jugend",
+    "trackCount": 1,
+    "artworkUrl100": "https://is1-ssl.mzstatic.com/image/thumb/Music112/v4/3c/e2/ef/3ce2ef54-4d09-98f0-b7f4-72e02ed4238a/9788726757743.jpg/100x100bb.jpg",
+    "releaseDate": "2021-05-20T07:00:00Z",
+    "description": "Leksaker till undsättning!Woody har alltid tagit hand om de andra leksakerna. Så när Woody blir stulen av samlaren Al, samlar Buzz ihop de andra leksakerna för att rädda Woody undan ett fruktansvärt…"
+   },
+   {
+    "wrapperType": "audiobook",
+    "collectionId": 1783349324,
+    "collectionName": "Toy Story 2",
+    "artistName": "Disney",
+    "primaryGenreName": "Kinder und Jugend",
+    "trackCount": 1,
+    "artworkUrl100": "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/7f/74/e2/7f74e204-d0e5-2c45-88ee-363a245e029a/9788728586099.jpg/100x100bb.jpg",
+    "releaseDate": "2024-12-09T08:00:00Z",
+    "description": "Cuando el sheriff Woody es robado por un temible coleccionista de juguetes, que quiere venderlo a un museo de juguetes en Japón, Buzz Lightyear, Hamm, Señor Patata, perro Slinky y Rex emprenden una…"
+   },
+   {
+    "wrapperType": "audiobook",
+    "collectionId": 1778500369,
+    "collectionName": "Toy Story 2",
+    "artistName": "Disney",
+    "primaryGenreName": "Kinder und Jugend",
+    "trackCount": 1,
+    "artworkUrl100": "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/cb/ae/b2/cbaeb23a-0da2-0e5a-5c33-1f38ead56084/9788728590553.jpg/100x100bb.jpg",
+    "releaseDate": "2024-11-08T08:00:00Z",
+    "description": "Wanneer sheriff Woody wordt gestolen door een kwaadaardige speelgoedverzamelaar die hem aan een speelgoedmuseum in Japan wil verkopen, ondernemen Buzz Lightyear, Hamm, meneer Aardappelhoofd, Slinky…"
+   },
+   {
+    "wrapperType": "audiobook",
+    "collectionId": 1790272917,
+    "collectionName": "Toy Story 2 (Unabridged)",
+    "artistName": "Nicolás Olucha Sánchez",
+    "primaryGenreName": "Kinder und Jugend",
+    "trackCount": 1,
+    "artworkUrl100": "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/cc/31/1e/cc311e97-b531-5ed1-5d3f-ecd03c7ca723/rm_image.jpg/100x100bb.jpg",
+    "releaseDate": "2024-12-09T08:00:00Z",
+    "description": "Cuando el sheriff Woody es robado por un temible coleccionista de juguetes, que quiere venderlo a un museo de juguetes en Japón, Buzz Lightyear, Hamm, Señor Patata, perro Slinky y Rex emprenden una…"
+   },
+   {
+    "wrapperType": "audiobook",
+    "collectionId": 1783349387,
+    "collectionName": "Toy Story 2 – Woody e Buzz alla riscossa",
+    "artistName": "Disney",
+    "primaryGenreName": "Kinder und Jugend",
+    "trackCount": 1,
+    "artworkUrl100": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/91/e3/0d/91e30d88-29a2-049b-00a7-f2864d95ee57/9788728585672.jpg/100x100bb.jpg",
+    "releaseDate": "2024-12-26T08:00:00Z",
+    "description": "Quando lo sceriffo Woody viene rubato da uno spaventoso collezionista di giocattoli che vuole venderlo a un museo in Giappone, i suoi amici partono per un'audace missione di salvataggio.\nImbarcati…"
+   },
+   {
+    "wrapperType": "audiobook",
+    "collectionId": 1790273932,
+    "collectionName": "Woody e Buzz alla riscossa: Toy Story 2",
+    "artistName": "Sergio Badino",
+    "primaryGenreName": "Kinder und Jugend",
+    "trackCount": 1,
+    "artworkUrl100": "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/ea/d8/ab/ead8ab54-dae8-f376-caa7-7017fda5bf27/rm_image.jpg/100x100bb.jpg",
+    "releaseDate": "2024-12-26T08:00:00Z",
+    "description": "Quando lo sceriffo Woody viene rubato da uno spaventoso collezionista di giocattoli che vuole venderlo a un museo in Giappone, i suoi amici partono per un’audace missione di salvataggio.<br /><br…"
+   },
+   {
+    "wrapperType": "audiobook",
+    "collectionId": 1480549652,
+    "collectionName": "A Toy Story",
+    "artistName": "Claudia Amor",
+    "primaryGenreName": "Kinder und Jugend",
+    "trackCount": 1,
+    "artworkUrl100": "https://is1-ssl.mzstatic.com/image/thumb/Music123/v4/a5/da/91/a5da918a-b8d5-fa6c-1db5-be36403e410d/9783844536126.jpg/100x100bb.jpg",
+    "releaseDate": "2019-07-22T07:00:00Z",
+    "description": "<b>Das große Finale der \"Toy-Story\"-Filme</b><br /><br />Nach dem Abschied von ihrem Besitzer Andy haben Cowboy Woody und Astronaut Buzz Lightyear bei dem Mädchen Bonnie ein neues Zuhause gefunden…"
+   },
+   {
+    "wrapperType": "audiobook",
+    "collectionId": 1829427634,
+    "collectionName": "Toy Story: Historias del Infinito y Más Allá (Unabridged)",
+    "artistName": "Disney",
+    "primaryGenreName": "Kinder und Jugend",
+    "trackCount": 1,
+    "artworkUrl100": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/92/ef/38/92ef38d0-ebfd-f57e-bcc2-4ee3980d3cde/rm_image.jpg/100x100bb.jpg",
+    "releaseDate": "2025-07-27T07:00:00Z",
+    "description": "¡Los juguetes vuelven a la vida!<br /><br />Esta compilación de audiolibros incluye <i>Toy Story</i> 1, 2, 3 y 4 y <i>Lightyear</i>, la novela que narra el origen del famoso héroe.<br /><br…"
+   },
+   {
+    "wrapperType": "audiobook",
+    "collectionId": 1832025630,
+    "collectionName": "Toy Story: Historias del Infinito y Más Allá",
+    "artistName": "Disney",
+    "primaryGenreName": "Kinder und Jugend",
+    "trackCount": 1,
+    "artworkUrl100": "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/f3/00/5b/f3005b10-4691-a538-ec42-28c658ed116c/9788727253282.jpg/100x100bb.jpg",
+    "releaseDate": "2025-07-28T07:00:00Z",
+    "description": "¡Los juguetes vuelven a la vida!\nEsta compilación de audiolibros incluye Toy Story 1, 2, 3 y 4 y Lightyear, la novela que narra el origen del famoso héroe.\n¿Recuerdas la emoción de ver al vaquero…"
+   },
+   {
+    "wrapperType": "audiobook",
+    "collectionId": 1811799131,
+    "collectionName": "Disney Audiobook Library: Toy Story: Toy Story That Time Forgot, Partysaurus Rex, and Toy Story of Terror (Unabridged)",
+    "artistName": "Disney Book Group",
+    "primaryGenreName": "Kinder und Jugend",
+    "trackCount": 1,
+    "artworkUrl100": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/16/b3/45/16b345ac-0b7e-8066-98dc-b58bf013b09e/9781368050524.d.jpg/100x100bb.jpg",
+    "releaseDate": "2018-10-12T07:00:00Z",
+    "description": "<b>This Toy Story collection features new adventures with your favorite characters in “Toy Story That Time Forgot”, “Partysaurus Rex”, and “Toy Story of Terror”.</b><br /><br />In “Toy Story That…"
+   },
+   {
+    "wrapperType": "audiobook",
+    "collectionId": 1451072843,
+    "collectionName": "Toy Academy: Ready for Action",
+    "artistName": "Brian Lynch",
+    "primaryGenreName": "Kinder und Jugend",
+    "trackCount": 1,
+    "artworkUrl100": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/5b/9a/80/5b9a80e4-ac2d-b319-0723-c8dcabe874cf/9781338331301.png/100x100bb.jpg",
+    "releaseDate": "2019-01-29T08:00:00Z",
+    "description": "The second hilarious and heartwarming illustrated chapter book from the writer of the blockbuster film <i>Minions</i>!Grumbolt is majoring in action!He's finally getting to follow his dreams at Toy…"
+   }
+  ],
+  "tonie": {
+   "model": "2000003223",
+   "series": "Schleich Farm World",
+   "episodes": "Folge 1 & 2",
+   "tracks": [
+    "Titelsong",
+    "Folge 1: Pinky macht Unsinn - Track 1",
+    "Folge 1: Pinky macht Unsinn - Track 2",
+    "Folge 1: Pinky macht Unsinn - Track 3",
+    "Folge 1: Pinky macht Unsinn - Track 4",
+    "Folge 1: Pinky macht Unsinn - Track 5",
+    "Folge 1: Pinky macht Unsinn - Track 6",
+    "Folge 2: Ein ungeplanter Ausflug - Track 1",
+    "Folge 2: Ein ungeplanter Ausflug - Track 2",
+    "Folge 2: Ein ungeplanter Ausflug - Track 3",
+    "Folge 2: Ein ungeplanter Ausflug - Track 4",
+    "Folge 2: Ein ungeplanter Ausflug - Track 5",
+    "Abspannsong"
+   ],
+   "release": "1655769600",
+   "category": "audio-play",
+   "language": "de-de"
+  }
+ },
+ "fuenf_freunde_121": {
+  "album_andere_folge": [
+   {
+    "wrapperType": "collection",
+    "collectionId": 1223460942,
+    "collectionName": "Folge 122: und der Großalarm in Kirrin",
+    "artistName": "Fünf Freunde",
+    "primaryGenreName": "Hörspiele",
+    "trackCount": 40,
+    "artworkUrl100": "https://is1-ssl.mzstatic.com/image/thumb/Music111/v4/66/f3/d1/66f3d1c7-2714-60f2-9f14-ee57e24032f9/886446072050.jpg/100x100bb.jpg",
+    "releaseDate": "2017-06-16T07:00:00Z"
+   }
+  ],
+  "andere_folge_anzeige": "Folge 122: Fünf Freunde und der Großalarm in Kirrin",
+  "andere_folge_tracks": 40
+ }
+}

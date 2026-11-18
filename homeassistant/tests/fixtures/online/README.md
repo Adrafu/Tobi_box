@@ -47,3 +47,13 @@ Die Fixtures enthalten einige echte Einträge der Bibliothek, nämlich öffentli
 Toy Story 2, Fünf Freunde Folge 121, Die Olchis, Sternenschweif, Die Muppets, Die drei !!!, Pyjamahelden, Das kleine
 Gespenst, Janosch) mit Anzeige- und Ordnernamen. Im Verzeichnis `claude/` stehen diese Namen samt Ordnernamen, die
 teils Autoren nennen (öffentlich). Es gibt keine IDs der Bibliothek, keine Tobie-Namen, keine Adressen und keine Zugangsdaten.
+
+## Ergänzung OS2
+`ergaenzung_os2.json` (neu, 18.11.): Antworten, die zu Fällen in `erwartung.json` gehören, aber in `itunes/` und
+`tonies_auszug.json` fehlen (die Fälle wurden in OS1 mit dem ganzen Eintrag und allen Anfragen gemessen).
+- Echt (aus dem OS1-Cache, nur die Felder, die der Abgleich braucht; `description` auf höchstens 200 Zeichen gekürzt wie oben):
+  Hörbuch-Suche „Der Räuber Hotzenplotz“ und „Toy Story 2“ (je die zur Serie passenden Treffer, dazu ein fremder Kinder-Treffer als Gegenprobe; Übriges, etwa Erotik und Sachbücher, ist weggelassen), das Album „Folge 122“ der Fünf-Freunde-Antwort
+  zu „Fünf Freunde und der Großalarm in Kirrin“, der Tonie `2000003223` aus der Tonie-Liste (Felder wie in `tonies_auszug.json`).
+- Künstlich: die vier Hotzenplotz-Alben `900001` bis `900004` (Gegenprobe OS1: Pop, Soundtrack, „Alle Hörspiele“, Hörspiel-Album „1: …“).
+- Im Test erfunden bleiben nur neutrale Zusatzfolgen („Weitere Folge …“), damit ein Eintrag mehrere Folgen hat.
+- Nichts davon steht in `erwartung.json` abgeschrieben.
