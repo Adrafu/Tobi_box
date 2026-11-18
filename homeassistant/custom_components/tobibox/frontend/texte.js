@@ -810,7 +810,7 @@ export const TECHNIK = {
     leeren: 'Papierkorb leeren …', leeren_titel: 'Papierkorb leeren?', leeren_text: 'Das löscht {anzahl} ({groesse}) für immer. Danach kann niemand sie zurückholen.',
     leeren_ja: 'Ja, für immer löschen', geleert: 'Der Papierkorb ist leer.',
     serie_waehlen: 'In welches Hörspiel soll die Folge?', serie_text: 'Das ursprüngliche gibt es nicht mehr.',
-    mehr: 'Mehr laden',
+    mehr: 'Mehr laden', alle: 'Alle {anzahl} zeigen', weniger: 'Weniger zeigen', // BB2: die Karte zeigt zuerst die neuesten 5
   },
   verlauf: { // Karte „Verlauf“ auf der Box-Seite (Stufe B, Design 7; nur mit Fähigkeit `gehoert`)
     titel: 'Verlauf',

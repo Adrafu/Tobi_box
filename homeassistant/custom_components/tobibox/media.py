@@ -36,6 +36,7 @@ from .const import (
     FOLGE_ANZEIGE_MAX,
     ORDNER_EINGANG,
     ORDNER_PAPIERKORB,
+    PAPIERKORB_TAGE,
     ORDNER_UPLOAD,
     PART_MAX_ALTER_S,
     RE_ID12,
@@ -1756,6 +1757,43 @@ class Medien:
             raise TobiboxFehler("medien_schreibfehler", geloescht=geloescht) from err
         finally:
             if geloescht:
+                self.hub.emit("medien", "papierkorb_geaendert", {})
+        return {"geloescht": geloescht, "freigegeben_bytes": frei}
+
+    async def papierkorb_aufbewahrung(self) -> dict[str, int]:
+        """Tageslauf (Vertrag W, Nr. 12 „Automatik“, BB1): löscht Einträge endgültig, deren ``geloescht_am`` mehr als
+        ``PAPIERKORB_TAGE`` Tage zurückliegt. Gelöscht wird wie bei ``papierkorb_leeren`` (``shutil.rmtree`` im Executor;
+        ``index_pruefsummen`` stehen in der ``meta.json`` des Eintrags und gehen mit ihm).
+
+        Einträge ohne lesbares ``geloescht_am`` und unvollständige (``lese_papierkorb`` liefert sie nicht) bleiben.
+        Ist die Freigabe nicht erreichbar, wirft ``_medien_erreichbar`` ``medien_nicht_erreichbar``: der Lauf fällt aus.
+        Das Ereignis ``papierkorb_geaendert`` kommt nur, wenn etwas gelöscht wurde. Gibt ``geloescht`` und ``freigegeben_bytes`` zurück."""
+        await self._medien_erreichbar()
+        grenze = jetzt() - timedelta(days=PAPIERKORB_TAGE)
+        alle = await self._executor(lese_papierkorb, self.pfade.papierkorb)
+        geloescht = 0
+        frei = 0
+        try:
+            for m in alle:
+                am = parse_iso(m.get("geloescht_am"))
+                if am is None or am >= grenze:
+                    continue
+                try:
+                    await self._executor(shutil.rmtree, self.pfade.papierkorb / m["id"])
+                except FileNotFoundError:
+                    continue  # gerade zurückgeholt oder geleert: nichts mehr zu tun
+                geloescht += 1
+                try:
+                    frei += int(m.get("groesse_bytes", 0))
+                except (TypeError, ValueError):
+                    pass
+        except OSError as err:
+            _LOGGER.error("Papierkorb: automatisches Löschen abgebrochen: %s", err)
+        finally:
+            if geloescht:
+                _LOGGER.info(
+                    "Papierkorb: %d Einträge nach mehr als %d Tagen endgültig gelöscht (%d Bytes)", geloescht, PAPIERKORB_TAGE, frei
+                )
                 self.hub.emit("medien", "papierkorb_geaendert", {})
         return {"geloescht": geloescht, "freigegeben_bytes": frei}
 

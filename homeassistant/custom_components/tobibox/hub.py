@@ -51,6 +51,7 @@ from .const import (
     ORDNER_PAPIERKORB,
     ORDNER_RELEASES,
     ORDNER_UPLOAD,
+    PAPIERKORB_START_S,
     PRUEF_INTERVALL_S,
     RE_UID,
     SERIE_NAME_MAX,
@@ -239,6 +240,9 @@ class Hub:
         self._abmelden.append(
             async_track_time_interval(self.hass, self._timer_pruefung, timedelta(seconds=PRUEF_INTERVALL_S))
         )
+        # Papierkorb (BB1): einmal am Tag und einmal kurz nach dem Start; der Start wartet nicht darauf
+        self._abmelden.append(async_track_time_interval(self.hass, self._timer_papierkorb, timedelta(days=1)))
+        self.plane(PAPIERKORB_START_S, self._timer_papierkorb)
 
     async def _ha_stop(self, _event: Event) -> None:
         with contextlib.suppress(Exception):
@@ -294,6 +298,15 @@ class Hub:
             await self.eingang.speichern_sofort()
             await self.medieninfo.async_speichern()
             await self.hoerstellen.async_speichern()
+
+    async def _timer_papierkorb(self, _now: Any) -> None:
+        """Einmal am Tag: Papierkorb-Einträge nach ``PAPIERKORB_TAGE`` Tagen endgültig löschen (BB1). Fehler fällt den Lauf aus."""
+        try:
+            await self.medien.papierkorb_aufbewahrung()
+        except TobiboxFehler as err:
+            _LOGGER.warning("Papierkorb-Aufbewahrung nicht möglich: %s", err.code)
+        except Exception:
+            _LOGGER.exception("Papierkorb-Aufbewahrung fehlgeschlagen")
 
     async def _timer_pruefung(self, _now: Any) -> None:
         """Alle 10 min: Freigabe prüfen, danach den Eingang (Vertrag W, Nr. 9 und 30)."""

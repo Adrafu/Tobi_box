@@ -89,6 +89,10 @@ EINGANG_PROTOKOLL_MAX: Final = 100
 DATEINAMEN_MAX: Final = 50
 INDEX_MAX: Final = 20000
 PRUEF_INTERVALL_S: Final = 600
+#: Papierkorb (data-model 9, Vertrag W Nr. 12 „Automatik“, BB1): so viele Tage nach ``geloescht_am`` löscht die Integration einen Eintrag endgültig
+PAPIERKORB_TAGE: Final = 30
+#: Der Lauf „kurz nach dem Start“ (Sekunden nach dem Start der Integration); danach einmal am Tag
+PAPIERKORB_START_S: Final = 120
 
 # --- Schutz für Nicht-Administratoren (Vertrag W, 2.4 und 14.10) -----------------
 AENDERUNGEN_JE_MINUTE: Final = 30

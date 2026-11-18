@@ -1803,6 +1803,17 @@ def ablauf_papierkorb(L: Lauf):
             L.pruefe(L.da('[data-zustand="nur-admin"]') and not L.da('[data-aktion="letzte_stunde"]'), "korb-letzte-stunde", "Der Benutzer sieht „Letzte Stunde zurückholen“")
             return
         L.warte_da('[data-aktion="letzte_stunde"]')
+        # BB2: die Karte „Papierkorb“ zeigt zuerst nur die neuesten 5 Einträge und steht unter der Karte „Hördaten“
+        L.warte_da('[data-liste="papierkorb"]')
+        zeilen = L.js("return sr.querySelectorAll('[data-liste=\"papierkorb\"] [data-korb]').length")
+        L.pruefe(zeilen == 5, "korb-kurz", f"Die Karte zeigt {zeilen} statt 5 Einträge")
+        knopf = L.js("return sr.querySelector('[data-korb-alle]')?.textContent.trim() ?? ''")
+        L.pruefe(bool(re.match(r"^Alle \d+ zeigen$", knopf)), "korb-kurz", f"Knopf „Alle <n> zeigen“ fehlt: {knopf!r}")
+        if L.da('[data-karte="hoerdaten"]'):
+            L.pruefe(L.js("const h = sr.querySelector('[data-karte=\"hoerdaten\"]'), k = sr.querySelector('[data-karte=\"papierkorb\"]'); return !!(h.compareDocumentPosition(k) & Node.DOCUMENT_POSITION_FOLLOWING)"), "korb-kurz", "Die Karte „Hördaten“ steht nicht über dem Papierkorb")
+        L.klick("[data-korb-alle]")
+        zeilen = L.js("return sr.querySelectorAll('[data-liste=\"papierkorb\"] [data-korb]').length")
+        L.pruefe(zeilen > 5, "korb-kurz", f"Nach „Alle zeigen“ nur {zeilen} Einträge")
         L.klick('[data-aktion="letzte_stunde"]')
         L.pruefe("Alles, was in der letzten Stunde in den Papierkorb kam" in (L.js("return sr.querySelector('dialog[open]')?.textContent") or ""), "korb-letzte-stunde", "Rückfrage fehlt")
         L.klick("dialog[open] .knoepfe .btn.primary")

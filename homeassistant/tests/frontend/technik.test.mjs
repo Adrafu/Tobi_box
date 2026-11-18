@@ -401,6 +401,33 @@ test('Papierkorb: jede Zeile ganz antippbar, mit „gelöscht von“ (nur wenn b
   weg();
 });
 
+test('Papierkorb (BB2): die Karte zeigt zuerst nur die neuesten 5, „Alle <n> zeigen“ klappt die ganze Liste auf, steht unter „Hördaten“ und hat keinen Erklärsatz', MIT_DOM, async () => {
+  const s = await seite({ hash: '#technik', faehigkeiten: [...ALLE, 'gehoert'] });
+  s.m.backend.papierkorb = ['k1', 'k2', 'k3', 'k4', 'k5', 'k6', 'k7'].map((id) => korbEintrag(id));
+  await geheZu(s, '#technik-speicher');
+  const ids = () => s.qa('[data-liste="papierkorb"] [data-korb]').map((b) => b.getAttribute('data-korb'));
+  assert.deepEqual(ids(), ['k1', 'k2', 'k3', 'k4', 'k5']);
+  assert.match(s.q('[data-korb-summe]').textContent, /7 Einträge/, 'die Summe zählt alle');
+  const knopf = s.q('[data-korb-alle]');
+  assert.equal(knopf.textContent.trim(), 'Alle 7 zeigen');
+  assert.equal(knopf.getAttribute('aria-expanded'), 'false');
+  const hoer = s.q('[data-karte="hoerdaten"]');
+  assert.ok(hoer.compareDocumentPosition(s.q('[data-karte="papierkorb"]')) & 4, 'Hördaten steht über dem Papierkorb'); // 4 = folgt
+  assert.doesNotMatch(s.q('[data-karte="papierkorb"]').textContent, /30 Tage|nach \d+ Tagen/, 'kein Erklärsatz zur Aufbewahrung');
+  knopf.click();
+  await warte(30); await s.flush(8);
+  assert.equal(ids().length, 7);
+  assert.equal(s.q('[data-korb-alle]').textContent.trim(), 'Weniger zeigen');
+  s.q('[data-korb-alle]').click();
+  await warte(30); await s.flush(8);
+  assert.equal(ids().length, 5);
+  s.m.backend.papierkorb = s.m.backend.papierkorb.slice(0, 5);
+  s.m.emit('medien', 'papierkorb_geaendert', {});
+  await warte(30); await s.flush(8);
+  assert.equal(s.q('[data-korb-alle]'), null, 'bis 5 Einträge kein Knopf');
+  weg();
+});
+
 test('Papierkorb: Tippen auf die Zeile stellt wieder her (papierkorb/restore) und lädt neu', MIT_DOM, async () => {
   const s = await seite({ hash: '#technik', faehigkeiten: ALLE });
   s.m.backend.papierkorb = [korbEintrag('aaaa'), korbEintrag('bbbb')];

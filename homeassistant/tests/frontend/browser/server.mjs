@@ -111,6 +111,8 @@ function bauen(schluessel) {
   b.papierkorb = [
     { id: 'aaaa11112222', typ: 'folge', serie_id: 's1', serie_name: 'Die drei ???', folge: 'f9.mp3', anzeige: 'Das Gespensterschloss (lange Folge mit sehr langem Namen zum Umbrechen)', art: 'datei', tracks: 1, groesse_bytes: 41000000, grund: 'manuell', geloescht_am: '2026-11-08T10:00:00Z', geloescht_von: { id: 'u1', name: 'Person B' } },
     { id: 'bbbb11112222', typ: 'serie', serie_id: null, serie_name: null, folge: null, anzeige: 'Alte Serie', art: 'ordner', tracks: 12, groesse_bytes: 410000000, grund: 'manuell', geloescht_am: '2026-11-13T11:30:00Z', geloescht_von: null },
+    // BB2: mehr als 5 Einträge, damit die Karte „Papierkorb“ „Alle <n> zeigen“ braucht (ältere, ohne „gelöscht von“)
+    ...[1, 2, 3, 4, 5].map((n) => ({ id: `cccc0000000${n}`, typ: 'folge', serie_id: 's1', serie_name: 'Die drei ???', folge: `alt-${n}.mp3`, anzeige: `Ältere Folge ${n}`, art: 'datei', tracks: 1, groesse_bytes: 3000000, grund: 'manuell', geloescht_am: `2026-11-0${n}T10:00:00Z`, geloescht_von: null })),
   ];
   if (profil === 'warn') { b.konfig = { ...b.konfig, zustand: 'export_neuer' }; b.boxen[1].konfig_stand = 'voraus'; }
   // A11a: `eingang/list` mit Filter „alle“ (offen und erledigt), Uploads merken

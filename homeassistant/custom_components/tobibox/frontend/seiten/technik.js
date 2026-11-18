@@ -23,6 +23,7 @@ export const PANEL_BEREICHE = {
 };
 
 const KORB_SEITE = 100;
+const KORB_ZUERST = 5; // BB2: die Karte „Papierkorb“ zeigt zuerst nur die neuesten Einträge
 
 const anfrageId = () => (globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : `a${Math.random().toString(16).slice(2)}${Date.now().toString(16)}`);
 const boxName = (b) => b.anzeige || b.anzeigename || b.box;
@@ -44,6 +45,7 @@ class TechnikSeite {
     this.kopien = null; // Zähler der Warteschlange der Hörkopien (A8d): { dateien, dateien_max, bytes, bytes_max } oder null
     this.beschaeftigt = null; // Name der laufenden Aktion; sperrt ihren Knopf
     this._lauf = 0;
+    this.alleKorb = false; // BB2: die volle Liste der Karte „Papierkorb“ ist aufgeklappt
     this.korbVon = null; // Papierkorb (AC3): Stand „gesehen“ beim Betreten von „Speicher“ (ms); was danach von anderen kam, steht im Hinweis oben
     this._vorSub = null;
     this._korbAbmelden = null;
@@ -389,8 +391,9 @@ class TechnikSeite {
     else if (!k.eintraege.length) inhalt = ctx.leer('papierkorb', 'papierkorbLeer', { href: '#bibliothek' });
     else {
       inhalt = html`<p class="muted" data-korb-summe>${fuellen(T.summe, { anzahl: zaehle(T.anzahl, k.gesamt), groesse: groesse(k.bytes) })}</p>
-        <div class="tstapel" data-liste="papierkorb">${k.eintraege.map((e) => this._korbZeile(e))}</div>
-        ${k.eintraege.length < k.gesamt ? html`<div class="btns"><button type="button" class="btn" data-mehr @click=${() => this.ladeKorb(k.eintraege.length)}>${T.mehr}</button></div>` : nothing}`;
+        <div class="tstapel" data-liste="papierkorb">${(this.alleKorb ? k.eintraege : k.eintraege.slice(0, KORB_ZUERST)).map((e) => this._korbZeile(e))}</div>
+        ${k.gesamt > KORB_ZUERST ? html`<div class="btns"><button type="button" class="btn" data-korb-alle aria-expanded=${this.alleKorb ? 'true' : 'false'} @click=${() => { this.alleKorb = !this.alleKorb; ctx.neuZeichnen(); }}>${this.alleKorb ? T.weniger : fuellen(T.alle, { anzahl: k.gesamt })}</button></div>` : nothing}
+        ${this.alleKorb && k.eintraege.length < k.gesamt ? html`<div class="btns"><button type="button" class="btn" data-mehr @click=${() => this.ladeKorb(k.eintraege.length)}>${T.mehr}</button></div>` : nothing}`;
     }
     const zu = !!this.beschaeftigt;
     return html`<section class="tkarte" data-karte="papierkorb" aria-labelledby="t-korb"><h3 id="t-korb">${T.titel}</h3>
@@ -443,7 +446,7 @@ class TechnikSeite {
           ${ctx.faehig('gehoert') ? this.verlauf.render() : nothing}
           <div class="tstapel">${this._zeile('#technik-tobies', TECHNIK.box.lernmodus.titel, TECHNIK.box.lernmodus.zeile)}</div>`;
       case 'speicher':
-        return html`${kopf}${baender}${this._korbNeu()}${this._aufraeumen()}${this._papierkorb()}${ctx.faehig('gehoert') ? this.hoerdaten.render() : nothing}
+        return html`${kopf}${baender}${this._korbNeu()}${this._aufraeumen()}${ctx.faehig('gehoert') ? this.hoerdaten.render() : nothing}${this._papierkorb()}
           <section class="tkarte" data-karte="eingang" aria-labelledby="t-eingang"><h3 id="t-eingang">${TECHNIK.eingang}</h3>${this._panel('eingang')}</section>`;
       case 'liste':
         return html`${kopf}${baender}${this._panel('liste')}${ctx.faehig('konfig_staende') ? this._staende() : nothing}`;
