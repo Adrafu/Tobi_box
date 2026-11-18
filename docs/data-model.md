@@ -847,6 +847,9 @@ Das Schreiben ist atomar (`.tmp`, `fsync`, umbenennen, 1.2 ohne `.bak`). Eine
 nächsten Prüfen der Freigabe protokolliert (`papierkorb_unvollstaendig`) und nicht
 angeboten.
 
+**Aufbewahrung (18.11., BB1):** Ein Eintrag bleibt höchstens 30 Tage (`PAPIERKORB_TAGE`) nach `geloescht_am` im
+Papierkorb; danach löscht die Integration ihn einmal am Tag endgültig (`ha-websocket-v1.md`, Nr. 12, „Automatik“).
+
 ## 10. Eingang `eingang/` (09.11., Vertrag W, Abschnitt 11)
 
 Der Eingang ist ein Ordner `tobibox/eingang/` auf dem NAS, **neben** `medien/`, `export/` und

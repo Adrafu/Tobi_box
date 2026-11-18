@@ -20,6 +20,9 @@
     der Endzustand der Hörstelle bleibt gleich), die Grenze steigt von 30 auf 60 Aufrufe je Minute und Benutzer (Lockerung); (2) die Fähigkeit `gehoert_reinhoeren`, die 14.1 nur als „geplant“ nannte,
     **entfällt** (nie ausgeliefert); (3) der Fehlertext von `neu_einsortieren_nicht_moeglich` war falsch („oder jünger als 24 Stunden“) und ist berichtigt (Abschnitt 7); (4) die Prüfungen 3 bis 5
     von `einsortierung/neu` heißen jetzt „seit dem Einsortieren“ (AM24, 2.4), das Verhalten entspricht dem gebauten Stand.
+*   **Änderung 18.11. (Befund BB1 der Abnahme B6, Entscheidung Tobias „Nach 30 Tagen“, `docs/egm/stufe-b/resolve.md`):** Der Papierkorb leert sich selbst: Einträge, deren
+    `geloescht_am` mehr als `PAPIERKORB_TAGE` (30) Tage zurückliegt, löscht die Integration endgültig (Nr. 12, „Automatik“). **In der Zusicherung geändert:** Bisher galt „es gibt keine
+    Automatik“ (Nr. 12) und „Nie endgültig“ (Nr. 24); jetzt ist ein Eintrag nach 30 Tagen im Papierkorb endgültig weg. Keine neue Fähigkeit, kein neuer Befehl, keine neue Ausgabe.
 *   **Änderung 14.11. (AC1, Tobias freigegeben; `docs/egm/ha-ui/vorschlag_sammelordner.md`): Sammelordner – Teil = Unterordner der ersten Ebene, CD/Disc-Ausnahme.**
     Neuer Begriff **Teil** (11.3): In einem Ordner-Eintrag ist jeder Unterordner der ersten Ebene ein Teil; Dateien direkt im Eintrag gehören zum Teil „Eintrag selbst“.
     Ein Unterordner, dessen Name nur eine CD- oder Disc-Angabe ist (`CD1`, `CD 2`, `Disc 1`, `Disk 2`, Groß/klein egal), ist kein eigener Teil, sondern gehört zum übergeordneten
@@ -613,7 +616,8 @@ Fehler: `medien_nicht_erreichbar`. Recht: alltag. Idempotent: ja. MQTT: –.
 #### 24. `tobibox/serie/delete`
 
 Verschiebt eine **ganze Serie** (Ordner mit `serie.json`, Dateien und Folgen-Ordnern)
-in den Papierkorb (Vorgabe der Projektleitung 09.11.). Nie endgültig.
+in den Papierkorb (Vorgabe der Projektleitung 09.11.). Nicht sofort endgültig: endgültig erst beim Leeren oder nach
+30 Tagen im Papierkorb (Nr. 12, Automatik seit 18.11.).
 
 | Eingabe | Typ | Pflicht | Bedeutung |
 |---|---|---|---|
@@ -807,8 +811,14 @@ auf die Folge oder Serie zeigten, gelten wieder, sobald die Box sie nach dem Syn
 
 #### 12. `tobibox/papierkorb/empty`
 
-Löscht den Papierkorb **endgültig** (Knopf „Papierkorb leeren“; es gibt keine
-Automatik).
+Löscht den Papierkorb **endgültig** (Knopf „Papierkorb leeren“).
+
+**Automatik (18.11., BB1):** Unabhängig von diesem Befehl löscht die Integration **einmal am Tag** (und einmal
+kurz nach dem Start) alle Einträge endgültig, deren `geloescht_am` mehr als `PAPIERKORB_TAGE` (30) Tage zurückliegt.
+Einträge ohne lesbares `geloescht_am` und unvollständige Einträge (data-model 9) bleiben. Ist die Freigabe nicht
+erreichbar, fällt der Lauf aus und kommt am nächsten Tag. Gelöscht wird wie beim Leeren (mit `index_pruefsummen`);
+danach kommt das Ereignis `medien`/`papierkorb_geaendert`, wenn etwas gelöscht wurde. Jeder Lauf, der etwas löscht,
+schreibt eine Zeile ins Protokoll (Anzahl, Bytes). Die Boxen sind nicht betroffen (der Papierkorb wird nie gesynct).
 
 | Eingabe | Typ | Pflicht | Bedeutung |
 |---|---|---|---|
