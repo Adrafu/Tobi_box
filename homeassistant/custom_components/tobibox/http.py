@@ -28,13 +28,14 @@ from aiohttp import web
 from homeassistant.components.http import KEY_HASS, HomeAssistantView
 
 from . import dateien, ffprobe
-from .cover import cover_pruefen_und_skalieren
+from .cover import cover_klein, cover_pruefen_und_skalieren
 from .const import (
     ARTEN,
     COVER_UPLOAD_MAX_BYTES,
     DOMAIN,
     ENDUNGEN,
     GRUPPE_ANZAHL_MAX,
+    RE_LISTE_ID,
     RE_UPLOAD_ID,
     SERIE_NAME_MAX,
     UPLOAD_BLOCK_BYTES,
@@ -588,12 +589,44 @@ class TobiboxCoverView(HomeAssistantView):
         hub = self._hub(request)
         if hub is None:
             return web.json_response({"v": VERTRAG_V, "fehler": {"code": "unknown_error", "text": "nicht geladen"}}, status=500)
-        if request.query.get("quelle") != "eigen":
+        quelle = request.query.get("quelle")
+        if quelle not in ("eigen", "online"):
             return _fehler_antwort(hub, "invalid_format")
+        if quelle == "online" and not Nutzer.aus_user(request["hass_user"]).ist_admin:
+            return _fehler_antwort(hub, "unauthorized", 403)  # Design 6.4: Recht admin; 403 wie die Vorschau (401 gilt bei HA als Fehlanmeldung)
         if (fehler := await self._serie_pruefen(hub, serie_id)) is not None:
             return fehler
         try:
-            ergebnis = await hub.cover.entferne_eigen(serie_id)
+            ergebnis = await (hub.cover.entferne_online(serie_id) if quelle == "online" else hub.cover.entferne_eigen(serie_id))
         except TobiboxFehler as err:
             return _fehler_antwort(hub, err.code)
         return web.json_response({"v": VERTRAG_V, "serie_id": serie_id, **ergebnis})
+
+
+class TobiboxOnlineVorschauView(HomeAssistantView):
+    """``GET /api/tobibox/online/vorschau/<treffer_id>``: das neue Bild eines Treffers der Online-Suche (Vertrag W, 3.15; Recht admin).
+
+    ``image/jpeg``, 192 px, aus dem gehaltenen Bild; ``Cache-Control: no-store``. Fehler: 403 ``unauthorized``, 404 ``cover_nicht_gefunden`` (auch bei einer
+    ungültigen Kennung), 410 ``treffer_abgelaufen``."""
+
+    url = "/api/tobibox/online/vorschau/{treffer_id}"
+    name = "api:tobibox:online:vorschau"
+    requires_auth = True
+    cors_allowed = False
+
+    async def get(self, request: web.Request, treffer_id: str) -> web.StreamResponse:
+        hub: Hub | None = request.app[KEY_HASS].data.get(DOMAIN)
+        if hub is None:
+            return web.json_response({"v": VERTRAG_V, "fehler": {"code": "unknown_error", "text": "nicht geladen"}}, status=500)
+        if not Nutzer.aus_user(request["hass_user"]).ist_admin:
+            return _fehler_antwort(hub, "unauthorized", 403)
+        if not RE_LISTE_ID.fullmatch(treffer_id):  # 16 Zeichen ``[0-9a-f]``
+            return _fehler_antwort(hub, "cover_nicht_gefunden")
+        try:
+            daten = hub.online.treffer_bild(treffer_id)
+            if daten is None:  # Treffer ohne Bild oder Bild noch nicht geladen (Befehl 58 holt es nach)
+                return _fehler_antwort(hub, "cover_nicht_gefunden")
+            klein = await hub.hass.async_add_executor_job(cover_klein, daten)
+        except TobiboxFehler as err:
+            return _fehler_antwort(hub, "cover_nicht_gefunden" if err.code == "cover_ungueltig" else err.code)
+        return web.Response(body=klein, content_type="image/jpeg", headers={"Cache-Control": "no-store"})

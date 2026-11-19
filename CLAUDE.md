@@ -36,7 +36,7 @@ EGM artifact directory: docs/egm
 - Angenommenes Design Stufe B „Gehört“: `docs/designs/gehoert.md` (Entstehung und Reviews:
   `docs/egm/stufe-b/`). Bau ab B2a.
 - Angenommenes Design Online-Suche (Cover und Angaben): `docs/designs/online-suche.md` (Entstehung und Reviews:
-  `docs/egm/online-suche/`). OS1 abgenommen, OS0 freigegeben (18.11.), OS2 gebaut; Rev. 2.5 (19.11.). Nächster Schritt: OS3.
+  `docs/egm/online-suche/`). OS1 abgenommen, OS0 freigegeben (18.11.), OS2 und OS3 gebaut; Rev. 2.6 (19.11.). Nächster Schritt: OS4 (Seite).
 - Verträge (Stufe 0): `docs/protocol/`, `docs/data-model.md`. Agents ändern
   sie nicht eigenmächtig.
 

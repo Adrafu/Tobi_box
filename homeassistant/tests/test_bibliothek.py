@@ -350,7 +350,7 @@ async def test_serien_list_ohne_eingaben_ist_wie_vorher(api, bibliothek):
     assert (r["gesamt"], r["weitere"]) == (7, False)
     kurz = r["serien"][0]
     assert kurz.keys() == {"id", "name", "typ", "ordner", "anzahl_folgen", "anzahl_tobies", "angelegt_am", "stand", "pruefen",
-                           "anzahl_pruefen", "hinweise", "art", "art_quelle", "einzeln", "cover_stand", "cover_quelle", "dauer_s", "kapitel_anzahl", "favorit", "zuletzt_gehoert_am"}  # seit 17.11. (B3)
+                           "anzahl_pruefen", "hinweise", "art", "art_quelle", "einzeln", "cover_stand", "cover_quelle", "dauer_s", "kapitel_anzahl", "favorit", "zuletzt_gehoert_am", "online", "online_vorschlaege"}  # seit 17.11. (B3), seit 19.11. (OS3; ``online_vorschlaege`` nur für Administratoren)
 
 
 async def test_serien_list_ohne_limit_liefert_alle_auch_ueber_200(api, nas, integration):
@@ -672,9 +672,9 @@ def test_pruefe_konfig_behaelt_angelegt_am_und_verwirft_ungueltiges():
 async def test_hello_sagt_bibliothek_zu(api, normal):
     for client in (api, normal):
         f = (await ok(client, "hello", v=1))["faehigkeiten"]
-        assert f[-10:-8] == ["konfig_staende", "bibliothek"]  # A1, A3; danach A3d (``einsortier_wunsch``) A4 (``cover``), A9c (``warteschlange``, ``zuordnung_rueckgaengig``), A4c (``reinhoeren``), B3 (``favoriten``, ``gehoert``) und A3c (``hoerkopie``)
+        assert f[-11:-9] == ["konfig_staende", "bibliothek"]  # A1, A3; danach A3d (``einsortier_wunsch``) A4 (``cover``), A9c (``warteschlange``, ``zuordnung_rueckgaengig``), A4c (``reinhoeren``), B3 (``favoriten``, ``gehoert``) und A3c (``hoerkopie``)
         assert f[-1] == "hoerkopie"  # A-3: nur mit ``ffmpeg`` (die Tests brauchen es)
-    assert const.FAEHIGKEITEN[-8:-6] == ("konfig_staende", "bibliothek")
+    assert const.FAEHIGKEITEN[-9:-7] == ("konfig_staende", "bibliothek")
 
 
 # --------------------------------------------------------------------------

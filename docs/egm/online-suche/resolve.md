@@ -208,3 +208,32 @@ Grundlage: Plan-Zeile „OS2 gebaut“ (`docs/plan/stueckliste-und-psp.md`) und 
 | T5 | Die Eingabe an Claude enthält wie in OS1 gemessen zusätzlich `einzeltitel`, `folgen_gesamt` und `folgen_gezeigt`; Design 3.4 und 8.3 nennen sie nicht. Behalten? | **(Tobias)** „Behalten“; Design 3.4 und 8.3 ergänzt |
 | T6 | T4 wirkt anders als bei der Stichprobe: „Der kleine Prinz“ bleibt `hoerbuch` (die Tonie-Kategorie `audio-book` geht vor), „Der kleine Wassermann“ und „Die kleine Hexe“ werden neu sicher `hoerspiel`. In Ordnung? | **(Tobias)** „Ja, so lassen“; Design 4.7 ergänzt |
 | T7 | Der Test „keine Modellnamen im Code“ (`tests/test_texte.py`) verbietet `claude`, der Vertrag braucht es als Bezeichner. Ausnahme im Test oder neutrale Bezeichner (Vertragsänderung)? | **(Tobias)** „Ausnahme im Test“: erlaubt sind genau `claude` und `anthropic`, andere Modellnamen bleiben verboten; Vertrag bleibt; Umsetzung in OS3 |
+
+## Runde 7: Bau OS3 (19.11.)
+
+Grundlage: Berichte der bauenden Agents und `review_goldfisch_os3.md` (GO3-1 bis GO3-13, alle behoben). Eingearbeitet in Design Rev. 2.6
+und, für T8, in `data-model.md` 5b und Vertrag W (Änderungsvermerk 19.11.).
+
+| Nr. | Frage | Antwort |
+|---|---|---|
+| T8 | Fällt beim Einsortieren oder im Lauf eine Quelle aus, bekommt der Eintrag die Marke `fehler`; sie galt wie `keiner` 30 Tage, der Lauf fragte ihn so lange nicht neu. Kürzer? | **(Tobias)** „Nach 1 Tag“: `fehler` verfällt nach 1 Tag wie beim Claude-Schritt; `keiner` bleibt bei 30 Tagen oder neuer Tonie-Liste |
+
+Festlegungen der Projektleitung beim Bau:
+
+- **(PL)** Option `online_ki_entitaet`: Schlüssel fehlt → Vorgabe (genau eine `ai_task`-Entität der Integration `anthropic`, sonst keine); `""` → Claude-Schritt aus. Grund: „gleich eingeschaltet“ (13.1) auch für die bestehende Installation. Hinweis für OS5: Vor dem ersten echten Lauf und vor den Abnahmeschritten 14 und 15 die Option ausdrücklich setzen oder leeren; gehört in `docs/betrieb/`.
+- **(PL)** Text des Optionsdialogs: Claude schlägt nur für Einträge mit Prüfgrund einen Seriennamen oder das Zusammenführen vor; „Serienname“ statt „Name des Eintrags“.
+- **(PL)** `opus` bleibt im Code erlaubt (Audiocodec); verboten bleiben `sonnet`, `haiku`, `fable` (Ergänzung zu T7).
+- **(PL)** Pausengruppe `bilder` zählt bei Nr. 63 zu `itunes`.
+- **(PL)** Suche von Hand ohne Folge bietet keine Folgenfelder an.
+- **(PL)** Bestätigt eine sichere Quelle einen Wert und löst damit einen Prüfgrund, steht das Feld als `bestaetigt` in der Änderung, nicht in `felder`; ohne lösbaren Prüfgrund entsteht keine Änderung (GO3-1).
+- **(PL)** Nr. 60, Form Lauf: läuft schon eine Rücknahme, antwortet der Befehl `{"gestartet": true}`; eine Rücknahme eines anderen Laufs stellt sich hinten an. `lauf_laeuft_schon` gibt es nur bei Nr. 62.
+- **(PL)** `DELETE …?quelle=online` gibt Nicht-Administratoren 403 wie die Vorschau (Abschnitt 7 erlaubt 401 oder 403; 401 zählt bei HA als Fehlanmeldung).
+- **(PL)** Der Stand der Tonie-Liste ändert sich nur, wenn sich ihr Inhalt ändert (Fehler aus OS2: er änderte sich bei jedem Wochenabgleich, alle Marken `keiner` verfielen wöchentlich).
+
+Offen für Tobias (kleine Abweichungen vom Wortlaut der Verträge, Verhalten für die Seite gleich):
+
+1. Store `laeufe` speichert zusätzlich `grund`, weil Nr. 63 ihn ausgibt; `data-model.md` 5b nennt das Feld nicht. Nachtragen?
+2. Zusammenführen: Der Code kopiert wie bisher alle vorhandenen Cover-Dateien der Quelle; der Vertrag sagt „die Datei, die die Quelle anzeigt“. Angezeigt wird dasselbe.
+3. Die Suche von Hand (Nr. 57) holt für Beschreibung und Alter bis zu eine Tonie-Shopseite; der Vertrag nennt als Netz nur Apple und die Tonie-Liste.
+4. Ein Lauf, der wegen eines Fehlers außerhalb einer Serie abbricht, endet `abgebrochen` ohne `grund` (im Vertrag optional); die Seite (OS4) muss das anzeigen können.
+5. Der Zwischenspeicher `tonies.json` hat im Code (seit OS2) die Schlüssel `version`, `geladen` (Zahl), `etag`, `eintraege` und seit OS3 `stand`; `data-model.md` 13 nennt `schema_version`, `geladen_am` (Zeitstempel), `etag`, `eintraege`. Die Datei darf fehlen und hat nur einen Leser, die Integration. Vertrag an den Code angleichen?

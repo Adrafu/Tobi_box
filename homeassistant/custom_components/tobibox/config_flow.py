@@ -8,12 +8,15 @@ from typing import Any
 
 from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResult, OptionsFlow
 from homeassistant.core import callback
+from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers.selector import EntitySelector, EntitySelectorConfig
 
 from .const import (
     BOX_ANZEIGE_MAX,
     CONF_BOX_ANZEIGEN,
     CONF_BOXEN,
     CONF_MEDIEN_PFAD,
+    CONF_ONLINE_KI_ENTITAET,
     CONF_UPLOAD_MAX_MIB,
     DOMAIN,
     RE_BOX,
@@ -61,8 +64,18 @@ def box_anzeigen_text(anzeigen: dict[str, str] | None) -> str:
     return ", ".join(f"{box}={name}" for box, name in (anzeigen or {}).items())
 
 
+def vorgabe_ki_entitaet(hass: Any) -> str:
+    """Die ``ai_task``-Entität der Claude-Integration (``anthropic``), wenn es **genau eine** gibt; sonst leer (Design Online-Suche 9.2)."""
+    treffer = [
+        e.entity_id
+        for e in er.async_get(hass).entities.values()
+        if e.platform == "anthropic" and e.domain == "ai_task" and e.disabled_by is None
+    ]
+    return treffer[0] if len(treffer) == 1 else ""
+
+
 async def _pruefe(
-    hass: Any, eingabe: dict[str, Any], mit_anzeigen: bool = False
+    hass: Any, eingabe: dict[str, Any], mit_anzeigen: bool = False, aktuell_optionen: Any = ()
 ) -> tuple[dict[str, Any] | None, dict[str, str]]:
     fehler: dict[str, str] = {}
     pfad = str(eingabe.get(CONF_MEDIEN_PFAD, "")).strip()
@@ -84,11 +97,21 @@ async def _pruefe(
             fehler[CONF_BOX_ANZEIGEN] = "box_anzeigen_ungueltig"
         else:
             anzeigen = anzeigen_neu or {}
+    ki = ""
+    if mit_anzeigen:
+        roh_ki = eingabe.get(CONF_ONLINE_KI_ENTITAET)
+        ki = roh_ki.strip() if isinstance(roh_ki, str) else ""
+        if ki and not ki.startswith("ai_task."):
+            fehler[CONF_ONLINE_KI_ENTITAET] = "ki_entitaet_ungueltig"
     if fehler:
         return None, fehler
     daten: dict[str, Any] = {CONF_MEDIEN_PFAD: pfad, CONF_BOXEN: boxen, CONF_UPLOAD_MAX_MIB: mib}
     if anzeigen:  # ohne Anzeigenamen bleibt der Eintrag so, wie er war (kein leeres Feld)
         daten[CONF_BOX_ANZEIGEN] = anzeigen
+    if mit_anzeigen:
+        # Leer heißt „Claude-Schritt aus“. Ein leerer Wert wird nur gespeichert, wenn sonst die Vorgabe griffe (sonst käme sie zurück).
+        if ki or CONF_ONLINE_KI_ENTITAET in aktuell_optionen or vorgabe_ki_entitaet(hass):
+            daten[CONF_ONLINE_KI_ENTITAET] = ki
     return daten, {}
 
 
@@ -100,6 +123,10 @@ def _schema(vorgabe: dict[str, Any], mit_anzeigen: bool = False) -> Any:
     }
     if mit_anzeigen:
         felder[vol.Optional(CONF_BOX_ANZEIGEN, default=vorgabe.get(CONF_BOX_ANZEIGEN, ""))] = str
+        # „suggested_value“ statt „default“: Wer das Feld leert, schaltet den Schritt aus (die Vorgabe kommt nicht zurück)
+        felder[
+            vol.Optional(CONF_ONLINE_KI_ENTITAET, description={"suggested_value": vorgabe.get(CONF_ONLINE_KI_ENTITAET) or None})
+        ] = EntitySelector(EntitySelectorConfig(domain="ai_task"))
     return vol.Schema(felder)
 
 
@@ -114,6 +141,9 @@ class TobiboxConfigFlow(ConfigFlow, domain=DOMAIN):
             if daten is not None:
                 await self.async_set_unique_id(DOMAIN)
                 self._abort_if_unique_id_configured()
+                ki = vorgabe_ki_entitaet(self.hass)  # gleich eingeschaltet, wenn es genau eine Claude-Entität gibt
+                if ki:
+                    daten[CONF_ONLINE_KI_ENTITAET] = ki
                 return self.async_create_entry(title="Tobi Box", data=daten)
         return self.async_show_form(step_id="user", data_schema=_schema(user_input or {}), errors=fehler)
 
@@ -128,12 +158,18 @@ class TobiboxOptionsFlow(OptionsFlow):
         fehler: dict[str, str] = {}
         aktuell = {**self.config_entry.data, **self.config_entry.options}
         if user_input is not None:
-            daten, fehler = await _pruefe(self.hass, user_input, mit_anzeigen=True)
+            daten, fehler = await _pruefe(self.hass, user_input, mit_anzeigen=True, aktuell_optionen=aktuell)
             if daten is not None:
                 return self.async_create_entry(data=daten)
         vorgabe = user_input or {
             **aktuell,
             CONF_BOXEN: ", ".join(aktuell.get(CONF_BOXEN, [])),
             CONF_BOX_ANZEIGEN: box_anzeigen_text(aktuell.get(CONF_BOX_ANZEIGEN)),
+            # nie gesetzt -> Vorgabe (Claude-Entität, wenn es genau eine gibt); einmal gesetzt (auch leer) -> dieser Wert
+            CONF_ONLINE_KI_ENTITAET: (
+                aktuell[CONF_ONLINE_KI_ENTITAET]
+                if CONF_ONLINE_KI_ENTITAET in aktuell
+                else vorgabe_ki_entitaet(self.hass)
+            ),
         }
         return self.async_show_form(step_id="init", data_schema=_schema(vorgabe, mit_anzeigen=True), errors=fehler)

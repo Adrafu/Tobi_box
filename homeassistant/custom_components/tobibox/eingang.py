@@ -697,6 +697,31 @@ class Eingang:
             self.hub.emit("eingang", "geaendert", {})
         return geaendert
 
+    def pruefen_wiederherstellen(self, serie_id: str, folgen: dict[str, list[str]]) -> bool:
+        """Gegenstück zu ``pruefen_zuruecksetzen`` für die Rücknahme einer Online-Änderung (Design 6.4): das Protokoll bekommt ``pruefen`` und
+        die Gründe der Folgen zurück (``folgen``: Name der Folge -> Gründe)."""
+        geaendert = False
+
+        def setze(ergebnis: list[dict[str, Any]]) -> bool:
+            hier = False
+            for r in ergebnis:
+                gruende = folgen.get(r.get("folge")) if r.get("serie_id") == serie_id else None
+                if gruende and not r.get("pruefen"):
+                    r["pruefen"], r["pruefen_gruende"] = True, list(gruende)
+                    hier = True
+            return hier
+
+        for p in self.protokoll:
+            if setze(p.get("ergebnis") or []):
+                p["pruefen"] = any(bool(r.get("pruefen")) for r in p["ergebnis"])
+                geaendert = True
+        for z in self.eintraege.values():
+            geaendert = setze(z.ergebnis) or geaendert
+        if geaendert:
+            self.speichern()
+            self.hub.emit("eingang", "geaendert", {})
+        return geaendert
+
     # --- Liste ------------------------------------------------------------------------
 
     async def liste(self, filter_: str, limit: int, offset: int) -> dict[str, Any]:
@@ -1254,6 +1279,7 @@ class Eingang:
             serie.ordner = ordner
             await medien._aktualisiere_cache(serie, ordner)
             self._dauer_merken(serie.id, neue_folgen)
+            self._online_merken(serie, bool(neu), neue_folgen)
             await neu_einsortieren.rueckweg_merken(self, serie, pfad, bool(neu), neue_folgen, self._rueckweg)
             if doppelter_name:
                 medien.merke_hinweis(serie, "serie_name_doppelt", name=serie.name)
@@ -1278,6 +1304,19 @@ class Eingang:
             if neu and neue_folgen:
                 zaehler["serien_neu"] += 1
         self.hub.emit("medien", "serien_geaendert", {"serie_ids": [serie.id]})
+
+    def _online_merken(self, serie: Serie, neu: bool, neue_folgen: list[tuple[Gruppe, str]]) -> None:
+        """Design 5.1 Schritt 1 und 2: Schnappschuss der gesetzten Felder in den Store, Eintrag in die Schlange der Online-Suche. Legt nur
+        in die Schlange und kehrt sofort zurück (der Aufrufer hält die Sperre der Serie); ein Fehler hält das Einsortieren nie auf."""
+        try:
+            self.hub.online.neu_einsortiert(
+                serie.id,
+                neu,
+                {endname: {"anzeige": serie.info(endname).get("anzeige"), "nummer": serie.info(endname).get("nummer")} for _g, endname in neue_folgen},
+                serie.art if neu and serie.art_quelle != "manuell" else None,  # Wunschname beim Hochladen: kein Schnappschuss für die Art (6.2)
+            )
+        except Exception:
+            _LOGGER.exception("Online-Suche beim Einsortieren nicht angestoßen")
 
     def _dauer_merken(self, serie_id: str, neue_folgen: list[tuple[Gruppe, str]]) -> None:
         """Dauer, Spuren, Kapitel und Codecs der neuen Folgen aus den Proben, die ohnehin gelaufen sind (Vertrag W, 14.7: „beim Einsortieren gespeichert“);

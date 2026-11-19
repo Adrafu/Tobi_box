@@ -6,6 +6,8 @@
     und den Vorgaben der Projektleitung vom 09.11. (Abschnitt „Vorgaben der
     Projektleitung“ am Ende). Wartet auf die Freigabe durch Tobias. **Stand der Rechte, des Uploads und der
     neuen Befehle: Änderungen 12.11., 13.11., 16.11. und 18.11. unten.**
+*   **Änderung 19.11. (Online-Suche, Entscheidung T8 von Tobias, `docs/egm/online-suche/resolve.md` Runde 7):** Ein Eintrag, bei dem eine Quelle ausfiel (Marke `fehler`,
+    `data-model.md` 5b), ist schon **nach 1 Tag** wieder Kandidat des Laufs (Nr. 62), nicht erst nach 30 Tagen. Ein- und Ausgaben bleiben gleich.
 *   **Änderung 18.11. (Online-Suche, Paket OS0; von Tobias freigegeben am 18.11., „Ja, freigeben“):** Grundlage `docs/designs/online-suche.md` (Rev. 2.4, Abschnitt 9, dazu 3.4, 4.8, 5.4, 6.4,
     7.2, 7.3 und 10) und `docs/egm/online-suche/resolve.md` (Entscheidungen R1 bis R7 und T1 bis T3 von Tobias, Rest Projektleitung; Runden 1 bis 4).
     Die Version bleibt 1; alles ist additiv (Abschnitt 9), mit den Ausnahmen unten. **Neu:** 8 Befehle (Nr. 57 bis 64, Abschnitt 3.15: `online/suchen`, `online/treffer`,
@@ -1806,6 +1808,7 @@ Ausgabe: `{"beschreibung": <string, höchstens 2 000 Zeichen>, "alter_ab"?: <int
 | `ONLINE_UEBERSPRUNGEN_MAX` | 50 Einträge in `uebersprungen` | Design 9.2 |
 | `ONLINE_AENDERUNGEN_TAGE`, `ONLINE_AENDERUNGEN_MAX` | 30 Tage, 20 je Eintrag | Design 7.3 |
 | `ONLINE_VERWORFEN_MAX` | 200 je Eintrag | Design 7.3 |
+| `ONLINE_MARKE_KEINER_TAGE`, `ONLINE_MARKE_FEHLER_TAGE` | 30 Tage (`keiner`), 1 Tag (`fehler`, seit 19.11.) | Design 7.3, `data-model.md` 5b |
 | `ONLINE_STAND_BUENDEL_S` | 2 (Ereignis `stand`) | Design 9.3 |
 | Drossel der Quellen | Design 8.2 (kein Teil dieses Vertrags) | Design 8.2 |
 

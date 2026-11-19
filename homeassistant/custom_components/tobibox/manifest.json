@@ -3,12 +3,22 @@
   "name": "Tobi Box",
   "codeowners": [],
   "config_flow": true,
-  "dependencies": ["mqtt", "http", "panel_custom", "websocket_api"],
+  "dependencies": [
+    "mqtt",
+    "http",
+    "panel_custom",
+    "websocket_api"
+  ],
+  "after_dependencies": [
+    "ai_task"
+  ],
   "documentation": "https://github.com/Adrafu/Tobi_box/tree/main/homeassistant",
   "integration_type": "service",
   "iot_class": "local_push",
   "issue_tracker": "https://github.com/Adrafu/Tobi_box/issues",
-  "requirements": ["Pillow"],
+  "requirements": [
+    "Pillow"
+  ],
   "single_config_entry": true,
   "version": "0.1.0"
 }

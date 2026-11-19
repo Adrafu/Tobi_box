@@ -107,6 +107,31 @@ async def rueckweg_merken(
         _LOGGER.exception("Rückweg beim Einsortieren nicht gemerkt")
 
 
+def rueckweg_fortschreiben(eingang: Eingang, stand_vorher: str, serie_nachher: Serie, geaenderte_folgen: list[str]) -> bool:
+    """Nach einer **automatischen** Online-Übernahme (Design 5.1 Schritt 6): Alle Zeilen im Speicher (``_rueckweg``) und im Protokoll, deren
+    gemerkter ``stand`` dieser Serie gleich ``stand_vorher`` ist, bekommen den neuen Namen, ``stand``, die Art, ``art_quelle`` und die
+    Anzeige der geänderten Folgen. Sonst wäre „Anders einsortieren“ nach der Übernahme gesperrt. Gibt ``True`` zurück, wenn eine Zeile geändert wurde.
+    Nach einer Übernahme von Hand wird das **nicht** aufgerufen (gewollt)."""
+    zeilen: list[dict[str, Any]] = [rw for rw in eingang._rueckweg.values() if isinstance(rw, dict)]
+    zeilen += [p["rueckweg"] for p in eingang.protokoll if isinstance(p.get("rueckweg"), dict)]
+    geaendert = False
+    for rw in zeilen:
+        s = (rw.get("serien") or {}).get(serie_nachher.id)
+        if not isinstance(s, dict) or s.get("stand") != stand_vorher:
+            continue
+        s["name"] = serie_nachher.name
+        s["stand"] = serie_nachher.stand
+        s["art"] = serie_nachher.art
+        s["art_quelle"] = serie_nachher.art_quelle
+        for f in rw.get("folgen") or []:
+            if f.get("serie_id") == serie_nachher.id and f.get("folge") in geaenderte_folgen:
+                f["anzeige"] = serie_nachher.anzeige(f["folge"])[:200]
+        geaendert = True
+    if geaendert:
+        eingang.speichern()
+    return geaendert
+
+
 # --------------------------------------------------------------------------
 # Die sieben Prüfungen (2.4)
 # --------------------------------------------------------------------------
@@ -401,6 +426,7 @@ async def neu_einsortieren(
                     serie.folgen_info.pop(n, None)
                     medien._pruefergebnisse.pop((pfad.name, n), None)
                     hub.medieninfo.loesche_folge(sid, n)
+                    hub.online.loesche_folge(sid, n)
                 try:
                     await hub.hass.async_add_executor_job(schreibe_serie, pfad, serie)
                     if s["neu"]:
@@ -421,6 +447,7 @@ async def neu_einsortieren(
                         )
                         medien.serien.pop(sid, None)
                         hub.medieninfo.loesche_serie_folgen(sid)
+                        hub.online.loesche_serie(sid)
                         for k in [k for k in medien._pruefergebnisse if k[0] == pfad.name]:
                             medien._pruefergebnisse.pop(k, None)
                         papierkorb_aenderung = True

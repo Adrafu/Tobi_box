@@ -643,11 +643,16 @@ class Medien:
 
     # --- Serie-Kurzform und Folge-Objekt -------------------------------------------
 
-    def kurzform(self, info: SerieInfo, tobie_zaehler: dict[str, int] | None = None, nutzer_id: str | None = None) -> dict[str, Any]:
+    def kurzform(
+        self, info: SerieInfo, tobie_zaehler: dict[str, int] | None = None, nutzer_id: str | None = None, *, online_vorschlaege: bool = False
+    ) -> dict[str, Any]:
         """Serie-Kurzform (Vertrag W, Abschnitt 3 und 14.2). Listen reichen ``tobie_zaehler`` durch (einmal gezählt).
 
         ``dauer_s``: Summe der bekannten Folgendauern (``null``, solange keine bekannt ist). ``hoerstelle``: nur wenn der **Anfragende**
-        (``nutzer_id`` aus der Verbindung) angefangen hat, nur seine eigene (14.2)."""
+        (``nutzer_id`` aus der Verbindung) angefangen hat, nur seine eigene (14.2).
+
+        Online-Suche (14.2): ``online`` steht immer da (für alle, ``None`` ohne Änderung der letzten 30 Tage); ``online_vorschlaege`` (Zahl) nur mit
+        ``online_vorschlaege=True``, das die Aufrufer für Administratoren in ``serien/list``, ``serie/get`` und Nr. 51 setzen."""
         s = info.serie
         anzahl_pruefen = sum(1 for n in s.folgen if s.info(n).get("pruefen"))
         anzahl_tobies = len(self.tobies_der_serie(s.id)) if tobie_zaehler is None else tobie_zaehler.get(s.id, 0)
@@ -677,6 +682,9 @@ class Medien:
         aus["favorit"] = self.hub.favoriten.gesetzt(s.id)  # nur der Stern der Serie als Ganzes (Vertrag W, 14.2; Fähigkeit ``favoriten``)
         if self.hub.gehoert.verfuegbar:
             aus["zuletzt_gehoert_am"] = self.hub.gehoert.zuletzt_gehoert_am(s.id)  # Fähigkeit ``gehoert``; aus dem Zwischenspeicher
+        aus["online"] = self.hub.online.kurz_online(s.id)  # Fähigkeit ``online_suche`` nicht nötig (Ausgabefeld, für alle)
+        if online_vorschlaege:
+            aus["online_vorschlaege"] = self.hub.online.vorschlaege_zahl(s.id)
         return aus
 
     def _folge_objekt(
@@ -969,10 +977,14 @@ class Medien:
         limit: int | None = None,
         offset: int = 0,
         nutzer_id: str | None = None,
+        ist_admin: bool = False,
     ) -> dict[str, Any]:
         """``serien/list`` (Vertrag W, Nr. 3 und 14.2). Ohne Eingaben wie bis 11.11.: alle Einträge nach Name.
 
-        ``nutzer_id``: der Anfragende (aus der Verbindung): für ``hoerstelle`` und die Sortierung ``angehoert``."""
+        ``nutzer_id``: der Anfragende (aus der Verbindung): für ``hoerstelle`` und die Sortierung ``angehoert``. ``ist_admin``: nur Administratoren
+        bekommen ``online_vorschlaege`` und dürfen nach ``online_vorschlag`` filtern (sonst ``unauthorized``)."""
+        if "online_vorschlag" in (filter_ or ()) and not ist_admin:
+            raise TobiboxFehler("unauthorized")
         await self._stelle_geprueft_sicher()
         zs = await self.hub.gehoert.zwischenspeicher()  # Zwischenspeicher für ``zuletzt_gehoert_am`` und die Sortierungen (``None`` ohne Datenbank)
         infos, gesamt, weitere, zaehler = self.bibliothek.serien(
@@ -981,10 +993,13 @@ class Medien:
             favoriten=self.hub.favoriten.schluessel(),
             zuletzt_gehoert=zs.zuletzt if zs is not None else None,
             meist_gehoert=zs.meist if zs is not None else None,
+            online_vorschlag=(
+                {sid for sid in self.serien if self.hub.online.vorschlaege_zahl(sid)} if "online_vorschlag" in (filter_ or ()) else None
+            ),
         )
         await self.hub.gehoert.zwischenspeicher()  # für ``zuletzt_gehoert_am`` in der Kurzform
         return {
-            "serien": [self.kurzform(i, zaehler, nutzer_id) for i in infos],
+            "serien": [self.kurzform(i, zaehler, nutzer_id, online_vorschlaege=ist_admin) for i in infos],
             "gesamt": gesamt,
             "weitere": weitere,
             "ueberraschung": self.ueberraschung_status(),
@@ -1020,6 +1035,7 @@ class Medien:
             geaendert = (serie.art, serie.art_quelle) != (art, "manuell") or gruende != serie.pruefen_gruende
             if geaendert:
                 serie.art, serie.art_quelle = art, "manuell"
+                self.hub.online.von_hand_gesetzt(serie_id, "art")  # Design 6.1: ein neuer Wert von Hand ersetzt die Marke „zurückgenommen“
                 if "art_geraten" in serie.pruefen_gruende:
                     serie.pruefen_gruende = gruende
                     if not gruende:  # der Grund war der einzige: nichts mehr zu prüfen
@@ -1074,11 +1090,11 @@ class Medien:
         self.serien[serie.id] = info
         return info
 
-    async def serie_holen(self, serie_id: str, nutzer_id: str | None = None) -> dict[str, Any]:
+    async def serie_holen(self, serie_id: str, nutzer_id: str | None = None, ist_admin: bool = False) -> dict[str, Any]:
         await self.hub.gehoert.zwischenspeicher()  # für ``zuletzt_gehoert_am`` in der Kurzform
         serie, pfad = await self._frisch(serie_id)
         info = await self._aktualisiere_cache(serie, pfad.name)
-        aus = self.kurzform(info, nutzer_id=nutzer_id)
+        aus = self.kurzform(info, nutzer_id=nutzer_id, online_vorschlaege=ist_admin)
         # ``dauer_s``, ``spuren_s`` und ``kapitel`` fehlen, solange unbekannt; ``hoerkopie`` fehlt, solange die Codecs unbekannt sind; ``hoerstelle`` nur,
         # wenn der Anfragende angefangen hat (Vertrag W, 14.2). Alles kommt zur Antwortzeit dazu (nicht in den Zwischenspeicher: der Hintergrundlauf
         # füllt die Werte nach, die Hörstelle ist je Benutzer, die Hörkopie wechselt ihren Zustand).
@@ -1103,9 +1119,12 @@ class Medien:
             if name in hoerstellen:
                 f["hoerstelle"] = hoerstellen[name]
             f["favorit"] = self.hub.favoriten.gesetzt(serie_id, name)  # Stern an dieser Folge (Fähigkeit ``favoriten``)
+            f.update(self.hub.online.folge_online(serie_id, name))  # ``beschreibung``, ``beschreibung_gekuerzt``, ``alter_ab``, ``beschreibung_quelle``
             folgen.append(f)
         aus["folgen"] = folgen
         aus["zuordnungen"] = self.tobies_der_ganzen_serie(serie_id)
+        if ist_admin:
+            aus["online_vorschlaege_liste"] = self.hub.online.vorschlaege_liste(serie_id)  # nur Administratoren (Vertrag W, 3.2)
         return aus
 
     def _pruefe_stand(self, serie: Serie, stand: str | None) -> None:
@@ -1152,6 +1171,7 @@ class Medien:
         async with self.sperren(serie_id):
             serie, pfad = await self._frisch(serie_id)
             if serie.name != anzeige or serie.pruefen:
+                self.hub.online.von_hand_gesetzt(serie_id, "serie_name")
                 serie.name = anzeige
                 serie.pruefen = False
                 serie.pruefen_gruende = []
@@ -1191,6 +1211,7 @@ class Medien:
             if serie.info(folge).get("anzeige") != anzeige or serie.info(folge).get("pruefen"):
                 serie.setze_info(folge, anzeige=anzeige)
                 serie.loesche_pruefen(folge)
+                self.hub.online.von_hand_gesetzt(serie_id, "folge_titel", folge)
                 try:
                     await self._executor(schreibe_serie, pfad, serie)
                 except OSError as err:
@@ -1226,6 +1247,7 @@ class Medien:
                 except OSError as err:
                     raise self._fehler_schreiben(err) from err
             info = await self._aktualisiere_cache(serie, pfad.name)
+        self.hub.online.bestaetigt(serie_id, folgen)  # Design 6.2: bestätigt = von Hand, die Schnappschüsse fallen weg
         self.hub.eingang.pruefen_zuruecksetzen(serie_id, folgen)  # auch im Protokoll des Eingangs (Vertrag W, Nr. 28, Rest aus A-1c)
         self.hub.emit("medien", "serien_geaendert", {"serie_ids": [serie_id]})
         await self.hub.gehoert.zwischenspeicher()  # für ``zuletzt_gehoert_am`` in der Kurzform
@@ -1274,6 +1296,7 @@ class Medien:
             serie.folgen_info.pop(folge, None)
             self._pruefergebnisse.pop((pfad.name, folge), None)
             self.hub.medieninfo.loesche_folge(serie_id, folge)  # Dauer der gelöschten Folge (eine neue Datei gleichen Namens wird neu gemessen)
+            self.hub.online.loesche_folge(serie_id, folge)  # Store ``tobibox.online`` (Design 7.3)
             try:
                 await self._executor(schreibe_serie, pfad, serie)
             except OSError as err:
@@ -1316,6 +1339,7 @@ class Medien:
                 raise self._fehler_schreiben(err) from err
             self.serien.pop(serie_id, None)
             self.hub.medieninfo.loesche_serie_folgen(serie_id)
+            self.hub.online.loesche_serie(serie_id)
             for k in [k for k in self._pruefergebnisse if k[0] == pfad.name]:
                 self._pruefergebnisse.pop(k, None)
         eintrag = eintrag_fuer_seite(meta)
@@ -1384,6 +1408,7 @@ class Medien:
             for sp in ((quelle_pfad.name, folge), (ziel_pfad.name, neuer_name)):
                 self._pruefergebnisse.pop(sp, None)
             self.hub.medieninfo.uebertrage_folge(serie_id, folge, ziel_serie_id, neuer_name)  # die Dauer wandert mit
+            self.hub.online.folge_umbenannt(serie_id, folge, ziel_serie_id, neuer_name)
             konfig = None
             veroeffentlicht = None
             if tobies:
@@ -1465,6 +1490,7 @@ class Medien:
                     ziel.folgen_info[neuer] = info
                 self.hub.eingang.index_entferne_praefix(f"{quelle_pfad.name}/{folge}")
                 self.hub.medieninfo.uebertrage_folge(quelle_id, folge, ziel_id, neuer)  # die Dauer wandert mit
+                self.hub.online.folge_umbenannt(quelle_id, folge, ziel_id, neuer)
                 neue_namen[folge] = neuer
                 quelle.folgen = [n for n in quelle.folgen if n != folge]
                 quelle.folgen_info.pop(folge, None)
@@ -1509,6 +1535,7 @@ class Medien:
                 raise self._fehler_schreiben(err) from err
             self.serien.pop(quelle_id, None)
             self.hub.medieninfo.loesche_serie_folgen(quelle_id)
+            self.hub.online.serie_zusammengefuehrt(quelle_id, ziel_id, cover_kopiert)  # ``hand``/``zurueckgenommen`` des Covers ziehen mit, der Rest der Quelle fällt weg
             self.hub.favoriten.schreibe_um({}, (quelle_id, ziel_id))  # der Stern an der Serie selbst: erst, wenn die Quelle im Papierkorb liegt
             for k in [k for k in self._pruefergebnisse if k[0] == quelle_pfad.name]:
                 self._pruefergebnisse.pop(k, None)

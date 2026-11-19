@@ -16,6 +16,8 @@ CONF_BOXEN: Final = "boxen"
 CONF_UPLOAD_MAX_MIB: Final = "upload_max_mib"
 #: Optionen: Anzeigenamen der Boxen (``box1=Box 1, box2=Box 2``), gespeichert als ``{"box1": "Box 1", …}`` (Vertrag W, 14.9)
 CONF_BOX_ANZEIGEN: Final = "box_anzeigen"
+#: Optionen: ``ai_task``-Entität für den Claude-Schritt der Online-Suche; leer = Schritt aus (Design Online-Suche 9.2)
+CONF_ONLINE_KI_ENTITAET: Final = "online_ki_entitaet"
 #: Höchstlänge eines Anzeigenamens einer Box (Zeichen)
 BOX_ANZEIGE_MAX: Final = 40
 #: 2 GiB je Datei (Vertrag W, 8 und 14.10); bestehende Einträge mit 500 hebt die Migration an
@@ -110,10 +112,13 @@ WARTESCHLANGE_AENDERUNGEN_JE_MINUTE: Final = 30
 
 # --- Bibliothek: Art, Suche, Blättern (Vertrag W, 14.2) -----------------------------
 ARTEN: Final = ("hoerspiel", "hoerbuch", "musik", "geschichte")
-ART_QUELLEN: Final = ("tags", "geraten", "manuell")
+#: ``online`` = von der Online-Suche übernommen (Vertrag W, 14.2)
+ART_QUELLEN: Final = ("tags", "geraten", "manuell", "online")
 ART_VORGABE: Final = "hoerspiel"
 #: ``favorit`` (Stufe B, Fähigkeit ``favoriten``): nur Einträge mit Stern
 FILTER_WERTE: Final = ("ohne_tobie", "neu", "pruefen", "sammlung", "einzeln", "favorit")
+#: ``serien/list`` kennt dazu ``online_vorschlag`` (Vertrag W, 14.2; nur Administratoren, nur mit Fähigkeit ``online_suche``)
+FILTER_WERTE_SERIEN: Final = (*FILTER_WERTE, "online_vorschlag")
 #: ``zuletzt_gehoert`` und ``meist_gehoert`` (Stufe B, Fähigkeit ``gehoert``; ohne Hördaten gilt die Reihenfolge nach Name)
 SERIEN_SORTIERUNGEN: Final = ("name", "neu", "angehoert", "zuletzt_gehoert", "meist_gehoert")
 FOLGEN_SORTIERUNGEN: Final = ("titel", "neu")
@@ -150,6 +155,8 @@ COVER_JPEG_QUALITAET: Final = 85
 COVER_AUTO: Final = "cover.jpg"
 COVER_EIGEN: Final = "cover-eigen.jpg"
 COVER_QUELLEN: Final = ("folder.jpg", "cover.png")
+#: Cover aus der Online-Suche (Design 7.2, ``data-model.md`` 5). Vorrang ``cover-eigen.jpg`` vor ``cover-online.jpg`` vor ``cover.jpg``
+COVER_ONLINE: Final = "cover-online.jpg"
 #: Zwischenspeicher der kleinen Ansicht (192 px, rund 15 KiB): so viele Bilder höchstens
 COVER_KLEIN_CACHE_ANZAHL: Final = 256
 
@@ -225,6 +232,8 @@ FAEHIGKEITEN: Final = (
     "reinhoeren",
     # B3 (Stufe B): Befehle 55 und 56, Filter und Feld ``favorit``, Thema ``favoriten``. ``gehoert`` kommt dynamisch dazu (``Hub.faehigkeiten``), nur mit offener Datenbank
     "favoriten",
+    # OS3 (18.11., Vertrag W, 14.1): Befehle 57 bis 64, Thema ``online``, Vorschau-HTTP, Filter ``online_vorschlag``. Nicht vom Netz abhängig
+    "online_suche",
 )
 
 # --- MQTT-Themen (``mqtt-v1.md`` Abschnitt 2) ----------------------------------
@@ -244,7 +253,11 @@ EREIGNIS_THEMEN: Final = (
     # B3 (Stufe B): ``gehoert`` nur mit Fähigkeit ``gehoert``, ``favoriten`` nur mit Fähigkeit ``favoriten`` (Vertrag W, 3.1, Nr. 2)
     "gehoert",
     "favoriten",
+    # OS3 (Vertrag W, 4.11): nur für Administratoren
+    "online",
 )
+#: Themen, die nur Administratoren bekommen (Vertrag W, 4.11)
+NUR_ADMIN_THEMEN: Final = frozenset({"online"})
 
 # --- Namen reserviert ----------------------------------------------------------
 GERAETENAMEN: Final = frozenset(
@@ -380,3 +393,20 @@ TECHNIK_LISTE_MAX: Final = 2000
 TECHNIK_ZEILEN_MAX: Final = 50_000
 #: ``favorit/set`` je Minute und Benutzer (eigener Zähler; Administratoren ausgenommen, 2.4)
 FAVORITEN_JE_MINUTE: Final = 30
+
+
+# --- Online-Suche (Vertrag W, 3.15 „Grenzen“; Design ``docs/designs/online-suche.md``) ---------------------------
+ONLINE_TREFFER_MAX: Final = 10
+#: so viele der obersten Treffer laden ihr Bild schon beim Suchen (Vorschau); bei den übrigen holt Befehl 58 es nach
+ONLINE_TREFFER_BILDER: Final = 5
+#: Kantenlänge der Vorschau (``GET /api/tobibox/online/vorschau/<treffer_id>``)
+ONLINE_VORSCHAU_PX: Final = COVER_KLEIN_PX
+ONLINE_BESCHREIBUNG_KURZ: Final = 300
+ONLINE_BESCHREIBUNG_MAX: Final = 2000
+ONLINE_UEBERSPRUNGEN_MAX: Final = 50
+ONLINE_AENDERUNGEN_TAGE: Final = 30
+ONLINE_MARKE_KEINER_TAGE: Final = 30
+ONLINE_MARKE_FEHLER_TAGE: Final = 1
+ONLINE_AENDERUNGEN_MAX: Final = 20
+ONLINE_VERWORFEN_MAX: Final = 200
+ONLINE_STAND_BUENDEL_S: Final = 2.0

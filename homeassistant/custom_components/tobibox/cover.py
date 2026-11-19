@@ -40,6 +40,7 @@ from .const import (
     COVER_NACHSICHT_PIXEL_MAX,
     COVER_KLEIN_CACHE_ANZAHL,
     COVER_KLEIN_PX,
+    COVER_ONLINE,
     COVER_QUADRAT_TOLERANZ,
     COVER_QUELLEN,
     COVER_SUCHE_DATEIEN_MAX,
@@ -54,6 +55,9 @@ if TYPE_CHECKING:
     from .media import Serie
 
 _LOGGER = logging.getLogger(__name__)
+
+#: Reihenfolge der Cover-Dateien und ``cover_quelle`` der Datei, die angezeigt wird
+COVER_VORRANG = ((COVER_EIGEN, "eigen"), (COVER_ONLINE, "online"), (COVER_AUTO, "auto"))
 
 #: Dateinamen, die im Eingangs-Ordner als mitgeliefertes Cover gelten (in dieser Reihenfolge; Groß-/Kleinschreibung egal)
 MITGELIEFERT_IM_EINGANG = (COVER_AUTO, "folder.jpg", "cover.png")
@@ -231,8 +235,8 @@ def _regulaer(pfad: Path) -> os.stat_result | None:
 
 
 def cover_zustand(ordner: Path) -> tuple[str | None, str | None]:
-    """``(cover_stand, cover_quelle)`` des Serien-Ordners: ``cover-eigen.jpg`` gilt vor ``cover.jpg``; ohne beide ``(None, None)``."""
-    for name, quelle in ((COVER_EIGEN, "eigen"), (COVER_AUTO, "auto")):
+    """``(cover_stand, cover_quelle)`` des Serien-Ordners: ``cover-eigen.jpg`` vor ``cover-online.jpg`` vor ``cover.jpg``; ohne alle ``(None, None)``."""
+    for name, quelle in COVER_VORRANG:
         st = _regulaer(ordner / name)
         if st is not None:
             return stand_aus(name, st), quelle
@@ -241,7 +245,7 @@ def cover_zustand(ordner: Path) -> tuple[str | None, str | None]:
 
 def lese_cover_datei(ordner: Path) -> tuple[str, bytes] | None:
     """``(Stand, Bytes)`` der angezeigten Datei oder ``None`` (kein Cover, oder die Datei ist größer als 3 MiB)."""
-    for name in (COVER_EIGEN, COVER_AUTO):
+    for name, _quelle in COVER_VORRANG:
         pfad = ordner / name
         st = _regulaer(pfad)
         if st is None:
@@ -251,6 +255,12 @@ def lese_cover_datei(ordner: Path) -> tuple[str, bytes] | None:
         with open(pfad, "rb") as f:
             return stand_aus(name, st), f.read(COVER_UPLOAD_MAX_BYTES + 1)
     return None
+
+
+def online_stand(ordner: Path) -> str | None:
+    """Fingerabdruck von ``cover-online.jpg`` (für die Rücknahme, Design 6.4); ``None``, wenn es die Datei nicht gibt."""
+    st = _regulaer(ordner / COVER_ONLINE)
+    return stand_aus(COVER_ONLINE, st) if st is not None else None
 
 
 def schreibe_bytes_atomar(pfad: Path, daten: bytes) -> None:
@@ -286,7 +296,7 @@ def uebernimm_cover(quelle: Path, ziel: Path) -> bool:
     if cover_zustand(ziel)[0] is not None:
         return False
     kopiert = False
-    for name in (COVER_EIGEN, COVER_AUTO):
+    for name, _q in COVER_VORRANG:
         st = _regulaer(quelle / name)
         if st is None or st.st_size > COVER_UPLOAD_MAX_BYTES:
             continue
@@ -486,6 +496,7 @@ class CoverDienst:
             except OSError as err:
                 raise medien._fehler_schreiben(err) from err
             info = await medien._aktualisiere_cache(serie, pfad.name)
+            self.hub.online.von_hand_gesetzt(serie_id, "cover")  # Hochladen ersetzt die Marke „zurückgenommen“ durch ``hand`` (Design 6.2)
         if info.cover_stand:
             self._merke_klein(serie_id, info.cover_stand, klein)
         self.hub.emit("medien", "serien_geaendert", {"serie_ids": [serie_id]})
@@ -505,6 +516,20 @@ class CoverDienst:
             self.hub.emit("medien", "serien_geaendert", {"serie_ids": [serie_id]})
             if info.cover_quelle is None and self.hub.medieninfo.cover_suche(serie_id) is None:
                 self.suche_anstossen([serie_id])
+        return {"cover_stand": info.cover_stand, "cover_quelle": info.cover_quelle}
+
+    async def entferne_online(self, serie_id: str) -> dict[str, Any]:
+        """``DELETE …?quelle=online`` (Design 6.4): löscht ``cover-online.jpg`` ohne Änderung im Store. Gab es keines, ist das kein Fehler."""
+        medien = self.hub.medien
+        async with medien.sperren(serie_id):
+            serie, pfad = await medien._frisch(serie_id)
+            try:
+                weg = await self.hub.hass.async_add_executor_job(loesche_datei, pfad / COVER_ONLINE)
+            except OSError as err:
+                raise medien._fehler_schreiben(err) from err
+            info = await medien._aktualisiere_cache(serie, pfad.name)
+        if weg:
+            self.hub.emit("medien", "serien_geaendert", {"serie_ids": [serie_id]})
         return {"cover_stand": info.cover_stand, "cover_quelle": info.cover_quelle}
 
     # --- Einsortieren, Zusammenführen ------------------------------------------------------------------

@@ -444,7 +444,7 @@ class GehoertAbfragen:
 
     # --- 51: gehoert/zuletzt ------------------------------------------------------------------------
 
-    async def zuletzt(self, wer: str, limit: int, nutzer_id: str | None) -> dict[str, Any]:
+    async def zuletzt(self, wer: str, limit: int, nutzer_id: str | None, ist_admin: bool = False) -> dict[str, Any]:
         db = self._db()
         hub = self.hub
         if not 1 <= limit <= GEHOERT_ZULETZT_LIMIT_MAX:
@@ -461,7 +461,7 @@ class GehoertAbfragen:
             info = hub.medien.serien.get(serie)
             if info is None:  # eine Serie, die es nicht mehr gibt, steht nicht in der Reihe
                 continue
-            eintraege.append({**hub.medien.kurzform(info, zaehler, nutzer_id), "wer": quelle, "zeit": iso(datetime.fromtimestamp(zeit, UTC))})
+            eintraege.append({**hub.medien.kurzform(info, zaehler, nutzer_id, online_vorschlaege=ist_admin), "wer": quelle, "zeit": iso(datetime.fromtimestamp(zeit, UTC))})
             if len(eintraege) >= limit:
                 break
         return {"eintraege": eintraege}

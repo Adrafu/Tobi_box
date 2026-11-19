@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import pytest
+from homeassistant.helpers import entity_registry as er
 from homeassistant import config_entries
-from homeassistant.data_entry_flow import FlowResultType
+from homeassistant.data_entry_flow import FlowResultType, InvalidData
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.tobibox.config_flow import box_anzeigen_text, parse_box_anzeigen, parse_boxen
-from custom_components.tobibox.const import CONF_BOX_ANZEIGEN, CONF_BOXEN, CONF_MEDIEN_PFAD, CONF_UPLOAD_MAX_MIB, DOMAIN
+from custom_components.tobibox.const import CONF_BOX_ANZEIGEN, CONF_BOXEN, CONF_MEDIEN_PFAD, CONF_ONLINE_KI_ENTITAET, CONF_UPLOAD_MAX_MIB, DOMAIN
 
 
 @pytest.mark.parametrize(
@@ -208,3 +209,82 @@ async def test_optionen_ohne_das_neue_feld_bleiben_gueltig(hass, nas, einrichtun
 async def test_einrichtung_hat_das_feld_nicht(hass, nas):
     result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
     assert CONF_BOX_ANZEIGEN not in [str(k) for k in result["data_schema"].schema]
+
+
+# --- Online-Suche: KI-Entität (Design 9.2, T7) -------------------------------------
+
+
+def _ki_entitaeten(hass, *plattformen):
+    reg = er.async_get(hass)
+    for i, plattform in enumerate(plattformen):
+        reg.async_get_or_create("ai_task", plattform, f"id{i}", suggested_object_id=f"{plattform}_{i}")
+
+
+def _vorschlag(result):
+    for k in result["data_schema"].schema:
+        if str(k) == CONF_ONLINE_KI_ENTITAET:
+            return k.description["suggested_value"]
+    raise AssertionError("Feld fehlt")
+
+
+def _grund(einrichtung_daten, nas):
+    return {CONF_MEDIEN_PFAD: str(nas.medien), CONF_BOXEN: "box1, box2", CONF_UPLOAD_MAX_MIB: 500}
+
+
+@pytest.mark.parametrize(
+    ("plattformen", "erwartet"),
+    [
+        (("anthropic",), "ai_task.anthropic_0"),  # genau eine Claude-Entität: Vorgabe
+        ((), None),  # keine
+        (("openai_conversation",), None),  # nur fremde Anbieter
+        (("anthropic", "anthropic"), None),  # zwei: nicht raten
+        (("anthropic", "openai_conversation"), "ai_task.anthropic_0"),  # fremde zählen nicht mit
+    ],
+)
+async def test_optionen_ki_vorgabe(hass, nas, einrichtung_daten, plattformen, erwartet):
+    _ki_entitaeten(hass, *plattformen)
+    entry = MockConfigEntry(domain=DOMAIN, data=einrichtung_daten, unique_id=DOMAIN)
+    entry.add_to_hass(hass)
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    assert _vorschlag(result) == erwartet
+
+
+async def test_optionen_ki_leer_setzen_und_wert_bleibt(hass, nas, einrichtung_daten):
+    _ki_entitaeten(hass, "anthropic")
+    entry = MockConfigEntry(domain=DOMAIN, data=einrichtung_daten, unique_id=DOMAIN)
+    entry.add_to_hass(hass)
+    grund = _grund(einrichtung_daten, nas)
+
+    # Feld leer abgeschickt (so tut es das Frontend beim Leeren): gespeichert als "", die Vorgabe kommt nicht zurück
+    result, r = await _optionen(hass, entry, grund)
+    assert _vorschlag(result) == "ai_task.anthropic_0"
+    assert r["type"] is FlowResultType.CREATE_ENTRY and r["data"][CONF_ONLINE_KI_ENTITAET] == ""
+    assert r["data"][CONF_BOXEN] == ["box1", "box2"]  # bestehende Optionen bleiben
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    assert not _vorschlag(result)
+
+    # Wert setzen; beim erneuten Öffnen steht er wieder da
+    r = await hass.config_entries.options.async_configure(result["flow_id"], {**grund, CONF_ONLINE_KI_ENTITAET: "ai_task.anthropic_0"})
+    assert r["type"] is FlowResultType.CREATE_ENTRY and r["data"][CONF_ONLINE_KI_ENTITAET] == "ai_task.anthropic_0"
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    assert _vorschlag(result) == "ai_task.anthropic_0"
+
+    # Ungültiger Wert (keine ai_task-Entität) wird schon von der Auswahl abgelehnt
+    with pytest.raises(InvalidData):
+        await hass.config_entries.options.async_configure(result["flow_id"], {**grund, CONF_ONLINE_KI_ENTITAET: "sensor.x"})
+
+
+async def test_ki_ohne_vorgabe_bleibt_der_eintrag_unveraendert(hass, nas, einrichtung_daten):
+    entry = MockConfigEntry(domain=DOMAIN, data=einrichtung_daten, unique_id=DOMAIN)
+    entry.add_to_hass(hass)
+    _, r = await _optionen(hass, entry, _grund(einrichtung_daten, nas))
+    assert CONF_ONLINE_KI_ENTITAET not in r["data"]
+
+
+async def test_einrichtung_uebernimmt_die_claude_entitaet(hass, nas):
+    _ki_entitaeten(hass, "anthropic")
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
+    r = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_MEDIEN_PFAD: str(nas.medien), CONF_BOXEN: "box1, box2", CONF_UPLOAD_MAX_MIB: 500}
+    )
+    assert r["type"] is FlowResultType.CREATE_ENTRY and r["data"][CONF_ONLINE_KI_ENTITAET] == "ai_task.anthropic_0"

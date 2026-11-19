@@ -34,13 +34,15 @@
           "medien_pfad": "Pfad zum Ordner „medien“",
           "boxen": "Boxen (Namen, durch Komma getrennt)",
           "upload_max_mib": "Größte Datei beim Upload (MiB)",
-          "box_anzeigen": "Namen der Boxen"
+          "box_anzeigen": "Namen der Boxen",
+          "online_ki_entitaet": "KI-Entität für die Online-Suche (Claude)"
         },
         "data_description": {
           "medien_pfad": "Der Ordner „medien“ der NAS-Freigabe, wie er in Home Assistant eingebunden ist. „eingang“, „export“ und „releases“ liegen daneben.",
           "boxen": "Die Box-Namen wie in tobibox.toml, z. B. box1, box2.",
           "upload_max_mib": "Größere Dateien lehnt der Upload ab (Vorgabe 2048).",
-          "box_anzeigen": "So heißen die Boxen auf der Seite, zum Beispiel: box1=Box 1, box2=Box 2. Vor dem Gleichheitszeichen steht der Box-Name von oben, danach der ganze Name (bis 40 Zeichen). Leer lassen: dann gilt der Name, den die Box selbst meldet, sonst der Box-Name."
+          "box_anzeigen": "So heißen die Boxen auf der Seite, zum Beispiel: box1=Box 1, box2=Box 2. Vor dem Gleichheitszeichen steht der Box-Name von oben, danach der ganze Name (bis 40 Zeichen). Leer lassen: dann gilt der Name, den die Box selbst meldet, sonst der Box-Name.",
+          "online_ki_entitaet": "Für Einträge, bei denen die Online-Suche etwas prüfen will, schlägt diese KI-Entität einen Seriennamen oder das Zusammenführen vor. Nichts wird automatisch übernommen. Leer lassen: dann ist dieser Schritt aus und die Suche nutzt nur ihre festen Regeln. Gesendet wird an den Anbieter der Entität (bei Claude: Anthropic): der Serienname, der Ordnername, Folgentitel, die Zahl der Tracks, die Gründe der Prüfung und die Kandidaten der Online-Quellen. Keine Namen von Tobies, keine Benutzer, keine Kennungen, keine Audiodateien. Das gilt auch, wenn jemand mit einem Alltag-Konto eine Datei hochlädt."
         }
       }
     },
@@ -48,7 +50,8 @@
       "medien_pfad_fehlt": "Diesen Ordner gibt es nicht.",
       "boxen_ungueltig": "Box-Namen: Kleinbuchstaben, Ziffern, _ und -, 2 bis 24 Zeichen, ohne Doppelte.",
       "upload_ungueltig": "Bitte eine Zahl von 1 bis 100000 eingeben.",
-      "box_anzeigen_ungueltig": "So geht es: box1=Box 1, box2=Box 2. Vor dem Gleichheitszeichen steht ein Box-Name von oben, danach der Name (bis 40 Zeichen); mehrere durch Komma trennen, keiner doppelt."
+      "box_anzeigen_ungueltig": "So geht es: box1=Box 1, box2=Box 2. Vor dem Gleichheitszeichen steht ein Box-Name von oben, danach der Name (bis 40 Zeichen); mehrere durch Komma trennen, keiner doppelt.",
+      "ki_entitaet_ungueltig": "Bitte eine KI-Entität („ai_task“) wählen oder das Feld leer lassen."
     }
   },
   "exceptions": {
@@ -345,6 +348,24 @@
     },
     "wer_ungueltig": {
       "message": "Diese Auswahl gibt es nicht. Bitte wähle die Box oder die Person noch einmal aus."
+    },
+    "treffer_abgelaufen": {
+      "message": "Die Suche ist zu alt. Such bitte noch einmal."
+    },
+    "vorschlag_nicht_gefunden": {
+      "message": "Diesen Vorschlag gibt es nicht mehr. Bitte lade die Ansicht neu."
+    },
+    "aenderung_nicht_gefunden": {
+      "message": "Diese Änderung gibt es nicht mehr. Nach 30 Tagen lässt sie sich nicht mehr zurücknehmen."
+    },
+    "lauf_nicht_gefunden": {
+      "message": "Diesen Lauf gibt es nicht mehr."
+    },
+    "lauf_laeuft_schon": {
+      "message": "Es läuft schon eine Suche über die ganze Bibliothek. Bitte warte, bis sie fertig ist."
+    },
+    "online_nicht_erreichbar": {
+      "message": "Online-Suche gerade nicht erreichbar, später noch einmal."
     },
     "zu_viele_aenderungen": {
       "message": "Das waren gerade sehr viele Änderungen. Bitte kurz warten und dann noch einmal versuchen."

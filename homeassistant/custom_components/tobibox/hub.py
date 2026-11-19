@@ -45,6 +45,7 @@ from .const import (
     GEHOERT_EREIGNIS_BUENDEL_S,
     HOERKOPIE_KBIT,
     LIMIT_MAX,
+    NUR_ADMIN_THEMEN,
     ORDNER_EINGANG,
     ORDNER_EXPORT,
     ORDNER_HOERKOPIEN,
@@ -78,6 +79,7 @@ from .lernmodus import Lernmodus
 from .medieninfo import MedienInfo
 from .media import Medien, name_pruefen
 from .mqtt import MqttSchicht
+from .online import OnlineDienst
 from .reinhoeren import Reinhoeren
 from .schutz import Nutzer, Schutz, ist_admin
 from .warteschlange import Warteschlange
@@ -156,6 +158,8 @@ class Abo:
     msg_id: int
     themen: set[str]
     nutzer_id: str | None
+    #: Rolle zum Zeitpunkt des Abos (Vertrag W, 4.11): Das Thema ``online`` geht nur an Administratoren. Vorgabe: kein Administrator.
+    ist_admin: bool = False
 
 
 class _Sicher(dict):
@@ -194,6 +198,7 @@ class Hub:
         self.gehoert = Gehoert(self)
         self.reinhoeren = Reinhoeren(self)
         self.favoriten = Favoriten(self)
+        self.online = OnlineDienst(self)  # Online-Suche (Design online-suche.md); vor ``Medien``: ``media.py`` ruft ihn
         self.medien = Medien(self)
         self.eingang = Eingang(self)
         self.mqtt = MqttSchicht(self)
@@ -229,6 +234,7 @@ class Hub:
         await self.medieninfo.async_laden()
         await self.hoerstellen.async_laden()
         await self.favoriten.async_laden()
+        await self.online.async_laden()
         await self.gehoert.async_start()  # öffnet ``gehoert.sqlite``; ohne Datei startet „Gehört“ ohne die Fähigkeit (vor MQTT: der Handshake braucht sie)
         self.reinhoeren.start()
         # HA fährt herunter: Reinhör-Sitzungen als ``dienst_ende`` schließen und die Datenbank schließen, solange der Executor noch läuft.
@@ -275,6 +281,7 @@ class Hub:
         self.cover.abbrechen()
         self.dauer.abbrechen()
         self.hoerkopie.abbrechen()
+        await self.online.async_stop()
         for t in (self._start_task, self._export_task):
             if t is not None and not t.done():
                 t.cancel()
@@ -298,6 +305,7 @@ class Hub:
             await self.eingang.speichern_sofort()
             await self.medieninfo.async_speichern()
             await self.hoerstellen.async_speichern()
+            await self.online.async_speichern()
 
     async def _timer_papierkorb(self, _now: Any) -> None:
         """Einmal am Tag: Papierkorb-Einträge nach ``PAPIERKORB_TAGE`` Tagen endgültig löschen (BB1). Fehler fällt den Lauf aus."""
@@ -364,6 +372,8 @@ class Hub:
     def emit(self, thema: str, art: str, daten: dict[str, Any] | None = None, *, nutzer_id: str | None = None) -> None:
         """Sendet ein Ereignis an alle Abos, die das Thema abonniert haben (bei ``nutzer_id`` nur dessen Abos)."""
         for abo in list(self.abos):
+            if thema in NUR_ADMIN_THEMEN and not abo.ist_admin:
+                continue  # Thema ``online``: nur Administratoren (Vertrag W, 4.11)
             if thema in abo.themen and (nutzer_id is None or abo.nutzer_id == nutzer_id):
                 self._sende(abo, thema, art, daten or {})
 
@@ -400,6 +410,8 @@ class Hub:
             return {"konfig": self.konfig_stand()}
         if thema == "warteschlange":
             return {"gesamt": len(self.store.warteschlange)}
+        if thema == "online":
+            return self.online.status()
         return {}
 
     def box_geaendert(self, box: str) -> None:
@@ -620,6 +632,10 @@ class Hub:
             await self._timer_pruefung(None)
         self.cover.nachholen_beim_start()  # einmal, im Hintergrund, nur Einträge ohne Marke (Vertrag W, 14.3)
         self.dauer.nachholen_beim_start()  # einmal, im Hintergrund, nur Folgen mit unvollständigem Eintrag (Dauer, Kapitel, Codecs; Vertrag W, 14.7)
+        try:
+            await self.online.beim_start()  # offene Änderungen klären, Verwaistes wegräumen, Läufe als „abgebrochen“ schließen (Design 6.3, 7.3)
+        except Exception:
+            _LOGGER.exception("Online-Suche: Aufräumen beim Start fehlgeschlagen")
         self.hoerkopie.beim_start()  # ``*.part`` löschen, Verwaistes wegräumen (nur nach gelungener Prüfung; Vertrag W, 14.8)
         with contextlib.suppress(Exception):
             await self.hoerstellen.bereinige_beim_start()  # unbekannte Benutzer, gelöschte Serien und Folgen (Vertrag W, 14.6)

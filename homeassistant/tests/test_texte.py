@@ -60,9 +60,20 @@ def test_dienste_in_yaml_und_strings_stimmen_ueberein():
         assert text_dienste[name]["name"] and text_dienste[name]["description"]
 
 
+#: Verbotene Modellnamen; ``claude`` und ``anthropic`` sind erlaubt (Entscheidung T7: die Integration heißt so, der Vertrag braucht den Bezeichner)
+MODELLNAMEN = r"\b(sonnet|haiku|fable)\b"
+
+
+def test_modellnamen_ausnahme_nur_claude_und_anthropic():
+    for erlaubt in ("claude", "Claude", "anthropic", "ai_task.claude_ai_task", "Marke claude"):
+        assert not re.search(MODELLNAMEN, erlaubt, re.IGNORECASE), erlaubt
+    for verboten in ("sonnet", "Haiku", "fable", "claude sonnet", "claude-haiku-4", "anthropic/sonnet"):
+        assert re.search(MODELLNAMEN, verboten, re.IGNORECASE), verboten
+
+
 def test_begriff_tobie_und_keine_modellnamen():
     alles = "\n".join(p.read_text(encoding="utf-8") for p in list(PAKET.glob("*.py")) + [PAKET / "strings.json", PAKET / "services.yaml"])
     texte = lade("strings.json")["exceptions"]
     for schluessel, wert in texte.items():
         assert "Tonie" not in wert["message"], schluessel  # Begriff F: Tonies und NFC-Karten heißen Tobies
-    assert not re.search(r"\b(claude|anthropic|sonnet|haiku)\b", alles, re.IGNORECASE)  # keine Modellnamen
+    assert not re.search(MODELLNAMEN, alles, re.IGNORECASE)  # keine Modellnamen (Ausnahme T7: ``claude`` und ``anthropic``)

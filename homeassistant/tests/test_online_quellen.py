@@ -1011,8 +1011,8 @@ async def test_tonie_liste_hoechstens_einmal_je_7_tage_mit_etag(tmp_path: Path) 
     assert len(t.session.aufrufe) == 2
     assert t.session.aufrufe[1][1]["headers"]["If-None-Match"] == '"v1"'
     assert t.liste.letztes_ergebnis == "unveraendert" and t.liste.anzahl == 43
-    assert t.liste.stand == t.uhr.t
-    assert json.loads(t.datei.read_text(encoding="utf-8"))["geladen"] == t.uhr.t  # Stand auch in der Datei
+    assert t.liste.stand == T0  # 304: der Inhalt ist derselbe, der Stand bleibt
+    assert json.loads(t.datei.read_text(encoding="utf-8"))["geladen"] == t.uhr.t  # Abgleich in der Datei
 
 
 async def test_tonie_liste_neustart_liest_datei_ohne_netz(tmp_path: Path) -> None:
@@ -1304,3 +1304,63 @@ def test_lese_version_aus_manifest() -> None:
 async def test_executor_standard_laeuft_in_einem_thread() -> None:
     haupt = threading.get_ident()
     assert await oq._executor_standard(threading.get_ident) != haupt  # noqa: SLF001
+
+
+# --- Stand der Tonie-Liste ändert sich nur mit dem Inhalt (Marken ``keiner``/``fehler`` hängen daran) ---
+
+
+async def test_tonie_stand_bei_304_gleich(tmp_path: Path) -> None:
+    t = Liste(tmp_path)
+    await t.liste.sicherstellen()
+    stand0 = t.liste.stand
+    t.uhr.t += 8 * 86400
+    t.antwort = Resp(status=304, headers={"ETag": '"v1"'})
+    await t.liste.sicherstellen()
+    assert t.liste.letztes_ergebnis == "unveraendert" and t.liste.stand == stand0
+    inhalt = json.loads(t.datei.read_text(encoding="utf-8"))
+    assert inhalt["stand"] == stand0 and inhalt["geladen"] == t.uhr.t  # Abgleich vermerkt, Stand bleibt
+
+
+async def test_tonie_stand_bei_200_gleicher_inhalt_gleich(tmp_path: Path) -> None:
+    t = Liste(tmp_path)
+    await t.liste.sicherstellen()
+    stand0 = t.liste.stand
+    t.uhr.t += 8 * 86400
+    t.antwort = Resp(body=fixture_bytes("tonies_auszug.json"), headers={"ETag": '"v2"'})  # neue ETag, gleicher Inhalt
+    await t.liste.sicherstellen()
+    assert t.liste.letztes_ergebnis == "neu" and t.liste.stand == stand0
+    assert json.loads(t.datei.read_text(encoding="utf-8"))["etag"] == '"v2"'
+
+
+async def test_tonie_stand_bei_200_neuer_inhalt_neu(tmp_path: Path) -> None:
+    t = Liste(tmp_path, Resp(body=liste_mit(100), headers={"ETag": '"v1"'}))
+    await t.liste.sicherstellen()
+    stand0 = t.liste.stand
+    t.uhr.t += 8 * 86400
+    t.antwort = Resp(body=liste_mit(110), headers={"ETag": '"v2"'})
+    await t.liste.sicherstellen()
+    assert t.liste.stand == t.uhr.t != stand0
+
+
+async def test_tonie_stand_ueberlebt_neustart(tmp_path: Path) -> None:
+    t = Liste(tmp_path)
+    await t.liste.sicherstellen()
+    stand0 = t.liste.stand
+    t.uhr.t += 8 * 86400
+    t.antwort = Resp(status=304)
+    await t.liste.sicherstellen()
+    neu = t.neue_liste()  # wie nach einem Neustart von HA
+    t.uhr.t += 86400
+    await neu.sicherstellen()
+    assert neu.stand == stand0 and len(t.session.aufrufe) == 2  # kein neuer Abruf (Abgleich vor 1 Tag)
+
+
+async def test_tonie_stand_alte_datei_ohne_stand(tmp_path: Path) -> None:
+    t = Liste(tmp_path)
+    await t.liste.sicherstellen()
+    inhalt = json.loads(t.datei.read_text(encoding="utf-8"))
+    del inhalt["stand"]
+    t.datei.write_text(json.dumps(inhalt), encoding="utf-8")
+    neu = t.neue_liste()
+    await neu.sicherstellen()
+    assert neu.stand == inhalt["geladen"]

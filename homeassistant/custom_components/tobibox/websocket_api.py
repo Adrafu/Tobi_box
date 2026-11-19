@@ -25,6 +25,7 @@ from .const import (
     DOMAIN,
     EREIGNIS_THEMEN,
     FILTER_WERTE,
+    FILTER_WERTE_SERIEN,
     FOLGEN_LIMIT_MAX,
     FOLGEN_LIMIT_VORGABE,
     FAVORITEN_JE_MINUTE,
@@ -36,6 +37,7 @@ from .const import (
     HOERSTELLE_LISTE_LIMIT_VORGABE,
     HOERSTELLE_SCHREIBEN_JE_MINUTE,
     KONFIG_STAENDE_ANZAHL,
+    NUR_ADMIN_THEMEN,
     RE_ANFRAGE_ID,
     SERIEN_LIMIT_MAX,
     SERIEN_SORTIERUNGEN,
@@ -117,6 +119,8 @@ def _suchtext(x: Any) -> str:
 ART = {vol.Optional("art"): vol.In(ARTEN)}
 SUCHE = {vol.Optional("text"): _suchtext}
 FILTER = {vol.Optional("filter"): vol.All([vol.In(FILTER_WERTE)])}
+#: ``serien/list`` kennt dazu ``online_vorschlag`` (nur Administratoren: sonst ``unauthorized``, 14.2); ``folgen/list`` nicht
+FILTER_SERIEN = {vol.Optional("filter"): vol.All([vol.In(FILTER_WERTE_SERIEN)])}
 OFFSET = {vol.Optional("offset"): _ganz(0, 10_000_000)}
 
 ANFRAGE_ID = {vol.Optional("anfrage_id"): vol.All(_text, vol.Match(RE_ANFRAGE_ID.pattern))}
@@ -213,9 +217,13 @@ def ws_subscribe(hass: HomeAssistant, connection: Any, msg: dict[str, Any]) -> N
     except TobiboxFehler:
         connection.send_error(msg["id"], "unknown_error", "Tobi Box ist nicht geladen")
         return
+    ist_admin = bool(connection.user and connection.user.is_admin)
     # Vorgabe: alle Themen, die das Backend zusagt (``gehoert`` nur mit offener Datenbank, ``favoriten`` immer)
-    themen = set(msg.get("themen") or (t for t in EREIGNIS_THEMEN if t != "gehoert" or hub.gehoert.verfuegbar))
-    abo = Abo(connection, msg["id"], themen, connection.user.id if connection.user else None)
+    genannt = msg.get("themen")
+    themen = set(genannt) if genannt else {t for t in EREIGNIS_THEMEN if t != "gehoert" or hub.gehoert.verfuegbar}
+    if not ist_admin:
+        themen -= NUR_ADMIN_THEMEN  # erst auflösen, dann streichen (Vertrag W, 4.11): ``["online"]`` wird leer, nicht „alle“; kein Fehler, kein Snapshot
+    abo = Abo(connection, msg["id"], themen, connection.user.id if connection.user else None, ist_admin=ist_admin)
     entfernen = hub.abo_hinzu(abo)
     connection.subscriptions[msg["id"]] = entfernen
     connection.send_result(msg["id"])
@@ -238,7 +246,7 @@ _HANDLER.append(ws_subscribe)
         **ART,
         **SUCHE,
         vol.Optional("auch_folgen"): _wahrheit,
-        **FILTER,
+        **FILTER_SERIEN,
         vol.Optional("sortierung"): vol.In(SERIEN_SORTIERUNGEN),
         vol.Optional("limit"): _ganz(1, SERIEN_LIMIT_MAX),
         **OFFSET,
@@ -255,12 +263,14 @@ async def ws_serien_list(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
         limit=msg.get("limit"),
         offset=msg.get("offset", 0),
         nutzer_id=_nutzer(connection).id,
+        ist_admin=_nutzer(connection).ist_admin,
     )
 
 
 @befehl("serie/get", {**SERIE_ID}, recht="lesen")
 async def ws_serie_get(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
-    return await hub.medien.serie_holen(msg["serie_id"], _nutzer(connection).id)
+    nutzer = _nutzer(connection)
+    return await hub.medien.serie_holen(msg["serie_id"], nutzer.id, nutzer.ist_admin)
 
 
 @befehl("serie/create", {vol.Required("name"): _text, vol.Optional("typ"): vol.In(["normal", "ueberraschung"]), **ANFRAGE_ID}, recht="admin")
@@ -817,7 +827,7 @@ async def ws_gehoert_zusammenfassung(hub: Hub, connection: Any, msg: dict[str, A
 @befehl("gehoert/zuletzt", {vol.Optional("wer"): _text, vol.Optional("limit"): _ganz(1, GEHOERT_ZULETZT_LIMIT_MAX)}, recht="lesen")
 async def ws_gehoert_zuletzt(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
     """Nr. 51: die Reihe „Zuletzt auf den Boxen gehört“ (ein Eintrag je Serie)."""
-    return await hub.gehoert.abfrage.zuletzt(msg.get("wer", "alle_boxen"), msg.get("limit", GEHOERT_ZULETZT_LIMIT_VORGABE), _nutzer(connection).id)
+    return await hub.gehoert.abfrage.zuletzt(msg.get("wer", "alle_boxen"), msg.get("limit", GEHOERT_ZULETZT_LIMIT_VORGABE), _nutzer(connection).id, _nutzer(connection).ist_admin)
 
 
 @befehl("technik/verlauf", {vol.Required("box"): _text, vol.Required("von"): _text, vol.Required("bis"): _text}, recht="admin")
@@ -862,6 +872,104 @@ async def ws_favorit_set(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
 async def ws_favoriten_list(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
     """Nr. 56: alle Sterne der Familie, neueste zuerst (Einträge ohne Serie oder Folge fehlen)."""
     return {"eintraege": await hub.favoriten.liste_fuer_seite()}
+
+
+# --------------------------------------------------------------------------
+# 57 bis 64: Online-Suche (Fähigkeit ``online_suche``, Vertrag W, 3.15). Nur Nr. 64 ist für alle, alle anderen admin.
+# --------------------------------------------------------------------------
+
+
+@befehl(
+    "online/suchen",
+    {**SERIE_ID, vol.Optional("folge"): _text, vol.Optional("text"): _suchtext},
+    recht="admin",
+)
+async def ws_online_suchen(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
+    """Nr. 57: Suche von Hand bei Apple und in der Tonie-Liste (höchstens 10 Treffer, Netz)."""
+    await hub.medien._stelle_geprueft_sicher()
+    return await hub.online.suchen(msg["serie_id"], msg.get("folge"), msg.get("text"))
+
+
+@befehl(
+    "online/treffer",
+    {vol.Optional("treffer_id"): _text, vol.Optional("serie_id"): _text, vol.Optional("vorschlag_id"): _text},
+    recht="admin",
+)
+async def ws_online_treffer(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
+    """Nr. 58: „heute“ und „neu“ je Feld; eine Quelle (``treffer_id`` oder ``serie_id`` + ``vorschlag_id``, sonst ``invalid_format``)."""
+    await hub.medien._stelle_geprueft_sicher()
+    return await hub.online.treffer(msg.get("treffer_id"), msg.get("serie_id"), msg.get("vorschlag_id"))
+
+
+@befehl(
+    "online/uebernehmen",
+    {
+        **SERIE_ID,
+        vol.Optional("treffer_id"): _text,
+        vol.Optional("vorschlag_id"): _text,
+        vol.Required("felder"): vol.All([_text], vol.Length(min=1)),
+        **STAND,
+        **ANFRAGE_ID,
+    },
+    recht="admin",
+)
+async def ws_online_uebernehmen(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
+    """Nr. 59: schreibt die gewählten Felder als eine Änderung von Hand. Werte kommen nie aus der Eingabe."""
+    await hub.medien._stelle_geprueft_sicher()
+    info = hub.medien.finde(msg["serie_id"])
+    if len(msg["felder"]) > len(info.serie.folgen) * 4 + 3:  # Vertrag W, Nr. 59: höchstens Zahl der Folgen × 4 + 3
+        raise TobiboxFehler("invalid_format")
+
+    async def tu() -> Any:
+        return await hub.online.uebernehmen(
+            msg["serie_id"],
+            msg["felder"],
+            treffer_id=msg.get("treffer_id"),
+            vorschlag_id=msg.get("vorschlag_id"),
+            stand=msg.get("stand"),
+            nutzer_id=_nutzer(connection).id,
+        )
+
+    return await hub.mit_anfrage_id(msg.get("anfrage_id"), "online/uebernehmen", _felder(msg), tu)
+
+
+@befehl(
+    "online/zuruecknehmen",
+    {vol.Optional("serie_id"): _text, vol.Optional("aenderung_id"): _text, vol.Optional("lauf_id"): _text},
+    recht="admin",
+)
+async def ws_online_zuruecknehmen(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
+    """Nr. 60: nimmt eine Änderung, alle eines Eintrags oder alle eines Laufs zurück (genau eine der drei Formen)."""
+    await hub.medien._stelle_geprueft_sicher()
+    return await hub.online.zuruecknehmen(msg.get("serie_id"), msg.get("aenderung_id"), msg.get("lauf_id"))
+
+
+@befehl("online/vorschlag_verwerfen", {**SERIE_ID, vol.Required("vorschlag_id"): _text}, recht="admin")
+async def ws_online_vorschlag_verwerfen(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
+    """Nr. 61: „Nein“ zu einem Vorschlag, dauerhaft."""
+    await hub.medien._stelle_geprueft_sicher()
+    return await hub.online.vorschlag_verwerfen(msg["serie_id"], msg["vorschlag_id"])
+
+
+@befehl("online/lauf", {vol.Required("aktion"): vol.In(["start", "stop"])}, recht="admin")
+async def ws_online_lauf(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
+    """Nr. 62: startet den Lauf über die Bibliothek oder hält ihn nach der aktuellen Serie an."""
+    if msg["aktion"] == "start":
+        return await hub.online.lauf_starten()
+    return await hub.online.lauf_stoppen()
+
+
+@befehl("online/status", recht="admin")
+async def ws_online_status(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
+    """Nr. 63: Lauf, Quellen, Tonie-Liste und letzte Läufe aus dem Arbeitsspeicher (ohne Netz)."""
+    return hub.online.status()
+
+
+@befehl("online/beschreibung", {**SERIE_ID, vol.Required("folge"): _text}, recht="lesen")
+async def ws_online_beschreibung(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
+    """Nr. 64: der volle Beschreibungstext einer Folge, aus dem Speicher von HA (für jeden angemeldeten Benutzer)."""
+    await hub.medien._stelle_geprueft_sicher()
+    return await hub.online.beschreibung(msg["serie_id"], msg["folge"])
 
 
 # --------------------------------------------------------------------------

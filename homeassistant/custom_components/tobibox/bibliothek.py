@@ -253,6 +253,7 @@ class Bibliothek:
         favoriten: set[tuple[str, str | None]] | None = None,
         zuletzt_gehoert: dict[str, int] | None = None,
         meist_gehoert: dict[str, int] | None = None,
+        online_vorschlag: set[str] | None = None,
     ) -> tuple[list[SerieInfo], int, bool, dict[str, int]]:
         """``(Einträge dieser Seite, gesamt nach Filter, weitere, Tobie-Zähler)``.
 
@@ -261,7 +262,9 @@ class Bibliothek:
 
         Stufe B: ``favoriten`` (``(serie_id, folge)`` der Sterne) gehört zum Filter ``favorit`` (nur Einträge mit Stern an der Serie als Ganzes);
         ``zuletzt_gehoert`` (Serien-ID -> ``ende_um`` der letzten Sitzung an einer Box) und ``meist_gehoert`` (Serien-ID -> Hörzeit der letzten 365 Tage, alle
-        Quellen) gehören zu den gleichnamigen Sortierungen: absteigend, Gleichstand und alles ohne Wert nach Name am Ende."""
+        Quellen) gehören zu den gleichnamigen Sortierungen: absteigend, Gleichstand und alles ohne Wert nach Name am Ende.
+
+        Online-Suche: ``online_vorschlag`` (Serien-IDs mit mindestens einem offenen, gültigen Vorschlag) gehört zum Filter ``online_vorschlag``."""
         filter_ = filter_ or []
         worte = suchworte(text) if text else []
         zaehler = self.tobie_zaehler()
@@ -281,6 +284,8 @@ class Bibliothek:
             if "pruefen" in filter_ and not z.pruefen:
                 continue
             if "favorit" in filter_ and (z.info.serie.id, None) not in (favoriten or ()):
+                continue
+            if "online_vorschlag" in filter_ and z.info.serie.id not in (online_vorschlag or ()):
                 continue
             if worte and not (passt(worte, z.heu) or (auch_folgen and any(passt(worte, f.heu) for f in z.folgen))):
                 continue

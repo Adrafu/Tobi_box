@@ -327,6 +327,38 @@ def schnelle_zeiten(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(eingang_modul, "EINGANG_STILLE_S", 0)
 
 
+class _KeinNetz:
+    """Attrappe der HTTP-Sitzung: jeder Abruf scheitert sofort wie ein Verbindungsfehler (Design 8.4: kein echtes Netz in den Tests)."""
+
+    def get(self, *_a: Any, **_k: Any) -> Any:
+        import aiohttp
+
+        class _Kontext:
+            async def __aenter__(self) -> Any:
+                raise aiohttp.ClientConnectionError("kein Netz im Test")
+
+            async def __aexit__(self, *_x: Any) -> None:
+                return None
+
+        return _Kontext()
+
+
+@pytest.fixture(autouse=True)
+def online_ohne_netz(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Die Online-Suche (OS3) hat in den Tests nie Netz: Beim Einsortieren scheitern alle Quellen sofort, der Eintrag bleibt, wie er ist (O9).
+    Tests der Online-Suche setzen eigene Quellen ein (``test_online_dienst.py``)."""
+    from custom_components.tobibox import online as online_modul
+    from custom_components.tobibox.online_quellen import OnlineQuellen
+
+    if not hasattr(online_modul, "_BAUE_QUELLEN_ORIGINAL"):
+        online_modul._BAUE_QUELLEN_ORIGINAL = online_modul.OnlineDienst._baue_quellen  # für den Test der echten Methode
+
+    async def baue(self: Any) -> Any:
+        return OnlineQuellen(_KeinNetz(), version="test", zeit=self._zeit)
+
+    monkeypatch.setattr(online_modul.OnlineDienst, "_baue_quellen", baue)
+
+
 @pytest.fixture(autouse=True)
 def viel_freier_platz(monkeypatch: pytest.MonkeyPatch) -> None:
     """Die Upload-Tests hängen nicht vom freien Platz der CI-Platte ab: standardmäßig 100 GiB frei.

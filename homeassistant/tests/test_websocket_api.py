@@ -96,6 +96,7 @@ async def test_hello(api, api_lesend, integration):
         "zuordnung_rueckgaengig",  # 13.11., Paket A9c: ``als_neu`` bei ``zuordnung/remove``
         "reinhoeren",  # 14.11., Paket A4c: Audio-Ansicht, Befehle 39 bis 42, Sortierung ``angehoert``
         "favoriten",  # 17.11., Paket B3: Befehle 55 und 56
+        "online_suche",  # 19.11., Paket OS3: Befehle 57 bis 64, Thema ``online``
         "gehoert",  # 17.11., Paket B3: nur, wenn ``gehoert.sqlite`` offen ist
         "hoerkopie",  # 16.11., Paket A3c: nur, wenn ``ffmpeg`` da ist (die Tests brauchen es)
     ]
@@ -248,7 +249,7 @@ async def test_serien_list_und_serie_get(hass, api, nas, integration):
     assert r["pruefung_laeuft"] is False and r["geprueft_am"]
     rabe = next(s for s in r["serien"] if s["id"] == "rabe")
     assert rabe.keys() == {"id", "name", "typ", "ordner", "anzahl_folgen", "anzahl_tobies", "angelegt_am", "stand", "pruefen", "anzahl_pruefen", "hinweise",
-                           "art", "art_quelle", "einzeln", "cover_stand", "cover_quelle", "dauer_s", "kapitel_anzahl", "favorit", "zuletzt_gehoert_am"}  # seit 12.11. (Pakete A3, A4, A3b, A3b3), seit 17.11. B3
+                           "art", "art_quelle", "einzeln", "cover_stand", "cover_quelle", "dauer_s", "kapitel_anzahl", "favorit", "zuletzt_gehoert_am", "online", "online_vorschlaege"}  # seit 12.11. (Pakete A3, A4, A3b, A3b3), seit 17.11. B3, seit 19.11. OS3
     assert (rabe["anzahl_folgen"], rabe["typ"], rabe["ordner"], rabe["pruefen"], rabe["anzahl_pruefen"]) == (2, "normal", "rabe", False, 0)
     assert (rabe["art"], rabe["art_quelle"], rabe["einzeln"]) == ("hoerspiel", "geraten", False)  # alte serie.json ohne art
     assert (r["gesamt"], r["weitere"]) == (3, False)

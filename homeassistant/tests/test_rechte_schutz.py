@@ -149,14 +149,14 @@ TABELLE = [
     (54, "gehoert/loeschen", "admin", {"quelle": "boxen", "trocken": True}, None, True),
     (55, "favorit/set", "alltag", {"serie_id": "rabe", "an": True}, None, True),
     (56, "favoriten/list", "lesen", {}, None, True),
-    (57, "online/suchen", "admin", {"serie_id": "rabe", "text": "Rabe"}, None, False),
-    (58, "online/treffer", "admin", {"treffer_id": "0123456789abcdef"}, None, False),
-    (59, "online/uebernehmen", "admin", {"serie_id": "rabe", "treffer_id": "0123456789abcdef", "felder": ["serie_name"]}, None, False),
-    (60, "online/zuruecknehmen", "admin", {"serie_id": "rabe"}, None, False),
-    (61, "online/vorschlag_verwerfen", "admin", {"serie_id": "rabe", "vorschlag_id": "0123456789abcdef"}, None, False),
-    (62, "online/lauf", "admin", {"aktion": "start"}, None, False),
-    (63, "online/status", "admin", {}, None, False),
-    (64, "online/beschreibung", "lesen", {"serie_id": "rabe", "folge": "a.mp3"}, None, False),
+    (57, "online/suchen", "admin", {"serie_id": "rabe", "text": "Rabe"}, "online_nicht_erreichbar", True),
+    (58, "online/treffer", "admin", {"treffer_id": "0123456789abcdef"}, "treffer_abgelaufen", True),
+    (59, "online/uebernehmen", "admin", {"serie_id": "rabe", "treffer_id": "0123456789abcdef", "felder": ["art"]}, "treffer_abgelaufen", True),
+    (60, "online/zuruecknehmen", "admin", {"serie_id": "rabe"}, None, True),
+    (61, "online/vorschlag_verwerfen", "admin", {"serie_id": "rabe", "vorschlag_id": "0123456789abcdef"}, "vorschlag_nicht_gefunden", True),
+    (62, "online/lauf", "admin", {"aktion": "start"}, None, True),
+    (63, "online/status", "admin", {}, None, True),
+    (64, "online/beschreibung", "lesen", {"serie_id": "rabe", "folge": "a.mp3"}, None, True),
 ]
 IDS = [f"{z[0]:02d}-{z[1]}" for z in TABELLE]
 
@@ -207,7 +207,7 @@ async def test_tabelle_2_1_normal_benutzer(normal, nr, befehl, recht, felder, ad
 async def test_hello_sagt_nur_zu_was_gebaut_ist(admin, normal):
     for client in (admin, normal):
         f = (await ok(client, "hello", v=1))["faehigkeiten"]
-        assert f[-10:] == ["konfig_staende", "bibliothek", "einsortier_wunsch", "cover", "warteschlange", "zuordnung_rueckgaengig", "reinhoeren", "favoriten", "gehoert", "hoerkopie"]  # A1, A3, A3d, A4, A9c, A4c, B3 (``gehoert`` nur mit offener Datenbank), A3c (``hoerkopie`` nur mit ``ffmpeg``)
+        assert f[-11:] == ["konfig_staende", "bibliothek", "einsortier_wunsch", "cover", "warteschlange", "zuordnung_rueckgaengig", "reinhoeren", "favoriten", "online_suche", "gehoert", "hoerkopie"]  # A1, A3, A3d, A4, A9c, A4c, B3 (``gehoert`` nur mit offener Datenbank), A3c (``hoerkopie`` nur mit ``ffmpeg``)
     assert (await ok(admin, "hello", v=1))["darf_schreiben"] is True
     assert (await ok(normal, "hello", v=1))["darf_schreiben"] is False
 

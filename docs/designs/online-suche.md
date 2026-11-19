@@ -5,7 +5,8 @@ Annahme (`resolve.md` Runde 3). Entstehung, Reviews und Resolve: `docs/egm/onlin
 sind im Trockenlauf OS1 gemessen und von Tobias abgenommen (Anhang 4.A). Die Verträge (Abschnitt 9) hat Tobias am 18.11.
 freigegeben (OS0, „Ja, freigeben“); sie stehen in `docs/protocol/ha-websocket-v1.md` und `docs/data-model.md`.
 
-Stand 19.11., **Rev. 2.5** (Fragen aus OS2, T5 bis T7 von Tobias, `resolve.md` Runde 6: Vorrang der Tonie-Kategorie vor T4 in 4.7,
+Stand 19.11., **Rev. 2.6** (Entscheidung T8 von Tobias, `resolve.md` Runde 7: Marke `fehler` verfällt nach 1 Tag, 7.3).
+Rev. 2.5 (Fragen aus OS2, T5 bis T7 von Tobias, `resolve.md` Runde 6: Vorrang der Tonie-Kategorie vor T4 in 4.7,
 drei zusätzliche Eingabefelder an Claude in 3.4 und 8.3, Ausnahme im Test „keine Modellnamen“ in 3.4).
 Rev. 2.4 (Goldfisch OS0 über Design und Vertragsentwurf: `review_goldfisch_os0.md`, Befunde GO-1 bis GO-18, `resolve.md` Runde 5; Stellen mit „(GO-n)“ gekennzeichnet).
 Rev. 2.3 (Ergebnis des Trockenlaufs OS1: Entscheidungen R6, R7, T1 bis T3 von Tobias, `resolve.md`
@@ -505,7 +506,7 @@ also in jeder HA-Sicherung; nicht neu berechenbar, nicht gesynct.
 | `serien.<id>.schnapp` | `{"art"?, "folgen": {<f>: {"anzeige"?, "nummer"?}}}` (kein Name, 4.6; GO-8) | sofort |
 | `serien.<id>.hand` | `{"serie_name"?: true, "art"?: true, "cover"?: true, "folgen": {<f>: [<feld>…]}}` (Übernahme von Hand, 6.1); verfällt nie | sofort |
 | `serien.<id>.zurueckgenommen` | `{"serie_name"?: true, "art"?: true, "cover"?: true, "folgen": {<f>: [<feld>…]}}` (6.1, 6.4); verfällt nie | sofort |
-| `serien.<id>.marke` | `{"ergebnis": "geaendert"\|"vorschlag"\|"keiner"\|"fehler", "zeit", "folgen": [<f>…]}`; `keiner`/`fehler` verfallen nach 30 Tagen oder bei neuer Tonie-Liste | verzögert |
+| `serien.<id>.marke` | `{"ergebnis": "geaendert"\|"vorschlag"\|"keiner"\|"fehler", "zeit", "folgen": [<f>…]}`; `keiner` verfällt nach 30 Tagen oder bei neuer Tonie-Liste, `fehler` nach 1 Tag (T8) | verzögert |
 | `serien.<id>.marke.claude` | `{"ergebnis": "vorschlag"\|"behalten"\|"fehler"\|"aus", "zeit"}`: Marke des Claude-Schritts (3.4); `aus` verfällt, sobald die Option gesetzt ist, `fehler` nach 1 Tag; wird auch bei gültiger übriger Marke gebraucht (5.3; GO-2) | verzögert |
 | `serien.<id>.folgen.<f>` | `{"beschreibung", "alter_ab", "quelle", "tonie_model"?, "seite"?, "zeit"}`; `seite` = Pfad der Shopseite (`/de-de/tonies/<serie-slug>/<folge-slug>/`, kein freier Text); „von Hand gewählt“ steht nur in `hand` (GO-15) | verzögert |
 | `serien.<id>.aenderungen` | höchstens 20, höchstens 30 Tage: `{"id", "zeit", "wer": "auto"\|<HA-Benutzer-ID>, "lauf_id"?, "quelle", "status" (`offen`\|`fertig`\|`zurueckgenommen`), "felder": {<feld>[@<f>]: {"vorher", "nachher"}}, "pruefen_vorher", "schnapp_vorher", "cover_stand"?}` | sofort |

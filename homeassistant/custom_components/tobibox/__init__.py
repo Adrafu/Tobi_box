@@ -19,7 +19,7 @@ from homeassistant.loader import async_get_integration
 
 from . import audio, gehoert_export, testpanel, websocket_api
 from .const import CONF_UPLOAD_MAX_MIB, DOMAIN, TESTPANEL, UPLOAD_MAX_MIB_ALT, UPLOAD_MAX_MIB_VORGABE
-from .http import TobiboxCoverView, TobiboxStaticView, TobiboxUploadView
+from .http import TobiboxCoverView, TobiboxOnlineVorschauView, TobiboxStaticView, TobiboxUploadView
 from .hub import Hub
 from .services import async_setup_services
 
@@ -71,6 +71,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if not hass.data.get(_GEMERKT):
         hass.http.register_view(TobiboxUploadView())
         hass.http.register_view(TobiboxCoverView())
+        hass.http.register_view(TobiboxOnlineVorschauView())  # Online-Suche (Vertrag W, 3.15): Vorschau eines Treffers, nur Administratoren
         gehoert_export.async_register_views(hass)  # Stufe B: Abruf der Tabelle der Hördaten (Vertrag W, Nr. 53)
         audio.async_register_views(hass)  # Reinhören: Audio-Ansicht (Vertrag W, 14.5); der Befehl ``audio/bereit`` steht in ``websocket_api``
         if frontend_da:

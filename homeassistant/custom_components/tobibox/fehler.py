@@ -56,6 +56,12 @@ HTTP_STATUS: Final = {
     "warteschlange_doppelt": 409,
     "zu_viele_favoriten": 409,
     "wer_ungueltig": 400,
+    "treffer_abgelaufen": 410,
+    "vorschlag_nicht_gefunden": 404,
+    "aenderung_nicht_gefunden": 404,
+    "lauf_nicht_gefunden": 404,
+    "lauf_laeuft_schon": 409,
+    "online_nicht_erreichbar": 503,
 }
 
 

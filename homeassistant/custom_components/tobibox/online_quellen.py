@@ -875,14 +875,22 @@ def _tonie_datei_lesen(pfad: Path) -> dict[str, Any] | None:
     ):
         return None
     etag = daten.get("etag")
-    return {"eintraege": daten["eintraege"], "geladen": float(daten["geladen"]), "etag": etag if isinstance(etag, str) else None}
+    geladen = float(daten["geladen"])
+    stand = daten.get("stand")
+    return {
+        "eintraege": daten["eintraege"],
+        "geladen": geladen,
+        "etag": etag if isinstance(etag, str) else None,
+        # Ältere Dateien ohne ``stand``: der letzte Abgleich gilt als Stand
+        "stand": float(stand) if isinstance(stand, (int, float)) and not isinstance(stand, bool) else geladen,
+    }
 
 
-def _tonie_datei_schreiben(pfad: Path, eintraege: list[dict[str, Any]], geladen: float, etag: str | None) -> None:
+def _tonie_datei_schreiben(pfad: Path, eintraege: list[dict[str, Any]], geladen: float, etag: str | None, stand: float | None = None) -> None:
     """Atomar: erst in eine Nebendatei, dann ``replace``."""
     pfad.parent.mkdir(parents=True, exist_ok=True)
     tmp = pfad.with_name(pfad.name + ".tmp")
-    inhalt = {"version": TONIE_DATEI_VERSION, "geladen": geladen, "etag": etag, "eintraege": eintraege}
+    inhalt = {"version": TONIE_DATEI_VERSION, "geladen": geladen, "stand": geladen if stand is None else stand, "etag": etag, "eintraege": eintraege}
     tmp.write_text(json.dumps(inhalt, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     os.replace(tmp, pfad)
 
@@ -928,7 +936,7 @@ class TonieListe:
 
     @property
     def stand(self) -> float | None:
-        """Uhrzeit des letzten erfolgreichen Abgleichs mit der Quelle (neu oder 304)."""
+        """Uhrzeit, seit der der **Inhalt** der Liste so ist. Ändert sich nur bei wirklich anderem Inhalt (nicht bei 304, gleichem Inhalt oder neuer ETag)."""
         return self._stand
 
     async def sicherstellen(self, *, erzwingen: bool = False) -> bool:
@@ -942,8 +950,8 @@ class TonieListe:
                 self._von_platte = True
                 gelesen = await self._quellen.im_executor(_tonie_datei_lesen, self._datei)
                 if gelesen:
-                    self._eintraege, self._stand, self._etag = gelesen["eintraege"], gelesen["geladen"], gelesen["etag"]
-                    self._abgeglichen = self._stand
+                    self._eintraege, self._stand, self._etag = gelesen["eintraege"], gelesen["stand"], gelesen["etag"]
+                    self._abgeglichen = gelesen["geladen"]
             jetzt = self._zeit()
             if not erzwingen:
                 # Eine verworfene Liste zählt als der Abruf der Woche (sonst käme sie stündlich wieder, die ETag der alten Liste hilft nicht)
@@ -965,8 +973,7 @@ class TonieListe:
         antwort = await self._quellen.hole(TONIE_LISTE_URL, QUELLE_TONIE_LISTE, kopfzeilen=kopf)
         self._abgeglichen = jetzt
         if antwort.status == 304 and self._eintraege is not None:
-            self._stand = jetzt
-            await self._quellen.im_executor(_tonie_datei_schreiben, self._datei, self._eintraege, jetzt, self._etag)
+            await self._quellen.im_executor(_tonie_datei_schreiben, self._datei, self._eintraege, jetzt, self._etag, self._stand)
             self.letztes_ergebnis = "unveraendert"
             return
         try:
@@ -982,8 +989,10 @@ class TonieListe:
             self._verwerfen(f"Zahl {alt} auf {len(neu)} geändert")
             return
         etag = antwort.headers.get("etag")
-        await self._quellen.im_executor(_tonie_datei_schreiben, self._datei, neu, jetzt, etag)
-        self._eintraege, self._stand, self._etag = neu, jetzt, etag
+        # Neuer Stand nur bei anderem Inhalt: an ihm hängt das Verfallen der Marken (``keiner``/``fehler``)
+        stand = self._stand if neu == self._eintraege and self._stand is not None else jetzt
+        await self._quellen.im_executor(_tonie_datei_schreiben, self._datei, neu, jetzt, etag, stand)
+        self._eintraege, self._stand, self._etag = neu, stand, etag
         self.letztes_ergebnis = "neu"
         self.verworfen_grund = None
 
