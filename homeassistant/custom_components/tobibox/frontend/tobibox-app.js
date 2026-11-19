@@ -157,7 +157,7 @@ export function begruessung(datum = new Date()) {
 export const REITER = ['start', 'bibliothek', 'tobies', 'geraete'];
 const STILLE_KOEPFE = ['serie', 'tobie', 'neu', 'neu-warten', 'neu-ziel', 'neu-queue', 'geben']; // Seiten mit eigener großer Überschrift im Inhalt
 
-const TECHNIK_SUB = { boxen: 'technik_boxen', speicher: 'technik_speicher', liste: 'technik_liste', tobies: 'technik_tobies', meldungen: 'technik_meldungen', einstellungen: 'technik_einstellungen' };
+const TECHNIK_SUB = { boxen: 'technik_boxen', speicher: 'technik_speicher', online: 'technik_online', liste: 'technik_liste', tobies: 'technik_tobies', meldungen: 'technik_meldungen', einstellungen: 'technik_einstellungen' };
 
 /* Adresse (nach `#`) → { name, tab, id, sub, seite (Schlüssel in SEITE.seiten), zurueck, umleitung }.
  * `umleitung` ist die Adresse, auf die die Seite umgeschrieben wird (Design 3.2). `faehigkeiten`: hello.faehigkeiten,
@@ -268,7 +268,7 @@ export class AppStore {
       this.s.grenzen = hello.grenzen || {}; // upload_max_bytes, upload_parallel, endungen … (A11a: Hinzufügen)
       this.s.boxAnzeigen = { ...(hello.grenzen?.box_anzeigen || {}), ...(hello.box_anzeigen || {}) };
       this.s.konfigZustand = hello.konfig?.zustand || 'ok';
-      const themen = [...THEMEN, ...(fae.includes('eingang') ? ['eingang'] : []), ...(fae.includes('warteschlange') ? ['warteschlange'] : []), ...(fae.includes('gehoert') ? ['gehoert'] : []), ...(fae.includes('favoriten') ? ['favoriten'] : []), ...(this._korbBeobachten() ? ['medien'] : [])];
+      const themen = [...THEMEN, ...(fae.includes('eingang') ? ['eingang'] : []), ...(fae.includes('warteschlange') ? ['warteschlange'] : []), ...(fae.includes('gehoert') ? ['gehoert'] : []), ...(fae.includes('favoriten') ? ['favoriten'] : []), ...(this._onlineBeobachten() ? ['online'] : []), ...(this._korbBeobachten() ? ['medien'] : [])];
       this._abo = await this.hass.connection.subscribeMessage((ev) => this._ereignis(ev), { type: 'tobibox/subscribe', themen });
       if (lauf !== this._lauf) return;
       await this._ladeListen();
@@ -309,6 +309,8 @@ export class AppStore {
   /* Papierkorb-Punkt am Technik-Symbol (AC3, nur Administratoren): neue Einträge anderer Benutzer seit dem letzten Besuch von „Technik › Speicher“
    * auf diesem Gerät. Gelesen wird `papierkorb/list` (Vertrag W 3.3: `geloescht_von`, `geloescht_am`); neu geladen wird beim Start, nach dem
    * Wiederverbinden und bei jedem Ereignis `medien`/`papierkorb_geaendert`. Es gibt kein HA-Ereignis und keine HA-Mitteilung. */
+  /* Online-Suche (Vertrag W 4.11): das Thema `online` gibt es nur für Administratoren und nur mit der Fähigkeit `online_suche`; alle anderen abonnieren es nicht (HA streicht es sonst still). */
+  _onlineBeobachten() { return this.hass?.user?.is_admin === true && (this.s.faehigkeiten || []).includes('online_suche'); }
   _korbBeobachten() { return this.hass?.user?.is_admin === true && (this.s.faehigkeiten || []).includes('papierkorb'); }
 
   _korbLiesGesehen() {

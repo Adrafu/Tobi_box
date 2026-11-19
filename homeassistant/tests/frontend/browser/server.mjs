@@ -6,7 +6,11 @@
  * Läufe voneinander, damit sich ihre Änderungen (Umbenennen, neue Leise-Zeit) nicht stören. Kein Netz, keine festen Pfade.
  *
  * Profile (Teil vor `~`): admin, user (Alltag: schreiben ja, Technik nein), leer (leere Bibliothek), akku (Box mit schwachem Akku),
- * warn (Konfiguration „Export neuer“, Box mit Stand „voraus“), alt (ältere HA ohne die Fähigkeiten `gehoert` und `favoriten`: Stufe B fehlt ganz).
+ * warn (Konfiguration „Export neuer“, Box mit Stand „voraus“), alt (ältere HA ohne die Fähigkeiten `gehoert`, `favoriten` und `online_suche`: Stufe B und Online-Suche fehlen ganz).
+ *
+ * OS4 (Online-Suche): der Eintrag `onl` („Online Beispiel“) trägt die Zeile „Aus der Online-Suche übernommen“, ein Online-Cover, Folgen mit „ab 3“ und Beschreibung (eine gekürzt),
+ * drei Vorschläge (Apple, Claude mit Grund, Zusammenführen) und eine Änderung im Lauf `l-fertig`; Nr. 63 kennt drei letzte Läufe (fertig, abgebrochen ohne Grund, abgebrochen nach Neustart).
+ * `GET /api/tobibox/online/vorschau/<treffer_id>` antwortet mit einem Bild (Status wie im Mock: 403, 404, 410).
  *
  * A11a: `POST /api/tobibox/upload` (multipart, wie das Backend nach Vertrag 5 und 14.4, ohne die Dateien zu speichern) und `eingang/list` mit
  * Filter `alle`: Ein Upload legt nach kurzer Zeit einen Eingangs-Eintrag und das Ergebnis (Serie, Folgen) im Mock an. Marken im Dateinamen lösen
@@ -21,7 +25,7 @@ import { fileURLToPath } from 'node:url';
 
 const HIER = fileURLToPath(new URL('.', import.meta.url));
 const FRONT = resolve(HIER, '../../../custom_components/tobibox/frontend');
-const { createMockHass, FAEHIGKEITEN, FAEHIGKEITEN_V11, FAEHIGKEITEN_A9, FAEHIGKEITEN_B, mitStaenden, eingangEintrag, beispielGehoert } = await import(new URL('../mock-hass.mjs', import.meta.url));
+const { createMockHass, FAEHIGKEITEN, FAEHIGKEITEN_V11, FAEHIGKEITEN_A9, FAEHIGKEITEN_B, FAEHIGKEITEN_OS, mitStaenden, eingangEintrag, beispielGehoert } = await import(new URL('../mock-hass.mjs', import.meta.url));
 
 const folge = (name, anzeige, extra = {}) => ({ name, anzeige, nummer: null, datum: null, art: 'datei', tracks: 1, groesse_bytes: 5 * 1048576, pruefung: 'ok', hinweis: null, pruefen: false, pruefen_gruende: [], tobies: [], ...extra });
 
@@ -30,7 +34,7 @@ function bauen(schluessel) {
   const leer = profil === 'leer';
   const m = createMockHass({
     sigPraefix: `m${[...schluessel].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7)}`, // eigene Signaturen je Lauf: ein künstlicher Audio-Fehler trifft nur den Lauf, der ihn auslöst (der Server ist für alle parallelen Läufe derselbe)
-  faehigkeiten: [...new Set([...FAEHIGKEITEN, ...FAEHIGKEITEN_V11, ...FAEHIGKEITEN_A9, 'konfig_staende', 'hoerkopie', 'einsortier_wunsch', 'reinhoeren', ...(profil === 'alt' ? [] : FAEHIGKEITEN_B)])],
+  faehigkeiten: [...new Set([...FAEHIGKEITEN, ...FAEHIGKEITEN_V11, ...FAEHIGKEITEN_A9, 'konfig_staende', 'hoerkopie', 'einsortier_wunsch', 'reinhoeren', ...(profil === 'alt' ? [] : [...FAEHIGKEITEN_B, ...FAEHIGKEITEN_OS])])],
     viele: leer ? false : 130, leer, darf: true, istAdmin: profil !== 'user',
   });
   mitStaenden(m);
@@ -61,6 +65,26 @@ function bauen(schluessel) {
         folge('teil2.mp3', 'Teil 2', { nummer: 2, dauer_s: 40 })] };
     b.serien.ogg = { id: 'ogg', name: 'Das Lied vom Wald', typ: 'normal', ordner: 'Ogg', pruefen: false, hinweise: [], art: 'musik', dauer_s: 40, cover_stand: null,
       folgen: [folge('wald.ogg', 'Das Lied vom Wald', { nummer: 1, dauer_s: 40, hoerkopie: { zustand: 'nicht_angelegt' } }), folge('mond.mp3', 'Der Mond', { nummer: 2, dauer_s: 40, hoerkopie: { zustand: 'fehler', grund: 'unplausibel' } })] }; // AM27: Grund nur für Administratoren
+    // OS4: Online-Suche. `onl` hat die Hinweiszeile, ein Online-Cover, „ab 3“, Beschreibungen (eine über 300 Zeichen), Vorschläge und eine zurücknehmbare Änderung; `onlziel` ist das Ziel des Zusammenführen-Vorschlags
+    const lang = 'Es war einmal ein Drache. Er wohnte in einer Höhle am Berg. '.repeat(8).trim();
+    b.serien.onl = { id: 'onl', name: 'Online Beispiel', typ: 'normal', ordner: 'Onl', pruefen: false, hinweise: [], art: 'musik', art_quelle: 'online', cover_stand: 'o1o2o3o4', cover_quelle: 'online', cover_auto: 'aabb1122', angelegt_am: '2026-11-13T12:00:00Z',
+      online: { zeit: '2026-11-18T10:00:00Z', felder: ['cover', 'art'] },
+      folgen: [folge('o1.mp3', 'Der Anfang', { nummer: 1, alter_ab: 3, beschreibung: 'Ein kurzer Text zur ersten Folge.', beschreibung_quelle: 'tonies_shop' }),
+        folge('o2.mp3', 'Die lange Beschreibung', { nummer: 2, alter_ab: 6, beschreibung_voll: lang, beschreibung_quelle: 'itunes' }), folge('o3.mp3', 'Ohne Angaben', { nummer: 3 })] };
+    b.online.aenderungen.push({ id: 'a1', serie_id: 'onl', lauf_id: 'l-fertig', felder: ['art'], vorher: { art: 'hoerspiel' }, nachher: { art: 'musik' }, zeit: '2026-11-18T10:00:00Z', status: 'fertig' });
+    b.online.vorschlaege.onl = [
+      { id: 'v-apple', art: 'felder', quelle: 'itunes', felder: ['cover', 'nummer@o3.mp3'], werte: { cover: true, 'nummer@o3.mp3': 7 }, zeit: '2026-11-18T10:00:00Z' },
+      { id: 'v-claude', art: 'felder', quelle: 'claude', felder: ['serie_name'], name: 'Das Online-Beispiel', grund: 'Der Ordnername ist ein Hörspielname, der Eintrag heißt anders.', zeit: '2026-11-18T10:00:00Z' },
+      { id: 'v-zus', art: 'zusammenfuehren', quelle: 'claude', ziel_serie_id: 'onlziel', zeit: '2026-11-18T10:00:00Z' },
+    ];
+    b.serien.onlziel = { id: 'onlziel', name: 'Online Ziel', typ: 'normal', ordner: 'OnlZiel', pruefen: false, hinweise: [], art: 'hoerspiel', cover_stand: null, angelegt_am: '2026-11-13T12:00:00Z', folgen: [folge('z1.mp3', 'Ziel Folge', { nummer: 1 })] };
+    b.serien.lang.online = { zeit: '2026-11-17T10:00:00Z', felder: ['nummer', 'alter_ab'] };
+    b.serien.lang.folgen[0].alter_ab = 3; b.serien.lang.folgen[0].beschreibung = 'Ein kurzer Text.';
+    b.online.laeufe = [
+      { lauf_id: 'l-fertig', beginn: '2026-11-18T08:00:00Z', ende: '2026-11-18T11:30:00Z', zustand: 'fertig', zahlen: { erledigt: 340, gesamt: 340, geaendert: 120, vorschlaege: 38, keiner: 12 } },
+      { lauf_id: 'l-fehler', beginn: '2026-11-17T08:00:00Z', ende: '2026-11-17T08:20:00Z', zustand: 'abgebrochen', zahlen: { erledigt: 12, gesamt: 340, geaendert: 0, vorschlaege: 1, keiner: 2 } },
+      { lauf_id: 'l-neustart', beginn: '2026-11-16T08:00:00Z', ende: '2026-11-16T09:00:00Z', zustand: 'abgebrochen', grund: 'neustart', zahlen: { erledigt: 80, gesamt: 340, geaendert: 5, vorschlaege: 2, keiner: 1 } },
+    ];
     b.serien.leersammlung = { id: 'leersammlung', name: 'Leere Sammlung', typ: 'normal', ordner: 'Leer', pruefen: false, hinweise: [], art: 'hoerspiel', folgen: [] };
   }
   // Stufe B: Hördaten (zwei Boxen, zwei Personen, 60 Tage), die lange Serie mit langem Namen, eine gelöschte Serie, zwei Sterne; die Box Küche hat einen Akku-Sensor
@@ -126,7 +150,7 @@ function bauen(schluessel) {
   });
   // A-1b: Ereignisse des Mocks sammeln; die Prüfseite holt sie mit `GET /ev` (Abo `subscribeMessage` der Seite)
   m.ereignisse = [];
-  m.hass.connection.subscribeMessage((ev) => m.ereignisse.push(ev), { type: 'tobibox/subscribe', themen: ['boxen', 'neue_tobies', 'konfig', 'warteschlange', 'eingang', 'medien', 'gehoert', 'favoriten'] });
+  m.hass.connection.subscribeMessage((ev) => m.ereignisse.push(ev), { type: 'tobibox/subscribe', themen: ['boxen', 'neue_tobies', 'konfig', 'warteschlange', 'eingang', 'medien', 'gehoert', 'favoriten', 'online'] });
   return m;
 }
 
@@ -358,6 +382,13 @@ const server = http.createServer(async (req, res) => {
     res.end(JSON.stringify({ thema, art }));
     return;
   }
+  /* OS4: der laufende Lauf der Online-Suche endet (Mock-Funktion `onlineLaufBeenden`, Ereignis `online`/`fertig`): Body { zustand, grund?, zahlen? } */
+  if (p === '/online-ende' && req.method === 'POST') {
+    const m = holeMock(u.searchParams.get('k') || 'admin');
+    const { zustand = 'fertig', grund, zahlen = {} } = JSON.parse(await koerper(req));
+    res.end(JSON.stringify({ lauf_id: m.onlineLaufBeenden(zustand, grund, zahlen) }));
+    return;
+  }
   /* A-1b: ein Tobie wird auf eine Box gelegt (Mock-Funktion `legeAuf`): Body { box, uid, zeitOk? } */
   if (p === '/legeauf' && req.method === 'POST') {
     const m = holeMock(u.searchParams.get('k') || 'admin');
@@ -421,6 +452,16 @@ const server = http.createServer(async (req, res) => {
   }
   /* A8f: Cover hochladen (POST, JPEG) und zurücksetzen (DELETE ?quelle=eigen). Prüft wie das Backend (Vertrag 14.3) Größe (3 MiB) und die
    * Kopfbytes eines JPEG, den Stand führt der Mock (`fetchWithAuth` in mock-hass.mjs). Der Lauf kommt im Kopf `x-tb-k`. */
+  /* OS4: `GET /api/tobibox/online/vorschau/<treffer_id>` (Vertrag 3.15): Status und Rechte wie im Mock, bei Erfolg ein kleines Bild (SVG), `no-store`. */
+  if (p.startsWith('/api/tobibox/online/vorschau/')) {
+    const m = holeMock(req.headers['x-tb-k'] || 'admin');
+    const a = await m.hass.fetchWithAuth(p);
+    if (!a.ok) { res.statusCode = a.status; res.setHeader('content-type', 'application/json'); res.end(JSON.stringify(await a.json())); return; }
+    const h = [...p.split('/').pop()].reduce((x, c) => x + c.charCodeAt(0), 0);
+    res.setHeader('content-type', 'image/svg+xml'); res.setHeader('cache-control', 'no-store');
+    res.end(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="${FARBEN[h % 4]}"/><circle cx="${30 + h % 40}" cy="55" r="${15 + h % 20}" fill="#ffffffaa"/></svg>`);
+    return;
+  }
   if (p.startsWith('/api/tobibox/cover/') && (req.method === 'POST' || req.method === 'DELETE')) {
     const m = holeMock(req.headers['x-tb-k'] || 'admin');
     const roh = Buffer.concat(await (async () => { const t = []; for await (const c of req) t.push(c); return t; })());

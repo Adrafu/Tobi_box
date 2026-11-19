@@ -8,14 +8,17 @@
  * zeigt ohne Kopf und Reiterleiste nur ihren Bereich (PANEL_BEREICHE unten sagt, welcher Bereich auf welche Unterseite kommt).
  * Neu und nur hier: Warnleisten zur Liste mit Entscheidung, „Frühere Stände ansehen“, „Medien neu einlesen“, „Cover neu suchen“,
  * „Hörkopien neu erzeugen“ und der Papierkorb mit „gelöscht von“, „Letzte Stunde zurückholen“ und „Leeren“.
+ * Online-Suche (OS4, Fähigkeit `online_suche`): die Unterseite `#technik-online` (seiten/technik_online.js); ohne die Fähigkeit steht sie nicht in der Liste und zeigt die Liste.
  * Schnittstelle zur App: siehe bausteine.js. Befehle: docs/protocol/ha-websocket-v1.md (Nr. 9, 10 bis 12, 21, 23, 31 bis 34, 44 bis 46).
  */
 import { groesse, zeitKurz } from '../tobibox-panel.js'; // lädt auch die Komponente <tobibox-panel>; ohne DOM harmlos
 import { html, nothing, css, ic, ladeMitGrenze, zaehle, korbNeueFremde } from '../bausteine.js';
-import { TECHNIK, SEITE, LEER, fuellen } from '../texte.js';
+import { TECHNIK, SEITE, LEER, ONLINE, fuellen } from '../texte.js';
 import { VerlaufKarte, HoerdatenKarte } from './technik_gehoert.js';
+import { OnlineSeite, onlineStil } from './technik_online.js';
 
 export const UNTERSEITEN = ['boxen', 'speicher', 'liste', 'tobies', 'meldungen', 'einstellungen'];
+const ONLINE_SUB = 'online'; // OS4: siebte Unterseite, nur mit der Fähigkeit `online_suche`; in der Liste hinter „Speicher und Netz“
 
 /* Bereiche der alten Komponente je Unterseite (Attribut `bereich`). `box` ist die Seite einer einzelnen Box. */
 export const PANEL_BEREICHE = {
@@ -32,7 +35,7 @@ const boxName = (b) => b.anzeige || b.anzeigename || b.box;
 export function unterseite(route) {
   const sub = route?.sub;
   if (typeof sub === 'string' && sub.startsWith('box-') && route.id != null) return 'box';
-  return UNTERSEITEN.includes(sub) ? sub : null;
+  return UNTERSEITEN.includes(sub) || sub === ONLINE_SUB ? sub : null;
 }
 
 class TechnikSeite {
@@ -51,11 +54,18 @@ class TechnikSeite {
     this._korbAbmelden = null;
     this.verlauf = new VerlaufKarte(ctx); // Stufe B: Karte „Verlauf“ auf der Box-Seite (nur mit `gehoert`)
     this.hoerdaten = new HoerdatenKarte(ctx, this); // Stufe B: Karte „Hördaten“ in „Speicher und Netz“ (nur mit `gehoert`)
+    this.online = new OnlineSeite(ctx, this); // OS4: Unterseite „Online-Suche“ (nur mit `online_suche`)
   }
+
+  /* Die Unterseiten, die diese Installation zeigt (`online` nur mit der Fähigkeit). */
+  _unterseiten() { return this.ctx.faehig('online_suche') ? [...UNTERSEITEN.slice(0, 2), ONLINE_SUB, ...UNTERSEITEN.slice(2)] : UNTERSEITEN; }
+  _zeilenText(u) { return u === ONLINE_SUB ? ONLINE.technik : TECHNIK.zeilen[u]; }
+  _sub(route) { const u = unterseite(route); return u === 'online' && !this.ctx.faehig('online_suche') ? null : u; }
 
   betreten(route) {
     this.route = route;
-    const sub = unterseite(route);
+    const sub = this._sub(route);
+    if (sub === 'online') this.online.betreten(); else this.online.verlassen();
     const basis = this.ladeBasis();
     const lauf = this._lauf;
     if (sub === 'box' && this.ctx.faehig('gehoert')) basis.then(() => { if (lauf === this._lauf && this.route === route) this._ladeVerlauf(route); }); // nur, wenn die Seite noch dieselbe ist
@@ -70,7 +80,7 @@ class TechnikSeite {
     if (sub === 'liste' && this.ctx.faehig('konfig_staende')) this.ladeStaende();
   }
   neuLaden() { if (this.route) this.betreten(this.route); }
-  verlassen() { this._lauf += 1; this._vorSub = null; this._korbBeobachtenEnde(); this.verlauf.verlassen(); this.hoerdaten.verlassen(); }
+  verlassen() { this._lauf += 1; this._vorSub = null; this._korbBeobachtenEnde(); this.verlauf.verlassen(); this.hoerdaten.verlassen(); this.online.verlassen(); }
 
   /* Karte „Verlauf“ laden, sobald die Box bekannt ist (die Liste der Boxen kommt mit `ladeBasis`). */
   _ladeVerlauf(route) {
@@ -424,14 +434,14 @@ class TechnikSeite {
 
   render(route) {
     const { ctx, b } = this;
-    const sub = unterseite(route);
+    const sub = this._sub(route);
     const boxId = sub === 'box' ? decodeURIComponent(route.id) : null;
     const box = sub === 'box' ? b.boxen.find((x) => x.box === boxId) : null;
-    const titel = sub === 'box' ? (box ? boxName(box) : SEITE.seiten.technik_box) : (sub ? TECHNIK.zeilen[sub].titel : TECHNIK.titel);
+    const titel = sub === 'box' ? (box ? boxName(box) : SEITE.seiten.technik_box) : (sub ? this._zeilenText(sub).titel : TECHNIK.titel);
     const kopf = html`${sub ? html`<a class="back" href="#technik">${SEITE.zurueck.technik}</a>` : nothing}<h2>${titel}</h2>`;
     const baender = this._warnleisten();
     if (!sub) {
-      return html`${kopf}${baender}<div class="tstapel" data-technik="liste">${UNTERSEITEN.map((u) => this._zeile(`#technik-${u}`, TECHNIK.zeilen[u].titel, TECHNIK.zeilen[u].zeile))}</div>`;
+      return html`${kopf}${baender}<div class="tstapel" data-technik="liste">${this._unterseiten().map((u) => this._zeile(`#technik-${u}`, this._zeilenText(u).titel, this._zeilenText(u).zeile))}</div>`;
     }
     if ((sub === 'boxen' || sub === 'box') && b.phase !== 'bereit') {
       return html`${kopf}${b.phase === 'fehler' ? ctx.fehlerKarte(b.fehlerCode, () => this.ladeBasis()) : ctx.laedt()}`;
@@ -448,6 +458,8 @@ class TechnikSeite {
       case 'speicher':
         return html`${kopf}${baender}${this._korbNeu()}${this._aufraeumen()}${ctx.faehig('gehoert') ? this.hoerdaten.render() : nothing}${this._papierkorb()}
           <section class="tkarte" data-karte="eingang" aria-labelledby="t-eingang"><h3 id="t-eingang">${TECHNIK.eingang}</h3>${this._panel('eingang')}</section>`;
+      case 'online':
+        return html`${kopf}${baender}${this.online.render()}`;
       case 'liste':
         return html`${kopf}${baender}${this._panel('liste')}${ctx.faehig('konfig_staende') ? this._staende() : nothing}`;
       default:
@@ -459,6 +471,7 @@ class TechnikSeite {
 export const erzeuge = (ctx) => new TechnikSeite(ctx);
 
 export const stil = () => css`
+  ${onlineStil()}
   .tstapel { display: grid; gap: 8px; margin: 8px 0 16px; }
   .tzeile { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 64px; padding: 8px 12px 8px 16px;
     border: 1px solid var(--line); border-radius: var(--r-card); background: var(--card); color: var(--text); text-align: left; text-decoration: none; }

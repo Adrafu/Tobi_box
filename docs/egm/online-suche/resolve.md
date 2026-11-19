@@ -241,3 +241,20 @@ Kleine Abweichungen vom Wortlaut der Verträge (Verhalten für die Seite gleich)
 | Nr. | Frage | Antwort |
 |---|---|---|
 | T9 | Die fünf Abweichungen oben: Code ändern oder Vertrag angleichen? | **(Tobias, 19.11.)** „Vertrag angleichen“: alle fünf so in Vertrag W bzw. `data-model.md` nachgetragen, wie der Code es macht (Vermerk 19.11.); der Code bleibt |
+
+## Runde 8: Bau OS4, Seite (19.11.)
+
+Grundlage: Bericht des bauenden Agents und `review_goldfisch_os4.md` (GO4-1 bis GO4-12, keiner hoch, alle behoben).
+
+Festlegungen der Projektleitung:
+
+- **(PL)** Häkchen in der Übersicht wie O14: alle gesetzt außer Feldern, die von Hand gesetzt sind.
+- **(PL)** Die Zeile „Aus der Online-Suche übernommen“ und Beschreibung/Alter zeigt die Seite, wenn das Backend die Felder schickt (Vertrag 14.2: keine Fähigkeit nötig); alles, was sendet oder nur Administratoren betrifft, hängt an `online_suche`.
+- **(PL)** „Zurücknehmen“ oben auf der Serienseite nimmt alle Online-Änderungen des Eintrags zurück (Nr. 60 mit `serie_id` allein); das Blatt sagt das so und nennt nur „Zuletzt: …“ (GO4-3).
+- **(PL)** Bei Einzeltiteln (`einzeln`) sendet „Online suchen“ Nr. 57 mit der einzigen Folge; eine Serie mit erst einer Folge sucht ohne `folge` mit dem Seriennamen.
+- **(PL)** Rückmeldetexte („Übernommen.“ …) und die Quelle „Tonies-Shop“ auf der Seite; Knopf „Cover aus den Dateien neu lesen“ (GR-17) auch in `ha-oberflaeche.md` und `homeassistant/README.md`.
+
+Offen für Tobias (Vertrag deckt es nicht ab; die Seite hat heute eine Notlösung):
+
+1. **Cover-Vorschlag ohne Bild:** Für einen Vorschlag mit neuem Cover liefert der Vertrag keine Vorschau (die HTTP-Vorschau gibt es nur für Treffer einer Suche). Die Seite zeigt „Neues Cover: Das Bild siehst du erst bei ‚Online suchen‘.“ Vertrag ergänzen (Vorschau auch für `vorschlag_id`)?
+2. **Liste der Änderungen je Lauf (Design 5.3):** Nr. 63 liefert je Lauf nur Zahlen; die Seite zeigt Zahlen und „Alle zurücknehmen“, aber keine einzelnen Änderungen mit eigenem „Zurücknehmen“. Vertrag ergänzen oder Design anpassen?

@@ -325,7 +325,7 @@ test('Frühere Stände: leer und Fehler in Worten', MIT_DOM, async () => {
 
 /* ------------------------------------------------------------------ Speicher und Netz */
 
-test('Bibliothek aufräumen: Medien neu einlesen (medien/pruefen) und „Cover neu suchen“ (cover/neu_suchen, mit Rückfrage)', MIT_DOM, async () => {
+test('Bibliothek aufräumen: Medien neu einlesen (medien/pruefen) und „Cover aus den Dateien neu lesen“ (cover/neu_suchen, mit Rückfrage; Name seit OS4, Design Online-Suche 10)', MIT_DOM, async () => {
   const s = await technik('#technik-speicher');
   assert.equal(s.q('[data-karte="aufraeumen"] h3').textContent, TECHNIK.aufraeumen.titel);
   const vorher = s.m.aufrufe('tobibox/medien/pruefen').length; // die alte Komponente stößt beim Öffnen selbst eine Prüfung an
@@ -337,7 +337,7 @@ test('Bibliothek aufräumen: Medien neu einlesen (medien/pruefen) und „Cover n
   knopf(s, 'cover').click();
   await s.flush();
   assert.equal(s.m.aufrufe('tobibox/cover/neu_suchen').length, 0, 'erst die Rückfrage');
-  assert.match(s.q('dialog[open] h2').textContent, /Cover neu suchen\?/);
+  assert.match(s.q('dialog[open] h2').textContent, /Cover aus den Dateien neu lesen\?/);
   blattKnopf(s, TECHNIK.abbrechen).click();
   await s.flush();
   assert.equal(s.m.aufrufe('tobibox/cover/neu_suchen').length, 0);
@@ -352,7 +352,7 @@ test('Bibliothek aufräumen: Medien neu einlesen (medien/pruefen) und „Cover n
   weg();
 });
 
-test('Bibliothek aufräumen: „Cover neu suchen“ und „Hörkopien neu erzeugen“ nur mit den Fähigkeiten cover und hoerkopie', MIT_DOM, async () => {
+test('Bibliothek aufräumen: „Cover aus den Dateien neu lesen“ und „Hörkopien neu erzeugen“ nur mit den Fähigkeiten cover und hoerkopie', MIT_DOM, async () => {
   const ohne = await technik('#technik-speicher', { faehigkeiten: OHNE('cover', 'hoerkopie') });
   assert.ok(knopf(ohne, 'einlesen'));
   assert.equal(knopf(ohne, 'cover'), null);

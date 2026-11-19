@@ -11,7 +11,7 @@
  * Die Vorschau ist ein <canvas>, das hier von Hand angelegt und ins Blatt gesetzt wird (Lit behält den Knoten).
  */
 import { html, nothing, css } from '../bausteine.js';
-import { COVER, SERIE, fuellen } from '../texte.js';
+import { COVER, SERIE, ONLINE, fuellen } from '../texte.js';
 
 export const KANTE = 1024; // Seitenlänge der Ausgabe in Pixeln
 export const VORSCHAU = 280; // Seitenlänge der Vorschau in CSS-Pixeln
@@ -93,10 +93,10 @@ export async function kodiereQuadrat(foto, aus) {
   return letzte;
 }
 
-/* POST (mit `blob`) oder DELETE `quelle=eigen` des Covers mit `hass.fetchWithAuth`. Antwort `{ serie_id, cover_stand, cover_quelle, … }`;
+/* POST (mit `blob`) oder DELETE `quelle=eigen` (oder `quelle=online`, nur Administratoren mit Fähigkeit `online_suche`, Vertrag 14.3) des Covers mit `hass.fetchWithAuth`. Antwort `{ serie_id, cover_stand, cover_quelle, … }`;
  * Fehler werfen { code } (Netz: 'verbindung'; Antwort `fehler.code` des Backends, sonst nach dem HTTP-Status). */
-export async function sendeCover(hass, id, blob = null) {
-  const pfad = `/api/tobibox/cover/${encodeURIComponent(id)}${blob ? '' : '?quelle=eigen'}`;
+export async function sendeCover(hass, id, blob = null, quelle = 'eigen') {
+  const pfad = `/api/tobibox/cover/${encodeURIComponent(id)}${blob ? '' : `?quelle=${quelle === 'online' ? 'online' : 'eigen'}`}`;
   let r;
   try {
     r = await hass.fetchWithAuth(pfad, blob ? { method: 'POST', headers: { 'Content-Type': 'image/jpeg' }, body: blob } : { method: 'DELETE' });
@@ -246,16 +246,34 @@ export function coverBlatt({ ctx, serie, oeffne, geaendert, fehler }) {
     } finally { Z.laeuft = null; ctx.neuZeichnen(); }
   }
 
+  /* „Online-Cover entfernen“ (Administratoren, Fähigkeit `online_suche`, nur bei `cover_quelle = online`): DELETE `…?quelle=online`; danach gilt wieder das Cover aus den Dateien. */
+  async function onlineWeg() {
+    if (Z.laeuft) return;
+    Z.laeuft = 'zurueck';
+    ctx.neuZeichnen();
+    try {
+      const r = await sendeCover(ctx.hass, serie().id, null, 'online');
+      ctx.covers.merke([{ id: r.serie_id ?? s0.id, cover_stand: r.cover_stand }]);
+      geaendert(r);
+      ctx.melde(ONLINE.menue.cover_weg_fertig);
+      ctx.schliesseBlatt('knopf');
+    } catch (err) {
+      fehler(err);
+    } finally { Z.laeuft = null; ctx.neuZeichnen(); }
+  }
+
   const pfeilKnopf = (r) => html`<button type="button" class="iconbtn cv-pfeil" data-cover-pfeil=${r} aria-label=${COVER.pfeil[r]} ?disabled=${!!Z.laeuft} @click=${() => pfeil(r)}>
     <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" focusable="false"><path d=${PFEIL[r]}></path></svg></button>`;
 
   const inhalt = () => {
     const s = serie() ?? s0;
     const eigen = s.cover_quelle === 'eigen';
+    const online = s.cover_quelle === 'online' && ctx.admin === true && ctx.faehig('online_suche');
     const sperre = !!Z.laeuft;
     return html`<input type="file" accept="image/*" class="sr" tabindex="-1" data-cover-datei aria-hidden="true" @change=${foto}>
       ${Z.phase === 'wahl' ? html`<div class="btns"><button type="button" class="btn primary" data-cover-waehlen autofocus ?disabled=${sperre} @click=${waehlen}>${COVER.foto_waehlen}</button></div>
-        ${eigen ? html`<div class="se-apart"><button type="button" class="btn link cv-zurueck" data-cover-zurueck ?disabled=${sperre} @click=${zurueck}>${COVER.zurueck}</button></div>` : nothing}`
+        ${eigen ? html`<div class="se-apart"><button type="button" class="btn link cv-zurueck" data-cover-zurueck ?disabled=${sperre} @click=${zurueck}>${COVER.zurueck}</button></div>` : nothing}
+        ${online ? html`<div class="se-apart"><button type="button" class="btn link cv-zurueck" data-cover-online-weg ?disabled=${sperre} @click=${onlineWeg}>${ONLINE.menue.cover_weg}</button></div>` : nothing}`
         : html`<div class="cv-mitte">${canvas}</div>
         <div class="cv-pfeile" role="group" aria-label=${COVER.pfeile}>${['links', 'hoch', 'runter', 'rechts'].map(pfeilKnopf)}</div>
         <div class="se-feld cv-regler"><label for="cv-regler">${COVER.regler}</label>

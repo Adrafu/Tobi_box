@@ -92,6 +92,21 @@ export const SCHEMA_B = {
 };
 export const ADMIN_BEFEHLE_B = new Set(['tobibox/technik/verlauf', 'tobibox/gehoert/exportieren', 'tobibox/gehoert/loeschen']);
 
+/* Online-Suche (Vertrag W 3.15, Nr. 57 bis 64, Fähigkeit `online_suche`, OS4). Nr. 57 bis 63 nur für Administratoren, Nr. 64 (voller Beschreibungstext) für alle (Recht lesen).
+ * Eigener Satz und eigene Fähigkeit, nicht in `FAEHIGKEITEN`: die Abdeckungsprüfungen der alten Seiten bleiben unverändert. */
+export const FAEHIGKEITEN_OS = ['online_suche'];
+export const SCHEMA_OS = {
+  'tobibox/online/suchen': { req: ['serie_id'], opt: ['folge', 'text'], braucht: 'online_suche' },
+  'tobibox/online/treffer': { opt: ['treffer_id', 'serie_id', 'vorschlag_id'], braucht: 'online_suche' },
+  'tobibox/online/uebernehmen': { req: ['serie_id', 'felder'], opt: ['treffer_id', 'vorschlag_id', 'stand', 'anfrage_id'], braucht: 'online_suche' },
+  'tobibox/online/zuruecknehmen': { opt: ['serie_id', 'aenderung_id', 'lauf_id'], braucht: 'online_suche' },
+  'tobibox/online/vorschlag_verwerfen': { req: ['serie_id', 'vorschlag_id'], braucht: 'online_suche' },
+  'tobibox/online/lauf': { req: ['aktion'], braucht: 'online_suche' },
+  'tobibox/online/status': { braucht: 'online_suche' },
+  'tobibox/online/beschreibung': { req: ['serie_id', 'folge'], braucht: 'online_suche' },
+};
+export const ADMIN_BEFEHLE_OS = new Set(Object.keys(SCHEMA_OS).filter((t) => t !== 'tobibox/online/beschreibung'));
+
 /* A8: Befehle nur für Administratoren (Vertrag 2.1). Mit der Mock-Option `nichtAdmin` darf der Benutzer alles andere (Alltag). */
 export const ADMIN_BEFEHLE = new Set(['folgen/order', 'serien/zusammenfuehren', 'serie/create', 'papierkorb/restore', 'papierkorb/empty'].map((x) => `tobibox/${x}`));
 export const FELDER_V11 = {
@@ -115,13 +130,13 @@ export const FELDER_BIB = {
   'tobibox/einstellungen/set': ['erwartet_revision'], // A7b (Vertrag 3.11, 12.11.)
 };
 export const ARTEN = ['hoerspiel', 'hoerbuch', 'musik', 'geschichte'];
-const FILTER_WERTE = ['ohne_tobie', 'neu', 'pruefen', 'sammlung', 'einzeln', 'favorit'];
+const FILTER_WERTE = ['ohne_tobie', 'neu', 'pruefen', 'sammlung', 'einzeln', 'favorit', 'online_vorschlag'];
 const MOCK_JETZT = Date.parse('2026-11-13T12:00:00Z'); // „heute“ im Mock (Filter „neu“: letzte 14 Tage)
 export const NACHRICHT_MAX = 64 * 1024; // Vertrag 8: eine Nachricht hat höchstens 64 KiB
 export const FAEHIGKEITEN_V11 = ['einstellungen', 'eingang_entfernen', 'zuordnung_uid', 'konfig_lesen', 'upload_fertig_details'];
 
 /* Befehle, die nur Administratoren ausführen dürfen (Vertrag 2.1). */
-const LESEN = new Set(['hello', 'subscribe', 'serien/list', 'folgen/list', 'serie/get', 'papierkorb/list', 'neue_tobies/list', 'zuordnung/list', 'boxen/list', 'eingang/list', 'konfig/export_lesen', 'einstellungen/get', 'konfig/get', 'hoerstelle/get', 'hoerstelle/liste', 'gehoert/zusammenfassung', 'gehoert/zuletzt', 'favoriten/list'].map((x) => `tobibox/${x}`));
+const LESEN = new Set(['hello', 'subscribe', 'serien/list', 'folgen/list', 'serie/get', 'papierkorb/list', 'neue_tobies/list', 'zuordnung/list', 'boxen/list', 'eingang/list', 'konfig/export_lesen', 'einstellungen/get', 'konfig/get', 'hoerstelle/get', 'hoerstelle/liste', 'gehoert/zusammenfassung', 'gehoert/zuletzt', 'favoriten/list', 'online/beschreibung'].map((x) => `tobibox/${x}`));
 
 export const FAEHIGKEITEN = ['medien', 'upload', 'zuordnung', 'tobie_namen', 'neue_tobies', 'lernmodus', 'boxen', 'papierkorb', 'liste_ausrollen', 'konfig_export', 'sync', 'eingang', 'korrektur', 'serie_loeschen', 'bibliothek', 'cover'];
 
@@ -151,6 +166,7 @@ function pruefeBibliothek(type, f, faehigkeiten) {
   if ('filter' in f) {
     if (!Array.isArray(f.filter) || f.filter.some((x) => !FILTER_WERTE.includes(x))) throw fehler('invalid_format', 'filter');
     if (faehigkeiten && f.filter.includes('favorit') && !faehigkeiten.includes('favoriten')) throw fehler('invalid_format', 'favorit braucht favoriten');
+    if (faehigkeiten && f.filter.includes('online_vorschlag') && !faehigkeiten.includes('online_suche')) throw fehler('invalid_format', 'online_vorschlag braucht online_suche');
   }
   if ('sortierung' in f) {
     const gehoert = !faehigkeiten || faehigkeiten.includes('gehoert');
@@ -236,7 +252,7 @@ export function beispielBibliothek(n = 130) {
 
 /* `faehigkeiten`: was das (simulierte) Backend zusagt. Ohne Angabe wird nur die Form geprüft (alles ist erlaubt). */
 export function pruefeEingabe(msg, faehigkeiten = null) {
-  const sch = SCHEMA[msg.type] || SCHEMA_V11[msg.type] || SCHEMA_BIB[msg.type] || SCHEMA_TECHNIK[msg.type] || SCHEMA_WS[msg.type] || SCHEMA_REIN[msg.type] || SCHEMA_NEU[msg.type] || SCHEMA_B[msg.type];
+  const sch = SCHEMA[msg.type] || SCHEMA_V11[msg.type] || SCHEMA_BIB[msg.type] || SCHEMA_TECHNIK[msg.type] || SCHEMA_WS[msg.type] || SCHEMA_REIN[msg.type] || SCHEMA_NEU[msg.type] || SCHEMA_B[msg.type] || SCHEMA_OS[msg.type];
   if (!sch) throw fehler('unknown_command', `Unbekannter Befehl ${msg.type}`);
   if (faehigkeiten && sch.braucht && !faehigkeiten.includes(sch.braucht)) throw fehler('unknown_command', `Unbekannter Befehl ${msg.type}`);
   const { type, id, ...felder } = msg; // eslint-disable-line no-unused-vars
@@ -472,6 +488,271 @@ function gehoertBefehle({ b, hat, emit, kurzform, istFavorit, holeSerie, holeFol
   };
 }
 
+/* ---- Online-Suche (Vertrag W 3.15, 4.11, 14.2; Design docs/designs/online-suche.md): Befehle 57 bis 64 im Arbeitsspeicher.
+ * Zustand in `b.online`:
+ *   suchTreffer   Vorlagen für Nr. 57 (Liste von { quelle, titel, reihe?, nummer?, tracks?, art?, hat_cover?, frueher_abgelehnt?, werte: { <feld>[@<folge>]: Wert }, sicher?: { <feld>: bool } });
+ *                 ohne Angabe liefert der Mock drei Treffer, die aus dem Eintrag gebildet werden. `werte.cover` ist `true`.
+ *   treffer       gehaltene Treffer (treffer_id → { serie_id, folge, werte, sicher, quelle, hat_cover, abgelaufen }); `abgelaufen: true` oder Löschen lässt `treffer_abgelaufen` kommen (410)
+ *   vorschlaege   serie_id → [{ id, art: 'felder'|'zusammenfuehren', quelle, felder, werte?, name?, grund?, ziel_serie_id?, zeit }]
+ *   aenderungen   [{ id, serie_id, lauf_id, felder, vorher, nachher, zeit, status }]
+ *   quellen       Antwort von Nr. 57 je Quelle (`ok`, `pause`, `fehler`); `quellenStatus` überschreibt Teile von `quellen` in Nr. 63
+ *   lauf, laeufe  der laufende Lauf (oder null) und die letzten fünf beendeten
+ * Rechte wie im Backend: Nr. 57 bis 63 admin (in `verarbeite`), Nr. 64 für alle; Werte kommen nie aus der Eingabe. */
+const OS_FELDER = ['serie_name', 'folge_titel', 'nummer', 'art', 'cover', 'beschreibung', 'alter_ab'];
+const teileKeyOs = (k) => { const i = k.indexOf('@'); return i < 0 ? [k, null] : [k.slice(0, i), k.slice(i + 1)]; };
+
+function kuerzeAmSatz(text, n = 300) {
+  if (text.length <= n) return text;
+  const stuck = text.slice(0, n);
+  const punkt = Math.max(stuck.lastIndexOf('. '), stuck.lastIndexOf('! '), stuck.lastIndexOf('? '));
+  return punkt > 0 ? stuck.slice(0, punkt + 1) : stuck.slice(0, stuck.lastIndexOf(' ')).trimEnd();
+}
+
+/* Die Ausgabefelder einer Folge (Vertrag 3.2): `beschreibung` höchstens 300 Zeichen am Satzende, `beschreibung_gekuerzt`, `beschreibung_quelle`; `beschreibung_voll` bleibt im Mock. */
+export function folgeMitOnline(f) {
+  const { beschreibung_voll: voll, ...rest } = f;
+  const text = voll ?? f.beschreibung;
+  if (typeof text !== 'string' || !text) return rest;
+  const kurz = kuerzeAmSatz(text);
+  return { ...rest, beschreibung: kurz, beschreibung_gekuerzt: kurz.length < text.length, beschreibung_quelle: f.beschreibung_quelle ?? 'tonies_shop' };
+}
+
+function onlineBefehle({ b, hat, emit, holeSerie, holeFolge, stand, kurzform, istAdmin }) {
+  const O = b.online;
+  const ungueltig = (t) => fehler('invalid_format', t);
+  const jetzt = () => new Date(Date.now()).toISOString();
+  const vorhandeneVorschlaege = (sid) => O.vorschlaege[sid] ?? [];
+
+  /* Wert des Felds heute (`heute`): Name, Art, Folgentitel, Nummer, Beschreibung, Alter; Cover: die Quelle des heutigen Covers. */
+  const heute = (s, key) => {
+    const [feld, fn] = teileKeyOs(key);
+    if (feld === 'serie_name') return s.name;
+    if (feld === 'art') return s.art ?? null;
+    if (feld === 'cover') return s.cover_stand ? (s.cover_quelle ?? 'auto') : null;
+    const f = holeFolge(s, fn);
+    if (feld === 'folge_titel') return f.anzeige;
+    if (feld === 'nummer') return f.nummer ?? null;
+    if (feld === 'beschreibung') return f.beschreibung_voll ?? f.beschreibung ?? null;
+    if (feld === 'alter_ab') return f.alter_ab ?? null;
+    return null;
+  };
+  const schreibe = (s, key, wert, quelle) => {
+    const [feld, fn] = teileKeyOs(key);
+    if (feld === 'serie_name') { s.name = wert; s.pruefen = false; return; }
+    if (feld === 'art') { s.art = wert; s.art_quelle = 'online'; return; }
+    if (feld === 'cover') {
+      if (s.cover_quelle === 'eigen') { s.cover_online_da = true; return; } // Vorrang: eigenes Foto vor Online-Cover
+      if (s.cover_quelle !== 'online') s.cover_auto = s.cover_stand ?? null;
+      s.cover_stand = hex(`online-${s.id}-${++O.zaehler}`, 8); s.cover_quelle = 'online';
+      return;
+    }
+    const f = holeFolge(s, fn);
+    if (feld === 'folge_titel') f.anzeige = wert;
+    else if (feld === 'nummer') f.nummer = wert;
+    else if (feld === 'beschreibung') { f.beschreibung_voll = wert; delete f.beschreibung; f.beschreibung_quelle = quelle === 'itunes' ? 'itunes' : 'tonies_shop'; } else if (feld === 'alter_ab') f.alter_ab = wert;
+  };
+  const sieHand = (s, key) => (s.hand ?? []).includes(key);
+
+  const standardTreffer = (s, folge) => {
+    const f = folge ? s.folgen.find((x) => x.name === folge) : null;
+    const folgenWerte = f ? { [`folge_titel@${f.name}`]: `${f.anzeige} (Neu)`, [`nummer@${f.name}`]: (f.nummer ?? 0) + 1, [`beschreibung@${f.name}`]: 'Ein Hörspiel über eine kleine Reise. Es gibt viel zu entdecken.', [`alter_ab@${f.name}`]: 5 } : {};
+    return [
+      { quelle: 'itunes', titel: `${s.name} (Apple)`, reihe: s.name, nummer: 1, tracks: 12, art: 'hoerspiel', hat_cover: true, werte: { art: 'hoerspiel', cover: true, ...folgenWerte }, sicher: { art: true, cover: true } },
+      { quelle: 'tonies', titel: `${s.name} (Tonies)`, reihe: s.name, tracks: 8, art: 'hoerspiel', hat_cover: true, werte: { serie_name: `${s.name} Neu`, cover: true }, sicher: { cover: true } },
+      { quelle: 'itunes', titel: `${s.name} (Album)`, reihe: null, art: 'musik', hat_cover: false, frueher_abgelehnt: true, werte: { art: 'musik' }, sicher: {} },
+    ];
+  };
+
+  const status = () => ({
+    lauf: O.lauf ? structuredClone(O.lauf) : null,
+    quellen: { itunes: { erreichbar: true }, tonies: { erreichbar: true }, tonies_shop: { erreichbar: true }, claude: { eingerichtet: true, erreichbar: true }, ...(O.quellenStatus || {}) },
+    tonie_liste: O.tonieListe === undefined ? { stand: '2026-11-12T08:00:00Z', anzahl: 1234 } : O.tonieListe,
+    letzte_laeufe: structuredClone(O.laeufe),
+  });
+
+  /* alle Felder einer Änderung zurücknehmen: nur, wo noch der Online-Wert steht (sonst `seitdem_geaendert`) */
+  const nimmZurueck = (a) => {
+    const s = b.serien[a.serie_id];
+    const uebersprungen = [];
+    let zurueck = 0;
+    if (!s) { a.status = 'zurueckgenommen'; return { zurueck, uebersprungen: a.felder.map((feld) => ({ serie_id: a.serie_id, feld, grund: 'serie_nicht_gefunden' })) }; }
+    for (const key of a.felder) {
+      let aktuell;
+      try { aktuell = heute(s, key); } catch { uebersprungen.push({ serie_id: s.id, feld: key, grund: 'folge_verschoben' }); continue; }
+      const [feld] = teileKeyOs(key);
+      const gleichNachher = feld === 'cover' ? aktuell === 'online' : gleich(aktuell, a.nachher[key]);
+      if (!gleichNachher) { uebersprungen.push({ serie_id: s.id, feld: key, grund: 'seitdem_geaendert' }); continue; }
+      if (feld === 'cover') { s.cover_stand = s.cover_auto ?? null; s.cover_quelle = s.cover_stand ? 'auto' : null; } else if (feld === 'art') { s.art = a.vorher[key]; s.art_quelle = 'manuell'; } else {
+        const [, fn] = teileKeyOs(key);
+        if (feld === 'serie_name') s.name = a.vorher[key];
+        else {
+          const f = holeFolge(s, fn);
+          if (feld === 'folge_titel') f.anzeige = a.vorher[key];
+          else if (feld === 'nummer') f.nummer = a.vorher[key];
+          else if (feld === 'beschreibung') { delete f.beschreibung_voll; if (a.vorher[key] == null) delete f.beschreibung; else f.beschreibung = a.vorher[key]; } else if (feld === 'alter_ab') { if (a.vorher[key] == null) delete f.alter_ab; else f.alter_ab = a.vorher[key]; }
+        }
+      }
+      s.hand = (s.hand ?? []).filter((k) => k !== key);
+      zurueck += 1;
+    }
+    a.status = 'zurueckgenommen';
+    const rest = O.aenderungen.filter((x) => x.serie_id === s.id && x.status === 'fertig').sort((x, y) => y.zeit.localeCompare(x.zeit));
+    s.online = rest[0] ? { zeit: rest[0].zeit, felder: [...new Set(rest[0].felder.map((k) => teileKeyOs(k)[0]))] } : null;
+    return { zurueck, uebersprungen };
+  };
+
+  const befehle = {
+    'tobibox/online/suchen': (m) => {
+      const s = holeSerie(m.serie_id);
+      if (s.typ !== 'normal') throw ungueltig('Überraschungs-Serie');
+      if (m.folge !== undefined) holeFolge(s, m.folge);
+      if ('text' in m && !(typeof m.text === 'string' && m.text.trim().length >= 2 && m.text.length <= 100)) throw ungueltig('text mit 2 bis 100 Zeichen');
+      const q = { itunes: 'ok', tonies: 'ok', ...(O.quellen || {}) };
+      if (q.itunes !== 'ok' && q.tonies !== 'ok' && !(O.suchTreffer || []).length) throw fehler('online_nicht_erreichbar');
+      O.suchen.push({ serie_id: s.id, folge: m.folge ?? null, text: m.text ?? null });
+      const vorlagen = (O.suchTreffer ?? standardTreffer(s, m.folge)).filter((t) => q[t.quelle] === 'ok' || (q[t.quelle] === undefined));
+      const treffer = vorlagen.slice(0, 10).map((t) => {
+        const id = hex(`treffer-${++O.zaehler}`, 16);
+        const werte = Object.fromEntries(Object.entries(t.werte).filter(([k]) => m.folge !== undefined || s.folgen.length === 1 || !k.includes('@'))); // ohne Folge keine Folgenfelder
+        O.treffer[id] = { serie_id: s.id, folge: m.folge ?? null, quelle: t.quelle, werte, sicher: t.sicher ?? {}, hat_cover: t.hat_cover !== false && 'cover' in werte, titel: t.titel };
+        return { treffer_id: id, quelle: t.quelle, titel: t.titel, reihe: t.reihe ?? null, ...(t.nummer != null ? { nummer: t.nummer } : {}), ...(t.tracks != null ? { tracks: t.tracks } : {}),
+          ...(t.art ? { art: t.art } : {}), hat_cover: O.treffer[id].hat_cover, frueher_abgelehnt: !!t.frueher_abgelehnt, felder: Object.keys(werte) };
+      });
+      return { treffer, quellen: { itunes: q.itunes, tonies: q.tonies } };
+    },
+    'tobibox/online/treffer': (m) => {
+      const mitTreffer = m.treffer_id !== undefined;
+      const mitVorschlag = m.vorschlag_id !== undefined;
+      if (mitTreffer === mitVorschlag || (mitVorschlag && m.serie_id === undefined) || (mitTreffer && m.serie_id !== undefined)) throw ungueltig('treffer_id oder serie_id mit vorschlag_id');
+      let s; let werte; let sicher; let grund; let cover = true;
+      if (mitTreffer) {
+        const t = O.treffer[m.treffer_id];
+        if (!t || t.abgelaufen) throw fehler('treffer_abgelaufen');
+        s = holeSerie(t.serie_id); werte = t.werte; sicher = t.sicher;
+        cover = t.hat_cover;
+      } else {
+        s = holeSerie(m.serie_id);
+        const v = vorhandeneVorschlaege(s.id).find((x) => x.id === m.vorschlag_id);
+        if (!v || v.art !== 'felder') throw fehler('vorschlag_nicht_gefunden');
+        werte = v.werte ?? Object.fromEntries(v.felder.map((k) => [k, k === 'cover' ? true : v.name ?? null]));
+        sicher = {};
+        if (v.quelle === 'claude') grund = v.grund;
+        cover = v.bildFehlt !== true;
+      }
+      const felder = {};
+      for (const [key, neu] of Object.entries(werte)) {
+        const [feld] = teileKeyOs(key);
+        if (feld === 'cover') { if (cover) felder[key] = { heute: heute(s, key), neu: true, sicher: !!sicher[key], hand: sieHand(s, key) || s.cover_quelle === 'eigen' }; continue; }
+        const h = heute(s, key);
+        if (gleich(h, neu)) continue; // gleiche Werte fehlen
+        felder[key] = { heute: h, neu: feld === 'beschreibung' ? String(neu).slice(0, 2000) : neu, sicher: !!sicher[key], hand: sieHand(s, key) };
+      }
+      return { felder, ...(grund ? { grund } : {}) };
+    },
+    'tobibox/online/uebernehmen': (m) => {
+      const mitTreffer = m.treffer_id !== undefined;
+      const mitVorschlag = m.vorschlag_id !== undefined;
+      if (mitTreffer === mitVorschlag) throw ungueltig('treffer_id oder vorschlag_id');
+      const s = holeSerie(m.serie_id);
+      let werte; let quelle; let v = null;
+      if (mitTreffer) {
+        const t = O.treffer[m.treffer_id];
+        if (!t || t.abgelaufen) throw fehler('treffer_abgelaufen');
+        werte = t.werte; quelle = t.quelle;
+      } else {
+        v = vorhandeneVorschlaege(s.id).find((x) => x.id === m.vorschlag_id);
+        if (!v) throw fehler('vorschlag_nicht_gefunden');
+        if (v.art !== 'felder') throw ungueltig('Vorschlag zum Zusammenführen: Nr. 27');
+        werte = v.werte ?? Object.fromEntries(v.felder.map((k) => [k, k === 'cover' ? true : v.name ?? null]));
+        quelle = v.quelle;
+      }
+      if (!Array.isArray(m.felder) || !m.felder.length || m.felder.length > s.folgen.length * 4 + 3 || m.felder.some((k) => typeof k !== 'string' || !OS_FELDER.includes(teileKeyOs(k)[0]))) throw ungueltig('felder');
+      const felder = [...new Set(m.felder)];
+      if (felder.some((k) => !(k in werte))) throw ungueltig('Feld nicht angeboten');
+      if (felder.includes('serie_name') && m.stand === undefined) throw ungueltig('stand ist Pflicht bei serie_name');
+      for (const k of felder) { const [, fn] = teileKeyOs(k); if (fn !== null) holeFolge(s, fn); }
+      if (m.stand !== undefined && m.stand !== stand(s)) throw fehler('stand_veraltet');
+      if (felder.includes('serie_name') && !String(werte.serie_name ?? '').trim()) throw fehler('name_ungueltig');
+      const claudeName = quelle === 'claude' && felder.length === 1 && felder[0] === 'serie_name';
+      const vorher = {}; const nachher = {};
+      for (const k of felder) {
+        vorher[k] = heute(s, k);
+        schreibe(s, k, werte[k], quelle);
+        nachher[k] = heute(s, k);
+        if (!claudeName) s.hand = [...new Set([...(s.hand ?? []), k])]; // eine Übernahme von Hand: die Felder gelten danach als von Hand
+      }
+      let id = null;
+      if (!claudeName) {
+        id = hex(`aenderung-${++O.zaehler}`, 12);
+        const zeit = jetzt();
+        O.aenderungen.push({ id, serie_id: s.id, lauf_id: null, felder, vorher, nachher, zeit, status: 'fertig' });
+        s.online = { zeit, felder: [...new Set(felder.map((k) => teileKeyOs(k)[0]))] };
+      }
+      if (v) {
+        v.felder = (v.felder || []).filter((k) => !felder.includes(k));
+        if (!v.felder.length) O.vorschlaege[s.id] = vorhandeneVorschlaege(s.id).filter((x) => x !== v);
+      }
+      emit('medien', 'serien_geaendert', { serie_id: s.id });
+      return { aenderung_id: id, serie_id: s.id, stand: stand(s) };
+    },
+    'tobibox/online/zuruecknehmen': (m) => {
+      const form = [m.serie_id !== undefined && m.aenderung_id !== undefined ? 'aenderung' : m.serie_id !== undefined && m.lauf_id === undefined && m.aenderung_id === undefined ? 'serie' : m.lauf_id !== undefined && m.serie_id === undefined && m.aenderung_id === undefined ? 'lauf' : 'falsch'][0];
+      if (form === 'falsch') throw ungueltig('eine der drei Formen');
+      if (form === 'lauf') {
+        if (![...O.laeufe, ...(O.lauf ? [O.lauf] : [])].some((l) => l.lauf_id === m.lauf_id)) throw fehler('lauf_nicht_gefunden');
+        const liste = O.aenderungen.filter((a) => a.lauf_id === m.lauf_id && a.status === 'fertig');
+        setTimeout(() => { // läuft im Hintergrund, das Ergebnis kommt als Ereignis
+          let uebersprungen = 0; let zurueck = 0;
+          liste.forEach((a, i) => { const r = nimmZurueck(a); zurueck += r.zurueck; uebersprungen += r.uebersprungen.length; emit('online', 'stand', { vorgang: 'zuruecknahme', lauf_id: m.lauf_id, zustand: 'laeuft', erledigt: i + 1, gesamt: liste.length, zurueckgenommen: zurueck, uebersprungen_anzahl: uebersprungen }); });
+          emit('online', 'fertig', { vorgang: 'zuruecknahme', lauf_id: m.lauf_id, zustand: 'fertig', erledigt: liste.length, gesamt: liste.length, zurueckgenommen: zurueck, uebersprungen_anzahl: uebersprungen });
+        }, 5);
+        return { gestartet: true };
+      }
+      const s = holeSerie(m.serie_id);
+      let liste = O.aenderungen.filter((a) => a.serie_id === s.id && a.status === 'fertig');
+      if (form === 'aenderung') {
+        const a = O.aenderungen.find((x) => x.serie_id === s.id && x.id === m.aenderung_id);
+        if (!a) throw fehler('aenderung_nicht_gefunden');
+        liste = a.status === 'fertig' ? [a] : [];
+      }
+      let zurueck = 0; const uebersprungen = [];
+      for (const a of liste) { const r = nimmZurueck(a); zurueck += r.zurueck; uebersprungen.push(...r.uebersprungen); }
+      emit('medien', 'serien_geaendert', { serie_id: s.id });
+      return { zurueckgenommen: zurueck, uebersprungen: uebersprungen.slice(0, 50), uebersprungen_anzahl: uebersprungen.length };
+    },
+    'tobibox/online/vorschlag_verwerfen': (m) => {
+      const s = holeSerie(m.serie_id);
+      const v = vorhandeneVorschlaege(s.id).find((x) => x.id === m.vorschlag_id);
+      if (!v) throw fehler('vorschlag_nicht_gefunden');
+      O.vorschlaege[s.id] = vorhandeneVorschlaege(s.id).filter((x) => x !== v);
+      O.verworfen.push({ serie_id: s.id, vorschlag_id: v.id });
+      emit('medien', 'serien_geaendert', { serie_id: s.id });
+      return {};
+    },
+    'tobibox/online/lauf': (m) => {
+      if (!['start', 'stop'].includes(m.aktion)) throw ungueltig('aktion');
+      if (m.aktion === 'start') {
+        if (O.lauf) throw fehler('lauf_laeuft_schon');
+        O.lauf = { lauf_id: hex(`lauf-${++O.zaehler}`, 12), zustand: 'laeuft', erledigt: 0, gesamt: O.gesamt ?? 340, geaendert: 0, vorschlaege: 0, keiner: 0 };
+        O.laufBeginn = jetzt();
+        return { lauf: structuredClone(O.lauf) };
+      }
+      if (!O.lauf) return { lauf: null };
+      O.lauf.zustand = 'wird_angehalten';
+      return { lauf: structuredClone(O.lauf) };
+    },
+    'tobibox/online/status': () => status(),
+    'tobibox/online/beschreibung': (m) => {
+      const s = holeSerie(m.serie_id);
+      const f = holeFolge(s, m.folge);
+      const text = f.beschreibung_voll ?? f.beschreibung ?? null;
+      if (!text) return { beschreibung: null, quelle: null };
+      return { beschreibung: String(text).slice(0, 2000), ...(Number.isInteger(f.alter_ab) ? { alter_ab: f.alter_ab } : {}), quelle: f.beschreibung_quelle ?? 'tonies_shop' };
+    },
+  };
+  return { befehle, status };
+}
+
 export function createMockHass(opts = {}) {
   const darf = opts.darf ?? true;
   const istAdmin = opts.istAdmin ?? (opts.nichtAdmin ? false : darf); // Administrator? (`darf: true, istAdmin: false` = Alltag: schreiben ja, Technik nein)
@@ -526,6 +807,7 @@ export function createMockHass(opts = {}) {
   /* Stufe B: Fähigkeiten, Hördaten (`b.gehoert.zeilen`, siehe `beispielGehoert`) und Sterne (`b.favoriten`) */
   const hat = (name) => (opts.faehigkeiten || FAEHIGKEITEN).includes(name);
   b.favoriten = [];
+  b.online = { suchTreffer: opts.onlineTreffer ?? null, treffer: {}, vorschlaege: {}, aenderungen: [], laeufe: [], lauf: null, quellen: null, quellenStatus: null, tonieListe: undefined, verworfen: [], suchen: [], zaehler: 0, gesamt: opts.onlineGesamt };
   b.gehoert = { heute: opts.heute ?? ISO(new Date(MOCK_JETZT)), zeilen: [], personen: { u1: 'Person A', u2: 'Person B' }, loeschungen: [] };
   const istFavorit = (sid, folge = null) => b.favoriten.some((x) => x.serie_id === sid && (x.folge ?? null) === folge);
   const zuletztGehoertAm = (sid) => {
@@ -538,12 +820,15 @@ export function createMockHass(opts = {}) {
     id: s.id, name: s.name, typ: s.typ, ordner: s.ordner, anzahl_folgen: s.folgen.length,
     anzahl_tobies: tobiesAuf(s.id).length, angelegt_am: s.angelegt_am ?? '2026-10-01T10:00:00Z', stand: stand(s),
     pruefen: s.pruefen, anzahl_pruefen: s.folgen.filter((f) => f.pruefen).length, hinweise: s.hinweise,
-    art: s.art ?? 'hoerspiel', art_quelle: s.art ? 'manuell' : 'tags', einzeln: !!s.einzeln, kapitel_anzahl: s.kapitel_anzahl ?? 0,
+    art: s.art ?? 'hoerspiel', art_quelle: s.art_quelle ?? (s.art ? 'manuell' : 'tags'), einzeln: !!s.einzeln, kapitel_anzahl: s.kapitel_anzahl ?? 0,
     dauer_s: s.dauer_s ?? null, cover_stand: s.cover_stand ?? null, cover_quelle: s.cover_stand ? (s.cover_quelle ?? 'auto') : null,
     ...(hoerKurz(s) ? { hoerstelle: hoerKurz(s) } : {}),
     ...(hat('favoriten') ? { favorit: istFavorit(s.id) } : {}),
     ...(hat('gehoert') ? { zuletzt_gehoert_am: zuletztGehoertAm(s.id) } : {}),
+    ...(hat('online_suche') ? { online: s.online ?? null } : {}), // Vertrag 14.2: für alle Benutzer
   });
+  /* `online_vorschlaege` nur für Administratoren und nur in serien/list, serie/get (Vertrag 14.2). */
+  const kurzMitVorschlaegen = (s) => ({ ...kurzform(s), ...(hat('online_suche') && istAdmin ? { online_vorschlaege: (b.online.vorschlaege[s.id] ?? []).length } : {}) });
   /* Hörstelle des Anfragenden (Vertrag 14.2, 14.6): aus dem Speicher des Mocks, sonst die feste Angabe der Serie (`s.hoerstelle`). */
   function hoerMass(s, name, e) {
     const f = s.folgen.find((x) => x.name === name);
@@ -568,10 +853,11 @@ export function createMockHass(opts = {}) {
   const holeSerie = (id) => { const s = b.serien[id]; if (!s) throw fehler('serie_nicht_gefunden'); return s; };
   const holeFolge = (s, name) => { const f = s.folgen.find((x) => x.name === name); if (!f) throw fehler('folge_nicht_gefunden'); return f; };
   const mitTobies = (s) => ({
-    ...kurzform(s),
+    ...kurzMitVorschlaegen(s),
+    ...(hat('online_suche') && istAdmin ? { online_vorschlaege_liste: structuredClone((b.online.vorschlaege[s.id] ?? []).map(({ werte, bildFehlt, ...rest }) => rest)) } : {}),
     folgen: s.folgen.map((f) => {
       const h = b.hoerstellen[s.id]?.folgen?.[f.name];
-      return { ...f, ...(hat('favoriten') ? { favorit: istFavorit(s.id, f.name) } : {}), ...(h ? { hoerstelle: { position_s: h.p, fertig: h.fertig, ...(f.art === 'ordner' && f.tracks > 1 ? { track: h.track ?? 0 } : {}) } } : {}), tobies: Object.values(b.zuordnungen).filter((z) => z.ziel.typ === 'folge' && z.ziel.serie === s.id && z.ziel.folge === f.name).map(kurzTobie) };
+      return { ...folgeMitOnline(f), ...(hat('favoriten') ? { favorit: istFavorit(s.id, f.name) } : {}), ...(h ? { hoerstelle: { position_s: h.p, fertig: h.fertig, ...(f.art === 'ordner' && f.tracks > 1 ? { track: h.track ?? 0 } : {}) } } : {}), tobies: Object.values(b.zuordnungen).filter((z) => z.ziel.typ === 'folge' && z.ziel.serie === s.id && z.ziel.folge === f.name).map(kurzTobie) };
     }),
     zuordnungen: Object.values(b.zuordnungen).filter((z) => z.ziel.typ === 'serie' && z.ziel.serie === s.id).map(kurzTobie),
   });
@@ -625,6 +911,7 @@ export function createMockHass(opts = {}) {
     tage(t) { if (!ganz(t) || t < 0 || t > 365) throw ungueltig('lesezeichen_tage'); return t; },
   };
 
+  const onlineMod = onlineBefehle({ b, hat, emit: (...a) => emit(...a), holeSerie, holeFolge, stand, kurzform, istAdmin });
   const H = {
     'tobibox/hello': () => ({ v: 1, version: '0.1.0', darf_schreiben: darf, faehigkeiten: opts.faehigkeiten || FAEHIGKEITEN, boxen: b.boxen.map((x) => x.box), konfig: b.konfig,
       grenzen: { upload_max_bytes: 524288000, upload_block_bytes: 1048576, upload_parallel: 2, endungen: ['mp3', 'm4a', 'm4b'], serie_name_max: 100, folge_anzeige_max: 200, tobie_name_max: 60, name_max_bytes: 255, limit_max: 100 } }),
@@ -640,6 +927,10 @@ export function createMockHass(opts = {}) {
       if (f.includes('ohne_tobie')) l = l.filter((s) => !tobiesAuf(s.id).length);
       if (f.includes('pruefen')) l = l.filter((s) => s.pruefen);
       if (f.includes('favorit')) l = l.filter((s) => istFavorit(s.id));
+      if (f.includes('online_vorschlag')) {
+        if (!istAdmin) throw fehler('unauthorized', 'Nur für Administratoren');
+        l = l.filter((s) => (b.online.vorschlaege[s.id] ?? []).length > 0);
+      }
       const name = (x, y) => x.name.localeCompare(y.name, 'de', { numeric: true });
       if (m.sortierung === 'zuletzt_gehoert') l.sort((x, y) => String(zuletztGehoertAm(y.id) ?? '').localeCompare(String(zuletztGehoertAm(x.id) ?? '')) || name(x, y));
       else if (m.sortierung === 'meist_gehoert') {
@@ -652,7 +943,7 @@ export function createMockHass(opts = {}) {
       const gesamt = l.length;
       const von = m.offset || 0;
       const seite = m.limit === undefined ? l.slice(von) : l.slice(von, von + m.limit);
-      return { serien: seite.map(kurzform), gesamt, weitere: von + seite.length < gesamt, ueberraschung: b.ueberraschung, geprueft_am: '2026-11-09T08:00:00Z', pruefung_laeuft: false, hinweise: [] };
+      return { serien: seite.map(kurzMitVorschlaegen), gesamt, weitere: von + seite.length < gesamt, ueberraschung: b.ueberraschung, geprueft_am: '2026-11-09T08:00:00Z', pruefung_laeuft: false, hinweise: [] };
     },
     'tobibox/folgen/list': (m) => {
       const f = m.filter || [];
@@ -967,6 +1258,7 @@ export function createMockHass(opts = {}) {
       return { eintrag: { id: hex(e.id, 12), typ: 'eingang', serie_id: null, serie_name: null, folge: null, anzeige: e.name, art: e.art, tracks: e.dateien, groesse_bytes: e.groesse_bytes, grund: 'manuell', geloescht_am: '2026-11-09T10:00:00Z' } };
     },
     ...gehoertBefehle({ b, hat, emit: (...a) => emit(...a), kurzform, istFavorit, holeSerie, holeFolge, istAdmin, opts }),
+    ...onlineMod.befehle,
     'tobibox/cover/neu_suchen': (m) => { if (m.serie_id) holeSerie(m.serie_id); return { gestartet: true, eintraege: m.serie_id ? 1 : Object.keys(b.serien).length }; },
     'tobibox/hoerkopie/neu_erzeugen': (m) => { if (m.serie_id) holeSerie(m.serie_id); return { eingereiht: m.serie_id ? 1 : 2 }; },
     /* alles, was in der letzten Stunde (vor MOCK_JETZT) in den Papierkorb kam */
@@ -989,6 +1281,7 @@ export function createMockHass(opts = {}) {
     if (!darf && !LESEN.has(msg.type)) throw fehler('unauthorized', 'Nur für Administratoren');
     if (opts.nichtAdmin && ADMIN_BEFEHLE.has(msg.type)) throw fehler('unauthorized', 'Nur für Administratoren');
     if (!istAdmin && ADMIN_BEFEHLE_B.has(msg.type)) throw fehler('unauthorized', 'Nur für Administratoren'); // Stufe B: Verlauf, Export und Löschen der Hördaten
+    if (!istAdmin && ADMIN_BEFEHLE_OS.has(msg.type)) throw fehler('unauthorized', 'Nur für Administratoren'); // Online-Suche: Nr. 57 bis 63 (Nr. 64 ist für alle)
     if (!istAdmin && msg.type.startsWith('tobibox/lernmodus/')) throw fehler('unauthorized', 'Nur für Administratoren'); // seit 13.11. admin (A0-Q, X13a)
     const f = failures.get(msg.type);
     if (f && f.length) { const c = f.shift(); throw typeof c === 'string' ? fehler(c, `Fehler ${c}`) : c; }
@@ -1008,7 +1301,9 @@ export function createMockHass(opts = {}) {
     subscribeMessage: (cb, msg) => new Promise((res, rej) => {
       queueMicrotask(() => {
         try { calls.push({ type: msg.type, msg: structuredClone(msg), abo: true }); pruefeEingabe({ id: nextId++, ...msg }); } catch (e) { rej(e); return; }
-        const abo = { cb, aktiv: true, themen: msg.themen || ['boxen', 'neue_tobies', 'lernmodus', 'medien', 'eingang', 'konfig', 'upload'] };
+        // Vertrag 4.11: `online` gibt es nur für Administratoren; HA streicht es für alle anderen still (erst die Themen auflösen, dann streichen; eine leere Menge bleibt leer)
+        const aufgeloest = msg.themen || ['boxen', 'neue_tobies', 'lernmodus', 'medien', 'eingang', 'konfig', 'upload', ...(opts.faehigkeiten?.includes('online_suche') ? ['online'] : [])];
+        const abo = { cb, aktiv: true, themen: istAdmin ? aufgeloest : aufgeloest.filter((t) => t !== 'online') };
         subs.push(abo);
         res(() => { abo.aktiv = false; });
         /* Snapshot je Thema direkt nach dem Abonnieren (Vertrag 4) */
@@ -1017,7 +1312,7 @@ export function createMockHass(opts = {}) {
           neue_tobies: { gesamt: b.neueTobies.length }, lernmodus: { vorgaenge: [] },
           medien: { pruefung_laeuft: false, geprueft_am: '2026-11-09T08:00:00Z' },
           eingang: { offen: b.eingang.length, blockiert: 1, sortierung_laeuft: false, geprueft_am: '2026-11-09T08:00:00Z' },
-          konfig: { konfig: b.konfig }, upload: {}, gehoert: {}, favoriten: {},
+          konfig: { konfig: b.konfig }, upload: {}, gehoert: {}, favoriten: {}, online: onlineMod.status(),
         };
         if (opts.snapshots !== false) abo.themen.forEach((t) => emit(t, 'snapshot', snap[t]));
       });
@@ -1090,6 +1385,11 @@ export function createMockHass(opts = {}) {
     if (fehlerNaechster) return antwort(fehlerNaechster.status ?? 400, { v: 1, fehler: { code: fehlerNaechster.code, text: 'x' } });
     const sr = b.serien[id];
     if (!sr) return antwort(404, { v: 1, fehler: { code: 'serie_nicht_gefunden', text: 'x' } });
+    if (o.method === 'DELETE' && /[?&]quelle=online\b/.test(pfad)) { // Vertrag 14.3: nur Administratoren; kein Fehler, wenn es kein Online-Cover gibt
+      if (!istAdmin) return antwort(403, { v: 1, fehler: { code: 'unauthorized', text: 'x' } });
+      if (sr.cover_quelle === 'online') { sr.cover_stand = sr.cover_auto ?? null; sr.cover_quelle = sr.cover_stand ? 'auto' : null; }
+      return antwort(200, { v: 1, serie_id: id, cover_stand: sr.cover_stand ?? null, cover_quelle: sr.cover_stand ? (sr.cover_quelle ?? 'auto') : null });
+    }
     if (o.method === 'POST') {
       if (sr.cover_quelle !== 'eigen') sr.cover_auto = sr.cover_stand ?? null; // das automatische Cover kommt mit DELETE zurück
       sr.cover_stand = hex(`eigen-${id}-${++coverZaehler}`, 8);
@@ -1101,7 +1401,20 @@ export function createMockHass(opts = {}) {
     }
     return antwort(200, { v: 1, serie_id: id, cover_stand: sr.cover_stand ?? null, cover_quelle: sr.cover_stand ? (sr.cover_quelle ?? 'auto') : null });
   };
+  /* Online-Suche: `GET /api/tobibox/online/vorschau/<treffer_id>` (Vertrag 3.15): nur Administratoren (403), nur 16 Zeichen [0-9a-f] (sonst 404), abgelaufen 410, ohne Bild 404. Aufrufe in `vorschauAufrufe`. */
+  const vorschauAufrufe = [];
+  const vorschau = async (pfad) => {
+    const id = decodeURIComponent(pfad.split('/vorschau/')[1]?.split('?')[0] ?? '');
+    vorschauAufrufe.push(pfad);
+    if (!istAdmin) return antwort(403, { v: 1, fehler: { code: 'unauthorized', text: 'x' } });
+    if (!/^[0-9a-f]{16}$/.test(id)) return antwort(404, { v: 1, fehler: { code: 'cover_nicht_gefunden', text: 'x' } });
+    const t = b.online.treffer[id];
+    if (!t || t.abgelaufen) return antwort(410, { v: 1, fehler: { code: 'treffer_abgelaufen', text: 'x' } });
+    if (!t.hat_cover) return antwort(404, { v: 1, fehler: { code: 'cover_nicht_gefunden', text: 'x' } });
+    return { ok: true, status: 200, headers: { get: (k) => (/cache-control/i.test(k) ? 'no-store' : /content-type/i.test(k) ? 'image/jpeg' : null) }, blob: async () => new Blob(['jpeg'], { type: 'image/jpeg' }) };
+  };
   const fetchWithAuth = async (pfad, o = {}) => {
+    if (pfad.startsWith('/api/tobibox/online/vorschau/')) return vorschau(pfad);
     if (o.method === 'POST' || o.method === 'DELETE') return coverSchreiben(pfad, o);
     covers.push(pfad);
     const id = decodeURIComponent(pfad.split('/cover/')[1]?.split('?')[0] ?? '');
@@ -1118,7 +1431,18 @@ export function createMockHass(opts = {}) {
   };
 
   return {
-    hass, backend: b, calls, subs, xhrs, emit, MockXHR, covers, coverAufrufe, legeAuf, opts,
+    hass, backend: b, calls, subs, xhrs, emit, MockXHR, covers, coverAufrufe, legeAuf, opts, vorschauAufrufe,
+    /* Online-Suche: der laufende Lauf endet (Ereignis `online`/`fertig`, `letzte_laeufe` von Nr. 63). `grund` fehlt bei `fertig` und darf bei `abgebrochen` fehlen (Vertrag 4.11, 19.11.). */
+    onlineLaufBeenden: (zustand = 'fertig', grund = undefined, zahlen = {}) => {
+      const L = b.online.lauf;
+      const z = { erledigt: L?.erledigt ?? 0, gesamt: L?.gesamt ?? 0, geaendert: L?.geaendert ?? 0, vorschlaege: L?.vorschlaege ?? 0, keiner: L?.keiner ?? 0, ...zahlen };
+      const id = L?.lauf_id ?? hex(`lauf-${++b.online.zaehler}`, 12);
+      b.online.laeufe.unshift({ lauf_id: id, beginn: b.online.laufBeginn ?? '2026-11-13T09:00:00Z', ende: new Date(Date.now()).toISOString(), zustand, ...(grund ? { grund } : {}), zahlen: z });
+      b.online.laeufe = b.online.laeufe.slice(0, 5);
+      b.online.lauf = null;
+      emit('online', 'fertig', { vorgang: 'lauf', lauf_id: id, zustand, ...z, ...(grund ? { grund } : {}) });
+      return id;
+    },
     xhrFactory: () => new MockXHR(),
     /* Aufrufe eines Befehls (ohne Abos) */
     aufrufe: (type) => calls.filter((c) => c.type === type && !c.abo).map((c) => c.msg),

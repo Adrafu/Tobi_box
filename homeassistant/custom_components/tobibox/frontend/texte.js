@@ -33,6 +33,20 @@ const DEFAULT = {
   box_zwei: 'Box 2', // A9/A10: zweite Box im Satz „Leg den Tobie auf Box 1 oder Box 2“
   einheit: 'Folge', // A9: „Lange Serie · Folge“
   grund: 'Änderungen sind gerade gesperrt.', // A10: Grund auf der Karte „Konnte nicht zugeordnet werden“
+  felder: 'Cover, Art', // Online-Suche: Feldnamen im Satz
+  quelle: 'Apple', // Online-Suche: Name der Quelle
+  andere: 'Tonies', // Online-Suche: die andere Quelle
+  uhr_bis: '14:20', // Online-Suche: Ende einer Pause
+  erledigt: '12',
+  geaendert: '120',
+  vorschlaege: '38',
+  keiner: '12',
+  titel: 'Titel', // Online-Suche: Titel eines Treffers
+  stand: '12.11. 08:00',
+  alter: '3', // Online-Suche: „ab 3“
+  feld: 'Cover',
+  folge: 'Der Anfang',
+  text: 'Cover und Art von Apple',
 };
 
 // Ersetzt {name} durch werte.name, sonst durch den Vorgabewert. Unbekannte Platzhalter bleiben stehen.
@@ -82,6 +96,13 @@ export const FEHLER = {
   rueckfrage_abgelaufen: 'Das hat zu lange gedauert. Der Tobie spielt wie vorher.',
   wer_ungueltig: 'Diese Auswahl gibt es nicht mehr. Die Ansicht ist neu geladen.', // Stufe B (Befehle 50, 51, 53, 54)
   zu_viele_favoriten: 'Es gibt schon sehr viele Favoriten. Nimm zuerst einen heraus.', // Stufe B (Befehl 55)
+  // Online-Suche (Vertrag W, Abschnitt 7, seit 18.11.)
+  treffer_abgelaufen: 'Die Suche ist zu alt. Such bitte noch einmal.',
+  vorschlag_nicht_gefunden: 'Diesen Vorschlag gibt es nicht mehr. Die Ansicht ist neu geladen.',
+  aenderung_nicht_gefunden: 'Diese Änderung gibt es nicht mehr. Die Ansicht ist neu geladen.',
+  lauf_nicht_gefunden: 'Diesen Lauf gibt es nicht mehr. Die Ansicht ist neu geladen.',
+  lauf_laeuft_schon: 'Es läuft schon eine Suche über die Bibliothek.',
+  online_nicht_erreichbar: 'Online-Suche gerade nicht erreichbar, später noch einmal.',
 
   // Vertrag, Abschnitt 7, ohne Design-Text
   invalid_format: 'Die Eingabe passt nicht. Versuche es noch einmal. Wenn es wieder nicht geht, sag {verwalter_dat} Bescheid.', // neu, nicht im Design
@@ -533,7 +554,7 @@ export const SEITE = {
     neu_warten: 'Neuer Tobie', neu_ziel: 'Neuer Tobie erkannt', neu_queue: 'Später auflegen', geben: 'Welcher Tobie soll das spielen?',
     box: 'Box', gehoert: 'Gehört', playlist: 'Playlist', technik: 'Technik', technik_boxen: 'Boxen',
     technik_speicher: 'Speicher und Netz', technik_liste: 'Liste und Sicherung', technik_tobies: 'Tobies',
-    technik_meldungen: 'Meldungen', technik_einstellungen: 'Einstellungen', technik_box: 'Box',
+    technik_meldungen: 'Meldungen', technik_einstellungen: 'Einstellungen', technik_box: 'Box', technik_online: 'Online-Suche',
   },
   laedt: 'Wird geladen …', // neu, nicht im Design (nur für Screenreader neben den Platzhaltern)
   fehler_laden: {
@@ -610,7 +631,7 @@ export const BIB = {
     was: 'Was zeigen',
     was_wahl: { alle: 'Alles', sammlung: 'Nur Hörspiele, Bücher, Alben', einzeln: 'Nur Einzeltitel (einzelne Lieder und Folgen)' },
     nur: 'Nur zeigen',
-    nur_wahl: { ohne_tobie: 'Ohne Tobie', neu: 'Neu (letzte 14 Tage)', pruefen: 'Bitte ansehen', favorit: 'Favoriten' },
+    nur_wahl: { ohne_tobie: 'Ohne Tobie', neu: 'Neu (letzte 14 Tage)', pruefen: 'Bitte ansehen', favorit: 'Favoriten', online_vorschlag: 'Mit Vorschlag der Online-Suche' }, // `online_vorschlag`: nur Administratoren mit Fähigkeit `online_suche`
     zuruecksetzen: 'Zurücksetzen',
     fertig: 'Fertig',
   },
@@ -785,8 +806,8 @@ export const TECHNIK = {
   aufraeumen: { // Karte „Bibliothek aufräumen“ (Design 5.9)
     titel: 'Bibliothek aufräumen',
     einlesen: 'Medien neu einlesen', einlesen_gemacht: 'Das NAS wird gerade eingelesen.', einlesen_laeuft: 'Das Einlesen läuft schon.',
-    cover: 'Cover neu suchen', cover_text: 'Sucht die Bilder aller Einträge noch einmal. Eigene Cover bleiben, wie sie sind.', // nur im Bestätigungsblatt (vor der Aktion), nicht mehr auf der Karte
-    cover_titel: 'Cover neu suchen?', cover_ja: 'Ja, neu suchen', cover_gemacht: 'Die Cover-Suche läuft. Das dauert ein paar Minuten.',
+    cover: 'Cover aus den Dateien neu lesen', cover_text: 'Liest die Bilder aller Einträge aus den Dateien noch einmal. Online-Cover und eigene Fotos bleiben, wie sie sind.', // nur im Bestätigungsblatt (vor der Aktion), nicht mehr auf der Karte; Design Online-Suche 10 (GR-17)
+    cover_titel: 'Cover aus den Dateien neu lesen?', cover_ja: 'Ja, neu lesen', cover_gemacht: 'Das Einlesen der Cover läuft. Das dauert ein paar Minuten.',
     hoerkopien_schlange: '{dateien} von höchstens {dateien_max} Dateien · {gb} von höchstens {gb_max} GB', // Zähler der Warteschlange (Design 5.9, 14.8)
     hoerkopien: 'Hörkopien neu erzeugen', hoerkopien_gemacht: { eins: '1 Folge wartet auf eine neue Hörkopie.', mehr: '{anzahl} Folgen warten auf eine neue Hörkopie.' },
   },
@@ -1188,4 +1209,134 @@ export const GEHOERT = {
     ],
   },
   einheit: { std: 'Std.', min: 'Min.', sek: 'Sek.' },
+};
+
+// Online-Suche (Design docs/designs/online-suche.md Abschnitt 10, Paket OS4). Quellen heißen „Apple“ und „Tonies“ (R5), Namensvorschläge „Claude“.
+// Die Seite erklärt sich selbst (erklaersaetze.md): nur Zustände, Folgen und Rückmeldungen.
+export const ONLINE = {
+  quelle: { itunes: 'Apple', tonies: 'Tonies', claude: 'Claude', tonies_shop: 'Tonies-Shop' },
+  feld: { serie_name: 'Name', folge_titel: 'Folge', nummer: 'Nummer', art: 'Art', cover: 'Cover', beschreibung: 'Beschreibung', alter_ab: 'Alter' },
+  und: ' und ', // „Cover und Art“, „Cover, Art und Nummer“
+  hinweis: { // Zeile im Kopf der Serienseite (R1: für alle)
+    zeile: 'Aus der Online-Suche übernommen: {felder}.',
+    zurueck: 'Zurücknehmen',
+    frag: 'Frag einen Administrator, wenn etwas nicht stimmt.',
+  },
+  menue: { suchen: 'Online suchen', cover_weg: 'Online-Cover entfernen', cover_weg_fertig: 'Das Online-Cover ist entfernt.' },
+  suche: { // Blatt „Online suchen“
+    titel: 'Online suchen',
+    label: 'Suchtext',
+    knopf: 'Suchen',
+    laeuft: 'Suche bei Apple und Tonies …',
+    nichts: 'Nichts gefunden. Versuch einen anderen Namen.',
+    keine_quelle: 'Online-Suche gerade nicht erreichbar, später noch einmal.',
+    quelle_aus: '{quelle} antwortet gerade nicht. Das sind nur Treffer von {andere}.',
+    quelle_pause: '{quelle} braucht eine Pause. Das sind nur Treffer von {andere}.',
+    quelle_aus_allein: '{quelle} antwortet gerade nicht.', // die andere Quelle antwortet auch nicht: kein „nur Treffer von …“
+    quelle_pause_allein: '{quelle} braucht eine Pause.',
+    zu_kurz: 'Gib mindestens 2 Zeichen ein.',
+    quelle_pause_bis: '{quelle} braucht eine Pause, bis {uhr_bis}.',
+    nur_treffer: 'Das sind nur Treffer von {andere}.',
+    abgelaufen: 'Die Suche ist zu alt. Such bitte noch einmal.',
+    treffer: 'Treffer',
+    frueher: 'früher abgelehnt',
+    ohne_cover: 'ohne Bild',
+    nummer: 'Folge {nr}',
+    tracks: { eins: '{anzahl} Titel', mehr: '{anzahl} Titel' },
+    vorschau: 'Vorschaubild: {titel}',
+    waehlen: '{titel} ansehen',
+    schliessen: 'Schließen',
+  },
+  uebersicht: { // Übersicht „heute → neu“
+    titel: 'Was soll übernommen werden?',
+    zurueck: 'Zurück',
+    uebernehmen: 'Übernehmen',
+    alles_gleich: 'Hier ist schon alles so.',
+    hand: 'von Hand gesetzt',
+    heute: 'heute',
+    neu: 'neu',
+    leer: 'leer',
+    mehr: 'mehr',
+    weniger: 'weniger',
+    alter: 'ab {alter}',
+    folge_von: 'Folge „{folge}“',
+    cover_heute: 'Cover heute',
+    cover_neu: 'neues Cover',
+    cover_ohne: 'ohne Bild',
+    cover_ohne_bild: 'Neues Cover: Das Bild siehst du erst bei „Online suchen“.',
+    aus: '{feld} übernehmen',
+    grund: 'Grund von Claude: {grund}',
+    fertig: 'Übernommen.',
+    fertig_name: 'Der Name ist geändert.',
+  },
+  vorschlag: { // Karte „bitte ansehen“ (nur Administratoren)
+    titel: 'Vorschlag aus der Online-Suche',
+    karte: 'Vorschläge der Online-Suche',
+    von: 'Vorschlag aus der Online-Suche: {felder} von {quelle}',
+    name: 'Vorschlag von Claude: Name „{name}“',
+    zusammen: 'Vorschlag von Claude: mit „{ziel}“ zusammenführen',
+    zusammen_ohne_name: 'Vorschlag von Claude: mit einem anderen Eintrag zusammenführen',
+    ansehen: 'Ansehen',
+    uebernehmen: 'Übernehmen',
+    zusammenfuehren: 'Zusammenführen …',
+    nein: 'Nein',
+    verworfen: 'Der Vorschlag ist verworfen.',
+    aria_ansehen: 'Vorschlag ansehen: {text}',
+    aria_nein: 'Vorschlag ablehnen: {text}',
+    aria_uebernehmen: 'Vorschlag übernehmen: {text}',
+  },
+  zuruecknehmen: { // Blatt „Zurücknehmen?“ (GR-14)
+    titel: 'Zurücknehmen?',
+    text: 'Alle Änderungen der Online-Suche an diesem Eintrag nehmen wir zurück. Zuletzt: {felder}.',
+    knopf: 'Zurücknehmen',
+    fertig: 'Zurückgenommen.',
+    uebersprungen: { eins: 'Zurückgenommen. 1 Feld blieb, weil es inzwischen geändert wurde.', mehr: 'Zurückgenommen. {anzahl} Felder blieben, weil sie inzwischen geändert wurden.' },
+  },
+  folge: { // Folgenzeile (alle Benutzer, R4)
+    alter: 'ab {alter}',
+    alter_aria: 'Empfohlen ab {alter} Jahren',
+    beschreibung: 'Beschreibung',
+    beschreibung_zu: 'Beschreibung ausblenden',
+    beschreibung_aria: 'Beschreibung von {titel} zeigen',
+    beschreibung_zu_aria: 'Beschreibung von {titel} ausblenden',
+    laedt: 'Beschreibung wird geladen …',
+    quelle: { tonies_shop: 'Von Tonies', itunes: 'Von Apple' },
+  },
+  technik: { // Technik › Online-Suche
+    titel: 'Online-Suche', zeile: 'Cover und Angaben aus dem Netz, Lauf über die Bibliothek', // Zeile in der Liste der Technik (Muster X10), nur mit Fähigkeit `online_suche`
+    quellen: 'Quellen',
+    lauf: 'Lauf',
+    letzte: 'Letzte Läufe',
+    quelle_ok: 'erreichbar',
+    quelle_aus: 'antwortet gerade nicht',
+    quelle_pause: 'Pause bis {uhr_bis}',
+    claude_aus: 'nicht eingerichtet, keine Namensvorschläge',
+    claude_ok: 'bereit',
+    claude_nein: 'antwortet gerade nicht',
+    liste: 'Tonie-Liste',
+    liste_stand: 'Stand {stand}, {anzahl}',
+    liste_eintraege: { eins: '1 Eintrag', mehr: '{anzahl} Einträge' },
+    liste_keine: 'noch nicht geladen',
+    starten: 'Bibliothek durchsuchen',
+    anhalten: 'Anhalten',
+    gestartet: 'Der Lauf ist gestartet.',
+    kein_lauf: 'Kein Lauf.',
+    laeuft: 'Läuft: {erledigt} von {gesamt}.',
+    zahlen: '{geaendert} geändert, {vorschlaege} Vorschläge, {keiner} ohne Treffer.',
+    pause: 'Pause bis {uhr_bis}, weil {quelle} bremst.',
+    pause_ohne: 'Pause bis {uhr_bis}.',
+    wird_angehalten: 'Hält nach dieser Serie an.',
+    fertig: 'Fertig: {geaendert} Einträge geändert, {vorschlaege} Vorschläge, {keiner} ohne Treffer.',
+    angehalten: 'Angehalten.',
+    abgebrochen: 'Abgebrochen. Du kannst neu starten.',
+    abgebrochen_grund: { neustart: 'Abgebrochen (Neustart). Du kannst neu starten.', quelle: 'Abgebrochen: Quelle nicht erreichbar.', angehalten: 'Angehalten.' },
+    fortschritt: 'Fortschritt der Suche',
+    alle_zurueck: 'Alle zurücknehmen',
+    alle_zurueck_aria: 'Alle Änderungen des Laufs von {zeit} zurücknehmen',
+    alle_zurueck_titel: 'Alle zurücknehmen?',
+    alle_zurueck_text: { eins: '1 Eintrag geht auf die alten Werte zurück.', mehr: '{anzahl} Einträge gehen auf die alten Werte zurück.' },
+    rueck_laeuft: 'Wird zurückgenommen: {erledigt} von {gesamt}.',
+    keine_laeufe: 'Noch kein Lauf.',
+    lauf_vom: 'Lauf vom {zeit}',
+  },
 };

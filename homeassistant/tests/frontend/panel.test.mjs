@@ -65,6 +65,12 @@ const NEU_FUER_NEUE_SEITE = [
   'warteschlange_doppelt',
   'wer_ungueltig', // Stufe B (B4): Texte kommen mit der neuen Seite
   'zu_viele_favoriten',
+  'treffer_abgelaufen', // Online-Suche (OS4): Texte kommen mit der neuen Seite, die alte Seite kennt die Online-Suche nicht
+  'vorschlag_nicht_gefunden',
+  'aenderung_nicht_gefunden',
+  'lauf_nicht_gefunden',
+  'lauf_laeuft_schon',
+  'online_nicht_erreichbar',
 ];
 
 test('Alle Fehlercodes des Vertrags (Abschnitt 7) haben einen deutschen Text', () => {

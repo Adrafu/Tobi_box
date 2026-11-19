@@ -48,7 +48,7 @@ ROLLEN = ["admin", "user"]
 KATEGORIEN = ["konsole", "ablauf", "hscroll", "raus", "klein", "text", "symbole", "rand", "leiste", "extra"]
 TECHNIK_SEITEN = [("technik", "#technik"), ("technik-boxen", "#technik-boxen"), ("technik-box", "#technik-box-kueche"), ("technik-speicher", "#technik-speicher"),
                   ("technik-liste", "#technik-liste"), ("technik-tobies", "#technik-tobies"), ("technik-meldungen", "#technik-meldungen"),
-                  ("technik-einstellungen", "#technik-einstellungen")]
+                  ("technik-einstellungen", "#technik-einstellungen"), ("technik-online", "#technik-online")]
 
 
 # ------------------------------------------------------------------ Hilfen im Lauf
@@ -579,6 +579,10 @@ def seiten_messen(L: Lauf):
         seite("technik-box-tabelle", "#technik-box-kueche", lambda: (L.js("sr.querySelectorAll('[data-karte=\"verlauf\"] details').forEach((d) => { d.open = true; })"), L.ruhe()))
         seite("technik-box-ohne-akku", "#technik-box-kinderzimmer")
         seite("technik-speicher-loeschen", "#technik-speicher", lambda: L.js("sr.querySelector('[data-karte=\"hoerdaten\"]')?.scrollIntoView()"))
+    if not leer and profil != "alt":  # OS4: der Eintrag mit Hinweiszeile, Vorschlägen, „ab 3“ und Beschreibungen
+        seite("serie-online", "#serie-onl")
+        seite("serie-online-folge-offen", "#serie-onl", lambda: (L.klick('[data-folge="o1.mp3"] [data-beschreibung]'), L.ruhe()))
+        seite("serie-lang-online", "#serie-lang")
     seite("box", "#box-kueche")
     seite("box-offline", "#box-kinderzimmer")
     seite("box-fehlt", "#box-gibtsnicht")
@@ -1188,6 +1192,8 @@ BLAETTER = [
     ("leise-neu", "#geraete", ["[data-leise-neu]"], "[data-leise-neu]", ".knoepfe .btn:first-child", False),
     ("leise-aendern", "#geraete", ["button.hit[data-fenster=nacht]"], "button.hit[data-fenster=nacht]", ".knoepfe .btn:first-child", False),
     ("technik-cover", "#technik-speicher", ["[data-aktion=cover]"], "[data-aktion=cover]", ".knoepfe .btn:last-child", True),
+    ("online-suche", "#serie-onl", ["[data-menue-serie]", '[data-menue="online"]'], "[data-menue-serie]", ".knoepfe .btn:first-child", True),
+    ("online-zuruecknehmen", "#serie-onl", ["[data-online-zurueck]"], "[data-online-zurueck]", ".knoepfe .btn:first-child", True),
 ]
 WEGE = ["x", "knopf", "esc", "hintergrund", "wischen", "route"]
 
@@ -1203,6 +1209,14 @@ def blatt_schliessen(L: Lauf, weg, knopf):
     elif weg == "hintergrund":
         pg.mouse.click(4, 4)
     elif weg == "wischen":
+        # Das Blatt erst zur Ruhe kommen lassen: laden Treffer und Vorschaubilder (Blatt „Online suchen“) nach, wächst es von unten und der Griff wandert unter der Maus weg
+        letzte = None
+        for _ in range(40):
+            jetzt = pg.locator("dialog[open]").first.bounding_box()
+            if letzte is not None and jetzt == letzte:
+                break
+            letzte = jetzt
+            pg.wait_for_timeout(120)
         r = pg.locator("dialog[open] .griff").first.bounding_box()
         h = pg.locator("dialog[open]").first.bounding_box()["height"]
         x, y = r["x"] + r["width"] / 2, r["y"] + r["height"] / 2
@@ -1220,6 +1234,8 @@ def ablauf_blaetter(L: Lauf):
     admin = L.job["rolle"] == "admin"
     for name, seite, schritte, ausloeser, knopf, nur_admin in BLAETTER:
         if nur_admin and not admin:
+            continue
+        if name.startswith("online") and L.job["profil"] == "alt":  # ältere HA ohne `online_suche`
             continue
         for weg in WEGE:
             z = f"blatt-{name}-{weg}"
@@ -3333,11 +3349,194 @@ def ablauf_player_gehoert(L: Lauf):
 
 
 
+# ------------------------------------------------------------------ OS4: Online-Suche
+def ablauf_online(L: Lauf):
+    """Online-Suche (Paket OS4, Design online-suche.md 10): Zeile „Aus der Online-Suche übernommen“ (alle), „ab 3“ und die Beschreibung auf Tipp (alle; die lange über
+    Befehl 64), für Administratoren das Blatt „Online suchen“ mit Treffern, Vorschaubild und Übersicht, die Vorschläge in der Karte (Apple, Claude, Zusammenführen),
+    „Zurücknehmen“, „Online-Cover entfernen“, der Filter `online_vorschlag` und Technik › Online-Suche (Lauf, Fortschritt, Läufe, „Alle zurücknehmen“); für Benutzer: nichts davon
+    außer der Zeile, „ab 3“ und der Beschreibung. Bei älterer HA (Profil „alt“) gibt es nichts davon."""
+    if L.job["profil"] == "alt":
+        return
+    admin = L.job["rolle"] == "admin"
+    with L.schritt("online-serie-hinweis"):
+        L.gehe("#serie-onl")
+        L.warte_da("[data-online-hinweis]")
+        L.pruefe(L.js("return sr.querySelector('[data-online-text]').textContent.trim()") == "Aus der Online-Suche übernommen: Cover und Art.", "online-serie-hinweis", "Hinweiszeile fehlt oder falsch")
+        L.pruefe(L.da("[data-online-zurueck]") == admin and L.da("[data-online-frag]") == (not admin), "online-serie-hinweis", f"Zurücknehmen/„Frag einen Administrator“ passt nicht zur Rolle (admin={admin})")
+        L.pruefe(L.da('[data-karte="ansehen"] [data-vorschlaege]') == admin, "online-serie-hinweis", "Vorschläge nur für Administratoren")
+        L.messe("online-serie")
+    with L.schritt("online-folgenzeile"):
+        L.gehe("#serie-onl")
+        L.pruefe(L.js("return sr.querySelector('[data-folge=\"o1.mp3\"] [data-alter]')?.textContent.trim()") == "ab 3", "online-folgenzeile", "„ab 3“ fehlt")
+        L.pruefe(not L.da('[data-folge="o3.mp3"] [data-beschreibung]') and not L.da('[data-folge="o3.mp3"] [data-alter]'), "online-folgenzeile", "Folge ohne Angaben zeigt Knopf oder Alter")
+        L.klick('[data-folge="o1.mp3"] [data-beschreibung]')
+        L.pruefe(L.js("return sr.querySelector('[data-folge=\"o1.mp3\"] [data-beschreibung-text]')?.textContent.trim()") == "Ein kurzer Text zur ersten Folge.", "online-folgenzeile", "Beschreibung fehlt nach dem Tipp")
+        L.pruefe(not aufrufe(L, "tobibox/online/beschreibung"), "online-folgenzeile", "kurzer Text lädt nach")
+        L.klick('[data-folge="o2.mp3"] [data-beschreibung]')
+        L.warte_da('[data-folge="o2.mp3"] [data-beschreibung-text]')
+        L.pruefe(len(L.js("return sr.querySelector('[data-folge=\"o2.mp3\"] [data-beschreibung-text]').textContent.trim()")) > 300, "online-folgenzeile", "voller Text nicht geladen (Befehl 64)")
+        L.pruefe(len(aufrufe(L, "tobibox/online/beschreibung")) == 1, "online-folgenzeile", "Befehl 64 nicht genau einmal")
+        L.messe("online-folgen-offen")
+        L.klick('[data-folge="o1.mp3"] [data-beschreibung]')
+        L.klick('[data-folge="o2.mp3"] [data-beschreibung]')
+    if not admin:
+        with L.schritt("online-benutzer"):
+            L.gehe("#serie-onl")
+            L.klick("[data-menue-serie]")
+            L.pruefe(not L.da('dialog [data-menue="online"]'), "online-benutzer", "Menüpunkt „Online suchen“ für Benutzer")
+            L.blatt_zu()
+            L.klick('[data-folge="o1.mp3"] [data-menue-folge]')
+            L.pruefe(not L.da('dialog [data-menue="online"]'), "online-benutzer", "Menüpunkt „Online suchen“ an der Folge für Benutzer")
+            L.blatt_zu()
+            L.gehe("#bibliothek")
+            L.klick("[data-sortieren]")
+            L.pruefe(not L.js("return /Vorschlag der Online-Suche/.test(sr.querySelector('dialog').textContent)"), "online-benutzer", "Filter „online_vorschlag“ für Benutzer")
+            L.blatt_zu()
+            L.pruefe(not [a for a in L.mock("/zustand").get("cover", []) if "quelle=online" in a.get("pfad", "")], "online-benutzer", "DELETE ?quelle=online von Benutzer")
+            L.gehe("#technik-online")
+            L.pruefe(L.da('[data-zustand="nur-admin"]'), "online-benutzer", "Technik › Online-Suche für Benutzer")
+            befehle = [c for c in (aufrufe(L, t) for t in ("tobibox/online/suchen", "tobibox/online/status", "tobibox/online/lauf", "tobibox/online/treffer")) if c]
+            L.pruefe(not befehle, "online-benutzer", f"Befehle 57 bis 63 vom Benutzer: {befehle}")
+        return
+    with L.schritt("online-cover-weg"):  # zuerst: der Eintrag hat noch sein Online-Cover
+        L.gehe("#serie-onl")
+        L.klick("[data-menue-serie]")
+        L.klick('dialog [data-menue="cover"]')
+        L.warte_da("[data-cover-online-weg]")
+        L.pruefe(not L.da("[data-cover-zurueck]"), "online-cover-weg", "„Zurück zum automatischen Cover“ ohne eigenes Foto")
+        L.messe("online-cover-blatt")
+        L.klick("[data-cover-online-weg]")
+        L.pg.wait_for_function("() => !window.__el.shadowRoot.querySelector('dialog[open]')", timeout=4000)
+        L.pruefe(any("quelle=online" in a.get("pfad", "") and a.get("methode") == "DELETE" for a in L.mock("/zustand").get("cover", [])), "online-cover-weg", "kein DELETE …?quelle=online")
+    with L.schritt("online-suche"):
+        L.gehe("#serie-onl")
+        L.klick("[data-menue-serie]")
+        L.klick('dialog [data-menue="online"]')
+        L.warte_da("[data-treffer]")
+        L.pg.wait_for_function("() => window.__el.shadowRoot.querySelectorAll('dialog img[data-vorschau]').length >= 2", timeout=6000)
+        L.pruefe(L.js("return [...sr.querySelectorAll('dialog img[data-vorschau]')].every((i) => i.complete && i.naturalWidth > 0)"), "online-suche", "Vorschaubilder nicht geladen")
+        L.pruefe(L.js("return sr.querySelectorAll('[data-treffer]').length") == 3, "online-suche", "nicht drei Treffer")
+        L.pruefe(L.js("return sr.querySelectorAll('[data-marke=\"frueher\"]').length") == 1, "online-suche", "Marke „früher abgelehnt“ fehlt")
+        L.messe("online-suche")
+        L.klick("[data-treffer]")
+        L.warte_da("[data-feld]")
+        L.pg.wait_for_function("() => !!window.__el.shadowRoot.querySelector('dialog img[data-vorschau-neu]')", timeout=6000)
+        L.pruefe(L.js("return [...sr.querySelectorAll('[data-feld]')].every((b) => b.getAttribute('aria-checked') === 'true')"), "online-suche", "nicht alle Felder angehakt")
+        L.messe("online-uebersicht")
+        L.klick('[data-feld="art"]')
+        L.pruefe(L.js("return sr.querySelector('[data-feld=\"art\"]').getAttribute('aria-checked')") == "false", "online-suche", "Häkchen nicht abwählbar")
+        L.klick('dialog .knoepfe .btn:first-child')  # Zurück
+        L.warte_da("[data-treffer]")
+        L.blatt_zu()
+    with L.schritt("online-suche-folge"):
+        L.gehe("#serie-onl")
+        L.klick('[data-folge="o3.mp3"] [data-menue-folge]')
+        L.klick('dialog [data-menue="online"]')
+        L.warte_da("[data-treffer]")
+        L.pruefe(aufrufe(L, "tobibox/online/suchen")[-1].get("folge") == "o3.mp3", "online-suche-folge", "Befehl 57 ohne folge")
+        L.klick("[data-treffer]")
+        L.warte_da('[data-feld^="folge_titel@"]')
+        L.pruefe(L.js("return sr.querySelector('[data-feld^=\"folge_titel@\"]').textContent.includes('Ohne Angaben')"), "online-suche-folge", "Folge steht nicht beim Feld")
+        L.messe("online-uebersicht-folge")
+        L.klick('dialog .knoepfe .btn.primary')
+        L.pg.wait_for_function("() => !window.__el.shadowRoot.querySelector('dialog[open]')", timeout=6000)
+        L.ruhe()
+        L.pruefe("Übernommen." in L.toast(), "online-suche-folge", f"Meldung {L.toast()!r}")
+        u = aufrufe(L, "tobibox/online/uebernehmen")[-1]
+        L.pruefe(u.get("stand") and u.get("anfrage_id") and u.get("treffer_id") and "nummer@o3.mp3" in u["felder"], "online-suche-folge", f"Übernehmen: {u}")
+        L.pg.wait_for_function("() => !!window.__el.shadowRoot.querySelector('[data-folge=\"o3.mp3\"] [data-alter]')", timeout=4000)
+        L.messe("online-nach-uebernahme")
+    with L.schritt("online-vorschlaege"):
+        L.gehe("#serie-onl")
+        L.warte_da("[data-vorschlaege]")
+        L.pruefe(L.js("return sr.querySelectorAll('[data-vorschlag]').length") == 3, "online-vorschlaege", "nicht drei Vorschläge")
+        L.pruefe(L.js("return sr.querySelector('[data-vorschlag=\"v-claude\"] [data-vorschlag-grund]')?.textContent.trim()") == "Der Ordnername ist ein Hörspielname, der Eintrag heißt anders.", "online-vorschlaege", "Grund von Claude fehlt")
+        L.pruefe(L.js("return sr.querySelector('[data-vorschlag=\"v-zus\"] [data-vorschlag-text]').textContent.trim()") == "Vorschlag von Claude: mit „Online Ziel“ zusammenführen", "online-vorschlaege", "Ziel des Zusammenführens ohne Namen")
+        L.messe("online-vorschlaege")
+        L.klick('[data-vorschlag="v-apple"] [data-vorschlag-aktion="ansehen"]')
+        L.warte_da("[data-feld]")
+        L.pruefe(L.js("return sr.querySelector('dialog .knoepfe .btn:first-child').textContent.trim()") == "Abbrechen", "online-vorschlaege", "Blatt eines Vorschlags ohne „Abbrechen“")
+        L.messe("online-vorschlag-uebersicht")
+        L.klick('dialog .knoepfe .btn:first-child')
+        L.pg.wait_for_function("() => !window.__el.shadowRoot.querySelector('dialog[open]')", timeout=4000)
+        L.klick('[data-vorschlag="v-zus"] [data-vorschlag-aktion="zusammen"]')
+        L.warte_da("dialog[open] .knoepfe")
+        L.messe("online-zusammenfuehren")
+        L.klick("dialog .knoepfe .btn:first-child")
+        L.pg.wait_for_function("() => !window.__el.shadowRoot.querySelector('dialog[open]')", timeout=4000)
+        L.klick('[data-vorschlag="v-claude"] [data-vorschlag-aktion="nein"]')
+        L.pg.wait_for_function("() => !window.__el.shadowRoot.querySelector('[data-vorschlag=\"v-claude\"]')", timeout=4000)
+        L.pruefe("verworfen" in L.toast(), "online-vorschlaege", f"Meldung {L.toast()!r}")
+        L.pruefe(not [a for a in aufrufe(L, "tobibox/online/uebernehmen") if a.get("vorschlag_id") == "v-zus"], "online-vorschlaege", "Zusammenführen ging über Befehl 59")
+    with L.schritt("online-zuruecknehmen"):
+        L.gehe("#serie-onl")
+        L.klick("[data-online-zurueck]")
+        L.warte_da("[data-zuruecknehmen-felder]")
+        L.messe("online-zuruecknehmen")
+        L.klick("dialog .knoepfe .btn.primary")
+        L.pg.wait_for_function("() => !window.__el.shadowRoot.querySelector('dialog[open]')", timeout=4000)
+        L.ruhe()
+        L.pruefe(L.toast().startswith("Zurückgenommen"), "online-zuruecknehmen", f"Meldung {L.toast()!r}")
+        z = aufrufe(L, "tobibox/online/zuruecknehmen")[-1]
+        L.pruefe(z.get("serie_id") == "onl" and "lauf_id" not in z and "aenderung_id" not in z, "online-zuruecknehmen", f"Befehl 60: {z}")
+    with L.schritt("online-filter"):
+        L.mock("/ereignis", {"thema": "medien", "art": "serien_geaendert", "daten": {}})
+        L.gehe("#bibliothek")
+        L.klick("[data-sortieren]")
+        L.warte_da("dialog .optrow[aria-pressed]")
+        L.pruefe(L.js("return [...sr.querySelectorAll('dialog .optrow[aria-pressed]')].some((b) => b.textContent.trim() === 'Mit Vorschlag der Online-Suche')"), "online-filter", "Filter „Mit Vorschlag der Online-Suche“ fehlt")
+        L.messe("online-filter-blatt")
+        L.js("[...sr.querySelectorAll('dialog .optrow[aria-pressed]')].find((b) => b.textContent.trim() === 'Mit Vorschlag der Online-Suche').click()")
+        L.ruhe()
+        L.klick("dialog .knoepfe .btn.primary")
+        L.pg.wait_for_function("() => !window.__el.shadowRoot.querySelector('dialog[open]')", timeout=4000)
+        L.pruefe("online_vorschlag" in aufrufe(L, "tobibox/serien/list")[-1].get("filter", []), "online-filter", "Abfrage ohne Filter online_vorschlag")
+        L.js("el._seiten.bibliothek.zuruecksetzen({ mitArt: true })")
+        L.ruhe()
+    with L.schritt("online-technik"):
+        L.gehe("#technik")
+        L.pruefe(L.js("return [...sr.querySelectorAll('[data-technik=\"liste\"] a.tzeile')].map((a) => a.getAttribute('href')).indexOf('#technik-online')") == 2, "online-technik", "Zeile „Online-Suche“ fehlt oder steht an der falschen Stelle")
+        L.gehe("#technik-online")
+        L.warte_da("[data-online-seite]")
+        L.pruefe(L.js("return sr.querySelector('[data-quelle=\"claude\"]').textContent.replace(/\\s+/g, ' ').trim()") == "Claude bereit", "online-technik", "Zustand von Claude")
+        L.messe("technik-online")
+        L.klick('[data-aktion="online_starten"]')
+        L.warte_da('[data-lauf-zustand="laeuft"]')
+        L.mock("/ereignis", {"thema": "online", "art": "stand", "daten": {"vorgang": "lauf", "lauf_id": "x", "zustand": "laeuft", "erledigt": 85, "gesamt": 340, "geaendert": 20, "vorschlaege": 6, "keiner": 3}})
+        L.pg.wait_for_function("() => /85 von 340/.test(window.__el.shadowRoot.querySelector('[data-lauf-zustand]')?.textContent || '')", timeout=4000)
+        L.messe("technik-online-laeuft")
+        L.mock("/ereignis", {"thema": "online", "art": "stand", "daten": {"vorgang": "lauf", "lauf_id": "x", "zustand": "pausiert", "erledigt": 90, "gesamt": 340, "geaendert": 21, "vorschlaege": 6, "keiner": 3, "pause_bis": "2026-11-19T13:20:00Z"}})
+        L.pg.wait_for_function("() => /Pause bis/.test(window.__el.shadowRoot.querySelector('[data-lauf-zustand]')?.textContent || '')", timeout=4000)
+        L.messe("technik-online-pause")
+        L.mock("/ereignis", {"thema": "online", "art": "stand", "daten": {"vorgang": "lauf", "lauf_id": "x", "zustand": "laeuft", "erledigt": 100, "gesamt": 340, "geaendert": 25, "vorschlaege": 7, "keiner": 3}})
+        L.pg.wait_for_function("() => /100 von 340/.test(window.__el.shadowRoot.querySelector('[data-lauf-zustand]')?.textContent || '')", timeout=4000)  # erst das Ereignis, sonst überholt es den Befehl
+        L.klick('[data-aktion="online_anhalten"]')
+        L.warte_da('[data-lauf-zustand="wird_angehalten"]')
+        L.pruefe(L.js("return sr.querySelector('[data-lauf-zustand]').textContent.trim()") == "Hält nach dieser Serie an.", "online-technik", "Satz „Hält nach dieser Serie an.“")
+        L.messe("technik-online-anhalten")
+        L.mock("/online-ende", {"zustand": "abgebrochen", "zahlen": {"erledigt": 101, "gesamt": 340, "geaendert": 3, "vorschlaege": 1, "keiner": 0}})  # ohne grund
+        L.pg.wait_for_function("() => !!window.__el.shadowRoot.querySelector('[data-lauf-ende]')", timeout=5000)
+        L.pruefe(L.js("return sr.querySelector('[data-lauf-ende]').textContent.trim()") == "Abgebrochen. Du kannst neu starten.", "online-technik", "abgebrochen ohne Grund")
+        L.pruefe("undefined" not in L.js("return sr.querySelector('[data-online-seite]').textContent"), "online-technik", "„undefined“ auf der Seite")
+        L.messe("technik-online-ende")
+        L.pruefe(L.js("return sr.querySelectorAll('[data-lauf]').length") == 4, "online-technik", "nicht vier letzte Läufe")
+        L.klick('[data-alle-zurueck="l-fertig"]')
+        L.warte_da("[data-alle-zurueck-text]")
+        L.pruefe(L.js("return sr.querySelector('[data-alle-zurueck-text]').textContent.trim()") == "120 Einträge gehen auf die alten Werte zurück.", "online-technik", "Zahl der Einträge in der Rückfrage")
+        L.messe("technik-online-alle-zurueck")
+        L.klick("dialog .knoepfe .btn.primary")
+        L.pg.wait_for_function("() => !window.__el.shadowRoot.querySelector('dialog[open]')", timeout=4000)
+        L.pg.wait_for_function("() => /Zurückgenommen/.test([...window.__el.shadowRoot.querySelectorAll('.toast .tmsg')].map((t) => t.textContent).join(' '))", timeout=5000)
+        L.pruefe(aufrufe(L, "tobibox/online/zuruecknehmen")[-1].get("lauf_id") == "l-fertig", "online-technik", "Befehl 60 ohne lauf_id")
+        L.messe("technik-online-zurueck-fertig")
+
+
+
 ABLAEUFE = [ablauf_unterkante, ablauf_reiter, ablauf_klicks, ablauf_reihen, ablauf_suche, ablauf_bibliothek, ablauf_serie, ablauf_cover, ablauf_leise, ablauf_box, ablauf_technik, ablauf_blaetter,
             ablauf_tobies_weg1, ablauf_tobies_weg2, ablauf_tobies_meldung, ablauf_tobies_umhaengen, ablauf_tobies_geben, ablauf_tobies_lernmodus,
             ablauf_tobies_name_geben_weit_unten, ablauf_hinzufuegen, ablauf_eingang_liste, ablauf_anders_einsortieren, ablauf_eingang, ablauf_papierkorb, ablauf_papierkorb_punkt, ablauf_bewegung,
             ablauf_druck, ablauf_seitenwechsel, ablauf_player_bewegung, ablauf_play_pause_lage, ablauf_wechsel_serie, ablauf_flug_ruhe, ablauf_blatt_tastatur, ablauf_serie_zeile, ablauf_kapitel, ablauf_player,
-            ablauf_gehoert, ablauf_stern, ablauf_technik_gehoert, ablauf_player_gehoert]
+            ablauf_gehoert, ablauf_stern, ablauf_technik_gehoert, ablauf_player_gehoert, ablauf_online]
 
 
 # ------------------------------------------------------------------ Browser und Läufe

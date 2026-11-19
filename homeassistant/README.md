@@ -28,7 +28,7 @@ Verträge (die Integration ändert sie nicht): `docs/protocol/ha-websocket-v1.md
 *   **Rechte:** Drei Stufen (Vertrag W, Abschnitt 2.1):
     *   **lesen:** jeder angemeldete HA-Benutzer,
     *   **alltag:** jeder angemeldete HA-Benutzer, mit den Schutzregeln aus 2.4 (zum Beispiel Papierkorb mit Punkt am Technik-Symbol für Administratoren, AC3),
-    *   **admin:** nur Administratoren, zum Beispiel Papierkorb leeren, Liste neu ausrollen, Lernmodus, „Cover neu suchen“.
+    *   **admin:** nur Administratoren, zum Beispiel Papierkorb leeren, Liste neu ausrollen, Lernmodus, „Cover aus den Dateien neu lesen“.
     Die Stufe steht am Befehl als `recht=` (`websocket_api.py`).
 *   **Boxen mit Namen:** Die Anzeigenamen stellst du in den Optionen der Integration ein, Feld „Namen der Boxen“,
     Schreibweise `box1=Box 1, box2=Box 2` (Vor dem Gleichheitszeichen steht der Box-Name, danach der Anzeigename, bis

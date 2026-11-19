@@ -12,19 +12,19 @@ import { plusKlick } from './hinzufuegen.js';
 
 export const SEITE_GROESSE = 60; // Päckchen (Design 5.2 Punkt 5, X23)
 export const ARTEN = ['alle', 'hoerspiel', 'hoerbuch', 'musik', 'geschichte'];
-const FILTER = ['ohne_tobie', 'neu', 'pruefen', 'favorit'];
+const FILTER = ['ohne_tobie', 'neu', 'pruefen', 'favorit', 'online_vorschlag']; // `online_vorschlag`: nur Administratoren mit Fähigkeit `online_suche` (OS4); ein fehlender Schlüssel in `e.filter` gilt als aus
 const SORTIERUNGEN = ['name', 'neu', 'angehoert', 'zuletzt_gehoert', 'meist_gehoert'];
 
 export const STANDARD = () => ({ art: 'alle', sortierung: 'name', typ: 'alle', filter: { ohne_tobie: false, neu: false, pruefen: false, favorit: false } });
 
 /* Zahl der eingestellten Dinge am Knopf „Sortieren und Filter“ (Art zählt nicht, sie hat eigene Reiter). */
-export function aktiveEinstellungen(e) {
-  return (e.sortierung !== 'name' ? 1 : 0) + (e.typ !== 'alle' ? 1 : 0) + FILTER.filter((f) => e.filter[f]).length;
+export function aktiveEinstellungen(e, { ohneOnline = false } = {}) {
+  return (e.sortierung !== 'name' ? 1 : 0) + (e.typ !== 'alle' ? 1 : 0) + FILTER.filter((f) => e.filter[f] && !(ohneOnline && f === 'online_vorschlag')).length;
 }
 
 /* Eingabe für `serien/list` aus den Einstellungen (Vertrag 14.2). */
-export function listenAnfrage(e, offset = 0) {
-  const filter = [...(e.typ !== 'alle' ? [e.typ] : []), ...FILTER.filter((f) => e.filter[f])];
+export function listenAnfrage(e, offset = 0, { ohneOnline = false } = {}) { // `ohneOnline`: der Filter `online_vorschlag` gilt nur für Administratoren mit Fähigkeit
+  const filter = [...(e.typ !== 'alle' ? [e.typ] : []), ...FILTER.filter((f) => e.filter[f] && !(ohneOnline && f === 'online_vorschlag'))];
   return {
     ...(e.art !== 'alle' ? { art: e.art } : {}),
     sortierung: e.sortierung,
@@ -79,7 +79,7 @@ class BibliothekSeite {
     if (!still || this.z.phase !== 'bereit') this.z = { ...this.z, phase: 'laedt', fehlerCode: null, ladeMehr: false };
     this.ctx.neuZeichnen();
     try {
-      const r = await ladeMitGrenze(this.ctx.api('tobibox/serien/list', listenAnfrage(this.e)), this.ctx.grenzeMs);
+      const r = await ladeMitGrenze(this.ctx.api('tobibox/serien/list', listenAnfrage(this.e, 0, { ohneOnline: !this._onlineFilter() })), this.ctx.grenzeMs);
       if (lauf !== this._lauf) return;
       this.ctx.covers.merke(r.serien);
       this.z = { phase: 'bereit', fehlerCode: null, eintraege: r.serien || [], gesamt: r.gesamt ?? (r.serien || []).length, weitere: !!r.weitere, ladeMehr: false };
@@ -97,7 +97,7 @@ class BibliothekSeite {
     this.z = { ...z, ladeMehr: true };
     this.ctx.neuZeichnen();
     try {
-      const r = await ladeMitGrenze(this.ctx.api('tobibox/serien/list', listenAnfrage(this.e, z.eintraege.length)), this.ctx.grenzeMs);
+      const r = await ladeMitGrenze(this.ctx.api('tobibox/serien/list', listenAnfrage(this.e, z.eintraege.length, { ohneOnline: !this._onlineFilter() })), this.ctx.grenzeMs);
       if (lauf !== this._lauf) return;
       this.ctx.covers.merke(r.serien);
       const schon = new Set(z.eintraege.map((s) => s.id));
@@ -131,10 +131,12 @@ class BibliothekSeite {
   }
 
   /* ---- Blatt „Sortieren und Filter“ */
+  _onlineFilter() { return this.ctx.admin === true && this.ctx.faehig('online_suche'); }
+
   oeffneBlatt() {
     const b = BIB.blatt;
     const sortierungen = this._sortierungen();
-    const filter = FILTER.filter((f) => f !== 'favorit' || this.ctx.faehig('favoriten'));
+    const filter = FILTER.filter((f) => (f !== 'favorit' || this.ctx.faehig('favoriten')) && (f !== 'online_vorschlag' || this._onlineFilter()));
     const wahl = (name, werte, texte, aktuell, setze) => html`<div class="stack" role="radiogroup" aria-label=${name}>${werte.map((w) => html`
       <button type="button" class="optrow" role="radio" aria-checked=${aktuell === w ? 'true' : 'false'} @click=${() => setze(w)}><span>${texte[w]}</span>${aktuell === w ? ic('check', 22) : nothing}</button>`)}</div>`;
     const inhalt = () => html`
@@ -197,7 +199,7 @@ class BibliothekSeite {
     const kopf = this._kopf();
     if (z.phase === 'laedt') return html`${kopf}${ctx.laedt()}`;
     if (z.phase === 'fehler') return html`${kopf}${ctx.fehlerKarte(z.fehlerCode, () => this.laden())}`;
-    const aktiv = aktiveEinstellungen(e);
+    const aktiv = aktiveEinstellungen(e, { ohneOnline: !this._onlineFilter() });
     if (!z.eintraege.length) {
       if (e.art === 'alle' && aktiv === 0) return html`${kopf}${ctx.leer('bibliothek', 'bibliothekLeer', { href: '#hinzufuegen' })}`;
       return html`${kopf}${this._leiste(aktiv)}${ctx.leer('filter', 'filterOhneTreffer', { aktion: () => this.zuruecksetzen({ mitArt: true }) })}`;

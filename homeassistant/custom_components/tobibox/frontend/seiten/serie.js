@@ -6,6 +6,9 @@
  * (`folgen/order`) und „Mit anderem zusammenführen …“ (`serien/zusammenfuehren`) gibt es nur für Administratoren und sind für
  * andere nicht da (nicht nur gesperrt).
  *
+ * Online-Suche (OS4, seiten/online.js; Fähigkeit `online_suche`): „Online suchen“ im Menü des Eintrags und der Folge, die Zeile „Aus der Online-Suche übernommen“ im Kopf (für alle) mit „Zurücknehmen“
+ * (Administratoren), Vorschläge in der Karte „bitte ansehen“ (Administratoren), „ab 3“ und die Beschreibung auf Tipp in der Folgenzeile (für alle; der volle Text über Befehl 64).
+ *
  * Stufe B (B4, Fähigkeit `favoriten`): der Stern-Knopf im Kopf (`aria-pressed`), „Zu Favoriten“ / „Aus Favoriten“ im Menü der Folge und kleine Sterne in den Zeilen.
  *
  * „Gespielt von“ mit Chips, „+ Tobie“ und „Einem Tobie geben …“ (Karte und „⋯“ der Folge) kommen aus seiten/tobies.js (A9).
@@ -13,19 +16,20 @@
  * (A8b, A7c, A8m) rufen den Player (`ctx.spieler`, player.js). Kapitel (A8d): der Abschnitt „Kapitel“ statt der Folgenliste nur bei einem Hörbuch aus **einer** Folge mit Kapiteln (AM12), Zeilen ganz antippbar (AM11, AM13); die Karte „Die Hörprobe wird vorbereitet“. Noch nicht hier: „Anders einsortieren“ (A-3), Playlists (Stufe C), Cover-Flug (A6m/A8m). Schnittstelle zur App: bausteine.js.
  */
 import { html, nothing, css, repeat, ic, cover, coverKlasse, coverGrossUrl, ladeMitGrenze, untertitel, uhr, norm, eq, abspiel, laeuftAn, zaehle, sternKlein } from '../bausteine.js';
-import { SERIE, ZEILE, GRUENDE, TOBIE, SEITE, PLAYER, KAPITEL, STERN, fuellen } from '../texte.js';
+import { SERIE, ZEILE, GRUENDE, TOBIE, SEITE, PLAYER, KAPITEL, STERN, ONLINE, fuellen } from '../texte.js';
 import { knopfText, globalPos, kapitelVon, kapitelIndex, kapitelZeilen, kapitelAb, kapitelZustandText, kapitelAria } from '../player.js';
 import { animiere, kannAnimieren, reduziert } from '../bewegung.js';
 import { coverBlatt, coverFehlerText, coverStil } from './cover.js';
 import { gespieltVonKarte, folgenChips, gebenLink } from './tobies.js';
 import { dateienInEintrag, andersEinsortieren, kannAnders } from './hinzufuegen.js';
 import { gruendeSaetze, eintragFuerSerie, daraus as eingangDaraus } from '../eingang.js';
+import { onlineBlatt, zuruecknehmenBlatt, hinweisZeile, vorschlagZeilen, vorschlaege as onlineVorschlaege, darfSuchen, blattStil } from './online.js';
 
 export const SICHTBAR = 20; // Folgen, die zuerst gezeigt werden; ab mehr als 20 gibt es das Suchfeld (Design 5.3)
 const MERKEN = 20; // AM19: so viele zuletzt geöffnete Serien merkt sich die Seite (nur im Speicher)
 const WAHL_GROESSE = 30; // Päckchen der Zielwahl
 const ARTEN = ['hoerspiel', 'hoerbuch', 'musik', 'geschichte'];
-const ENDE_FEHLER = ['stand_veraltet', 'serie_nicht_gefunden', 'folge_nicht_gefunden']; // Blatt schließen, neu laden
+const ENDE_FEHLER = ['stand_veraltet', 'serie_nicht_gefunden', 'folge_nicht_gefunden', 'vorschlag_nicht_gefunden', 'aenderung_nicht_gefunden']; // Blatt schließen, neu laden (`vorschlag_nicht_gefunden`: Online-Suche, OS4)
 
 /* ------------------------------------------------------------------ reine Funktionen */
 
@@ -94,6 +98,8 @@ class SerieSeite {
     this._busy = false;
     this._fokus = null;
     this._speicher = new Map(); // AM19: die zuletzt geöffneten Serien (id → Antwort von serie/get), nur im Speicher der Seite
+    this._beschr = new Map(); // Folgenname → { offen, laedt, text }: aufgeklappte Beschreibungen (OS4)
+    this._ziele = {}; // Serien-ID → { id, name, stand }: Ziele von Vorschlägen zum Zusammenführen (OS4, nur Administratoren)
   }
 
   /* AM19: Antwort merken (die zuletzt benutzte steht hinten); höchstens `MERKEN` Serien. */
@@ -115,6 +121,8 @@ class SerieSeite {
       this.gezeigt = SICHTBAR;
       this.ordnen = false;
       this._kette = Promise.resolve();
+      this._beschr = new Map();
+      this._ziele = {};
     }
     this._favAbmelden?.();
     this._favAbmelden = this.ctx.faehig('favoriten')
@@ -144,6 +152,7 @@ class SerieSeite {
       this.z = { phase: 'bereit', fehlerCode: null, serie: r };
       this._merke(id, r); // der frische Stand ersetzt den gemerkten
       if (warPruefen && !brauchtPruefung(r)) this.ctx.eingangNeuLaden?.(); // Band in der Bibliothek: Umbenennen und „Art ändern“ löschen das Kennzeichen auch
+      this._ladeZiele(r);
     } catch (err) {
       if (lauf !== this._lauf) return;
       const code = err?.code || 'unknown_error';
@@ -303,6 +312,7 @@ class SerieSeite {
     const punkte = [
       { id: 'name', label: SERIE.menue.name, fn: () => this.serieUmbenennen(ausloeser) },
       ...(this.ctx.faehig('cover') ? [{ id: 'cover', label: SERIE.menue.cover, fn: () => this.coverAendern(ausloeser) }] : []),
+      ...(darfSuchen(this.ctx, s) ? [{ id: 'online', label: ONLINE.menue.suchen, fn: () => this.onlineSuchen(ausloeser, s.einzeln === true && (s.folgen || []).length === 1 ? s.folgen[0] : null) }] : []), // Einzeltitel (`einzeln`, auch Hörbuch mit Kapiteln): Suche für die eine Folge, damit auch Beschreibung, Alter und Nummer angeboten werden
       ...(this.ctx.faehig('einsortier_wunsch') && s.typ === 'normal' && !s.einzeln ? [{ id: 'dateien', label: SERIE.menue.dateien, fn: () => dateienInEintrag(this.ctx, s) }] : []), // A11a: gleich die Vorschau „Zu Vorhandenem“
       ...(art ? [{ id: 'art', label: SERIE.menue.art, fn: () => this.artAendern(ausloeser) }] : []),
       ...(admin && !s.einzeln && s.folgen.length > 1 ? [{ id: 'reihenfolge', label: SERIE.menue.reihenfolge, fn: () => this.reihenfolgeStart(ausloeser) }] : []),
@@ -319,6 +329,7 @@ class SerieSeite {
       { id: 'geben', label: TOBIE.einem_tobie_geben, fn: () => this.ctx.navigiere(gebenLink(this.z.serie.id, x.name)) },
       ...(this.ctx.faehig('favoriten') ? [{ id: 'favorit', label: x.favorit === true ? STERN.menue_aus : STERN.menue_an, fn: () => { this.ctx.schliesseBlatt('knopf'); this.sternSetzen(x.favorit !== true, x.name, titel); } }] : []),
       { id: 'name', label: SERIE.menue.name, fn: () => this.folgeUmbenennen(x, ausloeser) },
+      ...(darfSuchen(this.ctx, this.z.serie) ? [{ id: 'online', label: ONLINE.menue.suchen, fn: () => this.onlineSuchen(ausloeser, x) }] : []),
       ...(this.ctx.faehig('korrektur') ? [{ id: 'verschieben', label: SERIE.menue.verschieben, fn: () => this.folgeVerschieben(x, ausloeser) }] : []),
     ], { id: 'papierkorb', label: SERIE.menue.folge_papierkorb, fn: () => this.folgeLoeschen(x, ausloeser) }, ausloeser);
   }
@@ -416,6 +427,114 @@ class SerieSeite {
         return 'offen';
       },
     });
+  }
+
+  /* ---- Online-Suche (OS4, seiten/online.js) */
+  onlineSuchen(ausloeser, folge = null, vorschlag = null) {
+    return onlineBlatt({
+      ctx: this.ctx,
+      serie: () => this.z.serie,
+      folge: folge?.name ?? null,
+      vorschlag,
+      oeffne: (opts) => this._blatt(opts, ausloeser),
+      neuLaden: () => this.laden(true),
+      fehler: (err) => this._fehler(err),
+    });
+  }
+
+  onlineZuruecknehmen(ausloeser) {
+    return zuruecknehmenBlatt({ ctx: this.ctx, serie: () => this.z.serie, oeffne: (opts) => this._blatt(opts, ausloeser), neuLaden: () => this.laden(true), fehler: (err) => this._fehler(err) });
+  }
+
+  /* „Nein“ zu einem Vorschlag (Nr. 61): verworfen für immer; derselbe Wert aus derselben Quelle kommt im Lauf nicht wieder. */
+  async vorschlagNein(v) {
+    if (this._busy) return;
+    this._busy = true;
+    this.ctx.neuZeichnen(); // die Knöpfe der Karte werden grau
+    try {
+      await this.ctx.api('tobibox/online/vorschlag_verwerfen', { serie_id: this.id, vorschlag_id: v.id });
+      this.ctx.melde(ONLINE.vorschlag.verworfen);
+      await this.laden(true);
+    } catch (err) { this._fehler(err); } finally { this._busy = false; this.ctx.neuZeichnen(); }
+  }
+
+  /* Namensvorschlag von Claude „Übernehmen“: Nr. 59 mit `felder: ['serie_name']` und `stand`; wirkt wie Umbenennen von Hand. */
+  async vorschlagUebernehmen(v) {
+    if (this._busy) return;
+    this._busy = true;
+    this.ctx.neuZeichnen(); // die Knöpfe der Karte werden grau
+    try {
+      const s = this.z.serie;
+      await this.ctx.api('tobibox/online/uebernehmen', { serie_id: s.id, vorschlag_id: v.id, felder: ['serie_name'], stand: s.stand, anfrage_id: globalThis.crypto?.randomUUID?.() ?? `a${Math.random().toString(16).slice(2)}${Date.now().toString(16)}` });
+      this.ctx.melde(ONLINE.uebersicht.fertig_name);
+      await this.laden(true);
+    } catch (err) { this._fehler(err); } finally { this._busy = false; this.ctx.neuZeichnen(); }
+  }
+
+  /* Vorschlag zum Zusammenführen: der vorhandene Dialog, vorbelegt mit dem Ziel (Nr. 27 über `serien/zusammenfuehren`; Nr. 59 wird nie gesendet). */
+  async vorschlagZusammen(v, ausloeser) {
+    let ziel; // immer frisch holen: `stand` und Name des Ziels können sich seit dem Laden geändert haben (sonst `stand_veraltet` für immer)
+    try { ziel = await this.ctx.api('tobibox/serie/get', { serie_id: v.ziel_serie_id }); this._ziele[v.ziel_serie_id] = ziel; } catch (err) { delete this._ziele[v.ziel_serie_id]; this._fehler(err); return undefined; }
+    return this._frageZusammen(ziel, ausloeser);
+  }
+
+  /* Namen und Stand der Ziele, damit die Karte „mit „X“ zusammenführen“ sagt und der Dialog sofort steht. */
+  async _ladeZiele(serie) {
+    const liste = onlineVorschlaege(this.ctx, serie).filter((v) => v.art === 'zusammenfuehren' && v.ziel_serie_id);
+    if (!liste.length) return;
+    const id = this.id;
+    for (const v of liste) { // bei jedem Laden neu; bis dahin zeigt die Karte den gemerkten Namen
+      try { this._ziele[v.ziel_serie_id] = await this.ctx.api('tobibox/serie/get', { serie_id: v.ziel_serie_id }); } catch { delete this._ziele[v.ziel_serie_id]; /* ohne Namen: der Satz bleibt allgemein */ }
+    }
+    if (id === this.id) this.ctx.neuZeichnen();
+  }
+
+  /* ---- Beschreibung und Alter einer Folge (alle Benutzer, R4): erst auf Tipp; bei `beschreibung_gekuerzt` und Fähigkeit der volle Text über Nr. 64 */
+  async beschreibungUmschalten(x) {
+    const stand = this.z.serie?.stand;
+    let e = this._beschr.get(x.name) ?? { offen: false, laedt: false, text: null };
+    if (e.stand !== undefined && e.stand !== stand) e = { ...e, text: null }; // die Serie hat sich geändert: der gemerkte Text kann alt sein
+    if (e.offen) { this._beschr.set(x.name, { ...e, offen: false, stand }); this.ctx.neuZeichnen(); return; }
+    const voll = x.beschreibung_gekuerzt === true && this.ctx.faehig('online_suche');
+    if (!voll || e.text) { this._beschr.set(x.name, { ...e, offen: true, laedt: false, text: e.text ?? x.beschreibung ?? '', stand }); this.ctx.neuZeichnen(); return; }
+    this._beschr.set(x.name, { ...e, offen: true, laedt: true, text: null, stand });
+    this.ctx.neuZeichnen();
+    const id = this.id;
+    let text = x.beschreibung ?? '';
+    let quelle = x.beschreibung_quelle;
+    try {
+      const r = await this.ctx.api('tobibox/online/beschreibung', { serie_id: id, folge: x.name });
+      if (r?.beschreibung) { text = r.beschreibung; quelle = r.quelle ?? quelle; }
+    } catch (err) {
+      this.ctx.meldeFehler(this.ctx.fehlerText(err?.code || 'unknown_error')); // der gekürzte Text bleibt stehen
+      if (ENDE_FEHLER.includes(err?.code)) this.laden(true);
+    }
+    if (id !== this.id) return;
+    const jetzt = this._beschr.get(x.name);
+    this._beschr.set(x.name, { offen: jetzt?.offen === true, laedt: false, text, quelle, stand }); // `offen` nicht überschreiben: zweimal getippt heißt zu
+    this.ctx.neuZeichnen();
+  }
+
+  /* „ab 3“ als Nebenzeile (nur mit Angabe) und der kleine Knopf „Beschreibung“ mit dem Text darunter (nur, wenn es eine Beschreibung gibt). */
+  _folgeOnline(x, titel) {
+    const alter = Number.isFinite(x.alter_ab) ? html`<span class="muted os-alter" data-alter aria-label=${fuellen(ONLINE.folge.alter_aria, { alter: x.alter_ab })}>${fuellen(ONLINE.folge.alter, { alter: x.alter_ab })}</span>` : nothing;
+    const hat = typeof x.beschreibung === 'string' && x.beschreibung.trim() !== '';
+    if (!hat) return html`${alter}`;
+    const e = this._beschr.get(x.name);
+    const offen = e?.offen === true;
+    const quelle = e?.quelle ?? x.beschreibung_quelle;
+    return html`${alter}<button type="button" class="os-knopf" data-beschreibung=${x.name} aria-expanded=${offen ? 'true' : 'false'}
+        aria-label=${fuellen(offen ? ONLINE.folge.beschreibung_zu_aria : ONLINE.folge.beschreibung_aria, { titel })}
+        @click=${() => this.beschreibungUmschalten(x)}>${offen ? ONLINE.folge.beschreibung_zu : ONLINE.folge.beschreibung}${ic('down', 20)}</button>
+      ${offen ? (e.laedt ? html`<p class="muted os-text" data-beschreibung-laedt role="status">${ONLINE.folge.laedt}</p>`
+    : html`<p class="os-text" data-beschreibung-text>${e.stand !== undefined && e.stand !== this.z.serie?.stand ? (x.beschreibung ?? '') : e.text}</p>${ONLINE.folge.quelle[quelle] ? html`<span class="os-quellen" data-beschreibung-quelle>${ONLINE.folge.quelle[quelle]}</span>` : nothing}`) : nothing}`;
+  }
+
+  /* Einzeltitel und Hörbuch aus einer Folge mit Kapiteln haben keine Folgenzeile: „ab 3“ und die Beschreibung stehen dann unter dem Kopf. */
+  _eineFolge(s) {
+    const f = (s.folgen || []).length === 1 ? s.folgen[0] : null;
+    if (!f || (!Number.isFinite(f.alter_ab) && !(typeof f.beschreibung === 'string' && f.beschreibung.trim()))) return nothing;
+    return html`<div class="os-einzel" data-einzel-info>${this._folgeOnline(f, f.anzeige || f.name)}</div>`;
   }
 
   /* ---- Art ändern (Blatt „Was ist das?“) */
@@ -678,14 +797,14 @@ class SerieSeite {
     if (z.phase === 'fehler') return html`${this._leiste(null)}${ctx.fehlerKarte(z.fehlerCode, () => this.laden())}`;
     if (z.phase === 'weg') return html`${this._leiste(null)}<div class="note err" role="alert" data-zustand="weg">${SERIE.weg.satz} <a href="#bibliothek">${SERIE.weg.link}</a></div>`;
     const s = z.serie;
-    return html`${this._leiste(s)}${this._kopf(s)}${this._rein(s)}${gespieltVonKarte(s)}${this._ansehen(s)}${hatKapitelAbschnitt(s) ? this._kapitel(s) : s.einzeln ? this._einzeln(s) : this._folgen(s)}`;
+    return html`${this._leiste(s)}${this._kopf(s)}${this._rein(s)}${gespieltVonKarte(s)}${this._ansehen(s)}${hatKapitelAbschnitt(s) ? html`${this._eineFolge(s)}${this._kapitel(s)}` : s.einzeln ? this._einzeln(s) : this._folgen(s)}`;
   }
 
   _kopf(s) {
     const gross = this.ctx.layout === 'seite';
     return html`<div class="se-hero">
       <div class=${`cover se-xl ${coverKlasse(s.id)}`} data-cover-gross=${s.id} data-stand=${s.cover_stand ?? ''} aria-hidden="true"><span class="bst">${anfang(s.name)}</span></div>
-      <div class="se-htxt"><h2 tabindex="-1">${s.name}${laeuftAn(s.id) ? eq(abspiel.spielt) : nothing}</h2><div class="muted" data-untertitel>${untertitel(s)}</div>
+      <div class="se-htxt"><h2 tabindex="-1">${s.name}${laeuftAn(s.id) ? eq(abspiel.spielt) : nothing}</h2><div class="muted" data-untertitel>${untertitel(s)}</div>${hinweisZeile(this.ctx, s, (el) => this.onlineZuruecknehmen(el))}
         ${gross ? html`<div class="btns se-aktionen">${this._sternKnopf(s, { text: true })}<button type="button" class="btn se-mehr-knopf" data-menue-serie aria-haspopup="dialog" aria-label=${fuellen(SERIE.mehr_zu, { titel: s.name })}
           @click=${(e) => this.serieMenue(e.currentTarget)}>${ic('more', 24)}${SERIE.mehr}</button></div>` : nothing}</div></div>`;
   }
@@ -735,19 +854,27 @@ class SerieSeite {
   }
 
   _ansehen(s) {
-    if (!brauchtPruefung(s)) return nothing;
     const a = SERIE.ansehen;
-    const e = eintragFuerSerie(this.ctx.eingang?.(), s.id); // „Daraus ist geworden: …“ nur, solange der Eintrag in den letzten 24 Stunden liegt (Design 7.3 Punkt 5)
+    const vor = onlineVorschlaege(this.ctx, s);
+    const pruefen = brauchtPruefung(s);
+    if (!pruefen && !vor.length) return nothing;
+    const e = pruefen ? eintragFuerSerie(this.ctx.eingang?.(), s.id) : null; // „Daraus ist geworden: …“ nur, solange der Eintrag in den letzten 24 Stunden liegt (Design 7.3 Punkt 5)
     const daraus = e ? eingangDaraus(e, { serieId: s.id, serien: { [s.id]: s } }) : '';
-    return html`<div class="note warn" data-karte="ansehen" role="group" aria-label=${a.titel}><strong>${a.titel}</strong>
-      ${gruendeTexte(s).map((g) => html`<span class="se-grund">${g}</span>`)}
+    return html`<div class=${pruefen ? 'note warn' : 'note'} data-karte="ansehen" role="group" aria-label=${pruefen ? a.titel : ONLINE.vorschlag.karte}><strong>${pruefen ? a.titel : ONLINE.vorschlag.titel}</strong>
+      ${pruefen ? html`${gruendeTexte(s).map((g) => html`<span class="se-grund">${g}</span>`)}
       ${daraus ? html`<span class="se-daraus" data-daraus>${daraus}</span>` : nothing}
       <div class="btns"><button type="button" class="btn" data-richtig @click=${() => this.richtig()}>${a.richtig}</button>
-        <button type="button" class="btn" data-stimmt-nicht aria-haspopup="dialog" @click=${(e) => this.stimmtNicht(e.currentTarget)}>${a.stimmt_nicht}</button></div></div>`;
+        <button type="button" class="btn" data-stimmt-nicht aria-haspopup="dialog" @click=${(ev) => this.stimmtNicht(ev.currentTarget)}>${a.stimmt_nicht}</button></div>` : nothing}
+      ${vor.length ? vorschlagZeilen(this.ctx, vor, this._ziele, {
+    ansehen: (v, el) => this.onlineSuchen(el, null, v),
+    uebernehmen: (v) => this.vorschlagUebernehmen(v),
+    zusammen: (v, el) => this.vorschlagZusammen(v, el),
+    nein: (v) => this.vorschlagNein(v),
+  }, { gesperrt: this._busy }) : nothing}</div>`;
   }
 
   _einzeln(s) {
-    return nothing; // AM17: der Satz „Das ist ein einzelnes Lied …“ entfällt; die Seite zeigt Kopf und Knopf
+    return this._eineFolge(s); // AM17: der Satz „Das ist ein einzelnes Lied …“ entfällt; die Seite zeigt Kopf und Knopf (OS4: dazu „ab 3“ und die Beschreibung, wenn es sie gibt)
   }
 
   _folgen(s) {
@@ -797,7 +924,7 @@ class SerieSeite {
     return html`<div class="frow se-zeile" data-folge=${x.name} ?data-play=${sp}>
       ${sp ? html`<button type="button" class="se-zeilenknopf" data-abspielen aria-label=${fuellen(geladen ? PLAYER.folge.oeffnen : PLAYER.folge.abspielen, { titel })}
         @click=${tippe}></button>` : nothing}<span class="se-num">${laeuft ? eq(abspiel.spielt) : html`<span aria-hidden="true">${x.nummer ?? i + 1}</span>`}</span>
-      <div class="grow"><span class="nm">${titel}${sternKlein(x)}</span>${meta ? html`<span class="muted se-meta-voll">${meta}</span>` : nothing}${teile.kapitel ? html`<span class="muted se-meta-kap">${teile.kapitel}</span>` : nothing}${fort}${keineProbe ? html`<span class="ls se-keine-probe" data-keine-probe>${keineProbe}</span>` : nothing}${folgenChips(this.id, x)}</div>
+      <div class="grow"><span class="nm">${titel}${sternKlein(x)}</span>${meta ? html`<span class="muted se-meta-voll">${meta}</span>` : nothing}${teile.kapitel ? html`<span class="muted se-meta-kap">${teile.kapitel}</span>` : nothing}${fort}${keineProbe ? html`<span class="ls se-keine-probe" data-keine-probe>${keineProbe}</span>` : nothing}${this._folgeOnline(x, titel)}${folgenChips(this.id, x)}</div>
       <span class="se-dauer" aria-hidden="true">${teile.dauer}</span>
       ${ordnen
         ? html`<button type="button" class="iconbtn se-ord" data-auf ?disabled=${i === 0} aria-label=${fuellen(SERIE.reihenfolge.hoch, { titel })} @click=${() => this.bewege(i, -1)}>▲</button>
@@ -825,6 +952,7 @@ export const stil = () => css`
   .se-zeile > :not(.se-zeilenknopf) { position: relative; }
   .se-zeile[data-play] > .se-num, .se-zeile[data-play] > .grow, .se-zeile[data-play] > .se-dauer { pointer-events: none; }
   .se-zeile[data-play] .tb-chips, .se-zeile .se-more, .se-zeile .se-ord { pointer-events: auto; }
+  .se-zeile[data-play] .os-knopf, .se-zeile[data-play] .os-text, .se-zeile[data-play] .os-quellen { pointer-events: auto; }
   .se-num { display: grid; place-items: center; }
   /* A8d: Karte „Hörprobe wird vorbereitet“ (der Platz steht schon, AM15) und Kapitelzeilen */
   .se-kzeile[aria-current="true"] { background: var(--primary-soft); border-radius: 12px; }
@@ -907,4 +1035,5 @@ export const stil = () => css`
   .se-chev svg { width: 24px; height: 24px; fill: currentColor; display: block; }
   .se-wlaedt, .se-wleer { padding: 12px 4px; }
   ${coverStil()}
+  ${blattStil()}
 `;
