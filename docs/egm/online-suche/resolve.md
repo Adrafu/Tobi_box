@@ -198,3 +198,13 @@ Rev. 2.4 und `os0_entwurf/`.
 
 Nachlauf GO-5 (18.11., Tobias „Ja, messen“): neuer Anweisungstext an der Prüfmenge: 63 von 110 richtig (vorher 58), 71
 Vorschläge, davon 63 richtig. Eingetragen in Design 4.A.
+
+## Runde 6: Fragen aus OS2 (19.11.)
+
+Grundlage: Plan-Zeile „OS2 gebaut“ (`docs/plan/stueckliste-und-psp.md`) und `review_goldfisch_os2.md`. Eingearbeitet in Design Rev. 2.5.
+
+| Nr. | Frage | Antwort |
+|---|---|---|
+| T5 | Die Eingabe an Claude enthält wie in OS1 gemessen zusätzlich `einzeltitel`, `folgen_gesamt` und `folgen_gezeigt`; Design 3.4 und 8.3 nennen sie nicht. Behalten? | **(Tobias)** „Behalten“; Design 3.4 und 8.3 ergänzt |
+| T6 | T4 wirkt anders als bei der Stichprobe: „Der kleine Prinz“ bleibt `hoerbuch` (die Tonie-Kategorie `audio-book` geht vor), „Der kleine Wassermann“ und „Die kleine Hexe“ werden neu sicher `hoerspiel`. In Ordnung? | **(Tobias)** „Ja, so lassen“; Design 4.7 ergänzt |
+| T7 | Der Test „keine Modellnamen im Code“ (`tests/test_texte.py`) verbietet `claude`, der Vertrag braucht es als Bezeichner. Ausnahme im Test oder neutrale Bezeichner (Vertragsänderung)? | **(Tobias)** „Ausnahme im Test“: erlaubt sind genau `claude` und `anthropic`, andere Modellnamen bleiben verboten; Vertrag bleibt; Umsetzung in OS3 |
