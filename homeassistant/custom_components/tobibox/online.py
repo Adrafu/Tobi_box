@@ -41,6 +41,7 @@ from .const import (
     ONLINE_AENDERUNGEN_TAGE,
     ONLINE_BESCHREIBUNG_KURZ,
     ONLINE_BESCHREIBUNG_MAX,
+    ONLINE_LAUF_LISTE_MAX,
     ONLINE_MARKE_FEHLER_TAGE,
     ONLINE_MARKE_KEINER_TAGE,
     ONLINE_STAND_BUENDEL_S,
@@ -2471,23 +2472,26 @@ class OnlineDienst:
             "grund": None,
         }
 
-    def _suche_holen(self, treffer_id: str) -> tuple[dict[str, Any], dict[str, Any]]:
-        """``(Suche, Treffer)`` zu einer ``treffer_id``; sonst ``treffer_abgelaufen`` (nach 15 Minuten, nach Neustart, ungültige ID)."""
+    def _suche_holen(self, treffer_id: str, *, mit_vorschau: bool = False) -> tuple[dict[str, Any], dict[str, Any]]:
+        """``(Suche, Treffer)`` zu einer ``treffer_id``; sonst ``treffer_abgelaufen`` (nach 15 Minuten, nach Neustart, ungültige ID).
+        Eine ``vorschau_id`` (Nr. 58, T10) ist kein Treffer: nur die Vorschau (``mit_vorschau``) nimmt sie an."""
         q = self.quellen
         if q is None or not isinstance(treffer_id, str) or len(treffer_id) != 16:
             raise TobiboxFehler("treffer_abgelaufen")
         such = q.treffer_speicher.hole(treffer_id[:12])
+        if such is None and mit_vorschau:
+            such = q.vorschau_speicher.hole(treffer_id[:12])
         try:
             idx = int(treffer_id[12:], 16)
         except ValueError as err:
             raise TobiboxFehler("treffer_abgelaufen") from err
-        if such is None or idx >= len(such["treffer"]):
+        if such is None or idx >= len(such["treffer"]) or (such.get("vorschau") and not mit_vorschau):
             raise TobiboxFehler("treffer_abgelaufen")
         return such, such["treffer"][idx]
 
     def treffer_bild(self, treffer_id: str) -> bytes | None:
         """Für die Vorschau (HTTP): das gehaltene 512-px-Bild; ``treffer_abgelaufen`` oder ``None`` (Treffer ohne Bild)."""
-        _such, t = self._suche_holen(treffer_id)
+        _such, t = self._suche_holen(treffer_id, mit_vorschau=True)
         c = t.get("cover")
         return c.get("bild") if c else None
 
@@ -2512,6 +2516,7 @@ class OnlineDienst:
             raise TobiboxFehler("invalid_format")
         felder: dict[str, Any] = {}
         grund: str | None = None
+        vorschau_id: str | None = None
         if treffer_id is not None:
             such, t = self._suche_holen(treffer_id)
             sid = such["serie_id"]
@@ -2534,6 +2539,11 @@ class OnlineDienst:
                 erg: dict[str, Any] = {}
                 bild = await self._cover_bytes(werte["cover"], erg, von_hand=True)
                 cover_da = bild is not None
+                if bild is not None and self.quellen is not None:
+                    # T10: das neu geladene Bild unter einer eigenen Kennung halten, in einem eigenen Speicher (gleiche Haltezeit, Obergrenze 4)
+                    such_id = secrets.token_hex(6)
+                    self.quellen.vorschau_speicher.lege(such_id, {"serie_id": sid, "vorschau": True, "treffer": [{"cover": {"url": werte["cover"], "bild": bild}}]})
+                    vorschau_id = f"{such_id}0000"
         for key, neu in werte.items():
             feld, folge = teile_key(key)
             if feld == "cover":
@@ -2548,7 +2558,31 @@ class OnlineDienst:
         aus: dict[str, Any] = {"felder": felder}
         if grund:
             aus["grund"] = grund
+        if vorschau_id and "cover" in felder:
+            aus["vorschau_id"] = vorschau_id
         return aus
+
+    def lauf_aenderungen(self, lauf_id: str) -> dict[str, Any]:
+        """Nr. 65: die Änderungen eines Laufs (Status ``fertig`` oder ``zurueckgenommen``), nach Name sortiert, höchstens ``ONLINE_LAUF_LISTE_MAX``."""
+        if not any(x.get("lauf_id") == lauf_id for x in self.store.daten["laeufe"]):
+            raise TobiboxFehler("lauf_nicht_gefunden")
+        jetzt_s = self._zeit()
+        eintraege: list[dict[str, Any]] = []
+        for sid, s in self.store.daten["serien"].items():
+            try:
+                name = self.hub.medien.finde(sid).serie.name
+            except TobiboxFehler:
+                continue  # den Eintrag gibt es nicht mehr
+            for a in s.get("aenderungen") or []:
+                if a.get("lauf_id") != lauf_id or a.get("status") not in ("fertig", "zurueckgenommen"):
+                    continue
+                if _alt_s(a.get("zeit"), jetzt_s) > ONLINE_AENDERUNGEN_TAGE * 86400:
+                    continue
+                if not a.get("felder"):
+                    continue  # nur Bestätigungen: wie die Kurzform ohne Eintrag
+                eintraege.append({"serie_id": sid, "name": name, "aenderung_id": a["id"], "zeit": a["zeit"], "status": a["status"], "felder": list(a.get("felder") or {})})
+        eintraege.sort(key=lambda e: (e["name"].casefold(), e["name"], e["serie_id"]))
+        return {"eintraege": eintraege[:ONLINE_LAUF_LISTE_MAX], "weitere": len(eintraege) > ONLINE_LAUF_LISTE_MAX}
 
     async def uebernehmen(
         self,

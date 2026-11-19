@@ -5,14 +5,19 @@
  * danach das Ereignis `online` (Vertrag 4.11: `snapshot`, `stand`, `fertig`, `quelle`; die App abonniert es nur für Administratoren). Der Lauf braucht die Seite nicht;
  * ein Lauf, der ohne `grund` abgebrochen ist (Fehler außerhalb einer Serie), steht als „Abgebrochen.“ ohne Grund da. Befehle: Nr. 62 `online/lauf` (start, stop),
  * Nr. 60 `online/zuruecknehmen` mit `lauf_id` (läuft im Hintergrund, das Ergebnis kommt als Ereignis `fertig` mit `vorgang = zuruecknahme`).
+ *
+ * T11 (Fähigkeit `online_lauf_liste`): je Lauf mit Änderungen eine aufklappbare „Liste der Änderungen“ (Nr. 65 `online/lauf_aenderungen`, beim Aufklappen frisch geholt):
+ * je Eintrag Name (Link auf die Serie), Felder in Klartext, Status und bei `fertig` ein eigenes „Zurücknehmen“ (Nr. 60 mit `serie_id` + `aenderung_id`, sofort, mit der
+ * Antwort). Ohne die Fähigkeit bleibt es bei den Zahlen und „Alle zurücknehmen“.
  */
 import { html, nothing, css, ladeMitGrenze, zaehle } from '../bausteine.js';
 import { ONLINE, TECHNIK, fuellen } from '../texte.js';
 import { zeitKurz } from '../tobibox-panel.js';
-import { uhrzeit, quellenName } from './online.js';
+import { uhrzeit, quellenName, feldListe } from './online.js';
 
 const QUELLEN = ['itunes', 'tonies', 'tonies_shop'];
 const AKTIV = ['laeuft', 'pausiert', 'wird_angehalten'];
+export const LISTE_MAX = 500; // Vertrag Nr. 65: höchstens so viele Einträge, dann `weitere`
 
 /* ------------------------------------------------------------------ reine Funktionen */
 
@@ -65,13 +70,17 @@ export class OnlineSeite {
     this._lauf = 0;
     this._abmelden = null;
     this._fertigeRueck = new Set(); // `lauf_id` der Rücknahmen, deren Ereignis `fertig` schon da war (es kann vor der Antwort auf Nr. 60 kommen)
+    this.listen = new Map(); // aufgeklappte Listen der Änderungen: lauf_id → { phase: 'laedt'|'bereit'|'fehler', eintraege, weitere, fehlerCode, n }
   }
+
+  hatListe() { return this.ctx.faehig('online_lauf_liste'); }
 
   zone() { return this.ctx.hass?.config?.time_zone || undefined; }
 
   betreten() {
     this.rueck = null; // die Wahrheit liefert Nr. 63; ein verpasstes `fertig` darf „Wird zurückgenommen“ nicht festhalten (GO4-1)
     this._fertigeRueck = new Set();
+    this.listen = new Map(); // die Listen sind beim Wiederkommen zu (und frisch, wenn sie aufgehen)
     this._beobachten();
     this.laden({ still: this.z.phase === 'bereit' });
   }
@@ -122,6 +131,7 @@ export class OnlineSeite {
       const n = d.uebersprungen_anzahl ?? 0;
       this.ctx.melde(n > 0 ? zaehle(ONLINE.zuruecknehmen.uebersprungen, n) : ONLINE.zuruecknehmen.fertig);
       this.laden({ still: true });
+      if (this.listen.has(d.lauf_id)) this.ladeListe(d.lauf_id, { still: true }); // die Stati der offenen Liste sind jetzt andere
     } else if (ev.art === 'fertig') {
       const { vorgang, lauf_id, zustand, grund, ...zahlen } = d; // eslint-disable-line no-unused-vars
       const neu = { lauf_id, zustand, ...(grund ? { grund } : {}), ende: new Date().toISOString(), zahlen: zahlenWerte(zahlen) }; // vorläufig, bis Nr. 63 die Liste liefert: sonst steht kurz das Ende des vorigen Laufs da
@@ -172,6 +182,75 @@ export class OnlineSeite {
     });
   }
 
+  /* ---- Liste der Änderungen (T11) */
+  listeUmschalten(laufId) {
+    if (this.listen.has(laufId)) { this.listen.delete(laufId); this.ctx.neuZeichnen(); return; }
+    this.ladeListe(laufId);
+  }
+
+  async ladeListe(laufId, { still = false } = {}) {
+    const alt = this.listen.get(laufId);
+    const n = (this._listeN = (this._listeN ?? 0) + 1); // ein Zähler je Seite: eine späte Antwort einer zugeklappten Liste zählt nie
+    if (!still || !alt || alt.phase !== 'bereit') this.listen.set(laufId, { phase: 'laedt', eintraege: [], weitere: false, fehlerCode: null, n });
+    else this.listen.set(laufId, { ...alt, n });
+    this.ctx.neuZeichnen();
+    try {
+      const r = await ladeMitGrenze(this.ctx.api('tobibox/online/lauf_aenderungen', { lauf_id: laufId }), this.ctx.grenzeMs);
+      if (this.listen.get(laufId)?.n !== n) return; // zugeklappt oder neuer geholt
+      this.listen.set(laufId, { phase: 'bereit', eintraege: Array.isArray(r?.eintraege) ? r.eintraege : [], weitere: r?.weitere === true, fehlerCode: null, n });
+    } catch (err) {
+      if (this.listen.get(laufId)?.n !== n) return;
+      const code = err?.code || 'unknown_error';
+      if (code === 'lauf_nicht_gefunden') { // der Lauf ist nicht mehr unter den letzten 5: die Liste der Läufe war alt
+        this.listen.delete(laufId);
+        this.ctx.meldeFehler(this.ctx.fehlerText(code));
+        this.laden({ still: true });
+      } else this.listen.set(laufId, { phase: 'fehler', eintraege: [], weitere: false, fehlerCode: code, n });
+    }
+    this.ctx.neuZeichnen();
+  }
+
+  /* „Zurücknehmen“ eines Eintrags: Nr. 60 mit `serie_id` + `aenderung_id`; `tu` lässt keinen zweiten Tipp durch, solange eines läuft. */
+  async eintragZuruecknehmen(laufId, e) {
+    let code = null;
+    let r = null;
+    const ok = await this.technik.tu('online_zurueck_eintrag', async () => {
+      try { r = await this.ctx.api('tobibox/online/zuruecknehmen', { serie_id: e.serie_id, aenderung_id: e.aenderung_id }); } catch (err) { code = err?.code || null; throw err; }
+    });
+    const L = this.listen.get(laufId);
+    if (ok) {
+      const n = r?.uebersprungen_anzahl ?? (r?.uebersprungen || []).length;
+      this.ctx.melde(n > 0 ? zaehle(ONLINE.zuruecknehmen.uebersprungen, n) : ONLINE.zuruecknehmen.fertig);
+      if (L && (r?.zurueckgenommen ?? 0) > 0) this.listen.set(laufId, { ...L, eintraege: L.eintraege.map((x) => (x.aenderung_id === e.aenderung_id ? { ...x, status: 'zurueckgenommen' } : x)) }); // ganz übersprungen: bleibt „Geändert“
+    }
+    if (this.listen.has(laufId)) this.ladeListe(laufId, { still: true }); // die Wahrheit holen (auch nach einem Fehler: `aenderung_nicht_gefunden` heißt, die Liste war alt)
+    if (code === 'aenderung_nicht_gefunden' || code === 'lauf_nicht_gefunden') this.laden({ still: true });
+    this.ctx.neuZeichnen();
+  }
+
+  _liste(l) {
+    const T = ONLINE.technik;
+    const L = this.listen.get(l.lauf_id);
+    if (!L) return nothing;
+    const zu = !!this.technik.beschaeftigt || !!this.rueck;
+    let inhalt;
+    if (L.phase === 'laedt') inhalt = html`<p class="muted" data-liste-laedt role="status">${T.liste_laedt}</p>`;
+    else if (L.phase === 'fehler') inhalt = this.ctx.fehlerKarte(L.fehlerCode, () => this.ladeListe(l.lauf_id));
+    else {
+      inhalt = L.eintraege.length ? html`<ul class="to-eintraege" data-liste-eintraege=${l.lauf_id}>${L.eintraege.map((e) => {
+        const felder = feldListe(e.felder);
+        const zurueck = e.status === 'zurueckgenommen';
+        return html`<li class="to-eintrag" data-eintrag=${e.aenderung_id} data-status=${e.status}>
+          <span class="to-etext"><a class="to-ename" href=${`#serie-${encodeURIComponent(e.serie_id)}`} data-eintrag-serie=${e.serie_id}>${e.name}</a>
+            <span class="muted" data-eintrag-felder>${felder}</span>
+            <span class=${zurueck ? 'muted to-status' : 'to-status'} data-eintrag-status>${T.liste_status[e.status] ?? ''}</span></span>
+          ${zurueck ? nothing : html`<button type="button" class="btn" data-eintrag-zurueck=${e.aenderung_id} aria-label=${fuellen(T.eintrag_zurueck_aria, { name: e.name, felder })} ?disabled=${zu} @click=${() => this.eintragZuruecknehmen(l.lauf_id, e)}>${T.eintrag_zurueck}</button>`}</li>`;
+      })}</ul>` : html`<p class="muted" data-liste-leer>${T.liste_leer}</p>`;
+      if (L.weitere) inhalt = html`${inhalt}<p class="muted" data-liste-weitere role="status">${fuellen(T.liste_weitere, { max: LISTE_MAX })}</p>`;
+    }
+    return html`<div class="to-liste-aend" id=${`to-liste-${l.lauf_id}`} data-liste-aenderungen=${l.lauf_id}>${inhalt}</div>`;
+  }
+
   /* ---- Darstellung */
   _quellen(st) {
     const T = ONLINE.technik;
@@ -213,7 +292,9 @@ export class OnlineSeite {
     return html`<li class="to-lauf" data-lauf=${l.lauf_id} data-zustand=${l.zustand}><span class="to-name">${fuellen(T.lauf_vom, { zeit })}</span>
           <span data-lauf-text>${laufEndeText(l)}</span>
           ${l.zustand !== 'fertig' ? html`<span class="muted" data-lauf-zahlen>${fuellen(T.zahlen, zahlenWerte(l.zahlen))}</span>` : nothing}
-          ${geaendert > 0 ? html`<div class="btns"><button type="button" class="btn" data-alle-zurueck=${l.lauf_id} aria-label=${fuellen(T.alle_zurueck_aria, { zeit })} ?disabled=${zu} @click=${() => this.alleZuruecknehmen(l)}>${T.alle_zurueck}</button></div>` : nothing}</li>`;
+          ${geaendert > 0 ? html`<div class="btns">${this.hatListe() ? html`<button type="button" class="btn" data-liste-auf=${l.lauf_id} aria-expanded=${this.listen.has(l.lauf_id) ? 'true' : 'false'} aria-controls=${this.listen.has(l.lauf_id) ? `to-liste-${l.lauf_id}` : nothing} aria-label=${fuellen(T.aenderungen_aria, { zeit })} @click=${() => this.listeUmschalten(l.lauf_id)}>${T.aenderungen}</button>` : nothing}
+            <button type="button" class="btn" data-alle-zurueck=${l.lauf_id} aria-label=${fuellen(T.alle_zurueck_aria, { zeit })} ?disabled=${zu} @click=${() => this.alleZuruecknehmen(l)}>${T.alle_zurueck}</button></div>` : nothing}
+          ${geaendert > 0 && this.hatListe() ? this._liste(l) : nothing}</li>`;
   })}</ul>` : html`<p class="muted" data-keine-laeufe>${T.keine_laeufe}</p>`}</section>`;
   }
 
@@ -236,5 +317,12 @@ export function onlineStil() {
   .to-lauf { display: grid; gap: 2px; padding: 12px 0; border-top: 1px solid var(--divider); }
   .to-lauf:first-child { border-top: 0; }
   .to-lauf .btns { margin-top: 6px; }
+  .to-eintraege { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 0; }
+  .to-eintrag { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 12px; padding: 10px 0; border-top: 1px solid var(--divider); }
+  .to-eintrag:first-child { border-top: 0; }
+  .to-etext { display: grid; gap: 2px; min-width: 0; flex: 1 1 200px; overflow-wrap: anywhere; justify-items: start; }
+  .to-ename { font-weight: 500; display: inline-flex; align-items: center; min-height: 44px; color: var(--primary-ink); text-decoration: none; border-radius: 8px; }
+  .to-ename:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+  .to-status { font-size: 14px; }
   `;
 }

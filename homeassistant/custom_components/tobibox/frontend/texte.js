@@ -38,6 +38,7 @@ const DEFAULT = {
   andere: 'Tonies', // Online-Suche: die andere Quelle
   uhr_bis: '14:20', // Online-Suche: Ende einer Pause
   erledigt: '12',
+  max: '500', // Online-Suche: Höchstzahl der Liste der Änderungen
   geaendert: '120',
   vorschlaege: '38',
   keiner: '12',
@@ -1264,6 +1265,7 @@ export const ONLINE = {
     cover_neu: 'neues Cover',
     cover_ohne: 'ohne Bild',
     cover_ohne_bild: 'Neues Cover: Das Bild siehst du erst bei „Online suchen“.',
+    cover_vorschau_weg: 'Das Bild ist nicht mehr da. Öffne den Vorschlag noch einmal.',
     aus: '{feld} übernehmen',
     grund: 'Grund von Claude: {grund}',
     fertig: 'Übernommen.',
@@ -1338,5 +1340,13 @@ export const ONLINE = {
     rueck_laeuft: 'Wird zurückgenommen: {erledigt} von {gesamt}.',
     keine_laeufe: 'Noch kein Lauf.',
     lauf_vom: 'Lauf vom {zeit}',
+    aenderungen: 'Liste der Änderungen', // je Lauf, aufklappbar (T11, nur mit Fähigkeit `online_lauf_liste`)
+    aenderungen_aria: 'Liste der Änderungen des Laufs von {zeit}',
+    liste_laedt: 'Die Liste wird geladen …',
+    liste_leer: 'In dieser Liste steht nichts mehr.',
+    liste_weitere: 'Es gibt mehr als {max} Änderungen; hier stehen die ersten {max}, nach Namen sortiert. Mit „Alle zurücknehmen“ gehen alle zurück.',
+    liste_status: { fertig: 'Geändert', zurueckgenommen: 'Zurückgenommen' },
+    eintrag_zurueck: 'Zurücknehmen',
+    eintrag_zurueck_aria: '{name}: {felder} zurücknehmen',
   },
 };

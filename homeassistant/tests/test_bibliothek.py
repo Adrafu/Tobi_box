@@ -672,9 +672,9 @@ def test_pruefe_konfig_behaelt_angelegt_am_und_verwirft_ungueltiges():
 async def test_hello_sagt_bibliothek_zu(api, normal):
     for client in (api, normal):
         f = (await ok(client, "hello", v=1))["faehigkeiten"]
-        assert f[-11:-9] == ["konfig_staende", "bibliothek"]  # A1, A3; danach A3d (``einsortier_wunsch``) A4 (``cover``), A9c (``warteschlange``, ``zuordnung_rueckgaengig``), A4c (``reinhoeren``), B3 (``favoriten``, ``gehoert``) und A3c (``hoerkopie``)
+        assert f[-12:-10] == ["konfig_staende", "bibliothek"]  # A1, A3; danach A3d (``einsortier_wunsch``) A4 (``cover``), A9c (``warteschlange``, ``zuordnung_rueckgaengig``), A4c (``reinhoeren``), B3 (``favoriten``, ``gehoert``) und A3c (``hoerkopie``)
         assert f[-1] == "hoerkopie"  # A-3: nur mit ``ffmpeg`` (die Tests brauchen es)
-    assert const.FAEHIGKEITEN[-9:-7] == ("konfig_staende", "bibliothek")
+    assert const.FAEHIGKEITEN[-10:-8] == ("konfig_staende", "bibliothek")
 
 
 # --------------------------------------------------------------------------

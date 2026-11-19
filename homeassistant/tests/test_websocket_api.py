@@ -97,6 +97,7 @@ async def test_hello(api, api_lesend, integration):
         "reinhoeren",  # 14.11., Paket A4c: Audio-Ansicht, Befehle 39 bis 42, Sortierung ``angehoert``
         "favoriten",  # 17.11., Paket B3: Befehle 55 und 56
         "online_suche",  # 19.11., Paket OS3: Befehle 57 bis 64, Thema ``online``
+        "online_lauf_liste",  # 19.11., T11: Befehl 65
         "gehoert",  # 17.11., Paket B3: nur, wenn ``gehoert.sqlite`` offen ist
         "hoerkopie",  # 16.11., Paket A3c: nur, wenn ``ffmpeg`` da ist (die Tests brauchen es)
     ]

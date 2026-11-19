@@ -965,6 +965,12 @@ async def ws_online_status(hub: Hub, connection: Any, msg: dict[str, Any]) -> An
     return hub.online.status()
 
 
+@befehl("online/lauf_aenderungen", {vol.Required("lauf_id"): _text}, recht="admin")
+async def ws_online_lauf_aenderungen(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
+    """Nr. 65: die Änderungen eines Laufs mit Status je Eintrag (ohne Netz)."""
+    return hub.online.lauf_aenderungen(msg["lauf_id"])
+
+
 @befehl("online/beschreibung", {**SERIE_ID, vol.Required("folge"): _text}, recht="lesen")
 async def ws_online_beschreibung(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
     """Nr. 64: der volle Beschreibungstext einer Folge, aus dem Speicher von HA (für jeden angemeldeten Benutzer)."""

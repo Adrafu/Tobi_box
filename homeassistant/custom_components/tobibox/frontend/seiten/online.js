@@ -7,7 +7,7 @@
  *
  * Befehle: Nr. 57 `online/suchen` (beim Öffnen und auf „Suchen“), Nr. 58 `online/treffer` (Übersicht, mit `treffer_id` oder `serie_id` + `vorschlag_id`),
  * Nr. 59 `online/uebernehmen` (mit `stand` und `anfrage_id`; die Werte kommen nie von der Seite), Nr. 60 `online/zuruecknehmen` (Form `serie_id`).
- * Das Bild eines Treffers kommt über `GET /api/tobibox/online/vorschau/<treffer_id>` mit `hass.fetchWithAuth` als `blob:` (nur für die obersten 5 Treffer,
+ * Das Bild eines Treffers (oder, T10, eines Vorschlags über dessen `vorschau_id` aus Nr. 58) kommt über `GET /api/tobibox/online/vorschau/<treffer_id>` mit `hass.fetchWithAuth` als `blob:` (nur für die obersten 5 Treffer,
  * die HA schon geladen hat; sonst Platzhalter) und wird beim Schließen des Blatts freigegeben.
  */
 import { html, nothing, css, ic, cover, coverKlasse, zaehle } from '../bausteine.js';
@@ -210,7 +210,7 @@ export function onlineBlatt({ ctx, serie, folge = null, vorschlag = null, oeffne
     const mein = ++ueLauf;
     Z.phase = 'uebersicht';
     const altesBild = U.vorschau;
-    Object.assign(U, { phase: 'laedt', felder: {}, grund: null, haken: new Set(), mehr: new Set(), laeuft: false, fehlerCode: null, quelle, titel, vorschau: null, id: null });
+    Object.assign(U, { phase: 'laedt', felder: {}, grund: null, haken: new Set(), mehr: new Set(), laeuft: false, fehlerCode: null, quelle, titel, vorschau: null, vorschauLaedt: false, vorschauWeg: false, id: null });
     ctx.neuZeichnen();
     frei(altesBild);
     ctx.blattFokus?.();
@@ -221,10 +221,12 @@ export function onlineBlatt({ ctx, serie, folge = null, vorschlag = null, oeffne
       U.grund = r.grund ?? null;
       U.haken = vorauswahl(U.felder);
       U.phase = 'bereit';
-      if (U.felder.cover && quelle.treffer_id) { // das neue Bild: Vorschau des Treffers (nach Nr. 58 hat HA es geladen)
-        ladeVorschauNochmal(ctx, quelle.treffer_id, () => zu || mein !== ueLauf).then((url) => {
+      const bildId = quelle.treffer_id || (typeof r.vorschau_id === 'string' && r.vorschau_id) || null; // Treffer: seine Kennung; Vorschlag mit Cover: `vorschau_id` aus Nr. 58 (T10)
+      if (U.felder.cover && bildId) { // das neue Bild: Vorschau (nach Nr. 58 hat HA es geladen); 410/Fehler: es bleibt beim Platzhalter
+        if (!quelle.treffer_id) U.vorschauLaedt = true;
+        ladeVorschauNochmal(ctx, bildId, () => zu || mein !== ueLauf).then((url) => {
           if (zu || mein !== ueLauf) { try { if (url) URL.revokeObjectURL?.(url); } catch { /* egal */ } return; }
-          merke(url); U.vorschau = url; ctx.neuZeichnen();
+          merke(url); U.vorschau = url; U.vorschauLaedt = false; U.vorschauWeg = !url && !quelle.treffer_id; ctx.neuZeichnen();
         });
       }
     } catch (err) {
@@ -334,8 +336,8 @@ export function onlineBlatt({ ctx, serie, folge = null, vorschlag = null, oeffne
       const heute = w.heute ? cover(s, 'sm') : html`<span class=${`cover sm ${coverKlasse(s.id)}`} data-cover-ohne aria-hidden="true"><span class="bst">${String(s.name ?? '?').trim().charAt(0).toUpperCase() || '?'}</span></span>`;
       const neu = U.vorschau ? html`<img class="os-bild" data-vorschau-neu src=${U.vorschau} alt="">`
         : html`<span class=${`cover sm ${coverKlasse(U.titel || key)}`} data-vorschau-neu-ohne aria-hidden="true"><span class="bst">${ic('plus', 22)}</span></span>`;
-      const ohneBild = !U.vorschau && !U.quelle?.treffer_id; // ein Vorschlag liefert kein Bild (Vertrag 3.15: Vorschau nur mit `treffer_id`)
-      werte = html`<span class="os-cover" data-wert="cover"><span class="os-cv"><span class="sr">${ONLINE.uebersicht.cover_heute}</span>${heute}</span> <span class="os-pfeil" aria-hidden="true">→</span> <span class="os-cv"><span class="sr">${ONLINE.uebersicht.cover_neu}</span>${neu}</span></span>${ohneBild ? html`<span class="muted os-cover-hinweis" data-cover-ohne-bild>${ONLINE.uebersicht.cover_ohne_bild}</span>` : nothing}`;
+      const ohneBild = !U.vorschau && !U.vorschauLaedt && !U.quelle?.treffer_id; // ein Vorschlag ohne (oder mit abgelaufener) `vorschau_id` hat kein Bild: der beschriftete Platzhalter
+      werte = html`<span class="os-cover" data-wert="cover"><span class="os-cv"><span class="sr">${ONLINE.uebersicht.cover_heute}</span>${heute}</span> <span class="os-pfeil" aria-hidden="true">→</span> <span class="os-cv"><span class="sr">${ONLINE.uebersicht.cover_neu}</span>${neu}</span></span>${ohneBild ? html`<span class="muted os-cover-hinweis" data-cover-ohne-bild>${U.vorschauWeg ? ONLINE.uebersicht.cover_vorschau_weg : ONLINE.uebersicht.cover_ohne_bild}</span>` : nothing}`;
     } else {
       const kurz = feld === 'beschreibung' && !U.mehr.has(key);
       const t = (v) => { const x = wertText(feld, v); if (x === null) return html`<em class="muted">${ONLINE.uebersicht.leer}</em>`; return kurz ? kuerzen(x) : x; };

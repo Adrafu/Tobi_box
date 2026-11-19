@@ -258,3 +258,14 @@ Offen für Tobias (Vertrag deckt es nicht ab; die Seite hat heute eine Notlösun
 
 1. **Cover-Vorschlag ohne Bild:** Für einen Vorschlag mit neuem Cover liefert der Vertrag keine Vorschau (die HTTP-Vorschau gibt es nur für Treffer einer Suche). Die Seite zeigt „Neues Cover: Das Bild siehst du erst bei ‚Online suchen‘.“ Vertrag ergänzen (Vorschau auch für `vorschlag_id`)?
 2. **Liste der Änderungen je Lauf (Design 5.3):** Nr. 63 liefert je Lauf nur Zahlen; die Seite zeigt Zahlen und „Alle zurücknehmen“, aber keine einzelnen Änderungen mit eigenem „Zurücknehmen“. Vertrag ergänzen oder Design anpassen?
+
+| Nr. | Frage | Antwort |
+|---|---|---|
+| T10 | Cover-Vorschlag ohne Bild: Vertrag ergänzen? | **(Tobias, 19.11.)** „Vorschau ergänzen“: Nr. 58 liefert bei einem Vorschlag mit Cover eine `vorschau_id`, die HTTP-Vorschau nimmt sie (Vertrag W, Vermerk 19.11., additiv) |
+| T11 | Liste der Änderungen je Lauf (Design 5.3): Vertrag ergänzen oder Design anpassen? | **(Tobias, 19.11.)** „Liste ergänzen“: neuer Befehl Nr. 65 `online/lauf_aenderungen` mit Fähigkeit `online_lauf_liste`; auf der Seite je Eintrag ein eigenes „Zurücknehmen“ (Nr. 60 mit `aenderung_id`) (Vertrag W, Vermerk 19.11., additiv; Design Rev. 2.7) |
+
+Festlegungen der Projektleitung zum Nachpaket T10/T11 (`review_goldfisch_t10_t11.md`, GT-1 bis GT-8, keiner hoch, alle behoben):
+
+- **(PL)** Werden bei einer Einzel-Rücknahme alle Felder übersprungen, bleibt die Änderung `fertig` (Nr. 65 zeigt weiter „Geändert“).
+- **(PL)** Nr. 65 lässt Änderungen ohne Felder (nur Bestätigungen) weg, wie die Kurzform.
+- **(PL)** Vorschau-Kennungen aus Nr. 58 haben einen eigenen Speicher (gleiche Haltezeit, höchstens 4) und verdrängen keine Suchen.

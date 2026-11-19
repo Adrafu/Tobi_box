@@ -234,6 +234,8 @@ FAEHIGKEITEN: Final = (
     "favoriten",
     # OS3 (18.11., Vertrag W, 14.1): Befehle 57 bis 64, Thema ``online``, Vorschau-HTTP, Filter ``online_vorschlag``. Nicht vom Netz abhängig
     "online_suche",
+    # 19.11., T11: Befehl 65 ``online/lauf_aenderungen``
+    "online_lauf_liste",
 )
 
 # --- MQTT-Themen (``mqtt-v1.md`` Abschnitt 2) ----------------------------------
@@ -408,5 +410,7 @@ ONLINE_AENDERUNGEN_TAGE: Final = 30
 ONLINE_MARKE_KEINER_TAGE: Final = 30
 ONLINE_MARKE_FEHLER_TAGE: Final = 1
 ONLINE_AENDERUNGEN_MAX: Final = 20
+#: Nr. 65: höchstens so viele Einträge, dann ``weitere = true``
+ONLINE_LAUF_LISTE_MAX: Final = 500
 ONLINE_VERWORFEN_MAX: Final = 200
 ONLINE_STAND_BUENDEL_S: Final = 2.0

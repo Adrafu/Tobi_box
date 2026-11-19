@@ -67,6 +67,7 @@ class FakeQuellen:
 
     def __init__(self) -> None:
         self.treffer_speicher = TrefferSpeicher()
+        self.vorschau_speicher = TrefferSpeicher(maximum=4)
         self.itunes: dict[str, list[dict[str, Any]]] = {
             "album": parse_itunes((FIX / "itunes" / "bibi_folge100_album_mit_jubilaeum.json").read_bytes()),
             "hoerbuch": parse_itunes((FIX / "itunes" / "bibi_folge100_buch.json").read_bytes()),

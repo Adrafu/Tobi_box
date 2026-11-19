@@ -91,7 +91,8 @@ def test_die_sechs_fehlercodes_und_ihr_http_status() -> None:
 
 async def test_hello_sagt_online_suche_zu(admin: Any, normal: Any) -> None:
     for client in (admin, normal):
-        assert "online_suche" in (await ok(client, "hello", v=1))["faehigkeiten"]
+        f = (await ok(client, "hello", v=1))["faehigkeiten"]
+        assert "online_suche" in f and "online_lauf_liste" in f
 
 
 # --------------------------------------------------------------------------
@@ -144,6 +145,85 @@ async def test_58_treffer_und_vorschlag(admin: Any, hub: Any) -> None:
     assert "cover" in r2["felder"] and "grund" not in r2  # ``grund`` nur bei Quelle ``claude``
 
 
+async def test_58_vorschlag_mit_cover_liefert_vorschau_id(admin: Any, hub: Any, client: Any, client_normal: Any) -> None:
+    """T10: das neu geladene Bild eines Vorschlags hängt unter einer eigenen 16-stelligen Kennung; Vorschau 192 px, danach 410."""
+    await _vorschlag_erzeugen(hub)
+    liste = (await ok(admin, "serie/get", serie_id=SID))["online_vorschlaege_liste"]
+    v = next(x for x in liste if x["art"] == "felder" and "cover" in x["felder"])
+    r = await ok(admin, "online/treffer", serie_id=SID, vorschlag_id=v["id"])
+    vid = r["vorschau_id"]
+    assert len(vid) == 16 and set(vid) <= set("0123456789abcdef") and "cover" in r["felder"]
+    a = await client.get(f"/api/tobibox/online/vorschau/{vid}")
+    assert a.status == 200 and a.headers["Content-Type"] == "image/jpeg" and a.headers["Cache-Control"] == "no-store"
+    assert Image.open(io.BytesIO(await a.read())).size == (192, 192)
+    assert (await client_normal.get(f"/api/tobibox/online/vorschau/{vid}")).status == 403
+    # ein zweiter Aufruf gibt eine neue Kennung
+    assert (await ok(admin, "online/treffer", serie_id=SID, vorschlag_id=v["id"]))["vorschau_id"] != vid
+    # eine vorschau_id ist kein Treffer
+    assert await fehler(admin, "online/treffer", treffer_id=vid) == "treffer_abgelaufen"
+    # eigene Obergrenze 4: nach 4 weiteren Haltungen ist die erste weg (410)
+    for _ in range(4):
+        await ok(admin, "online/treffer", serie_id=SID, vorschlag_id=v["id"])
+    a = await client.get(f"/api/tobibox/online/vorschau/{vid}")
+    assert a.status == 410 and (await a.json())["fehler"]["code"] == "treffer_abgelaufen"
+
+
+async def test_58_vorschau_id_laeuft_ab(admin: Any, hub: Any, client: Any) -> None:
+    await _vorschlag_erzeugen(hub)
+    liste = (await ok(admin, "serie/get", serie_id=SID))["online_vorschlaege_liste"]
+    v = next(x for x in liste if x["art"] == "felder" and "cover" in x["felder"])
+    vid = (await ok(admin, "online/treffer", serie_id=SID, vorschlag_id=v["id"]))["vorschau_id"]
+    hub.online.quellen.vorschau_speicher._ttl = -1  # noqa: SLF001
+    a = await client.get(f"/api/tobibox/online/vorschau/{vid}")
+    assert a.status == 410 and (await a.json())["fehler"]["code"] == "treffer_abgelaufen"
+
+
+async def test_58_vorschau_und_suchen_verdraengen_sich_nicht(admin: Any, hub: Any, client: Any) -> None:
+    """GT-3: Vorschau-Kennungen haben einen eigenen Speicher; die HTTP-Vorschau sucht in beiden."""
+    await _vorschlag_erzeugen(hub)
+    liste = (await ok(admin, "serie/get", serie_id=SID))["online_vorschlaege_liste"]
+    v = next(x for x in liste if x["art"] == "felder" and "cover" in x["felder"])
+    t = apple_mit_cover(await suche(admin))
+    for _ in range(6):
+        await ok(admin, "online/treffer", serie_id=SID, vorschlag_id=v["id"])
+    assert len(hub.online.quellen.vorschau_speicher) == 4
+    assert (await ok(admin, "online/treffer", treffer_id=t["treffer_id"]))["felder"]  # die Suche lebt noch
+    assert (await client.get(f"/api/tobibox/online/vorschau/{t['treffer_id']}")).status == 200
+    vid = (await ok(admin, "online/treffer", serie_id=SID, vorschlag_id=v["id"]))["vorschau_id"]
+    for _ in range(5):
+        await suche(admin)  # mehr als 4 Suchen
+    assert (await client.get(f"/api/tobibox/online/vorschau/{vid}")).status == 200  # die Vorschau lebt noch
+    # Nr. 59 nimmt keine vorschau_id als treffer_id
+    assert await fehler(admin, "online/uebernehmen", serie_id=SID, treffer_id=vid, felder=["cover"]) == "treffer_abgelaufen"
+
+
+async def test_vorschau_id_eines_geloeschten_eintrags(admin: Any, hub: Any, client: Any) -> None:
+    await _vorschlag_erzeugen(hub)
+    liste = (await ok(admin, "serie/get", serie_id=SID))["online_vorschlaege_liste"]
+    v = next(x for x in liste if x["art"] == "felder" and "cover" in x["felder"])
+    vid = (await ok(admin, "online/treffer", serie_id=SID, vorschlag_id=v["id"]))["vorschau_id"]
+    with patch.object(hub.medien, "finde", side_effect=TobiboxFehler("serie_nicht_gefunden")):
+        a = await client.get(f"/api/tobibox/online/vorschau/{vid}")
+    assert a.status == 200  # das gehaltene Bild hängt nicht an der Serie: kein Fehler, kein 500
+
+
+async def test_58_ohne_cover_keine_vorschau_id(admin: Any, hub: Any) -> None:
+    await _vorschlag_erzeugen(hub)
+    liste = (await ok(admin, "serie/get", serie_id=SID))["online_vorschlaege_liste"]
+    v = next(x for x in liste if x["art"] == "felder" and "cover" in x["felder"])
+    # Bild nicht ladbar: ``cover`` fehlt, also auch ``vorschau_id``
+    with patch.object(hub.online, "_cover_bytes", return_value=None):
+        r = await ok(admin, "online/treffer", serie_id=SID, vorschlag_id=v["id"])
+    assert "cover" not in r["felder"] and "vorschau_id" not in r
+    # Treffer-Form: nie ``vorschau_id``
+    t = apple_mit_cover(await suche(admin))
+    assert "vorschau_id" not in await ok(admin, "online/treffer", treffer_id=t["treffer_id"])
+    # Vorschlag ohne Cover (nur Art)
+    art = next((x for x in liste if x["art"] == "felder" and "cover" not in x["felder"]), None)
+    if art is not None:
+        assert "vorschau_id" not in await ok(admin, "online/treffer", serie_id=SID, vorschlag_id=art["id"])
+
+
 async def test_58_fehler(admin: Any, normal: Any) -> None:
     assert await fehler(admin, "online/treffer", treffer_id="0" * 16) == "treffer_abgelaufen"
     assert await fehler(admin, "online/treffer", serie_id=SID, vorschlag_id="gibtsnicht") == "vorschlag_nicht_gefunden"
@@ -154,6 +234,108 @@ async def test_58_fehler(admin: Any, normal: Any) -> None:
     assert await fehler(admin, "online/treffer", treffer_id="0" * 16, serie_id=SID) == "invalid_format"
     assert await fehler(admin, "online/treffer", treffer_id="0" * 16, vorschlag_id="x") == "invalid_format"
     assert await fehler(normal, "online/treffer", treffer_id="0" * 16) == "unauthorized"
+
+
+# --------------------------------------------------------------------------
+# Nr. 65 online/lauf_aenderungen (T11)
+# --------------------------------------------------------------------------
+
+
+def _lauf_anlegen(hub: Any, lauf_id: str = "lauf1") -> None:
+    hub.online.store.lauf_speichern({"lauf_id": lauf_id, "beginn": "2026-11-19T10:00:00Z", "ende": "2026-11-19T11:00:00Z", "zustand": "fertig",
+                                     "zahlen": {"erledigt": 2, "gesamt": 2, "geaendert": 2, "vorschlaege": 0, "keiner": 0}})
+
+
+async def _zwei_aenderungen(hub: Any) -> None:
+    """„Ganz Anderes“ steht zuerst im Store, „Bibi Blocksberg“ danach: die Liste muss trotzdem nach Name sortieren."""
+    st = hub.online.store
+    st.serie(SID2)["aenderungen"] = [{"id": "a2", "zeit": "2026-11-19T10:30:00Z", "wer": "auto", "lauf_id": "lauf1", "quelle": "itunes",
+                                     "status": "fertig", "felder": {"art": {"vorher": "musik", "nachher": "hoerspiel"}}}]
+    await schnapp_wie_einsortiert(hub)
+    await arbeite(hub, im_lauf=True, lauf_id="lauf1")
+    _lauf_anlegen(hub)
+
+
+async def test_65_liste_sortiert_nach_name(admin: Any, hub: Any) -> None:
+    await _zwei_aenderungen(hub)
+    r = await ok(admin, "online/lauf_aenderungen", lauf_id="lauf1")
+    assert r.keys() == {"eintraege", "weitere"} and r["weitere"] is False
+    assert [e["name"] for e in r["eintraege"]] == ["Bibi Blocksberg", "Ganz Anderes"]
+    e0, e1 = r["eintraege"]
+    assert e0.keys() == {"serie_id", "name", "aenderung_id", "zeit", "status", "felder"} and e0["serie_id"] == SID and e0["status"] == "fertig"
+    assert e0["aenderung_id"] == hub.online.store.aenderungen(SID)[0]["id"] and e0["felder"]
+    assert e1 == {"serie_id": SID2, "name": "Ganz Anderes", "aenderung_id": "a2", "zeit": "2026-11-19T10:30:00Z", "status": "fertig", "felder": ["art"]}
+
+
+async def test_65_status_nach_einzel_ruecknahme(admin: Any, hub: Any) -> None:
+    await _zwei_aenderungen(hub)
+    vorher = await ok(admin, "online/lauf_aenderungen", lauf_id="lauf1")
+    aid = vorher["eintraege"][0]["aenderung_id"]
+    await ok(admin, "online/zuruecknehmen", serie_id=SID, aenderung_id=aid)
+    nachher = await ok(admin, "online/lauf_aenderungen", lauf_id="lauf1")
+    assert [(e["serie_id"], e["status"]) for e in nachher["eintraege"]] == [(SID, "zurueckgenommen"), (SID2, "fertig")]
+
+
+async def test_65_ganz_uebersprungene_ruecknahme_laesst_fertig(admin: Any, hub: Any) -> None:
+    """GT-1: alle Felder übersprungen (von Hand geändert): Status bleibt ``fertig``."""
+    await _zwei_aenderungen(hub)
+    await hub.medien.serie_art_setzen(SID2, "musik")
+    r = await ok(admin, "online/zuruecknehmen", serie_id=SID2, aenderung_id="a2")
+    assert r["zurueckgenommen"] == 0 and [u["grund"] for u in r["uebersprungen"]] == ["seitdem_geaendert"]
+    e = next(x for x in (await ok(admin, "online/lauf_aenderungen", lauf_id="lauf1"))["eintraege"] if x["serie_id"] == SID2)
+    assert e["status"] == "fertig"
+
+
+async def test_65_ohne_felder_verfallen_und_geloeschte_fehlen(admin: Any, hub: Any) -> None:
+    """GT-2 und GT-8: nur Bestätigungen, ältere als 30 Tage und gelöschte Einträge stehen nicht in der Liste."""
+    await _zwei_aenderungen(hub)
+    a = hub.online.store.aenderungen(SID2)
+    a.append({"id": "a5", "zeit": "2026-11-19T10:33:00Z", "wer": "auto", "lauf_id": "lauf1", "quelle": "itunes", "status": "fertig", "felder": {}, "bestaetigt": ["art"]})
+    a.append({"id": "a6", "zeit": "2026-09-01T10:33:00Z", "wer": "auto", "lauf_id": "lauf1", "quelle": "itunes", "status": "fertig", "felder": {"art": {}}})
+    with patch.object(online_modul, "_alt_s", side_effect=lambda z, j: 99 * 86400 if z.startswith("2026-09") else 0):
+        r = await ok(admin, "online/lauf_aenderungen", lauf_id="lauf1")
+    assert [e["aenderung_id"] for e in r["eintraege"] if e["serie_id"] == SID2] == ["a2"]
+    orig = hub.medien.finde
+
+    def finde(sid: str) -> Any:
+        if sid == SID2:
+            raise TobiboxFehler("serie_nicht_gefunden")
+        return orig(sid)
+
+    with patch.object(hub.medien, "finde", side_effect=finde):
+        r = await ok(admin, "online/lauf_aenderungen", lauf_id="lauf1")
+    assert {e["serie_id"] for e in r["eintraege"]} == {SID}
+
+
+async def test_65_offene_und_fremde_laeufe_fehlen_bestaetigte_felder_auch(admin: Any, hub: Any) -> None:
+    await _zwei_aenderungen(hub)
+    _lauf_anlegen(hub, "lauf2")
+    a = hub.online.store.aenderungen(SID2)
+    a.append({"id": "a3", "zeit": "2026-11-19T10:31:00Z", "wer": "auto", "lauf_id": "lauf1", "quelle": "itunes", "status": "offen", "felder": {"art": {}}})
+    a.append({"id": "a4", "zeit": "2026-11-19T10:32:00Z", "wer": "auto", "lauf_id": "lauf2", "quelle": "itunes", "status": "fertig", "felder": {"art": {}}})
+    a[0]["bestaetigt"] = ["nummer@x.mp3"]
+    r = await ok(admin, "online/lauf_aenderungen", lauf_id="lauf1")
+    assert [e["aenderung_id"] for e in r["eintraege"] if e["serie_id"] == SID2] == ["a2"]
+    assert next(e for e in r["eintraege"] if e["serie_id"] == SID2)["felder"] == ["art"]  # kein bestätigtes Feld darin
+    assert [e["aenderung_id"] for e in (await ok(admin, "online/lauf_aenderungen", lauf_id="lauf2"))["eintraege"]] == ["a4"]
+
+
+async def test_65_grenze_500_und_weitere(admin: Any, hub: Any) -> None:
+    assert online_modul.ONLINE_LAUF_LISTE_MAX == 500
+    await _zwei_aenderungen(hub)
+    with patch.object(online_modul, "ONLINE_LAUF_LISTE_MAX", 1):
+        r = await ok(admin, "online/lauf_aenderungen", lauf_id="lauf1")
+    assert [e["name"] for e in r["eintraege"]] == ["Bibi Blocksberg"] and r["weitere"] is True
+    with patch.object(online_modul, "ONLINE_LAUF_LISTE_MAX", 2):
+        r = await ok(admin, "online/lauf_aenderungen", lauf_id="lauf1")
+    assert len(r["eintraege"]) == 2 and r["weitere"] is False
+
+
+async def test_65_fehler(admin: Any, normal: Any, hub: Any) -> None:
+    assert await fehler(admin, "online/lauf_aenderungen", lauf_id="gibtsnicht") == "lauf_nicht_gefunden"
+    assert await fehler(admin, "online/lauf_aenderungen") == "invalid_format"
+    assert await fehler(admin, "online/lauf_aenderungen", lauf_id="x", unbekannt=1) == "invalid_format"
+    assert await fehler(normal, "online/lauf_aenderungen", lauf_id="lauf1") == "unauthorized"
 
 
 # --------------------------------------------------------------------------

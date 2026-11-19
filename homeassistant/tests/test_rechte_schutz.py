@@ -157,6 +157,7 @@ TABELLE = [
     (62, "online/lauf", "admin", {"aktion": "start"}, None, True),
     (63, "online/status", "admin", {}, None, True),
     (64, "online/beschreibung", "lesen", {"serie_id": "rabe", "folge": "a.mp3"}, None, True),
+    (65, "online/lauf_aenderungen", "admin", {"lauf_id": "0123456789ab"}, "lauf_nicht_gefunden", True),
 ]
 IDS = [f"{z[0]:02d}-{z[1]}" for z in TABELLE]
 
@@ -170,7 +171,7 @@ def vertrags_uebersicht() -> dict[str, tuple[int, str]]:
 
 def test_tabelle_enthaelt_jeden_befehl_der_vertragsuebersicht_genau_einmal():
     uebersicht = vertrags_uebersicht()
-    assert len(uebersicht) == 64  # seit 13.11. (A0-Q) mit den Befehlen 47 bis 49, seit 16.11. (Stufe B) mit 50 bis 56, seit 18.11. (Online-Suche, OS0) mit 57 bis 64
+    assert len(uebersicht) == 65  # seit 13.11. (A0-Q) mit den Befehlen 47 bis 49, seit 16.11. (Stufe B) mit 50 bis 56, seit 18.11. (Online-Suche, OS0) mit 57 bis 64, seit 19.11. (T11) mit 65
     assert [z[1] for z in TABELLE] == [b for b, _ in sorted(uebersicht.items(), key=lambda kv: kv[1][0])]
     for nr, befehl, recht, *_ in TABELLE:
         assert uebersicht[befehl] == (nr, recht), befehl
@@ -207,7 +208,7 @@ async def test_tabelle_2_1_normal_benutzer(normal, nr, befehl, recht, felder, ad
 async def test_hello_sagt_nur_zu_was_gebaut_ist(admin, normal):
     for client in (admin, normal):
         f = (await ok(client, "hello", v=1))["faehigkeiten"]
-        assert f[-11:] == ["konfig_staende", "bibliothek", "einsortier_wunsch", "cover", "warteschlange", "zuordnung_rueckgaengig", "reinhoeren", "favoriten", "online_suche", "gehoert", "hoerkopie"]  # A1, A3, A3d, A4, A9c, A4c, B3 (``gehoert`` nur mit offener Datenbank), A3c (``hoerkopie`` nur mit ``ffmpeg``)
+        assert f[-12:] == ["konfig_staende", "bibliothek", "einsortier_wunsch", "cover", "warteschlange", "zuordnung_rueckgaengig", "reinhoeren", "favoriten", "online_suche", "online_lauf_liste", "gehoert", "hoerkopie"]  # A1, A3, A3d, A4, A9c, A4c, B3 (``gehoert`` nur mit offener Datenbank), A3c (``hoerkopie`` nur mit ``ffmpeg``)
     assert (await ok(admin, "hello", v=1))["darf_schreiben"] is True
     assert (await ok(normal, "hello", v=1))["darf_schreiben"] is False
 

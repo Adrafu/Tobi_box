@@ -80,6 +80,11 @@ function bauen(schluessel) {
     b.serien.onlziel = { id: 'onlziel', name: 'Online Ziel', typ: 'normal', ordner: 'OnlZiel', pruefen: false, hinweise: [], art: 'hoerspiel', cover_stand: null, angelegt_am: '2026-11-13T12:00:00Z', folgen: [folge('z1.mp3', 'Ziel Folge', { nummer: 1 })] };
     b.serien.lang.online = { zeit: '2026-11-17T10:00:00Z', felder: ['nummer', 'alter_ab'] };
     b.serien.lang.folgen[0].alter_ab = 3; b.serien.lang.folgen[0].beschreibung = 'Ein kurzer Text.';
+    // T11: Liste der Änderungen des Laufs `l-fertig` (Nr. 65): drei Einträge, einer schon zurückgenommen. Nur Einträge, die kein anderer Ablauf löscht (nicht `lang`, `kurz`: der Papierkorb-Ablauf nimmt sie weg)
+    b.online.aenderungen.push(
+      { id: 'a-ziel', serie_id: 'onlziel', lauf_id: 'l-fertig', felder: ['nummer@z1.mp3', 'alter_ab@z1.mp3', 'cover'], vorher: { 'nummer@z1.mp3': null, 'alter_ab@z1.mp3': 4 }, nachher: { 'nummer@z1.mp3': 1, 'alter_ab@z1.mp3': null }, zeit: '2026-11-18T09:00:00Z', status: 'fertig' },
+      { id: 'a-leer', serie_id: 'leersammlung', lauf_id: 'l-fertig', felder: ['art'], vorher: { art: 'musik' }, nachher: { art: 'hoerspiel' }, zeit: '2026-11-18T09:10:00Z', status: 'zurueckgenommen' },
+    );
     b.online.laeufe = [
       { lauf_id: 'l-fertig', beginn: '2026-11-18T08:00:00Z', ende: '2026-11-18T11:30:00Z', zustand: 'fertig', zahlen: { erledigt: 340, gesamt: 340, geaendert: 120, vorschlaege: 38, keiner: 12 } },
       { lauf_id: 'l-fehler', beginn: '2026-11-17T08:00:00Z', ende: '2026-11-17T08:20:00Z', zustand: 'abgebrochen', zahlen: { erledigt: 12, gesamt: 340, geaendert: 0, vorschlaege: 1, keiner: 2 } },

@@ -122,10 +122,10 @@ test('Texte der Online-Suche: nicht leer, mit den Vorgabewerten ganz füllbar, k
 
 /* ------------------------------------------------------------------ Mock: vertragstreu */
 
-test('Mock: Nr. 57 bis 63 nur für Administratoren, Nr. 64 für alle; ohne die Fähigkeit unknown_command; Vorschau nur für Administratoren', async () => {
+test('Mock: Nr. 57 bis 63 und 65 nur für Administratoren, Nr. 64 für alle; ohne die Fähigkeit unknown_command; Vorschau nur für Administratoren', async () => {
   const user = createMockHass({ faehigkeiten: ALLE, istAdmin: false });
   for (const t of Object.keys(SCHEMA_OS).filter((x) => x !== 'tobibox/online/beschreibung')) {
-    const msg = { type: t, ...(t.endsWith('suchen') ? { serie_id: 's1' } : t.endsWith('uebernehmen') ? { serie_id: 's1', felder: ['art'] } : t.endsWith('verwerfen') ? { serie_id: 's1', vorschlag_id: 'x' } : t.endsWith('lauf') ? { aktion: 'start' } : {}) };
+    const msg = { type: t, ...(t.endsWith('suchen') ? { serie_id: 's1' } : t.endsWith('uebernehmen') ? { serie_id: 's1', felder: ['art'] } : t.endsWith('verwerfen') ? { serie_id: 's1', vorschlag_id: 'x' } : t.endsWith('lauf') ? { aktion: 'start' } : t.endsWith('lauf_aenderungen') ? { lauf_id: 'l1' } : {}) };
     await assert.rejects(user.hass.connection.sendMessagePromise(msg), (e) => e.code === 'unauthorized', t);
   }
   const r = await user.hass.connection.sendMessagePromise({ type: 'tobibox/online/beschreibung', serie_id: 's1', folge: 'folge-01.mp3' });
@@ -651,8 +651,8 @@ test('Vorschlag „Ansehen“: Übersicht aus dem Vorschlag (Befehl 58 mit serie
   assert.deepEqual(t.map(({ serie_id, vorschlag_id, treffer_id }) => ({ serie_id, vorschlag_id, treffer_id })), [{ serie_id: 's1', vorschlag_id: 'v-apple', treffer_id: undefined }]);
   assert.equal(text(s.q('dialog.blatt[open] #blatt-t')), 'Was soll übernommen werden?');
   assert.deepEqual(s.qa('[data-feld]').map((b) => b.dataset.feld), ['art', 'cover']);
-  assert.ok(s.q('[data-feld="cover"] [data-vorschau-neu-ohne]'), 'für einen Vorschlag gibt es keine Vorschau (die Vorschau hängt an der treffer_id)');
-  assert.equal(s.m.vorschauAufrufe.length, 0);
+  assert.ok(s.q('[data-feld="cover"] img[data-vorschau-neu]'), 'T10: das neue Bild kommt über die vorschau_id von Nr. 58');
+  assert.equal(s.m.vorschauAufrufe.length, 1);
   assert.deepEqual(s.qa('dialog.blatt[open] .knoepfe button').map(text), ['Abbrechen', 'Übernehmen']);
   await klick(s, blattKnopf(s, 'Übernehmen'), 16);
   const u = aufrufe(s, 'online/uebernehmen')[0];
@@ -1103,10 +1103,12 @@ test('GO4-6: Rücknahme mit aenderung_nicht_gefunden: Klartext, das Blatt schlie
   weg();
 });
 
-test('GO4-7: Übersicht eines Cover-Vorschlags ohne Bild sagt es ausdrücklich; bei einem Treffer mit Bild steht der Hinweis nicht da', MIT_DOM, async () => {
+test('GO4-7: Übersicht eines Cover-Vorschlags ohne vorschau_id sagt es ausdrücklich; bei einem Treffer mit Bild steht der Hinweis nicht da', MIT_DOM, async () => {
   const s = await oeffne('s1', { vor: VORSCHLAEGE });
+  s.m.on('tobibox/online/treffer', () => ({ felder: { cover: { heute: null, neu: true, sicher: false, hand: false } } })); // ältere Antwort ohne `vorschau_id`
   await klick(s, s.q('[data-vorschlag="v-apple"] [data-vorschlag-aktion="ansehen"]'), 14);
   assert.equal(text(s.q('[data-cover-ohne-bild]')), 'Neues Cover: Das Bild siehst du erst bei „Online suchen“.');
+  assert.equal(s.m.vorschauAufrufe.length, 0, 'ohne vorschau_id geht keine Vorschau hinaus');
   weg();
   const t = await oeffne('s1');
   await bisUebersicht(t);
@@ -1239,5 +1241,347 @@ test('Serie mit erst einer Folge (nicht einzeln): „Online suchen“ sendet Nr.
   assert.equal(s.q('[data-os-text]').value, 'Neue Reihe');
   await klick(s, s.qa('[data-treffer]')[0], 14);
   assert.ok(s.q('[data-feld="alter_ab@n1.mp3"]'), 'Alter der einen Folge wird angeboten');
+  weg();
+});
+
+/* ------------------------------------------------------------------ T10: Bild des Vorschlags über `vorschau_id` (19.11.) */
+
+const hex16 = /^[0-9a-f]{16}$/;
+const ansehen = (s) => klick(s, s.q('[data-vorschlag="v-apple"] [data-vorschlag-aktion="ansehen"]'), 14);
+
+test('Mock (T10): Nr. 58 liefert bei einem Vorschlag mit Cover eine neue vorschau_id je Abfrage, sonst keine; sie teilt die 4 Plätze (die älteste wird 410)', async () => {
+  const m = createMockHass({ faehigkeiten: ALLE });
+  m.backend.online.vorschlaege.s1 = [
+    { id: 'v-apple', art: 'felder', quelle: 'itunes', felder: ['cover', 'art'], werte: { cover: true, art: 'musik' }, zeit: '2026-11-18T10:00:00Z' },
+    { id: 'v-art', art: 'felder', quelle: 'itunes', felder: ['art'], werte: { art: 'musik' }, zeit: '2026-11-18T10:00:00Z' },
+  ];
+  const frage = (vorschlag_id) => m.hass.connection.sendMessagePromise({ type: 'tobibox/online/treffer', serie_id: 's1', vorschlag_id });
+  const a = await frage('v-apple');
+  const b = await frage('v-apple');
+  assert.match(a.vorschau_id, hex16);
+  assert.notEqual(a.vorschau_id, b.vorschau_id, 'jede Abfrage eine neue Kennung');
+  assert.equal((await frage('v-art')).vorschau_id, undefined, 'ohne cover keine vorschau_id');
+  assert.equal((await m.hass.fetchWithAuth(`/api/tobibox/online/vorschau/${a.vorschau_id}`)).status, 200);
+  for (let i = 0; i < 4; i += 1) await frage('v-apple');
+  assert.equal((await m.hass.fetchWithAuth(`/api/tobibox/online/vorschau/${a.vorschau_id}`)).status, 410, 'verdrängt');
+  assert.equal((await m.hass.fetchWithAuth(`/api/tobibox/online/vorschau/${b.vorschau_id}`)).status, 410, 'verdrängt');
+});
+
+test('T10: Übersicht eines Vorschlags mit Cover zeigt das neue Bild (Nr. 58 → vorschau_id → HTTP-Vorschau mit fetchWithAuth als blob:), ohne den Platzhalter-Satz; beim Schließen wird die Adresse freigegeben', MIT_DOM, async () => {
+  const s = await oeffne('s1', { vor: VORSCHLAEGE });
+  const frei = []; const altR = URL.revokeObjectURL;
+  URL.revokeObjectURL = (u) => frei.push(u);
+  await ansehen(s);
+  await warte(30); await s.flush(8);
+  const img = s.q('[data-feld="cover"] img[data-vorschau-neu]');
+  assert.ok(img, 'das neue Bild steht da');
+  assert.match(img.getAttribute('src'), /^blob:/);
+  assert.equal(s.q('[data-cover-ohne-bild]'), null, 'kein Platzhalter-Satz');
+  assert.equal(s.q('[data-vorschau-neu-ohne]'), null);
+  assert.equal(s.m.vorschauAufrufe.length, 1);
+  const id = s.m.vorschauAufrufe[0].split('/vorschau/')[1];
+  assert.match(id, hex16);
+  assert.ok(s.m.backend.online.treffer[id], 'die Kennung ist die aus Nr. 58');
+  await klick(s, blattKnopf(s, 'Abbrechen'));
+  await warte(20);
+  assert.deepEqual(frei, [img.getAttribute('src')], 'die blob:-Adresse ist freigegeben');
+  URL.revokeObjectURL = altR;
+  weg();
+});
+
+test('T10: während das Bild lädt, steht der Satz „Das Bild siehst du erst …“ noch nicht da; „Zurück“ zum Vorschlag und noch einmal Ansehen holt eine neue vorschau_id', MIT_DOM, async () => {
+  const s = await oeffne('s1', { vor: VORSCHLAEGE });
+  const echt = s.m.hass.fetchWithAuth;
+  let tor; const offen = new Promise((r) => { tor = r; });
+  s.m.hass.fetchWithAuth = async (p, o) => { if (p.includes('/online/vorschau/')) await offen; return echt(p, o); };
+  await ansehen(s);
+  assert.ok(s.q('[data-feld="cover"]'));
+  assert.equal(s.q('[data-cover-ohne-bild]'), null, 'noch kein Satz, solange das Bild kommt');
+  assert.ok(s.q('[data-vorschau-neu-ohne]'), 'der Platzhalter ohne Satz');
+  tor();
+  await warte(30); await s.flush(8);
+  assert.ok(s.q('[data-feld="cover"] img[data-vorschau-neu]'));
+  await klick(s, blattKnopf(s, 'Abbrechen'));
+  await ansehen(s);
+  await warte(30);
+  assert.equal(s.m.vorschauAufrufe.length, 2);
+  assert.notEqual(s.m.vorschauAufrufe[0], s.m.vorschauAufrufe[1], 'jede Abfrage eine neue Kennung');
+  weg();
+});
+
+test('T10: 410 (verdrängt oder abgelaufen) und Netzfehler der Vorschau: wieder der beschriftete Platzhalter, die Übersicht bleibt benutzbar', MIT_DOM, async () => {
+  const s = await oeffne('s1', { vor: VORSCHLAEGE });
+  const echt = s.m.hass.fetchWithAuth;
+  s.m.hass.fetchWithAuth = async (p, o) => {
+    if (p.includes('/online/vorschau/')) { const id = p.split('/vorschau/')[1]; if (s.m.backend.online.treffer[id]) s.m.backend.online.treffer[id].abgelaufen = true; }
+    return echt(p, o);
+  };
+  await ansehen(s);
+  await warte(30); await s.flush(8);
+  assert.equal(s.q('[data-feld="cover"] img[data-vorschau-neu]'), null);
+  assert.ok(s.q('[data-feld="cover"] [data-vorschau-neu-ohne]'));
+  assert.equal(text(s.q('[data-cover-ohne-bild]')), 'Das Bild ist nicht mehr da. Öffne den Vorschlag noch einmal.'); // GT-6: das Bild gibt es, nur die Vorschau nicht
+  assert.equal(s.m.vorschauAufrufe.length, 1, '410 wird nicht wiederholt');
+  assert.ok(s.q('[data-feld="cover"][aria-checked="true"]'), 'das Feld bleibt wählbar');
+  await klick(s, blattKnopf(s, 'Abbrechen'));
+  s.m.hass.fetchWithAuth = async (p, o) => { if (p.includes('/online/vorschau/')) throw new Error('Netz weg'); return echt(p, o); };
+  await ansehen(s);
+  await warte(30); await s.flush(8);
+  assert.equal(text(s.q('[data-cover-ohne-bild]')), 'Das Bild ist nicht mehr da. Öffne den Vorschlag noch einmal.', 'auch bei einem Netzfehler der Platzhalter mit Satz');
+  weg();
+});
+
+test('T10: Vorschlag ohne Cover im Angebot (nur Art) holt keine Vorschau; Treffer verhalten sich wie bisher', MIT_DOM, async () => {
+  const s = await oeffne('s1', { vor: (m) => { m.backend.online.vorschlaege.s1 = [{ id: 'v-art', art: 'felder', quelle: 'itunes', felder: ['art'], werte: { art: 'musik' }, zeit: '2026-11-18T10:00:00Z' }]; } });
+  await klick(s, s.q('[data-vorschlag="v-art"] [data-vorschlag-aktion="ansehen"]'), 14);
+  await warte(30);
+  assert.deepEqual(s.qa('[data-feld]').map((b) => b.dataset.feld), ['art']);
+  assert.equal(s.m.vorschauAufrufe.length, 0);
+  weg();
+});
+
+/* ------------------------------------------------------------------ T11: Liste der Änderungen je Lauf (Nr. 65, Fähigkeit `online_lauf_liste`) */
+
+const LAUF = { lauf_id: 'l-neu', beginn: '2026-11-19T08:00:00Z', ende: '2026-11-19T09:00:00Z', zustand: 'fertig', zahlen: { erledigt: 50, gesamt: 50, geaendert: 3, vorschlaege: 1, keiner: 0 } };
+const LISTE_VOR = (m) => {
+  const o = m.backend.online;
+  o.laeufe = [LAUF, { lauf_id: 'l-leer', beginn: '2026-11-18T08:00:00Z', ende: '2026-11-18T09:00:00Z', zustand: 'fertig', zahlen: { erledigt: 50, gesamt: 50, geaendert: 0, vorschlaege: 0, keiner: 3 } }];
+  m.backend.serien.s1.art = 'musik'; m.backend.serien.s2.name = 'Online-Name'; m.backend.serien.s3.art = 'musik';
+  o.aenderungen.push(
+    { id: 'a1', serie_id: 's1', lauf_id: 'l-neu', felder: ['art', 'cover', 'nummer@folge-01.mp3'], vorher: { art: 'hoerspiel' }, nachher: { art: 'musik' }, zeit: '2026-11-19T08:30:00Z', status: 'fertig' },
+    { id: 'a2', serie_id: 's2', lauf_id: 'l-neu', felder: ['serie_name'], vorher: { serie_name: 'Bibi Blocksberg' }, nachher: { serie_name: 'Online-Name' }, zeit: '2026-11-19T08:40:00Z', status: 'fertig' },
+    { id: 'a3', serie_id: 's3', lauf_id: 'l-neu', felder: ['art'], vorher: { art: 'hoerspiel' }, nachher: { art: 'musik' }, zeit: '2026-11-19T08:50:00Z', status: 'zurueckgenommen' },
+    { id: 'ax', serie_id: 's1', lauf_id: 'l-anders', felder: ['art'], vorher: {}, nachher: {}, zeit: '2026-11-18T08:50:00Z', status: 'fertig' },
+  );
+};
+const auf = async (s, id = 'l-neu') => { await klick(s, s.q(`[data-liste-auf="${id}"]`), 14); await warte(20); await s.flush(8); };
+const eintrag = (s, id) => s.q(`[data-eintrag="${id}"]`);
+
+test('Mock (T11): Nr. 65 liefert die Änderungen des Laufs nach Namen, mit Status fertig/zurückgenommen, `weitere` über der Grenze; lauf_nicht_gefunden; ohne Fähigkeit unknown_command', async () => {
+  const m = createMockHass({ faehigkeiten: ALLE, onlineListeMax: 2 });
+  LISTE_VOR(m);
+  const frage = (lauf_id) => m.hass.connection.sendMessagePromise({ type: 'tobibox/online/lauf_aenderungen', lauf_id });
+  const r = await frage('l-neu');
+  assert.equal(r.eintraege.length, 2, 'höchstens listeMax Einträge');
+  assert.equal(r.weitere, true);
+  const m2 = createMockHass({ faehigkeiten: ALLE });
+  LISTE_VOR(m2);
+  const r2 = await m2.hass.connection.sendMessagePromise({ type: 'tobibox/online/lauf_aenderungen', lauf_id: 'l-neu' });
+  assert.equal(r2.weitere, false);
+  assert.deepEqual(r2.eintraege.map((e) => e.name), [...r2.eintraege.map((e) => e.name)].sort((a, b) => a.localeCompare(b, 'de')));
+  assert.deepEqual(r2.eintraege.map((e) => e.aenderung_id).sort(), ['a1', 'a2', 'a3']);
+  assert.deepEqual(Object.keys(r2.eintraege[0]).sort(), ['aenderung_id', 'felder', 'name', 'serie_id', 'status', 'zeit']);
+  assert.deepEqual(r2.eintraege.find((e) => e.aenderung_id === 'a3').status, 'zurueckgenommen');
+  await assert.rejects(m2.hass.connection.sendMessagePromise({ type: 'tobibox/online/lauf_aenderungen', lauf_id: 'gibtsnicht' }), (e) => e.code === 'lauf_nicht_gefunden');
+  await assert.rejects(m2.hass.connection.sendMessagePromise({ type: 'tobibox/online/lauf_aenderungen' }), (e) => e.code === 'invalid_format');
+  const ohne = createMockHass({ faehigkeiten: ALLE.filter((f) => f !== 'online_lauf_liste') });
+  await assert.rejects(ohne.hass.connection.sendMessagePromise({ type: 'tobibox/online/lauf_aenderungen', lauf_id: 'l-neu' }), (e) => e.code === 'unknown_command');
+});
+
+test('T11: „Liste der Änderungen“ je Lauf mit Änderungen (nicht bei geaendert 0): aufklappen holt Nr. 65 mit lauf_id; Name als Link, Felder in Klartext, Status; Zurücknehmen nur bei „Geändert“; zuklappen', MIT_DOM, async () => {
+  const s = await technik({ vor: LISTE_VOR });
+  assert.deepEqual(s.qa('[data-liste-auf]').map((b) => b.dataset.listeAuf), ['l-neu'], 'nur der Lauf mit Änderungen');
+  assert.equal(aufrufe(s, 'online/lauf_aenderungen').length, 0, 'erst beim Aufklappen');
+  assert.equal(text(s.q('[data-liste-auf]')), 'Liste der Änderungen');
+  assert.equal(s.q('[data-liste-auf]').getAttribute('aria-expanded'), 'false');
+  assert.match(s.q('[data-liste-auf]').getAttribute('aria-label'), /^Liste der Änderungen des Laufs von /);
+  await auf(s);
+  assert.deepEqual(aufrufe(s, 'online/lauf_aenderungen').map((m) => m.lauf_id), ['l-neu']);
+  assert.equal(s.q('[data-liste-auf]').getAttribute('aria-expanded'), 'true');
+  const namen = s.qa('[data-eintrag] [data-eintrag-serie]').map(text);
+  assert.deepEqual(namen, [...namen].sort((a, b) => a.localeCompare(b, 'de')), 'nach Namen sortiert');
+  assert.equal(namen.length, 3);
+  const e1 = eintrag(s, 'a1');
+  assert.equal(text(e1.querySelector('[data-eintrag-serie]')), 'Die drei ???');
+  assert.equal(e1.querySelector('[data-eintrag-serie]').getAttribute('href'), '#serie-s1');
+  assert.equal(text(e1.querySelector('[data-eintrag-felder]')), 'Art, Cover und Nummer');
+  assert.equal(text(e1.querySelector('[data-eintrag-status]')), 'Geändert');
+  assert.equal(text(e1.querySelector('[data-eintrag-zurueck]')), 'Zurücknehmen');
+  assert.equal(e1.querySelector('[data-eintrag-zurueck]').getAttribute('aria-label'), 'Die drei ???: Art, Cover und Nummer zurücknehmen');
+  const e3 = eintrag(s, 'a3');
+  assert.equal(text(e3.querySelector('[data-eintrag-status]')), 'Zurückgenommen');
+  assert.equal(e3.querySelector('[data-eintrag-zurueck]'), null, 'schon zurückgenommen: kein Knopf');
+  assert.equal(s.q('[data-liste-weitere]'), null);
+  assert.ok(s.q('[data-alle-zurueck="l-neu"]'), '„Alle zurücknehmen“ bleibt');
+  assert.ok(!text(s.q('[data-online-seite]')).includes('undefined'));
+  await klick(s, s.q('[data-liste-auf="l-neu"]'));
+  assert.equal(s.q('[data-liste-aenderungen]'), null, 'zugeklappt');
+  assert.equal(s.q('[data-liste-auf]').getAttribute('aria-expanded'), 'false');
+  weg();
+});
+
+test('T11: „Zurücknehmen“ eines Eintrags: Nr. 60 mit serie_id und aenderung_id (nie lauf_id), Meldung, der Eintrag steht als „Zurückgenommen“, die anderen bleiben', MIT_DOM, async () => {
+  const s = await technik({ vor: LISTE_VOR });
+  await auf(s);
+  await klick(s, s.q('[data-eintrag="a1"] [data-eintrag-zurueck]'), 14);
+  await warte(20); await s.flush(8);
+  assert.deepEqual(aufrufe(s, 'online/zuruecknehmen').map(({ serie_id, aenderung_id, lauf_id }) => ({ serie_id, aenderung_id, lauf_id })), [{ serie_id: 's1', aenderung_id: 'a1', lauf_id: undefined }]);
+  assert.ok(toasts(s).includes('Zurückgenommen.') || toasts(s).some((t) => t.startsWith('Zurückgenommen')), `Meldung: ${toasts(s)}`);
+  assert.equal(s.m.backend.serien.s1.art, 'hoerspiel');
+  assert.equal(text(eintrag(s, 'a1').querySelector('[data-eintrag-status]')), 'Zurückgenommen');
+  assert.equal(eintrag(s, 'a1').querySelector('[data-eintrag-zurueck]'), null);
+  assert.ok(eintrag(s, 'a2').querySelector('[data-eintrag-zurueck]'), 'der andere Eintrag bleibt zurücknehmbar');
+  assert.equal(s.m.backend.serien.s2.name, 'Online-Name');
+  assert.ok(aufrufe(s, 'online/lauf_aenderungen').length >= 2, 'die Liste wird danach frisch geholt');
+  weg();
+});
+
+test('T11: Rücknahme eines Eintrags, dessen Feld inzwischen geändert wurde: „1 Feld blieb …“, ganz übersprungen bleibt der Eintrag „Geändert“ (wie das Backend), kein Flackern', MIT_DOM, async () => {
+  const s = await technik({ vor: (m) => { LISTE_VOR(m); m.backend.serien.s2.name = 'Von Hand umbenannt'; } }); // seit der Online-Änderung von Hand geändert
+  await auf(s);
+  await klick(s, s.q('[data-eintrag="a2"] [data-eintrag-zurueck]'), 14);
+  await warte(20); await s.flush(8);
+  assert.ok(toasts(s).includes('Zurückgenommen. 1 Feld blieb, weil es inzwischen geändert wurde.'), `Meldung: ${toasts(s)}`);
+  assert.equal(s.m.backend.serien.s2.name, 'Von Hand umbenannt', 'der neue Wert bleibt');
+  assert.equal(text(eintrag(s, 'a2').querySelector('[data-eintrag-status]')), 'Geändert');
+  assert.ok(eintrag(s, 'a2').querySelector('[data-eintrag-zurueck]'), 'der Knopf bleibt');
+  weg();
+});
+
+test('T11: Doppeltipp auf „Zurücknehmen“ eines Eintrags sendet nur einen Befehl 60; während es läuft sind die anderen Knöpfe grau', MIT_DOM, async () => {
+  const s = await technik({ vor: LISTE_VOR });
+  await auf(s);
+  const echt = s.m.hass.connection.sendMessagePromise;
+  let tor; const offen = new Promise((r) => { tor = r; });
+  s.m.hass.connection.sendMessagePromise = async (msg) => { if (msg.type === 'tobibox/online/zuruecknehmen') await offen; return echt(msg); };
+  const k = s.q('[data-eintrag="a1"] [data-eintrag-zurueck]');
+  k.click(); k.click();
+  await warte(10); await s.flush(8);
+  assert.ok(s.q('[data-eintrag="a2"] [data-eintrag-zurueck]').disabled, 'die anderen Knöpfe sind grau');
+  assert.ok(s.q('[data-alle-zurueck="l-neu"]').disabled);
+  tor();
+  await warte(40); await s.flush(10);
+  assert.equal(aufrufe(s, 'online/zuruecknehmen').length, 1);
+  weg();
+});
+
+test('T11: Einzel-Rücknahme scheitert (aenderung_nicht_gefunden): Klartext, die Liste und die Läufe werden neu geholt', MIT_DOM, async () => {
+  const s = await technik({ vor: (m) => { LISTE_VOR(m); m.failNext('tobibox/online/zuruecknehmen', 'aenderung_nicht_gefunden'); } });
+  await auf(s);
+  const liste = aufrufe(s, 'online/lauf_aenderungen').length; const status = aufrufe(s, 'online/status').length;
+  await klick(s, s.q('[data-eintrag="a1"] [data-eintrag-zurueck]'), 14);
+  await warte(20); await s.flush(8);
+  assert.ok(toasts(s).includes(FEHLER.aenderung_nicht_gefunden));
+  assert.ok(aufrufe(s, 'online/lauf_aenderungen').length > liste);
+  assert.ok(aufrufe(s, 'online/status').length > status);
+  assert.equal(text(eintrag(s, 'a1').querySelector('[data-eintrag-status]')), 'Geändert', 'nichts vorgetäuscht');
+  weg();
+});
+
+test('T11: `weitere`: der Hinweis „Es gibt mehr als 500 Änderungen; …“ steht unter der Liste, sonst nicht', MIT_DOM, async () => {
+  const s = await technik({ vor: (m) => { LISTE_VOR(m); m.backend.online.listeMax = 2; } });
+  await auf(s);
+  assert.equal(s.qa('[data-eintrag]').length, 2);
+  assert.equal(text(s.q('[data-liste-weitere]')), 'Es gibt mehr als 500 Änderungen; hier stehen die ersten 500, nach Namen sortiert. Mit „Alle zurücknehmen“ gehen alle zurück.');
+  weg();
+});
+
+test('T11: Fehler beim Holen der Liste zeigt die Fehlerkarte mit „Noch einmal versuchen“; lauf_nicht_gefunden schließt die Liste, meldet es und holt die Läufe neu', MIT_DOM, async () => {
+  const s = await technik({ vor: (m) => { LISTE_VOR(m); m.failNext('tobibox/online/lauf_aenderungen', 'unknown_error'); } });
+  await auf(s);
+  assert.ok(s.q('[data-liste-aenderungen] .fehlerkarte, [data-liste-aenderungen] [data-fehler], [data-liste-aenderungen] button'), 'Fehlerkarte');
+  assert.equal(s.q('[data-eintrag]'), null);
+  const nochmal = s.qa('[data-liste-aenderungen] button').find((b) => /noch einmal/i.test(text(b)));
+  await klick(s, nochmal, 14);
+  await warte(20); await s.flush(8);
+  assert.equal(s.qa('[data-eintrag]').length, 3, 'beim zweiten Versuch ist die Liste da');
+  await klick(s, s.q('[data-liste-auf="l-neu"]'));
+  s.m.failNext('tobibox/online/lauf_aenderungen', 'lauf_nicht_gefunden');
+  const status = aufrufe(s, 'online/status').length;
+  await auf(s);
+  assert.equal(s.q('[data-liste-aenderungen]'), null, 'die Liste ist zu');
+  assert.ok(toasts(s).includes(FEHLER.lauf_nicht_gefunden));
+  assert.ok(aufrufe(s, 'online/status').length > status);
+  weg();
+});
+
+test('T11: ohne Fähigkeit `online_lauf_liste` bleibt es wie bisher: Zahlen und „Alle zurücknehmen“, kein Aufklappen, kein Befehl 65', MIT_DOM, async () => {
+  const s = await technik({ faehigkeiten: ALLE.filter((f) => f !== 'online_lauf_liste'), vor: LISTE_VOR });
+  assert.equal(s.qa('[data-liste-auf]').length, 0);
+  assert.equal(s.qa('[data-alle-zurueck]').length, 1);
+  assert.ok(text(s.q('[data-lauf="l-neu"]')).includes('Fertig: 3 Einträge geändert'));
+  assert.deepEqual(viele(s, ['tobibox/online/lauf_aenderungen']), []);
+  weg();
+  const o = await technik({ faehigkeiten: OHNE, vor: LISTE_VOR });
+  assert.equal(o.q('[data-online-seite]'), null, 'ohne online_suche gibt es die Seite gar nicht');
+  assert.deepEqual(viele(o), []);
+  weg();
+});
+
+test('T11: nur für Administratoren: ein Benutzer sieht die Seite nicht und schickt keinen Befehl 65', MIT_DOM, async () => {
+  const s = await technik({ istAdmin: false, vor: LISTE_VOR });
+  assert.ok(s.q('[data-zustand="nur-admin"]'));
+  assert.equal(s.q('[data-liste-auf]'), null);
+  assert.deepEqual(viele(s), []);
+  weg();
+});
+
+test('T11: „Alle zurücknehmen“ bei offener Liste: nach dem Ereignis `fertig` stehen die Einträge als „Zurückgenommen“ da', MIT_DOM, async () => {
+  const s = await technik({ vor: LISTE_VOR });
+  await auf(s);
+  await klick(s, s.q('[data-alle-zurueck="l-neu"]'));
+  await klick(s, blattKnopf(s, 'Alle zurücknehmen'), 14);
+  await warte(80); await s.flush(12);
+  assert.deepEqual(s.qa('[data-eintrag] [data-eintrag-status]').map(text), ['Zurückgenommen', 'Zurückgenommen', 'Zurückgenommen']);
+  assert.equal(s.qa('[data-eintrag-zurueck]').length, 0);
+  weg();
+});
+
+test('T11: beim Verlassen und Wiederkommen ist die Liste zu', MIT_DOM, async () => {
+  const s = await technik({ vor: LISTE_VOR });
+  await auf(s);
+  assert.ok(s.q('[data-liste-aenderungen]'));
+  await geheZu(s, '#technik');
+  await geheZu(s, '#technik-online');
+  assert.equal(s.q('[data-liste-aenderungen]'), null);
+  assert.equal(s.q('[data-liste-auf]').getAttribute('aria-expanded'), 'false');
+  weg();
+});
+
+test('GT-2/GT-3/GT-4 (Mock): Nr. 65 lässt Änderungen ohne Felder weg; Vorschau-Kennungen und Suchen haben getrennte Plätze (je 4), eine Suche zählt als ein Platz', async () => {
+  const m = createMockHass({ faehigkeiten: ALLE });
+  LISTE_VOR(m);
+  m.backend.online.aenderungen.push({ id: 'a9', serie_id: 's2', lauf_id: 'l-neu', felder: [], vorher: {}, nachher: {}, zeit: '2026-11-19T08:55:00Z', status: 'fertig' });
+  const send = (msg) => m.hass.connection.sendMessagePromise(msg);
+  const r = await send({ type: 'tobibox/online/lauf_aenderungen', lauf_id: 'l-neu' });
+  assert.ok(!r.eintraege.some((e) => e.aenderung_id === 'a9'));
+  m.backend.online.vorschlaege.s1 = [{ id: 'v1', art: 'felder', quelle: 'itunes', felder: ['cover'], zeit: '2026-11-18T10:00:00Z' }];
+  const such = await send({ type: 'tobibox/online/suchen', serie_id: 's1' });
+  const vids = [];
+  for (let i = 0; i < 6; i++) vids.push((await send({ type: 'tobibox/online/treffer', serie_id: 's1', vorschlag_id: 'v1' })).vorschau_id);
+  assert.ok(m.backend.online.treffer[vids[0]].abgelaufen && m.backend.online.treffer[vids[1]].abgelaufen && !m.backend.online.treffer[vids[2]].abgelaufen);
+  assert.ok(such.treffer.every((t) => !m.backend.online.treffer[t.treffer_id].abgelaufen), 'Vorschauen verdrängen keine Suche');
+  for (let i = 0; i < 5; i++) await send({ type: 'tobibox/online/suchen', serie_id: 's1' });
+  assert.ok(such.treffer.every((t) => m.backend.online.treffer[t.treffer_id].abgelaufen), 'die erste Suche ist nach fünf weiteren weg');
+  assert.ok(!m.backend.online.treffer[vids[5]].abgelaufen, 'Suchen verdrängen keine Vorschau');
+  await assert.rejects(send({ type: 'tobibox/online/treffer', treffer_id: vids[5] }), (e) => e.code === 'treffer_abgelaufen'); // eine vorschau_id ist kein Treffer
+});
+
+test('GT-7: `aria-controls` des Knopfs „Änderungen“ zeigt nur bei offener Liste auf deren Element', MIT_DOM, async () => {
+  const s = await technik({ vor: LISTE_VOR });
+  const knopf = () => s.q('[data-liste-auf="l-neu"]');
+  assert.equal(knopf().getAttribute('aria-controls'), null, 'zu: kein Verweis ins Leere');
+  await auf(s);
+  const id = knopf().getAttribute('aria-controls');
+  assert.ok(id && s.q(`#${id}`), 'offen: das Element ist da');
+  weg();
+});
+
+test('GT-5: eine späte Antwort einer zugeklappten Liste überschreibt die neu geholte nicht (Zähler je Seite)', MIT_DOM, async () => {
+  const s = await technik({ vor: LISTE_VOR });
+  const echt = s.m.hass.connection.sendMessagePromise;
+  let tor; const offen = new Promise((r) => { tor = r; });
+  let erste = true;
+  s.m.hass.connection.sendMessagePromise = async (msg) => {
+    if (msg.type === 'tobibox/online/lauf_aenderungen' && erste) { erste = false; await offen; return { eintraege: [], weitere: false }; } // alt und leer
+    return echt(msg);
+  };
+  await klick(s, s.q('[data-liste-auf="l-neu"]'), 14); // Anfrage A hängt
+  await klick(s, s.q('[data-liste-auf="l-neu"]'), 14); // zu
+  await klick(s, s.q('[data-liste-auf="l-neu"]'), 14); // wieder auf: Anfrage B
+  await warte(20); await s.flush(8);
+  assert.equal(s.qa('[data-eintrag]').length, 3);
+  tor(); await warte(20); await s.flush(8);
+  assert.equal(s.qa('[data-eintrag]').length, 3, 'Antwort A wird verworfen');
   weg();
 });

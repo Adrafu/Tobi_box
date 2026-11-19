@@ -92,9 +92,9 @@ export const SCHEMA_B = {
 };
 export const ADMIN_BEFEHLE_B = new Set(['tobibox/technik/verlauf', 'tobibox/gehoert/exportieren', 'tobibox/gehoert/loeschen']);
 
-/* Online-Suche (Vertrag W 3.15, Nr. 57 bis 64, Fähigkeit `online_suche`, OS4). Nr. 57 bis 63 nur für Administratoren, Nr. 64 (voller Beschreibungstext) für alle (Recht lesen).
+/* Online-Suche (Vertrag W 3.15, Nr. 57 bis 65, Fähigkeit `online_suche`, OS4; Nr. 65 mit `online_lauf_liste`). Nr. 57 bis 63 und 65 nur für Administratoren, Nr. 64 (voller Beschreibungstext) für alle (Recht lesen).
  * Eigener Satz und eigene Fähigkeit, nicht in `FAEHIGKEITEN`: die Abdeckungsprüfungen der alten Seiten bleiben unverändert. */
-export const FAEHIGKEITEN_OS = ['online_suche'];
+export const FAEHIGKEITEN_OS = ['online_suche', 'online_lauf_liste']; // `online_lauf_liste` (19.11., T11): Nr. 65; nur zusammen mit `online_suche`
 export const SCHEMA_OS = {
   'tobibox/online/suchen': { req: ['serie_id'], opt: ['folge', 'text'], braucht: 'online_suche' },
   'tobibox/online/treffer': { opt: ['treffer_id', 'serie_id', 'vorschlag_id'], braucht: 'online_suche' },
@@ -104,6 +104,7 @@ export const SCHEMA_OS = {
   'tobibox/online/lauf': { req: ['aktion'], braucht: 'online_suche' },
   'tobibox/online/status': { braucht: 'online_suche' },
   'tobibox/online/beschreibung': { req: ['serie_id', 'folge'], braucht: 'online_suche' },
+  'tobibox/online/lauf_aenderungen': { req: ['lauf_id'], braucht: 'online_lauf_liste' }, // Nr. 65 (19.11., T11)
 };
 export const ADMIN_BEFEHLE_OS = new Set(Object.keys(SCHEMA_OS).filter((t) => t !== 'tobibox/online/beschreibung'));
 
@@ -497,6 +498,8 @@ function gehoertBefehle({ b, hat, emit, kurzform, istFavorit, holeSerie, holeFol
  *   aenderungen   [{ id, serie_id, lauf_id, felder, vorher, nachher, zeit, status }]
  *   quellen       Antwort von Nr. 57 je Quelle (`ok`, `pause`, `fehler`); `quellenStatus` überschreibt Teile von `quellen` in Nr. 63
  *   lauf, laeufe  der laufende Lauf (oder null) und die letzten fünf beendeten
+ *   plaetze       gehaltene `vorschau_id` von Vorschlägen mit Cover (T10, eigener Speicher): höchstens `O.plaetzeMax` (4), die älteste wird `abgelaufen` (HTTP 410); `suchPlaetze`: je Suche ein Platz, ebenfalls höchstens 4 (getrennt von den Vorschauen)
+ *   listeMax      Obergrenze der Liste von Nr. 65 (Vertrag: 500; Tests setzen weniger, dann `weitere = true`)
  * Rechte wie im Backend: Nr. 57 bis 63 admin (in `verarbeite`), Nr. 64 für alle; Werte kommen nie aus der Eingabe. */
 const OS_FELDER = ['serie_name', 'folge_titel', 'nummer', 'art', 'cover', 'beschreibung', 'alter_ab'];
 const teileKeyOs = (k) => { const i = k.indexOf('@'); return i < 0 ? [k, null] : [k.slice(0, i), k.slice(i + 1)]; };
@@ -575,7 +578,7 @@ function onlineBefehle({ b, hat, emit, holeSerie, holeFolge, stand, kurzform, is
     const s = b.serien[a.serie_id];
     const uebersprungen = [];
     let zurueck = 0;
-    if (!s) { a.status = 'zurueckgenommen'; return { zurueck, uebersprungen: a.felder.map((feld) => ({ serie_id: a.serie_id, feld, grund: 'serie_nicht_gefunden' })) }; }
+    if (!s) { return { zurueck, uebersprungen: a.felder.map((feld) => ({ serie_id: a.serie_id, feld, grund: 'serie_nicht_gefunden' })) }; }
     for (const key of a.felder) {
       let aktuell;
       try { aktuell = heute(s, key); } catch { uebersprungen.push({ serie_id: s.id, feld: key, grund: 'folge_verschoben' }); continue; }
@@ -595,7 +598,7 @@ function onlineBefehle({ b, hat, emit, holeSerie, holeFolge, stand, kurzform, is
       s.hand = (s.hand ?? []).filter((k) => k !== key);
       zurueck += 1;
     }
-    a.status = 'zurueckgenommen';
+    if (zurueck > 0) a.status = 'zurueckgenommen'; // wie das Backend: ganz übersprungen bleibt `fertig`
     const rest = O.aenderungen.filter((x) => x.serie_id === s.id && x.status === 'fertig').sort((x, y) => y.zeit.localeCompare(x.zeit));
     s.online = rest[0] ? { zeit: rest[0].zeit, felder: [...new Set(rest[0].felder.map((k) => teileKeyOs(k)[0]))] } : null;
     return { zurueck, uebersprungen };
@@ -611,10 +614,14 @@ function onlineBefehle({ b, hat, emit, holeSerie, holeFolge, stand, kurzform, is
       if (q.itunes !== 'ok' && q.tonies !== 'ok' && !(O.suchTreffer || []).length) throw fehler('online_nicht_erreichbar');
       O.suchen.push({ serie_id: s.id, folge: m.folge ?? null, text: m.text ?? null });
       const vorlagen = (O.suchTreffer ?? standardTreffer(s, m.folge)).filter((t) => q[t.quelle] === 'ok' || (q[t.quelle] === undefined));
+      const suchId = `such-${++O.zaehler}`; // wie das Backend: ein Platz je Suche (bis zu 10 Treffer teilen ihn), die älteste Suche fliegt
+      O.suchPlaetze.push(suchId);
+      while (O.suchPlaetze.length > O.plaetzeMax) { const alt = O.suchPlaetze.shift(); for (const x of Object.values(O.treffer)) if (x.suchId === alt) x.abgelaufen = true; }
       const treffer = vorlagen.slice(0, 10).map((t) => {
         const id = hex(`treffer-${++O.zaehler}`, 16);
         const werte = Object.fromEntries(Object.entries(t.werte).filter(([k]) => m.folge !== undefined || s.folgen.length === 1 || !k.includes('@'))); // ohne Folge keine Folgenfelder
         O.treffer[id] = { serie_id: s.id, folge: m.folge ?? null, quelle: t.quelle, werte, sicher: t.sicher ?? {}, hat_cover: t.hat_cover !== false && 'cover' in werte, titel: t.titel };
+        O.treffer[id].suchId = suchId;
         return { treffer_id: id, quelle: t.quelle, titel: t.titel, reihe: t.reihe ?? null, ...(t.nummer != null ? { nummer: t.nummer } : {}), ...(t.tracks != null ? { tracks: t.tracks } : {}),
           ...(t.art ? { art: t.art } : {}), hat_cover: O.treffer[id].hat_cover, frueher_abgelehnt: !!t.frueher_abgelehnt, felder: Object.keys(werte) };
       });
@@ -624,10 +631,10 @@ function onlineBefehle({ b, hat, emit, holeSerie, holeFolge, stand, kurzform, is
       const mitTreffer = m.treffer_id !== undefined;
       const mitVorschlag = m.vorschlag_id !== undefined;
       if (mitTreffer === mitVorschlag || (mitVorschlag && m.serie_id === undefined) || (mitTreffer && m.serie_id !== undefined)) throw ungueltig('treffer_id oder serie_id mit vorschlag_id');
-      let s; let werte; let sicher; let grund; let cover = true;
+      let s; let werte; let sicher; let grund; let cover = true; let istVorschlag = false;
       if (mitTreffer) {
         const t = O.treffer[m.treffer_id];
-        if (!t || t.abgelaufen) throw fehler('treffer_abgelaufen');
+        if (!t || t.abgelaufen || t.quelle === 'vorschlag') throw fehler('treffer_abgelaufen'); // eine vorschau_id ist kein Treffer
         s = holeSerie(t.serie_id); werte = t.werte; sicher = t.sicher;
         cover = t.hat_cover;
       } else {
@@ -638,6 +645,7 @@ function onlineBefehle({ b, hat, emit, holeSerie, holeFolge, stand, kurzform, is
         sicher = {};
         if (v.quelle === 'claude') grund = v.grund;
         cover = v.bildFehlt !== true;
+        istVorschlag = true;
       }
       const felder = {};
       for (const [key, neu] of Object.entries(werte)) {
@@ -647,7 +655,14 @@ function onlineBefehle({ b, hat, emit, holeSerie, holeFolge, stand, kurzform, is
         if (gleich(h, neu)) continue; // gleiche Werte fehlen
         felder[key] = { heute: h, neu: feld === 'beschreibung' ? String(neu).slice(0, 2000) : neu, sicher: !!sicher[key], hand: sieHand(s, key) };
       }
-      return { felder, ...(grund ? { grund } : {}) };
+      let vorschauId; // Vertrag 3.15, Nr. 58 (T10): nur bei einem Vorschlag, dessen Übersicht `cover` enthält; jede Abfrage eine neue Kennung
+      if (istVorschlag && felder.cover) {
+        vorschauId = hex(`vorschau-${++O.zaehler}`, 16);
+        O.treffer[vorschauId] = { serie_id: s.id, folge: null, quelle: 'vorschlag', werte: {}, sicher: {}, hat_cover: true, titel: '' };
+        O.plaetze.push(vorschauId);
+        while (O.plaetze.length > O.plaetzeMax) { const alt = O.plaetze.shift(); if (O.treffer[alt]) O.treffer[alt].abgelaufen = true; }
+      }
+      return { felder, ...(grund ? { grund } : {}), ...(vorschauId ? { vorschau_id: vorschauId } : {}) };
     },
     'tobibox/online/uebernehmen': (m) => {
       const mitTreffer = m.treffer_id !== undefined;
@@ -657,7 +672,7 @@ function onlineBefehle({ b, hat, emit, holeSerie, holeFolge, stand, kurzform, is
       let werte; let quelle; let v = null;
       if (mitTreffer) {
         const t = O.treffer[m.treffer_id];
-        if (!t || t.abgelaufen) throw fehler('treffer_abgelaufen');
+        if (!t || t.abgelaufen || t.quelle === 'vorschlag') throw fehler('treffer_abgelaufen'); // eine vorschau_id ist kein Treffer
         werte = t.werte; quelle = t.quelle;
       } else {
         v = vorhandeneVorschlaege(s.id).find((x) => x.id === m.vorschlag_id);
@@ -742,6 +757,15 @@ function onlineBefehle({ b, hat, emit, holeSerie, holeFolge, stand, kurzform, is
       return { lauf: structuredClone(O.lauf) };
     },
     'tobibox/online/status': () => status(),
+    'tobibox/online/lauf_aenderungen': (m) => { // Vertrag 3.15, Nr. 65 (T11): je Änderung des Laufs ein Eintrag, nach Namen sortiert, `fertig` und `zurueckgenommen`
+      if (typeof m.lauf_id !== 'string' || !m.lauf_id) throw ungueltig('lauf_id');
+      if (![...O.laeufe, ...(O.lauf ? [O.lauf] : [])].some((l) => l.lauf_id === m.lauf_id)) throw fehler('lauf_nicht_gefunden');
+      const alle = O.aenderungen.filter((a) => a.lauf_id === m.lauf_id && ['fertig', 'zurueckgenommen'].includes(a.status) && a.felder.length && b.serien[a.serie_id])
+        .map((a) => ({ serie_id: a.serie_id, name: b.serien[a.serie_id].name, aenderung_id: a.id, zeit: a.zeit, status: a.status, felder: [...a.felder] }))
+        .sort((x, y) => x.name.localeCompare(y.name, 'de') || x.aenderung_id.localeCompare(y.aenderung_id));
+      const max = O.listeMax ?? 500;
+      return { eintraege: alle.slice(0, max), weitere: alle.length > max };
+    },
     'tobibox/online/beschreibung': (m) => {
       const s = holeSerie(m.serie_id);
       const f = holeFolge(s, m.folge);
@@ -807,7 +831,7 @@ export function createMockHass(opts = {}) {
   /* Stufe B: Fähigkeiten, Hördaten (`b.gehoert.zeilen`, siehe `beispielGehoert`) und Sterne (`b.favoriten`) */
   const hat = (name) => (opts.faehigkeiten || FAEHIGKEITEN).includes(name);
   b.favoriten = [];
-  b.online = { suchTreffer: opts.onlineTreffer ?? null, treffer: {}, vorschlaege: {}, aenderungen: [], laeufe: [], lauf: null, quellen: null, quellenStatus: null, tonieListe: undefined, verworfen: [], suchen: [], zaehler: 0, gesamt: opts.onlineGesamt };
+  b.online = { suchTreffer: opts.onlineTreffer ?? null, treffer: {}, vorschlaege: {}, aenderungen: [], laeufe: [], lauf: null, quellen: null, quellenStatus: null, tonieListe: undefined, verworfen: [], suchen: [], zaehler: 0, gesamt: opts.onlineGesamt, plaetze: [], suchPlaetze: [], plaetzeMax: 4, listeMax: opts.onlineListeMax };
   b.gehoert = { heute: opts.heute ?? ISO(new Date(MOCK_JETZT)), zeilen: [], personen: { u1: 'Person A', u2: 'Person B' }, loeschungen: [] };
   const istFavorit = (sid, folge = null) => b.favoriten.some((x) => x.serie_id === sid && (x.folge ?? null) === folge);
   const zuletztGehoertAm = (sid) => {

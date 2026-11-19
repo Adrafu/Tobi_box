@@ -3455,6 +3455,8 @@ def ablauf_online(L: Lauf):
         L.messe("online-vorschlaege")
         L.klick('[data-vorschlag="v-apple"] [data-vorschlag-aktion="ansehen"]')
         L.warte_da("[data-feld]")
+        L.pg.wait_for_function("() => { const i = window.__el.shadowRoot.querySelector('[data-feld=\"cover\"] img[data-vorschau-neu]'); return !!i && i.complete && i.naturalWidth > 0; }", timeout=6000)  # T10: das neue Bild über die vorschau_id
+        L.pruefe(not L.da("[data-cover-ohne-bild]"), "online-vorschlaege", "Satz „Das Bild siehst du erst …“ trotz Bild")
         L.pruefe(L.js("return sr.querySelector('dialog .knoepfe .btn:first-child').textContent.trim()") == "Abbrechen", "online-vorschlaege", "Blatt eines Vorschlags ohne „Abbrechen“")
         L.messe("online-vorschlag-uebersicht")
         L.klick('dialog .knoepfe .btn:first-child')
@@ -3520,6 +3522,22 @@ def ablauf_online(L: Lauf):
         L.pruefe("undefined" not in L.js("return sr.querySelector('[data-online-seite]').textContent"), "online-technik", "„undefined“ auf der Seite")
         L.messe("technik-online-ende")
         L.pruefe(L.js("return sr.querySelectorAll('[data-lauf]').length") == 4, "online-technik", "nicht vier letzte Läufe")
+        # T11: Liste der Änderungen des Laufs (Nr. 65, Fähigkeit online_lauf_liste), aufklappbar, Zurücknehmen je Eintrag
+        L.pruefe(L.js("return [...sr.querySelectorAll('[data-liste-auf]')].map((b) => b.dataset.listeAuf).includes('l-fertig')") and not L.da('[data-lauf="l-leer"] [data-liste-auf]'), "online-technik-liste", "Knopf „Liste der Änderungen“ fehlt am Lauf mit Änderungen")
+        L.klick('[data-liste-auf="l-fertig"]')
+        L.warte_da('[data-liste-aenderungen="l-fertig"] [data-eintrag]')
+        L.pruefe(aufrufe(L, "tobibox/online/lauf_aenderungen")[-1].get("lauf_id") == "l-fertig", "online-technik-liste", "Nr. 65 ohne lauf_id")
+        L.pruefe(L.js("return sr.querySelectorAll('[data-eintrag]').length") == 3, "online-technik-liste", f"nicht drei Einträge: {L.js('return [...sr.querySelectorAll(\"[data-eintrag]\")].map((e) => e.dataset.eintrag).join()')}")
+        L.pruefe(L.js("return [...sr.querySelectorAll('[data-eintrag-serie]')].map((a) => a.getAttribute('href')).join()") == "#serie-leersammlung,#serie-onl,#serie-onlziel", "online-technik-liste", f"Einträge nicht nach Namen oder ohne Link: {L.js('return [...sr.querySelectorAll(\"[data-eintrag-serie]\")].map((a) => a.getAttribute(\"href\")).join()')}")
+        L.pruefe(L.js("return sr.querySelector('[data-eintrag=\"a-leer\"] [data-eintrag-status]').textContent.trim()") == "Zurückgenommen" and not L.da('[data-eintrag="a-leer"] [data-eintrag-zurueck]'), "online-technik-liste", "zurückgenommener Eintrag mit Knopf")
+        L.pruefe(L.js("return sr.querySelector('[data-eintrag=\"a-ziel\"] [data-eintrag-felder]').textContent.trim()") == "Nummer, Alter und Cover", "online-technik-liste", "Felder nicht in Klartext")
+        L.messe("technik-online-liste")
+        L.klick('[data-eintrag="a-ziel"] [data-eintrag-zurueck]')
+        L.pg.wait_for_function("() => /Zurückgenommen/.test(window.__el.shadowRoot.querySelector('[data-eintrag=\"a-ziel\"] [data-eintrag-status]')?.textContent || '')", timeout=5000)
+        z = aufrufe(L, "tobibox/online/zuruecknehmen")[-1]
+        L.pruefe(z.get("serie_id") == "onlziel" and z.get("aenderung_id") == "a-ziel" and "lauf_id" not in z, "online-technik-liste", f"Befehl 60 des Eintrags: {z}")
+        L.messe("technik-online-liste-eintrag-zurueck")
+        L.js("sr.querySelectorAll('.toast').forEach((t) => t.remove());")  # die Meldung muss weg sein, bevor „Alle zurücknehmen“ auf seine wartet
         L.klick('[data-alle-zurueck="l-fertig"]')
         L.warte_da("[data-alle-zurueck-text]")
         L.pruefe(L.js("return sr.querySelector('[data-alle-zurueck-text]').textContent.trim()") == "120 Einträge gehen auf die alten Werte zurück.", "online-technik", "Zahl der Einträge in der Rückfrage")

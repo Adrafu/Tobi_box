@@ -108,6 +108,7 @@ ITUNES_MAX_SUCHWOERTER: Final = 500
 SITEMAP_TTL_S: Final = 7 * 24 * 3600
 TREFFER_TTL_S: Final = 15 * 60
 TREFFER_MAX_SUCHEN: Final = 4
+VORSCHAU_MAX: Final = 4
 
 ITUNES_SUCHWORT_MAX: Final = 100
 BESCHREIBUNG_MAX: Final = 2000
@@ -673,6 +674,7 @@ class OnlineQuellen:
         self._shop_format_geloggt: int | None = None
         self.itunes_speicher = ItunesSpeicher(zeit)
         self.treffer_speicher = TrefferSpeicher(zeit)
+        self.vorschau_speicher = TrefferSpeicher(zeit, maximum=VORSCHAU_MAX)  # T10: Vorschau-Kennungen aus Nr. 58, getrennt von den Suchen
         self._sitemap: list[str] | None = None
         self._sitemap_zeit = 0.0
         self._sitemap_sperre = asyncio.Lock()

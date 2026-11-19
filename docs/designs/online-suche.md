@@ -5,7 +5,8 @@ Annahme (`resolve.md` Runde 3). Entstehung, Reviews und Resolve: `docs/egm/onlin
 sind im Trockenlauf OS1 gemessen und von Tobias abgenommen (Anhang 4.A). Die Verträge (Abschnitt 9) hat Tobias am 18.11.
 freigegeben (OS0, „Ja, freigeben“); sie stehen in `docs/protocol/ha-websocket-v1.md` und `docs/data-model.md`.
 
-Stand 19.11., **Rev. 2.6** (Entscheidung T8 von Tobias, `resolve.md` Runde 7: Marke `fehler` verfällt nach 1 Tag, 7.3).
+Stand 19.11., **Rev. 2.7** (Entscheidungen T10 und T11 von Tobias, `resolve.md` Runde 8: Vorschau auch für Cover-Vorschläge über `vorschau_id` aus Nr. 58; Liste der Änderungen je Lauf über den neuen Befehl Nr. 65 mit Fähigkeit `online_lauf_liste`, 5.3 und 10).
+Rev. 2.6 (Entscheidung T8 von Tobias, `resolve.md` Runde 7: Marke `fehler` verfällt nach 1 Tag, 7.3).
 Rev. 2.5 (Fragen aus OS2, T5 bis T7 von Tobias, `resolve.md` Runde 6: Vorrang der Tonie-Kategorie vor T4 in 4.7,
 drei zusätzliche Eingabefelder an Claude in 3.4 und 8.3, Ausnahme im Test „keine Modellnamen“ in 3.4).
 Rev. 2.4 (Goldfisch OS0 über Design und Vertragsentwurf: `review_goldfisch_os0.md`, Befunde GO-1 bis GO-18, `resolve.md` Runde 5; Stellen mit „(GO-n)“ gekennzeichnet).
@@ -374,7 +375,7 @@ Feld für Feld im Chat; Entscheidungen in `docs/egm/online-suche/resolve.md` Run
   macht heute alle Einträge zu Kandidaten; erst die Marke (7.3) verhindert, dass der nächste Lauf alles neu fragt.
   Die Seite muss nicht offen sein.
 - Nach dem Lauf: Zeile „Fertig: 120 Einträge geändert, 38 Vorschläge, 12 ohne Treffer.“, Liste der Änderungen mit
-  „Zurücknehmen“ je Eintrag und „Alle zurücknehmen“ (6.4).
+  „Zurücknehmen“ je Eintrag und „Alle zurücknehmen“ (6.4). Die Liste liefert Nr. 65 `online/lauf_aenderungen` (T11, Vertrag W 3.15).
 
 ### 5.4 Vorschläge (Administrator)
 
