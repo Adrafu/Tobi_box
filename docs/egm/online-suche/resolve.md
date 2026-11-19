@@ -230,10 +230,14 @@ Festlegungen der Projektleitung beim Bau:
 - **(PL)** `DELETE …?quelle=online` gibt Nicht-Administratoren 403 wie die Vorschau (Abschnitt 7 erlaubt 401 oder 403; 401 zählt bei HA als Fehlanmeldung).
 - **(PL)** Der Stand der Tonie-Liste ändert sich nur, wenn sich ihr Inhalt ändert (Fehler aus OS2: er änderte sich bei jedem Wochenabgleich, alle Marken `keiner` verfielen wöchentlich).
 
-Offen für Tobias (kleine Abweichungen vom Wortlaut der Verträge, Verhalten für die Seite gleich):
+Kleine Abweichungen vom Wortlaut der Verträge (Verhalten für die Seite gleich), entschieden mit T9 unten:
 
 1. Store `laeufe` speichert zusätzlich `grund`, weil Nr. 63 ihn ausgibt; `data-model.md` 5b nennt das Feld nicht. Nachtragen?
 2. Zusammenführen: Der Code kopiert wie bisher alle vorhandenen Cover-Dateien der Quelle; der Vertrag sagt „die Datei, die die Quelle anzeigt“. Angezeigt wird dasselbe.
 3. Die Suche von Hand (Nr. 57) holt für Beschreibung und Alter bis zu eine Tonie-Shopseite; der Vertrag nennt als Netz nur Apple und die Tonie-Liste.
 4. Ein Lauf, der wegen eines Fehlers außerhalb einer Serie abbricht, endet `abgebrochen` ohne `grund` (im Vertrag optional); die Seite (OS4) muss das anzeigen können.
 5. Der Zwischenspeicher `tonies.json` hat im Code (seit OS2) die Schlüssel `version`, `geladen` (Zahl), `etag`, `eintraege` und seit OS3 `stand`; `data-model.md` 13 nennt `schema_version`, `geladen_am` (Zeitstempel), `etag`, `eintraege`. Die Datei darf fehlen und hat nur einen Leser, die Integration. Vertrag an den Code angleichen?
+
+| Nr. | Frage | Antwort |
+|---|---|---|
+| T9 | Die fünf Abweichungen oben: Code ändern oder Vertrag angleichen? | **(Tobias, 19.11.)** „Vertrag angleichen“: alle fünf so in Vertrag W bzw. `data-model.md` nachgetragen, wie der Code es macht (Vermerk 19.11.); der Code bleibt |

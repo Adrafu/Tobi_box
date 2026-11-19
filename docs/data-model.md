@@ -7,6 +7,8 @@
     `guard.py`, seit 16.11. der Beobachter `gehoert`) und die HA-Integration (`media.py`, `store.py`, `mqtt.py`, seit 16.11. der Speicher für „Gehört“, seit 18.11. der Speicher der Online-Suche).
 *   Ein AP, das ein Schema einführt oder ändert, ergänzt dieses Dokument
     (siehe Umsetzungsplan).
+*   **Änderung 19.11. (Online-Suche, Entscheidung T9 von Tobias „Vertrag angleichen“, `docs/egm/online-suche/resolve.md` Runde 7; der Code bleibt):** Store `tobibox.online` (5b): `laeufe` hat
+    das Feld `grund`. Beim Zusammenführen kopiert HA alle Cover-Dateien der Quelle (5). Der Zwischenspeicher `tonies.json` (13) hat die Schlüssel `version`, `geladen`, `stand`, `etag`, `eintraege`.
 *   **Änderung 19.11. (Online-Suche, Entscheidung T8 von Tobias, `docs/egm/online-suche/resolve.md` Runde 7):** Im Store `tobibox.online` (5b) verfällt die Marke
     `fehler` (`serien.<id>.marke`) nach **1 Tag** statt nach 30 Tagen; `keiner` bleibt bei 30 Tagen oder neuer Tonie-Liste. Kein Format ändert sich.
 *   **Änderung 18.11. (Online-Suche, Paket OS0; von Tobias freigegeben am 18.11. („Ja, freigeben“); alles additiv bis auf einen neuen Wert, `schema_version` bleibt):**
@@ -628,7 +630,7 @@ Regeln (aus dem Design, hier zusammengefasst):
     `@Recycle`, `.@__thumb`, `.@__qini`, `#recycle`, `$RECYCLE.BIN`; Groß-/Kleinschreibung egal) nimmt der
     Sync ebenfalls aus, und die Bibliothek der Box liest Ordner mit `.`, `@`, `#` oder `$` am Anfang nie ein. Namensregeln für neue Dateien und
     Ordner: Vertrag W, Abschnitt 12.
-*   **Reservierte Dateinamen im Serien-Ordner (12.11., additiv):** `cover.jpg` (automatisches Cover, aus den Tags oder einer mitgelieferten Bilddatei **kopiert**) und `cover-eigen.jpg` (Foto aus der Seite, hat Vorrang vor `cover.jpg`). **(18.11.)** Dazu `cover-online.jpg` (Cover aus der Online-Suche, aus dem Bild des Treffers erzeugt, JPEG): **Vorrang `cover-eigen.jpg` vor `cover-online.jpg` vor `cover.jpg`**; `cover_quelle` (Vertrag W, 14.2) nennt die Quelle der angezeigten Datei (`eigen`, `online`, `auto`). Als **Quelle** gelesen, nie geschrieben: `folder.jpg`, `cover.png`. Es sind keine Folgen (die Endung ist keine Audioendung; die Bibliothek der Box liest nur Audioendungen). Beim **Zusammenführen** übernimmt die Ziel-Serie das Cover der Quelle, wenn sie selbst keines hat (**seit 18.11.** kopiert HA die Datei, die die Quelle **anzeigt**, also `cover-eigen.jpg` vor `cover-online.jpg`, unter dem Namen, den sie in der Quelle hat; die Einträge `hand.cover` und `zurueckgenommen.cover` ziehen im Store mit, GO-17); im **Papierkorb** wandern die Dateien mit dem Ordner (sie sind eine Kopie des Originals und mit dem Eintrag wiederherstellbar); beim **Umbenennen** bleiben Ordnername und ID, also auch die Cover. Ein Cover (auch `cover-online.jpg`) ist höchstens 512 px je Seite (JPEG); die kleine Ansicht (192 px) rechnet die Integration bei Bedarf aus dieser Datei.
+*   **Reservierte Dateinamen im Serien-Ordner (12.11., additiv):** `cover.jpg` (automatisches Cover, aus den Tags oder einer mitgelieferten Bilddatei **kopiert**) und `cover-eigen.jpg` (Foto aus der Seite, hat Vorrang vor `cover.jpg`). **(18.11.)** Dazu `cover-online.jpg` (Cover aus der Online-Suche, aus dem Bild des Treffers erzeugt, JPEG): **Vorrang `cover-eigen.jpg` vor `cover-online.jpg` vor `cover.jpg`**; `cover_quelle` (Vertrag W, 14.2) nennt die Quelle der angezeigten Datei (`eigen`, `online`, `auto`). Als **Quelle** gelesen, nie geschrieben: `folder.jpg`, `cover.png`. Es sind keine Folgen (die Endung ist keine Audioendung; die Bibliothek der Box liest nur Audioendungen). Beim **Zusammenführen** übernimmt die Ziel-Serie das Cover der Quelle, wenn sie selbst keines hat (**seit 19.11., T9:** kopiert HA **alle vorhandenen** Cover-Dateien der Quelle, `cover-eigen.jpg`, `cover-online.jpg` und `cover.jpg`, je unter ihrem Namen; angezeigt wird nach dem Vorrang dieselbe Datei wie in der Quelle; die Einträge `hand.cover` und `zurueckgenommen.cover` ziehen im Store mit, GO-17); im **Papierkorb** wandern die Dateien mit dem Ordner (sie sind eine Kopie des Originals und mit dem Eintrag wiederherstellbar); beim **Umbenennen** bleiben Ordnername und ID, also auch die Cover. Ein Cover (auch `cover-online.jpg`) ist höchstens 512 px je Seite (JPEG); die kleine Ansicht (192 px) rechnet die Integration bei Bedarf aus dieser Datei.
 *   **Sync (12.11.):** Der Sync der Box (`box/src/tobibox/sync.py`) nimmt zusätzlich zu den Systemdateien und `_upload`, `_papierkorb`, `eingang` auch `cover*.jpg` (damit seit 18.11. auch `cover-online.jpg`), `cover*.png` und `folder.jpg` aus (an jeder Tiefe, Groß-/Kleinschreibung egal; `--exclude` schützt sie auch vor `--delete`). Grund: Die Box hat kein Display; 500 Cover à 150 KiB wären 75 MB SD-Platz und Schreibvorgänge für nichts. Ein späteres Display bräuchte eine neue Entscheidung. Einzeltitel sind 300 kleine Ordner mit je einer Datei und einer `serie.json` (etwa 300 Byte); `rsync` braucht dafür keine Sonderregel. Hörkopien liegen nicht in `medien/` (Abschnitt 11), also gibt es dort nichts auszunehmen.
 *   **Ungültige `serie.json`:** behandelt die Box wie eine fehlende; die Datei
     wird nicht repariert, aber protokolliert. (Die Integration repariert sie.)
@@ -733,7 +735,7 @@ Schlüssel `serien.<serie_id>.…`, dazu `laeufe`. Für den **Namen** der Serie 
 | `serien.<id>.aenderungen` | höchstens 20, höchstens 30 Tage: `{"id", "zeit", "wer": "auto" \| <HA-Benutzer-ID>, "lauf_id"?, "quelle", "status" (`offen` \| `fertig` \| `zurueckgenommen`), "felder": {<feld>[@<f>]: {"vorher", "nachher"}}, "pruefen_vorher", "schnapp_vorher", "cover_stand"?}` | sofort |
 | `serien.<id>.vorschlaege` | `{"id", "art": "felder" \| "zusammenfuehren", "quelle": "itunes" \| "tonies" \| "claude", "felder"?, "werte"? (`{<feld>[@<f>]: neuer Wert}`; Cover: `{"cover_url": <Adresse des 600-px-Bildes>, "collection_id"}`; Quelle `claude`: `{"serie_name": <Name>}`), "grund"? (nur `claude`, höchstens 160 Zeichen), "name_vorher"? (nur bei `serie_name`: der Name des Eintrags beim Anlegen), "ziel_serie_id"?, "zeit"}`; die Werte stehen im Store, damit „Ansehen“ und „Übernehmen“ auch nach Stunden und nach einem Neustart gehen (das Bild lädt HA neu); beim Lesen auf Gültigkeit geprüft (Ziel und Folge noch da, bei `serie_name` der Name noch gleich `name_vorher`), sonst verworfen | sofort |
 | `serien.<id>.verworfen` | höchstens 200: `{"feld", "wert_hash", "quelle"}`; `wert_hash` über (Feld, normalisierter Wert, Quelle), Cover über die Kennung der Quelle (`collectionId`) | sofort |
-| `laeufe` | die letzten 5: `{"lauf_id", "beginn", "ende", "zustand", "zahlen"}` | sofort |
+| `laeufe` | die letzten 5: `{"lauf_id", "beginn", "ende", "zustand", "grund"?, "zahlen"}`; `grund` wie in Nr. 63 (Vertrag W, 3.15), **seit 19.11.** im Vertrag (T9) | sofort |
 
 *   **Speichern:** „sofort“ = `async_save` vor der nächsten Wirkung (eine Änderung steht mit `status` `offen` auf der Platte, **bevor** Dateien geschrieben werden; so klärt HA beim Start offene Änderungen); „verzögert“ = `async_delay_save`.
 *   **Änderung:** `status` ∈ `offen`, `fertig`, `zurueckgenommen`. `vorher`/`nachher` sind der Wert des Felds (bei `art` samt `art_quelle`, bei `cover` die Quelle des Covers); `pruefen_vorher` hält `pruefen` und `pruefen_gruende` von Serie und betroffenen Folgen, `schnapp_vorher` nur bei offenen Änderungen den Schnappschuss davor, `cover_stand` den Dateistand des Covers (Fingerabdruck). `wer` ist `auto` für eine Übernahme der Automatik. Nur der Status `fertig` zählt für das Feld `online` der Serie-Kurzform (Vertrag W, 14.2).
@@ -991,8 +993,9 @@ Die gefilterte Tonie-Liste der Gemeinschaft (`tonies-json`, Design 3.1), geladen
 
 ```json
 {
-  "schema_version": 1,
-  "geladen_am": "2026-11-18T09:00:00Z",
+  "version": 1,
+  "geladen": 1794992400.0,
+  "stand": 1794992400.0,
   "etag": "\"abc123\"",
   "eintraege": [
     {
@@ -1009,8 +1012,9 @@ Die gefilterte Tonie-Liste der Gemeinschaft (`tonies-json`, Design 3.1), geladen
 
 | Feld | Typ | Bedeutung |
 |---|---|---|
-| `schema_version` | int | `1` (als erstes Feld, 1.1) |
-| `geladen_am` | string | Zeitstempel des letzten erfolgreichen Ladens |
+| `version` | int | `1` (als erstes Feld; seit 19.11., T9, heißt es wie im Code `version`, nicht `schema_version`) |
+| `geladen` | Zahl | UTC-Sekunden des letzten erfolgreichen Abgleichs (auch „unverändert“, 304); steuert den Abstand von 7 Tagen |
+| `stand` | Zahl | UTC-Sekunden, zu denen sich der **Inhalt** der Liste zuletzt geändert hat; die Marken `keiner` und `fehler` (5b) verfallen, wenn er sich ändert. Fehlt er (ältere Datei), gilt `geladen` |
 | `etag` | string oder `null` | `ETag` der Antwort für die nächste bedingte Anfrage |
 | `eintraege` | Liste | nur **benutzbare** Einträge: `language = de-de`, `model` gesetzt, Titel ohne Merkmale anderer Sprachen (Design 3.1) |
 

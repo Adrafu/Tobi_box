@@ -6,6 +6,8 @@
     und den Vorgaben der Projektleitung vom 09.11. (Abschnitt „Vorgaben der
     Projektleitung“ am Ende). Wartet auf die Freigabe durch Tobias. **Stand der Rechte, des Uploads und der
     neuen Befehle: Änderungen 12.11., 13.11., 16.11. und 18.11. unten.**
+*   **Änderung 19.11. (Online-Suche, Entscheidung T9 von Tobias „Vertrag angleichen“, `docs/egm/online-suche/resolve.md` Runde 7; der Code bleibt):** Nr. 57 holt für Beschreibung
+    und Alter bis zu eine Tonie-Shopseite (3.15). `grund` eines Laufs kann bei `abgebrochen` fehlen (Nr. 63 `letzte_laeufe`, Ereignis `fertig` in 4.11). Speicher: `data-model.md` (Vermerk 19.11.).
 *   **Änderung 19.11. (Online-Suche, Entscheidung T8 von Tobias, `docs/egm/online-suche/resolve.md` Runde 7):** Ein Eintrag, bei dem eine Quelle ausfiel (Marke `fehler`,
     `data-model.md` 5b), ist schon **nach 1 Tag** wieder Kandidat des Laufs (Nr. 62), nicht erst nach 30 Tagen. Ein- und Ausgaben bleiben gleich.
 *   **Änderung 18.11. (Online-Suche, Paket OS0; von Tobias freigegeben am 18.11., „Ja, freigeben“):** Grundlage `docs/designs/online-suche.md` (Rev. 2.4, Abschnitt 9, dazu 3.4, 4.8, 5.4, 6.4,
@@ -1699,7 +1701,7 @@ Ausgabe:
 | `treffer` | array, höchstens 10 | beste zuerst; je Treffer: `treffer_id` (string), `quelle` (`itunes` oder `tonies`), `titel` (string), `reihe` (string oder `null`), `nummer` (int, fehlt wenn unbekannt), `tracks` (int, fehlt wenn unbekannt), `art` (`hoerspiel`, `hoerbuch`, `musik`, fehlt wenn unbekannt), `hat_cover` (bool), `frueher_abgelehnt` (bool: dieser Wert wurde früher mit „Nein“ verworfen, Design 5.4), `felder` (array von Feldnamen, die dieser Treffer liefern kann, mit `@<folge>`) |
 | `quellen` | object | je Quelle `itunes` und `tonies`: `ok`, `pause` (gedrosselt, 429/5xx, Design 8.2) oder `fehler`. Antwortet nur eine Quelle, liefert der Befehl deren Treffer und die Seite zeigt den Hinweis über der Liste |
 
-Die Bilder der obersten 5 Treffer lädt HA schon beim Suchen (Vorschau, HTTP unten); bei den übrigen holt Nr. 58 das Bild nach. Die Suche von Hand wartet höchstens 5 s auf die Drossel, danach kommt ein Teilergebnis (`quellen`: `pause`). Fehler: `serie_nicht_gefunden`, `folge_nicht_gefunden`, `online_nicht_erreichbar` (nur wenn **keine** Quelle antwortet), `invalid_format` (auch: Überraschungs-Serie), `unauthorized`. Recht: admin. Idempotent: ja (jeder Aufruf liefert neue Treffer-IDs). MQTT: –. Netz: ja (Apple, Tonie-Liste; kein Aufruf von Claude).
+Die Bilder der obersten 5 Treffer lädt HA schon beim Suchen (Vorschau, HTTP unten); bei den übrigen holt Nr. 58 das Bild nach. Die Suche von Hand wartet höchstens 5 s auf die Drossel, danach kommt ein Teilergebnis (`quellen`: `pause`). Fehler: `serie_nicht_gefunden`, `folge_nicht_gefunden`, `online_nicht_erreichbar` (nur wenn **keine** Quelle antwortet), `invalid_format` (auch: Überraschungs-Serie), `unauthorized`. Recht: admin. Idempotent: ja (jeder Aufruf liefert neue Treffer-IDs). MQTT: –. Netz: ja (Apple, Tonie-Liste und, **seit 19.11. (T9)**, für Beschreibung und Alter bis zu **eine** Tonie-Shopseite, nur wenn eine Folge im Blick ist, über die Drossel der Suche von Hand; kein Aufruf von Claude).
 
 #### 58. `tobibox/online/treffer` (Fähigkeit `online_suche`)
 
@@ -1777,7 +1779,7 @@ Keine Eingabe. Ausgabe (aus dem Arbeitsspeicher, ohne Netz):
 | `lauf` | object oder `null` | der laufende Lauf, sonst `null`: `{"lauf_id", "zustand", "erledigt", "gesamt", "geaendert", "vorschlaege", "keiner", "pause_bis"?}`; `zustand` ∈ `laeuft`, `pausiert` (eine Quelle bremst; `pause_bis` Zeitstempel), `wird_angehalten` (Nr. 62 `stop`, die aktuelle Serie wird noch fertig; GO-12). Beendete Läufe stehen in `letzte_laeufe` |
 | `quellen` | object | je Quelle `itunes`, `tonies`, `tonies_shop`: `{"erreichbar": <bool>, "pause_bis"?: <Zeitstempel>}`; dazu `claude`: `{"eingerichtet": <bool>, "erreichbar": <bool>}` (`eingerichtet = false`: keine Entität gesetzt, es gibt keine Namensvorschläge; dann ist `erreichbar` `false`) |
 | `tonie_liste` | object oder `null` | `{"stand": <Zeitstempel des letzten Ladens>, "anzahl": <int benutzbare Einträge>}`; `null`, solange nie geladen |
-| `letzte_laeufe` | array, höchstens 5 | neueste zuerst: `{"lauf_id", "beginn", "ende", "zustand", "grund"?, "zahlen"}`; `zustand` ∈ `fertig`, `angehalten`, `abgebrochen`; `grund` (nur bei `angehalten` und `abgebrochen`): `angehalten` (Nr. 62 `stop`), `neustart` (HA-Neustart), `quelle` (nach drei Pausen in Folge „Quelle nicht erreichbar“) (GO-12); `zahlen` = `{"erledigt", "gesamt", "geaendert", "vorschlaege", "keiner"}`. Daraus bildet die Seite „Fertig: 120 Einträge geändert, 38 Vorschläge, 12 ohne Treffer.“ |
+| `letzte_laeufe` | array, höchstens 5 | neueste zuerst: `{"lauf_id", "beginn", "ende", "zustand", "grund"?, "zahlen"}`; `zustand` ∈ `fertig`, `angehalten`, `abgebrochen`; `grund` (nur bei `angehalten` und `abgebrochen`): `angehalten` (Nr. 62 `stop`), `neustart` (HA-Neustart), `quelle` (nach drei Pausen in Folge „Quelle nicht erreichbar“) (GO-12); **seit 19.11. (T9)** kann `grund` bei `abgebrochen` fehlen, wenn ein Fehler außerhalb einer einzelnen Serie den Lauf beendet hat (die Seite zeigt dann „abgebrochen“ ohne Grund); `zahlen` = `{"erledigt", "gesamt", "geaendert", "vorschlaege", "keiner"}`. Daraus bildet die Seite „Fertig: 120 Einträge geändert, 38 Vorschläge, 12 ohne Treffer.“ |
 
 Fehler: keine außer den allgemeinen. Recht: admin. Idempotent: ja. MQTT: –.
 
@@ -1971,7 +1973,7 @@ Das Thema geht **nur an Administratoren**: Das Abo trägt die Rolle, das Backend
 |---|---|
 | `snapshot` | wie die Ausgabe von Nr. 63 |
 | `stand` | Zahlen des Laufs **oder** der Lauf-Rücknahme: `{"vorgang": "lauf" oder "zuruecknahme", "lauf_id", "zustand", "erledigt", "gesamt", …}`; beim Lauf dazu `geaendert`, `vorschlaege`, `keiner`, `pause_bis?`; bei der Rücknahme dazu `zurueckgenommen`, `uebersprungen_anzahl`. **Gebündelt** (`fenster_s = 2`): höchstens eines je 2 s |
-| `fertig` | `{"vorgang", "lauf_id", "zustand"}` und dazu die Zahlen wie bei `stand`: der Lauf bzw. die Rücknahme ist zu Ende; beim Lauf mit `grund` (`angehalten`, `neustart`, `quelle`, wie in `letzte_laeufe` von Nr. 63; fehlt bei `fertig`), bei der Rücknahme mit `uebersprungen_anzahl`. Nie gebündelt |
+| `fertig` | `{"vorgang", "lauf_id", "zustand"}` und dazu die Zahlen wie bei `stand`: der Lauf bzw. die Rücknahme ist zu Ende; beim Lauf mit `grund` (`angehalten`, `neustart`, `quelle`, wie in `letzte_laeufe` von Nr. 63; fehlt bei `fertig` und, seit 19.11., bei `abgebrochen` nach einem Fehler außerhalb einer Serie), bei der Rücknahme mit `uebersprungen_anzahl`. Nie gebündelt |
 | `quelle` | `{"quelle": "itunes" oder "tonies" oder "tonies_shop", "erreichbar": <bool>, "pause_bis"?: <Zeitstempel>}` bei jedem Wechsel. Nie gebündelt |
 
 ## 5. Hochladen (HTTP)
