@@ -2,7 +2,7 @@
 
 So benutzt du die Seite „Tobi Box“ in Home Assistant. Du brauchst dafür nur das Handy oder den Computer, auf dem du Home Assistant schon öffnest.
 
-Stand: Teil A-1a (Lesen und Abends), Teil A-1b (Tobies) und Teil A-1c (Hinzufügen und Cover). Teil A-1c ist noch nicht vom Administrator abgenommen. Wo etwas noch fehlt, steht „kommt bald“.
+Stand: Teil A-1a (Lesen und Abends), Teil A-1b (Tobies) und Teil A-1c (Hinzufügen und Cover). Teil A-1c ist noch nicht vom Administrator abgenommen. Dazu kommt das, was du von der Online-Suche siehst (noch nicht abgenommen). Wo etwas noch fehlt, steht „kommt bald“.
 
 ## Die Seite finden
 
@@ -291,6 +291,28 @@ Mit „Abbrechen“ verwirfst du das Foto. Am Cover ändert sich dann nichts.
 **Zurück zum automatischen Cover:** Ist ein eigenes Foto da, steht unten „Zurück zum automatischen Cover“. Tippe darauf. Danach steht dort: „Es gilt wieder das automatische Cover.“
 
 **Foto zu groß oder falsch:** Ein Foto darf höchstens 20 MB groß sein. Sonst steht dort: „Das Foto ist zu groß (mehr als 20 MB). Nimm ein kleineres.“ Ist die Datei kein Bild, steht dort: „Das ist kein Bild. Bitte ein Foto wählen.“
+
+## Aus der Online-Suche übernommen
+
+Die Seite sucht im Netz nach Covern und Angaben zu den Folgen, bei Apple und bei Tonies. Wenn sie sich sicher ist, übernimmt sie das selbst. Du musst dafür nichts tun. Die Boxen merken nichts davon.
+
+**Die Zeile oben in der Serie:**
+
+1.  Öffne die Serie oder den Einzeltitel.
+2.  Oben kann eine leise Zeile stehen, zum Beispiel: „Aus der Online-Suche übernommen: Cover, Art.“ Sie bleibt etwa 30 Tage.
+3.  Darunter steht: „Frag einen Administrator, wenn etwas nicht stimmt.“ Stimmt ein Cover oder eine Angabe nicht, sag es dem Administrator. Er kann es zurücknehmen. Du siehst dafür keinen Knopf.
+
+Ein eigenes Foto bei „Cover ändern“ gilt immer vor dem Cover aus der Online-Suche. Den Namen einer Serie ändert die Online-Suche nie von selbst.
+
+**Beschreibung und Alter bei einer Folge:**
+
+1.  Öffne die Serie. In der Zeile einer Folge kann „ab 3“ stehen. Das ist das empfohlene Alter.
+2.  Gibt es eine Beschreibung, steht in der Zeile ein kleiner Knopf „Beschreibung“. Tippe darauf. Der Text klappt auf.
+3.  Mit „Beschreibung ausblenden“ klappst du ihn wieder zu.
+
+Ein Tipp auf die Zeile selbst spielt die Folge weiter ab. Nicht jede Folge hat eine Beschreibung oder ein Alter. Bei vielen steht dort nichts.
+
+Du hast kein „Online suchen“, keine Vorschläge und kein „Zurücknehmen“. Das ist Sache des Administrators. Anleitung dafür: `docs/betrieb/online-suche.md`.
 
 ## Wenn etwas nicht klappt
 

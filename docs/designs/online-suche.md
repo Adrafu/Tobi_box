@@ -5,7 +5,7 @@ Annahme (`resolve.md` Runde 3). Entstehung, Reviews und Resolve: `docs/egm/onlin
 sind im Trockenlauf OS1 gemessen und von Tobias abgenommen (Anhang 4.A). Die Verträge (Abschnitt 9) hat Tobias am 18.11.
 freigegeben (OS0, „Ja, freigeben“); sie stehen in `docs/protocol/ha-websocket-v1.md` und `docs/data-model.md`.
 
-Stand 19.11., **Rev. 2.7** (Entscheidungen T10 und T11 von Tobias, `resolve.md` Runde 8: Vorschau auch für Cover-Vorschläge über `vorschau_id` aus Nr. 58; Liste der Änderungen je Lauf über den neuen Befehl Nr. 65 mit Fähigkeit `online_lauf_liste`, 5.3 und 10).
+Stand 20.11., **Rev. 2.8** (Abnahme OS5, `resolve.md` Runde 9: Erwartung zu Abnahmeschritt 12 an 6.4 angeglichen; Claude auch bei Pause einer Quelle). Davor Rev. 2.7 (Entscheidungen T10 und T11 von Tobias, `resolve.md` Runde 8: Vorschau auch für Cover-Vorschläge über `vorschau_id` aus Nr. 58; Liste der Änderungen je Lauf über den neuen Befehl Nr. 65 mit Fähigkeit `online_lauf_liste`, 5.3 und 10).
 Rev. 2.6 (Entscheidung T8 von Tobias, `resolve.md` Runde 7: Marke `fehler` verfällt nach 1 Tag, 7.3).
 Rev. 2.5 (Fragen aus OS2, T5 bis T7 von Tobias, `resolve.md` Runde 6: Vorrang der Tonie-Kategorie vor T4 in 4.7,
 drei zusätzliche Eingabefelder an Claude in 3.4 und 8.3, Ausnahme im Test „keine Modellnamen“ in 3.4).
@@ -724,8 +724,8 @@ Beschreibung, Alter. Quellen: „Apple“, „Tonies“ (R5), für Namensvorschl
    Start geht weiter.
 10. Echter Lauf; danach Stichprobe; „Alle zurücknehmen“ an einem Test-Lauf geprüft.
 11. Beschreibung aufklappen (Folge mit Shopseite), Alter „ab 3“ sichtbar, für alle Benutzer.
-12. Name einer online geänderten Folge von Hand ändern, dann die Online-Änderung zurücknehmen: Name bleibt, Meldung
-    „1 Feld blieb, weil es inzwischen geändert wurde.“
+12. Name einer online geänderten Folge von Hand ändern, dann die Online-Änderung zurücknehmen: Name bleibt; Titel und Nummer
+    einer Folge werden gemeinsam geprüft (6.4), darum bleibt auch die Nummer, Meldung „… 2 Felder blieben …“ (Tobias, 20.11., B2).
 13. Konto der Partnerin: kein „Online suchen“, keine Vorschläge, kein „Zurücknehmen“; Befehl 57 wird abgewiesen
     (`unauthorized`); kein Ereignis `online`.
 14. Claude, Option **leer**: Upload mit Grund (neue Serie): kein Namensvorschlag, alles andere geht (GO-7).

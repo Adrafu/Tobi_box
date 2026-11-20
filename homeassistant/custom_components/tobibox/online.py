@@ -1076,6 +1076,10 @@ class OnlineDienst:
             erg["fehler"] = True
             if not im_lauf:
                 self.store.setze_marke(sid, "fehler", bearbeiten, self.tonie_liste.stand)
+            if grund_claude:
+                # Claude braucht nur Ordner, Namen und Titel: auch bei Pause fragen, mit den Kandidaten bis hierher (sonst leer)
+                res = ab.bewerte_eintrag(eintrag, index, apple + [[] for _ in range(n - len(apple))], {}, None, mit_kandidaten=True)
+                await self._claude(sid, info, res, ctxs, im_lauf, erg)
             return erg
         try:
             sitemap: list[str] | None = await q.sitemap_pfade() if liste_ok else None
@@ -1089,6 +1093,9 @@ class OnlineDienst:
             erg["fehler"] = True
             if not im_lauf:
                 self.store.setze_marke(sid, "fehler", bearbeiten, self.tonie_liste.stand)
+            if grund_claude:
+                res = ab.bewerte_eintrag(eintrag, index, apple, shop_daten, sitemap if liste_ok else None, mit_kandidaten=True)
+                await self._claude(sid, info, res, ctxs, im_lauf, erg)
             return erg
         res = ab.bewerte_eintrag(eintrag, index, apple, shop_daten, sitemap if liste_ok else None, mit_kandidaten=grund_claude)
         if any(a is None for a in apple):
@@ -1111,7 +1118,7 @@ class OnlineDienst:
                 ergebnis = "keiner"
             self.store.setze_marke(sid, ergebnis, bearbeiten, stand)
         # Claude
-        if grund_claude and not erg.get("pause"):
+        if grund_claude:
             await self._claude(sid, info, res, ctxs, im_lauf, erg)
         return erg
 

@@ -269,3 +269,21 @@ Festlegungen der Projektleitung zum Nachpaket T10/T11 (`review_goldfisch_t10_t11
 - **(PL)** Werden bei einer Einzel-Rücknahme alle Felder übersprungen, bleibt die Änderung `fertig` (Nr. 65 zeigt weiter „Geändert“).
 - **(PL)** Nr. 65 lässt Änderungen ohne Felder (nur Bestätigungen) weg, wie die Kurzform.
 - **(PL)** Vorschau-Kennungen aus Nr. 58 haben einen eigenen Speicher (gleiche Haltezeit, höchstens 4) und verdrängen keine Suchen.
+
+## Runde 9: Befunde aus der Abnahme OS5 (20.11.)
+
+Grundlage: Abnahme im echten HA (Schritte 1 bis 16, Design 12), Ursachen belegt in `homeassistant/tests/test_online_abnahme_os5.py`.
+
+| Nr. | Befund | Entscheidung |
+|---|---|---|
+| B1 | Ein durch HA-Neustart abgebrochener Lauf zeigt in „Letzte Läufe“ alle Zahlen 0 (Zahlen stehen bis zum Ende nur im Arbeitsspeicher; beim HA-Stopp läuft `async_stop` nicht). Die Änderungen selbst sind gespeichert. Beim Neuladen der Integration stimmen die Zahlen. | **(Tobias, 20.11.)** „So lassen“ |
+| B2 | Folgentitel von Hand geändert, dann „Zurücknehmen“: auch die Nummer bleibt (beide `seitdem_geaendert`). So steht es in 6.4 (Titel und Nummer einer Folge gemeinsam); die Erwartung in Abnahmeschritt 12 („1 Feld blieb“) widersprach. | **(Tobias, 20.11.)** „Design behalten“; Abnahmeschritt 12 und `docs/betrieb/online-suche.md` angeglichen (Rev. 2.8) |
+| B3 | Upload mit Grund, Claude eingeschaltet, aber kein Namensvorschlag. Ursache: Claude darf nur Namen vorschlagen, die wörtlich in der Eingabe stehen (3.4); der Name stand nur im Folgentitel. Nebenbefund: Pausiert Apple, kehrt `_arbeite_serie` vor dem Claude-Schritt zurück. | **(Tobias, 20.11.)** „Regel lassen, Pause-Fall reparieren“: Claude wird auch bei Pause oder Fehler einer Quelle gefragt (mit den bis dahin vorliegenden Kandidaten) |
+
+Kleine Beobachtungen (PL), ohne Entscheidung, für später gesammelt:
+
+- Im Blatt „Was soll übernommen werden?“ heißen auch zurückgenommene Felder „von Hand gesetzt“ (Häkchen aus ist richtig, die Beschriftung ungenau).
+- Steht ein Eintrag auf „bitte kurz ansehen“, zeigt sein Menü „Was soll passieren?“ ohne „Online suchen“ (an der Folge vorhanden).
+- Ein Tipp, während ein Menü noch einblendet, geht ins Leere.
+- Ein direkter Link auf eine Serie (`/tobibox/serie/<id>`) öffnet die Startseite.
+- Der Lauf über die Bibliothek braucht mit Claude mehrere Stunden (Drosseln); Änderungen der Integrations-Optionen laden neu und brechen einen Lauf ab („abgebrochen (Neustart)“).
