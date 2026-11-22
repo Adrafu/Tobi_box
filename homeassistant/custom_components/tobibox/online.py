@@ -1277,8 +1277,7 @@ class OnlineDienst:
         return None
 
     async def _cover_bytes(self, url: str, erg: dict[str, Any], von_hand: bool = False) -> bytes | None:
-        q = self.quellen
-        assert q is not None
+        q = await self._quellen_bereit()
         try:
             roh = await q.bild_holen(url, von_hand=von_hand)
             self._melde_quelle("itunes", True)

@@ -146,3 +146,42 @@ async def test_b3_pause_keine_doppelte_anfrage_an_claude(hub_sonnenhof: Any, has
     erg = await online._arbeite_serie("sonne", folgen=None, neu=True, im_lauf=True, lauf_id=None)
     assert erg["pause"] is not None
     assert len(ki.aufrufe) == 1
+
+
+# --------------------------------------------------------------------------
+# B4: Vorschlag mit Cover nach Lauf-Ende/Neustart (``self.quellen`` ist ``None``)
+# --------------------------------------------------------------------------
+
+
+async def _vorschlag_cover_ohne_quellen(hub: Any, monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
+    from custom_components.tobibox.online import OnlineDienst  # noqa: PLC0415
+
+    from .test_online_dienst import _vorschlag_erzeugen  # noqa: PLC0415
+
+    vorschlaege = await _vorschlag_erzeugen(hub)
+    cover = next(v for v in vorschlaege if "cover" in v["felder"])
+    fake = hub.online.quellen
+    fake._zeit = time.time  # ``TonieListe`` nimmt die Uhr der Quellen
+
+    async def baue(self: Any) -> Any:
+        return fake
+
+    monkeypatch.setattr(OnlineDienst, "_baue_quellen", baue)
+    hub.online.quellen = None  # Zustand nach Neustart (die Quellen werden nur bei Bedarf angelegt)
+    hub.online.tonie_liste = None
+    return cover
+
+
+async def test_b4_vorschlag_mit_cover_ansehen_ohne_quellen(hub: Any, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Nr. 58 mit ``vorschlag_id``: stellt die Quellen selbst bereit (vorher ``AssertionError`` in ``_cover_bytes``)."""
+    cover = await _vorschlag_cover_ohne_quellen(hub, monkeypatch)
+    uebersicht = await hub.online.treffer(serie_id=SID, vorschlag_id=cover["id"])
+    assert uebersicht["felder"]["cover"]["neu"] is True
+
+
+async def test_b4_vorschlag_mit_cover_uebernehmen_ohne_quellen(hub: Any, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Nr. 59 mit ``vorschlag_id`` und Cover: dito."""
+    cover = await _vorschlag_cover_ohne_quellen(hub, monkeypatch)
+    erg = await hub.online.uebernehmen(SID, list(cover["felder"]), vorschlag_id=cover["id"])
+    assert erg["aenderung_id"]
+    assert hub.online.store.hand_hat(SID, "cover")
