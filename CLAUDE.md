@@ -36,7 +36,7 @@ EGM artifact directory: docs/egm
 - Angenommenes Design Stufe B „Gehört“: `docs/designs/gehoert.md` (Entstehung und Reviews:
   `docs/egm/stufe-b/`). Bau ab B2a.
 - Angenommenes Design Online-Suche (Cover und Angaben): `docs/designs/online-suche.md` (Entstehung und Reviews:
-  `docs/egm/online-suche/`). OS1 abgenommen, OS0 freigegeben (18.11.), OS2 bis OS4 und Nachpaket T10/T11 gebaut; Rev. 2.7 (19.11.). Nächster Schritt: OS5 (Einspielen und Abnahme mit Tobias).
+  `docs/egm/online-suche/`). Gebaut und abgenommen (OS5, 22.11.), Rev. 2.8; eingespielt. Einspielen künftig über das HA-Terminal direkt von GitHub, nicht per Upload vom Mac.
 - Verträge (Stufe 0): `docs/protocol/`, `docs/data-model.md`. Agents ändern
   sie nicht eigenmächtig.
 

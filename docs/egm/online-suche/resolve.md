@@ -287,3 +287,9 @@ Kleine Beobachtungen (PL), ohne Entscheidung, für später gesammelt:
 - Ein Tipp, während ein Menü noch einblendet, geht ins Leere.
 - Ein direkter Link auf eine Serie (`/tobibox/serie/<id>`) öffnet die Startseite.
 - Der Lauf über die Bibliothek braucht mit Claude mehrere Stunden (Drosseln); Änderungen der Integrations-Optionen laden neu und brechen einen Lauf ab („abgebrochen (Neustart)“).
+
+Nachtrag 22.11. (PL):
+
+- **B4:** Nach einem HA-Neustart gab „Ansehen“ (Nr. 58) bzw. „Übernehmen“ (Nr. 59) eines Cover-Vorschlags `unknown_error` (`self.quellen` noch nicht angelegt). Behoben in `ebe34be` (`_cover_bytes` holt die Quellen selbst), Tests B4; eingespielt und im echten HA geprüft.
+- **Stichprobe Schritt 10:** 10 Einträge, 2 falsche Arten (Mischeintrag; Lesung als Hörspiel bestätigt). Tobias: Regel bleibt, er sieht die Arten über „bitte ansehen“ durch.
+- Weitere Beobachtungen: In der Suche zeigt ein Eintrag nach Online-Cover zunächst noch das alte Bild; das Zurücknehmen am Eintrag nimmt alle Änderungen zurück, auch Beschreibung und Alter früherer Läufe (wie GO4-3 festgelegt).
