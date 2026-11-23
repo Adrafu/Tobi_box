@@ -63,13 +63,14 @@ auf dem Mac (nicht in geteilten Dokumenten).
    liefert). Am äußersten Rand kippte einmal ein Byte der UID; zentriert ist sie
    bombenfest. Schützt davor, dass ein Randfehler die falsche Folge startet.
 
-**Noch offen (nächste Tests):**
-- **Test 5b:** M8-Stahlscheibe mittig direkt über die Antenne, Tonie drauf →
-  erwarteter Einbruch, bestätigt die Metall-Regel. 1 min, `STATISTIK`.
-- **Test 6:** Tonie mit Bierdeckeln (~1,5 mm) hochstapeln bis Leseabriss → max.
-  Lesedistanz in mm notieren.
-- **Test 7:** Stromaufnahme mit USB-Messgerät bei `POLL_INTERVAL_MS` 300/500/1000.
-- Ergebnis 5b/6 → **finale Deckelstärke fürs CAD**.
+**Ergebnis Teil 2 (23.11., Rev. 3.23):**
+- **Test 5b:** nicht magnetische Scheibe (etwa M8) mittig unter dem Tonie → 100 %,
+  kein Verlust. Eine magnetische Scheibe bzw. der Deckel-Magnet ist noch zu prüfen.
+- **Test 6:** Filz je 3 mm → bis 6 mm 100 %, 9 mm 50 bis 97 %, 12 mm etwa 45 %,
+  ab 15 mm nichts.
+- **Deckelstärke fürs CAD:** höchstens 3 mm über der Antenne, Antenne mit höchstens
+  1 mm Luft darunter (Festlegung PL).
+- **Test 7** (Strom) entfällt vorerst, kein USB-Messgerät.
 
 ## 4. Figuren einer Geschichte zuordnen — Konsequenz
 
@@ -101,8 +102,8 @@ Figur **einmal pro Exemplar manuell zugeordnet**, so einfach wie möglich — ü
 
 ## 6. Nächste Schritte
 
-1. **Test 5b + 6** durchführen → Deckelstärke festlegen.
-2. **Test 7** (Strom) → Laufzeit/Poll-Intervall festzurren.
+1. ~~Test 5b + 6~~ erledigt 23.11. → Deckel höchstens 3 mm über der Antenne.
+2. **Test 7** (Strom) → Laufzeit/Poll-Intervall festzurren (vorerst ohne Messgerät).
 3. **CAD** mit zentrierter Figuren-Auflage exakt über der Antenne, kein Metall
    in der Feldmitte.
 4. **Box 1** nach Plan Rev 3.x aufbauen.
