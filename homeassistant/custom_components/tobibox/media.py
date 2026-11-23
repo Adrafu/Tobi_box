@@ -19,6 +19,7 @@ import copy
 import logging
 import os
 import shutil
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import timedelta
 from pathlib import Path
@@ -118,6 +119,8 @@ class Serie:
     art_quelle: str | None = None
     #: Einzeltitel: genau eine Folge, steht für sich (Vertrag W, 14.2)
     einzeln: bool = False
+    #: Alter von Hand (0 bis 18) oder ``None``; nur von Menschen gesetzt (Befehl 66, Zusammenführen), die Box ignoriert es, nicht im ``stand``
+    alter_hand: int | None = None
     #: unbekannte Felder der Datei, die beim Schreiben erhalten bleiben (data-model.md, 1.4)
     extra: dict[str, Any] = field(default_factory=dict)
     ordner: str = ""
@@ -146,6 +149,8 @@ class Serie:
             aus["art_quelle"] = self.art_quelle or "manuell"
         if self.einzeln:
             aus["einzeln"] = True
+        if gueltiges_alter(self.alter_hand):
+            aus["alter_hand"] = self.alter_hand
         if self.folgen_info:
             aus["folgen_info"] = {n: self.folgen_info[n] for n in self.folgen if n in self.folgen_info}
         aus.update(self.extra)
@@ -189,6 +194,21 @@ class Serie:
         self.setze_info(name, pruefen=None)
 
 
+def gueltiges_alter(wert: Any) -> bool:
+    """Ein Alter gilt, wenn es ein ``int`` von 0 bis 18 ist (kein ``bool``; Altersfilter, Design 2. und 3.1)."""
+    return isinstance(wert, int) and not isinstance(wert, bool) and 0 <= wert <= 18
+
+
+def eintrags_alter(alter_hand: Any, shop_werte: Iterable[Any]) -> int | None:
+    """Eintrags-Alter (Design 2.): ``alter_hand``, wenn gültig; sonst der kleinste gültige Shop-Wert; sonst ``None``.
+
+    ``shop_werte``: ``alter_ab`` der Folgen des Eintrags (ungültige Werte zählen nicht)."""
+    if gueltiges_alter(alter_hand):
+        return alter_hand
+    gueltig = [w for w in shop_werte if gueltiges_alter(w)]
+    return min(gueltig) if gueltig else None
+
+
 def anzeige_aus_name(name: str) -> str:
     """Anzeigename ohne Endung (Vertrag W, 3.2, Folge-Objekt)."""
     stamm, _, endung = name.rpartition(".")
@@ -227,7 +247,7 @@ def serie_aus_json(roh: Any, ordner: str) -> Serie | None:
         return None
     bekannt = {
         "schema_version", "id", "name", "typ", "folgen", "angelegt_am", "pruefen", "pruefen_gruende", "folgen_info",
-        "art", "art_quelle", "einzeln",
+        "art", "art_quelle", "einzeln", "alter_hand",
     }
     art = roh.get("art") if roh.get("art") in ARTEN else None
     # Eine Art ohne (gültige) Quelle hat ein Mensch von Hand eingetragen: sie gilt als ``manuell`` und wird nie überschrieben
@@ -248,6 +268,7 @@ def serie_aus_json(roh: Any, ordner: str) -> Serie | None:
         art=art,
         art_quelle=art_quelle,
         einzeln=roh.get("einzeln") is True,
+        alter_hand=roh.get("alter_hand") if gueltiges_alter(roh.get("alter_hand")) else None,
         extra={k: v for k, v in roh.items() if k not in bekannt},
         ordner=ordner,
     )
@@ -644,7 +665,13 @@ class Medien:
     # --- Serie-Kurzform und Folge-Objekt -------------------------------------------
 
     def kurzform(
-        self, info: SerieInfo, tobie_zaehler: dict[str, int] | None = None, nutzer_id: str | None = None, *, online_vorschlaege: bool = False
+        self,
+        info: SerieInfo,
+        tobie_zaehler: dict[str, int] | None = None,
+        nutzer_id: str | None = None,
+        *,
+        online_vorschlaege: bool = False,
+        alter_je_serie: dict[str, int | None] | None = None,
     ) -> dict[str, Any]:
         """Serie-Kurzform (Vertrag W, Abschnitt 3 und 14.2). Listen reichen ``tobie_zaehler`` durch (einmal gezählt).
 
@@ -685,7 +712,24 @@ class Medien:
         aus["online"] = self.hub.online.kurz_online(s.id)  # Fähigkeit ``online_suche`` nicht nötig (Ausgabefeld, für alle)
         if online_vorschlaege:
             aus["online_vorschlaege"] = self.hub.online.vorschlaege_zahl(s.id)
+        # Altersfilter (14.2): ``alter_ab`` = Eintrags-Alter, dieselbe Quelle wie der Filter; ``alter_hand`` nur, wenn von Hand gesetzt
+        alter = alter_je_serie.get(s.id) if alter_je_serie is not None else self._eintrags_alter(s)
+        if alter is not None:
+            aus["alter_ab"] = alter
+        if s.alter_hand is not None:
+            aus["alter_hand"] = s.alter_hand
         return aus
+
+    def _eintrags_alter(self, s: Serie) -> int | None:
+        """Eintrags-Alter einer Serie aus ``alter_hand`` und den Shop-Werten im Store (nur Folgen aus ``serie.folgen``)."""
+        folgen = self.hub.online.store.lies(s.id).get("folgen")
+        if not isinstance(folgen, dict):  # kaputter Store-Eintrag: keine Folge hat ein Shop-Alter
+            folgen = {}
+        return eintrags_alter(s.alter_hand, (f.get("alter_ab") if isinstance(f := folgen.get(n), dict) else None for n in s.folgen))
+
+    def eintrags_alter_je_serie(self) -> dict[str, int | None]:
+        """Ein Wörterbuch ``serie_id -> Eintrags-Alter`` für **eine** Anfrage (nie gespeichert; Design 4.2)."""
+        return {sid: self._eintrags_alter(i.serie) for sid, i in self.serien.items()}
 
     def _folge_objekt(
         self, s: Serie, ordner: str, name: str, platte: tuple[tuple[str, int, int, bool], tuple | None]
@@ -978,6 +1022,7 @@ class Medien:
         offset: int = 0,
         nutzer_id: str | None = None,
         ist_admin: bool = False,
+        alter: int | str | None = None,
     ) -> dict[str, Any]:
         """``serien/list`` (Vertrag W, Nr. 3 und 14.2). Ohne Eingaben wie bis 11.11.: alle Einträge nach Name.
 
@@ -987,6 +1032,7 @@ class Medien:
             raise TobiboxFehler("unauthorized")
         await self._stelle_geprueft_sicher()
         zs = await self.hub.gehoert.zwischenspeicher()  # Zwischenspeicher für ``zuletzt_gehoert_am`` und die Sortierungen (``None`` ohne Datenbank)
+        alter_je_serie = self.eintrags_alter_je_serie()  # nach allen ``await``: Filter und ``alter_ab`` der Kurzform lesen denselben Stand
         infos, gesamt, weitere, zaehler = self.bibliothek.serien(
             art=art, text=text, auch_folgen=auch_folgen, filter_=filter_, sortierung=sortierung, limit=limit, offset=offset,
             hoerzeiten=self.hub.hoerstellen.zeiten(nutzer_id) if sortierung == "angehoert" else None,
@@ -996,10 +1042,12 @@ class Medien:
             online_vorschlag=(
                 {sid for sid in self.serien if self.hub.online.vorschlaege_zahl(sid)} if "online_vorschlag" in (filter_ or ()) else None
             ),
+            alter=alter,
+            alter_je_serie=alter_je_serie,
         )
         await self.hub.gehoert.zwischenspeicher()  # für ``zuletzt_gehoert_am`` in der Kurzform
         return {
-            "serien": [self.kurzform(i, zaehler, nutzer_id, online_vorschlaege=ist_admin) for i in infos],
+            "serien": [self.kurzform(i, zaehler, nutzer_id, online_vorschlaege=ist_admin, alter_je_serie=alter_je_serie) for i in infos],
             "gesamt": gesamt,
             "weitere": weitere,
             "ueberraschung": self.ueberraschung_status(),
@@ -1040,6 +1088,25 @@ class Medien:
                     serie.pruefen_gruende = gruende
                     if not gruende:  # der Grund war der einzige: nichts mehr zu prüfen
                         serie.pruefen = False
+                try:
+                    await self._executor(schreibe_serie, pfad, serie)
+                except OSError as err:
+                    raise self._fehler_schreiben(err) from err
+            info = await self._aktualisiere_cache(serie, pfad.name)
+        if geaendert:
+            self.hub.emit("medien", "serien_geaendert", {"serie_ids": [serie_id]})
+        await self.hub.gehoert.zwischenspeicher()  # für ``zuletzt_gehoert_am`` in der Kurzform
+        return self.kurzform(info)
+
+    async def serie_alter_setzen(self, serie_id: str, alter_hand: int | None) -> dict[str, Any]:
+        """``serie/alter_setzen`` (Vertrag W, Nr. 66): setzt ``alter_hand`` (0 bis 18) oder löscht es (``None``)."""
+        if alter_hand is not None and not gueltiges_alter(alter_hand):
+            raise TobiboxFehler("invalid_format")
+        async with self.sperren(serie_id):
+            serie, pfad = await self._frisch(serie_id)
+            geaendert = serie.alter_hand != alter_hand
+            if geaendert:
+                serie.alter_hand = alter_hand
                 try:
                     await self._executor(schreibe_serie, pfad, serie)
                 except OSError as err:
@@ -1475,6 +1542,8 @@ class Medien:
             neue_namen: dict[str, str] = {}
             verschoben = 0
             fehler: BaseException | None = None
+            if ziel.alter_hand is None and quelle.alter_hand is not None:
+                ziel.alter_hand = quelle.alter_hand  # Alter von Hand: das Ziel übernimmt das der Quelle, hat es eins, bleibt seins (Design 3.3)
             for folge in list(quelle.folgen):
                 try:
                     if not await self._executor(os.path.lexists, quelle_pfad / folge):

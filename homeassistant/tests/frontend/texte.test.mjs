@@ -327,3 +327,19 @@ test('AM17/AM16: keiner der erklärenden „weg“-Sätze steht noch in texte.js
   assert.equal(texte.HINZU.blatt.sortier_du, undefined, 'der Satz im Blatt entfällt (die Kachel behält ihre Beschriftung für Screenreader)');
   assert.equal(KACHELN.playlist.satz, undefined);
 });
+
+test('Altersfilter: Texte aus Design 5.5, „1 Jahr“ als Ausnahme', () => {
+  const { ALTER, BIB } = texte;
+  assert.equal(fuellen(ALTER.jahre.mehr, { anzahl: 4 }), '4 Jahre');
+  assert.equal(fuellen(ALTER.jahre.eins, { anzahl: 1 }), '1 Jahr');
+  assert.equal(ALTER.null_jahre, '0 Jahre, für alle');
+  assert.equal(fuellen(ALTER.ab, { alter: 4 }), 'ab 4');
+  assert.equal(ALTER.menue, 'Alter festlegen');
+  assert.equal(ALTER.titel, 'Ab welchem Alter?');
+  assert.equal(ALTER.loeschen, 'Wert von Hand löschen');
+  assert.equal(fuellen(ALTER.danach, { alter: 3 }), 'Dann gilt wieder: ab 3');
+  assert.equal(ALTER.danach_keins, 'Dann gibt es keine Altersangabe');
+  assert.equal(fuellen(ALTER.gespeichert, { alter: 4 }), 'Alter gespeichert: ab 4');
+  assert.equal(ALTER.entfernt, 'Alter entfernt');
+  assert.deepEqual(BIB.blatt.alter, { titel: 'Alter', alle: 'Alle', fuer: 'Für ein Kind mit … Jahren', ohne: 'Ohne Altersangabe' });
+});

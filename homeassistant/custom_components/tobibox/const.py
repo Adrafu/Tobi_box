@@ -236,6 +236,8 @@ FAEHIGKEITEN: Final = (
     "online_suche",
     # 19.11., T11: Befehl 65 ``online/lauf_aenderungen``
     "online_lauf_liste",
+    # 23.11., Altersfilter (AF1): Eingabe ``alter`` bei ``serien/list`` und Befehl 66 ``serie/alter_setzen``
+    "alter",
 )
 
 # --- MQTT-Themen (``mqtt-v1.md`` Abschnitt 2) ----------------------------------

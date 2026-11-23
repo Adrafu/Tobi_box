@@ -123,6 +123,17 @@ FILTER = {vol.Optional("filter"): vol.All([vol.In(FILTER_WERTE)])}
 FILTER_SERIEN = {vol.Optional("filter"): vol.All([vol.In(FILTER_WERTE_SERIEN)])}
 OFFSET = {vol.Optional("offset"): _ganz(0, 10_000_000)}
 
+
+def _alter_oder_ohne(x: Any) -> Any:
+    """Altersfilter von ``serien/list`` (Fähigkeit ``alter``): ganze Zahl 0 bis 18 oder genau ``"ohne"``."""
+    return x if x == "ohne" and isinstance(x, str) else _ganz(0, 18)(x)
+
+
+def _alter_oder_null(x: Any) -> int | None:
+    """``alter_hand`` von Nr. 66: ganze Zahl 0 bis 18 oder ``null`` (löscht das Alter von Hand)."""
+    return None if x is None else _ganz(0, 18)(x)
+
+
 ANFRAGE_ID = {vol.Optional("anfrage_id"): vol.All(_text, vol.Match(RE_ANFRAGE_ID.pattern))}
 SERIE_ID = {vol.Required("serie_id"): _text}
 STAND = {vol.Optional("stand"): _text}
@@ -250,6 +261,7 @@ _HANDLER.append(ws_subscribe)
         vol.Optional("sortierung"): vol.In(SERIEN_SORTIERUNGEN),
         vol.Optional("limit"): _ganz(1, SERIEN_LIMIT_MAX),
         **OFFSET,
+        vol.Optional("alter"): _alter_oder_ohne,
     },
     recht="lesen",
 )
@@ -264,6 +276,7 @@ async def ws_serien_list(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
         offset=msg.get("offset", 0),
         nutzer_id=_nutzer(connection).id,
         ist_admin=_nutzer(connection).ist_admin,
+        alter=msg.get("alter"),
     )
 
 
@@ -340,6 +353,12 @@ async def ws_folgen_list(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
 @befehl("serie/art_setzen", {**SERIE_ID, vol.Required("art"): vol.In(ARTEN)}, recht="alltag")
 async def ws_serie_art_setzen(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
     return {"serie": await hub.medien.serie_art_setzen(msg["serie_id"], msg["art"])}
+
+
+@befehl("serie/alter_setzen", {**SERIE_ID, vol.Required("alter_hand"): _alter_oder_null}, recht="alltag")
+async def ws_serie_alter_setzen(hub: Hub, connection: Any, msg: dict[str, Any]) -> Any:
+    """Nr. 66 (Fähigkeit ``alter``, Altersfilter): Alter von Hand setzen oder mit ``null`` löschen."""
+    return {"serie": await hub.medien.serie_alter_setzen(msg["serie_id"], msg["alter_hand"])}
 
 
 # --------------------------------------------------------------------------

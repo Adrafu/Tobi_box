@@ -1,0 +1,29 @@
+--- docs/data-model.md	2026-11-19 12:09:38
++++ docs/egm/altersfilter/vertrag_entwurf/data-model.md	2026-11-23 07:08:51
+@@ -7,6 +7,9 @@
+     `guard.py`, seit 16.11. der Beobachter `gehoert`) und die HA-Integration (`media.py`, `store.py`, `mqtt.py`, seit 16.11. der Speicher für „Gehört“, seit 18.11. der Speicher der Online-Suche).
+ *   Ein AP, das ein Schema einführt oder ändert, ergänzt dieses Dokument
+     (siehe Umsetzungsplan).
++*   **Änderung 23.11. (Altersfilter, Paket AF0; Entwurf, wartet auf die Freigabe durch Tobias; additiv, `schema_version` bleibt):** Grundlage `docs/designs/altersfilter.md` (Rev. 2, Abschnitte 3 und 4.4).
++    **`serie.json`:** neues optionales Feld `alter_hand` (int 0 bis 18; Abschnitt 5), nur von Menschen gesetzt (Befehl 66, Vertrag W 3.15) und beim Zusammenführen übernommen. Ein ungültiger Wert gilt als fehlend und
++    verschwindet beim nächsten Schreiben. Die Box ignoriert das Feld; es zählt nicht zum `stand`. Eine ältere Integration legt es in `extra` und schreibt es unverändert zurück (1.4). Kein anderes Format ändert sich.
+ *   **Änderung 19.11. (Online-Suche, Entscheidung T9 von Tobias „Vertrag angleichen“, `docs/egm/online-suche/resolve.md` Runde 7; der Code bleibt):** Store `tobibox.online` (5b): `laeufe` hat
+     das Feld `grund`. Beim Zusammenführen kopiert HA alle Cover-Dateien der Quelle (5). Der Zwischenspeicher `tonies.json` (13) hat die Schlüssel `version`, `geladen`, `stand`, `etag`, `eintraege`.
+ *   **Änderung 19.11. (Online-Suche, Entscheidung T8 von Tobias, `docs/egm/online-suche/resolve.md` Runde 7):** Im Store `tobibox.online` (5b) verfällt die Marke
+@@ -557,6 +560,7 @@
+ | `art` | `"hoerspiel"`, `"hoerbuch"`, `"musik"`, `"geschichte"` | nein | **(12.11.)** Art des Eintrags; fehlt = `"hoerspiel"`. Nur von Menschen gesetzt (Beschriftung beim Hochladen, „Art ändern“) oder beim Einsortieren aus den Tags vorgeschlagen (Vertrag W, 14.2). |
+ | `art_quelle` | `"tags"`, `"geraten"`, `"manuell"`, `"online"` | nein | **(12.11.)** woher `art` kommt; `"manuell"` wird nie überschrieben; fehlt = `"geraten"`, wenn `art` fehlt. **(18.11.)** `"online"` = von der Online-Suche übernommen (nur HA setzt es, Vertrag W, 3.15). **Rückfall:** Eine ältere Integration kennt `"online"` nicht und liest es als `"manuell"` (`serie_aus_json`); die Art bleibt, gilt dann aber als von Hand gesetzt. Die Box ignoriert `art_quelle` |
+ | `einzeln` | bool | nein | **(12.11.)** Einzeltitel: genau eine Folge, steht für sich, keine neuen Folgen; fehlt = `false`. Ein Tobie auf einen Einzeltitel zeigt auf die **Folge** (`ziel.typ="folge"`). |
++| `alter_hand` | int 0 bis 18 | nein | **(23.11., Altersfilter)** Alter des Eintrags von Hand („ab X Jahren“); fehlt = keins gesetzt. Nur von Menschen gesetzt (Vertrag W, Nr. 66) und beim Zusammenführen vom Ziel übernommen, wenn es selbst keins hat; **nicht** im `stand`. Ungültig (kein int, bool, außerhalb 0 bis 18) = fehlt und verschwindet beim nächsten Schreiben der Datei. Die Box ignoriert das Feld. Das Shop-Alter je Folge steht nicht hier, sondern im Store `tobibox.online` (5b) |
+ | `folgen_info` | object | nein | **(09.11.)** Schlüssel = Name einer Folge aus `folgen`; Wert = Objekt mit den optionalen Feldern `anzeige` (string, 1–200 Zeichen: Anzeigename), `nummer` (int ≥ 0: Folgen-Nummer aus den Tags oder dem Albumnamen), `datum` (string `YYYY-MM-DD`: Erscheinungsdatum), `pruefen` (bool) und `pruefen_gruende` (array von string). Nur die HA-Integration schreibt es. Einträge für Namen, die nicht in `folgen` stehen, sind bedeutungslos und werden beim nächsten Schreiben entfernt. |
+ 
+ Regeln (aus dem Design, hier zusammengefasst):
+@@ -616,7 +620,7 @@
+ 
+     Beispiele (aufsteigend): `folge-2.mp3`, `folge-10.mp3`; `a1.mp3`, `a1b.mp3`;
+     `01.mp3`, `1.mp3`, `2.mp3`, `10.mp3`; `Folge.mp3`, `folge.mp3`.
+-*   **Die Box ignoriert `pruefen`, `pruefen_gruende`, `folgen_info`, `art`, `art_quelle` und `einzeln`** (1.4); sie
++*   **Die Box ignoriert `pruefen`, `pruefen_gruende`, `folgen_info`, `art`, `art_quelle`, `einzeln` und `alter_hand`** (1.4); sie
+     spielt nach Dateinamen und `folgen`. Das **Umbenennen** einer Serie oder Folge in
+     HA ändert nur `name` bzw. `folgen_info.<name>.anzeige`, nie einen Datei- oder
+     Ordnernamen; Zeiger und Zuordnungen bleiben gültig. Der **Sortierschlüssel**

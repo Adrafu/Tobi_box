@@ -291,7 +291,8 @@ test('Einzeltitel: „ab 3“ und die Beschreibung stehen unter dem Kopf; ohne A
     m.backend.serien.lied = { id: 'lied', name: 'Wiegenlied', typ: 'normal', ordner: 'W', pruefen: false, hinweise: [], art: 'musik', einzeln: true, cover_stand: null, folgen: [folge('w.mp3', 'Wiegenlied', { alter_ab: 1, beschreibung: 'Zum Einschlafen.' })] };
     m.backend.serien.lied2 = { id: 'lied2', name: 'Regenlied', typ: 'normal', ordner: 'R', pruefen: false, hinweise: [], art: 'musik', einzeln: true, cover_stand: null, folgen: [folge('r.mp3', 'Regenlied')] };
   } });
-  assert.equal(text(s.q('[data-einzel-info] [data-alter]')), 'ab 1');
+  assert.equal(text(s.q('[data-untertitel] [data-alter-ab]')), 'ab 1', 'Altersfilter AF-7: das Alter steht bei Einzeltiteln nur einmal, oben im Kopf');
+  assert.equal(s.q('[data-einzel-info] [data-alter]'), null, '… und nicht noch einmal an der einen Folge');
   await klick(s, s.q('[data-einzel-info] [data-beschreibung]'));
   assert.equal(text(s.q('[data-einzel-info] [data-beschreibung-text]')), 'Zum Einschlafen.');
   await geheZu(s, '#serie-lied2');

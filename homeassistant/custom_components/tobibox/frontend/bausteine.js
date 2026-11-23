@@ -50,7 +50,7 @@
  *   bausteinStil()              das CSS dazu; die App hängt es vor die Stile der Seiten.
  *   Reine Funktionen: norm, zaehle, dauerText, uhr, untertitel, fortschritt, coverKlasse, teile, ladeMitGrenze.
  */
-import { fuellen, ZEILE, PLAYER, STERN } from './texte.js';
+import { fuellen, ZEILE, PLAYER, STERN, ALTER } from './texte.js';
 
 /* Lit steckt in lebenden Bindungen: Ohne DOM sind sie `undefined`. Wer das Modul ohne DOM lädt (Tests der reinen Funktionen),
  * bekommt sie mit `initLit(lit)` nachgereicht; tobibox-app.js ruft das, sobald es Lit geladen hat. Stile sind darum Funktionen. */
@@ -356,6 +356,16 @@ export function folgenZeile(x, { term = '', stand, aktionen = nothing } = {}) {
       <span class="grow"><span class="nm">${markiert(titel, term)}${sternKlein(x)}</span><span class="muted">${x.serie_einzeln ? 'Einzeltitel' : x.serie_name}</span></span>${laeuftAn(x.serie_id, x.folge) ? eq(abspiel.spielt) : nothing}</a>${aktionen}</div>`;
 }
 
+/* Knopfreihe für das Alter (Altersfilter, Design 5.1): 0 bis 12 als umbrechende Reihe runder Knöpfe, mindestens 44 × 44 px.
+ * `wert` ist die gewählte Zahl oder null; `setze(n)` wird beim Tipp gerufen. Der Aufrufer baut die `radiogroup` darum
+ * (in der Bibliothek zusammen mit „Alle“ und „Ohne Altersangabe“). Keine Pfeiltasten, Tab und Eingabe wie bei den anderen Wahlen. */
+export const ALTER_WERTE = Array.from({ length: 13 }, (_, i) => i);
+export function altersKnoepfe(wert, setze) {
+  return html`<div class="alter-reihe">${ALTER_WERTE.map((n) => html`
+    <button type="button" class="alter-knopf" role="radio" data-alter-wert=${n} aria-checked=${wert === n ? 'true' : 'false'}
+      aria-label=${n === 0 ? ALTER.null_jahre : fuellen(n === 1 ? ALTER.jahre.eins : ALTER.jahre.mehr, { anzahl: n })} @click=${() => setze(n)}>${n}</button>`)}</div>`;
+}
+
 /* Segment-Umschalter: 2 bis 4 gleich breite Wahlmöglichkeiten, `aria-pressed`, Pfeiltasten springen und wählen. */
 export function segment({ label, optionen, wert, onWahl, aus = false }) {
   const taste = (e, i) => {
@@ -461,6 +471,13 @@ export const bausteinStil = () => css`
   .frow .grow { flex: 1; min-width: 0; overflow-wrap: anywhere; display: grid; }
   .frow .nm { font-weight: 500; }
   .slink { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; min-height: 56px; color: inherit; text-decoration: none; }
+
+  /* Altersknöpfe (Altersfilter): umbrechende Reihe runder Knöpfe */
+  .alter-reihe { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0; }
+  .alter-knopf { min-width: 44px; min-height: 44px; padding: 0 6px; border-radius: 22px; border: 1px solid var(--line); background: var(--card); color: var(--text);
+    font-size: 16px; font-variant-numeric: tabular-nums; text-align: center; }
+  .alter-knopf[aria-checked="true"] { background: var(--primary-soft); border-color: var(--primary-ink); font-weight: 700; box-shadow: inset 0 0 0 2px var(--primary-ink); }
+  .alter-hinweis { margin: 8px 0 4px; color: var(--text2); font-size: 14px; }
 
   /* Segment-Umschalter (Design 4, X32): Spur ohne Rahmen, gleich breite Segmente, gewählt = gefüllte Pille */
   .seg2 { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 0; padding: 4px; border: 0; border-radius: 28px; background: var(--primary-soft); width: 100%; max-width: 420px; }

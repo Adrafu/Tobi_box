@@ -147,6 +147,15 @@ def test_serie_json_unbekannte_felder_werden_ignoriert(tmp_path):
     assert lade_bibliothek(tmp_path).serie("x1") is not None
 
 
+@pytest.mark.parametrize("alter_hand", [0, 4, 18, "4", 99, True, None])
+def test_serie_json_mit_alter_hand_wird_fehlerfrei_gelesen(tmp_path, protokoll, alter_hand):
+    """Altersfilter (AF1): ``alter_hand`` ist ein Feld für HA; die Box liest nur ihre Pflichtfelder und ignoriert es (auch ungültige Werte)."""
+    erzeuge_serie(tmp_path, "o", ["a.wav", "b.wav"], serie_id="x1", alter_hand=alter_hand)
+    serie = lade_bibliothek(tmp_path).serie("x1")
+    assert serie is not None and list(serie.folgen) == ["a.wav", "b.wav"]
+    assert "serie_json_ungueltig" not in ereignisse(protokoll) and "serie_json_unlesbar" not in ereignisse(protokoll)
+
+
 def test_ordnername_als_id_ungueltig_wird_nicht_gespielt(tmp_path, protokoll):
     erzeuge_serie(tmp_path, "x" * 65, ["a.wav"], mit_serie_json=False)
     assert lade_bibliothek(tmp_path).serien == ()

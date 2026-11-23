@@ -254,6 +254,8 @@ class Bibliothek:
         zuletzt_gehoert: dict[str, int] | None = None,
         meist_gehoert: dict[str, int] | None = None,
         online_vorschlag: set[str] | None = None,
+        alter: int | str | None = None,
+        alter_je_serie: dict[str, int | None] | None = None,
     ) -> tuple[list[SerieInfo], int, bool, dict[str, int]]:
         """``(Einträge dieser Seite, gesamt nach Filter, weitere, Tobie-Zähler)``.
 
@@ -264,10 +266,14 @@ class Bibliothek:
         ``zuletzt_gehoert`` (Serien-ID -> ``ende_um`` der letzten Sitzung an einer Box) und ``meist_gehoert`` (Serien-ID -> Hörzeit der letzten 365 Tage, alle
         Quellen) gehören zu den gleichnamigen Sortierungen: absteigend, Gleichstand und alles ohne Wert nach Name am Ende.
 
-        Online-Suche: ``online_vorschlag`` (Serien-IDs mit mindestens einem offenen, gültigen Vorschlag) gehört zum Filter ``online_vorschlag``."""
+        Online-Suche: ``online_vorschlag`` (Serien-IDs mit mindestens einem offenen, gültigen Vorschlag) gehört zum Filter ``online_vorschlag``.
+
+        Altersfilter: ``alter`` (Zahl X oder ``"ohne"``) wirkt über ``alter_je_serie`` (Serien-ID -> Eintrags-Alter, je Anfrage gebildet, **nicht** im Index):
+        Zahl = nur Einträge mit Eintrags-Alter <= X; ``"ohne"`` = nur Einträge ohne."""
         filter_ = filter_ or []
         worte = suchworte(text) if text else []
         zaehler = self.tobie_zaehler()
+        alter_je_serie = alter_je_serie or {}
         grenze = self._neu_grenze() if "neu" in filter_ else 0.0
         treffer: list[_SerieZeile] = []
         for z in self.zeilen():
@@ -287,6 +293,10 @@ class Bibliothek:
                 continue
             if "online_vorschlag" in filter_ and z.info.serie.id not in (online_vorschlag or ()):
                 continue
+            if alter is not None:
+                eintrag = alter_je_serie.get(z.info.serie.id)
+                if (eintrag is not None) if alter == "ohne" else (eintrag is None or eintrag > alter):
+                    continue
             if worte and not (passt(worte, z.heu) or (auch_folgen and any(passt(worte, f.heu) for f in z.folgen))):
                 continue
             treffer.append(z)

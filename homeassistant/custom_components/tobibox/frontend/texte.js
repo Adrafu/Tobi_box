@@ -631,6 +631,7 @@ export const BIB = {
     sortierung: { name: 'A bis Z', neu: 'Zuletzt hinzugefügt', angehoert: 'Zuletzt angehört', zuletzt_gehoert: 'Zuletzt gehört', meist_gehoert: 'Meist gehört' }, // Stufe B: „gehört“ = auf den Boxen und beim Reinhören, „angehört“ = eigenes Reinhören
     was: 'Was zeigen',
     was_wahl: { alle: 'Alles', sammlung: 'Nur Hörspiele, Bücher, Alben', einzeln: 'Nur Einzeltitel (einzelne Lieder und Folgen)' },
+    alter: { titel: 'Alter', alle: 'Alle', fuer: 'Für ein Kind mit … Jahren', ohne: 'Ohne Altersangabe' }, // Altersfilter (Design 5.2): Fähigkeit `alter`
     nur: 'Nur zeigen',
     nur_wahl: { ohne_tobie: 'Ohne Tobie', neu: 'Neu (letzte 14 Tage)', pruefen: 'Bitte ansehen', favorit: 'Favoriten', online_vorschlag: 'Mit Vorschlag der Online-Suche' }, // `online_vorschlag`: nur Administratoren mit Fähigkeit `online_suche`
     zuruecksetzen: 'Zurücksetzen',
@@ -1138,6 +1139,21 @@ export const PLAYER = {
   folge: { abspielen: '{titel} abspielen', pausieren: '{titel} pausieren', oeffnen: '{titel} im Player öffnen' }, // aria-label der Abspielknöpfe der Zeilen; `oeffnen` (AM13) für die geladene Folge der Serienseite
   reihe: { weiterhoeren: '{name} weiterhören' }, // aria-label des Knopfs auf der Kachel der Reihe „Am Handy weiterhören“ (Start)
   anzeige: { laeuft: 'läuft gerade', pausiert: 'pausiert' }, // Abspiel-Anzeige (drei Balken), Design 4
+};
+
+// Altersfilter (Design altersfilter.md, 5.1 bis 5.5). Platzhalter: alter, anzahl.
+export const ALTER = {
+  jahre: { eins: '{anzahl} Jahr', mehr: '{anzahl} Jahre' }, // aria-label der Knöpfe
+  null_jahre: '0 Jahre, für alle', // aria-label des Knopfs 0
+  ab: 'ab {alter}', // Anzeige im Kopf der Serienseite
+  titel: 'Ab welchem Alter?', // Blatt „Alter festlegen“
+  menue: 'Alter festlegen',
+  label: 'Alter', // Name der Wahl im Blatt
+  loeschen: 'Wert von Hand löschen',
+  danach: 'Dann gilt wieder: ab {alter}',
+  danach_keins: 'Dann gibt es keine Altersangabe',
+  gespeichert: 'Alter gespeichert: ab {alter}',
+  entfernt: 'Alter entfernt',
 };
 
 // Stern und Favoriten (Stufe B, Design 7): Knopf im Kopf der Serienseite, Punkt „⋯“ der Folge, kleiner Stern in Zeilen und Kacheln.

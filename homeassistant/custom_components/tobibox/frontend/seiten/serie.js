@@ -15,8 +15,8 @@
  * „Cover ändern“ (A8f, Design 5.5) steht in seiten/cover.js. „Reinhören / Hier weiterhören“, der Abspielknopf der Folgenzeilen und die Abspiel-Anzeige
  * (A8b, A7c, A8m) rufen den Player (`ctx.spieler`, player.js). Kapitel (A8d): der Abschnitt „Kapitel“ statt der Folgenliste nur bei einem Hörbuch aus **einer** Folge mit Kapiteln (AM12), Zeilen ganz antippbar (AM11, AM13); die Karte „Die Hörprobe wird vorbereitet“. Noch nicht hier: „Anders einsortieren“ (A-3), Playlists (Stufe C), Cover-Flug (A6m/A8m). Schnittstelle zur App: bausteine.js.
  */
-import { html, nothing, css, repeat, ic, cover, coverKlasse, coverGrossUrl, ladeMitGrenze, untertitel, uhr, norm, eq, abspiel, laeuftAn, zaehle, sternKlein } from '../bausteine.js';
-import { SERIE, ZEILE, GRUENDE, TOBIE, SEITE, PLAYER, KAPITEL, STERN, ONLINE, fuellen } from '../texte.js';
+import { html, nothing, css, repeat, ic, cover, coverKlasse, coverGrossUrl, ladeMitGrenze, untertitel, uhr, norm, eq, abspiel, laeuftAn, zaehle, sternKlein, altersKnoepfe } from '../bausteine.js';
+import { SERIE, ZEILE, GRUENDE, TOBIE, SEITE, PLAYER, KAPITEL, STERN, ONLINE, ALTER, fuellen } from '../texte.js';
 import { knopfText, globalPos, kapitelVon, kapitelIndex, kapitelZeilen, kapitelAb, kapitelZustandText, kapitelAria } from '../player.js';
 import { animiere, kannAnimieren, reduziert } from '../bewegung.js';
 import { coverBlatt, coverFehlerText, coverStil } from './cover.js';
@@ -28,6 +28,7 @@ import { onlineBlatt, zuruecknehmenBlatt, hinweisZeile, vorschlagZeilen, vorschl
 export const SICHTBAR = 20; // Folgen, die zuerst gezeigt werden; ab mehr als 20 gibt es das Suchfeld (Design 5.3)
 const MERKEN = 20; // AM19: so viele zuletzt geöffnete Serien merkt sich die Seite (nur im Speicher)
 const WAHL_GROESSE = 30; // Päckchen der Zielwahl
+const alterOk = (a) => Number.isInteger(a) && a >= 0 && a <= 18; // Alter nur als ganze Zahl 0 bis 18 anzeigen
 const ARTEN = ['hoerspiel', 'hoerbuch', 'musik', 'geschichte'];
 const ENDE_FEHLER = ['stand_veraltet', 'serie_nicht_gefunden', 'folge_nicht_gefunden', 'vorschlag_nicht_gefunden', 'aenderung_nicht_gefunden']; // Blatt schließen, neu laden (`vorschlag_nicht_gefunden`: Online-Suche, OS4)
 
@@ -315,6 +316,7 @@ class SerieSeite {
       ...(darfSuchen(this.ctx, s) ? [{ id: 'online', label: ONLINE.menue.suchen, fn: () => this.onlineSuchen(ausloeser, s.einzeln === true && (s.folgen || []).length === 1 ? s.folgen[0] : null) }] : []), // Einzeltitel (`einzeln`, auch Hörbuch mit Kapiteln): Suche für die eine Folge, damit auch Beschreibung, Alter und Nummer angeboten werden
       ...(this.ctx.faehig('einsortier_wunsch') && s.typ === 'normal' && !s.einzeln ? [{ id: 'dateien', label: SERIE.menue.dateien, fn: () => dateienInEintrag(this.ctx, s) }] : []), // A11a: gleich die Vorschau „Zu Vorhandenem“
       ...(art ? [{ id: 'art', label: SERIE.menue.art, fn: () => this.artAendern(ausloeser) }] : []),
+      ...(this.ctx.faehig('alter') ? [{ id: 'alter', label: ALTER.menue, fn: () => this.alterAendern(ausloeser) }] : []), // Altersfilter: Recht alltag wie „Art ändern“, auch bei der Überraschungs-Serie
       ...(admin && !s.einzeln && s.folgen.length > 1 ? [{ id: 'reihenfolge', label: SERIE.menue.reihenfolge, fn: () => this.reihenfolgeStart(ausloeser) }] : []),
       ...(admin && s.typ === 'normal' && this.ctx.faehig('korrektur') ? [{ id: 'zusammen', label: SERIE.menue.zusammen, fn: () => this.zusammenfuehren(ausloeser) }] : []),
       ...(admin && this.ctx.faehig('hoerkopie') && (s.folgen || []).some((f) => f.hoerkopie?.zustand === 'fehler') ? [{ id: 'hoerkopie', label: SERIE.menue.hoerkopie, fn: () => this.hoerkopieNeu() }] : []),
@@ -516,8 +518,8 @@ class SerieSeite {
   }
 
   /* „ab 3“ als Nebenzeile (nur mit Angabe) und der kleine Knopf „Beschreibung“ mit dem Text darunter (nur, wenn es eine Beschreibung gibt). */
-  _folgeOnline(x, titel) {
-    const alter = Number.isFinite(x.alter_ab) ? html`<span class="muted os-alter" data-alter aria-label=${fuellen(ONLINE.folge.alter_aria, { alter: x.alter_ab })}>${fuellen(ONLINE.folge.alter, { alter: x.alter_ab })}</span>` : nothing;
+  _folgeOnline(x, titel, { ohneAlter = false } = {}) {
+    const alter = alterOk(x.alter_ab) && !ohneAlter ? html`<span class="muted os-alter" data-alter aria-label=${fuellen(ONLINE.folge.alter_aria, { alter: x.alter_ab })}>${fuellen(ONLINE.folge.alter, { alter: x.alter_ab })}</span>` : nothing;
     const hat = typeof x.beschreibung === 'string' && x.beschreibung.trim() !== '';
     if (!hat) return html`${alter}`;
     const e = this._beschr.get(x.name);
@@ -533,8 +535,9 @@ class SerieSeite {
   /* Einzeltitel und Hörbuch aus einer Folge mit Kapiteln haben keine Folgenzeile: „ab 3“ und die Beschreibung stehen dann unter dem Kopf. */
   _eineFolge(s) {
     const f = (s.folgen || []).length === 1 ? s.folgen[0] : null;
-    if (!f || (!Number.isFinite(f.alter_ab) && !(typeof f.beschreibung === 'string' && f.beschreibung.trim()))) return nothing;
-    return html`<div class="os-einzel" data-einzel-info>${this._folgeOnline(f, f.anzeige || f.name)}</div>`;
+    const oben = alterOk(s.alter_ab); // Altersfilter (AF-7): steht das Alter schon oben im Kopf, entfällt die Angabe an der einen Folge
+    if (!f || ((oben || !alterOk(f.alter_ab)) && !(typeof f.beschreibung === 'string' && f.beschreibung.trim()))) return nothing;
+    return html`<div class="os-einzel" data-einzel-info>${this._folgeOnline(f, f.anzeige || f.name, { ohneAlter: oben })}</div>`;
   }
 
   /* ---- Art ändern (Blatt „Was ist das?“) */
@@ -557,6 +560,33 @@ class SerieSeite {
       } catch (err) { return this._fehler(err) === 'zu' ? undefined : false; } finally { laeuft = false; }
     };
     return this._blatt({ titel: SERIE.art.titel, inhalt, knoepfe: [{ label: SERIE.abbrechen }, { label: SERIE.name.speichern, kind: 'primary', fn: speichern }] }, ausloeser);
+  }
+
+  /* ---- Alter festlegen (Blatt „Ab welchem Alter?“, Altersfilter 5.3): Knöpfe 0 bis 12, „Wert von Hand löschen“ nur mit gesetztem `alter_hand` */
+  alterAendern(ausloeser) {
+    const s = this.z.serie;
+    const hand = Number.isInteger(s.alter_hand) ? s.alter_hand : null;
+    const shop = (s.folgen || []).map((f) => f.alter_ab).filter((a) => Number.isInteger(a) && a >= 0 && a <= 18);
+    const danach = shop.length ? fuellen(ALTER.danach, { alter: Math.min(...shop) }) : ALTER.danach_keins;
+    let wahl = hand;
+    let loeschen = false;
+    let laeuft = false;
+    const inhalt = () => html`<div class="se-stack"><div role="radiogroup" aria-label=${ALTER.label}>${altersKnoepfe(loeschen ? null : wahl, (n) => { wahl = n; loeschen = false; this.ctx.neuZeichnen(); })}</div>
+      ${hand !== null ? html`<button type="button" class="se-opt" data-alter-loeschen aria-pressed=${loeschen ? 'true' : 'false'} @click=${() => { loeschen = !loeschen; this.ctx.neuZeichnen(); }}>
+        <span class="grow"><span>${ALTER.loeschen}</span><span class="muted alter-danach">${danach}</span></span>${loeschen ? ic('check', 22) : nothing}</button>` : nothing}</div>`;
+    const speichern = async () => {
+      if (laeuft) return false;
+      const neu = loeschen ? null : wahl;
+      if (neu === hand) return undefined; // nichts geändert (auch: nichts gewählt, nichts von Hand)
+      laeuft = true;
+      try {
+        await this.ctx.api('tobibox/serie/alter_setzen', { serie_id: s.id, alter_hand: neu });
+        this.ctx.melde(neu === null ? ALTER.entfernt : fuellen(ALTER.gespeichert, { alter: neu }));
+        await this.laden(true);
+        return undefined;
+      } catch (err) { return this._fehler(err) === 'zu' ? undefined : false; } finally { laeuft = false; }
+    };
+    return this._blatt({ titel: ALTER.titel, inhalt, knoepfe: [{ label: SERIE.abbrechen }, { label: SERIE.name.speichern, kind: 'primary', fn: speichern }] }, ausloeser);
   }
 
   /* ---- Verschieben (Folge in eine andere Serie) */
@@ -804,7 +834,7 @@ class SerieSeite {
     const gross = this.ctx.layout === 'seite';
     return html`<div class="se-hero">
       <div class=${`cover se-xl ${coverKlasse(s.id)}`} data-cover-gross=${s.id} data-stand=${s.cover_stand ?? ''} aria-hidden="true"><span class="bst">${anfang(s.name)}</span></div>
-      <div class="se-htxt"><h2 tabindex="-1">${s.name}${laeuftAn(s.id) ? eq(abspiel.spielt) : nothing}</h2><div class="muted" data-untertitel>${untertitel(s)}</div>${hinweisZeile(this.ctx, s, (el) => this.onlineZuruecknehmen(el))}
+      <div class="se-htxt"><h2 tabindex="-1">${s.name}${laeuftAn(s.id) ? eq(abspiel.spielt) : nothing}</h2><div class="muted" data-untertitel>${untertitel(s)}${alterOk(s.alter_ab) ? html` · <span data-alter-ab>${fuellen(ALTER.ab, { alter: s.alter_ab })}</span>` : nothing}</div>${hinweisZeile(this.ctx, s, (el) => this.onlineZuruecknehmen(el))}
         ${gross ? html`<div class="btns se-aktionen">${this._sternKnopf(s, { text: true })}<button type="button" class="btn se-mehr-knopf" data-menue-serie aria-haspopup="dialog" aria-label=${fuellen(SERIE.mehr_zu, { titel: s.name })}
           @click=${(e) => this.serieMenue(e.currentTarget)}>${ic('more', 24)}${SERIE.mehr}</button></div>` : nothing}</div></div>`;
   }
@@ -1019,7 +1049,8 @@ export const stil = () => css`
   .se-apart { margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--divider); }
   .se-apart .btn.link { background: none; border: 0; padding: 0 8px; min-height: 44px; color: var(--danger); }
   .se-opt { width: 100%; min-height: 48px; border: 1px solid var(--line); border-radius: var(--r-card); background: var(--card); display: flex; align-items: center; justify-content: space-between; padding: 0 16px; text-align: left; }
-  .se-opt[aria-checked="true"] { background: var(--primary-soft); border-color: var(--primary-ink); }
+  .se-opt[aria-pressed="true"], .se-opt[aria-checked="true"] { background: var(--primary-soft); border-color: var(--primary-ink); }
+  .se-opt .grow { display: grid; gap: 2px; padding: 8px 0; }
   .se-opt svg { width: 22px; height: 22px; fill: var(--primary-ink); }
   .se-feld { display: grid; gap: 6px; margin: 8px 0; }
   .se-feld label { font-weight: 500; }

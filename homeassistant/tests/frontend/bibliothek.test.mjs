@@ -765,3 +765,172 @@ test('Bibliothek im Raster: Tobie-Symbol mit Zahl und „bitte ansehen“ auf de
   for (const a of ansehen) assert.equal(a.querySelector('.badge').textContent, 'bitte ansehen');
   weg();
 });
+
+/* ------------------------------------------------------------------ Altersfilter (AF2, Design altersfilter.md 5.1, 5.2) */
+
+const MIT_ALTER = [...FAEHIGKEITEN, 'alter'];
+const blattOffen = async (s) => { s.q('button[data-sortieren]').click(); await s.flush(); return s.q('dialog.blatt'); };
+const alterRadios = (d) => [...d.querySelectorAll('[role="radiogroup"][aria-label="Alter"] [role="radio"]')];
+const gewaehltAlter = (d) => alterRadios(d).filter((b) => b.getAttribute('aria-checked') === 'true').map((b) => b.dataset.alterWert ?? b.dataset.alter);
+
+test('Alter: listenAnfrage sendet eine Zahl (nie Text) oder "ohne"; „Alle“ sendet nichts; aktiveEinstellungen zählt Zahl und „ohne“ je 1', () => {
+  const e = STANDARD();
+  assert.equal(e.alter, 'alle');
+  assert.ok(!('alter' in listenAnfrage(e)));
+  assert.equal(aktiveEinstellungen(e), 0);
+  e.alter = 4;
+  assert.strictEqual(listenAnfrage(e).alter, 4, 'die Zahl bleibt Zahl');
+  assert.equal(aktiveEinstellungen(e), 1);
+  e.alter = 0;
+  assert.strictEqual(listenAnfrage(e).alter, 0, 'auch 0 ist eine Wahl');
+  assert.equal(aktiveEinstellungen(e), 1);
+  e.alter = 'ohne';
+  assert.strictEqual(listenAnfrage(e).alter, 'ohne');
+  assert.equal(aktiveEinstellungen(e), 1);
+  e.sortierung = 'neu';
+  assert.equal(aktiveEinstellungen(e), 2, 'zählt zu den anderen dazu');
+  assert.ok(!('alter' in listenAnfrage(e, 0, { ohneAlter: true })), 'ohne Fähigkeit wird nichts gesendet');
+  assert.equal(aktiveEinstellungen(e, { ohneAlter: true }), 1);
+});
+
+test('Alter: ohne die Fähigkeit „alter“ gibt es keinen Abschnitt „Alter“ im Blatt', MIT_DOM, async () => {
+  const s = await bibliothek();
+  const d = await blattOffen(s);
+  assert.deepEqual([...d.querySelectorAll('h3')].map((h) => h.textContent), ['Sortieren', 'Was zeigen', 'Nur zeigen']);
+  assert.equal(d.querySelector('.alter-reihe'), null);
+  weg();
+});
+
+test('Alter: Abschnitt zwischen „Was zeigen“ und „Nur zeigen“, eine radiogroup mit „Alle“, Knöpfen 0 bis 12 und „Ohne Altersangabe“', MIT_DOM, async () => {
+  const s = await bibliothek({ faehigkeiten: MIT_ALTER });
+  const d = await blattOffen(s);
+  assert.deepEqual([...d.querySelectorAll('h3')].map((h) => h.textContent), ['Sortieren', 'Was zeigen', 'Alter', 'Nur zeigen']);
+  const gruppen = d.querySelectorAll('[role="radiogroup"][aria-label="Alter"]');
+  assert.equal(gruppen.length, 1, 'genau eine Gruppe');
+  const r = alterRadios(d);
+  assert.equal(r.length, 15, 'Alle, 13 Knöpfe, Ohne Altersangabe');
+  assert.equal(r[0].textContent.trim(), 'Alle');
+  assert.equal(r.at(-1).textContent.trim(), 'Ohne Altersangabe');
+  assert.equal(d.querySelector('#alter-fuer').textContent, 'Für ein Kind mit … Jahren');
+  assert.ok(!gruppen[0].contains(d.querySelector('#alter-fuer')), 'der Hinweis steht außerhalb der Gruppe');
+  assert.equal(gruppen[0].getAttribute('aria-describedby'), 'alter-fuer');
+  assert.ok([...gruppen[0].querySelectorAll('button')].every((b) => b.getAttribute('role') === 'radio'), 'in der Gruppe nur Radios');
+  const knoepfe = r.slice(1, -1);
+  assert.deepEqual(knoepfe.map((b) => b.textContent.trim()), Array.from({ length: 13 }, (_, i) => String(i)));
+  assert.equal(knoepfe[0].getAttribute('aria-label'), '0 Jahre, für alle');
+  assert.equal(knoepfe[1].getAttribute('aria-label'), '1 Jahr');
+  assert.equal(knoepfe[4].getAttribute('aria-label'), '4 Jahre');
+  assert.equal(knoepfe[12].getAttribute('aria-label'), '12 Jahre');
+  assert.ok(knoepfe.every((b) => b.getAttribute('role') === 'radio' && b.tagName === 'BUTTON'));
+  assert.deepEqual(gewaehltAlter(d), ['alle'], 'Vorgabe „Alle“, nur eine Wahl gilt');
+  weg();
+});
+
+test('Alter: Knopfreihe mindestens 44 × 44 px und umbrechend (Stil in bausteine.js)', async () => {
+  const { readFileSync } = await import('node:fs');
+  const css = readFileSync(new URL('../../custom_components/tobibox/frontend/bausteine.js', import.meta.url), 'utf8');
+  const knopf = css.match(/\.alter-knopf \{[^}]*\}/)?.[0] ?? '';
+  assert.match(knopf, /min-width: 44px/);
+  assert.match(knopf, /min-height: 44px/);
+  assert.match(css.match(/\.alter-reihe \{[^}]*\}/)?.[0] ?? '', /flex-wrap: wrap/);
+});
+
+test('Alter: Wahl 4 fragt alter=4 als Zahl, zählt 1 am Knopf; „Ohne Altersangabe“ fragt "ohne"; „Alle“ nimmt es zurück', MIT_DOM, async () => {
+  const s = await bibliothek({ faehigkeiten: MIT_ALTER });
+  const b = s.m.backend.serien;
+  const id = Object.keys(b)[0];
+  b[id].alter_hand = 3;
+  const d = await blattOffen(s);
+  const wahl = (wert) => d.querySelector(`[data-alter-wert="${wert}"]`);
+  wahl(4).click(); await s.flush(10);
+  assert.strictEqual(letzte(s).alter, 4);
+  assert.deepEqual(gewaehltAlter(d), ['4']);
+  assert.equal(wahl(4).getAttribute('aria-checked'), 'true');
+  assert.equal(wahl(3).getAttribute('aria-checked'), 'false');
+  assert.equal(s.q('.nbadge').textContent, '1');
+  assert.ok(ids(s).includes(id), 'Eintrag mit Alter 3 ist bei „4 Jahre“ dabei');
+  assert.ok(ids(s).length < 130, 'Einträge ohne Alter fallen heraus');
+  wahl(2).click(); await s.flush(10);
+  assert.strictEqual(letzte(s).alter, 2);
+  assert.ok(!ids(s).includes(id), 'Alter 3 ist bei „2 Jahre“ nicht dabei');
+  d.querySelector('[data-alter="ohne"]').click(); await s.flush(10);
+  assert.strictEqual(letzte(s).alter, 'ohne');
+  assert.deepEqual(gewaehltAlter(d), ['ohne']);
+  assert.equal(s.q('.nbadge').textContent, '1', 'eine Wahl zählt 1, auch „ohne“');
+  assert.ok(!ids(s).includes(id));
+  d.querySelector('[data-alter="alle"]').click(); await s.flush(10);
+  assert.ok(!('alter' in letzte(s)));
+  assert.deepEqual(gewaehltAlter(d), ['alle']);
+  assert.equal(s.q('.nbadge'), null);
+  assert.equal(s.q('.count').textContent, '130 Einträge');
+  weg();
+});
+
+test('Alter: Zurücksetzen stellt „Alle“ her; ein Wechsel der Art behält die Wahl; die Wahl steht nicht in localStorage oder Adresse', MIT_DOM, async () => {
+  const s = await bibliothek({ faehigkeiten: MIT_ALTER });
+  const d = await blattOffen(s);
+  d.querySelector('[data-alter-wert="6"]').click(); await s.flush(10);
+  assert.strictEqual(letzte(s).alter, 6);
+  assert.ok(!window.location.hash.includes('alter'), 'nicht in der Adresse');
+  assert.ok(!Object.keys(window.localStorage || {}).some((k) => /alter/i.test(k) || /alter/i.test(window.localStorage.getItem(k) ?? '')), 'nicht in localStorage');
+  [...d.querySelectorAll('.knoepfe button')].find((b) => b.textContent === 'Fertig').click(); await s.flush();
+  s.qa('.artrow button')[1].click(); await s.flush(10); // Hörspiele
+  assert.deepEqual([letzte(s).art, letzte(s).alter], ['hoerspiel', 6], 'die Art wechselt, das Alter bleibt');
+  const d2 = await blattOffen(s);
+  assert.deepEqual(gewaehltAlter(d2), ['6']);
+  [...d2.querySelectorAll('.knoepfe button')].find((b) => b.textContent === 'Zurücksetzen').click(); await s.flush(10);
+  assert.ok(!('alter' in letzte(s)));
+  assert.deepEqual(gewaehltAlter(s.q('dialog.blatt')), ['alle']);
+  assert.ok(s.q('dialog.blatt'), 'Zurücksetzen schließt das Blatt nicht');
+  weg();
+});
+
+test('Alter: kein Treffer zeigt „Nichts gefunden.“ mit „Filter zurücksetzen“, das auch das Alter zurückstellt', MIT_DOM, async () => {
+  const s = await bibliothek({ faehigkeiten: MIT_ALTER });
+  const d = await blattOffen(s);
+  d.querySelector('[data-alter-wert="0"]').click(); await s.flush(10); // niemand hat ein Alter: 0 findet nichts
+  [...d.querySelectorAll('.knoepfe button')].find((b) => b.textContent === 'Fertig').click(); await s.flush();
+  const l = s.q('[data-leer="filter"]');
+  assert.ok(l, 'leerer Zustand „Filter“');
+  assert.equal(l.querySelector('.btn').textContent, 'Filter zurücksetzen');
+  l.querySelector('.btn').click(); await s.flush(10);
+  assert.equal(s.q('[data-leer="filter"]'), null);
+  assert.ok(!('alter' in letzte(s)));
+  assert.equal(zeilen(s).length, 60);
+  weg();
+});
+
+test('Alter: die Zählzeile bleibt aria-live="polite" und zählt nach dem Filter', MIT_DOM, async () => {
+  const s = await bibliothek({ faehigkeiten: MIT_ALTER });
+  Object.values(s.m.backend.serien).slice(0, 5).forEach((x) => { x.alter_hand = 5; });
+  const d = await blattOffen(s);
+  d.querySelector('[data-alter-wert="5"]').click(); await s.flush(10);
+  assert.equal(s.q('.count').getAttribute('aria-live'), 'polite');
+  assert.equal(s.q('.count').textContent, '5 Einträge');
+  weg();
+});
+
+test('Alter: nach eigenem Speichern an der Serie lädt die Bibliothek ab Anfang neu (offset 0), die Wahl bleibt', MIT_DOM, async () => {
+  const s = await bibliothek({ faehigkeiten: MIT_ALTER });
+  const alle = Object.values(s.m.backend.serien);
+  alle.slice(0, 70).forEach((x) => { x.alter_hand = 4; });
+  const d = await blattOffen(s);
+  d.querySelector('[data-alter-wert="4"]').click(); await s.flush(10);
+  [...d.querySelectorAll('.knoepfe button')].find((b) => b.textContent === 'Fertig').click(); await s.flush();
+  s.q('button[data-mehr]').click(); await s.flush(10);
+  assert.equal(letzte(s).offset, 60, 'zweites Päckchen');
+  const id = ids(s)[0];
+  await geheZu(s, `#serie-${id}`);
+  await s.flush(10);
+  s.q('[data-menue-serie]').click(); await s.flush(10);
+  s.q('dialog.blatt[open] [data-menue="alter"]').click(); await s.flush(10);
+  s.q('dialog.blatt[open] [data-alter-wert="9"]').click(); await s.flush(10);
+  [...s.qa('dialog.blatt[open] .knoepfe button')].find((b) => b.textContent.trim() === 'Speichern').click(); await s.flush(10);
+  await geheZu(s, '#bibliothek');
+  await s.flush(10);
+  const l = aufrufe(s).map(({ id: _i, type, ...r }) => r).at(-1); // eslint-disable-line no-unused-vars
+  assert.deepEqual([l.offset, l.alter], [0, 4], 'ab Anfang, mit der gemerkten Wahl');
+  assert.ok(!ids(s).includes(id), 'der Eintrag hat jetzt „ab 9“ und fällt bei „4 Jahre“ heraus');
+  assert.equal(zeilen(s).length, 60, 'die Liste beginnt von vorn (60 Zeilen), kein Eintrag wird übersprungen');
+  weg();
+});

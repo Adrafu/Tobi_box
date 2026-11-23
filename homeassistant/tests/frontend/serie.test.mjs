@@ -1051,3 +1051,171 @@ test('folgenMetaTeile: Dauer und Kapitel einzeln, folgenMeta setzt sie wie bishe
   assert.deepEqual(folgenMetaTeile({ dauer_s: 60, kapitel: [{}, {}] }), { dauer: '1:00', kapitel: '2 Kapitel' });
   assert.deepEqual(folgenMetaTeile({}), { dauer: '', kapitel: '' });
 });
+
+/* ------------------------------------------------------------------ Altersfilter (AF2, Design altersfilter.md 5.3) */
+
+const MIT_ALTER = [...FAEHIGKEITEN, 'alter'];
+const alterBlatt = async (s) => { await menue(s); await klick(s, punkt(s, 'alter')); };
+const alterKnoepfe = (s) => s.qa('dialog.blatt[open] [role="radio"]');
+const gewaehlt = (s) => alterKnoepfe(s).filter((b) => b.getAttribute('aria-checked') === 'true').map((b) => b.dataset.alterWert);
+const setzeFolgenAlter = (s, id, werte) => werte.forEach((w, i) => { if (w !== undefined) s.m.backend.serien[id].folgen[i].alter_ab = w; });
+
+test('Alter: „ab X“ steht in der Kopfzeile, wenn die Kurzform alter_ab hat, auch ohne Fähigkeit; sonst nichts', MIT_DOM, async () => {
+  const s = await seite({ hash: '' });
+  beispiele(s.m);
+  setzeFolgenAlter(s, 's1', [5, 3]);
+  await geheZu(s, '#serie-s1'); await s.flush(10);
+  assert.equal(s.q('[data-untertitel] [data-alter-ab]').textContent, 'ab 3', 'der kleinste Wert gilt');
+  assert.match(s.q('[data-untertitel]').textContent, /^Hörspiel · 3 Folgen · .* · ab 3$|^Hörspiel · 3 Folgen · ab 3$/);
+  await geheZu(s, '#serie-s2'); await s.flush(10);
+  assert.equal(s.q('[data-alter-ab]'), null, 'ohne alter_ab keine Anzeige');
+  weg();
+});
+
+test('Alter: mehrere Folgen behalten ihr „ab X“ an den Folgen; „ab X“ oben kommt von alter_hand, wenn gesetzt', MIT_DOM, async () => {
+  const s = await seite({ hash: '', faehigkeiten: MIT_ALTER });
+  beispiele(s.m);
+  setzeFolgenAlter(s, 's1', [3, 5]);
+  s.m.backend.serien.s1.alter_hand = 6;
+  await geheZu(s, '#serie-s1'); await s.flush(10);
+  assert.equal(s.q('[data-alter-ab]').textContent, 'ab 6');
+  assert.deepEqual(s.qa('[data-folge] [data-alter]').map((x) => x.textContent), ['ab 3', 'ab 5'], 'die Folgen zeigen ihre eigenen Werte unverändert');
+  weg();
+});
+
+test('Alter: Einzeltitel zeigt das Alter nur einmal, oben, nicht noch einmal an der einen Folge', MIT_DOM, async () => {
+  const s = await oeffne('lied');
+  s.m.backend.serien.lied.folgen[0].alter_ab = 1;
+  await geheZu(s, '#serie-s1'); await geheZu(s, '#serie-lied'); await s.flush(10);
+  assert.equal(s.q('[data-untertitel] [data-alter-ab]').textContent, 'ab 1');
+  assert.equal(s.q('[data-einzel-info] [data-alter]'), null, 'nicht noch einmal an der einen Folge');
+  assert.equal(s.qa('[data-alter], [data-alter-ab]').length, 1, 'genau einmal');
+  weg();
+});
+
+test('Alter: Menüpunkt „Alter festlegen“ nur mit Fähigkeit „alter“; auch für Nicht-Administratoren (Recht alltag) und die Überraschungs-Serie', MIT_DOM, async () => {
+  const ohne = await oeffne('s1');
+  await menue(ohne);
+  assert.ok(!punkte(ohne).includes('alter'), 'ohne Fähigkeit kein Punkt');
+  weg();
+  const mit = await oeffne('s1', { faehigkeiten: MIT_ALTER });
+  await menue(mit);
+  assert.equal(punkt(mit, 'alter').textContent.trim(), 'Alter festlegen');
+  assert.equal(punkte(mit).indexOf('alter'), punkte(mit).indexOf('art') + 1, 'gleich nach „Art ändern“');
+  weg();
+  const alltag = await oeffne('s1', { faehigkeiten: MIT_ALTER, nichtAdmin: true });
+  await menue(alltag);
+  assert.ok(punkte(alltag).includes('alter'));
+  weg();
+  const ue = await oeffne('s3', { faehigkeiten: MIT_ALTER });
+  await menue(ue);
+  assert.ok(punkte(ue).includes('alter'), 'auch die Überraschungs-Serie (AF-6)');
+  weg();
+});
+
+test('Alter: Blatt „Ab welchem Alter?“ mit Knöpfen 0 bis 12, radiogroup, aria-checked und aria-label; ohne alter_hand ist nichts gewählt und es gibt keine Löschzeile', MIT_DOM, async () => {
+  const s = await oeffne('s1', { faehigkeiten: MIT_ALTER });
+  await alterBlatt(s);
+  assert.equal(titelBlatt(s), 'Ab welchem Alter?');
+  assert.equal(s.qa('dialog.blatt[open] [role="radiogroup"]').length, 1);
+  const k = alterKnoepfe(s);
+  assert.equal(k.length, 13);
+  assert.deepEqual(k.map((b) => b.textContent.trim()), Array.from({ length: 13 }, (_, i) => String(i)));
+  assert.deepEqual([k[0], k[1], k[4]].map((b) => b.getAttribute('aria-label')), ['0 Jahre, für alle', '1 Jahr', '4 Jahre']);
+  assert.deepEqual(gewaehlt(s), [], 'nichts gewählt');
+  assert.equal(s.q('dialog.blatt[open] [data-alter-loeschen]'), null);
+  await klick(s, k[4]);
+  assert.deepEqual(gewaehlt(s), ['4']);
+  assert.equal(alterKnoepfe(s)[4].getAttribute('aria-checked'), 'true');
+  await klick(s, alterKnoepfe(s)[7]);
+  assert.deepEqual(gewaehlt(s), ['7'], 'genau eine Wahl');
+  weg();
+});
+
+test('Alter: Speichern sendet serie/alter_setzen mit alter_hand als Zahl; Meldung „Alter gespeichert: ab 4“; der Kopf zeigt ab 4', MIT_DOM, async () => {
+  const s = await oeffne('s1', { faehigkeiten: MIT_ALTER });
+  await alterBlatt(s);
+  await klick(s, alterKnoepfe(s)[4]);
+  await klick(s, leisteKnopf(s, 'Speichern'));
+  const a = aufrufe(s, 'serie/alter_setzen').map(ohneId);
+  assert.deepEqual(a, [{ serie_id: 's1', alter_hand: 4 }]);
+  assert.strictEqual(a[0].alter_hand, 4);
+  assert.equal(blatt(s), null, 'das Blatt schließt');
+  assert.deepEqual(toasts(s), ['Alter gespeichert: ab 4']);
+  assert.equal(s.q('[data-alter-ab]').textContent, 'ab 4');
+  assert.ok(aufrufe(s, 'serie/get').length >= 2, 'die Serie wurde neu geladen');
+  weg();
+});
+
+test('Alter: mit alter_hand ist der Wert vorgewählt; „Wert von Hand löschen“ nennt, was danach gilt; Speichern sendet null; „Alter entfernt“', MIT_DOM, async () => {
+  const s = await oeffne('s1', { faehigkeiten: MIT_ALTER });
+  setzeFolgenAlter(s, 's1', [5, 3]);
+  s.m.backend.serien.s1.alter_hand = 6;
+  await geheZu(s, '#serie-s2'); await geheZu(s, '#serie-s1'); await s.flush(10);
+  await alterBlatt(s);
+  assert.deepEqual(gewaehlt(s), ['6'], 'vorbelegt mit alter_hand');
+  const zeile = s.q('dialog.blatt[open] [data-alter-loeschen]');
+  assert.ok(zeile);
+  assert.match(zeile.textContent, /Wert von Hand löschen/);
+  assert.match(zeile.textContent, /Dann gilt wieder: ab 3/, 'der kleinste Shop-Wert der Folgen');
+  await klick(s, zeile);
+  assert.equal(s.q('dialog.blatt[open] [data-alter-loeschen]').getAttribute('aria-pressed'), 'true');
+  assert.deepEqual(gewaehlt(s), [], 'die Zahl ist dann nicht mehr gewählt');
+  await klick(s, leisteKnopf(s, 'Speichern'));
+  assert.deepEqual(aufrufe(s, 'serie/alter_setzen').map(ohneId), [{ serie_id: 's1', alter_hand: null }]);
+  assert.deepEqual(toasts(s), ['Alter entfernt']);
+  assert.equal(s.q('[data-alter-ab]').textContent, 'ab 3', 'wieder der Shop-Wert');
+  weg();
+});
+
+test('Alter: ohne Shop-Wert sagt die Löschzeile „Dann gibt es keine Altersangabe“; unverändert Speichern sendet nichts; Abbrechen auch nicht', MIT_DOM, async () => {
+  const s = await oeffne('s1', { faehigkeiten: MIT_ALTER });
+  s.m.backend.serien.s1.alter_hand = 2;
+  await geheZu(s, '#serie-s2'); await geheZu(s, '#serie-s1'); await s.flush(10);
+  await alterBlatt(s);
+  assert.match(s.q('dialog.blatt[open] [data-alter-loeschen]').textContent, /Dann gibt es keine Altersangabe/);
+  await klick(s, leisteKnopf(s, 'Speichern'));
+  assert.equal(aufrufe(s, 'serie/alter_setzen').length, 0);
+  assert.equal(blatt(s), null);
+  await alterBlatt(s);
+  await klick(s, alterKnoepfe(s)[9]);
+  await klick(s, leisteKnopf(s, 'Abbrechen'));
+  assert.equal(aufrufe(s, 'serie/alter_setzen').length, 0);
+  await alterBlatt(s);
+  assert.deepEqual(gewaehlt(s), ['2'], 'die Wahl wird nicht gemerkt, das Blatt startet mit dem gespeicherten Wert');
+  weg();
+});
+
+test('Alter: Fehler beim Speichern zeigt die Meldung wie bei „Art ändern“, das Blatt bleibt offen', MIT_DOM, async () => {
+  const s = await oeffne('s1', { faehigkeiten: MIT_ALTER });
+  s.m.failNext('tobibox/serie/alter_setzen', 'medien_schreibfehler');
+  await alterBlatt(s);
+  await klick(s, alterKnoepfe(s)[3]);
+  await klick(s, leisteKnopf(s, 'Speichern'));
+  assert.ok(blatt(s), 'das Blatt bleibt offen');
+  assert.deepEqual(gewaehlt(s), ['3'], 'die Wahl bleibt stehen');
+  assert.equal(s.q('[data-alter-ab]'), null, 'nichts gespeichert');
+  assert.match(s.q('.toast.err .tmsg').textContent, /Das Speichern auf dem NAS hat nicht geklappt/);
+  await klick(s, leisteKnopf(s, 'Speichern'));
+  assert.equal(blatt(s), null, 'beim zweiten Versuch klappt es');
+  assert.equal(s.q('[data-alter-ab]').textContent, 'ab 3');
+  weg();
+});
+
+test('Alter: ohne alter_ab an der Kurzform (ältere Integration) bleibt „ab X“ an der einen Folge, oben steht nichts', MIT_DOM, async () => {
+  const s = await oeffne('s1');
+  s.m.backend.serien.lied = { id: 'lied', name: 'Wiegenlied', typ: 'normal', ordner: 'W', pruefen: false, hinweise: [], art: 'musik', einzeln: true, cover_stand: null, folgen: [folge('w.mp3', 'Wiegenlied', { alter_ab: 2 })] };
+  s.m.on('tobibox/serie/get', () => ({ id: 'lied', name: 'Wiegenlied', typ: 'normal', ordner: 'W', anzahl_folgen: 1, stand: 'x', art: 'musik', einzeln: true, kapitel_anzahl: 0, dauer_s: null, cover_stand: null, anzahl_tobies: 0, angelegt_am: '2026-10-01T10:00:00Z', pruefen: false, anzahl_pruefen: 0, hinweise: [], folgen: [folge('w.mp3', 'Wiegenlied', { alter_ab: 2, tobies: [] })], zuordnungen: [] }));
+  await geheZu(s, '#serie-lied'); await s.flush(10);
+  assert.equal(s.q('[data-alter-ab]'), null);
+  assert.equal(s.q('[data-einzel-info] [data-alter]').textContent, 'ab 2');
+  weg();
+});
+
+test('Alter: ungültige Werte (Kommazahl, 40, negativ) zeigt weder der Kopf noch die eine Folge', MIT_DOM, async () => {
+  const s = await oeffne('lied');
+  s.m.on('tobibox/serie/get', () => ({ id: 'lied', name: 'Wiegenlied', typ: 'normal', ordner: 'W', anzahl_folgen: 1, stand: 'x', art: 'musik', einzeln: true, kapitel_anzahl: 0, dauer_s: null, cover_stand: null, anzahl_tobies: 0, angelegt_am: '2026-10-01T10:00:00Z', pruefen: false, anzahl_pruefen: 0, hinweise: [], alter_ab: 40, folgen: [folge('w.mp3', 'Wiegenlied', { alter_ab: 2.5, tobies: [] })], zuordnungen: [] }));
+  await geheZu(s, '#serie-lied'); await s.flush(10);
+  assert.equal(s.qa('[data-alter-ab], [data-alter]').length, 0);
+  weg();
+});

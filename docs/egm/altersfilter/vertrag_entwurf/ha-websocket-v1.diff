@@ -1,0 +1,118 @@
+--- docs/protocol/ha-websocket-v1.md	2026-11-19 13:35:33
++++ docs/egm/altersfilter/vertrag_entwurf/ha-websocket-v1.md	2026-11-23 07:08:51
+@@ -6,6 +6,13 @@
+     und den Vorgaben der Projektleitung vom 09.11. (Abschnitt „Vorgaben der
+     Projektleitung“ am Ende). Wartet auf die Freigabe durch Tobias. **Stand der Rechte, des Uploads und der
+     neuen Befehle: Änderungen 12.11., 13.11., 16.11. und 18.11. unten.**
++*   **Änderung 23.11. (Altersfilter, Paket AF0; Entwurf, wartet auf die Freigabe durch Tobias):** Grundlage `docs/designs/altersfilter.md` (Rev. 2, Abschnitte 2, 3 und 4; Entscheidungen A1 bis A8 von Tobias,
++    Rest Projektleitung, `docs/egm/altersfilter/resolve.md` Runde 1). Die Version bleibt 1; alles ist additiv (Abschnitt 9). **Neu:** die Fähigkeit `alter` (14.1) für die neuen **Eingaben**; die Kurzform-Felder
++    `alter_ab` (Eintrags-Alter) und `alter_hand` (Alter von Hand) an der Serie-Kurzform (14.2; Ausgabefelder, keine Fähigkeit nötig); die optionale Eingabe `alter` (int 0 bis 18 oder `"ohne"`) bei `serien/list` (14.2);
++    der Befehl Nr. 66 `serie/alter_setzen` (Abschnitt 3.15, Recht alltag; setzt oder löscht `alter_hand`); das Feld `alter_hand` in `serie.json` (`data-model.md`, Abschnitt 5; nur von Menschen gesetzt, nicht im `stand`);
++    die Regel beim Zusammenführen: Das Ziel übernimmt `alter_hand` der Quelle, wenn es selbst keins hat (Nr. 27); `folge/verschieben` (Nr. 26) nimmt es nicht mit. Das Folge-Objekt von `serie/get` behält sein
++    `alter_ab` (Shop-Alter der Folge). Die Online-Suche fasst `alter_hand` nie an. **Rückfall:** Eine ältere Seite sendet kein `alter` und übergeht die neuen Felder; eine neue Seite an einer älteren Integration
++    sieht keine Fähigkeit `alter` und blendet Filter, Menüpunkt und Anzeige aus. `mqtt-v1.md`, die Box und der Sync ändern sich **nicht**.
+ *   **Änderung 19.11. (Online-Suche, Entscheidungen T10 und T11 von Tobias, `docs/egm/online-suche/resolve.md` Runde 8; additiv):** (1) Nr. 58 liefert bei einem
+     Vorschlag mit neuem Cover eine `vorschau_id`; die HTTP-Vorschau nimmt sie wie eine `treffer_id` (3.15). (2) **Neu:** Befehl Nr. 65 `online/lauf_aenderungen` (Liste der
+     Änderungen eines Laufs, je Eintrag mit eigener Rücknahme über Nr. 60) mit der Fähigkeit `online_lauf_liste` (14.1). Sonst ändert sich nichts.
+@@ -230,12 +237,12 @@
+ | **alltag** | jeder angemeldete HA-Nutzer | kein Dekorator; für Nicht-Administratoren gelten zusätzlich die Schutzregeln in 2.4 (Zusatzprüfungen im Befehl, Fehler `unauthorized` oder der Code der Prüfung) |
+ | **admin** | nur Administratoren | `@websocket_api.require_admin`; Fehler `unauthorized` |
+ 
+-**Befehle nach Stufe** (Nr. wie in der Übersicht in Abschnitt 3; Nr. 37 bis 46 sind seit dem 12.11., Nr. 47 bis 49 seit dem 13.11., Nr. 50 bis 56 seit dem 16.11., Nr. 57 bis 64 seit dem 18.11. neu; Nr. 18 bis 20 stehen seit dem 13.11. wieder bei `admin`):
++**Befehle nach Stufe** (Nr. wie in der Übersicht in Abschnitt 3; Nr. 37 bis 46 sind seit dem 12.11., Nr. 47 bis 49 seit dem 13.11., Nr. 50 bis 56 seit dem 16.11., Nr. 57 bis 64 seit dem 18.11. neu, Nr. 66 seit dem 23.11.; Nr. 18 bis 20 stehen seit dem 13.11. wieder bei `admin`):
+ 
+ | Stufe | Befehle |
+ |---|---|
+ | **lesen** | 1 `hello`, 2 `subscribe`, 3 `serien/list`, 4 `serie/get`, 10 `papierkorb/list`, 13 `neue_tobies/list`, 15 `zuordnung/list`, 21 `boxen/list` (ohne das Feld `ereignisse`), 29 `eingang/list`, 34 `konfig/get`, 35 `einstellungen/get`, 37 `folgen/list`, 40 `hoerstelle/get`, 42 `hoerstelle/liste`, 50 `gehoert/zusammenfassung`, 51 `gehoert/zuletzt`, 56 `favoriten/list`, 64 `online/beschreibung`; HTTP: Cover (GET), Audio (GET, Anmeldung oder gültige Signatur) |
+-| **alltag** | 6 `serie/rename`, 8 `folge/delete`, 9 `medien/pruefen`, 14 `neue_tobies/verwerfen`, 16 `zuordnung/set` (mit Name), 17 `zuordnung/remove`, 24 `serie/delete`, 25 `folge/rename`, 26 `folge/verschieben` (Ziel „Überraschungs-Serie“ nur Administratoren), 28 `einsortierung/bestaetigen`, 30 `eingang/sortieren` (ohne `sofort`), 36 `einstellungen/set` (ohne `lesezeichen_tage`; `leise_zeiten.zeitzone` wird ignoriert), 38 `serie/art_setzen`, 39 `audio/bereit`, 41 `hoerstelle/set` (nur die eigene Hörstelle), 43 `einsortierung/neu`, 47 `warteschlange/set`, 48 `warteschlange/list`, 49 `warteschlange/abbrechen`, 55 `favorit/set`; HTTP: Upload, Cover (POST, DELETE `quelle=eigen`) |
++| **alltag** | 6 `serie/rename`, 8 `folge/delete`, 9 `medien/pruefen`, 14 `neue_tobies/verwerfen`, 16 `zuordnung/set` (mit Name), 17 `zuordnung/remove`, 24 `serie/delete`, 25 `folge/rename`, 26 `folge/verschieben` (Ziel „Überraschungs-Serie“ nur Administratoren), 28 `einsortierung/bestaetigen`, 30 `eingang/sortieren` (ohne `sofort`), 36 `einstellungen/set` (ohne `lesezeichen_tage`; `leise_zeiten.zeitzone` wird ignoriert), 38 `serie/art_setzen`, 39 `audio/bereit`, 41 `hoerstelle/set` (nur die eigene Hörstelle), 43 `einsortierung/neu`, 47 `warteschlange/set`, 48 `warteschlange/list`, 49 `warteschlange/abbrechen`, 55 `favorit/set`, 66 `serie/alter_setzen`; HTTP: Upload, Cover (POST, DELETE `quelle=eigen`) |
+ | **admin** | 5 `serie/create`, 7 `folgen/order`, 18 `lernmodus/start`, 19 `lernmodus/antwort`, 20 `lernmodus/abbrechen` (seit 13.11. wieder admin, X13a), 11 `papierkorb/restore`, 12 `papierkorb/empty`, 22 `box/sync`, 23 `liste/neu_ausrollen`, 27 `serien/zusammenfuehren`, 31 `konfig/export_lesen`, 32 `konfig/aus_export`, 33 `eingang/entfernen`, 44 `cover/neu_suchen`, 45 `hoerkopie/neu_erzeugen`, 46 `papierkorb/restore_letzte_stunde`, 52 `technik/verlauf`, 53 `gehoert/exportieren`, 54 `gehoert/loeschen`, 57 `online/suchen`, 58 `online/treffer`, 59 `online/uebernehmen`, 60 `online/zuruecknehmen`, 61 `online/vorschlag_verwerfen`, 62 `online/lauf`, 63 `online/status`, 65 `online/lauf_aenderungen`; HTTP: Online-Vorschau (GET), Cover (DELETE mit `quelle=online`); das Feld `ereignisse` von `boxen/list`; `eingang/sortieren` mit `sofort`; `einstellungen/set` mit `lesezeichen_tage` |
+ 
+ **Lernmodus (seit 13.11.):** `lernmodus/start`, `lernmodus/antwort` und `lernmodus/abbrechen` sind ein Vorgang und wieder nur für Administratoren (X13a). Der Alltag legt neue Tobies über die Warteschlange an (3.13, Recht alltag). Das Ereignisthema `lernmodus` und das Feld `lernmodus` von `boxen/list` bleiben für jeden lesbar (nur Anzeige). *(Lücke im Design: Es sagt nichts zum Lesen des Zustands; unverändert gelassen, weil es nichts auslöst.)*
+@@ -382,10 +389,11 @@
+ | 63 | `tobibox/online/status` | admin | ja | – |
+ | 64 | `tobibox/online/beschreibung` | lesen | ja | – |
+ | 65 | `tobibox/online/lauf_aenderungen` | admin | ja | – |
++| 66 | `tobibox/serie/alter_setzen` | alltag | ja | – |
+ 
+ Dazu der HA-eigene Befehl `unsubscribe_events` zum Beenden eines Abos (Abschnitt 4).
+ Die Befehle 33 bis 36 sind seit dem 09.11. (AP 4.7) gültig; ihre Fähigkeiten stehen in `hello`.
+-Die Befehle 37 bis 46 und die Stufen `lesen`, `alltag`, `admin` sind seit dem 12.11. festgelegt (Abschnitt 2.1, 3.12, 14); an den Befehlen 1 bis 36 steht „Recht“ statt „Rechte“. Die Befehle 47 bis 49 (Abschnitt 3.13) sind seit dem 13.11. festgelegt; seit dem 13.11. sind 18 bis 20 wieder `admin`. Die Befehle 50 bis 56 (Abschnitt 3.14) sind seit dem 16.11. festgelegt (Entwurf B0). Die Befehle 57 bis 64 (Abschnitt 3.15) sind seit dem 18.11. festgelegt (Entwurf OS0).
++Die Befehle 37 bis 46 und die Stufen `lesen`, `alltag`, `admin` sind seit dem 12.11. festgelegt (Abschnitt 2.1, 3.12, 14); an den Befehlen 1 bis 36 steht „Recht“ statt „Rechte“. Die Befehle 47 bis 49 (Abschnitt 3.13) sind seit dem 13.11. festgelegt; seit dem 13.11. sind 18 bis 20 wieder `admin`. Die Befehle 50 bis 56 (Abschnitt 3.14) sind seit dem 16.11. festgelegt (Entwurf B0). Die Befehle 57 bis 64 (Abschnitt 3.15) sind seit dem 18.11. festgelegt (Entwurf OS0). Der Befehl 66 (Abschnitt 3.15) ist seit dem 23.11. Entwurf (AF0).
+ **Reserviert** für später (Namen sind vergeben, der Inhalt kommt in der jeweiligen
+ Stufe): Abschnitt 10.
+ 
+@@ -465,7 +473,7 @@
+ | `v` | int | Vertragsversion des Backends |
+ | `version` | string | Version der Integration (`manifest.json`) |
+ | `darf_schreiben` | bool | der angemeldete Nutzer ist Administrator |
+-| `faehigkeiten` | array von string | was das Backend kann; Version 1 (Stufe 3a): `medien`, `upload`, `zuordnung`, `tobie_namen`, `neue_tobies`, `lernmodus`, `boxen`, `papierkorb`, `liste_ausrollen`, `konfig_export`, `sync`, `eingang`, `korrektur`, `serie_loeschen`. **(09.11., AP 4.7)** Dazu `einstellungen` (Befehle 35 und 36), `eingang_entfernen` (Nr. 33), `zuordnung_uid` (Eingabe `uid` bei Nr. 15), `konfig_lesen` (Nr. 34) und `upload_fertig_details` (`datei` und `pruefung` im Ereignis „Upload fertig“, 4.7). **(12.11., Stufe A der HA-Oberfläche)** Dazu, nach Teil gebaut: `cover`, `bibliothek`, `einsortier_wunsch`, `konfig_staende`, `reinhoeren`, `hoerkopie` (Regel und Bedeutung: 14.1). **(13.11., A0-Q)** Dazu `warteschlange` und `zuordnung_rueckgaengig` (14.1). **(16.11., Stufe B)** Dazu `gehoert` und `favoriten` (14.1). **(18.11., Online-Suche)** Dazu `online_suche` (14.1). **(19.11.)** Dazu `online_lauf_liste` (14.1). Spätere Stufen ergänzen `update` (3b). Die Reihenfolge der Liste hat keine Bedeutung (K4, 12.11.). Die Seite zeigt und sendet nur, was hier steht. |
++| `faehigkeiten` | array von string | was das Backend kann; Version 1 (Stufe 3a): `medien`, `upload`, `zuordnung`, `tobie_namen`, `neue_tobies`, `lernmodus`, `boxen`, `papierkorb`, `liste_ausrollen`, `konfig_export`, `sync`, `eingang`, `korrektur`, `serie_loeschen`. **(09.11., AP 4.7)** Dazu `einstellungen` (Befehle 35 und 36), `eingang_entfernen` (Nr. 33), `zuordnung_uid` (Eingabe `uid` bei Nr. 15), `konfig_lesen` (Nr. 34) und `upload_fertig_details` (`datei` und `pruefung` im Ereignis „Upload fertig“, 4.7). **(12.11., Stufe A der HA-Oberfläche)** Dazu, nach Teil gebaut: `cover`, `bibliothek`, `einsortier_wunsch`, `konfig_staende`, `reinhoeren`, `hoerkopie` (Regel und Bedeutung: 14.1). **(13.11., A0-Q)** Dazu `warteschlange` und `zuordnung_rueckgaengig` (14.1). **(16.11., Stufe B)** Dazu `gehoert` und `favoriten` (14.1). **(18.11., Online-Suche)** Dazu `online_suche` (14.1). **(19.11.)** Dazu `online_lauf_liste` (14.1). **(23.11., Altersfilter)** Dazu `alter` (14.1). Spätere Stufen ergänzen `update` (3b). Die Reihenfolge der Liste hat keine Bedeutung (K4, 12.11.). Die Seite zeigt und sendet nur, was hier steht. |
+ | `boxen` | array von string | die eingerichteten Box-Namen (aus der Einrichtung der Integration) |
+ | `konfig` | object | Konfig-Stand mit `zustand`. Ist `zustand` nicht `ok`, zeigt die Seite zuerst die Warnung aus Abschnitt 13 und sperrt Änderungen der Konfiguration. |
+ | `grenzen` | object | `upload_max_bytes` (Vorgabe seit 12.11. 2147483648 = 2 GiB, einstellbar; vorher 500 MiB), `upload_block_bytes`, `upload_parallel` (2), `endungen` (array), `serie_name_max` (100), `folge_anzeige_max` (200), `tobie_name_max` (60), `name_max_bytes` (255), `limit_max` (100 bzw. 200, je Befehl); **(12.11.)** bei zugesagter Fähigkeit dazu `audio_verbindungen_je_benutzer` (6), `hoerkopie_kbit` (96), `hoerkopie_dauer_max_s` (14.10); **(13.11.)** bei Fähigkeit `warteschlange` dazu `warteschlange_max` (5); **(16.11., Rest aus A-3)** bei Fähigkeit `hoerkopie` dazu `hoerkopie_schlange` (object `{"dateien": <int>, "dateien_max": <int>, "bytes": <int>, "bytes_max": <int>}`: Aufträge in der Warteschlange der Hörkopien einschließlich des laufenden, Summe der Größen ihrer Quellen und die Grenzen `HOERKOPIE_SCHLANGE_DATEIEN` und `HOERKOPIE_SCHLANGE_BYTES`; der Stand beim Aufruf von `hello`, für „Technik“, 14.8). Außerdem `box_anzeigen` (object: Box-Name → Anzeigename, 14.9) im Ergebnis von `hello` |
+@@ -724,6 +732,8 @@
+ | `konfig` | object oder `null` | Konfig-Stand, wenn die Konfiguration geändert wurde (Revision + 1), sonst `null` |
+ | `veroeffentlicht` | bool oder `null` | wie bei `zuordnung/set`; `null` ohne Konfigurationsänderung |
+ 
++**Alter von Hand (23.11.):** `alter_hand` gehört dem Eintrag und geht nicht mit einer einzelnen Folge mit; Shop-Werte wandern mit der Folge.
++
+ **Zeiger:** Der Zeiger der Folge auf den Boxen (`resume.json`, je Serie und Folge)
+ gehört zur alten Serie. Die betroffenen Folgen-Tobies beginnen auf den Boxen nach dem
+ Sync **von vorn**. Das sagt die Seite in der Rückfrage (offener Punkt 3).
+@@ -766,6 +776,8 @@
+ Recht: admin. Idempotent: Endzustand ja; der zweite Aufruf liefert
+ `serie_nicht_gefunden`. MQTT: `tobibox/config` nur bei betroffenen Tobies.
+ 
++**Alter von Hand (23.11.):** Hat die Zielserie kein `alter_hand`, übernimmt sie das der Quellserie; hat sie eins, bleibt ihres. Shop-Werte wandern mit den Folgen.
++
+ #### 28. `tobibox/einsortierung/bestaetigen`
+ 
+ Nimmt das Kennzeichen „bitte prüfen“ (Abschnitt 11.9) weg: Tobias hat hingeschaut.
+@@ -1807,6 +1819,17 @@
+ | `lauf_id` | string | **ja** | ein Lauf aus `letzte_laeufe` (Nr. 63) |
+ 
+ Ausgabe: `{"eintraege": [{"serie_id", "name", "aenderung_id", "zeit", "status", "felder": [<feld>[@<folge>]…]}…], "weitere": <bool>}`. Je Änderung dieses Laufs ein Eintrag (eine Serie hat je Lauf höchstens eine Änderung), sortiert nach `name`; `name` ist der heutige Name des Eintrags; `status` ∈ `fertig`, `zurueckgenommen` (offene Änderungen fehlen); `felder` wie im Feld `online` der Kurzform (14.2), ohne bestätigte Felder. Höchstens `ONLINE_LAUF_LISTE_MAX` (500) Einträge, dann `weitere = true`. Änderungen, die verfallen sind (30 Tage oder über 20 je Eintrag, `data-model.md` 5b) oder deren Eintrag es nicht mehr gibt, fehlen. „Zurücknehmen“ je Eintrag ist Nr. 60 mit `serie_id` und `aenderung_id` (setzt die Marke „zurückgenommen“ wie dort beschrieben). Fehler: `lauf_nicht_gefunden`, `invalid_format`, `unauthorized`. Recht: admin. Idempotent: ja. MQTT: –. Netz: keines.
++
++#### 66. `tobibox/serie/alter_setzen` (Fähigkeit `alter`, seit 23.11., Altersfilter)
++
++Setzt das Alter eines Eintrags von Hand oder löscht es (Design `altersfilter.md`, 4.3).
++
++| Eingabe | Typ | Pflicht | Bedeutung |
++|---|---|---|---|
++| `serie_id` | string | **ja** | |
++| `alter_hand` | int 0 bis 18 oder `null` | **ja** | `null` löscht das Alter von Hand; danach gilt wieder der kleinste gültige Shop-Wert oder keins (Eintrags-Alter, 14.2) |
++
++Liest `serie.json` frisch und schreibt `alter_hand` (bzw. entfernt es) wie Befehl 38 (atomar, unbekannte Felder bleiben). Berührt `stand` **nicht** (`alter_hand` zählt nicht zu den Feldern, über die `stand` rechnet). Ausgabe: `{"serie": <Serie-Kurzform>}` (mit `alter_ab` und `alter_hand`). Ereignis `serien_geaendert` wie bei Nr. 38. Strenges Schema: bool, Text wie `"4"`, -1 und 19 geben `invalid_format`. Fehler: `serie_nicht_gefunden`, `medien_nicht_erreichbar`, `medien_schreibfehler`, `invalid_format`, `unauthorized`. Recht: alltag, auch für die Überraschungs-Serie; Setzen und Löschen mit demselben Recht, der letzte Schreiber gewinnt. Idempotent: ja. MQTT: –.
+ 
+ **HTTP (Fähigkeit `online_suche`)**
+ 
+@@ -2979,6 +3002,7 @@
+ | `zuordnung_rueckgaengig` | A0-Q (13.11.) | optionale Eingabe `als_neu` bei `zuordnung/remove` (3.5). Eigene Fähigkeit, weil „Rückgängig“ (X20d) vor der Warteschlange gebaut werden kann |
+ | `online_suche` | OS (18.11.) | Befehle 57 bis 64 (3.15); der Filterwert `online_vorschlag` bei `serien/list`; das Ereignisthema `online` in `subscribe.themen` (nur Administratoren); `DELETE /api/tobibox/cover/<serie_id>?quelle=online` und `GET /api/tobibox/online/vorschau/<treffer_id>`; die Liste `online_vorschlaege_liste` in `serie/get`. **Nicht vom Netz abhängig:** Sie wird zugesagt, sobald der Dienst läuft; fällt eine Quelle aus, melden die Befehle es im Ergebnis (`quellen`). Claude hat **keine** eigene Fähigkeit und keinen eigenen Befehl (3.15). Die reinen Ausgabefelder (`online`, `online_vorschlaege`, `beschreibung` …) brauchen keine Fähigkeit |
+ | `online_lauf_liste` | OS (19.11., T11) | Befehl Nr. 65 `online/lauf_aenderungen` (3.15). Nur zusammen mit `online_suche`; ohne sie zeigt die Seite je Lauf nur die Zahlen und „Alle zurücknehmen“ |
++| `alter` | AF (23.11.) | die Eingabe `alter` bei `serien/list` (14.2) und Befehl Nr. 66 `serie/alter_setzen` (3.15). Ohne sie zeigt die Seite im Blatt „Sortieren und Filter“ keinen Abschnitt „Alter“ und im Menü der Serie keinen Punkt „Alter festlegen“. Die Ausgabefelder `alter_ab` und `alter_hand` der Kurzform brauchen **keine** Fähigkeit |
+ 
+ **Entfallen** (in Rev. 5 des Designs gestrichen): `kapitel` (das Feld `kapitel` ist ein Ausgabefeld; fehlt es, zeigt die Seite keine Liste), `box_anzeigenamen` und `rechte_stufen` (Feld da bzw. Seite und Backend liegen im selben Paket). Fehlt eine Fähigkeit, die die Seite braucht, zeigt sie **eine** Antwort („Die Seite ist veraltet. Bitte lade sie neu.“). Eine **alte Seite** im Zwischenspeicher kennt die neuen Befehle nicht, schickt sie nicht und blendet nach `darf_schreiben` aus: harmlos. Stufe B (`gehoert`, `favoriten`) steht seit 16.11. in diesem Vertrag (Abschnitt 15; `gehoert_reinhoeren` entfällt); Stufe C (`playlists`): geplant, siehe Design Abschnitt 13; sie gehört **nicht** zu diesem Vertragsstand.
+ 
+@@ -2999,8 +3023,12 @@
+ | `favorit` | bool | **(16.11., Fähigkeit `favoriten`)** der Eintrag als Ganzes hat einen Stern (nur der Stern der Serie, nicht die Sterne einzelner Folgen; eine Serie, von der nur eine Folge einen Stern hat, ist nicht `favorit`) |
+ | `zuletzt_gehoert_am` | Zeitstempel oder `null` | **(16.11., Fähigkeit `gehoert`)** `ende_um` der letzten Sitzung an einer **Box**; `null`, wenn noch nie eine Box den Eintrag gespielt hat (Reinhören zählt hier nicht, wie die Reihe „Zuletzt auf den Boxen gehört“) |
+ | `online` | object oder `null` | **(18.11., für alle Benutzer, keine Fähigkeit nötig)** `{"zeit": <Zeitstempel>, "felder": [<feld>…]}` der letzten Online-Änderung (Status `fertig`), wenn sie **jünger als 30 Tage** ist (ein angenommener Namensvorschlag von Claude ist keine Online-Änderung und taucht nicht auf, GO-14), sonst `null`. `felder` nennt die Feldnamen **ohne** `@<folge>` und ohne Doppelte (`serie_name`, `folge_titel`, `nummer`, `art`, `cover`, `beschreibung`, `alter_ab`); nie Werte. Daraus bildet die Seite die Zeile „Aus der Online-Suche übernommen: Cover, Art.“ Das Feld wird aus dem Store gebildet und verschwindet mit dem Verfall der Änderungen (`data-model.md`, 5b) |
++| `alter_ab` | int 0 bis 18 oder fehlt | **(23.11., Altersfilter)** **Eintrags-Alter:** 1. `alter_hand`, wenn gesetzt; 2. sonst der **kleinste gültige Shop-Wert** der Folgen des Eintrags (Shop-Wert = `alter_ab` der Folge im Store `tobibox.online`, `data-model.md` 5b); 3. sonst fehlt das Feld. **Gültiger Shop-Wert:** nur Folgen, die in `serie.folgen` stehen (Store-Einträge zu verschwundenen Folgen zählen nicht), nur int von 0 bis 18, kein bool; alles andere gilt als „diese Folge hat kein Alter“. Es wird bei jeder Antwort neu gebildet (keine Speicherung); die Quelle (Hand oder Shop) steht nicht dabei, das Feld `alter_hand` verrät, ob ein Wert von Hand gesetzt ist |
++| `alter_hand` | int 0 bis 18 oder fehlt | **(23.11., Altersfilter)** das Alter von Hand aus `serie.json` (`data-model.md` 5), gesetzt über Nr. 66; fehlt, wenn keins gesetzt ist |
+ | `online_vorschlaege` | int | **(18.11., nur für Administratoren)** Zahl der offenen, gültigen Vorschläge der Online-Suche. Steht **nur** in den Antworten von `serien/list`, `serie/get` und Nr. 51 `gehoert/zuletzt` (dort, wo die Verbindung zum Store bekannt ist); in allen anderen Antworten mit Serie-Kurzform (zum Beispiel auf `serie/create`, `serie/rename`, `serie/art_setzen`) fehlt es, und die Seite behält ihren Wert. Neue oder verworfene Vorschläge lösen `medien`/`serien_geaendert` aus |
+ 
++**Folge-Objekt und `alter_ab` (23.11.):** Das Folge-Objekt von `serie/get` behält sein `alter_ab` (Shop-Alter **dieser Folge**, 3.2) unverändert; das `alter_ab` der Serie-Kurzform ist das Eintrags-Alter und eine andere Größe.
++
+ Schon vorhanden und unverändert benutzt: `anzahl_folgen`, `anzahl_tobies` (zählt `serie` **und** `folge`), `angelegt_am`. Bei einem Einzeltitel ist `anzahl_folgen` 1. Ereignisse (`medien`, `snapshot`) tragen kein Cover, nur Antworten auf Befehle. Die Adresse des Covers ist fest (`/api/tobibox/cover/<serie_id>`, 14.3), es gibt kein signiertes `cover_url`.
+ 
+ **`serien/list` bekommt optionale Eingaben** (Fähigkeit `bibliothek`):
+@@ -3012,6 +3040,7 @@
+ | `auch_folgen` | bool | Vorgabe `false` |
+ | `filter` | array aus `ohne_tobie`, `neu`, `pruefen`, `sammlung`, `einzeln`, `favorit` | `sammlung` = nur Einträge, die kein Einzeltitel sind; `einzeln` = nur Einzeltitel; **(16.11.)** `favorit` = nur Einträge mit Stern (nur mit Fähigkeit `favoriten`); **(18.11.)** `online_vorschlag` = nur Einträge mit mindestens einem offenen Vorschlag der Online-Suche (**nur Administratoren** und nur mit Fähigkeit `online_suche`; von einem Nicht-Administrator `unauthorized`); `filter=pruefen` bleibt unverändert; mehrere Werte gelten als „und“ |
+ | `sortierung` | `name` (Vorgabe), `neu`, `angehoert`, `zuletzt_gehoert`, `meist_gehoert` | `angehoert` = zuletzt angehört vom Anfragenden, nur mit Fähigkeit `reinhoeren` (**privat**, die eigenen Hörstellen). **(16.11., nur mit Fähigkeit `gehoert`)** `zuletzt_gehoert` = zuletzt an einer **Box** gespielt, neueste zuerst (Quelle: `zuletzt_gehoert_am`); `meist_gehoert` = größte Hörzeit im letzten Jahr (365 Kalendertage), **alle Quellen** (Boxen und Reinhören). Gleichstand nach Name. Einträge ohne Hörzeit bzw. ohne Box-Sitzung stehen am Ende, nach Name |
++| `alter` | int 0 bis 18 oder `"ohne"` | **(23.11., Fähigkeit `alter`)** Zahl X: nur Einträge mit Eintrags-Alter (`alter_ab` der Kurzform) **≤ X**; Einträge **ohne** Eintrags-Alter fallen heraus. `"ohne"`: nur Einträge **ohne** Eintrags-Alter. Fehlt die Eingabe: kein Altersfilter. Gilt als „und“ mit `art`, `text`, `auch_folgen` und `filter`, vor `offset` und `limit`; `gesamt` zählt nach allen Filtern. Strenges Schema: bool, Text wie `"4"` oder `"Ohne"`, -1 und 19 geben `invalid_format`. `folgen/list` bekommt die Eingabe nicht |
+ | `limit` | int 1–200 | |
+ | `offset` | int ≥ 0 | |
+ 

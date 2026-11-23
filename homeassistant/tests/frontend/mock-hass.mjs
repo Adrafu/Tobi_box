@@ -116,7 +116,14 @@ export const FELDER_V11 = {
   'tobibox/konfig/export_lesen': { stand: 'konfig_staende' }, // A12/A13: frühere Stände (Vertrag 2.4)
   'tobibox/konfig/aus_export': { stand: 'konfig_staende' },
   'tobibox/hoerstelle/set': { spieler: 'gehoert', spielt: 'gehoert' }, // Stufe B (Vertrag 41): nur mit der Fähigkeit `gehoert`
+  'tobibox/serien/list': { alter: 'alter' }, // Altersfilter (Vertrag 14.2): nur mit der Fähigkeit `alter`
 };
+
+/* Altersfilter (Vertrag W Nr. 66, 14.2; Fähigkeit `alter`, 23.11.): Befehl `serie/alter_setzen` und die Eingabe `alter` bei `serien/list`. */
+export const SCHEMA_AF = {
+  'tobibox/serie/alter_setzen': { req: ['serie_id', 'alter_hand'], braucht: 'alter' },
+};
+const ALTER_OK = (x) => Number.isInteger(x) && x >= 0 && x <= 18; // Zahl 0 bis 18, kein bool
 
 /* A12/A13 (Technik): Befehle der Stufe A, die nur Administratoren brauchen (Vertrag 3.12). */
 export const SCHEMA_TECHNIK = {
@@ -157,11 +164,12 @@ const hex = (s, n = 16) => createHash('sha256').update(s).digest('hex').slice(0,
 /* Wertebereiche der Bibliothek (Vertrag 14.2 und Befehl 37). */
 function pruefeBibliothek(type, f, faehigkeiten) {
   const grenze = { 'tobibox/serien/list': 200, 'tobibox/folgen/list': 100, 'tobibox/zuordnung/list': 100 }[type];
-  if (grenze === undefined) return;
+  if (grenze === undefined) { if (type === 'tobibox/serie/alter_setzen' && !(f.alter_hand === null || ALTER_OK(f.alter_hand))) throw fehler('invalid_format', 'alter_hand: 0 bis 18 oder null'); return; }
   if ('limit' in f && !(Number.isInteger(f.limit) && f.limit >= 1 && f.limit <= grenze)) throw fehler('invalid_format', `limit 1 bis ${grenze}`);
   if ('offset' in f && !(Number.isInteger(f.offset) && f.offset >= 0)) throw fehler('invalid_format', 'offset ab 0');
   if ('text' in f && !(typeof f.text === 'string' && f.text.trim().length >= 2 && f.text.length <= 100)) throw fehler('invalid_format', 'text mit 2 bis 100 Zeichen');
   if ('art' in f && !ARTEN.includes(f.art)) throw fehler('invalid_format', 'art');
+  if ('alter' in f && !(f.alter === 'ohne' || ALTER_OK(f.alter))) throw fehler('invalid_format', 'alter: 0 bis 18 oder "ohne"');
   if ('neu' in f && typeof f.neu !== 'boolean') throw fehler('invalid_format', 'neu');
   if ('auch_folgen' in f && typeof f.auch_folgen !== 'boolean') throw fehler('invalid_format', 'auch_folgen');
   if ('filter' in f) {
@@ -253,7 +261,7 @@ export function beispielBibliothek(n = 130) {
 
 /* `faehigkeiten`: was das (simulierte) Backend zusagt. Ohne Angabe wird nur die Form geprüft (alles ist erlaubt). */
 export function pruefeEingabe(msg, faehigkeiten = null) {
-  const sch = SCHEMA[msg.type] || SCHEMA_V11[msg.type] || SCHEMA_BIB[msg.type] || SCHEMA_TECHNIK[msg.type] || SCHEMA_WS[msg.type] || SCHEMA_REIN[msg.type] || SCHEMA_NEU[msg.type] || SCHEMA_B[msg.type] || SCHEMA_OS[msg.type];
+  const sch = SCHEMA[msg.type] || SCHEMA_V11[msg.type] || SCHEMA_BIB[msg.type] || SCHEMA_TECHNIK[msg.type] || SCHEMA_WS[msg.type] || SCHEMA_REIN[msg.type] || SCHEMA_NEU[msg.type] || SCHEMA_B[msg.type] || SCHEMA_OS[msg.type] || SCHEMA_AF[msg.type];
   if (!sch) throw fehler('unknown_command', `Unbekannter Befehl ${msg.type}`);
   if (faehigkeiten && sch.braucht && !faehigkeiten.includes(sch.braucht)) throw fehler('unknown_command', `Unbekannter Befehl ${msg.type}`);
   const { type, id, ...felder } = msg; // eslint-disable-line no-unused-vars
@@ -840,6 +848,12 @@ export function createMockHass(opts = {}) {
     return l.map((z) => `${z.tag}T${String(z.stunde).padStart(2, '0')}:30:00Z`).sort().at(-1);
   };
   const stand = (s) => hex(JSON.stringify([s.name, s.folgen.map((f) => [f.name, f.anzeige])]));
+  /* Eintrags-Alter (Altersfilter 2.): `alter_hand`, sonst der kleinste gültige Shop-Wert (`alter_ab`) der Folgen, sonst keins. */
+  const eintragsAlter = (s) => {
+    if (ALTER_OK(s.alter_hand)) return s.alter_hand;
+    const w = s.folgen.map((f) => f.alter_ab).filter(ALTER_OK);
+    return w.length ? Math.min(...w) : null;
+  };
   const kurzform = (s) => ({
     id: s.id, name: s.name, typ: s.typ, ordner: s.ordner, anzahl_folgen: s.folgen.length,
     anzahl_tobies: tobiesAuf(s.id).length, angelegt_am: s.angelegt_am ?? '2026-10-01T10:00:00Z', stand: stand(s),
@@ -847,6 +861,8 @@ export function createMockHass(opts = {}) {
     art: s.art ?? 'hoerspiel', art_quelle: s.art_quelle ?? (s.art ? 'manuell' : 'tags'), einzeln: !!s.einzeln, kapitel_anzahl: s.kapitel_anzahl ?? 0,
     dauer_s: s.dauer_s ?? null, cover_stand: s.cover_stand ?? null, cover_quelle: s.cover_stand ? (s.cover_quelle ?? 'auto') : null,
     ...(hoerKurz(s) ? { hoerstelle: hoerKurz(s) } : {}),
+    ...(eintragsAlter(s) !== null ? { alter_ab: eintragsAlter(s) } : {}), // Ausgabefelder brauchen keine Fähigkeit (Vertrag 14.1)
+    ...(ALTER_OK(s.alter_hand) ? { alter_hand: s.alter_hand } : {}),
     ...(hat('favoriten') ? { favorit: istFavorit(s.id) } : {}),
     ...(hat('gehoert') ? { zuletzt_gehoert_am: zuletztGehoertAm(s.id) } : {}),
     ...(hat('online_suche') ? { online: s.online ?? null } : {}), // Vertrag 14.2: für alle Benutzer
@@ -945,6 +961,8 @@ export function createMockHass(opts = {}) {
       const grenze = MOCK_JETZT - 14 * 86400000;
       if (m.art) l = l.filter((s) => (s.art ?? 'hoerspiel') === m.art);
       if (m.text) l = l.filter((s) => passtText(m.text, [s.name, ...(m.auch_folgen ? s.folgen.map((x) => x.anzeige) : [])]));
+      if (m.alter === 'ohne') l = l.filter((s) => eintragsAlter(s) === null);
+      else if (m.alter !== undefined) l = l.filter((s) => eintragsAlter(s) !== null && eintragsAlter(s) <= m.alter);
       if (f.includes('sammlung')) l = l.filter((s) => !s.einzeln);
       if (f.includes('einzeln')) l = l.filter((s) => s.einzeln);
       if (f.includes('neu')) l = l.filter((s) => Date.parse(s.angelegt_am ?? '2026-10-01T10:00:00Z') >= grenze);
@@ -1055,6 +1073,12 @@ export function createMockHass(opts = {}) {
       if (!ARTEN.includes(m.art)) throw fehler('invalid_format', 'art');
       s.art = m.art; s.art_quelle = 'manuell';
       s.pruefen_gruende = (s.pruefen_gruende || []).filter((c) => c !== 'art_geraten');
+      return { serie: kurzform(s) };
+    },
+    'tobibox/serie/alter_setzen': (m) => { // Nr. 66: `null` löscht das Alter von Hand; Recht alltag; Ereignis wie Nr. 38
+      const s = holeSerie(m.serie_id);
+      if (m.alter_hand === null) delete s.alter_hand; else s.alter_hand = m.alter_hand;
+      emit('medien', 'serien_geaendert', { serie_id: s.id });
       return { serie: kurzform(s) };
     },
     'tobibox/serie/rename': (m) => { const s = holeSerie(m.serie_id); if (!m.name.trim()) throw fehler('name_ungueltig'); s.name = m.name; s.pruefen = false; return { serie: kurzform(s) }; },
