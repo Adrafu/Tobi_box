@@ -596,6 +596,7 @@ if (lit) {
 
     disconnectedCallback() {
       super.disconnectedCallback();
+      this._blattFixAus();
       window.removeEventListener('hashchange', this._onHash);
       window.removeEventListener('popstate', this._onHash);
       window.removeEventListener('location-changed', this._onHash);
@@ -1086,10 +1087,26 @@ if (lit) {
       this._blattAn(d);
       if (effekt) this._hintenEin();
       this._wischen(d);
+      this._blattFix(d);
       this._meldungenPlatz();
       const erst = (b.fokus === 'titel' ? d.querySelector('h2') : null) || d.querySelector('[autofocus]') || d.querySelector('.knoepfe button, .blatt-b button, .blatt-b input, .blatt-b select, .blatt-b a') || d.querySelector('h2');
       erst?.focus?.({ preventScroll: true });
     }
+
+    /* Klasse `fix`, solange der Inhalt ins Blatt passt (Prototyp Zeile 2368): dann sperrt das CSS das senkrechte Ziehen, sonst scrollt das Blatt.
+     * Neu bewertet bei jeder Größenänderung von Inhalt und Blatt (auch beim Austausch des Inhalts); der Beobachter geht beim Schließen weg. */
+    _blattFix(d) {
+      this._blattFixAus();
+      const pruefe = () => d.classList.toggle('fix', d.scrollHeight <= d.clientHeight + 1);
+      pruefe();
+      if (typeof ResizeObserver === 'undefined') return;
+      this._blattRo = new ResizeObserver(pruefe);
+      const inn = d.querySelector('.blatt-in');
+      if (inn) this._blattRo.observe(inn);
+      this._blattRo.observe(d);
+    }
+
+    _blattFixAus() { try { this._blattRo?.disconnect(); } catch { /* ohne */ } this._blattRo = null; }
 
     get _schmal() { return (window.innerWidth || 0) < REITER_UNTEN_BIS; }
 
@@ -1174,6 +1191,7 @@ if (lit) {
         d.removeAttribute('open');
       }
       this._blatt = null;
+      this._blattFixAus();
       if (grund !== 'ersetzt') this._hintenAus();
       this._meldungenPlatz(true);
       b.aufloesen(grund);
@@ -1845,7 +1863,9 @@ if (lit) {
 
       /* Blatt */
       dialog.blatt { border: 0; padding: 0; background: var(--card); color: var(--text); width: 100%; max-width: 560px; max-height: 92vh; max-height: 92dvh;
-        overscroll-behavior: contain; overflow: auto; border-radius: var(--r-big); box-shadow: 0 8px 32px var(--shadow); touch-action: pan-x pinch-zoom; }
+        overscroll-behavior: contain; overflow: auto; border-radius: var(--r-big); box-shadow: 0 8px 32px var(--shadow); }
+      /* Nur ein Blatt, dessen Inhalt hineinpasst, sperrt das senkrechte Ziehen (Prototyp Zeile 375 und 2368); sonst käme man bei langem Inhalt nicht nach unten (Befund Abnahme Altersfilter, 23.11.). */
+      dialog.blatt.fix { touch-action: pan-x pinch-zoom; }
       dialog.blatt::backdrop { background: var(--scrim, rgba(0, 0, 0, 0.5)); opacity: var(--bd, 1); }
       dialog.blatt[open]::backdrop { animation: bd-ein var(--dauer-mittel) var(--kurve); }
       dialog.blatt[data-nachfolger]::backdrop { animation: none; }

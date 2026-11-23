@@ -519,6 +519,70 @@ async function blattOeffnen(s, opts = {}) {
   return { zu, ausloeser, d: s.q('dialog.blatt') };
 }
 
+/* Blatt und Wischen (Befund Abnahme Altersfilter, 23.11.): `fix` (senkrechtes Ziehen gesperrt) nur, wenn der Inhalt hineinpasst.
+ * jsdom hat kein Layout: scrollHeight und clientHeight des Dialogs werden über `mass` vorgegeben. */
+const beobachtet = (d) => [...FakeRO.alle].filter((r) => r.ziele?.includes(d));
+const _observe = FakeRO.prototype.observe;
+FakeRO.prototype.observe = function observe(ziel) { (this.ziele ||= []).push(ziel); return _observe.call(this, ziel); };
+function blattMasse(mass) {
+  const P = window.HTMLDialogElement.prototype;
+  Object.defineProperty(P, 'scrollHeight', { configurable: true, get() { return mass.scroll; } });
+  Object.defineProperty(P, 'clientHeight', { configurable: true, get() { return mass.client; } });
+  return () => { delete P.scrollHeight; delete P.clientHeight; };
+}
+
+test('Blatt: Inhalt passt hinein, dann Klasse fix; ist er höher, bleibt sie weg; Größenänderung schaltet um', MIT_DOM, async () => {
+  weg();
+  const mass = { scroll: 400, client: 400 };
+  const frei = blattMasse(mass);
+  try {
+    const s = await seite();
+    const { d } = await blattOeffnen(s);
+    assert.ok(d.classList.contains('fix'), 'passt (gleich hoch): fix');
+    // Inhalt wird länger (zum Beispiel neue Zeile): der Beobachter meldet, fix fällt weg
+    mass.scroll = 900; mass.client = 600;
+    FakeRO.melde(390);
+    assert.equal(d.classList.contains('fix'), false, 'höher als das Blatt: kein fix, das Blatt scrollt');
+    mass.scroll = 600; mass.client = 600;
+    FakeRO.melde(390);
+    assert.ok(d.classList.contains('fix'), 'wieder passend: fix');
+    // der Beobachter sieht Inhalt und Dialog
+    assert.equal(beobachtet(d.querySelector('.blatt-in')).length, 1, 'der Inhalt wird beobachtet');
+    assert.equal(beobachtet(d).length, 1, 'das Blatt selbst auch');
+    s.q('.blatt-x').click();
+    await new Promise((r) => setTimeout(r, 50));
+    await s.flush();
+    assert.equal(s.q('dialog.blatt'), null);
+    assert.equal(beobachtet(d.querySelector('.blatt-in')).length + beobachtet(d).length, 0, 'nach dem Schließen ist der Beobachter getrennt');
+  } finally { frei(); weg(); }
+});
+
+test('Blatt: beim Öffnen ist ein hohes Blatt ohne fix (ohne Beobachter-Meldung)', MIT_DOM, async () => {
+  weg();
+  const frei = blattMasse({ scroll: 1200, client: 700 });
+  try {
+    const s = await seite();
+    const { d } = await blattOeffnen(s);
+    assert.equal(d.classList.contains('fix'), false);
+    // Blatt wird durch ein anderes ersetzt (kurzer Inhalt): neu bewertet, der alte Beobachter ist weg
+    frei(); blattMasse({ scroll: 300, client: 300 });
+    s.el.oeffneBlatt({ titel: 'Zweites' });
+    await s.flush();
+    assert.ok(s.q('dialog.blatt').classList.contains('fix'));
+    assert.equal(beobachtet(s.q('dialog.blatt')).length, 1, 'genau ein Beobachter für das neue Blatt');
+  } finally { frei(); weg(); }
+});
+
+test('Blatt: CSS sperrt senkrechtes Ziehen nur mit fix; Griff und Überschrift bleiben bei touch-action none', () => {
+  const src = readFileSync(join(FRONTEND, 'tobibox-app.js'), 'utf8');
+  const basis = /\n\s*dialog\.blatt \{([^}]*)\}/.exec(src);
+  assert.ok(basis, 'Grundregel dialog.blatt gefunden');
+  assert.doesNotMatch(basis[1], /touch-action/, 'die Grundregel sperrt nichts');
+  assert.match(src, /dialog\.blatt\.fix \{ touch-action: pan-x pinch-zoom; \}/);
+  assert.match(src, /\.blatt h2 \{[^}]*touch-action: none/);
+  assert.match(src, /\.griff \{[^}]*touch-action: none/);
+});
+
 test('Blatt: Aufbau mit × oben, Griff, Überschrift, Leiste unten; Fokus beim Öffnen auf der harmlosen Antwort', MIT_DOM, async () => {
   const s = await seite();
   const { d } = await blattOeffnen(s);
