@@ -38,7 +38,7 @@ EGM artifact directory: docs/egm
 - Angenommenes Design Online-Suche (Cover und Angaben): `docs/designs/online-suche.md` (Entstehung und Reviews:
   `docs/egm/online-suche/`). Gebaut und abgenommen (OS5, 22.11.), Rev. 2.8; eingespielt. Einspielen künftig über das HA-Terminal direkt von GitHub, nicht per Upload vom Mac.
 - Angenommenes Design Altersfilter der Bibliothek: `docs/designs/altersfilter.md` (Entstehung und Reviews:
-  `docs/egm/altersfilter/`). Gebaut (AF1, AF2), Abnahme AF3 offen.
+  `docs/egm/altersfilter/`). Gebaut und abgenommen (AF3, 23.11.); eingespielt (93f0c02).
 - Verträge (Stufe 0): `docs/protocol/`, `docs/data-model.md`. Agents ändern
   sie nicht eigenmächtig.
 

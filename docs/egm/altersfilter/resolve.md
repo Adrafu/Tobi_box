@@ -34,3 +34,10 @@
 
 - **Design angenommen (Tobias, 23.11.):** `docs/designs/altersfilter.md` (Rev. 2).
 - **AF0 freigegeben (Tobias, 23.11., „Ja, freigeben“):** Entwurf `vertrag_entwurf/` in Vertrag W und `data-model.md` übernommen.
+
+## Runde 3 (23.11.): Abnahme AF3
+
+- Eingespielt 69b5fb2 (Neustart mit Ja), Abnahme Schritt für Schritt im Chat, Testeintrag ADAC. Ergebnisse in `docs/plan/stueckliste-und-psp.md` (Zeile „AF3 Altersfilter abgenommen“).
+- Schritt 12 (Konto ohne Recht alltag) ausgelassen: es gibt kein solches Konto (Tobias); die Tests decken es ab.
+- **B1 Handy, Blatt scrollt nicht** (Schritt 11): Das Blatt „Sortieren und Filter“ ist mit der Knopfreihe länger als der Bildschirm und ließ sich nicht scrollen. Ursache: `touch-action: pan-x pinch-zoom` an jedem `dialog.blatt`; der Prototyp setzt es nur bei Klasse `fix` (Inhalt passt). **(PL)** Wie im Prototyp behoben (93f0c02); betrifft alle Blätter. Am iPhone geprüft (Tobias): scrollt, Wegwischen am Griff geht.
+- Wert von Hand bei ADAC am Ende gelöscht (Pflicht aus AF-15): „Ohne Altersangabe“ wieder 256.
