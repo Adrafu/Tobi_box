@@ -1,56 +1,109 @@
 # Bestellliste Charge 1 — Pi-Probelauf und Breadboard
 
-Stand 07.11.2026 · Grundlage: Plan Rev. 3.9 (Stückliste 1.1/1.2, PSP 1.2.1)
+Stand 24.11.2026 · Grundlage: Plan Rev. 3.23 (Stückliste 1.1/1.2, PSP 1.2.1),
+Hardware-Prüfung 3.21 · ersetzt die Liste vom 07.11.
 
-Zweck: Alles für den Pi-Probelauf (Software auf dem echten Pi, harte
-Lautstärke-Grenze über ALSA, Zeit bis zum Ton am Lautsprecher) und den
-Breadboard-Aufbau der kritischen Teile. **Nur ein Satz** (Muster), Box 2 kommt
-später. Preise sind Richtwerte aus der Stückliste, vor dem Bestellen prüfen.
+Zweck: alles für den Pi-Probelauf und den Breadboard-Aufbau (3.2), damit danach
+das CAD starten kann. **Nur ein Satz** (Muster). Lieferung nach Österreich,
+möglichst wenig Gesamtkosten.
 
-Schon vorhanden: 2× PN5180, 2× ESP32-S3 SuperMini (Bestellung 12.10.).
+Schon vorhanden: 2× PN5180, 2× ESP32-S3 SuperMini.
 
-## Muss
+Preise: Recherche vom 24.11. auf den Shopseiten, brutto. Mit „ungeprüft“
+markierte Werte bitte im Warenkorb nachsehen. Die Versandkosten von Reichelt,
+Berrybase und Digikey stehen erst im Warenkorb fest.
 
-| # | Teil | Stk | ca. € | Wofür |
+## Wichtig: Der Pi 3 A+ ist zurzeit nicht lieferbar
+
+Berrybase, Reichelt und Welectron sind ausverkauft, Kiwi (NL) erwartet Nachschub
+erst am 26.03.2027, Tinytronics führt ihn nicht mehr, Pimoroni nur Vorbestellung
+ohne Termin.
+
+**Vorschlag:** Für Probelauf und Breadboard einen **Pi 3 Model B+** nehmen
+(Berrybase.at 42,90 €, lieferbar). Gleicher Chip, gleiches SD-Image, gleiche
+Micro-USB-Versorgung; der PiSugar 3 Plus ist laut Hersteller für den 3B+
+gemacht. Nachteile: größer (85 × 56 statt 65 × 56 mm) und braucht durch LAN
+und USB-Hub etwas mehr Strom. Welcher Pi in die fertigen Boxen kommt, ist damit
+noch nicht entschieden; das klären wir vor dem CAD.
+
+Nicht sinnvoll: Pi Zero 2 W (für den Zero gibt es keinen PiSugar mit 5000 mAh,
+nur 1200 mAh, rund 3 h Laufzeit) und Pi 4 (teurer, mehr Strom).
+
+## Shop 1: Berrybase.at
+
+| # | Teil | Stk | € | Wofür |
 |---|---|---|---|---|
-| 1 | Raspberry Pi 3 Model A+ (Header vorbestückt) | 1 | 31 | Rechner der Box, Pi-Probelauf |
-| 2 | microSD 64 GB, A1, **High Endurance** | 1 | 12 | System + Medien |
-| 3 | Netzteil 5 V / 2,5 A mit **Micro-USB** (offizielles Pi-Netzteil) | 1 | 10 | Pi ohne PiSugar betreiben |
-| 4 | Kühlkörper, selbstklebend | 1 | 2 | Pi |
-| 5 | USB-Kabel **USB-C auf USB-A**, kurz (Daten, kein reines Ladekabel) | 1 | 3 | ESP32-S3 an den Pi (der 3A+ hat nur USB-A) |
-| 6 | MAX98357A I²S-Verstärker, 3 W mono | 1 | 6 | Ton am Pi, ALSA-Grenze, Messung |
-| 7 | Visaton FRS 8, 4 Ω, 80 mm | 1 | 12 | Lautsprecher für Probelauf und Klangprobe |
-| 8 | Elko 1000 µF, ≥ 10 V | 1 | 1 | Puffer am Verstärker |
-| 9 | PiSugar 3 Plus, 5000 mAh | 1 | 50 | Passung, Akkustart, Laufzeitmessung (3.1.1, 3.1.3) |
-| 10 | Breadboard + Dupont-Kabel (m/m, m/w), falls nicht vorhanden | 1 Satz | 10 | Breadboard-Aufbau |
-| 11 | NTAG215-Karten | 20–50 | 10–20 | Karten zum Testen und für die Kinder |
+| 1 | Raspberry Pi 3 Model B+ | 1 | 42,90 | Probelauf (statt 3 A+) |
+| 2 | SanDisk High Endurance microSD 64 GB | 1 | 28,90 | System und Medien |
+| 3 | Offizielles Pi-Netzteil 5,1 V / 2,5 A Micro-USB | 1 | 7,90 | Pi ohne PiSugar |
+| 4 | Adafruit MAX98357A I²S-Verstärker 3 W | 1 | 5,90 | Ton |
+| 5 | SN74AHCT125N (DIP-14) | 1 | 0,54 | Pegelwandler LED-Ring |
+| 6 | Mini Arcade Button 24 mm (AB24OL, Farbe wählen) | 3 | 2,70 | Haupt, Vor, Zurück |
+| 7 | Elko 1000 µF 25 V | 1 | 0,21 | Puffer am Verstärker |
+| 8 | Dupont-Kabelset 40 Stk., 20 cm (DUPK-SET-20) | 1 | 4,90 | Breadboard |
+| 9 | NTAG215-Aufkleber, 10 Stk. | 3 | 14,97 | Testkarten |
+| 10 | Neodym-Magnet 10 × 3 mm (8 × 3 nicht lieferbar) | 4 | 2,80 | Nachtest Deckel-Magnet |
+| 11 | USB-Tester UNI-T UT658A (USB-A) | 1 | 8,90 | Test 7 Strom (optional) |
+| 12 | Kühlkörper für den Pi, selbstklebend | 1 | ~2 (ungeprüft) | Pi |
 
-**Summe Muss: ca. 150–160 €**
+**Summe ca. 123 € plus Versand** (gratis erst ab 200 €). Ohne USB-Tester ca. 114 €.
 
-## Sinnvoll (wenn ohnehin bestellt wird)
+## Shop 2: Reichelt.at
 
-| # | Teil | Stk | ca. € | Wofür |
+| # | Teil | Artikel | € | Wofür |
 |---|---|---|---|---|
-| 12 | SparkFun LuMini LED-Ring 2″, 40× APA102-2020 | 1 | 17 | LED-Ring am Breadboard (PSP 1.2.1) |
-| 13 | Pegelwandler 74AHCT125 | 1 | 1 | APA102 an 3,3-V-GPIOs |
-| 14 | Rückstellbare Sicherung (PTC) 1,1 A | 1 | 1 | 5-V-Pfad des Rings |
-| 15 | PCM5102A-DAC + 3,5-mm-Buchse mit Schaltkontakt | 1 Satz | 7 | Kopfhörerpfad prüfen (3.2.6) |
-| 16 | Arcade-Button 24 mm | 3 | 8 | Haupt, Vor, Zurück am Breadboard |
-| 17 | Rotary Encoder KY-040 | 1 | 5 | Lautstärke am Breadboard |
+| 13 | Visaton FRS 8, 4 Ω | VIS FRS 8-4 | 13,73 | Lautsprecher |
+| 14 | Drehgeber KY-040 | DEBO ENCODER | 2,17 | Lautstärke |
+| 15 | PTC-Sicherung 1,1 A | PTC FUSB110F | 0,90 | 5-V-Pfad Ring |
+| 16 | Steckbrett-Set 830 Kontakte | BREADBOARD SET1 | 7,46 | Breadboard |
+| 17 | Sortiment LEDs und Widerstände | S93 | 5,03 | Teiler Hauptknopf, SD_MODE |
 
-**Summe sinnvoll: ca. 40 €**
+**Summe ca. 29 € plus Versand** (ungeprüft, vermutlich um 6 €).
+
+## Shop 3: Tinytronics (NL)
+
+| # | Teil | € | Wofür |
+|---|---|---|---|
+| 18 | PiSugar 3 Plus, 5000 mAh | 51,00 | Akku, Laufzeitmessung |
+
+Versand nach Österreich 11,50 € (ohne NL-Steuer, eventuell bis 13,92 €).
+**Summe ca. 63–65 €.** Lieferzeit laut Quellen bis 2–4 Wochen.
+
+## Shop 4: Digikey.at
+
+| # | Teil | € | Wofür |
+|---|---|---|---|
+| 19 | SparkFun LuMini LED Ring 2″, 40× APA102-2020, **COM-14966** | 20,72 | LED-Ring |
+
+Versand: unter 50 € etwa 18 € (ungeprüft), ab 50 € gratis. **Summe ca. 39 €.**
+
+**Spartipp:** Gleich den Ring für Box 2 mitnehmen (2 × 20,72 = 41,44 €) und
+den zweiten Verstärker MAX98357A sowie zwei 74AHCT125 ebenfalls bei Digikey
+kaufen, dann über 50 € und gratis. Kostet etwa 16 € mehr als der eine Ring mit
+Versand, aber die Teile für Box 2 sind dann schon da (keine Akkus, die altern).
+
+## Gesamt
+
+| Shop | ca. € |
+|---|---|
+| Berrybase.at | 123 + Versand |
+| Reichelt.at | 29 + ~6 |
+| Tinytronics | 63–65 |
+| Digikey.at | 39 (mit Spartipp ~55, dafür Teile für Box 2) |
+| **Summe** | **ca. 260 € plus Versand Berrybase** |
 
 ## Bewusst noch nicht
 
+- **PCM5102A-DAC und Klinkenbuchse mit Schaltkontakten** (Kopfhörerpfad 3.2.6):
+  der DAC ist zurzeit nirgends lieferbar gefunden, die Buchse hängt daran.
+  Kommt mit Charge 2.
 - Akku/PiSugar für Box 2 (Akkus altern im Regal, Charge 3).
-- Pololu-Ideal-Dioden, USB-C-Buchse, Pogo-Pins, Magnete, Dock-Teile (Charge 2,
-  nach Breadboard).
+- Ideal-Dioden, USB-C-Buchse, Dock-Teile (nach Breadboard und Ladestation Rev. 6).
 - Gehäusematerial (nach CAD).
 
 ## Hinweise
 
-- Hat dein Mac keinen SD-Schlitz, brauchst du zusätzlich einen USB-SD-Kartenleser.
-- Für den ersten Probelauf reicht das Netzteil (3); der PiSugar kommt danach
-  auf den Pi, zuerst Passung und Start vom Akku prüfen.
-- Nach Ankunft: Pi OS Lite (Bookworm, 32 Bit) aufspielen — Anleitung kommt mit
-  dem Arbeitspaket „Pi-Installation“ (AP P.1).
+- Ein **USB-C-auf-USB-A-Datenkabel** (ESP32-S3 an den Pi) ist nicht auf der
+  Liste; ein vorhandenes reicht, wenn es Daten überträgt.
+- Hat der Mac keinen SD-Schlitz, braucht es einen USB-SD-Kartenleser.
+- Der PiSugar kommt erst nach dem ersten Probelauf mit Netzteil auf den Pi.
