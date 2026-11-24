@@ -78,12 +78,8 @@ Den zweiten Akku bei etwa 50 % Ladung kühl lagern (Entscheidung Tobias 24.11.).
 |---|---|---|---|
 | 19 | SparkFun LuMini LED Ring 2″, 40× APA102-2020, **COM-14966** | 20,72 | LED-Ring |
 
-Versand: unter 50 € etwa 18 € (ungeprüft), ab 50 € gratis. **Summe ca. 39 €.**
-
-**Spartipp:** Gleich den Ring für Box 2 mitnehmen (2 × 20,72 = 41,44 €) und
-den zweiten Verstärker MAX98357A sowie zwei 74AHCT125 ebenfalls bei Digikey
-kaufen, dann über 50 € und gratis. Kostet etwa 16 € mehr als der eine Ring mit
-Versand, aber die Teile für Box 2 sind dann schon da (keine Akkus, die altern).
+Versand: gratis erst ab 75 € (auf der Seite gesehen, 24.11.), darunter etwa 18 €
+(ungeprüft). **Summe ca. 39 €.** Ein Sammeln bis 75 € lohnt sich hier nicht.
 
 ## Gesamt
 
@@ -92,7 +88,7 @@ Versand, aber die Teile für Box 2 sind dann schon da (keine Akkus, die altern).
 | Berrybase.at | 81 + Versand |
 | Reichelt.at | 29 + ~6 |
 | Tinytronics (2 PiSugar) | 114–116 |
-| Digikey.at | 39 (mit Spartipp ~55, dafür Teile für Box 2) |
+| Digikey.at | 39 |
 | **Summe** | **ca. 270 € plus Versand Berrybase** |
 
 ## Bewusst noch nicht
