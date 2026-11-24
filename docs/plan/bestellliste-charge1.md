@@ -62,12 +62,13 @@ nur 1200 mAh, rund 3 h Laufzeit) und Pi 4 (teurer, mehr Strom).
 
 ## Shop 3: Tinytronics (NL)
 
-| # | Teil | € | Wofür |
-|---|---|---|---|
-| 18 | PiSugar 3 Plus, 5000 mAh | 51,00 | Akku, Laufzeitmessung |
+| # | Teil | Stk | € | Wofür |
+|---|---|---|---|---|
+| 18 | PiSugar 3 Plus, 5000 mAh | 2 | 102,00 | Box 1 (Laufzeitmessung) und Box 2 |
 
-Versand nach Österreich 11,50 € (ohne NL-Steuer, eventuell bis 13,92 €).
-**Summe ca. 63–65 €.** Lieferzeit laut Quellen bis 2–4 Wochen.
+Versand nach Österreich 11,50 € (ohne NL-Steuer, eventuell bis 13,92 €), einmal
+für beide. **Summe ca. 114–116 €.** Lieferzeit laut Quellen bis 2–4 Wochen.
+Den zweiten Akku bei etwa 50 % Ladung kühl lagern (Entscheidung Tobias 24.11.).
 
 ## Shop 4: Digikey.at
 
@@ -88,16 +89,15 @@ Versand, aber die Teile für Box 2 sind dann schon da (keine Akkus, die altern).
 |---|---|
 | Berrybase.at | 123 + Versand |
 | Reichelt.at | 29 + ~6 |
-| Tinytronics | 63–65 |
+| Tinytronics (2 PiSugar) | 114–116 |
 | Digikey.at | 39 (mit Spartipp ~55, dafür Teile für Box 2) |
-| **Summe** | **ca. 260 € plus Versand Berrybase** |
+| **Summe** | **ca. 311 € plus Versand Berrybase** |
 
 ## Bewusst noch nicht
 
 - **PCM5102A-DAC und Klinkenbuchse mit Schaltkontakten** (Kopfhörerpfad 3.2.6):
   der DAC ist zurzeit nirgends lieferbar gefunden, die Buchse hängt daran.
   Kommt mit Charge 2.
-- Akku/PiSugar für Box 2 (Akkus altern im Regal, Charge 3).
 - Ideal-Dioden, USB-C-Buchse, Dock-Teile (nach Breadboard und Ladestation Rev. 6).
 - Gehäusematerial (nach CAD).
 
