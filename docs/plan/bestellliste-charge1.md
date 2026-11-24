@@ -25,8 +25,9 @@ ohne Termin.
 vorhandenen **Pi 3 Model B+**, es wird kein Pi gekauft. Gleicher Chip, gleiches SD-Image, gleiche
 Micro-USB-Versorgung; der PiSugar 3 Plus ist laut Hersteller für den 3B+
 gemacht. Nachteile: größer (85 × 56 statt 65 × 56 mm) und braucht durch LAN
-und USB-Hub etwas mehr Strom. Welcher Pi in die fertigen Boxen kommt, ist damit
-noch nicht entschieden; das klären wir vor dem CAD.
+und USB-Hub etwas mehr Strom. Die fertigen Boxen bekommen weiter den **Pi 3 A+**
+(Entscheidung Tobias 24.11.); zwei Stück werden gekauft, sobald er wieder zu
+normalem Preis lieferbar ist.
 
 Nicht sinnvoll: Pi Zero 2 W (für den Zero gibt es keinen PiSugar mit 5000 mAh,
 nur 1200 mAh, rund 3 h Laufzeit) und Pi 4 (teurer, mehr Strom).
