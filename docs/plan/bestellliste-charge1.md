@@ -7,7 +7,9 @@ Zweck: alles für den Pi-Probelauf und den Breadboard-Aufbau (3.2), damit danach
 das CAD starten kann. **Nur ein Satz** (Muster). Lieferung nach Österreich,
 möglichst wenig Gesamtkosten.
 
-Schon vorhanden: 2× PN5180, 2× ESP32-S3 SuperMini.
+Schon vorhanden: 2× PN5180, 2× ESP32-S3 SuperMini, **1× Raspberry Pi 3 Model B+**
+(bei Tobias daheim, bisher mit HiFiBerry; für den Probelauf kommt der HiFiBerry
+ab, an I²S hängt dann der MAX98357A).
 
 Preise: Recherche vom 24.11. auf den Shopseiten, brutto. Mit „ungeprüft“
 markierte Werte bitte im Warenkorb nachsehen. Die Versandkosten von Reichelt,
@@ -19,8 +21,8 @@ Berrybase, Reichelt und Welectron sind ausverkauft, Kiwi (NL) erwartet Nachschub
 erst am 26.03.2027, Tinytronics führt ihn nicht mehr, Pimoroni nur Vorbestellung
 ohne Termin.
 
-**Vorschlag:** Für Probelauf und Breadboard einen **Pi 3 Model B+** nehmen
-(Berrybase.at 42,90 €, lieferbar). Gleicher Chip, gleiches SD-Image, gleiche
+**Entscheidung 24.11.:** Für Probelauf und Breadboard nimmt Tobias seinen
+vorhandenen **Pi 3 Model B+**, es wird kein Pi gekauft. Gleicher Chip, gleiches SD-Image, gleiche
 Micro-USB-Versorgung; der PiSugar 3 Plus ist laut Hersteller für den 3B+
 gemacht. Nachteile: größer (85 × 56 statt 65 × 56 mm) und braucht durch LAN
 und USB-Hub etwas mehr Strom. Welcher Pi in die fertigen Boxen kommt, ist damit
@@ -33,9 +35,8 @@ nur 1200 mAh, rund 3 h Laufzeit) und Pi 4 (teurer, mehr Strom).
 
 | # | Teil | Stk | € | Wofür |
 |---|---|---|---|---|
-| 1 | Raspberry Pi 3 Model B+ | 1 | 42,90 | Probelauf (statt 3 A+) |
 | 2 | SanDisk High Endurance microSD 64 GB | 1 | 28,90 | System und Medien |
-| 3 | Offizielles Pi-Netzteil 5,1 V / 2,5 A Micro-USB | 1 | 7,90 | Pi ohne PiSugar |
+| 3 | Offizielles Pi-Netzteil 5,1 V / 2,5 A Micro-USB, **nur falls keins da ist** | 1 | 7,90 | Pi ohne PiSugar |
 | 4 | Adafruit MAX98357A I²S-Verstärker 3 W | 1 | 5,90 | Ton |
 | 5 | SN74AHCT125N (DIP-14) | 1 | 0,54 | Pegelwandler LED-Ring |
 | 6 | Mini Arcade Button 24 mm (AB24OL, Farbe wählen) | 3 | 2,70 | Haupt, Vor, Zurück |
@@ -46,7 +47,8 @@ nur 1200 mAh, rund 3 h Laufzeit) und Pi 4 (teurer, mehr Strom).
 | 11 | USB-Tester UNI-T UT658A (USB-A) | 1 | 8,90 | Test 7 Strom (optional) |
 | 12 | Kühlkörper für den Pi, selbstklebend | 1 | ~2 (ungeprüft) | Pi |
 
-**Summe ca. 123 € plus Versand** (gratis erst ab 200 €). Ohne USB-Tester ca. 114 €.
+**Summe ca. 81 € plus Versand** (gratis erst ab 200 €). Ohne USB-Tester ca. 72 €,
+ohne Netzteil weitere 8 € weniger.
 
 ## Shop 2: Reichelt.at
 
@@ -87,11 +89,11 @@ Versand, aber die Teile für Box 2 sind dann schon da (keine Akkus, die altern).
 
 | Shop | ca. € |
 |---|---|
-| Berrybase.at | 123 + Versand |
+| Berrybase.at | 81 + Versand |
 | Reichelt.at | 29 + ~6 |
 | Tinytronics (2 PiSugar) | 114–116 |
 | Digikey.at | 39 (mit Spartipp ~55, dafür Teile für Box 2) |
-| **Summe** | **ca. 311 € plus Versand Berrybase** |
+| **Summe** | **ca. 270 € plus Versand Berrybase** |
 
 ## Bewusst noch nicht
 
