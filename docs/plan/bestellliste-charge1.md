@@ -1,4 +1,4 @@
-# Bestellliste Charge 1 — Pi-Probelauf und Breadboard
+# Bestellliste Charge 1 — Pi-Probelauf und Breadboard (bestellt 25.11.)
 
 Stand 25.11.2026 · Grundlage: Plan Rev. 3.23 (Stückliste 1.1/1.2, PSP 1.2.1),
 Hardware-Prüfung 3.21 · ersetzt die Liste vom 07.11.
@@ -63,17 +63,22 @@ drei Farben je 2 Stück (je Box einer pro Farbe für Haupt, Vor, Zurück).
 
 ## Shop 2: Mouser.at
 
-Den Ring kauft Tobias bei Mouser (25.11.). Dazu kommen die zwei Teile, die
-Reichelt nicht hat. Mouser blockt automatische Abrufe, darum sind die Nummern
-und Preise **ungeprüft**; bitte im Warenkorb nachsehen.
+Den Ring kauft Tobias bei Mouser (25.11.), dazu die Teile, die Reichelt nicht
+hat. Mit Reserve bestellt, damit der Warenwert über 75 € liegt und der Versand
+(sonst 25 € FedEx) entfällt. Preise aus dem Warenkorb, **netto**, 20 % MwSt.
+kommen an der Kasse dazu. Lieferung DDP (verzollt).
 
-| # | Teil | Mouser-Nr. | € | Wofür |
-|---|---|---|---|---|
-| 14 | SparkFun LuMini LED Ring 2″, 40× APA102-2020, **COM-14966** | 474-COM-14966 | ~21 | LED-Ring |
-| 15 | Adafruit MAX98357A I²S-Verstärker (Adafruit 3006) | wohl 485-3006 | ~7 | Ton |
-| 16 | SN74AHCT125N (DIP-14, nicht die SMD-Ausführung) | wohl 595-SN74AHCT125N | ~0,60 | Pegelwandler LED-Ring |
+| # | Teil | Mouser-Nr. | Stk | € netto | Wofür |
+|---|---|---|---|---|---|
+| 13 | SparkFun LuMini LED Ring 2″, 40× APA102-2020, **COM-14966** | 474-COM-14966 | 3 | 53,94 | LED-Ring Box 1, Box 2, Reserve |
+| 14 | Adafruit MAX98357A I²S-Verstärker-Modul (Adafruit 3006) | 485-3006 | 4 | 21,12 | Ton, 2 Reserve |
+| 15 | SN74AHCT125N (DIP-14) | 595-SN74AHCT125N | 4 | 3,48 | Pegelwandler, 2 Reserve |
 
-**Summe ca. 29 € plus Versand** (gratis laut Hilfeseite erst ab etwa 75 €).
+**Summe 78,54 € netto, ca. 94 € mit MwSt., ohne Versand.** Nur ein Ring war
+sofort lieferbar, die anderen kommen nach.
+
+Achtung: `700-MAX98357AETE+T` ist der blanke Chip (SMD, 3 × 3 mm, nicht
+stornierbar), nicht das Modul.
 
 ## Shop 3: Tinytronics (NL)
 
@@ -91,11 +96,13 @@ Reichelt führt den PiSugar nicht.
 | Shop | ca. € |
 |---|---|
 | Reichelt.at | 90,67 (mit Versand) |
-| Mouser.at | 29 + Versand |
+| Mouser.at | ca. 94 (mit MwSt., ohne Versand) |
 | Tinytronics (2 PiSugar) | 114–116 |
-| **Summe** | **ca. 235 € plus Versand Mouser** |
+| **Summe** | **ca. 300 €** (davon ca. 30 € Reserve und Teile für Box 2) |
 
 Berrybase entfällt damit ganz.
+
+**Bestellt von Tobias am 25.11.:** Reichelt, Mouser (mit Reserve) und Tinytronics.
 
 ## Nicht bei Reichelt, später oder anders
 
