@@ -48,16 +48,18 @@ Teile mit 2 Stück sind gleich für Box 2 dabei.
 | 6 | Elko 1000 µF 25 V | RAD FC 1.000/25 | 2 | 1,15 | Puffer am Verstärker |
 | 7 | Steckbrett-Set 830 Kontakte | BREADBOARD SET1 | 1 | 7,46 | Breadboard |
 | 8 | NTAG215-Aufkleber, 10 Stk. | BERRYBASE 125451 | 3 | 14,97 | Testkarten |
+| 9 | Micro-Arcade-Taster weiß, Ø 27,1 mm | ARC BUTTON MC WH | 2 | 3,73 | Taster |
+| 10 | Micro-Arcade-Taster gelb, Ø 27,1 mm | ARC BUTTON MC YE | 2 | 3,73 | Taster |
+| 11 | Micro-Arcade-Taster grün, Ø 27,1 mm | ARC BUTTON MC GN | 2 | 3,83 | Taster |
+| 12 | Offizielles Pi-Netzteil 5,1 V / 2,5 A Micro-USB | RPI PS 12.5EU WT | 1 | 7,92 | Pi ohne PiSugar |
 
-**Summe 64,51 € plus 6,95 € Versand = 71,46 €.**
+**Summe Tobi-Box-Teile 83,72 € plus 6,95 € Versand = 90,67 €** (Warenkorb
+Tobias, 25.11., zweite Fassung).
 
-Hat Tobias schon (25.11.): microSD-Karten, USB-Netzteile, Jumperkabel. Das
-Netzteil für den Pi 3 B+ muss 5,1 V mit mindestens 2,5 A liefern, sonst meldet
-der Pi Unterspannung und die Strommessung stimmt nicht.
+Hat Tobias schon (25.11.): microSD-Karten und Jumperkabel.
 
-**Taster:** sucht Tobias selbst aus (Typ und Farben, 25.11.). Gebraucht werden
-drei (Haupt, Vor, Zurück), rund, ca. 24 mm, mit Schließer. Die Micro-Arcade-Taster
-von Reichelt (ARC BUTTON MC WH) gefallen ihm nicht.
+**Taster:** Tobias hat sich doch für die Micro-Arcade-Taster entschieden, in
+drei Farben je 2 Stück (je Box einer pro Farbe für Haupt, Vor, Zurück).
 
 ## Shop 2: Mouser.at
 
@@ -88,10 +90,10 @@ Reichelt führt den PiSugar nicht.
 
 | Shop | ca. € |
 |---|---|
-| Reichelt.at | 71,46 (mit Versand) |
+| Reichelt.at | 90,67 (mit Versand) |
 | Mouser.at | 29 + Versand |
 | Tinytronics (2 PiSugar) | 114–116 |
-| **Summe** | **ca. 215 € plus Versand Mouser, ohne Taster** |
+| **Summe** | **ca. 235 € plus Versand Mouser** |
 
 Berrybase entfällt damit ganz.
 
