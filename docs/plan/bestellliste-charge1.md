@@ -34,32 +34,30 @@ nur 1200 mAh, rund 3 h Laufzeit) und Pi 4 (teurer, mehr Strom).
 
 ## Shop 1: Reichelt.at (Hauptbestellung)
 
-Wunsch Tobias (25.11.): möglichst viel bei Reichelt. Geprüft am 25.11. auf
-reichelt.at, Preise brutto inkl. 20 % MwSt., alles ab Lager. Suche im Shop mit
-dem Bestellcode.
+Wunsch Tobias (25.11.): möglichst viel bei Reichelt. Warenkorb von Tobias vom
+25.11. (Referenz im Warenkorb), Preise brutto inkl. 20 % MwSt., alles ab Lager.
+Teile mit 2 Stück sind gleich für Box 2 dabei.
 
 | # | Teil | Bestellcode | Stk | € | Wofür |
 |---|---|---|---|---|---|
-| 1 | SanDisk High Endurance microSD 64 GB | SDSQQNR064GGN6IA | 1 | 27,99 | System und Medien (begrenzte Stückzahl) |
-| 2 | Offizielles Pi-Netzteil 5,1 V / 2,5 A Micro-USB, **nur falls keins da ist** | RPI PS 12.5EU WT | 1 | 7,92 | Pi ohne PiSugar |
-| 3 | Kühlkörper-Set für den Pi | RPI COOL BK | 1 | 1,16 | Pi |
-| 4 | Visaton FRS 8, 4 Ω | VIS FRS 8-4 | 1 | 13,73 | Lautsprecher |
-| 5 | Drehgeber KY-040 | DEBO ENCODER | 1 | 2,17 | Lautstärke |
-| 6 | Micro-Arcade-Taster weiß, Bohrung 23,5 mm | ARC BUTTON MC WH | 3 | 5,61 | Haupt, Vor, Zurück |
-| 7 | PTC-Sicherung 1,1 A | PTC FUSB110F | 1 | 0,90 | 5-V-Pfad Ring |
-| 8 | Elko 1000 µF 25 V | RAD FC 1.000/25 | 1 | 0,57 | Puffer am Verstärker |
-| 9 | Steckbrett-Set 830 Kontakte | BREADBOARD SET1 | 1 | 7,46 | Breadboard |
-| 10 | Jumperkabel 40 Stk. Buchse/Buchse 20 cm | DEBO KABELSET12 | 1 | 1,61 | Breadboard |
-| 11 | Jumperkabel 40 Stk. Stecker/Buchse 15 cm | DEBO KABELSET10 | 1 | 1,87 | Breadboard |
-| 12 | Sortiment LEDs und Widerstände | S93 | 1 | 5,03 | Teiler Hauptknopf, SD_MODE |
-| 13 | NTAG215-Aufkleber, 10 Stk. | BERRYBASE 125451 | 3 | 14,97 | Testkarten |
+| 1 | Visaton FRS 8, 4 Ω | VIS FRS 8-4 | 2 | 27,45 | Lautsprecher |
+| 2 | Drehgeber KY-040 | DEBO ENCODER | 2 | 4,34 | Lautstärke |
+| 3 | PTC-Sicherung 1,1 A | PTC FUSB110F | 2 | 1,79 | 5-V-Pfad Ring |
+| 4 | Sortiment LEDs und Widerstände | S93 | 1 | 5,03 | Teiler Hauptknopf, SD_MODE |
+| 5 | Kühlkörper-Set für den Pi | RPI COOL BK | 2 | 2,32 | Pi |
+| 6 | Elko 1000 µF 25 V | RAD FC 1.000/25 | 2 | 1,15 | Puffer am Verstärker |
+| 7 | Steckbrett-Set 830 Kontakte | BREADBOARD SET1 | 1 | 7,46 | Breadboard |
+| 8 | NTAG215-Aufkleber, 10 Stk. | BERRYBASE 125451 | 3 | 14,97 | Testkarten |
 
-**Summe ca. 91 € plus Versand** (DPD 6,95 €; eine Gratis-Grenze ist nicht
-ausgewiesen). Ohne Netzteil ca. 83 €.
+**Summe 64,51 € plus 6,95 € Versand = 71,46 €.**
 
-Hinweis zu #6: Die Taster sind die Micro-Ausführung statt der Mini-Taster von
-Berrybase. Für das Breadboard reicht das; welche Taster in die Box kommen,
-entscheidet das CAD.
+Hat Tobias schon (25.11.): microSD-Karten, USB-Netzteile, Jumperkabel. Das
+Netzteil für den Pi 3 B+ muss 5,1 V mit mindestens 2,5 A liefern, sonst meldet
+der Pi Unterspannung und die Strommessung stimmt nicht.
+
+**Taster:** sucht Tobias selbst aus (Typ und Farben, 25.11.). Gebraucht werden
+drei (Haupt, Vor, Zurück), rund, ca. 24 mm, mit Schließer. Die Micro-Arcade-Taster
+von Reichelt (ARC BUTTON MC WH) gefallen ihm nicht.
 
 ## Shop 2: Mouser.at
 
@@ -90,10 +88,10 @@ Reichelt führt den PiSugar nicht.
 
 | Shop | ca. € |
 |---|---|
-| Reichelt.at | 91 + 6,95 |
+| Reichelt.at | 71,46 (mit Versand) |
 | Mouser.at | 29 + Versand |
 | Tinytronics (2 PiSugar) | 114–116 |
-| **Summe** | **ca. 241 € plus Versand Mouser** |
+| **Summe** | **ca. 215 € plus Versand Mouser, ohne Taster** |
 
 Berrybase entfällt damit ganz.
 
